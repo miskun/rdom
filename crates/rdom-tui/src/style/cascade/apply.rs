@@ -251,6 +251,10 @@ pub(super) fn apply_style(
         overflow_y: OVERFLOW_Y,
         overflow_clip_margin: OVERFLOW_CLIP_MARGIN,
         text_overflow: TEXT_OVERFLOW,
+        max_lines: MAX_LINES,
+        block_ellipsis: BLOCK_ELLIPSIS,
+        continue_: CONTINUE,
+        webkit_box_orient: WEBKIT_BOX_ORIENT,
         scrollbar_gutter: SCROLLBAR_GUTTER,
         scroll_behavior: SCROLL_BEHAVIOR,
         // `display` owns both halves: `display: inherit` takes the

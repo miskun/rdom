@@ -176,7 +176,7 @@ fn paint_lines(
         inner,
         bg_dedup_owner: id,
     };
-    let marking = Marking::of(dom, id);
+    let marking = Marking::of(dom, id, None);
     paint_inline_layout(dom, layout, at, marking.as_ref(), buf, clip, viewport);
 
     // Anchor href tagging for whole-element anchors (e.g.
@@ -236,7 +236,7 @@ pub(super) fn paint_ifc(
         inner,
         bg_dedup_owner: id,
     };
-    let marking = Marking::of(dom, id);
+    let marking = Marking::of(dom, id, None);
     paint_inline_layout(
         dom,
         inline_layout,
@@ -277,10 +277,10 @@ pub(super) fn paint_anonymous_blocks(
     // The host's `::before` / `::after` are packed into the first / last
     // anonymous box by the layout pass (CSS 2.1 §9.2.1.1); they arrive
     // here as the layouts' generated fragments.
-    // An anonymous block box's lines are its container's (CSS Overflow 4
-    // §3 applies to the block container's line boxes).
-    let marking = Marking::of(dom, container_id);
-    for anon in &ext.anonymous_blocks {
+    for (k, anon) in ext.anonymous_blocks.iter().enumerate() {
+        // An anonymous block box's lines are its container's (CSS Overflow
+        // 4 §3 applies to the block container's line boxes).
+        let marking = Marking::of(dom, container_id, Some(k));
         let at = FlowPlacement {
             inner: anon.rect,
             bg_dedup_owner: container_id,
@@ -340,12 +340,12 @@ fn paint_inline_layout(
     // per IFC paint, reused across fragments. `None` when there's no
     // selection or it's collapsed (caret only, nothing to highlight).
     let selection_range = dom.selection_range().filter(|r| !r.is_collapsed());
-    for line in &inline_layout.lines {
+    for (index, line) in inline_layout.lines.iter().enumerate() {
         let line_y = inner.y + i32::from(line.text_row());
         let text_visible = line_y >= clip.y as i32 && line_y < clip.bottom() as i32;
         // `text-overflow`'s cut of this line, narrowing the clip it paints
         // its text in (CSS Overflow 4 §3).
-        let cut = marking.map(|m| cut_line(line, inner.x, m));
+        let cut = marking.map(|m| cut_line(line, index, inner.x, m));
         let clip = cut
             .as_ref()
             .map_or(clip, |cut| narrow(clip, cut.left, cut.right));

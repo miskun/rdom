@@ -205,6 +205,20 @@ pub struct ComputedStyle {
     pub overflow_clip_margin: crate::layout::OverflowClipMargin,
     /// `text-overflow` (CSS Overflow 4 §3); not inherited.
     pub text_overflow: crate::layout::TextOverflow,
+    /// `max-lines` (CSS Overflow 4 §4.2); `None` is `none`.
+    pub max_lines: Option<u32>,
+    /// `block-ellipsis` (CSS Overflow 4 §4.3); inherited.
+    pub block_ellipsis: crate::layout::BlockEllipsis,
+    /// `continue` (CSS Overflow 4 §4.4).
+    pub continue_: crate::layout::Continue,
+    /// `-webkit-box-orient`: the legacy clamp's condition.
+    pub webkit_box_orient: crate::layout::BoxOrient,
+    /// Derived at the cascade's end: whether the box is a line-clamp
+    /// container (CSS Overflow 4 §4) — a block container with
+    /// `max-lines` and `continue: collapse` / `discard`, or the
+    /// `-webkit-legacy` form on a `-webkit-box` with a vertical
+    /// `-webkit-box-orient`, which then lays out as a block container.
+    pub line_clamp_container: bool,
     /// CSS `scrollbar-gutter` — controls whether `Overflow::Auto`
     /// reserves gutter cells when no scrollbar is actually showing.
     /// `Auto` (default) reserves only when overflow occurs (TUI
@@ -410,6 +424,11 @@ impl ComputedStyle {
             overflow_y: Overflow::Visible,
             overflow_clip_margin: crate::layout::OverflowClipMargin::default(),
             text_overflow: crate::layout::TextOverflow::default(),
+            max_lines: None,
+            block_ellipsis: crate::layout::BlockEllipsis::NoEllipsis,
+            continue_: crate::layout::Continue::Auto,
+            webkit_box_orient: crate::layout::BoxOrient::InlineAxis,
+            line_clamp_container: false,
             scrollbar_gutter: crate::layout::ScrollbarGutter::Auto,
             scroll_behavior: crate::layout::ScrollBehavior::Auto,
             display: Display::Block,

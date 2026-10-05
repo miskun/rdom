@@ -241,6 +241,38 @@ impl TuiStyle {
         crate::layout::TextOverflow
     );
     setter!(
+        "max-lines",
+        max_lines,
+        max_lines,
+        max_lines_important,
+        MAX_LINES,
+        Option<u32>
+    );
+    setter!(
+        "block-ellipsis",
+        block_ellipsis,
+        block_ellipsis,
+        block_ellipsis_important,
+        BLOCK_ELLIPSIS,
+        crate::layout::BlockEllipsis
+    );
+    setter!(
+        "continue",
+        continue_,
+        continue_,
+        continue_important,
+        CONTINUE,
+        crate::layout::Continue
+    );
+    setter!(
+        "-webkit-box-orient",
+        webkit_box_orient,
+        webkit_box_orient,
+        webkit_box_orient_important,
+        WEBKIT_BOX_ORIENT,
+        crate::layout::BoxOrient
+    );
+    setter!(
         "scrollbar-gutter",
         scrollbar_gutter,
         scrollbar_gutter,

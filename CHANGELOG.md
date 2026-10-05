@@ -213,6 +213,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`line-clamp`, `max-lines`, `block-ellipsis`, `continue`** (CSS Overflow 4 §4) and the legacy `-webkit-line-clamp`, `-webkit-box-orient` and `display: -webkit-box` / `-webkit-inline-box` (as `flex` / `inline-flex`): `BlockEllipsis`, `Continue`, `BoxOrient`, `TuiStyle::max_lines` / `block_ellipsis` / `continue_` / `webkit_box_orient`, `ComputedStyle::line_clamp_container`, `parse_line_clamp` and the longhand parsers. (C8-LINE-CLAMP)
 - **`text-overflow`** (CSS Overflow 4 §3): `clip` / `ellipsis` / `<string>`, one or two values — `TextOverflow` (`one`, `two`, `values`, `line_sides`, `is_clip`), `TextOverflowSide`, `parse_text_overflow`, `TuiStyle::text_overflow`. (C8-TEXT-OVERFLOW)
 - **`overflow: clip`, the two-value `overflow`, `overflow-clip-margin`, `overflow-block` / `overflow-inline`** (CSS Overflow 3 §3.1–§3.2): `Overflow::Clip`, `OverflowClipMargin` (`TuiStyle::overflow_clip_margin`), `parse_overflow_shorthand` / `parse_overflow_clip_margin`, `Overflow::is_scrollable` / `clips` / `keyword`, `ComputedStyle::is_scroll_container` / `clips_overflow` / `normalize_overflow`; `overflow` serializes `<x> <y>` when the axes differ. (C8-OVERFLOW-CLIP)
 - `CalcUnit::Px`: the CSS pixel that pixel math functions (`border-width: calc(2px + 1in)`, radii, shadows) evaluate in; `CalcUnit::parse` never gives it, so a cell length cannot hold a pixel. (C5G-PERF-AND-TESTS)
@@ -288,6 +289,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-style`
 
+- **A shorthand's `unset` is each longhand's** (CSS Cascade 4 §7.3.3): `line-clamp: unset` (and `all: unset`) inherits `block-ellipsis` and resets the others. (C8-LINE-CLAMP)
 - **`TuiStyle::declared_count` counts every declaration**, derived from the property table (it skipped `z-index`, `opacity`, `position`, the insets, `box-shadow`, transitions, counters and flow-relative declarations). (C6G-DECLARED-COUNT)
 - **`removeProperty` and `::placeholder` keep the declarations the cascade still needs** (CSSOM §6.6): removing `margin` drops a kept `margin-left`, removing one longhand of a kept or `var()` shorthand keeps the others, and `::placeholder { color: var(--c) }` applies. (C6G-CSSOM-EDGES)
 - **Custom properties and `var()` values read back as written** (CSS Variables 1 §2–§3): their source text is kept, trimmed (`set_from_source` / `set_custom_source`, `parse::token::tokenize_spans`), so `--x: 1 - 2` reads `1 - 2`; kept background text lowercases its keywords. (C5G-CUSTOM-SERIALIZE)
@@ -353,6 +355,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **Line clamping** (CSS Overflow 4 §4): a line-clamp container's automatic height ends after its Nth line box — its own, an anonymous box's or a block descendant's — what follows is hidden from paint and hit-testing, and the line ends with the `block-ellipsis`, giving up whole characters for it; `display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: N` does the same. CSSOM aliases drop a vendor prefix's hyphen (`webkit_line_clamp()`) and escape a keyword (`r#continue()`). (C8-LINE-CLAMP)
 - **`text-overflow: ellipsis` / `<string>`** paints per line box of a block whose inline axis clips: whole characters hidden to fit the marker (a wide one never split), the first character clipped rather than ellipsed, both edges marked when scrolled under two values; layout, hit-testing and copying keep the whole text (CSS Overflow 4 §3). (C8-TEXT-OVERFLOW)
 - **The cascade resolves `revert`** (CSS Cascade 4 §7.3): in an author rule or inline style it rolls a property back to the user-agent origin's value (`unset` where the UA declares nothing); in a UA rule it is `unset`. Custom properties and `content` revert too; a cascade without `revert` costs nothing more. (C1-REVERT)
 - **Cascade layers** (CSS Cascade 5 §6.4): later layers beat earlier ones whatever the specificity, unlayered rules beat every layer, `!important` reverses the order; one cascade run's sheets share one layer order (an `App`: its `<style>` sheets in tree order, then its own). (C1-LAYER)

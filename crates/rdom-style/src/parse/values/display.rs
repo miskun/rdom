@@ -44,6 +44,10 @@ pub fn parse_display(value: &[Token]) -> Option<(Display, Flow, bool)> {
             "inline-block" => Some((Display::InlineBlock, Flow::Block, false)),
             "inline-flex" => Some((Display::Inline, Flow::Flex, false)),
             "inline-grid" => Some((Display::Inline, Flow::Grid, false)),
+            // Compat Standard §5: the legacy flexbox keywords are
+            // `flex` / `inline-flex`.
+            "-webkit-box" => Some((Display::Block, Flow::Flex, false)),
+            "-webkit-inline-box" => Some((Display::Inline, Flow::Flex, false)),
             _ => None,
         };
         if single.is_some() {

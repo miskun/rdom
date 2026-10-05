@@ -76,8 +76,9 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   `flow-root`, the two-keyword forms, `list-item`), `visibility`, `flex-direction` (+ `-reverse`), `flex-wrap`, `flex-flow`, `justify-content`, `align-content`, `align-items`, `align-self`, `justify-items`, `justify-self`, the `place-*` shorthands, `flex`, `flex-grow`,
   `flex-shrink`, `flex-basis`, `order`,
   `white-space`, `overflow` (one or two values, `clip` included), `overflow-x`, `overflow-y`,
-  `overflow-block`, `overflow-inline`, `overflow-clip-margin`, `text-overflow`, `scrollbar-gutter`,
-  `scroll-behavior`.
+  `overflow-block`, `overflow-inline`, `overflow-clip-margin`, `text-overflow`, `line-clamp`
+  (`max-lines`, `block-ellipsis`, `continue`, the legacy `-webkit-line-clamp` /
+  `-webkit-box-orient` / `display: -webkit-box`), `scrollbar-gutter`, `scroll-behavior`.
 - **Sizing and box** — `width`, `height`, `min-width`, `max-width`,
   `min-height`, `max-height` (cells, `%`, `calc()`, `none` for `max-*`,
   and the intrinsic keywords `min-content` / `max-content` /

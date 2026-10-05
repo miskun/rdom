@@ -2337,6 +2337,12 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.justify_self = rdom_style::layout::Align::Center.into();
     parent.align_self = rdom_style::layout::Align::Center.into();
     parent.overflow_x = Overflow::Hidden;
+    parent.text_overflow =
+        rdom_style::layout::TextOverflow::one(rdom_style::layout::TextOverflowSide::Ellipsis);
+    parent.max_lines = Some(2);
+    parent.block_ellipsis = rdom_style::layout::BlockEllipsis::Auto;
+    parent.continue_ = rdom_style::layout::Continue::Collapse;
+    parent.webkit_box_orient = rdom_style::layout::BoxOrient::Vertical;
     parent.overflow_y = Overflow::Scroll;
     parent.scrollbar_gutter = ScrollbarGutter::Stable;
     parent.scroll_behavior = ScrollBehavior::Smooth;
@@ -2468,6 +2474,17 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ("writing-mode", child.writing_mode == parent.writing_mode),
         ("box-sizing", child.box_sizing == parent.box_sizing),
         ("margin-trim", child.margin_trim == parent.margin_trim),
+        ("text-overflow", child.text_overflow == parent.text_overflow),
+        ("max-lines", child.max_lines == parent.max_lines),
+        (
+            "block-ellipsis",
+            child.block_ellipsis == parent.block_ellipsis,
+        ),
+        ("continue", child.continue_ == parent.continue_),
+        (
+            "-webkit-box-orient",
+            child.webkit_box_orient == parent.webkit_box_orient,
+        ),
     ];
     for (name, took) in probes {
         assert_eq!(

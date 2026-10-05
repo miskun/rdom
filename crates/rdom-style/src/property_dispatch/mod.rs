@@ -85,6 +85,7 @@ mod declare;
 mod fields;
 mod grid;
 mod importance;
+mod line_clamp;
 mod logical;
 mod names;
 mod serialize;
@@ -109,6 +110,8 @@ mod grid_areas_tests;
 mod grid_shorthand_tests;
 #[cfg(test)]
 mod grid_tests;
+#[cfg(test)]
+mod line_clamp_tests;
 #[cfg(test)]
 mod logical_tests;
 #[cfg(test)]

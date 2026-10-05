@@ -37,9 +37,15 @@ pub(super) fn wrapped_rows(
         _ => cross_budget,
     };
     let content_width = outer_width.saturating_sub(sizer.chrome());
-    compute_inline_layout(dom, id, content_width)
-        .height()
-        .max(1)
+    let il = compute_inline_layout(dom, id, content_width);
+    // A line-clamp container's lines end at its Nth (CSS Overflow 4 §4).
+    let height = match computed.max_lines {
+        Some(n) if computed.line_clamp_container => {
+            crate::render::layout_pass::line_clamp::clamped_lines_height(&il, n)
+        }
+        _ => il.height(),
+    };
+    height.max(1)
 }
 
 /// Sum of visible cell widths of an element's `::before` and `::after`

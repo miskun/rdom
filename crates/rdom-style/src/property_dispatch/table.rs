@@ -142,6 +142,10 @@ define_fields! {
     OverflowY => overflow_y : OVERFLOW_Y,
     OverflowClipMargin => overflow_clip_margin : OVERFLOW_CLIP_MARGIN,
     TextOverflow => text_overflow : TEXT_OVERFLOW,
+    MaxLines => max_lines : MAX_LINES,
+    BlockEllipsis => block_ellipsis : BLOCK_ELLIPSIS,
+    Continue => continue_ : CONTINUE,
+    WebkitBoxOrient => webkit_box_orient : WEBKIT_BOX_ORIENT,
     ScrollbarGutter => scrollbar_gutter : SCROLLBAR_GUTTER,
     ScrollBehavior => scroll_behavior : SCROLL_BEHAVIOR,
     Width => width : WIDTH,
@@ -335,5 +339,6 @@ pub fn inherits(name: &str) -> bool {
             | "border-spacing"
             | "direction"
             | "writing-mode"
+            | "block-ellipsis"
     )
 }

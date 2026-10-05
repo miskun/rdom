@@ -79,7 +79,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 17 | 0 | 0 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 5 | 0 | 1 | 1 | 7 |
-| 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 6 | 1 | 7 | 0 | 14 |
+| 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 7 | 1 | 6 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 0 | 1 | 14 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **150** | **24** | **87** | **46** | **307** |
+| **Total** | **151** | **24** | **86** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 111 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 110 rows Partial / Missing.
 
 Headline: rdom parses **183 property names** (`property_names()`, after C7-GRID-AREAS). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and `@media`.
 
@@ -162,7 +162,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 52 | `font-weight` numeric / `bolder` / `lighter`, `font-style: oblique`, `font` shorthand | `≥ 600` / `bold` / `bolder` → SGR 1; `≤ 300` / `lighter` → SGR 2 (faint) is optional; `oblique` → italic; `font` shorthand reads weight / style and ignores family / size. | S | No |
 | 53 | `quotes` + `open-quote` / `close-quote` in `content` | Quote marks for `<q>` and nested quotations, from the `quotes` pairs. | S | No |
 | 54 | `counters()`, `counter-set`, `reversed()` in `counter-reset`, more counter styles, `@counter-style`, `symbols()` | Nested "1.2.3" numbering; set without reset; `<ol reversed>`; `disc` / `circle` / `square` / `decimal-leading-zero` / `lower-greek` / author-defined styles. | S / M | Partial — `counters()`, `counter-set` Yes; rest No |
-| 55 | `line-clamp` (`max-lines`, `block-ellipsis`, `continue`) | Clamp a block to N rows, last row ends in `…`. | M | No |
+| 55 | `line-clamp` (`max-lines`, `block-ellipsis`, `continue`) | Clamp a block to N rows, last row ends in `…`. | M | No | *Shipped: C8-LINE-CLAMP.*
 | 56 | `filter` (color functions), `backdrop-filter`, `mix-blend-mode`, `isolation` | `grayscale()` / `invert()` / `brightness()` / `contrast()` / `sepia()` / `saturate()` / `hue-rotate()` / `opacity()` as per-cell color transforms (`blur()` / `drop-shadow()` N/A); blend modes per cell; `isolation: isolate` as a stacking-context trigger. | M (isolation S) | Yes (as non-existent stacking triggers) |
 | 57 | `box-shadow` | Shipped (C4-SHADOW; §3.5): offset shade in the shadow's color (a translucent one darkens the cells beneath), spread grows it, `inset` inside the padding box; blur N/A. | M | Yes |
 | 58 | `background-clip` | Shipped (C4-BG-CLIP; §3.5): `padding-box` / `content-box` fill only that area; a half-block border keeps its cells clear. | S | Yes |
@@ -410,7 +410,7 @@ dropped. The audit's six, with where each stands:
 | `overflow-block` / `overflow-inline` | Supported | `overflow-y` / `overflow-x` in `horizontal-tb`, one storage (C8-OVERFLOW-CLIP). | — | `DISP` (`logical.rs`) |
 | `overflow-clip-margin` | Supported | `<visual-box> \|\| <length [0,∞]>` in whole cells, on `clip` axes (CSS Overflow 3 §3.2; C8-OVERFLOW-CLIP); a viewport-relative length is rejected (DIVERGENCES). | Yes | `V/keyword.rs::parse_overflow_clip_margin`, `layout_pass/clip_edge.rs` |
 | `text-overflow` | Supported | `clip` / `ellipsis` / `<string>`, one value (the end edge) or two (line-left, line-right), per line box of a block whose inline axis clips: whole characters hidden, markers counted in cells, the first character clipped, copy unaffected (CSS Overflow 4 §3; C8-TEXT-OVERFLOW). `fade` / `fade()` not parsed (sub-cell, DIVERGENCES). | Yes | `V/keyword.rs::parse_text_overflow`, `PAINT/inline_paint/text_overflow.rs` |
-| `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | Missing | Row clamping with `…`. | No | `BLOCK`, `IFC` |
+| `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | Supported | The shorthand and its longhands, and the legacy `-webkit-line-clamp` with `display: -webkit-box` / `-webkit-inline-box` and `-webkit-box-orient` (CSS Overflow 4 §4; C8-LINE-CLAMP): a block container's automatic height ends after its Nth line box — its own, its anonymous boxes' or a block descendant's in its formatting context — what follows is hidden, and that line ends with the `block-ellipsis`, giving up whole characters for it. `discard` clamps as `collapse` (no fragmentation); a clamped flex or grid item whose lines are in block descendants is measured unclamped (DIVERGENCES). | Yes | `V/line_clamp.rs`, `layout_pass/line_clamp.rs`, `PAINT/inline_paint/text_overflow.rs` |
 | `scroll-behavior` | Supported | `auto` / `smooth` (fixed curve, documented). | Yes | `V/keyword.rs` |
 | `scrollbar-gutter` | Partial | `auto` / `stable`; `both-edges` rejected. | No | `V/keyword.rs::parse_scrollbar_gutter` |
 | `scrollbar-width` | Missing | `none` hides the bar. | Yes | `DISP`, `PAINT/scrollbar.rs` |
@@ -768,7 +768,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `overflow-block` / `overflow-inline` — Missing: Logical aliases. *Shipped: C8-OVERFLOW-CLIP.*
 - `overflow-clip-margin` — Missing: Cells outside the box that `clip` still paints. *Shipped: C8-OVERFLOW-CLIP.*
 - `text-overflow` — Missing: `clip` (today) / `ellipsis` / `<string>`. *Shipped: C8-TEXT-OVERFLOW.*
-- `line-clamp` / `max-lines` / `block-ellipsis` / `continue` — Missing: Row clamping with `…`.
+- `line-clamp` / `max-lines` / `block-ellipsis` / `continue` — Missing: Row clamping with `…`. *Shipped: C8-LINE-CLAMP.*
 - `scrollbar-gutter` — Partial: `auto` / `stable`; `both-edges` rejected.
 - `overscroll-behavior` (+ `-x` / `-y` / `-block` / `-inline`) — Missing: Stop scroll chaining.
 - `scroll-snap-type` / `scroll-snap-align` / `scroll-snap-stop` — Missing: Snap positions.

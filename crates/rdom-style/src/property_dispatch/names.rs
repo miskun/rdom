@@ -49,6 +49,12 @@ const PROPERTY_NAMES: &[&str] = &[
     "overflow-y",
     "overflow-clip-margin",
     "text-overflow",
+    "line-clamp",
+    "max-lines",
+    "block-ellipsis",
+    "continue",
+    "-webkit-line-clamp",
+    "-webkit-box-orient",
     "scrollbar-gutter",
     "scroll-behavior",
     // Layout — sizing

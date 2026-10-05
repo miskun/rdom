@@ -168,13 +168,22 @@ fn is_z_indexed_item(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bo
 /// paints into (CSS Overflow 3 §3): a scroll container's padding box; on
 /// each `overflow: clip` axis the overflow clip edge — the
 /// `overflow-clip-margin` box outset by its margin (§3.2) — and on a
-/// `visible` axis beside it no edge at all; `clip` unchanged when
-/// nothing clips. Paint and hit-testing share it.
+/// `visible` axis beside it no edge at all; a line-clamp container's
+/// rows end at its clamp point; `clip` unchanged when nothing clips.
+/// Paint and hit-testing share it.
 pub(crate) fn children_clip(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle, clip: Rect) -> Rect {
     let Some(ext) = dom.node(id).ext() else {
         return clip;
     };
-    let edges = crate::render::layout_pass::ClipEdges::of(ext, c);
+    let mut edges = crate::render::layout_pass::ClipEdges::of(ext, c);
+    // A line-clamp container hides what follows its clamp point (CSS
+    // Overflow 4 §4.4), whatever its `overflow`.
+    if let Some(point) = crate::render::layout_pass::line_clamp::clamp_point(dom, id) {
+        edges = edges.narrow(crate::render::layout_pass::ClipEdges {
+            x: None,
+            y: Some((i32::from(clip.y), point.bottom)),
+        });
+    }
     if edges == crate::render::layout_pass::ClipEdges::NONE {
         return clip;
     }

@@ -32,6 +32,7 @@ mod grid;
 mod grid_areas;
 mod grid_placement;
 mod keywords;
+mod line_clamp;
 mod overflow;
 mod rect;
 mod sides;
@@ -57,6 +58,7 @@ pub use keywords::{
     PointerEvents, Position, ScrollBehavior, ScrollbarGutter, TextDecoration, TextDirection,
     UserSelect, Visibility, WhiteSpace, WritingMode, ZIndex,
 };
+pub use line_clamp::{BlockEllipsis, BoxOrient, Continue};
 pub use overflow::{Overflow, OverflowClipMargin, TextOverflow, TextOverflowSide};
 pub use rect::LayoutRect;
 pub use sides::{Corners, Sides};

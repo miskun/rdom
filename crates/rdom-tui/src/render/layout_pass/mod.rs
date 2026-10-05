@@ -92,6 +92,7 @@ pub(crate) mod gutter;
 mod ifc;
 pub(crate) mod intrinsic;
 mod items;
+pub(crate) mod line_clamp;
 mod margin_trim;
 mod positioned_pseudos;
 mod positioning;
@@ -276,6 +277,9 @@ pub(super) fn layout_node(
     // flow elements (CSS 2.1 §10.6.3 — used below to resolve
     // `height: Auto` on this element).
     let measurement = layout_children_aligned(dom, id, inner, &computed, containing_block_width);
+    // A line-clamp container's height ends at its clamp point (CSS
+    // Overflow 4 §4.4).
+    let measurement = line_clamp::clamped(dom, id, inner, measurement);
 
     // Collapse the geometry of any `display:none` child subtree. The in-flow
     // layout above filters those children out (they take no space), so without
@@ -360,6 +364,7 @@ pub(super) fn layout_node(
             // again from the new measurement.
             let measurement =
                 layout_children_aligned(dom, id, inner_v2, &computed, containing_block_width);
+            let measurement = line_clamp::clamped(dom, id, inner_v2, measurement);
             resolve_auto_height(
                 dom,
                 id,

@@ -78,9 +78,23 @@ pub(super) fn set_css_wide(
     }
     let fields = fields_of(name).ok_or(DispatchError::UnknownProperty)?;
     for f in fields {
-        f.put_css_wide(style, kw, name);
+        // A shorthand's `unset` is each longhand's (CSS Cascade 4 §7.3.3):
+        // an inherited longhand (`line-clamp`'s `block-ellipsis`) inherits.
+        let by = match kw {
+            CssWide::Unset => longhand_of(*f).unwrap_or(name),
+            _ => name,
+        };
+        f.put_css_wide(style, kw, by);
     }
     Ok(())
+}
+
+/// The longhand that owns `field` alone, if one does.
+fn longhand_of(field: super::table::Field) -> Option<&'static str> {
+    super::table::property_names()
+        .iter()
+        .copied()
+        .find(|n| fields_of(n) == Some(&[field][..]))
 }
 
 /// If every field `name` owns holds the *same* CSS-wide keyword, its

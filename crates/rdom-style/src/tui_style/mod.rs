@@ -194,6 +194,14 @@ pub struct TuiStyle {
     /// `text-overflow` (CSS Overflow 4 §3): how a line overflowing a
     /// clipping block's edge is marked.
     pub text_overflow: Option<Value<crate::layout::TextOverflow>>,
+    /// `max-lines` (CSS Overflow 4 §4.2): `Some(None)` is `none`.
+    pub max_lines: Option<Value<Option<u32>>>,
+    /// `block-ellipsis` (CSS Overflow 4 §4.3).
+    pub block_ellipsis: Option<Value<crate::layout::BlockEllipsis>>,
+    /// `continue` (CSS Overflow 4 §4.4).
+    pub continue_: Option<Value<crate::layout::Continue>>,
+    /// `-webkit-box-orient` (legacy; the `-webkit-legacy` clamp's axis).
+    pub webkit_box_orient: Option<Value<crate::layout::BoxOrient>>,
     /// `scrollbar-gutter: auto | stable`. Gates the layout pass's
     /// gutter reservation for scrollable elements. Default `Auto`.
     pub scrollbar_gutter: Option<Value<crate::layout::ScrollbarGutter>>,

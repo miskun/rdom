@@ -53,6 +53,12 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("overflow-y", "hidden"),
         ("overflow-clip-margin", "content-box 2"),
         ("text-overflow", "ellipsis \">\""),
+        ("line-clamp", "2"),
+        ("max-lines", "3"),
+        ("block-ellipsis", "auto"),
+        ("continue", "collapse"),
+        ("-webkit-line-clamp", "2"),
+        ("-webkit-box-orient", "vertical"),
         ("scrollbar-gutter", "stable"),
         ("scroll-behavior", "smooth"),
         ("width", "40"),
@@ -900,9 +906,14 @@ fn all_shorthand_sets_every_property_in_the_table() {
     set("ALL", "unset", &mut style).unwrap();
     // `direction` is in the table but not in `all` (C5-WRITING).
     let in_all = || property_names().iter().filter(|n| **n != "direction");
+    // A shorthand over an inherited and non-inherited longhands
+    // (`line-clamp`'s `block-ellipsis` inherits) has no one keyword:
+    // CSSOM serializes it as the empty string (C8-LINE-CLAMP).
+    let mixed = ["line-clamp", "-webkit-line-clamp"];
     for &name in in_all() {
         let want = if inherits(name) { "inherit" } else { "initial" };
-        assert_eq!(serialize(name, &style).as_deref(), Some(want), "{name}");
+        let want = (!mixed.contains(&name)).then_some(want);
+        assert_eq!(serialize(name, &style).as_deref(), want, "{name}");
     }
     assert_eq!(serialize("direction", &style), None);
     assert_eq!(style.custom_property_value("x"), Some("1"));

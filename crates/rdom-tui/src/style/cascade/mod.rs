@@ -73,6 +73,7 @@ mod counters;
 mod custom;
 mod inherit;
 mod ladder;
+mod line_clamp;
 mod matching;
 mod pseudo;
 mod registered;

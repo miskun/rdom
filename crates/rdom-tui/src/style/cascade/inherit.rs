@@ -45,6 +45,8 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     // inherit.
     working.text_direction = parent.text_direction;
     working.writing_mode = parent.writing_mode;
+    // CSS Overflow 4 §4.3: `block-ellipsis` inherits.
+    working.block_ellipsis = parent.block_ellipsis.clone();
     // `border-collapse` does NOT inherit in rdom — documented
     // divergence (BORDER-MODEL-1). Containers that want their direct
     // children to participate in collapse declare it themselves;
@@ -117,6 +119,8 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.overflow_x != b.overflow_x
         || a.overflow_y != b.overflow_y
         || a.overflow_clip_margin != b.overflow_clip_margin
+        || a.line_clamp_container != b.line_clamp_container
+        || a.max_lines != b.max_lines
         || a.display != b.display
         // `collapse` removes a flex item or table row from layout.
         || a.visibility != b.visibility

@@ -174,7 +174,7 @@ row comes from.
 | C8-FLOAT | `float` / `clear` (line-box exclusion, clearance) | |
 | C8-OVERFLOW-CLIP | `overflow: clip`, two-value `overflow`, `overflow-clip-margin`, logical `overflow-block` / `-inline` | done |
 | C8-TEXT-OVERFLOW | `text-overflow: clip / ellipsis / <string>` | done |
-| C8-LINE-CLAMP | `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | |
+| C8-LINE-CLAMP | `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | done |
 | C8-SCROLLBAR | `scrollbar-gutter: both-edges`, `scrollbar-width`, `scrollbar-color` | |
 | C8-OVERSCROLL | `overscroll-behavior` (+ axis / logical longhands) | |
 | C8-SCROLL-PADDING | `scroll-padding*` / `scroll-margin*` | |
@@ -4568,4 +4568,43 @@ row comes from.
   written with the types, not run red on its own). Green after. Mutation: the first-character
   rule off → that test (`…` for `a`; restored, touched). `apply_tests`, `canonical_values` and the
   important-setter test list the property. No snapshot changed.
+- 2026-10-05 — C8-LINE-CLAMP (CSS Overflow 4 §4, the editor's draft read for the longhand mapping).
+  rdom-style: `max-lines` (`none | <integer [1,∞]>`), `block-ellipsis` (`no-ellipsis | auto |
+  <string>`, inherited), `continue` (`auto | discard | collapse | -webkit-legacy`), the `line-clamp`
+  shorthand (`none` → `none` / `no-ellipsis` / `auto`; an integer → `block-ellipsis: auto` unless
+  given, `continue: collapse` or a trailing `-webkit-legacy`), `-webkit-line-clamp` (`block-ellipsis:
+  auto` always, an integer's `continue` `-webkit-legacy`), `-webkit-box-orient`, and `display:
+  -webkit-box` / `-webkit-inline-box` as the Compat Standard's `flex` / `inline-flex`; types
+  `BlockEllipsis`, `Continue`, `BoxOrient` (`layout/line_clamp.rs`), parsers in
+  `parse/values/line_clamp.rs`, set / serialize in `property_dispatch/line_clamp.rs`. Found by the
+  `all: unset` table test: `unset` on a shorthand resolved by the shorthand's name, so
+  `line-clamp: unset` reset the inherited `block-ellipsis`; `css_wide::set_css_wide` now resolves
+  it per field by the longhand owning it (CSS Cascade 4 §7.3.3), and the test expects no single
+  keyword for the two clamp shorthands (CSSOM gives the empty string). rdom-tui: the cascade's
+  `line_clamp::finalize_line_clamp` decides `ComputedStyle::line_clamp_container` (a block container
+  with `max-lines` and `continue: collapse` / `discard`) and the legacy form — `-webkit-legacy` on a
+  `flex` / `inline-flex` box with a vertical `-webkit-box-orient`, which then computes to `flow-root`
+  / `inline-block`, as engines lay it out (a plain `flex` box with those properties counts too,
+  DIVERGENCES). `layout_pass/line_clamp.rs::clamp_point` walks the container's line boxes — its own,
+  its anonymous boxes', its block-level in-flow descendants' that are not formatting contexts of
+  their own — in block order; the Nth one's bottom is the clamp point when anything follows (a
+  further line or a box reaching past it). Layout: `layout_node` cuts the measured content there
+  before `resolve_auto_height` (both gutter passes), and `intrinsic::wrapped_rows` clamps a
+  container's own lines (`clamped_lines_height`), so a clamped flex item is N lines tall; a flex or
+  grid item whose Nth line is in a block descendant is measured unclamped (DIVERGENCES §4).
+  Paint and hit-testing: `stacking::children_clip` ends the container's content rows at the clamp
+  point, whatever its `overflow`; the `block-ellipsis` joins C8-TEXT-OVERFLOW's `Marking`
+  (`Marking::of(dom, owner, anon)` finds the flow holding the Nth line by walking up to the
+  container through its formatting context), placed after the line's content, which gives up whole
+  pieces when the marker does not fit. The CSSOM alias generator (`build.rs`) met `continue`, a Rust
+  keyword, and `-webkit-…`: a vendor prefix's hyphen is dropped (`webkit_line_clamp()`) and a
+  keyword is a raw identifier (`r#continue()`). Red: `line_clamp_tests.rs` (3) did not compile (no
+  types or fields); `css_phase8/line_clamp.rs` — 6 of 7 failed (heights 3 for 2 and 5 for 3,
+  `three` for `three>`; the "fits" pin passed before and after). Green after. Mutation (each
+  restored and touched): the clamp clip off → three paint tests; the legacy form never active → the
+  `-webkit-box` test. `apply_tests`, `canonical_values`, the important-setter test and
+  `cascade_inherits_exactly_the_style_crates_inherited_set` list the new properties. No snapshot
+  changed. Split: `finalize_line_clamp` lives in `style/cascade/line_clamp.rs`, keeping `apply.rs`
+  at 540; TECH_DEBT `SIZE-1` updated (`computed.rs` 557, `inline_paint/mod.rs` 561; `keywords.rs`
+  below 500 after `overflow.rs` took `Overflow`).
 

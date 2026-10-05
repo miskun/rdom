@@ -53,7 +53,18 @@ fn main() {
 /// Convert a CSS property name (`"background-color"`,
 /// `"transition-timing-function"`, …) to a Rust snake_case method
 /// name. Hyphens become underscores; everything else is already
-/// ASCII-lowercase per the property table.
+/// ASCII-lowercase per the property table. A vendor prefix's leading
+/// hyphen is dropped (`-webkit-line-clamp` → `webkit_line_clamp`, CSSOM
+/// §6.6's webkit-cased attribute), and a name that is a Rust keyword
+/// (`continue`) is a raw identifier.
 fn snake_case(name: &str) -> String {
-    name.replace('-', "_")
+    let snake = name.trim_start_matches('-').replace('-', "_");
+    if matches!(
+        snake.as_str(),
+        "continue" | "box" | "type" | "move" | "static"
+    ) {
+        format!("r#{snake}")
+    } else {
+        snake
+    }
 }
