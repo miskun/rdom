@@ -63,7 +63,7 @@ pub(crate) use fragment::resolve_in_target;
 pub(crate) use nearest::nearest_inline_target_in_subtree;
 
 /// Extension trait adding hit-test lookup to `Dom<TuiExt>`.
-pub trait HitTestExt {
+pub trait HitTestExt: crate::sealed::Sealed {
     /// The deepest element whose painted area contains `(x, y)`.
     /// Uses the last-painted-wins rule: when two siblings overlap,
     /// the later one wins. Returns `None` if no element covers the

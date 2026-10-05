@@ -37,7 +37,7 @@ use crate::{TuiDom, TuiExt};
 
 /// Document-level CSSOM-flavored read accessors. Implemented for
 /// [`TuiDom`].
-pub trait TuiDocAccessors {
+pub trait TuiDocAccessors: crate::sealed::Sealed {
     /// [`Document.elementFromPoint(x, y)`] — the deepest element
     /// whose painted area contains the cell `(x, y)`. Returns
     /// `None` if no element covers the point (empty viewport,

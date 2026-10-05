@@ -1321,3 +1321,15 @@ row comes from.
   `colors::{var_simple, var_with_fallbacks_is_kept_for_the_cascade, border_color_var}` pinned the
   stray spaces (`var( --accent , red )`); they read `var(--accent, red)` now. No showcase snapshot
   changes.
+- 2026-10-06 — C4G-SEALED: decided once in DESIGN ("Which rdom-tui traits a consumer implements"):
+  call-only extension traits are sealed, injection points are not. Real list, from a grep of
+  `pub trait` in rdom-tui: sealed now — `LayoutExt`, `PaintExt`, `HitTestExt`, `TuiDispatchExt`,
+  `TuiDocAccessors`, `TuiNodeExt`, `TuiNodeMutExt`, `TuiAccessors`, `TuiAccessorsMut`, `TuiTimers`
+  (the gate's list plus the last four; `CascadeExt` already was); implementable — `Backend`,
+  `Clipboard`, `UrlOpener`. One seal for all: `crate::sealed::Sealed` (CascadeExt's private module
+  moved there), implemented for `Dom<TuiExt>`, `NodeRef<TuiExt>`, `NodeMut<TuiExt>` and
+  `EventCtx<TuiExt>`. Every one of the ten was publicly implementable, so CHANGELOG Breaking. Red:
+  `src/sealed/doctests.md`, ten `compile_fail` doctests, each a full outside implementation of one
+  trait (generated from the compiler's missing-item list, so a missing method cannot be what fails —
+  stable rustdoc does not check a `compile_fail` error code), all ten compiled ("FAILED"); green
+  after the supertraits. No behaviour change.

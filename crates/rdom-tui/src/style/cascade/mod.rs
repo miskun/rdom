@@ -157,7 +157,7 @@ use rdom_style::calc::Viewport;
 ///     fn color_scheme(&self) -> ColorScheme { ColorScheme::Dark }
 /// }
 /// ```
-pub trait CascadeExt: sealed::Sealed {
+pub trait CascadeExt: crate::sealed::Sealed {
     /// Cascade the whole document against `stylesheet`. Writes
     /// `ComputedStyle` entries to every element's `TuiExt`, clears
     /// `style_dirty`, sets `layout_dirty` on elements whose
@@ -210,13 +210,6 @@ pub trait CascadeExt: sealed::Sealed {
     /// The document's preferred color scheme
     /// ([`Self::set_color_scheme`]).
     fn color_scheme(&self) -> rdom_style::color::ColorScheme;
-}
-
-/// [`CascadeExt`]'s seal: a public trait in a private module, so no
-/// other crate can name it to implement it.
-mod sealed {
-    pub trait Sealed {}
-    impl Sealed for rdom_core::Dom<crate::ext::TuiExt> {}
 }
 
 impl CascadeExt for Dom<TuiExt> {

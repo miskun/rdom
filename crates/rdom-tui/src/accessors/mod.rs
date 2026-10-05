@@ -58,7 +58,7 @@ use crate::Result;
 /// read-then-mutate pattern compile in a single block — `value()`
 /// returns owned data, so the immutable borrow ends before the
 /// follow-up `set_value()` takes its mutable borrow.
-pub trait TuiAccessors<'a> {
+pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// Smart form-control value getter. Returns:
     ///
     /// - `<input>` (any type) → the live editing value, mirrored
@@ -432,7 +432,7 @@ pub type DomRect = crate::layout::LayoutRect;
 /// `set_value` accepts `impl Into<String>` so call sites pass `&str`,
 /// `String`, or anything that converts, matching the ergonomics of
 /// the browser IDL setter.
-pub trait TuiAccessorsMut<'a> {
+pub trait TuiAccessorsMut<'a>: crate::sealed::Sealed {
     /// Set the form-control value. Owning tags: `<input>` (any
     /// type), `<textarea>`, `<select>`.
     ///

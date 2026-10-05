@@ -514,7 +514,7 @@ pub(crate) fn pump_raf(scheduler: &SharedScheduler, dom: &mut TuiDom) -> bool {
 /// panics only when no `App` is active at all (a listener fired from a
 /// bare `Dom::dispatch_event` in a test with no `App`); pass a
 /// scheduler through your own context in that case.
-pub trait TuiTimers {
+pub trait TuiTimers: crate::sealed::Sealed {
     fn set_timeout(
         &mut self,
         callback: impl FnOnce(&mut TimerCtx<'_>) + 'static,

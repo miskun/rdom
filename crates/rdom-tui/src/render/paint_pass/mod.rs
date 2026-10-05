@@ -109,7 +109,7 @@ use stacking_walk::paint_stacking_context;
 pub(crate) use stacking_walk::paints_child_box;
 
 /// Extension trait on `Dom<TuiExt>` adding `paint_dom(buf, clip)`.
-pub trait PaintExt {
+pub trait PaintExt: crate::sealed::Sealed {
     /// Paint the entire cascaded + laid-out DOM into `buf`, clipped
     /// to `clip`. Assumes `cascade()` and `layout_dom()` have
     /// already run; paint reads from `ComputedStyle` and

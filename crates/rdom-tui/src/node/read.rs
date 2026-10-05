@@ -13,7 +13,7 @@ use super::tree::is_text_input;
 /// Readonly sugar over `NodeRef<'_, TuiExt>::ext()`. The underlying
 /// `ext()` on rdom-core returns `Option<&Ext>` already; this trait adds
 /// field-level getters so callers don't have to destructure.
-pub trait TuiNodeExt<'a> {
+pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
     fn tui_ext(&self) -> Option<&'a TuiExt>;
 
     // These read the *specified* inline-style value (`None` when the

@@ -11,7 +11,7 @@ use crate::style::{TuiStyle, Value};
 /// `&mut self` for chaining; they silently no-op on non-Element nodes
 /// (matching how `set_attribute` behaves in rdom-core — errors there,
 /// no-ops here to keep builder chains readable).
-pub trait TuiNodeMutExt<'a> {
+pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     fn tui_ext_mut(&mut self) -> Option<&mut TuiExt>;
 
     /// Apply `f` to the element's inline declarations — the one write

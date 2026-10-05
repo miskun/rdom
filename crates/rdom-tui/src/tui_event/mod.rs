@@ -287,7 +287,7 @@ impl TuiEvent {
 /// extra work. Typed payload lives on `event.detail`; listeners
 /// read it via `ctx.event.detail.as_keyboard()` / `as_mouse()` /
 /// `as_input()` / etc.
-pub trait TuiDispatchExt {
+pub trait TuiDispatchExt: crate::sealed::Sealed {
     /// Run a `TuiEvent` through rdom-core's capture → target →
     /// bubble walk.
     fn dispatch_tui_event(

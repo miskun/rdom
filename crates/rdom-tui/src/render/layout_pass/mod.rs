@@ -105,7 +105,7 @@ pub(super) use tree::element_children_of;
 pub(crate) use tree::is_in_flow;
 
 /// Extension trait on `Dom<TuiExt>` adding `layout_dom(viewport)`.
-pub trait LayoutExt {
+pub trait LayoutExt: crate::sealed::Sealed {
     /// Run the layout pass against `viewport`. Writes `TuiExt.layout`
     /// and `TuiExt.content_layout` for every element. Safe to call
     /// repeatedly — each call fully re-lays out.

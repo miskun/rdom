@@ -62,6 +62,8 @@ pub mod runtime;
 pub mod style;
 pub mod tui_event;
 
+mod sealed;
+
 #[cfg(test)]
 mod test_alloc;
 
