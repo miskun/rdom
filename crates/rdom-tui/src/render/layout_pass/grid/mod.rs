@@ -32,6 +32,7 @@
 //!   boxes it is the containing block of (§9.1).
 
 mod arrange;
+mod baseline;
 mod contribution;
 #[cfg(test)]
 mod cost_tests;
@@ -103,6 +104,9 @@ struct Grid {
     /// `None` when only the columns were asked for.
     rows: Option<TrackGrid>,
     placed: Vec<Placed>,
+    /// Each item's baseline shim (§10.4), by item; empty when only the
+    /// columns were sized.
+    baselines: Vec<Option<baseline::Shim>>,
     /// The explicit grid's size, its line names, and the implicit tracks
     /// before it, on each axis — the lines an absolutely positioned box
     /// is placed by (§9.1), their edges filled in by `arrange`.
@@ -171,10 +175,14 @@ fn size_grid(
         &mut column_grid,
         &placement.items,
         Dimension::Columns,
-        budgets,
+        Budgets {
+            budgets,
+            shims: Vec::new(),
+        },
         columns,
         computed,
     );
+    let mut baselines = Vec::new();
     let row_grid = rows.map(|rows| {
         let mut row_grid = tracks_of(
             &explicit_rows,
@@ -190,24 +198,38 @@ fn size_grid(
         // Each item's content wraps to its grid area's width, less its
         // margins (§11.1 step 2).
         let extents = column_grid.extents();
-        let budgets = placement
+        let areas: Vec<u16> = placement
             .items
             .iter()
             .map(|p| {
                 let area = extents[p.columns.end - 1].1 - extents[p.columns.start].0;
-                let area = area.min(u32::from(u16::MAX)) as u16;
+                area.min(u32::from(u16::MAX)) as u16
+            })
+            .collect();
+        let budgets = placement
+            .items
+            .iter()
+            .zip(&areas)
+            .map(|(p, &area)| {
                 let m = margins(dom, p, area);
                 let width =
                     (i32::from(area) - m.left - m.right).clamp(0, i32::from(u16::MAX)) as u16;
                 (width, area)
             })
             .collect();
+        // §11.5 step 1: the baseline-aligned items' shims count toward
+        // their rows.
+        baselines = baseline::shims(dom, computed, &placement.items, &areas);
+        let shims = baselines
+            .iter()
+            .map(|s| s.map_or(0, |s| s.offset.max(0) as u32))
+            .collect();
         run(
             dom,
             &mut row_grid,
             &placement.items,
             Dimension::Rows,
-            budgets,
+            Budgets { budgets, shims },
             rows,
             computed,
         );
@@ -231,6 +253,7 @@ fn size_grid(
             rows: axis(&explicit_rows, placement.rows_before),
         },
         placed: placement.items,
+        baselines,
     }
 }
 
@@ -334,19 +357,29 @@ fn tracks_of(
     TrackGrid::new(tracks, &collapsed, u32::from(bounds.gap))
 }
 
+/// What one axis's items are measured against: each item's budget on
+/// the other axis and its containing block's width
+/// (`contribution::Measured`), and the baseline shim added to its
+/// contributions (none for an item past the list's end).
+struct Budgets {
+    budgets: Vec<(u16, u16)>,
+    shims: Vec<u32>,
+}
+
 /// Size `grid` (§11.3) for `placed`'s items along `dimension`, each
-/// measured against `budgets[i]`.
+/// measured against its budget.
 fn run(
     dom: &Dom<TuiExt>,
     grid: &mut TrackGrid,
     placed: &[Placed],
     dimension: Dimension,
-    budgets: Vec<(u16, u16)>,
+    budgets: Budgets,
     axis: AxisContext,
     computed: &ComputedStyle,
 ) {
     let spans = contribution::spans(placed, dimension);
-    let mut measured = contribution::Measured::new(dom, placed, dimension, grid, budgets);
+    let mut measured = contribution::Measured::new(dom, placed, dimension, grid, budgets.budgets)
+        .with_shims(budgets.shims);
     let (min, max) = content_bounds(computed, dimension);
     sizing::size_tracks(
         grid,

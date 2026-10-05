@@ -39,6 +39,9 @@ pub(super) struct Measured<'a> {
     /// §5.2.1).
     budgets: Vec<(u16, u16)>,
     auto_min: Vec<AutoMinimum>,
+    /// Rows added to each item's contributions: its baseline shim
+    /// (§11.5 step 1); none past the end.
+    shims: Vec<u32>,
     cache: Vec<[Option<u32>; 3]>,
 }
 
@@ -79,8 +82,20 @@ impl<'a> Measured<'a> {
             dimension,
             budgets,
             auto_min,
+            shims: Vec::new(),
             cache: vec![[None; 3]; placed.len()],
         }
+    }
+
+    /// Add `shims[i]` to item `i`'s contributions (§11.5 step 1).
+    pub(super) fn with_shims(mut self, shims: Vec<u32>) -> Self {
+        self.shims = shims;
+        self
+    }
+
+    /// Item `i`'s baseline shim.
+    fn shim(&self, i: usize) -> u32 {
+        self.shims.get(i).copied().unwrap_or(0)
     }
 
     fn item(&self, i: usize) -> &Item {
@@ -128,7 +143,7 @@ impl<'a> Measured<'a> {
             Size::Fixed(_) | Size::Intrinsic(_) => false,
         };
         if !behaves_auto {
-            return self.min_content(i);
+            return self.cached(i, 0);
         }
         let kw = item.keywords(dom, &computed, direction, cross, cb);
         let sizer = kw.sizer();
@@ -181,35 +196,36 @@ fn measured() {
     MEASURES.with(|c| c.set(c.get() + 1));
 }
 
-impl Contributions for Measured<'_> {
-    fn min_content(&mut self, i: usize) -> u32 {
-        if let Some(v) = self.cache[i][0] {
+impl Measured<'_> {
+    /// Item `i`'s contribution of `kind` (0 min-content, 1 max-content,
+    /// 2 minimum), measured once per run — without its shim.
+    fn cached(&mut self, i: usize, kind: usize) -> u32 {
+        if let Some(v) = self.cache[i][kind] {
             return v;
         }
         measured();
-        let v = self.outer(i, false);
-        self.cache[i][0] = Some(v);
+        let v = match kind {
+            0 => self.outer(i, false),
+            1 => self.outer(i, true),
+            _ => self.measure_minimum(i),
+        };
+        self.cache[i][kind] = Some(v);
         v
+    }
+}
+
+/// Each contribution is the item's own plus its baseline shim.
+impl Contributions for Measured<'_> {
+    fn min_content(&mut self, i: usize) -> u32 {
+        self.cached(i, 0) + self.shim(i)
     }
 
     fn max_content(&mut self, i: usize) -> u32 {
-        if let Some(v) = self.cache[i][1] {
-            return v;
-        }
-        measured();
-        let v = self.outer(i, true);
-        self.cache[i][1] = Some(v);
-        v
+        self.cached(i, 1) + self.shim(i)
     }
 
     fn minimum(&mut self, i: usize) -> u32 {
-        if let Some(v) = self.cache[i][2] {
-            return v;
-        }
-        measured();
-        let v = self.measure_minimum(i);
-        self.cache[i][2] = Some(v);
-        v
+        self.cached(i, 2) + self.shim(i)
     }
 }
 

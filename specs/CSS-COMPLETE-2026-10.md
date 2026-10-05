@@ -158,7 +158,7 @@ row comes from.
 | C7-GRID-PLACE | `grid-row` / `grid-column` (+ start / end), `grid-area`, auto-placement, `grid-auto-flow` (`dense`) | done |
 | C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | done |
 | C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | done |
-| C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | partial — baseline self-alignment (part 2), `justify-content` / `align-content` (part 3) |
+| C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | partial — `justify-content` / `align-content` (part 3) |
 | C7-SUBGRID | `subgrid` | |
 
 ### Phase 8 — Positioning, floats, overflow, scrolling (audit §3.10, §3.11)
@@ -3866,3 +3866,24 @@ row comes from.
   touched): `auto` margins never absorbing → the margins test; the aspect ratio ignored → its test;
   `auto` not taking `*-items` → the justify, align and margins tests. No other test expectation and no
   snapshot changed.
+- 2026-10-08 — C7-GRID-ALIGN, part 2 of 3: baseline self-alignment in grid rows (CSS Grid 2 §10.4,
+  CSS Box Alignment 3 §9.1 / §9.3; Grid §11.5 step 1). `grid/baseline.rs`: the items whose
+  `align-self` (or the container's `align-items`) is `baseline` / `last baseline` and whose block
+  margins are not `auto` form one group per row and preference — a spanning item in its first row's
+  first-baseline group, its last row's last-baseline group (§9.3) — each measured once, after the
+  columns, at the width it will have in its area and its unstretched height (`arrange::baseline_size`:
+  `arrange::fit` is now an `ItemFit` whose width and height take an indefinite area height, so the
+  measurement and the layout size the item one way); each gets the shim that brings its baseline to
+  the group's, which `contribution::Measured` adds to its three row contributions (cached without
+  it) and `arrange` places it by — the group flush with the row's start, a last-baseline group with
+  its end. Shared, not forked: the block-axis baseline geometry (`BaselineBox`: margins, height,
+  first / last content rows, the synthesized bottom row, a scroll container's last baseline at its
+  margin edge) moves from `flex/cross.rs` to `items/baseline.rs` with `BaselineBox::measure`, which
+  flex's `baseline_box` now calls after its cross sizing. The columns have no baseline alignment (a
+  horizontal item has no inline-axis baseline: `justify-self: baseline` is `safe self-start` through
+  `block::justify_offset`, as part 1 left it). Red: `css_phase7/baseline.rs` (4) — every baseline
+  item at its row's top (`(4, 0, 4, 1)` for `(4, 2, 4, 1)`), the shimmed row 4 tall where it must be
+  6, the last-baseline items at `safe self-end` (`(0, 2, 4, 3)` for `(0, 1, 4, 3)`); green after.
+  Mutation checks (restored and touched): no shims in the row contributions → the shim test; the
+  first-baseline group keyed by the item's last row → the spanning test. No other test expectation and
+  no snapshot changed (flex's baseline tests pass through the moved measurement).

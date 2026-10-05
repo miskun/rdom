@@ -36,9 +36,11 @@ use crate::render::layout_pass::intrinsic::Keywords;
 use crate::style::ComputedStyle;
 
 mod anonymous;
+mod baseline;
 mod minimum;
 
 pub(in crate::render::layout_pass) use anonymous::AnonymousItem;
+pub(in crate::render::layout_pass) use baseline::BaselineBox;
 pub(in crate::render::layout_pass) use minimum::{Suggestion, content_based_minimum};
 
 /// One flex or grid item of a container.

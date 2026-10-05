@@ -7,7 +7,7 @@ use rdom_core::Dom;
 
 use crate::ext::TuiExt;
 use crate::layout::{Direction, MarginValue, Size, clamp_size};
-use crate::render::layout_pass::items::Item;
+use crate::render::layout_pass::items::{BaselineBox, Item};
 use crate::style::ComputedStyle;
 
 /// The already-resolved main axis, as the cross resolver sees it, and
@@ -197,36 +197,6 @@ pub(super) fn hypothetical_outer_cross(
     (i32::from(size) + margins.start + margins.end).clamp(0, i32::from(u16::MAX)) as u16
 }
 
-/// A row item's block-axis geometry for baseline alignment (CSS Flexbox
-/// §8.3): its physical top and bottom margins, its hypothetical (not
-/// stretched) border-box height, and its first and last baseline rows
-/// from its border-box top — its first and last content rows, or, with
-/// no content rows, a baseline synthesized at its border box's bottom
-/// row (CSS Box Alignment 3 §9.1).
-#[derive(Debug, Clone, Copy)]
-pub(super) struct BaselineBox {
-    pub(super) margin_top: i32,
-    pub(super) height: u16,
-    pub(super) margin_bottom: i32,
-    pub(super) first: u16,
-    pub(super) last: u16,
-}
-
-impl BaselineBox {
-    /// Rows from its margin-box top to its first baseline row.
-    pub(super) fn above_first(&self) -> i32 {
-        self.margin_top + i32::from(self.first)
-    }
-    /// Rows from its margin-box top to its last baseline row.
-    pub(super) fn above_last(&self) -> i32 {
-        self.margin_top + i32::from(self.last)
-    }
-    /// Its margin box's height.
-    pub(super) fn outer(&self) -> i32 {
-        self.margin_top + i32::from(self.height) + self.margin_bottom
-    }
-}
-
 /// Measure `item` (a row item of used width `main.size`) for baseline
 /// alignment.
 pub(super) fn baseline_box(
@@ -256,36 +226,14 @@ pub(super) fn baseline_box(
             stretch: false,
         },
     );
-    let synthesized = height.saturating_sub(1);
-    let rows = match item {
-        Item::Element(id) => crate::render::inline::vertical::content_rows(
-            dom,
-            *id,
-            &computed,
-            main.size,
-            container_width,
-        ),
-        Item::Anonymous(anon) => anon.content_rows(dom, main.size, container_width),
-    };
-    let (first, last) = rows.unwrap_or((synthesized, synthesized));
-    // CSS Box Alignment 3 §9.1: "for legacy reasons" a scroll container's
-    // last baselines are its block-end margin edge — its scrollbar gutter
-    // and clipped content aside (as an inline block's in its line,
-    // `inline::vertical::atom_rows`).
-    let scrolls = computed.overflow_x != crate::layout::Overflow::Visible
-        || computed.overflow_y != crate::layout::Overflow::Visible;
-    let last = if scrolls {
-        (i32::from(height) + margin_bottom - 1).clamp(0, i32::from(u16::MAX)) as u16
-    } else {
-        last
-    };
-    BaselineBox {
-        margin_top,
-        height,
-        margin_bottom,
-        first,
-        last,
-    }
+    BaselineBox::measure(
+        dom,
+        item,
+        &computed,
+        (main.size, height),
+        (margin_top, margin_bottom),
+        container_width,
+    )
 }
 
 /// An inline-level child of the document root. A flex item's `display`

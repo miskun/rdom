@@ -17,10 +17,10 @@
 
 use rdom_core::Dom;
 
-use super::cross::{BaselineBox, CrossSpace, ResolvedMain, baseline_box};
+use super::cross::{CrossSpace, ResolvedMain, baseline_box};
 use crate::ext::TuiExt;
 use crate::layout::{Align, Alignment, Direction, OverflowAlign, TextDirection};
-use crate::render::layout_pass::items::Item;
+use crate::render::layout_pass::items::{BaselineBox, Item};
 use crate::style::ComputedStyle;
 
 /// Where an item goes on its line's cross axis, in the frame whose

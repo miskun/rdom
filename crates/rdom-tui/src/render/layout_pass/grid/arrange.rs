@@ -16,13 +16,17 @@
 //! physical, `center` rounded down, `safe` keeping an overflowing item
 //! at the start, §4.4).
 
+use std::rc::Rc;
+
 use rdom_core::{Dom, NodeId};
 
 use super::Grid;
+use super::baseline::Shim;
 use super::placement::Placed;
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{
-    Align, Alignment, Direction, LayoutRect, MarginValue, TextDirection, clamp_size,
+    Align, Alignment, AspectRatio, Direction, LayoutRect, MarginValue, Sides, TextDirection,
+    clamp_size,
 };
 use crate::render::layout_pass::block::justify_offset;
 use crate::render::layout_pass::box_sizing::aspect_cross_from_main;
@@ -64,7 +68,7 @@ pub(super) fn arrange(
     let scroll_x = scroll_offset(dom, id, Direction::Row);
     let scroll_y = scroll_offset(dom, id, Direction::Column);
     let mut anonymous = Vec::new();
-    for p in grid.placed {
+    for (k, p) in grid.placed.iter().enumerate() {
         let (x0, x1) = (columns[p.columns.start].0, columns[p.columns.end - 1].1);
         let (y0, y1) = rows
             .get(p.rows.start)
@@ -77,7 +81,13 @@ pub(super) fn arrange(
             false => container.x + x0 as i32,
         };
         let area = LayoutRect::new(x, container.y + y0 as i32, cells(x1 - x0), cells(y1 - y0));
-        let mut rect = fit(dom, &p, computed, area);
+        let mut rect = fit(
+            dom,
+            p,
+            computed,
+            area,
+            grid.baselines.get(k).and_then(Option::as_ref),
+        );
         rect.x -= scroll_x;
         rect.y -= scroll_y;
         match &p.item {
@@ -96,100 +106,169 @@ fn cells(n: u32) -> u16 {
 /// `p`'s border box in its grid `area` (physical cells): sized on each
 /// axis by its declared size, else stretched or `fit-content` as its
 /// self-alignment says (CSS Grid 2 §6.2), then placed in the area by its
-/// `auto` margins (§10.2) or its self-alignment (§10.3, §10.4).
-fn fit(dom: &Dom<TuiExt>, p: &Placed, container: &ComputedStyle, area: LayoutRect) -> LayoutRect {
-    let item = &p.item;
-    let c = item.computed(dom);
-    let cb = area.width;
-    let m = super::margins(dom, p, cb);
-    let fill = |extent: u16, a: i32, b: i32| {
-        (i32::from(extent) - a - b).clamp(0, i32::from(u16::MAX)) as u16
-    };
-    // §6.2: a preferred aspect ratio keeps `normal` from stretching —
-    // such an item is sized as a block-level box: its `auto` width
-    // fills the area, its `auto` height follows the ratio.
-    let ratio = c.aspect_ratio.filter(|r| r.value().is_some());
-    let justify = self_alignment(c.justify_self, container.justify_items);
-    let align = self_alignment(c.align_self, container.align_items);
-    let auto = |side: &MarginValue, trimmed: bool| side.is_auto() && !trimmed;
-    let (auto_left, auto_right) = (
-        auto(&c.margin.left, p.trim.left),
-        auto(&c.margin.right, p.trim.right),
-    );
-    let (auto_top, auto_bottom) = (
-        auto(&c.margin.top, p.trim.top),
-        auto(&c.margin.bottom, p.trim.bottom),
-    );
-
-    // The inline axis: `justify-self`, `auto` taking `justify-items`.
-    let available_w = fill(area.width, m.left, m.right);
-    let kw_h = item.keywords(dom, &c, Direction::Column, available_w, cb);
-    let definite_h = kw_h.size(
-        &c.height,
-        Some(area.height),
-        fill(area.height, m.top, m.bottom),
-    );
-    let kw = item.keywords(dom, &c, Direction::Row, area.height, cb);
-    let stretch_w =
-        !auto_left && !auto_right && matches!(justify.keyword, Align::Normal | Align::Stretch);
-    let width = match kw.size(&c.width, Some(cb), available_w) {
-        Some(w) => w,
-        // A block-level box with a ratio and a definite height takes its
-        // width from them (CSS Sizing 4 §5.1).
-        None if ratio.is_some() && justify.keyword == Align::Normal && definite_h.is_some() => {
-            ratio
-                .zip(definite_h)
-                .and_then(|(r, h)| aspect_cross_from_main(h, r, Direction::Column, &c, cb))
-                .unwrap_or(available_w)
-        }
-        None if stretch_w => available_w,
-        // Fit-content: the available space clamped between the min- and
-        // max-content sizes (CSS Sizing 3 §3.1).
-        None => {
-            let min = item.content_extreme(dom, Direction::Row, area.height, cb, false);
-            let max = item.content_extreme(dom, Direction::Row, area.height, cb, true);
-            max.min(min.max(available_w))
-        }
-    };
-    let width = kw.sizer().floor(clamp_size(
-        width,
-        kw.min(&c.min_width, Some(cb), available_w),
-        kw.max(&c.max_width, Some(cb), available_w),
-    ));
-
-    // The block axis: `align-self`, `auto` taking `align-items`.
-    let available_h = fill(area.height, m.top, m.bottom);
-    let kw = item.keywords(dom, &c, Direction::Column, width, cb);
-    let stretch_h = !auto_top
-        && !auto_bottom
-        && match align.keyword {
+/// `auto` margins (§10.2), its baseline group's shim (`shim`, §10.4 with
+/// Box Alignment 3 §9.3) or its self-alignment (§10.3, §10.4).
+fn fit(
+    dom: &Dom<TuiExt>,
+    p: &Placed,
+    container: &ComputedStyle,
+    area: LayoutRect,
+    shim: Option<&Shim>,
+) -> LayoutRect {
+    let f = ItemFit::new(dom, p, container, area.width);
+    let width = f.width(dom, Some(area.height));
+    let available_h = fill(area.height, f.m.top, f.m.bottom);
+    let stretch_h = !f.auto.top
+        && !f.auto.bottom
+        && match f.align.keyword {
             Align::Stretch => true,
-            Align::Normal => ratio.is_none(),
+            Align::Normal => f.ratio.is_none(),
             _ => false,
         };
-    let height = match kw.size(&c.height, Some(area.height), available_h) {
-        Some(h) => h,
-        None if stretch_h => available_h,
-        None => ratio
-            .and_then(|r| aspect_cross_from_main(width, r, Direction::Row, &c, cb))
-            .unwrap_or_else(|| item.intrinsic_size(dom, Direction::Column, width, cb)),
+    let height = match shim {
+        Some(s) => s.height,
+        None => f.height(dom, width, Some(area.height), stretch_h),
     };
-    let height = kw.sizer().floor(clamp_size(
-        height,
-        kw.min(&c.min_height, Some(area.height), available_h),
-        kw.max(&c.max_height, Some(area.height), available_h),
-    ));
 
     let rtl = |s: &ComputedStyle| s.text_direction == TextDirection::Rtl;
-    let free_x = i32::from(available_w) - i32::from(width);
-    let x = auto_margin_offset(free_x, auto_left, auto_right)
-        .unwrap_or_else(|| justify_offset(justify, free_x, rtl(container), rtl(&c)));
+    let free_x = i32::from(fill(area.width, f.m.left, f.m.right)) - i32::from(width);
+    let x = auto_margin_offset(free_x, f.auto.left, f.auto.right)
+        .unwrap_or_else(|| justify_offset(f.justify, free_x, rtl(container), rtl(&f.c)));
     // The block axis runs top to bottom (`horizontal-tb`) for the
     // container and the item alike.
     let free_y = i32::from(available_h) - i32::from(height);
-    let y = auto_margin_offset(free_y, auto_top, auto_bottom)
-        .unwrap_or_else(|| justify_offset(align, free_y, false, false));
-    LayoutRect::new(area.x + m.left + x, area.y + m.top + y, width, height)
+    let y = match shim {
+        Some(s) if s.last => free_y - s.offset,
+        Some(s) => s.offset,
+        None => auto_margin_offset(free_y, f.auto.top, f.auto.bottom)
+            .unwrap_or_else(|| justify_offset(f.align, free_y, false, false)),
+    };
+    LayoutRect::new(area.x + f.m.left + x, area.y + f.m.top + y, width, height)
+}
+
+/// The size of a baseline-aligned item `p` in a grid area `area_width`
+/// wide whose height is not known yet (its row is being sized): its
+/// border box — the width it will have, the height it has unstretched —
+/// and its top and bottom margins.
+pub(super) fn baseline_size(
+    dom: &Dom<TuiExt>,
+    p: &Placed,
+    container: &ComputedStyle,
+    area_width: u16,
+) -> ((u16, u16), (i32, i32)) {
+    let f = ItemFit::new(dom, p, container, area_width);
+    let width = f.width(dom, None);
+    let height = f.height(dom, width, None, false);
+    ((width, height), (f.m.top, f.m.bottom))
+}
+
+/// `extent` less the margins `a` and `b`, at least 0.
+fn fill(extent: u16, a: i32, b: i32) -> u16 {
+    (i32::from(extent) - a - b).clamp(0, i32::from(u16::MAX)) as u16
+}
+
+/// What sizes an item in its area: its style, its margins (against the
+/// area's width), which of them are `auto`, its preferred aspect ratio
+/// and its self-alignment on each axis.
+struct ItemFit<'a> {
+    item: &'a Item,
+    c: Rc<ComputedStyle>,
+    /// The area's width: the containing block of the item's percentages.
+    cb: u16,
+    m: Sides<i32>,
+    auto: Sides<bool>,
+    /// §6.2: a preferred aspect ratio keeps `normal` from stretching —
+    /// such an item is sized as a block-level box: its `auto` width
+    /// fills the area, its `auto` height follows the ratio.
+    ratio: Option<AspectRatio>,
+    justify: Alignment,
+    align: Alignment,
+}
+
+impl<'a> ItemFit<'a> {
+    fn new(dom: &Dom<TuiExt>, p: &'a Placed, container: &ComputedStyle, cb: u16) -> Self {
+        let c = p.item.computed(dom);
+        let auto = |side: &MarginValue, trimmed: bool| side.is_auto() && !trimmed;
+        Self {
+            item: &p.item,
+            cb,
+            m: super::margins(dom, p, cb),
+            auto: Sides {
+                top: auto(&c.margin.top, p.trim.top),
+                right: auto(&c.margin.right, p.trim.right),
+                bottom: auto(&c.margin.bottom, p.trim.bottom),
+                left: auto(&c.margin.left, p.trim.left),
+            },
+            ratio: c.aspect_ratio.filter(|r| r.value().is_some()),
+            justify: self_alignment(c.justify_self, container.justify_items),
+            align: self_alignment(c.align_self, container.align_items),
+            c,
+        }
+    }
+
+    /// The border-box width in its area, `area_h` tall
+    /// (`None` while the rows are being sized): the declared width, else
+    /// stretched under `normal` / `stretch` (a ratio item's from a
+    /// definite height), else `fit-content`; clamped by `min-width` /
+    /// `max-width`.
+    fn width(&self, dom: &Dom<TuiExt>, area_h: Option<u16>) -> u16 {
+        let (c, item, cb) = (&self.c, self.item, self.cb);
+        let available_w = fill(cb, self.m.left, self.m.right);
+        let budget = area_h.unwrap_or(0);
+        let definite_h = item
+            .keywords(dom, c, Direction::Column, available_w, cb)
+            .size(&c.height, area_h, fill(budget, self.m.top, self.m.bottom));
+        let kw = item.keywords(dom, c, Direction::Row, budget, cb);
+        let stretch = !self.auto.left
+            && !self.auto.right
+            && matches!(self.justify.keyword, Align::Normal | Align::Stretch);
+        let width = match kw.size(&c.width, Some(cb), available_w) {
+            Some(w) => w,
+            // A block-level box with a ratio and a definite height takes
+            // its width from them (CSS Sizing 4 §5.1).
+            None if self.justify.keyword == Align::Normal && definite_h.is_some() => self
+                .ratio
+                .zip(definite_h)
+                .and_then(|(r, h)| aspect_cross_from_main(h, r, Direction::Column, c, cb))
+                .unwrap_or(available_w),
+            None if stretch => available_w,
+            // Fit-content: the available space clamped between the min-
+            // and max-content sizes (CSS Sizing 3 §3.1).
+            None => {
+                let min = item.content_extreme(dom, Direction::Row, budget, cb, false);
+                let max = item.content_extreme(dom, Direction::Row, budget, cb, true);
+                max.min(min.max(available_w))
+            }
+        };
+        kw.sizer().floor(clamp_size(
+            width,
+            kw.min(&c.min_width, Some(cb), available_w),
+            kw.max(&c.max_width, Some(cb), available_w),
+        ))
+    }
+
+    /// The border-box height at `width` in an area `area_h` tall (`None`
+    /// while the rows are being sized): the declared height, else the
+    /// area's less the margins when `stretch`, else from the ratio, else
+    /// the content's; clamped by `min-height` / `max-height`.
+    fn height(&self, dom: &Dom<TuiExt>, width: u16, area_h: Option<u16>, stretch: bool) -> u16 {
+        let (c, item, cb) = (&self.c, self.item, self.cb);
+        let available_h = fill(area_h.unwrap_or(0), self.m.top, self.m.bottom);
+        let kw = item.keywords(dom, c, Direction::Column, width, cb);
+        let height = match kw.size(&c.height, area_h, available_h) {
+            Some(h) => h,
+            None if stretch => available_h,
+            None => self
+                .ratio
+                .and_then(|r| aspect_cross_from_main(width, r, Direction::Row, c, cb))
+                .unwrap_or_else(|| item.intrinsic_size(dom, Direction::Column, width, cb)),
+        };
+        kw.sizer().floor(clamp_size(
+            height,
+            kw.min(&c.min_height, area_h, available_h),
+            kw.max(&c.max_height, area_h, available_h),
+        ))
+    }
 }
 
 /// An item's self-alignment on one axis (CSS Box Alignment 3 §6.1 /

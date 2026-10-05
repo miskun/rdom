@@ -12,6 +12,7 @@ mod abspos;
 mod align;
 mod areas;
 mod auto;
+mod baseline;
 mod container;
 mod place;
 mod stacking;
