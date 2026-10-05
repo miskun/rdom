@@ -45,8 +45,12 @@ pub(crate) fn resolve_auto_height(
         computed.position,
         crate::layout::Position::Absolute | crate::layout::Position::Fixed
     );
-    if !matches!(computed.height, crate::layout::Size::Auto)
-        || !matches!(computed.flow, crate::layout::Flow::Block)
+    // An intrinsic keyword is the automatic size on the block axis (CSS
+    // Sizing 3 §3.1): resolved here like `auto`.
+    if !matches!(
+        computed.height,
+        crate::layout::Size::Auto | crate::layout::Size::Intrinsic(_)
+    ) || !matches!(computed.flow, crate::layout::Flow::Block)
         || !parent_is_block_flow
         || is_out_of_flow_positioned
     {
@@ -82,6 +86,8 @@ pub(crate) fn resolve_auto_height(
     // four sides (CSS 2.1 §8.4) — the same basis
     // `compute_content_area_collapsed` used for this element's inset.
     let sizer = Sizer::vertical(computed, containing_block_width);
+    // A keyword bound is the content height itself (CSS Sizing 3 §3.1),
+    // which the measured content already is: no clamp.
     let content_h = crate::layout::clamp_size(
         measurement.content_height,
         sizer.inner_opt(computed.min_height.cells(basis)),

@@ -76,6 +76,7 @@ These are intrinsic to terminals. They will not change.
 - **Sticky containing block is the element's parent's content box**, not the CSS "nearest scroll container" for nested-scroller edge cases.
 - **The static position inside a flex container ignores `justify-content` / `align-items`.** Flexbox §4.1 places an absolutely positioned child's hypothetical box as if it were the sole flex item, so `justify-content: center` would center it; rdom uses the content box's start corner (`flex-start`). In block and inline flow the static position follows CSS 2.1 §10.3.7 / §10.6.4.
 - **Positioned `::before` / `::after` pseudo-elements are not in the hit-test set.** Clicks on pseudo rects resolve to the underlying element.
+- **A positioned `::before` / `::after` takes its content's width for every intrinsic size keyword.** Its content is one generated string laid out on one line, so `min-content`, `max-content` and `fit-content` all size it to that string's width (CSS Sizing 3 §3.1 would break `min-content` at the string's soft-wrap opportunities). In-flow pseudo-elements are measured with their element.
 
 ### Values
 
@@ -262,7 +263,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Box model and sizing
 
-- `min-content` / `max-content` / `fit-content()` / `stretch` sizes — C5-INTRINSIC
+- `stretch` sizes (CSS Sizing 4; the intrinsic keywords shipped with C5-INTRINSIC) — not yet scheduled
 - `margin-trim` — C5-MARGIN-TRIM
 - `contain-intrinsic-size` (+ longhands) — C5-CONTAIN-SIZE
 

@@ -35,14 +35,18 @@
 //! - [`margin_collapse`] — §8.3.1 accumulator, predicates and chain walkers.
 //! - [`width`] — §10.3.3 width / horizontal margin resolution.
 //! - [`height`] — §10.5 / §10.6.3 height resolution.
+//! - [`place`] — placing one block-level child.
+//! - [`runs`] — block-level / inline-level run partitioning.
 
 mod height;
 mod margin_collapse;
+mod place;
+mod runs;
 mod width;
 
 use std::collections::HashMap;
 
-use rdom_core::{Dom, NodeId, NodeType};
+use rdom_core::{Dom, NodeId};
 
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{Direction, LayoutRect};
@@ -61,6 +65,8 @@ use margin_collapse::{
     parent_collapses_bottom_with_last_child, parent_collapses_top_with_first_child,
     store_margin_chain_memo,
 };
+use place::{BlockPlace, lay_out_block_child};
+use runs::{Run, RunKind, child_level, drop_lineless_runs};
 use width::resolve_block_width;
 
 /// Returned by [`layout_block_children`] so the caller (`layout_node`)
@@ -491,249 +497,5 @@ fn layout_atomic_inline_blocks(
 ) {
     for (id, rect) in crate::render::inline::atomic_placements(inline_layout, anon_rect) {
         layout_node(dom, id, rect, anon_rect.width);
-    }
-}
-
-/// Per-child placement context — bundles the in-flow positioning
-/// state so `lay_out_block_child`'s signature stays narrow.
-struct BlockPlace<'a> {
-    container: LayoutRect,
-    containing_block_width: u16,
-    y_cursor: i32,
-    margin_acc: &'a mut MarginAccumulator,
-    /// Phase 5.2 — first-block-in-this-container + parent's
-    /// `parent_collapses_top_with_first_child`. When true, the
-    /// child's `margin-top` is suppressed to model parent-first-
-    /// child collapse.
-    suppress_top_margin: bool,
-    /// Symmetric to `suppress_top_margin` — for the last in-flow
-    /// block child + parent's `parent_collapses_bottom_with_last_child`.
-    suppress_bottom_margin: bool,
-}
-
-/// Lay out a single block-level child. Folds the child's `margin-top`
-/// into the running margin accumulator, resolves the accumulator into
-/// a single gap above the child, places the child, then primes the
-/// accumulator with the child's `margin-bottom` for the next sibling.
-///
-/// Returns the new y cursor — the bottom edge of the child's outer
-/// rect (NOT including its bottom margin, which is now buffered in
-/// `margin_acc`). The container's own height computation and the
-/// parent-last-child collapse consume the leftover accumulator
-/// separately.
-fn lay_out_block_child(dom: &mut Dom<TuiExt>, child: NodeId, ctx: BlockPlace<'_>) -> i32 {
-    let BlockPlace {
-        container,
-        containing_block_width,
-        y_cursor,
-        margin_acc,
-        suppress_top_margin,
-        suppress_bottom_margin,
-    } = ctx;
-    let computed = dom
-        .node(child)
-        .computed_rc()
-        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
-
-    let resolved = resolve_block_width(&computed, containing_block_width);
-    let height = resolve_block_height(
-        dom,
-        child,
-        &computed,
-        resolved.width,
-        container.height,
-        containing_block_width,
-    );
-
-    // Phase 5.2 + 5.4 — fold this child's *outer top* margin into
-    // the accumulator. `accumulate_outer_top_margin` walks the
-    // collapse-eligible chain (this child, its first block child
-    // if they collapse, that one's first block child, …) so the
-    // grandparent / great-grandparent sees the merged margin
-    // surfacing at this block's outer top edge per CSS 2.1 §8.3.1.
-    // Closes `BFC1-MARGIN-COLLAPSE-UPWARD-1`.
-    //
-    // When `suppress_top_margin` is set, this child's top margin
-    // already escaped upward via the parent's call to this function
-    // — contribute nothing here.
-    let mut memo = Vec::new();
-    if !suppress_top_margin {
-        margin_acc.merge(outer_top_margin(
-            dom,
-            child,
-            &computed,
-            containing_block_width,
-            &mut memo,
-        ));
-    }
-
-    // Symmetric: compute the outer bottom margin (chain through
-    // last collapse-eligible block descendant) so the NEXT sibling
-    // sees the merged value, not just the raw `margin-bottom`. When
-    // `suppress_bottom_margin` is set, the bottom already escaped
-    // upward (parent-last-child collapse).
-    let mut outer_bottom = MarginAccumulator::new();
-    if !suppress_bottom_margin {
-        outer_bottom =
-            outer_bottom_margin(dom, child, &computed, containing_block_width, &mut memo);
-    }
-    store_margin_chain_memo(dom, &memo);
-
-    // Phase 5.3 — empty-block collapse-through. A block with no
-    // content, no padding, no border, and zero height has its top
-    // + bottom margins meet — they fold into the surrounding
-    // accumulator together rather than resetting it.
-    let collapse_through = is_empty_collapse_through(dom, child, &computed, height);
-
-    let outer_x = container.x + resolved.margin_left as i32;
-    // The "gap" used for placement: for collapse-through children we
-    // still place the empty box visually at the resolved-so-far
-    // position (mostly for downstream layouts that ask for its
-    // rect), but we do NOT advance the y_cursor or reset the
-    // accumulator — the next sibling's gap will collapse with
-    // everything accumulated so far.
-    let gap = margin_acc.resolved();
-    let outer_y = y_cursor + gap as i32;
-    let outer_rect = LayoutRect::new(outer_x, outer_y, resolved.width, height);
-    layout_node(dom, child, outer_rect, containing_block_width);
-
-    // `layout_node` finalizes an `Auto` height via CSS 2.1 §10.6.3
-    // content measurement, which can exceed the pre-layout
-    // `resolve_block_height` estimate — notably for a mixed-content
-    // block (a text run + a block child), whose `intrinsic_size`
-    // walk counts element children only and so misses the text
-    // run's anonymous-block row. Advance the cursor by the child's
-    // ACTUAL laid-out height so the next sibling can't overlap it.
-    // Use the intended `outer_y` (not the written `rect.y`, which
-    // may carry a `position: relative` shift that must NOT move
-    // siblings).
-    let actual_height = dom
-        .node(child)
-        .layout_rect()
-        .map(|r| r.height)
-        .unwrap_or(height);
-
-    if collapse_through {
-        // Fold the outer bottom into the SAME accumulator and
-        // leave y_cursor where it was. Next sibling's `gap`
-        // computation will see all of A.mb, E.mt, E.mb, B.mt.
-        margin_acc.merge(outer_bottom);
-        y_cursor
-    } else {
-        // Normal block: advance y_cursor past the child and reset
-        // the accumulator to just this child's outer bottom margin.
-        *margin_acc = outer_bottom;
-        outer_y + actual_height as i32
-    }
-}
-
-/// One run of consecutive children sharing a level (block-level or
-/// inline-level). Block runs get per-child block layout; inline
-/// runs fold into one anonymous block per CSS 2.1 §9.2.1.1.
-struct Run {
-    kind: RunKind,
-    /// Direct-child NodeIds in document order.
-    children: Vec<NodeId>,
-    /// Indices into the parent's raw `child_nodes()` order, as
-    /// `[start, end)`. Stored on the resulting `AnonymousIfc` so
-    /// paint / hit-test can map back to surrounding context.
-    child_range: (usize, usize),
-}
-
-impl Run {
-    /// The anonymous block box of a pseudo-element with no inline run to
-    /// join: no children, an empty child range at `at`.
-    fn pseudo_only(at: usize) -> Self {
-        Run {
-            kind: RunKind::Inline,
-            children: Vec::new(),
-            child_range: (at, at),
-        }
-    }
-}
-
-/// CSS 2.1 §9.2.1.1 / §16.6.1: white space that the `white-space`
-/// property collapses away generates no inline box, so an inline run
-/// holding nothing else — collapsible whitespace-only text, comments —
-/// generates no anonymous block box: no zero-height box between block
-/// siblings to break their margin collapsing, and none for a nested
-/// scroll container to report. A run is kept when it carries the
-/// host's visible `::before` (as the first run) or `::after` (as the
-/// last); the generated text holds a line.
-///
-/// The out-of-flow boxes anchored on a dropped run's children take
-/// their static position from what follows instead: the next kept
-/// run's first child, else the trailing position.
-fn drop_lineless_runs(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-    runs: Vec<Run>,
-    static_before: &mut HashMap<NodeId, Vec<NodeId>>,
-    static_trailing: &mut Vec<NodeId>,
-) -> Vec<Run> {
-    use crate::render::inline::generated::{bears_line, visible_inline_pseudos};
-    let pseudos = visible_inline_pseudos(dom, id);
-    let last = runs.len().saturating_sub(1);
-    let mut carried: Vec<NodeId> = Vec::new();
-    let mut kept = Vec::with_capacity(runs.len());
-    for (i, run) in runs.into_iter().enumerate() {
-        let holds_line = run.kind == RunKind::Block
-            || run.children.iter().any(|&c| bears_line(dom, id, c))
-            || (i == 0 && pseudos.before)
-            || (i == last && pseudos.after);
-        if !holds_line {
-            for c in &run.children {
-                carried.extend(static_before.remove(c).unwrap_or_default());
-            }
-            continue;
-        }
-        if !carried.is_empty()
-            && let Some(&first) = run.children.first()
-        {
-            let mut anchored = std::mem::take(&mut carried);
-            anchored.extend(static_before.remove(&first).unwrap_or_default());
-            static_before.insert(first, anchored);
-        }
-        kept.push(run);
-    }
-    if !carried.is_empty() {
-        carried.append(static_trailing);
-        *static_trailing = carried;
-    }
-    kept
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RunKind {
-    Block,
-    Inline,
-}
-
-/// Classify a direct child as block-level vs inline-level. Text
-/// nodes are always inline-level; element children depend on their
-/// `Display`. Per CSS 2.1 §9.2: only `Block` elements are
-/// block-level; `Inline` and `InlineBlock` are inline-level (the
-/// inline-block participates in IFC as an atomic box per phase
-/// 3.5's planned inline-block-in-IFC packing).
-fn child_level(dom: &Dom<TuiExt>, id: NodeId) -> RunKind {
-    let node = dom.node(id);
-    match node.node_type() {
-        NodeType::Text => RunKind::Inline,
-        NodeType::Element => {
-            let display = node
-                .ext()
-                .and_then(|e| e.computed.as_ref())
-                .map(|c| c.display)
-                .unwrap_or(crate::layout::Display::Block);
-            match display {
-                crate::layout::Display::Inline | crate::layout::Display::InlineBlock => {
-                    RunKind::Inline
-                }
-                crate::layout::Display::Block | crate::layout::Display::None => RunKind::Block,
-            }
-        }
-        // Comments, fragments — treat as inline-level (effectively
-        // invisible; they don't break runs).
-        _ => RunKind::Inline,
     }
 }

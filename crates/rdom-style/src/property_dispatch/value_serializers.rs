@@ -78,6 +78,21 @@ pub(super) fn serialize_size(s: &Size) -> String {
         Size::Flex(n) => format!("{n}fr"),
         Size::Percent(p) => format!("{p}%"),
         Size::Calc(expr) => serialize_math(expr),
+        Size::Intrinsic(k) => serialize_intrinsic(k),
+    }
+}
+
+/// An intrinsic size keyword (CSS Sizing 3 §3.1) in canonical form.
+fn serialize_intrinsic(k: &crate::layout::IntrinsicSize) -> String {
+    use crate::layout::IntrinsicSize;
+    match k {
+        IntrinsicSize::MinContent => "min-content".to_string(),
+        IntrinsicSize::MaxContent => "max-content".to_string(),
+        IntrinsicSize::FitContent => "fit-content".to_string(),
+        IntrinsicSize::FitContentLimit(limit) => match &**limit {
+            crate::calc::CalcExpr::Length(n) => format!("fit-content({n})"),
+            expr => format!("fit-content({})", serialize_math(expr)),
+        },
     }
 }
 
@@ -87,6 +102,7 @@ pub(super) fn serialize_min_size(m: &crate::layout::MinSize) -> String {
         crate::layout::MinSize::Cells(n) => n.to_string(),
         crate::layout::MinSize::Percent(p) => format!("{p}%"),
         crate::layout::MinSize::Calc(expr) => serialize_math(expr),
+        crate::layout::MinSize::Intrinsic(k) => serialize_intrinsic(k),
     }
 }
 
@@ -105,6 +121,7 @@ pub(super) fn serialize_max_size(m: &crate::layout::MaxSize) -> String {
         crate::layout::MaxSize::Cells(n) => n.to_string(),
         crate::layout::MaxSize::Percent(p) => format!("{p}%"),
         crate::layout::MaxSize::Calc(expr) => serialize_math(expr),
+        crate::layout::MaxSize::Intrinsic(k) => serialize_intrinsic(k),
     }
 }
 

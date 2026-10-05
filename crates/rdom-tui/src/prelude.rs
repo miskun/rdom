@@ -108,6 +108,7 @@ pub use crate::{
     HitTestExt,
     ImportantMask,
     InteractionKind,
+    IntrinsicSize,
     LayoutExt,
     LayoutRect,
     ListenerOptions,

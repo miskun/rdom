@@ -33,9 +33,52 @@ pub enum Size {
     /// Negative results clamp to 0; positive results clamp to
     /// `u16::MAX`.
     Calc(Box<crate::calc::CalcExpr>),
+    /// `min-content` / `max-content` / `fit-content` /
+    /// `fit-content(<length-percentage>)` (CSS Sizing 3 §3.1): a size
+    /// from the box's content, which layout measures.
+    Intrinsic(IntrinsicSize),
     /// Child determines its own size (default: content-driven).
     #[default]
     Auto,
+}
+
+/// An intrinsic size keyword (CSS Sizing 3 §3.1–§3.3), valid in `width`
+/// / `height`, `min-*` and `max-*`. On the inline axis it is the box's
+/// min-content or max-content size (§5.1), or `fit-content`'s clamp of
+/// the available space between them; on the block axis every keyword
+/// is the box's content height ("equivalent to its automatic size").
+#[derive(Debug, Clone, PartialEq)]
+pub enum IntrinsicSize {
+    /// `min-content`: the min-content size — the longest unbreakable
+    /// run of content.
+    MinContent,
+    /// `max-content`: the max-content size — the content unwrapped.
+    MaxContent,
+    /// `fit-content`: `min(max-content, max(min-content, stretch-fit))`,
+    /// the available space clamped between the two.
+    FitContent,
+    /// `fit-content(<length-percentage>)`: `min(max-content,
+    /// max(min-content, limit))`. The limit is cells
+    /// ([`CalcExpr::Length`](crate::calc::CalcExpr::Length)), a
+    /// percentage of the containing block, or a math function.
+    FitContentLimit(Box<crate::calc::CalcExpr>),
+}
+
+impl IntrinsicSize {
+    /// `fit-content()`'s limit in cells against `basis` (the containing
+    /// block's size on the axis, `None` when indefinite — a percentage
+    /// then has no limit, CSS Sizing 3 §3.1 treats it as `max-content`).
+    /// `None` for the other keywords.
+    pub fn limit_cells(&self, basis: Option<u16>) -> Option<u16> {
+        let IntrinsicSize::FitContentLimit(expr) = self else {
+            return None;
+        };
+        match basis {
+            Some(b) => Some(resolve_u16(expr, b)),
+            None if expr.contains_percent() => None,
+            None => Some(resolve_u16(expr, 0)),
+        }
+    }
 }
 
 /// `p` percent of `basis` as an extent: [`Size::percent_of`] clamped to
@@ -73,7 +116,15 @@ impl Size {
                 None if expr.contains_percent() => None,
                 None => Some(resolve_u16(expr, 0)),
             },
-            Size::Flex(_) | Size::Auto => None,
+            Size::Flex(_) | Size::Auto | Size::Intrinsic(_) => None,
+        }
+    }
+
+    /// The intrinsic keyword this size is, if any.
+    pub fn intrinsic(&self) -> Option<&IntrinsicSize> {
+        match self {
+            Size::Intrinsic(k) => Some(k),
+            _ => None,
         }
     }
 
@@ -118,6 +169,8 @@ pub enum MinSize {
     /// A math function. Resolves at layout time against the containing
     /// block's size on the same axis.
     Calc(Box<crate::calc::CalcExpr>),
+    /// An intrinsic keyword (CSS Sizing 3 §3.2), which layout measures.
+    Intrinsic(IntrinsicSize),
 }
 
 impl From<u16> for Size {
@@ -127,6 +180,14 @@ impl From<u16> for Size {
 }
 
 impl MinSize {
+    /// The intrinsic keyword this bound is, if any.
+    pub fn intrinsic(&self) -> Option<&IntrinsicSize> {
+        match self {
+            MinSize::Intrinsic(k) => Some(k),
+            _ => None,
+        }
+    }
+
     /// `min-* : <p>%` — `p` percent of the containing block's extent on
     /// this axis (CSS Sizing 3 §5.2), as the parser stores it: the same
     /// shape as [`Size::percent`] and [`MaxSize::percent`].
@@ -134,13 +195,14 @@ impl MinSize {
         MinSize::Percent(p)
     }
 
-    /// The floor in cells, `None` for `auto`. `basis` is the
+    /// The floor in cells, `None` for `auto` and an intrinsic keyword
+    /// (layout measures it). `basis` is the
     /// containing block's size on the property's axis, `None` when it
     /// is indefinite — a percentage against an indefinite basis is
     /// treated as `0` (CSS 2.1 §10.7).
     pub fn cells(&self, basis: Option<u16>) -> Option<u16> {
         match self {
-            MinSize::Auto => None,
+            MinSize::Auto | MinSize::Intrinsic(_) => None,
             MinSize::Cells(n) => Some(*n),
             MinSize::Percent(p) => Some(basis.map_or(0, |b| percent_cells(b, *p))),
             MinSize::Calc(expr) => Some(match basis {
@@ -173,9 +235,19 @@ pub enum MaxSize {
     Percent(f32),
     /// A math function.
     Calc(Box<crate::calc::CalcExpr>),
+    /// An intrinsic keyword (CSS Sizing 3 §3.3), which layout measures.
+    Intrinsic(IntrinsicSize),
 }
 
 impl MaxSize {
+    /// The intrinsic keyword this bound is, if any.
+    pub fn intrinsic(&self) -> Option<&IntrinsicSize> {
+        match self {
+            MaxSize::Intrinsic(k) => Some(k),
+            _ => None,
+        }
+    }
+
     /// `max-* : <p>%` — `p` percent of the containing block's extent on
     /// this axis (CSS Sizing 3 §5.2), as the parser stores it: the same
     /// shape as [`Size::percent`] and [`MinSize::percent`].
@@ -183,13 +255,14 @@ impl MaxSize {
         MaxSize::Percent(p)
     }
 
-    /// The limit in cells, `None` for `none`. `basis` is the containing
+    /// The limit in cells, `None` for `none` and an intrinsic keyword
+    /// (layout measures it). `basis` is the containing
     /// block's size on the property's axis, `None` when indefinite — a
     /// percentage against an indefinite basis is treated as `none` (CSS
     /// 2.1 §10.7), so no limit.
     pub fn cells(&self, basis: Option<u16>) -> Option<u16> {
         match self {
-            MaxSize::None => None,
+            MaxSize::None | MaxSize::Intrinsic(_) => None,
             MaxSize::Cells(n) => Some(*n),
             MaxSize::Percent(p) => basis.map(|b| percent_cells(b, *p)),
             MaxSize::Calc(expr) => match basis {

@@ -268,7 +268,9 @@ fn compute_placed_rect(
         &style.left,
         &style.right,
         cb.width,
-        || intrinsic_w,
+        // A pseudo-element's content is one string: every keyword is its
+        // width, as the shrink-to-fit size is.
+        |_, _| intrinsic_w,
     );
     let height = resolve_size_axis(
         &style.height,
@@ -277,7 +279,7 @@ fn compute_placed_rect(
         &style.top,
         &style.bottom,
         cb.height,
-        || intrinsic_h,
+        |_, _| intrinsic_h,
     );
 
     if style.position == Position::Relative {

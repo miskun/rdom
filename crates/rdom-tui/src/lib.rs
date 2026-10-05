@@ -78,8 +78,8 @@ pub use ext::{PseudoLayout, StaticPosition, TuiExt};
 pub use layout::{
     Align, AspectRatio, BackgroundAttachment, BackgroundRepeat, Border, BorderRadius,
     BorderSpacing, BorderStyle, BorderWeight, BorderWidth, BoxShadow, BoxSizing, CornerStyle,
-    Corners, Direction, Display, FlexBasis, Flow, LayoutRect, MaxSize, MinSize, Overflow, Padding,
-    PaintLength, RepeatStyle, Sides, Size, UserSelect, VisualBox, WhiteSpace,
+    Corners, Direction, Display, FlexBasis, Flow, IntrinsicSize, LayoutRect, MaxSize, MinSize,
+    Overflow, Padding, PaintLength, RepeatStyle, Sides, Size, UserSelect, VisualBox, WhiteSpace,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets

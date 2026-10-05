@@ -5,6 +5,7 @@
 use rdom_core::{Dom, NodeId, NodeType};
 use unicode_width::UnicodeWidthStr;
 
+use super::Keywords;
 use super::Measure;
 use crate::ext::TuiExt;
 use crate::layout::{Direction, Size};
@@ -29,6 +30,10 @@ pub(super) fn wrapped_rows(
     let sizer = Sizer::horizontal(computed, cb_width);
     let outer_width = match &computed.width {
         Size::Fixed(n) => sizer.outer(*n),
+        // A keyword width (CSS Sizing 3 §3.1), `fit-content` against the
+        // budget.
+        Size::Intrinsic(k) => Keywords::new(dom, id, computed, Direction::Row, 0, cb_width)
+            .keyword(k, Some(cross_budget), cross_budget),
         _ => cross_budget,
     };
     let content_width = outer_width.saturating_sub(sizer.chrome());

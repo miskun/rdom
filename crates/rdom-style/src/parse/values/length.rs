@@ -6,7 +6,7 @@ use super::numeric::{
     LengthPercentage, Range, cells_i32, cells_u16, components, length_percentage, number,
 };
 use crate::calc::CalcExpr;
-use crate::layout::{FlexBasis, Length, MaxSize, MinSize, Size};
+use crate::layout::{FlexBasis, IntrinsicSize, Length, MaxSize, MinSize, Size};
 use crate::parse::token::Token;
 
 /// A percentage literal, fraction intact, rejecting negative and
@@ -16,7 +16,10 @@ fn percent_fraction(p: f64) -> Option<f32> {
 }
 
 pub fn parse_size(value: &[Token]) -> Option<Size> {
-    // `auto` | `<n>fr` | `<length-percentage [0,∞]>`
+    // `auto` | `<n>fr` | `<length-percentage [0,∞]>` | an intrinsic keyword
+    if let Some(k) = parse_intrinsic(value) {
+        return Some(Size::Intrinsic(k));
+    }
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Size::Auto),
         [Token::Dimension { value, unit, .. }] if unit.eq_ignore_ascii_case("fr") => {
@@ -118,6 +121,9 @@ pub fn parse_flex_factor(value: &[Token]) -> Option<f32> {
 /// [0,∞]>`. The `auto` keyword opts a flex item into intrinsic
 /// min-content protection (decision 4 from the M5 pre-prep, M5.1.b).
 pub fn parse_min_size(value: &[Token]) -> Option<MinSize> {
+    if let Some(k) = parse_intrinsic(value) {
+        return Some(MinSize::Intrinsic(k));
+    }
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(MinSize::Auto),
         _ => match length_percentage(value, Range::NonNegative)? {
@@ -139,6 +145,9 @@ pub fn parse_max_size(value: &[Token]) -> Option<MaxSize> {
     if matches!(value, [Token::Ident(s)] if s.eq_ignore_ascii_case("none")) {
         return Some(MaxSize::None);
     }
+    if let Some(k) = parse_intrinsic(value) {
+        return Some(MaxSize::Intrinsic(k));
+    }
     match length_percentage(value, Range::NonNegative)? {
         LengthPercentage::Integer(n) => u16::try_from(n).ok().map(MaxSize::Cells),
         LengthPercentage::Cells(v) => Some(MaxSize::Cells(cells_u16(v))),
@@ -146,6 +155,32 @@ pub fn parse_max_size(value: &[Token]) -> Option<MaxSize> {
             Some(MaxSize::Percent(p as f32))
         }
         LengthPercentage::Expr(e) => Some(MaxSize::Calc(Box::new(e))),
+    }
+}
+
+/// An intrinsic size keyword (CSS Sizing 3 §3.1): `min-content |
+/// max-content | fit-content | fit-content(<length-percentage [0,∞]>)`,
+/// ASCII case-insensitive.
+fn parse_intrinsic(value: &[Token]) -> Option<IntrinsicSize> {
+    match value {
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("min-content") => {
+            Some(IntrinsicSize::MinContent)
+        }
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("max-content") => {
+            Some(IntrinsicSize::MaxContent)
+        }
+        [Token::Ident(s)] if s.eq_ignore_ascii_case("fit-content") => {
+            Some(IntrinsicSize::FitContent)
+        }
+        [Token::Function(f), arg @ .., Token::RParen] if f.eq_ignore_ascii_case("fit-content") => {
+            let limit = match length_percentage(arg, Range::NonNegative)? {
+                LengthPercentage::Integer(n) => CalcExpr::Length(n),
+                LengthPercentage::Cells(v) => CalcExpr::Length(cells_i32(v)),
+                LengthPercentage::Expr(e) => e,
+            };
+            Some(IntrinsicSize::FitContentLimit(Box::new(limit)))
+        }
+        _ => None,
     }
 }
 

@@ -402,7 +402,16 @@ pub(super) fn resolve_gap(
 ) -> u16 {
     let basis = match axis {
         Direction::Row => container.width,
-        Direction::Column if computed.height == crate::layout::Size::Auto => 0,
+        // An `auto` or keyword height (its content height, CSS Sizing 3
+        // §3.1) is indefinite.
+        Direction::Column
+            if matches!(
+                computed.height,
+                crate::layout::Size::Auto | crate::layout::Size::Intrinsic(_)
+            ) =>
+        {
+            0
+        }
         Direction::Column => container.height,
     };
     computed.gap.resolve(basis)

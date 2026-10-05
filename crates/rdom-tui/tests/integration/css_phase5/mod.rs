@@ -7,6 +7,7 @@ use rdom_tui::render::{Buffer, Rect};
 use rdom_tui::{CascadeExt, LayoutExt, LayoutRect, NodeId, PaintExt, TuiDom, TuiNodeExt};
 
 mod box_sizing;
+mod intrinsic;
 
 /// A `tag` element with `class`, appended to `parent`.
 fn el(dom: &mut TuiDom, parent: NodeId, tag: &str, class: &str) -> NodeId {

@@ -124,7 +124,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C5-BOX-SIZING | `box-sizing` (`content-box` is the CSS initial value — breaking default change, migration note) | done |
-| C5-INTRINSIC | `min-content` / `max-content` / `fit-content()` on width / height / min / max | |
+| C5-INTRINSIC | `min-content` / `max-content` / `fit-content()` on width / height / min / max | done |
 | C5-MINMAX-SIZE | `min-*` / `max-*`: `none`, `%`, `calc()` | done (`%` / `calc()` with C2-PERCENT, `none` with C2G-MAX-NONE) |
 | C5-MARGIN-TRIM | `margin-trim` | |
 | C5-CONTAIN-SIZE | `contain-intrinsic-size` (+ longhands) | |
@@ -1421,3 +1421,34 @@ row comes from.
   no row); floored it is 2 rows, so the demo now says `height: 3` and the snapshot shows the full
   track with its content row. DIVERGENCES §2 "Boxes size as border-box" and §3's `box-sizing` line
   removed.
+- 2026-10-07 — C5-INTRINSIC: `min-content | max-content | fit-content | fit-content(<length-percentage
+  [0,∞]>)` (CSS Sizing 3 §3.1–§3.3) on `width` / `height` / `min-*` / `max-*`: `IntrinsicSize`, a
+  closed enum (the limit a `CalcExpr` — `Length` for cells; viewport units absolutized at computed
+  time like the other lengths), as `Size` / `MinSize` / `MaxSize::Intrinsic` (breaking for exhaustive
+  matches); `cells()` is `None` for it. Decided — one door for declared sizes:
+  `layout_pass/intrinsic/keywords.rs::Keywords` (box, axis, measuring budget, containing-block width
+  and the C5-BOX-SIZING `Sizer`) answers `size` / `min` / `max` as border boxes — a length through the
+  sizer, a keyword measured: inline axis `min-content` = `content_min_size`, `max-content` = the new
+  `content_max_size` (both `ContentOnly`, so a box's own declared width never short-circuits its
+  keyword), `fit-content` = `min(max, max(min, stretch-fit))`, `fit-content(l)` = `min(max, max(min,
+  outer(l)))` (the limit is a size, so `box-sizing` applies; an indefinite percentage limit is
+  `max-content`); block axis — every keyword is the content height at the box's width ("equivalent to
+  its automatic size", §3.1): `height: <kw>` takes the `auto` paths (block height, `auto_height`'s
+  gate, flex column main size, indefinite for gaps / percentages / collapse-through), while a keyword
+  `min-height` / `max-height` is that content height (so `min-height: min-content` lifts a too-short
+  fixed height). Sites: block width (`fit-content` against the space the margins leave; `dom` / `id`
+  now threaded into `resolve_block_width` / `block_content_width`), block height bounds, flex main
+  sizes and bounds (`fit-content` against the container's main size), the flex auto-minimum's
+  specified-size suggestion, flex cross sizes (a keyword never stretches, Flexbox §9.4), positioned
+  boxes (`resolve_size_axis`'s content closure takes the keyword and the stretch-fit span), positioned
+  pseudo-elements (every keyword is the content string's width — DIVERGENCES §2), intrinsic
+  contributions (a child's inline keyword contributes its own min- / max-content; `fit-content`
+  follows the measurement) and `wrapped_rows`. Keyword ↔ length transitions snap (discrete), as
+  before for non-`Fixed` sizes. Not done: `stretch` (CSS Sizing 4; not in this item's row, though
+  DIVERGENCES §3 listed it with C5-INTRINSIC) — now its own unscheduled §3 line; coverage `width` /
+  `height` stays *Partial* for it, `min-*` / `max-*` are *Supported*. Red: the dispatch tests failed
+  to compile (`IntrinsicSize`, the variants) and all nine `css_phase5::intrinsic` tests failed
+  `from_css_strict` ("valid declaration"); green after, with `keywords_from_rust_through_the_prelude`.
+  No existing expectation changed; no snapshot changed. Split (`block/mod.rs` was 739 lines and is
+  touched): `block/place.rs` (139, `BlockPlace` / `lay_out_block_child`) and `block/runs.rs` (117, run
+  partitioning); `mod.rs` 501.

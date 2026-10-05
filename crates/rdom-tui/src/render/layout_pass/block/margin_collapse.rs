@@ -40,8 +40,10 @@ fn is_statically_empty_collapse_through(
     id: NodeId,
     computed: &ComputedStyle,
 ) -> bool {
-    matches!(computed.height, Size::Fixed(0) | Size::Auto)
-        && is_collapse_through_shape(dom, id, computed)
+    matches!(
+        computed.height,
+        Size::Fixed(0) | Size::Auto | Size::Intrinsic(_)
+    ) && is_collapse_through_shape(dom, id, computed)
 }
 
 /// The height-independent half of collapse-through: no vertical
@@ -349,7 +351,7 @@ fn outer_edge_margin(
         // The children's margins resolve against `id`'s content width
         // (CSS 2.1 §8.3), known from its own width resolution before it
         // is laid out.
-        let child_cb = block_content_width(computed, containing_block_width);
+        let child_cb = block_content_width(dom, id, computed, containing_block_width);
         // Walk the in-flow children from the edge inward. The first one
         // that contributes a margin at that edge determines where the
         // chain stops; empty collapse-through children fold BOTH their

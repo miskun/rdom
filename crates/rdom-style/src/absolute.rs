@@ -7,8 +7,8 @@
 use crate::ComputedStyle;
 use crate::calc::{CalcExpr, Viewport};
 use crate::layout::{
-    BorderWidth, FlexBasis, GapValue, Length, MarginValue, MaxSize, MinSize, PaddingValue,
-    PaintLength, Size,
+    BorderWidth, FlexBasis, GapValue, IntrinsicSize, Length, MarginValue, MaxSize, MinSize,
+    PaddingValue, PaintLength, Size,
 };
 
 impl ComputedStyle {
@@ -28,6 +28,41 @@ impl ComputedStyle {
         }
         for max in [&mut self.max_width, &mut self.max_height] {
             absolutize(max, vp, MaxSize::Calc, |v| MaxSize::Cells(cells_u16(v)));
+        }
+        // A `fit-content()` limit stays an expression (layout resolves it
+        // against the containing block), with its viewport units absolute.
+        let limits = [
+            match &mut self.width {
+                Size::Intrinsic(k) => Some(k),
+                _ => None,
+            },
+            match &mut self.height {
+                Size::Intrinsic(k) => Some(k),
+                _ => None,
+            },
+            match &mut self.min_width {
+                MinSize::Intrinsic(k) => Some(k),
+                _ => None,
+            },
+            match &mut self.min_height {
+                MinSize::Intrinsic(k) => Some(k),
+                _ => None,
+            },
+            match &mut self.max_width {
+                MaxSize::Intrinsic(k) => Some(k),
+                _ => None,
+            },
+            match &mut self.max_height {
+                MaxSize::Intrinsic(k) => Some(k),
+                _ => None,
+            },
+        ];
+        for limit in limits.into_iter().flatten() {
+            if let IntrinsicSize::FitContentLimit(expr) = limit
+                && expr.needs_context()
+            {
+                **expr = expr.absolutize(vp);
+            }
         }
         let p = &mut self.padding;
         for side in [&mut p.top, &mut p.right, &mut p.bottom, &mut p.left] {

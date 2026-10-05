@@ -61,3 +61,88 @@ fn box_sizing_builder_matches_the_declaration() {
         Some(crate::ImportantMask::BOX_SIZING)
     );
 }
+
+// ── C5-INTRINSIC ────────────────────────────────────────────────────
+
+/// CSS Sizing 3 §3.1 / §3.2 / §3.3: `width` / `height`, `min-*` and
+/// `max-*` take `min-content | max-content | fit-content |
+/// fit-content(<length-percentage [0,∞]>)`, ASCII case-insensitive,
+/// serialized in their canonical form.
+#[test]
+fn sizes_take_the_intrinsic_keywords() {
+    use crate::calc::CalcExpr;
+    use crate::layout::{IntrinsicSize, MaxSize, MinSize, Size};
+    let cases = [
+        ("min-content", IntrinsicSize::MinContent, "min-content"),
+        ("MAX-CONTENT", IntrinsicSize::MaxContent, "max-content"),
+        ("fit-content", IntrinsicSize::FitContent, "fit-content"),
+        (
+            "fit-content(20)",
+            IntrinsicSize::FitContentLimit(Box::new(CalcExpr::Length(20))),
+            "fit-content(20)",
+        ),
+        (
+            "Fit-Content(50%)",
+            IntrinsicSize::FitContentLimit(Box::new(CalcExpr::Percent(50.0))),
+            "fit-content(50%)",
+        ),
+    ];
+    for (css, kw, text) in cases {
+        let mut style = TuiStyle::new();
+        for name in [
+            "width",
+            "height",
+            "min-width",
+            "min-height",
+            "max-width",
+            "max-height",
+        ] {
+            set(name, css, &mut style).unwrap_or_else(|e| panic!("{name}: {css}: {e:?}"));
+            assert_eq!(
+                serialize(name, &style).as_deref(),
+                Some(text),
+                "{name}: {css}"
+            );
+        }
+        assert_eq!(
+            style.width,
+            Some(Value::Specified(Size::Intrinsic(kw.clone())))
+        );
+        assert_eq!(
+            style.min_height,
+            Some(Value::Specified(MinSize::Intrinsic(kw.clone())))
+        );
+        assert_eq!(
+            style.max_width,
+            Some(Value::Specified(MaxSize::Intrinsic(kw)))
+        );
+    }
+    // A math function inside keeps its form.
+    let mut style = TuiStyle::new();
+    set("width", "fit-content(calc(50% - 2))", &mut style).unwrap();
+    assert_eq!(
+        serialize("width", &style).as_deref(),
+        Some("fit-content(calc(50% - 2))")
+    );
+}
+
+/// CSS Sizing 3 §3.1: `fit-content()` takes one non-negative
+/// `<length-percentage>`; anything else is invalid.
+#[test]
+fn fit_content_rejects_bad_arguments() {
+    for bad in [
+        "fit-content()",
+        "fit-content(-1)",
+        "fit-content(auto)",
+        "fit-content(1 2)",
+        "fit-content(min-content)",
+        "min-content max-content",
+    ] {
+        let mut style = TuiStyle::new();
+        assert_eq!(
+            set("width", bad, &mut style),
+            Err(DispatchError::InvalidValue),
+            "{bad:?}"
+        );
+    }
+}

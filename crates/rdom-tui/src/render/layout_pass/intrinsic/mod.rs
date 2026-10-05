@@ -17,11 +17,12 @@ use rdom_core::{Dom, NodeId, NodeType};
 use unicode_width::UnicodeWidthStr;
 
 use crate::ext::TuiExt;
-use crate::layout::{Direction, Size};
+use crate::layout::{Direction, IntrinsicSize, Size};
 use crate::node::TuiNodeExt;
 use crate::style::ComputedStyle;
 
 mod inline;
+mod keywords;
 
 use super::box_sizing::Sizer;
 use super::ifc::is_ifc_block;
@@ -29,6 +30,7 @@ use inline::{
     border_main_cost, has_non_whitespace_text, inline_width, own_line_pseudo_rows,
     pseudo_content_width, wrapped_rows,
 };
+pub(crate) use keywords::Keywords;
 
 /// Measure an element's intrinsic size along `direction`. Used to
 /// resolve `Size::Auto`. `cross_budget` is the container's
@@ -78,6 +80,28 @@ pub(super) fn content_min_size(
         containing_block_width,
         IntrinsicMode::ContentOnly,
         Measure::MinContent,
+    )
+}
+
+/// Measure an element's **content** max-content size along `direction`
+/// (CSS Sizing 3 §5.1): its content unwrapped, plus padding and border,
+/// ignoring the element's own declared size — the `max-content`
+/// keyword's size, as [`content_min_size`] is `min-content`'s.
+pub(super) fn content_max_size(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    direction: Direction,
+    cross_budget: u16,
+    containing_block_width: u16,
+) -> u16 {
+    intrinsic_size_inner(
+        dom,
+        id,
+        direction,
+        cross_budget,
+        containing_block_width,
+        IntrinsicMode::ContentOnly,
+        Measure::MaxContent,
     )
 }
 
@@ -214,6 +238,41 @@ fn intrinsic_element(
         // 3 §3.1): the contribution is the border box it makes.
         if let Size::Fixed(n) = declared {
             return Sizer::along(&computed, direction, containing_block_width).outer(*n);
+        }
+        // An inline-axis keyword contributes its own content size (CSS
+        // Sizing 3 §5.1): `min-content` / `max-content` whatever is
+        // being measured, `fit-content` as the measurement goes (its
+        // stretch-fit size is unknown here), a `fit-content()` limit
+        // capping a max-content contribution.
+        if let (Direction::Row, Size::Intrinsic(k)) = (direction, declared) {
+            let content = |m| {
+                intrinsic_size_inner(
+                    dom,
+                    id,
+                    direction,
+                    cross_budget,
+                    containing_block_width,
+                    IntrinsicMode::ContentOnly,
+                    m,
+                )
+            };
+            return match (k, measure) {
+                (IntrinsicSize::MinContent, _) | (_, Measure::MinContent) => {
+                    content(Measure::MinContent)
+                }
+                (IntrinsicSize::MaxContent | IntrinsicSize::FitContent, _) => {
+                    content(Measure::MaxContent)
+                }
+                (IntrinsicSize::FitContentLimit(_), Measure::MaxContent) => Keywords::new(
+                    dom,
+                    id,
+                    &computed,
+                    direction,
+                    cross_budget,
+                    containing_block_width,
+                )
+                .keyword(k, None, 0),
+            };
         }
     }
 

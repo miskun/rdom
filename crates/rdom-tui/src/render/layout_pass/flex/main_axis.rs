@@ -12,8 +12,7 @@ use crate::ext::TuiExt;
 use crate::layout::{Direction, MarginValue, Size};
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
-use crate::render::layout_pass::box_sizing::Sizer;
-use crate::render::layout_pass::intrinsic::intrinsic_size;
+use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
 use crate::style::ComputedStyle;
 
 /// An item's main size before flexible-length resolution.
@@ -99,12 +98,13 @@ pub(super) fn collect_main_axis_items(
             Direction::Column => cross_budget,
         };
         // Declared main sizes measure the box `box-sizing` names (CSS UI
-        // 3 §3.1); the sizer turns each into the border box the line
-        // distributes.
-        let sizer = Sizer::along(&c, direction, main_cb_w);
+        // 3 §3.1), or are intrinsic keywords measured from the content
+        // (CSS Sizing 3 §3.1, `fit-content` against the container's main
+        // size); `kw` turns each into the border box the line distributes.
+        let kw = Keywords::new(dom, child, &c, direction, cross_budget, main_cb_w);
         // `min-*` / `max-*` percentages resolve against the container's
         // main size, as the main size's own do (CSS Sizing 3 §5.2).
-        let max = sizer.outer_opt(max.cells(main_basis));
+        let max = kw.max(max, main_basis, main_budget);
         // TABLE-COLSYNC-1: a table cell's *used* column width — computed by
         // `size_columns` from the column's author widths + content and stored
         // on the cell's ext (layout output, NOT author `inline_style`) —
@@ -144,9 +144,15 @@ pub(super) fn collect_main_axis_items(
         let natural = if let Some(w) = used_column_width {
             MainNatural::Fixed(w)
         } else {
-            match (main_size, main_size.cells(Some(main_budget))) {
+            // A keyword height is the content height, as `auto` is (CSS
+            // Sizing 3 §3.1).
+            let declared = match (direction, main_size) {
+                (Direction::Column, Size::Intrinsic(_)) => None,
+                _ => kw.size(main_size, Some(main_budget), main_budget),
+            };
+            match (main_size, declared) {
                 (Size::Flex(w), _) => MainNatural::Flex(*w),
-                (_, Some(cells)) => MainNatural::Fixed(sizer.outer(cells)),
+                (_, Some(cells)) => MainNatural::Fixed(cells),
                 _ => {
                     // The container's inner width is definite here, so
                     // the item's percent padding / margins resolve
@@ -190,7 +196,7 @@ pub(super) fn collect_main_axis_items(
         // v1 approximates CSS min-content with intrinsic natural
         // size; strict min-content (longest-word width with wrap)
         // is a future polish tracked as `M5-MIN-CONTENT-2`.
-        let min = sizer.outer_opt(min_raw.cells(main_basis));
+        let min = kw.min(min_raw, main_basis, main_budget);
 
         if let MainNatural::Fixed(n) | MainNatural::Auto(n) = natural {
             consumed_fixed += i32::from(n);

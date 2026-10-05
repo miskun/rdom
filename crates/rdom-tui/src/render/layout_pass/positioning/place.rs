@@ -5,13 +5,14 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::{LayoutRect, Length, Position, Size};
+use crate::layout::{IntrinsicSize, LayoutRect, Length, Position, Size};
 use crate::node::TuiNodeExt;
 use crate::style::ComputedStyle;
 
 use super::axis::axis_size_from_edges;
 use super::*;
 use crate::render::layout_pass::box_sizing::Sizer;
+use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
 
 /// After phase-1 flex layout completes, walk the tree in document
 /// order and place every `position: absolute | fixed` element
@@ -99,16 +100,17 @@ fn compute_placed_rect(
         &c.left,
         &c.right,
         cb.width,
-        || {
-            crate::render::layout_pass::intrinsic::intrinsic_size(
-                dom,
-                id,
-                Direction::Row,
-                cb.width,
-                cb.width,
-            )
+        |keyword, available| match keyword {
+            Some(k) => Keywords::new(dom, id, c, Direction::Row, cb.height, cb.width).keyword(
+                k,
+                Some(cb.width),
+                available,
+            ),
+            None => intrinsic_size(dom, id, Direction::Row, cb.width, cb.width),
         },
     );
+    // A keyword height is the content height at the resolved width
+    // (CSS Sizing 3 §3.1), the shrink-to-fit height.
     let height = resolve_size_axis(
         &c.height,
         Sizer::vertical(c, cb.width),
@@ -116,15 +118,7 @@ fn compute_placed_rect(
         &c.top,
         &c.bottom,
         cb.height,
-        || {
-            crate::render::layout_pass::intrinsic::intrinsic_size(
-                dom,
-                id,
-                Direction::Column,
-                width,
-                cb.width,
-            )
-        },
+        |_, _| intrinsic_size(dom, id, Direction::Column, width, cb.width),
     );
 
     // M5.3b — absolute element centering via `margin: auto` between
@@ -200,9 +194,12 @@ fn compute_placed_rect(
 /// §10.6.4) against the containing block's extent: a definite size is
 /// the size, measured as `box-sizing` says (`sizer`, CSS UI 3 §3.1);
 /// `auto` spans between the start / end edges when both are non-auto,
-/// else is `shrink_to_fit` (the content's size). The border box is
-/// never smaller than the padding and border. Shared by positioned
-/// elements and positioned pseudo-elements.
+/// else is the content's size. `content(None, _)` is that shrink-to-fit
+/// size; `content(Some(keyword), available)` an intrinsic keyword's
+/// (CSS Sizing 3 §3.1), with the span between the edges — or the
+/// containing block — as its stretch-fit size. The border box is never
+/// smaller than the padding and border. Shared by positioned elements
+/// and positioned pseudo-elements.
 pub(in crate::render::layout_pass) fn resolve_size_axis(
     size: &Size,
     sizer: Sizer,
@@ -210,19 +207,22 @@ pub(in crate::render::layout_pass) fn resolve_size_axis(
     start: &Length,
     end: &Length,
     edges_basis: u16,
-    shrink_to_fit: impl FnOnce() -> u16,
+    content: impl FnOnce(Option<&IntrinsicSize>, u16) -> u16,
 ) -> u16 {
+    let both_edges =
+        start.cells(edges_basis as i32).is_some() && end.cells(edges_basis as i32).is_some();
     sizer.floor(match (size, size.cells(Some(cb_extent))) {
         (_, Some(cells)) => sizer.outer(cells),
         (Size::Flex(_), _) => cb_extent,
-        _ => {
-            let both_edges = start.cells(edges_basis as i32).is_some()
-                && end.cells(edges_basis as i32).is_some();
-            if both_edges {
+        (Size::Intrinsic(k), _) => {
+            let available = if both_edges {
                 axis_size_from_edges(start, end, edges_basis, 0)
             } else {
-                shrink_to_fit()
-            }
+                cb_extent
+            };
+            content(Some(k), available)
         }
+        _ if both_edges => axis_size_from_edges(start, end, edges_basis, 0),
+        _ => content(None, 0),
     })
 }

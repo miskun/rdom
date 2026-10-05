@@ -3,8 +3,11 @@
 //! with auto absorption, min / max clamping, and the content width a
 //! block's children resolve percentages against.
 
-use crate::layout::{LayoutRect, MarginValue, compute_content_area_collapsed};
-use crate::render::layout_pass::box_sizing::Sizer;
+use crate::layout::{Direction, LayoutRect, MarginValue, compute_content_area_collapsed};
+use rdom_core::{Dom, NodeId};
+
+use crate::ext::TuiExt;
+use crate::render::layout_pass::intrinsic::Keywords;
 use crate::style::ComputedStyle;
 
 /// Result of CSS 2.1 §10.3.3 width resolution for a single block
@@ -27,14 +30,17 @@ pub(super) struct ResolvedWidth {
 /// where `W_outer` is the child's border-box width — rdom stores outer
 /// rects in `LayoutRect` — and `CB` is the containing block's content
 /// width. A declared `width` / `min-width` / `max-width` measures the
-/// box `box-sizing` names; [`Sizer`] turns it into that border-box
-/// width (CSS UI 3 §3.1).
+/// box `box-sizing` names, or is an intrinsic keyword measured from
+/// the content (CSS Sizing 3 §3.1, `fit-content` against the space the
+/// margins leave); [`Keywords`] turns it into that border-box width.
 ///
 /// Auto values absorb leftover space; over-constrained widths
 /// (LTR) override `margin-right` to make the equation balance. The
 /// content width is never negative (§10.3.3), so the border-box width
 /// is at least the padding plus border, whatever the containing block.
 pub(super) fn resolve_block_width(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
     computed: &ComputedStyle,
     containing_block_width: u16,
 ) -> ResolvedWidth {
@@ -52,10 +58,6 @@ pub(super) fn resolve_block_width(
     // factors only mean something inside a flex container, and a block
     // child of one resolves its size from `flex-basis` (0% for the
     // `flex: <N>` shorthand).
-    let sizer = Sizer::horizontal(computed, containing_block_width);
-    let declared_width: Option<i32> = sizer
-        .outer_opt(width_decl.cells(Some(containing_block_width)))
-        .map(i32::from);
 
     let ml_auto = matches!(ml_decl, MarginValue::Auto);
     let mr_auto = matches!(mr_decl, MarginValue::Auto);
@@ -72,6 +74,14 @@ pub(super) fn resolve_block_width(
     } else {
         mr_decl.resolve(cb_width_u16) as i32
     };
+
+    // The stretch-fit width `fit-content` clamps: what the margins leave.
+    let available = (cb - ml_cells - mr_cells).clamp(0, i32::from(u16::MAX)) as u16;
+    let kw = Keywords::new(dom, id, computed, Direction::Row, 0, containing_block_width);
+    let sizer = kw.sizer();
+    let declared_width: Option<i32> = kw
+        .size(width_decl, Some(containing_block_width), available)
+        .map(i32::from);
 
     let (ml_final, width_final, _): (i32, i32, i32) = match (declared_width, ml_auto, mr_auto) {
         // Width auto — any auto margins resolve to 0; width absorbs
@@ -111,10 +121,9 @@ pub(super) fn resolve_block_width(
     // width by max-width first, then min-width (min wins over max).
     // After clamping, if the width changed, re-distribute the
     // leftover to whichever margins were auto.
-    let clamped_width =
-        i32::from(sizer.floor(
-            clamp_width(width_final, computed, cb, sizer).clamp(0, i32::from(u16::MAX)) as u16,
-        ));
+    let clamped_width = i32::from(sizer.floor(
+        clamp_width(width_final, computed, cb, &kw, available).clamp(0, i32::from(u16::MAX)) as u16,
+    ));
     let ml_clamped = if clamped_width != width_final {
         let leftover = cb - clamped_width;
         // Only the left margin positions the box (LTR); the right
@@ -136,13 +145,20 @@ pub(super) fn resolve_block_width(
 
 /// `width` clamped by `max-width`, then `min-width` (CSS 2.1 §10.4:
 /// min wins over max), their percentages resolved against the
-/// containing block's width `cb` (CSS Sizing 3 §5.2) and measured as
-/// `box-sizing` says (`sizer`). `min-width: auto` floors at 0 for a
-/// block box.
-fn clamp_width(width: i32, computed: &ComputedStyle, cb: i32, sizer: Sizer) -> i32 {
+/// containing block's width `cb` (CSS Sizing 3 §5.2), measured as
+/// `box-sizing` says or from the content for a keyword (`kw`, with
+/// `available` as the stretch-fit width). `min-width: auto` floors at 0
+/// for a block box.
+fn clamp_width(
+    width: i32,
+    computed: &ComputedStyle,
+    cb: i32,
+    kw: &Keywords<'_>,
+    available: u16,
+) -> i32 {
     let basis = Some(cb.clamp(0, i32::from(u16::MAX)) as u16);
-    let min_cells = sizer.outer_opt(computed.min_width.cells(basis));
-    let max_cells = sizer.outer_opt(computed.max_width.cells(basis));
+    let min_cells = kw.min(&computed.min_width, basis, available);
+    let max_cells = kw.max(&computed.max_width, basis, available);
     let after_max = match max_cells {
         Some(m) => width.min(i32::from(m)),
         None => width,
@@ -153,8 +169,13 @@ fn clamp_width(width: i32, computed: &ComputedStyle, cb: i32, sizer: Sizer) -> i
 /// The content width a block's children resolve percentages against,
 /// computable before the block is laid out: its used width (CSS 2.1
 /// §10.3.3) minus its own padding and border.
-pub(super) fn block_content_width(computed: &ComputedStyle, containing_block_width: u16) -> u16 {
-    let width = resolve_block_width(computed, containing_block_width).width;
+pub(super) fn block_content_width(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    containing_block_width: u16,
+) -> u16 {
+    let width = resolve_block_width(dom, id, computed, containing_block_width).width;
     compute_content_area_collapsed(
         LayoutRect::new(0, 0, width, 0),
         computed.padding.clone(),

@@ -6,7 +6,7 @@ use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
 use crate::layout::{Direction, Size, clamp_size};
-use crate::render::layout_pass::box_sizing::Sizer;
+use crate::render::layout_pass::intrinsic::Keywords;
 use crate::render::layout_pass::intrinsic::intrinsic_size;
 use crate::style::ComputedStyle;
 
@@ -45,8 +45,18 @@ pub(super) fn resolve_block_height(
     // `calc()` alike never hurts. `Flex` here means the shorthand was
     // used in a non-flex context: `auto`.
     // The declared size measures the box `box-sizing` names (CSS UI 3
-    // §3.1); the sizer turns it into the border-box height stored.
-    let sizer = Sizer::vertical(computed, containing_block_width);
+    // §3.1); the sizer turns it into the border-box height stored. An
+    // intrinsic keyword is the automatic size on this axis (CSS Sizing 3
+    // §3.1), so it falls through to the content height like `auto`.
+    let kw = Keywords::new(
+        dom,
+        id,
+        computed,
+        Direction::Column,
+        resolved_width,
+        containing_block_width,
+    );
+    let sizer = kw.sizer();
     let definite = match &computed.height {
         Size::Fixed(n) => Some(*n),
         Size::Percent(_) | Size::Calc(_) if parent_height_definite => {
@@ -76,8 +86,8 @@ pub(super) fn resolve_block_height(
     // Percentages resolve against the containing block's height when it
     // is definite (CSS 2.1 §10.7: else `0` / `none`).
     let basis = parent_height_definite.then_some(container_height);
-    let min_cells = sizer.outer_opt(computed.min_height.cells(basis));
-    let max_cells = sizer.outer_opt(computed.max_height.cells(basis));
+    let min_cells = kw.min(&computed.min_height, basis, raw);
+    let max_cells = kw.max(&computed.max_height, basis, raw);
     sizer.floor(clamp_size(raw, min_cells, max_cells))
 }
 
@@ -141,8 +151,9 @@ pub(crate) fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: N
             // column flex item with no grow (its main size is its
             // content). The narrower `auto`-cross-stretch case (a row
             // flex item) is conservatively left indefinite too; see
-            // DIVERGENCES.md "Percentage height".
-            Size::Auto => return false,
+            // DIVERGENCES.md "Percentage height". An intrinsic keyword
+            // is the content height too (CSS Sizing 3 §3.1).
+            Size::Auto | Size::Intrinsic(_) => return false,
             Size::Flex(_) => {
                 // `flex: …` shorthand on the height ⇒ a growing /
                 // flexing item. CSS Flexbox §9.8: a flex item in a

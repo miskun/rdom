@@ -9,7 +9,7 @@ use super::main_axis::{ChildMain, MainNatural};
 use crate::ext::TuiExt;
 use crate::layout::{Direction, Overflow, Size, clamp_size};
 use crate::node::TuiNodeExt;
-use crate::render::layout_pass::box_sizing::Sizer;
+use crate::render::layout_pass::intrinsic::Keywords;
 use crate::render::layout_pass::intrinsic::content_min_size;
 
 /// Budget figures the §9.7 freeze loops distribute against.
@@ -294,7 +294,8 @@ fn resolve_auto_min(
     // Whatever the suggestion, the content box is never negative: the
     // floor is at least the item's padding and border on the axis (CSS
     // Flexbox §9.7 clamps the target main size to the content box's 0).
-    let sizer = Sizer::along(&computed, direction, cb_width);
+    let kw = Keywords::new(dom, id, &computed, direction, cross_budget, cb_width);
+    let sizer = kw.sizer();
     // CSS §4.5 exception: non-visible overflow drops the floor to 0
     // — items inside a scroll container are allowed to be sized
     // below their content.
@@ -305,7 +306,10 @@ fn resolve_auto_min(
     // the border box `box-sizing` makes of it (CSS UI 3 §3.1).
     let specified_cap: Option<u16> = match main_size {
         Size::Flex(_) => Some(0),
-        definite => sizer.outer_opt(definite.cells(Some(main_budget))),
+        // A keyword height is the automatic size: no cap (CSS Sizing 3
+        // §3.1); a keyword width is its content size.
+        Size::Intrinsic(_) if direction == Direction::Column => None,
+        definite => kw.size(definite, Some(main_budget), main_budget),
     };
     // `flex: N` (basis 0%) trivially has specified=0, so auto-min
     // = min(content, 0) = 0. Skip the content walk.

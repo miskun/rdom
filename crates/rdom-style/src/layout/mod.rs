@@ -42,5 +42,6 @@ pub use keywords::{
 pub use rect::LayoutRect;
 pub use sides::{Corners, Sides};
 pub use sizing::{
-    AspectRatio, FlexBasis, GapValue, Length, MaxSize, MinSize, Size, valid_flex_factor,
+    AspectRatio, FlexBasis, GapValue, IntrinsicSize, Length, MaxSize, MinSize, Size,
+    valid_flex_factor,
 };
