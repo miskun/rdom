@@ -9,6 +9,7 @@ use super::ClipEdges;
 use super::{element_children_of, is_in_flow};
 use crate::ext::TuiExt;
 use crate::layout::LayoutRect;
+use crate::render::inline::InlineLayout;
 use crate::style::ComputedStyle;
 
 /// Walk `id`'s direct element children (transparently descending
@@ -101,15 +102,19 @@ pub(crate) fn record_scroll_content_size(
             max_bottom = max_bottom.max(top + il.height() as i32 + trailing_caret_line);
             any = true;
         }
+        // Its anonymous block boxes and their line boxes (§2.2).
         for anon in &ext.anonymous_blocks {
-            let r = anon.border_box();
-            let top = r.y + scroll_y;
-            let left = r.x + scroll_x;
-            min_x = Some(min_x.map_or(left, |m: i32| m.min(left)));
-            min_y = Some(min_y.map_or(top, |m: i32| m.min(top)));
-            max_right = max_right.max(left + r.width as i32);
-            max_bottom = max_bottom.max(top + r.height as i32);
-            any = true;
+            for r in
+                std::iter::once(anon.border_box()).chain(line_rects(&anon.inline_layout, anon.rect))
+            {
+                let top = r.y + scroll_y;
+                let left = r.x + scroll_x;
+                min_x = Some(min_x.map_or(left, |m: i32| m.min(left)));
+                min_y = Some(min_y.map_or(top, |m: i32| m.min(top)));
+                max_right = max_right.max(left + r.width as i32);
+                max_bottom = max_bottom.max(top + r.height as i32);
+                any = true;
+            }
         }
     }
 
@@ -304,9 +309,23 @@ fn extend_scrollable_overflow(
             inner = clip.narrow(ClipEdges::of(ext, c));
         }
     }
+    // Its line boxes, which may reach past its box (a `nowrap` line, lines
+    // below a fixed height): the scrollable overflow covers them (§2.2).
+    // A box-less element lays out no lines of its own.
+    if !box_less && let Some(il) = ext.inline_layout.as_ref() {
+        for r in line_rects(il, ext.content_layout) {
+            if let Some(r) = inner.cut(r) {
+                extend(r);
+            }
+        }
+    }
     for anon in &ext.anonymous_blocks {
-        if let Some(r) = inner.cut(anon.border_box()) {
-            extend(r);
+        for r in
+            std::iter::once(anon.border_box()).chain(line_rects(&anon.inline_layout, anon.rect))
+        {
+            if let Some(r) = inner.cut(r) {
+                extend(r);
+            }
         }
     }
     for child in dom.node(id).child_nodes() {
@@ -323,4 +342,30 @@ fn extend_scrollable_overflow(
             _ => {}
         }
     }
+}
+
+/// The rects of `il`'s line boxes laid out at `origin` (their content
+/// box): each line's rows, from its leftmost to its rightmost fragment or
+/// generated run — its packed width when it holds neither.
+fn line_rects(il: &InlineLayout, origin: LayoutRect) -> impl Iterator<Item = LayoutRect> + '_ {
+    il.lines.iter().map(move |line| {
+        let spans = line
+            .fragments
+            .iter()
+            .map(|f| (f.x, f.x.saturating_add(f.width)))
+            .chain(
+                line.generated
+                    .iter()
+                    .map(|g| (g.x, g.x.saturating_add(g.width))),
+            );
+        let (start, end) = spans
+            .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)))
+            .unwrap_or((0, line.width));
+        LayoutRect::new(
+            origin.x + i32::from(start),
+            origin.y + i32::from(line.top),
+            end.saturating_sub(start),
+            line.height,
+        )
+    })
 }

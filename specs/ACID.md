@@ -94,8 +94,9 @@ mostly does not mention. The acid page can only use what is supported, so these 
   with placement, alignment with spanned tracks, a subgrid sizing its parent — would double tile 7's
   cell budget and blur which algorithm a failing cell points at.
 - **Text:** `line-height`, `text-overflow`, `white-space: pre-line`.
-- **Overflow:** a non-clipping descendant's text lines that overflow its box do not count toward
-  the ancestor's scrollable overflow (found while fixing `SCROLL-OVERFLOW-NESTED-ANON-1`).
+- ~~**Overflow:** a non-clipping descendant's text lines that overflow its box do not count toward
+  the ancestor's scrollable overflow (found while fixing `SCROLL-OVERFLOW-NESTED-ANON-1`).~~
+  Shipped: C8-OVERFLOW-TEXT.
 
 ## Proposed build order
 

@@ -9,7 +9,7 @@
   double-click, triple-click, Shift+arrow, and Ctrl-A support out of
   the box.
 
-  let sel = Selection::new(Position::new(t, 0), Position::new(t, 5))
+  let sel = Selection::new(Position::new(t, 0), Position::new(t, 5));
 
   中文字符也可以选择。CJK graphemes snap to full width.
 

@@ -153,7 +153,10 @@ fn ifc_clips_overflow_at_content_width() {
             TuiStyle::new()
                 .display(Display::Block)
                 .width(Size::Fixed(8))
-                .height(Size::Fixed(1)),
+                .height(Size::Fixed(1))
+                // A box clips its overflowing line only when it clips
+                // (CSS Overflow 3 §3.1); `visible` paints it on.
+                .overflow(rdom_tui::layout::Overflow::Hidden),
         )
         .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
 
@@ -580,7 +583,9 @@ fn fixed_height_ifc_clips_overflowing_lines() {
             TuiStyle::new()
                 .display(Display::Block)
                 .width(Size::Fixed(10))
-                .height(Size::Fixed(2)),
+                .height(Size::Fixed(2))
+                // Clipped because it clips (CSS Overflow 3 §3.1).
+                .overflow(rdom_tui::layout::Overflow::Hidden),
         )
         .rule_unchecked("span", TuiStyle::new().display(Display::Inline));
 

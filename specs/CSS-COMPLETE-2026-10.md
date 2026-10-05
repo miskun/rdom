@@ -179,7 +179,7 @@ row comes from.
 | C8-OVERSCROLL | `overscroll-behavior` (+ axis / logical longhands) | |
 | C8-SCROLL-PADDING | `scroll-padding*` / `scroll-margin*` | |
 | C8-SNAP | `scroll-snap-type` / `-align` / `-stop` | |
-| C8-OVERFLOW-TEXT | A non-clipping descendant's overflowing line boxes count toward the ancestor's scrollable overflow | |
+| C8-OVERFLOW-TEXT | A non-clipping descendant's overflowing line boxes count toward the ancestor's scrollable overflow | done |
 | C8-CB-COMPLETE | Containing block for positioned boxes, completing C7-ABSPOS-PADDING-EDGE: `sticky` ancestors in the ancestor walks, the scrollbar gutter excluded, scroll offsets applied inside a positioned scroller, one shared ancestor walk (elements and pseudo-elements, incl. the §9.1 grid area for pseudos) | done |
 | C8-POS-MINMAX | Positioned boxes (elements and pseudo-elements) honour `min-*` / `max-*` (CSS 2.1 §10.4 / §10.7 with §10.3.7 / §10.6.4); a `position: relative` pseudo with both insets takes its declared width | done (C5-POS-MINMAX + C5G-REL-PSEUDO-INSETS) |
 
@@ -4433,7 +4433,7 @@ row comes from.
   tests; no scroll offset and no gutter → the scroll and gutter tests. Decided, not changed:
   `scrollbar-gutter: stable` under `overflow: auto` reserves the horizontal row too (CSS Overflow 3
   limits the property to the inline-axis bar) — C8-SCROLLBAR's; the test reads `overflow-y`.
-  Found, scheduled with C8-OVERFLOW-TEXT: an absolutely positioned box does not count in its
+  Found, then left out of C8-OVERFLOW-TEXT (TECH_DEBT `ABSPOS-OVERFLOW-1`): an absolutely positioned box does not count in its
   containing scroll container's scrollable overflow (§2.2), so it cannot be scrolled to past the
   in-flow content. No other test expectation and no snapshot changed.
 - 2026-10-05 — C8-Z-INDEX (CSS 2.1 §9.9.1, CSS Values 4 §5.1 / §3.2). `ZIndex::Value` holds an `i32`
@@ -4502,4 +4502,42 @@ row comes from.
   unchanged with `bars_shown`. No snapshot changed. DIVERGENCES: `overflow-clip-margin` in whole
   cells, a viewport-relative length rejected. CSS-COVERAGE §3.11: 5 / 1 / 8 (total 149 / 24 / 88,
   112 Partial / Missing).
+- 2026-10-05 — C8-OVERFLOW-TEXT (from ACID's gap list; CSS Overflow 3 §2.2). The scrollable overflow
+  walk (`scroll_extent::extend_scrollable_overflow`) counted a descendant's border box and its
+  anonymous boxes' border boxes, never its line boxes, so text overflowing a non-clipping box — a
+  `nowrap` line wider than it, lines below a fixed height — could not be scrolled to. Now each line
+  box of a descendant's `inline_layout` (at its content box) and of every anonymous block box (at
+  its `rect`), the scroll container's own anonymous boxes included, counts as the rect from its
+  leftmost to its rightmost fragment or generated run over its rows (`line_rects`), cut by the
+  overflow clip edges of any `clip` box between (C8-OVERFLOW-CLIP's `ClipEdges`); a descendant
+  scroll container still contributes its border box alone. Found while testing: that made the
+  text scrollable to but not visible — `inline_paint::paint_inline_layout` cut every line at its
+  own content box on both axes (a "band" of the box's rows, a right edge at its content width, and
+  for a scroll container's own lines a right edge that moved left with `scroll_x`), so text past a
+  box never painted whatever its `overflow`. CSS Overflow 3 §3.1: `visible` content "is not
+  clipped". Lines and atoms now paint inside `clip` alone — the caller's `children_clip`, which a
+  clipping box narrows to its padding box or overflow clip edge — and the band is gone. Red:
+  `css_phase8/overflow_text.rs` — a 10-cell `nowrap` line in a 4-wide box painted `abcd` for
+  `abcdef` (up to the port's clip), `pre` lines below a 1-row box not at all; green after, the
+  scrolled port showing `efghij`. Red (extent): `css_phase8/overflow_text.rs` —
+  a 10-cell `nowrap` line in a 4-wide box gave the port `scrollWidth` 4 for 10, three `pre` lines in
+  a 1-row box `scrollHeight` 1 for 3, `scrollLeft` 4 clamped to 0; the scroller's own anonymous
+  box's line 6 for 10 (checked by stashing the source after green). Added after (green,
+  mutation-checked): a descendant's anonymous block box's line (`4` for `10` with its lines left
+  out); the pin that a descendant scroll container keeps its lines was green before and after.
+  Changed expectations, justified: `inline_flow.rs::ifc_clips_overflow_at_content_width` and
+  `fixed_height_ifc_clips_overflowing_lines` pinned the cut for boxes with `overflow: visible`;
+  they now set `overflow: hidden`, which is what clips in CSS, and keep their claims. Two
+  snapshots changed, glyphs only (backgrounds identical): `selectable_text.snap` — the code line's
+  `;` past its box now paints; `tab_form.snap` — the hint paragraph's wrapped second line
+  `Ctrl-C: quit` paints in the blank row under its 1-row box, as in a browser.
+  `rdom-tui` README's "Fixed height clips overflowing lines" is corrected. Also `rdom-showcase`'s `chrome_layout_contract::
+  source_disclosure_when_open_has_fixed_height_12` — the open Source panel (`overflow: auto`) now
+  shows a horizontal scrollbar for the `<pre>` lines wider than it, as a browser does, so its
+  content area is 10 rows; the test keeps its box-model claim (11 = outer − border-top) less the
+  bar's row when the content is wider (the snapshots show the panel closed).
+  Not done here, recorded as TECH_DEBT `ABSPOS-OVERFLOW-1` and DIVERGENCES §3: an absolutely
+  positioned box in its scroll container's scrollable overflow — the extent and the clamp are
+  phase-1 work and positioned boxes are placed in phase 2 (C8-CB-COMPLETE's entry had scheduled it
+  here). ACID's overflow gap is struck through.
 

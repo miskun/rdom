@@ -301,8 +301,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 - `overscroll-behavior` (+ longhands) — C8-OVERSCROLL
 - `scroll-padding*` / `scroll-margin*` (today `scrollIntoView` aligns as if both were `0`) — C8-SCROLL-PADDING
 - `scroll-snap-type` / `-align` / `-stop` — C8-SNAP
-- A non-clipping descendant's overflowing line boxes in the ancestor's scrollable overflow — C8-OVERFLOW-TEXT
-- An absolutely positioned box in the scrollable overflow of the scroll container that contains it (CSS Overflow 3 §2.2) — C8-OVERFLOW-TEXT
+- An absolutely positioned box in the scrollable overflow of the scroll container that contains it (CSS Overflow 3 §2.2) — not scheduled (TECH_DEBT `ABSPOS-OVERFLOW-1`)
 
 ### Inline text
 

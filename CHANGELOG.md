@@ -31,6 +31,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 16. **Ill-typed math is invalid** (`calc(50% * 10%)` drops the declaration) and division by zero is IEEE-754 (CSS Values 4 §10.9). (C2-TRIG, C2G-CALC-SEMANTICS)
 17. **`z-index` on a static flex item stacks it** (CSS Flexbox §5.4): a numeric `z-index` makes a flex or grid item a stacking context ordered by it, as a positioned box's is; it was ignored without `position`. (C7-GRID-PLACE)
 18. **`overflow` axes are paired** (CSS Overflow 3 §3.1): `overflow-y: scroll` computes `overflow-x` to `auto` (it stayed `visible`), so wide content now scrolls instead of painting past the box; `scrollbar-gutter: stable` no longer reserves a bottom row; and a scroll offset written on a box that is not a scroll container is dropped at the next layout — scroll the box that has `overflow` set. (C8-OVERFLOW-CLIP)
+19. **Overflowing text paints past its box**: a fixed-height or narrow box's extra lines and columns show unless the box has `overflow: hidden` / `clip` (CSS Overflow 3 §3.1); add one to keep them cut. (C8-OVERFLOW-TEXT)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -442,6 +443,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **Text that overflows its box paints and can be scrolled to**: a line past its box — a `nowrap` line wider than it, lines below a fixed height — paints on, clipped only by a box that clips (CSS Overflow 3 §3.1; inline content was cut at its own content box), and a descendant's line boxes, anonymous block boxes' included, count in the scroll container's scrollable overflow (§2.2). (C8-OVERFLOW-TEXT)
 - **Scrollbar hit-testing and thumb drags agree with paint about the corner cell**: an `overflow: auto` axis takes the corner only while its bar shows (`paint_pass::scrollbar::bars_shown`), not always. (C8-OVERFLOW-CLIP)
 - **The containing block of an absolutely positioned box is complete** (CSS 2.1 §10.1, CSS Position 3 §2.1): a `sticky` ancestor establishes it; it excludes the scrollbar gutter; inside a positioned scroll container the box scrolls with the content; a `fixed` box inside a stuck `sticky` one stays on the viewport; a positioned grid gives a `::before` / `::after` its grid area (CSS Grid 2 §9.1). Elements and pseudo-elements share one walk. (C8-CB-COMPLETE)
 - **An absolutely positioned box's containing block is the padding box** of its positioned ancestor (CSS 2.1 §10.1), not its border box — elements and positioned pseudo-elements, grid areas' `auto` edges included. (C7-ABSPOS-PADDING-EDGE)

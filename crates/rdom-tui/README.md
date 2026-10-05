@@ -329,8 +329,9 @@ What's supported:
 - **Word wrap** at whitespace, between CJK graphemes, and after
   hyphens. Long words overflow their line (CSS default — no
   char-break).
-- **Auto-height IFC blocks** grow to fit wrapped content; **Fixed**
-  height clips overflowing lines.
+- **Auto-height IFC blocks** grow to fit wrapped content; a fixed
+  height lets overflowing lines paint on below the box (CSS `overflow:
+  visible`) — `overflow: hidden` or `clip` clips them.
 - **`white-space: normal` / `pre` / `pre-wrap` / `nowrap`** —
   `normal` collapses whitespace runs and trims IFC edges; `pre`
   preserves whitespace and treats `\n` as a hard break (no soft

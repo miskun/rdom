@@ -299,13 +299,16 @@ fn source_disclosure_when_open_has_fixed_height_12() {
     // is 11 rows. The disclosure's border-top still sits on its
     // top row and visually aligns with `.main`'s framing because
     // `.main` declares collapse on its direct children.
-    let src_content = dom
-        .node(handles.source_disclosure)
-        .ext()
-        .unwrap()
-        .content_layout;
+    // Less the horizontal scrollbar's row when a source line is wider
+    // than the panel: the `<pre>`'s overflowing lines are the panel's
+    // scrollable overflow (CSS Overflow 3 §2.2, C8-OVERFLOW-TEXT), so an
+    // `auto` horizontal bar shows for them.
+    let ext = dom.node(handles.source_disclosure).ext().unwrap();
+    let src_content = ext.content_layout;
+    let bar_row = u16::from(ext.scroll_content_width > usize::from(src_content.width));
     assert_eq!(
-        src_content.height, 11,
+        src_content.height + bar_row,
+        11,
         "content area = outer − border-top (standard box model under BORDER-MODEL-1)"
     );
 

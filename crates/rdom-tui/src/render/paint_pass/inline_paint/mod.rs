@@ -169,11 +169,9 @@ fn paint_lines(
     (clip, viewport): (Rect, Rect),
 ) {
     // `inner` is the *scrolled* content rect (see
-    // `inline::scrolled_content_rect`): the block shows `inner.height`
-    // rows starting at its own `scroll_y`.
+    // `inline::scrolled_content_rect`).
     let at = FlowPlacement {
         inner,
-        first_visible_line: dom.node(id).ext().map_or(0, |e| e.scroll_y),
         bg_dedup_owner: id,
     };
     paint_inline_layout(dom, layout, at, buf, clip, viewport);
@@ -233,7 +231,6 @@ pub(super) fn paint_ifc(
     };
     let at = FlowPlacement {
         inner,
-        first_visible_line: dom.node(id).ext().map_or(0, |e| e.scroll_y),
         bg_dedup_owner: id,
     };
     paint_inline_layout(dom, inline_layout, at, buf, clip, viewport);
@@ -271,7 +268,6 @@ pub(super) fn paint_anonymous_blocks(
     for anon in &ext.anonymous_blocks {
         let at = FlowPlacement {
             inner: anon.rect,
-            first_visible_line: 0,
             bg_dedup_owner: container_id,
         };
         paint_inline_layout(dom, &anon.inline_layout, at, buf, clip, viewport);
@@ -279,15 +275,13 @@ pub(super) fn paint_anonymous_blocks(
 }
 
 /// Where an inline layout paints: `inner` is the inline flow's content
-/// area in viewport coords, `first_visible_line` the first row of it
-/// the flow shows (its own scroll offset; 0 for an anonymous box, whose
-/// rect is already scrolled), and `bg_dedup_owner` the element whose
+/// area in viewport coords (scrolled with its scroll container), and
+/// `bg_dedup_owner` the element whose
 /// `fill_bg` already covers fragments owned by it — those fragments
 /// paint with `glyph_style`, leaving that bg to its owner.
 #[derive(Clone, Copy)]
 struct FlowPlacement {
     inner: LayoutRect,
-    first_visible_line: i32,
     bg_dedup_owner: NodeId,
 }
 
@@ -309,35 +303,22 @@ fn paint_inline_layout(
 ) {
     let FlowPlacement {
         inner,
-        first_visible_line,
         bg_dedup_owner,
     } = at;
-    // The flow shows `inner.height` rows starting at
-    // `first_visible_line`; rows outside that band are above the
-    // scrollport or past the content box. `overflow: hidden` on the
-    // block is enforced by the caller's clip rect (set in `paint_node`
-    // based on overflow mode).
-    let band_top = inner.y + first_visible_line;
-    let band_bottom = band_top + i32::from(inner.height);
-    let in_band = |row: i32| row >= band_top && row < band_bottom;
-    let atom_clip = clip.intersection(Rect::new(
-        clip.x,
-        band_top.clamp(0, i32::from(u16::MAX)) as u16,
-        clip.width,
-        (band_bottom - band_top.max(0)).clamp(0, i32::from(u16::MAX)) as u16,
-    ));
+    // Lines and atoms paint wherever the packer put them, inside `clip`
+    // alone: content past the box is not clipped by it (CSS Overflow 3
+    // §3.1 `visible`) — a box that clips passes its overflow clip edge in
+    // `clip` (`stacking::children_clip`), a scroll container its padding
+    // box, so a scrolled flow shows the rows and columns it scrolled to.
+    let atom_clip = clip;
     // The current selection range (document-ordered) — computed once
     // per IFC paint, reused across fragments. `None` when there's no
     // selection or it's collapsed (caret only, nothing to highlight).
     let selection_range = dom.selection_range().filter(|r| !r.is_collapsed());
     for line in &inline_layout.lines {
         let line_y = inner.y + i32::from(line.text_row());
-        let text_visible =
-            in_band(line_y) && line_y >= clip.y as i32 && line_y < clip.bottom() as i32;
-
-        let line_right = clip
-            .right()
-            .min(inner.x.saturating_add(inner.width as i32).max(0) as u16);
+        let text_visible = line_y >= clip.y as i32 && line_y < clip.bottom() as i32;
+        let line_right = clip.right();
         if text_visible {
             for generated in &line.generated {
                 paint_generated(
