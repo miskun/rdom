@@ -35,7 +35,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 3 | Color | done 2026-10-06 (both gates; 16 gate fixes `C3G-*` incl. rdom's own terminal input reader; re-review rides with the Phase 4 gate) |
 | 4 | Backgrounds and borders | done 2026-10-06 (both gates; 19 gate fixes `C4G-*`; their re-review rides with the Phase 5 gate; C4-SPACING layout with C13-TFC) |
 | 5 | Box model and sizing (incl. logical properties) | done 2026-10-07 (both gates; 19 gate fixes `C5G-*`; their re-review rides with the Phase 6 gate; C5-CONTAIN-SIZE use with C14-CONTAIN) |
-| 6 | Display, visibility, flexbox, box alignment | |
+| 6 | Display, visibility, flexbox, box alignment | gates run 2026-10-08; `C6G-*` fixes in progress |
 | 7 | Grid | |
 | 8 | Positioning, floats, overflow, scrolling | |
 | 9 | Inline text and decoration | |
@@ -2446,3 +2446,35 @@ row comes from.
   Near it and left, recorded for the Phase 6 architect gate: `computed.rs` and `tui_style/mod.rs`
   (543 each — the two field lists, which grow by a line or two per property) and
   `property_dispatch/serialize.rs` (522, one arm per property).
+- 2026-10-08 — Phase 6 gates (with the C5G re-review: all 19 at the root; C5G-ATOM-BOX brought the
+  B3 cost below). Architect: 3 blocking — a `display: contents` element keeps stale `inline_layout` /
+  anonymous boxes / scroll extents from its box days (caret, hit-test, Tab stop wrong after a toggle);
+  a single-line `align-items: baseline` row with auto height is sized without the baseline shift;
+  nested inline-blocks measure exponentially (`atom_rows` / `content_rows` unmemoized Column
+  measurements). API: 2 blocking — an inline flex container in block flow is packed as inline text
+  (no flex layout, no box) while paint treats it as an atom; `LineBox` silently lost `Default`.
+  Non-blocking: per-node `Vec` per frame from `paint_order_children`; hit path drops a contents wrapper
+  under `order`; text / pseudos of a contents child of a flex container lost; a contents element's own
+  overflow clips; static position inside contents in an IFC; hit-test does not descend into an atom
+  in a pure IFC; `visibility: collapse` strut measured at main size 0 and still counted by gaps /
+  justify; visibility answers differ (public `is_tab_focusable`, programmatic focus, blur on hide,
+  copy); flex spec gaps (§4.5 minimum not clamped by `max-*`, hypothetical sizes without the lazy
+  minimum, shrink weight from the border-box base, `net <= 0`, inline-block items never stretched,
+  §9.2 3.B); flex `Vec`s and repeated measurement; block `align-content` re-lays the subtree out
+  (exponential under nesting) and ignores `min-height`; `justify-self: baseline` fallback direction;
+  CSSOM removal edges and `::placeholder` dropping `pending`; direction re-run bounded only by
+  `debug_assert!`; `declared_count` hand-copied and drifted; files 520–578 lines; minor box-tree /
+  clamp / gutter / gap items; scroll docs incomplete (reverse / wrap-reverse negatives, a false clamp
+  doc, no public range); alignment builders without `impl Into` and accepting out-of-grammar keywords;
+  `flex-direction` split over two fields; margin / padding builders write four sides, no per-side
+  setters; stale docs and README lines; coverage rows over-claim; DIVERGENCES whole-cell entry too
+  narrow; upgrade callout order and missing flex base-size line; prelude gaps; no Phase 6 node setters;
+  `set_from_source` without `important`, `SpannedTokens` a tuple; ACID tiles do not name Phase 6;
+  `LineBox` / `InlineFragment` / `Align` closed but due to grow; `flex: <n>` basis `0` vs `0%`;
+  CHANGELOG `[Unreleased]` unusable at 144 KB (restructure: callout split silent / compile, an
+  old → new table, ≤ 3-line bullets). Downstream (read-only): rdom-charts / rdom-virtualtable /
+  lens-tui pin 0.3.14; no reliance on the `column` default; rdom-virtualtable has two compile breaks
+  (whole-`Margin` assignment, `padding.is_none()`). Accepted: signed scroll offsets, `Token::Number(i64)`,
+  Phase 5 public helpers, module moves, scroll re-clamp, abspos `order: 0`, rounding toward main-start.
+  Fix all as `C6G-*`, three batches: A correctness and cost, B flex spec / visibility / CSSOM,
+  C API, docs and the CHANGELOG restructure.
