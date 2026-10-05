@@ -37,6 +37,9 @@ pub(super) fn interpolate(
         (AnimatedValue::ZIndex(a), AnimatedValue::ZIndex(b)) => {
             AnimatedValue::ZIndex(lerp_zindex(*a, *b, t))
         }
+        (AnimatedValue::Gaps(ar, ac), AnimatedValue::Gaps(br, bc)) => {
+            AnimatedValue::Gaps(lerp_u16(*ar, *br, t), lerp_u16(*ac, *bc, t))
+        }
         (AnimatedValue::Visibility(a), AnimatedValue::Visibility(b)) => {
             AnimatedValue::Visibility(lerp_visibility(*a, *b, t))
         }

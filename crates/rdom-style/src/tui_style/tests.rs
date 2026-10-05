@@ -106,7 +106,7 @@ fn unified_layout_fields_settable() {
         ))))
     );
     assert_eq!(
-        s.gap,
+        s.row_gap,
         Some(Value::Specified(crate::layout::GapValue::Cells(1)))
     );
     assert_eq!(s.direction, Some(Value::Specified(Direction::Row)));
@@ -117,9 +117,9 @@ fn unified_layout_fields_settable() {
     // `overflow` shorthand writes both longhands.
     assert_eq!(s.overflow_x, Some(Value::Specified(Overflow::Hidden)));
     assert_eq!(s.overflow_y, Some(Value::Specified(Overflow::Hidden)));
-    // 3 properties above + 4 padding sides + 4 border-style sides + 2
-    // axes of overflow + `flex-direction`'s reverse flag = 14.
-    assert_eq!(s.declared_count(), 14);
+    // 2 properties above + 4 padding sides + 2 gaps + 4 border-style
+    // sides + 2 axes of overflow + `flex-direction`'s reverse flag = 15.
+    assert_eq!(s.declared_count(), 15);
 }
 
 #[test]
@@ -218,8 +218,9 @@ fn every_property_has_a_setter() {
         .content(Content::Str("x".into()));
     // The `overflow` shorthand counts as 2 (writes both axes), and
     // `border_fg`, `border` and `padding` as 4 each (one longhand per
-    // side), and `direction` 2 (the axis and the reverse flag).
-    assert_eq!(s.declared_count(), 28);
+    // side), and `direction` and `gap` 2 each (the axis and the reverse
+    // flag; `row-gap` and `column-gap`).
+    assert_eq!(s.declared_count(), 29);
 }
 
 #[test]

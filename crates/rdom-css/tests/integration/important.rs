@@ -90,7 +90,10 @@ fn case_insensitive_important_keyword() {
 fn multiple_declarations_each_track_separately() {
     let s = first_style("a { color: red !important; gap: 2; padding: 1 !important; }");
     assert!(s.important.contains(ImportantMask::FG));
-    assert!(!s.important.contains(ImportantMask::GAP));
+    assert!(
+        !s.important
+            .intersects(ImportantMask::ROW_GAP | ImportantMask::COLUMN_GAP)
+    );
     assert!(s.important.contains(ImportantMask::PADDING_LEFT));
 }
 

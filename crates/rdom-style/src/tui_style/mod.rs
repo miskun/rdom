@@ -98,7 +98,11 @@ pub struct TuiStyle {
     pub margin: Sides<Option<Value<crate::layout::MarginValue>>>,
     /// `margin-trim` (CSS Box 4 §3).
     pub margin_trim: Option<Value<crate::layout::MarginTrim>>,
-    pub gap: Option<Value<crate::layout::GapValue>>,
+    /// `row-gap` / `column-gap` (CSS Box Alignment 3 §8.1), set
+    /// together by `gap`: the gutters between rows (stacked items or
+    /// lines) and between columns.
+    pub row_gap: Option<Value<crate::layout::GapValue>>,
+    pub column_gap: Option<Value<crate::layout::GapValue>>,
     /// CSS `flex-shrink`. Default `1` per CSS spec — when total
     /// declared flex-item sizes exceed the parent's main axis,
     /// items shrink proportional to `flex_shrink * basis`. `0`
@@ -404,9 +408,10 @@ impl TuiStyle {
         .count();
         n += self.padding.each().iter().filter(|p| p.is_some()).count();
         n += self.margin.each().iter().filter(|m| m.is_some()).count();
-        if self.gap.is_some() {
-            n += 1
-        }
+        n += [self.row_gap.is_some(), self.column_gap.is_some()]
+            .iter()
+            .filter(|set| **set)
+            .count();
         if self.order.is_some() {
             n += 1
         }

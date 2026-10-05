@@ -56,6 +56,8 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("contain-intrinsic-inline-size", "none"),
         ("contain-intrinsic-block-size", "auto none"),
         ("gap", "2"),
+        ("row-gap", "1"),
+        ("column-gap", "normal"),
         ("flex", "1"),
         ("flex-grow", "2"),
         ("flex-shrink", "1"),
@@ -510,15 +512,15 @@ fn gap_accepts_calc_and_percent() {
     let mut style = TuiStyle::new();
     set("gap", "calc(50% - 1)", &mut style).unwrap();
     assert!(matches!(
-        style.gap,
+        style.row_gap,
         Some(Value::Specified(GapValue::Calc(_)))
     ));
     assert_eq!(serialize("gap", &style).as_deref(), Some("calc(50% - 1)"));
     set("gap", "calc(2 * 3)", &mut style).unwrap();
-    assert_eq!(style.gap, Some(Value::Specified(GapValue::Cells(6))));
+    assert_eq!(style.row_gap, Some(Value::Specified(GapValue::Cells(6))));
     set("gap", "10%", &mut style).unwrap();
     assert_eq!(
-        style.gap,
+        style.row_gap,
         Some(Value::Specified(GapValue::Calc(Box::new(
             CalcExpr::Percent(10.0)
         ))))

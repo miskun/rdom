@@ -449,13 +449,18 @@ impl AspectRatio {
     }
 }
 
-/// `gap` value: whole cells, or a `calc()` / percentage that resolves
-/// at layout time against the container's content size on the gap's
-/// axis (CSS Box Alignment 3 §8: indefinite → 0). `CALC-GAP-1`.
+/// A `row-gap` / `column-gap` value (CSS Box Alignment 3 §8.1), also
+/// `border-spacing`'s: whole cells, or a `calc()` / percentage that
+/// resolves at layout time against the container's content size on the
+/// gap's axis (indefinite → 0; `CALC-GAP-1`), or `normal` — the initial
+/// value, 0 in flex (and grid) layout.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GapValue {
     Cells(u16),
     Calc(Box<crate::calc::CalcExpr>),
+    /// `normal`: 0 in flex layout (§8.1; a multi-column `1em`, which
+    /// rdom has no layout for yet).
+    Normal,
 }
 
 impl Default for GapValue {
@@ -486,6 +491,7 @@ impl GapValue {
                 let v = expr.resolve(&crate::calc::ResolveCtx::new(i32::from(basis)));
                 v.clamp(0, i32::from(u16::MAX)) as u16
             }
+            GapValue::Normal => 0,
         }
     }
 
@@ -494,6 +500,7 @@ impl GapValue {
         match self {
             GapValue::Cells(n) => Some(*n),
             GapValue::Calc(_) => None,
+            GapValue::Normal => Some(0),
         }
     }
 }

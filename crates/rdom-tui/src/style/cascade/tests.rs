@@ -641,7 +641,8 @@ fn padding_and_gap_cascade() {
     dom.cascade(&sheet);
     let c = computed_of(&dom, div);
     assert_eq!(c.padding, Padding::symmetric(2, 1));
-    assert_eq!(c.gap, rdom_style::layout::GapValue::Cells(3));
+    assert_eq!(c.row_gap, rdom_style::layout::GapValue::Cells(3));
+    assert_eq!(c.column_gap, rdom_style::layout::GapValue::Cells(3));
 }
 
 #[test]
@@ -2319,7 +2320,8 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.aspect_ratio = AspectRatio::new(4.0, 3.0);
     parent.padding = Padding::all(1);
     parent.margin = Margin::all_cells(1);
-    parent.gap = rdom_style::layout::GapValue::Cells(2);
+    parent.row_gap = rdom_style::layout::GapValue::Cells(2);
+    parent.column_gap = rdom_style::layout::GapValue::Cells(2);
     parent.flex_shrink = 3.0;
     parent.border = Border {
         top: BorderStyle::Solid,
@@ -2381,7 +2383,8 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ("aspect-ratio", child.aspect_ratio == parent.aspect_ratio),
         ("padding", child.padding == parent.padding),
         ("margin", child.margin == parent.margin),
-        ("gap", child.gap == parent.gap),
+        ("row-gap", child.row_gap == parent.row_gap),
+        ("column-gap", child.column_gap == parent.column_gap),
         ("flex-shrink", child.flex_shrink == parent.flex_shrink),
         ("border", child.border == parent.border),
         (

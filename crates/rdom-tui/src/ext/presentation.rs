@@ -23,7 +23,9 @@ pub struct PresentationStyle {
     pub width: Option<Size>,
     pub height: Option<Size>,
     pub padding: Option<Padding>,
-    pub gap: Option<u16>,
+    /// `row-gap` / `column-gap` while a `gap` transition runs.
+    pub row_gap: Option<u16>,
+    pub column_gap: Option<u16>,
     pub top: Option<Length>,
     pub right: Option<Length>,
     pub bottom: Option<Length>,
@@ -129,7 +131,8 @@ impl PresentationStyle {
             && self.width.is_none()
             && self.height.is_none()
             && self.padding.is_none()
-            && self.gap.is_none()
+            && self.row_gap.is_none()
+            && self.column_gap.is_none()
             && self.top.is_none()
             && self.right.is_none()
             && self.bottom.is_none()

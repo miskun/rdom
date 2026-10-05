@@ -137,15 +137,26 @@ impl TuiStyle {
     /// (`gap(GapValue::from(CalcExpr::Percent(10.0)))`), resolved at
     /// layout. Chainable.
     pub fn gap(mut self, v: impl Into<crate::layout::GapValue>) -> Self {
-        self.gap = Some(Value::Specified(v.into()));
+        let v = v.into();
+        self.row_gap = Some(Value::Specified(v.clone()));
+        self.column_gap = Some(Value::Specified(v));
+        self
+    }
+    /// Set `row-gap` (CSS Box Alignment 3 §8.1). Chainable.
+    pub fn row_gap(mut self, v: impl Into<crate::layout::GapValue>) -> Self {
+        self.row_gap = Some(Value::Specified(v.into()));
+        self
+    }
+    /// Set `column-gap` (CSS Box Alignment 3 §8.1). Chainable.
+    pub fn column_gap(mut self, v: impl Into<crate::layout::GapValue>) -> Self {
+        self.column_gap = Some(Value::Specified(v.into()));
         self
     }
 
     /// Like `gap` but also marks the declaration `!important`.
     pub fn gap_important(mut self, v: impl Into<crate::layout::GapValue>) -> Self {
-        self.gap = Some(Value::Specified(v.into()));
-        self.important |= ImportantMask::GAP;
-        self
+        self.important |= ImportantMask::ROW_GAP | ImportantMask::COLUMN_GAP;
+        self.gap(v)
     }
     setter!(
         "flex-grow",

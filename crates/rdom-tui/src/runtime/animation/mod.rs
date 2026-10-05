@@ -110,6 +110,8 @@ pub enum AnimatedValue {
     Padding(crate::layout::Padding),
     ZIndex(ZIndex),
     Visibility(crate::layout::Visibility),
+    /// `gap`: `(row-gap, column-gap)` in cells.
+    Gaps(u16, u16),
 }
 
 // ── Active animation ──────────────────────────────────────────────

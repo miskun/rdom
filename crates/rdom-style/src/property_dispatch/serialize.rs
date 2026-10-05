@@ -8,7 +8,7 @@ use super::css_wide::css_wide_of;
 use super::table::canonical_property_name;
 use super::value_serializers::{
     all_specified, join_csv, serialize_color, serialize_content, serialize_counter_ops,
-    serialize_flex_basis, serialize_length, serialize_margin_value, serialize_math,
+    serialize_flex_basis, serialize_gap, serialize_length, serialize_margin_value,
     serialize_max_size, serialize_min_size, serialize_overflow, serialize_padding_value,
     serialize_size, serialize_timing_function, serialize_transition_property,
     serialize_transition_shorthand, shortest_sides, side_value, specified,
@@ -325,10 +325,27 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             }),
 
         // Layout — gap
-        "gap" => style.gap.as_ref().and_then(specified).map(|g| match g {
-            crate::layout::GapValue::Cells(n) => n.to_string(),
-            crate::layout::GapValue::Calc(expr) => serialize_math(expr),
-        }),
+        // CSS Box Alignment 3 §8.3: one value when the two agree.
+        "gap" => match (
+            style.row_gap.as_ref().and_then(specified),
+            style.column_gap.as_ref().and_then(specified),
+        ) {
+            (Some(row), Some(column)) if row == column => Some(serialize_gap(row)),
+            (Some(row), Some(column)) => {
+                Some(format!("{} {}", serialize_gap(row), serialize_gap(column)))
+            }
+            _ => None,
+        },
+        "row-gap" => style
+            .row_gap
+            .as_ref()
+            .and_then(specified)
+            .map(serialize_gap),
+        "column-gap" => style
+            .column_gap
+            .as_ref()
+            .and_then(specified)
+            .map(serialize_gap),
 
         // CSS Box 3 §3.2 / §4.2: a shorthand when every side is set, in
         // the shortest form (CSSOM §6.7.2); a longhand its side.

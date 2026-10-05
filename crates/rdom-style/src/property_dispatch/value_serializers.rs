@@ -441,3 +441,12 @@ pub(super) fn shortest_sides(s: Sides<String>) -> String {
 pub(super) fn side_value<T>(side: &Option<Value<T>>, f: impl Fn(&T) -> String) -> Option<String> {
     side.as_ref().and_then(specified).map(f)
 }
+
+/// A `row-gap` / `column-gap` value (`border-spacing` shares the type).
+pub(super) fn serialize_gap(g: &crate::layout::GapValue) -> String {
+    match g {
+        crate::layout::GapValue::Cells(n) => n.to_string(),
+        crate::layout::GapValue::Calc(expr) => serialize_math(expr),
+        crate::layout::GapValue::Normal => "normal".to_string(),
+    }
+}

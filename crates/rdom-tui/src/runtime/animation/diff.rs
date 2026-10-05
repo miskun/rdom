@@ -206,7 +206,11 @@ fn animatable_props_for(curr: &ComputedStyle, prev: &ComputedStyle) -> Vec<Anima
     }
     // A `calc()` gap has no cell value until layout; only cell ↔ cell
     // changes interpolate (a calc-bearing change snaps).
-    if curr.gap != prev.gap && curr.gap.as_cells().is_some() && prev.gap.as_cells().is_some() {
+    let cells = |s: &ComputedStyle| Some((s.row_gap.as_cells()?, s.column_gap.as_cells()?));
+    if (curr.row_gap != prev.row_gap || curr.column_gap != prev.column_gap)
+        && cells(curr).is_some()
+        && cells(prev).is_some()
+    {
         out.push(AnimatedProp::Gap);
     }
     if curr.top != prev.top {
@@ -290,7 +294,10 @@ fn read_value(style: &ComputedStyle, prop: AnimatedProp) -> AnimatedValue {
         AnimatedProp::Width => AnimatedValue::Size(style.width.clone()),
         AnimatedProp::Height => AnimatedValue::Size(style.height.clone()),
         AnimatedProp::Padding => AnimatedValue::Padding(style.padding.clone()),
-        AnimatedProp::Gap => AnimatedValue::U16(style.gap.as_cells().unwrap_or(0)),
+        AnimatedProp::Gap => AnimatedValue::Gaps(
+            style.row_gap.as_cells().unwrap_or(0),
+            style.column_gap.as_cells().unwrap_or(0),
+        ),
         AnimatedProp::Top => AnimatedValue::Length(style.top.clone()),
         AnimatedProp::Right => AnimatedValue::Length(style.right.clone()),
         AnimatedProp::Bottom => AnimatedValue::Length(style.bottom.clone()),
@@ -319,7 +326,10 @@ pub(super) fn write_presentation(
         (AnimatedProp::Width, AnimatedValue::Size(s)) => ext.width = Some(s),
         (AnimatedProp::Height, AnimatedValue::Size(s)) => ext.height = Some(s),
         (AnimatedProp::Padding, AnimatedValue::Padding(p)) => ext.padding = Some(p),
-        (AnimatedProp::Gap, AnimatedValue::U16(g)) => ext.gap = Some(g),
+        (AnimatedProp::Gap, AnimatedValue::Gaps(row, column)) => {
+            ext.row_gap = Some(row);
+            ext.column_gap = Some(column);
+        }
         (AnimatedProp::Top, AnimatedValue::Length(l)) => ext.top = Some(l),
         (AnimatedProp::Right, AnimatedValue::Length(l)) => ext.right = Some(l),
         (AnimatedProp::Bottom, AnimatedValue::Length(l)) => ext.bottom = Some(l),
@@ -351,7 +361,10 @@ pub(super) fn clear_presentation(
         AnimatedProp::Width => presentation.width = None,
         AnimatedProp::Height => presentation.height = None,
         AnimatedProp::Padding => presentation.padding = None,
-        AnimatedProp::Gap => presentation.gap = None,
+        AnimatedProp::Gap => {
+            presentation.row_gap = None;
+            presentation.column_gap = None;
+        }
         AnimatedProp::Top => presentation.top = None,
         AnimatedProp::Right => presentation.right = None,
         AnimatedProp::Bottom => presentation.bottom = None,

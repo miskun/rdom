@@ -396,11 +396,12 @@ fn layout_fragment_children(dom: &mut Dom<TuiExt>, id: NodeId, container: Layout
 
 // ─── Tree helpers ───────────────────────────────────────────────────
 
-/// Resolve a `gap` for `computed`'s children along `axis` (CSS Box
-/// Alignment 3 §8): percentages resolve against the container's
-/// content size on that axis, and against 0 when that size is
-/// indefinite — which for rdom means an `auto`-height container's
-/// block axis.
+/// Resolve the gap between `computed`'s children laid out along `axis`
+/// (CSS Box Alignment 3 §8.1): `column-gap` between items placed
+/// horizontally, `row-gap` between items stacked vertically; `normal`
+/// is 0. Percentages resolve against the container's content size on
+/// that axis, and against 0 when that size is indefinite — which for
+/// rdom means an `auto`-height container's block axis.
 pub(super) fn resolve_gap(
     computed: &crate::style::ComputedStyle,
     container: LayoutRect,
@@ -420,5 +421,17 @@ pub(super) fn resolve_gap(
         }
         Direction::Column => container.height,
     };
-    computed.gap.resolve(basis)
+    gap_along(computed, axis).resolve(basis)
+}
+
+/// The gap property between children laid out along `axis`:
+/// `column-gap` along the horizontal axis, `row-gap` along the vertical.
+pub(super) fn gap_along(
+    computed: &crate::style::ComputedStyle,
+    axis: Direction,
+) -> &crate::layout::GapValue {
+    match axis {
+        Direction::Row => &computed.column_gap,
+        Direction::Column => &computed.row_gap,
+    }
 }

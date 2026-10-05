@@ -59,7 +59,8 @@ fn length_counts_set_properties() {
         sd.set_property("color", "red").unwrap();
         sd.set_property("gap", "2").unwrap();
     }
-    assert_eq!(dom.node(div).style().unwrap().length(), 2);
+    // `gap` and its two longhands (C6-GAP), as `padding` lists its sides.
+    assert_eq!(dom.node(div).style().unwrap().length(), 4);
 }
 
 #[test]
@@ -76,7 +77,9 @@ fn item_returns_property_names_in_canonical_order() {
     let style = dom.node(div).style().unwrap();
     assert_eq!(style.item(0), Some("color"));
     assert_eq!(style.item(1), Some("gap"));
-    assert_eq!(style.item(2), None);
+    assert_eq!(style.item(2), Some("row-gap"));
+    assert_eq!(style.item(3), Some("column-gap"));
+    assert_eq!(style.item(4), None);
 }
 
 // ── Build-script camelCase aliases (step 27) ─────────────────

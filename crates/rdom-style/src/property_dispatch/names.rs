@@ -53,6 +53,8 @@ const PROPERTY_NAMES: &[&str] = &[
     "contain-intrinsic-inline-size",
     "contain-intrinsic-block-size",
     "gap",
+    "row-gap",
+    "column-gap",
     // Flex shorthand (sets width and height in one declaration).
     "flex",
     "flex-grow",

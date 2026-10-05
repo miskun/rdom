@@ -94,7 +94,8 @@ impl ComputedStyle {
             });
         }
         for gap in [
-            &mut self.gap,
+            &mut self.row_gap,
+            &mut self.column_gap,
             &mut self.border_spacing.horizontal,
             &mut self.border_spacing.vertical,
         ] {

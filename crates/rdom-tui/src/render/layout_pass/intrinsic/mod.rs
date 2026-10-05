@@ -533,8 +533,7 @@ fn measure_content(
         // Children flow along the queried axis — sum their outer main
         // sizes plus gaps. Intrinsic sizing has no container size:
         // percent gaps are 0.
-        let gap_total = computed
-            .gap
+        let gap_total = super::gap_along(computed, direction)
             .resolve(0)
             .saturating_mul((children.len() as u16).saturating_sub(1));
         let children_main: u16 = children

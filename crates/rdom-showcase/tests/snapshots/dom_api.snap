@@ -27,20 +27,20 @@
     get_property_value(color) → "red"
     get_property_priority(padding) → "important"
     cssText → "color: red; gap: 2; padding: 1 2 3 4 !important;"
-    length  → 7
+    length  → 9
       item(0) = Some("color")
       item(1) = Some("gap")
-      item(2) = Some("padding")
-      item(3) = Some("padding-top")
-      item(4) = Some("padding-right")
-      item(5) = Some("padding-bottom")
-      item(6) = Some("padding-left")
+      item(2) = Some("row-gap")
+      item(3) = Some("column-gap")
+      item(4) = Some("padding")
+      item(5) = Some("padding-top")
+      item(6) = Some("padding-right")
+      item(7) = Some("padding-bottom")
+      item(8) = Some("padding-left")
     .color()          → "red"
     .background_color() → ""
     after external write → color = "blue"
     caret_position_from_point(0, 0) → None
-
-
 
 
 

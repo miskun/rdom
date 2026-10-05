@@ -75,8 +75,11 @@ pub(super) fn paint_box(
         if let Some(padding) = &presentation.padding {
             computed.padding = padding.clone();
         }
-        if let Some(gap) = presentation.gap {
-            computed.gap = crate::layout::GapValue::Cells(gap);
+        if let Some(gap) = presentation.row_gap {
+            computed.row_gap = crate::layout::GapValue::Cells(gap);
+        }
+        if let Some(gap) = presentation.column_gap {
+            computed.column_gap = crate::layout::GapValue::Cells(gap);
         }
     }
 

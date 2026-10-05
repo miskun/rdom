@@ -146,7 +146,7 @@ row comes from.
 | C6-ALIGN | `align-items` / `align-self` (incl. `baseline` where meaningful) | |
 | C6-ALIGN-CONTENT | `align-content` | |
 | C6-PLACE | `place-content` / `place-items` / `place-self`, `justify-items` / `justify-self` (block-level) | |
-| C6-GAP | `row-gap` / `column-gap` and two-value `gap` | |
+| C6-GAP | `row-gap` / `column-gap` and two-value `gap` | done |
 | C6-SPLIT | File-size pass on `layout_pass/flex/*` after the above | |
 
 ### Phase 7 — Grid (audit §3.9)
@@ -2178,3 +2178,30 @@ row comes from.
   `initial` test (`flex: 2 0 7`) gain the longhands. No snapshot changed. Split:
   `property_dispatch/table.rs` reached 602 lines — the name list, case folding and `all`'s names
   moved to `property_dispatch/names.rs` (172; `table.rs` 439), paths re-exported unchanged.
+- 2026-10-08 — C6-GAP: `row-gap` / `column-gap` (`normal | <length-percentage [0,∞]>`, initial
+  `normal`) and the two-value `gap` shorthand (`<'row-gap'> <'column-gap'>?`), CSS Box Alignment 3
+  §8.1 / §8.3. Checked first: `gap` parsed one `<length-percentage>` into one field for both
+  axes, and its two-value form was invalid. Model — ready for grid's two axes: `TuiStyle` /
+  `ComputedStyle` `row_gap` + `column_gap` (Breaking — the `gap` field and `ImportantMask::GAP`
+  are gone), `GapValue::Normal` (Breaking; 0 in flex, `resolve` / `as_cells`; `border-spacing`
+  shares the type but never parses it), `parse_gap_shorthand`, `serialize_gap` (shared with
+  `border-spacing`'s serializer); `gap` serializes as one value when the two agree. Layout — one
+  mapping: `layout_pass::gap_along(axis)` is `column-gap` between items placed horizontally and
+  `row-gap` between items stacked vertically, used by the flex main axis (a row's `column-gap`, a
+  column's `row-gap`; the other axis waits for C6-WRAP's lines), the intrinsic sum and the block
+  container's `row-gap` between block children. Found and recorded: that last one is an rdom
+  extension — CSS gives gaps to flex, grid and multi-column containers only — now in DIVERGENCES
+  §2 and COVERAGE §4. Transitions: `AnimatedProp::Gap` animates the pair
+  (`AnimatedValue::Gaps`; `PresentationStyle::row_gap` / `column_gap` replace `gap`, Breaking —
+  rdom-tui); `row-gap` / `column-gap` as `transition-property` names are inert (C12-ANIMATABLE).
+  CSSOM: `cssText` lists `gap` once over its longhands (`shorthand_family_of`, and `margin`'s,
+  missing since C6-MARGIN-SIDES); `length` / `item()` list the shorthand and its longhands, as
+  they do for `padding` (D-M4-2, unchanged). Red: the rdom-style test failed to compile
+  (`row_gap`, `GapValue::Normal`); both `css_phase6/gap.rs` tests failed the strict parse
+  (`column-gap` / `row-gap` unknown); green after. Mutation check: `gap_along` with the axes
+  swapped → both tests. Changed expectations: tests reading `gap` read `row_gap` (and
+  `column_gap`); `declared_count` 14 → 15 and 28 → 29 (`gap` is two fields); the CSSOM `length` /
+  `item()` tests count `gap`'s two longhands (4, `row-gap`, `column-gap`); the C1 `initial` test
+  perturbs `gap: 1 2`. Snapshot: `dom_api` — the demo's `cssText` line is unchanged; its
+  `length` reads 9 (was 7) and its `item()` list gains `row-gap` and `column-gap` after `gap`,
+  the longhands the demo's `gap: 2` now has, as `padding` lists its four.

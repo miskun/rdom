@@ -296,8 +296,15 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         }),
 
         // Layout — gap
-        "gap" => parse_gap(value).map(|g| {
-            style.gap = Some(Value::Specified(g));
+        "gap" => crate::parse::values::parse_gap_shorthand(value).map(|(row, column)| {
+            style.row_gap = Some(Value::Specified(row));
+            style.column_gap = Some(Value::Specified(column));
+        }),
+        "row-gap" => parse_gap(value).map(|g| {
+            style.row_gap = Some(Value::Specified(g));
+        }),
+        "column-gap" => parse_gap(value).map(|g| {
+            style.column_gap = Some(Value::Specified(g));
         }),
 
         // Flex shorthand (CSS Flexbox §7.2): its three longhands.

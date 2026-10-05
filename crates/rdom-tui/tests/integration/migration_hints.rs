@@ -388,3 +388,20 @@ fn flex_longhand_hints() {
     );
     assert!(ImportantMask::FLEX_GROW.intersects(ImportantMask::all()));
 }
+
+/// C6-GAP: the two gap fields and bits, `GapValue::Normal`, the
+/// shorthand parser.
+#[test]
+fn gap_hints() {
+    let s = TuiStyle::new().gap(1).column_gap(GapValue::Normal);
+    assert_eq!(s.row_gap, Some(Value::Specified(GapValue::Cells(1))));
+    let ComputedStyle {
+        row_gap,
+        column_gap,
+        ..
+    } = ComputedStyle::initial();
+    assert_eq!((row_gap, column_gap), (GapValue::Normal, GapValue::Normal));
+    let tokens = style::parse::tokenize("1 2").unwrap();
+    assert!(style::parse::values::parse_gap_shorthand(&tokens).is_some());
+    assert!((ImportantMask::ROW_GAP | ImportantMask::COLUMN_GAP).intersects(ImportantMask::all()));
+}

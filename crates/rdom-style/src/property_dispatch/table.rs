@@ -139,7 +139,8 @@ define_fields! {
     BoxSizing => box_sizing : BOX_SIZING,
     ContainIntrinsicWidth => contain_intrinsic_width : CONTAIN_INTRINSIC_WIDTH,
     ContainIntrinsicHeight => contain_intrinsic_height : CONTAIN_INTRINSIC_HEIGHT,
-    Gap => gap : GAP,
+    RowGap => row_gap : ROW_GAP,
+    ColumnGap => column_gap : COLUMN_GAP,
     FlexGrow => flex_grow : FLEX_GROW,
     FlexShrink => flex_shrink : FLEX_SHRINK,
     FlexBasis => flex_basis : FLEX_BASIS,
@@ -245,7 +246,10 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "contain-intrinsic-size" => &[ContainIntrinsicWidth, ContainIntrinsicHeight],
         "contain-intrinsic-width" | "contain-intrinsic-inline-size" => &[ContainIntrinsicWidth],
         "contain-intrinsic-height" | "contain-intrinsic-block-size" => &[ContainIntrinsicHeight],
-        "gap" => &[Gap],
+        // CSS Box Alignment 3 §8.3: `gap` sets both.
+        "gap" => &[RowGap, ColumnGap],
+        "row-gap" => &[RowGap],
+        "column-gap" => &[ColumnGap],
         // CSS Flexbox §7.2: the shorthand sets its three longhands.
         "flex" => &[FlexGrow, FlexShrink, FlexBasis],
         "flex-grow" => &[FlexGrow],

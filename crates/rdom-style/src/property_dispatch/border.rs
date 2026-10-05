@@ -7,9 +7,7 @@
 use super::value_serializers::{
     all_specified, border_style_keyword, serialize_color, serialize_math, shortest_sides, specified,
 };
-use crate::layout::{
-    BorderRadius, BorderStyle, BorderWidth, Corners, GapValue, PaintLength, Sides,
-};
+use crate::layout::{BorderRadius, BorderStyle, BorderWidth, Corners, PaintLength, Sides};
 use crate::parse::token::Token;
 use crate::parse::values::{
     parse_border, parse_border_radius, parse_border_side, parse_border_side_shorthand,
@@ -149,10 +147,7 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         }
         "border-radius" => serialize_border_radius(&style.border_radius),
         "border-spacing" => style.border_spacing.as_ref().and_then(specified).map(|s| {
-            let gap = |g: &GapValue| match g {
-                GapValue::Cells(n) => n.to_string(),
-                GapValue::Calc(e) => serialize_math(e),
-            };
+            let gap = super::value_serializers::serialize_gap;
             if s.horizontal == s.vertical {
                 gap(&s.horizontal)
             } else {

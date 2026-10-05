@@ -8,14 +8,33 @@ use super::numeric::{
 use crate::layout::{GapValue, MarginTrim, MarginValue, Padding, PaddingValue};
 use crate::parse::token::Token;
 
-/// `gap`: `<length-percentage [0,∞]>` — whole cells, a percentage or a
-/// math function; percent-bearing forms stay symbolic until layout
-/// knows the container size.
+/// `row-gap` / `column-gap`: `normal | <length-percentage [0,∞]>` (CSS
+/// Box Alignment 3 §8.1) — whole cells, a percentage or a math
+/// function; percent-bearing forms stay symbolic until layout knows the
+/// container size.
 pub fn parse_gap(value: &[Token]) -> Option<GapValue> {
+    if let [Token::Ident(s)] = value
+        && s.eq_ignore_ascii_case("normal")
+    {
+        return Some(GapValue::Normal);
+    }
     match length_percentage(value, Range::NonNegative)? {
         LengthPercentage::Integer(n) => u16::try_from(n).ok().map(GapValue::Cells),
         LengthPercentage::Cells(v) => Some(GapValue::Cells(cells_u16(v))),
         LengthPercentage::Expr(e) => Some(GapValue::Calc(Box::new(e))),
+    }
+}
+
+/// The `gap` shorthand (§8.3): `<'row-gap'> <'column-gap'>?`, one
+/// value setting both; `(row, column)`.
+pub fn parse_gap_shorthand(value: &[Token]) -> Option<(GapValue, GapValue)> {
+    match components(value)?.as_slice() {
+        [both] => {
+            let g = parse_gap(both)?;
+            Some((g.clone(), g))
+        }
+        [row, column] => Some((parse_gap(row)?, parse_gap(column)?)),
+        _ => None,
     }
 }
 

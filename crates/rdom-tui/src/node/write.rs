@@ -142,7 +142,8 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     }
     fn set_gap(&mut self, g: u16) -> &mut Self {
         self.write_inline_style(|s| {
-            s.gap = Some(Value::Specified(crate::layout::GapValue::Cells(g)))
+            s.row_gap = Some(Value::Specified(crate::layout::GapValue::Cells(g)));
+            s.column_gap = Some(Value::Specified(crate::layout::GapValue::Cells(g)));
         });
         self
     }

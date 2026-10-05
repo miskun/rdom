@@ -135,3 +135,52 @@ fn flex_grow_and_flex_basis_longhands() {
     );
     assert!(!inherits("flex-grow") && !inherits("flex-basis"));
 }
+
+/// CSS Box Alignment 3 §8.1 / §8.3: `row-gap` and `column-gap` take
+/// `normal | <length-percentage [0,∞]>` (initial `normal`); `gap` is
+/// `<'row-gap'> <'column-gap'>?`, one value for both.
+#[test]
+fn row_gap_column_gap_and_the_gap_shorthand() {
+    use crate::calc::CalcExpr;
+    use crate::layout::GapValue;
+    let spec = |g| Some(Value::Specified(g));
+    let mut style = TuiStyle::new();
+    set("row-gap", "2", &mut style).unwrap();
+    set("column-gap", "normal", &mut style).unwrap();
+    assert_eq!(style.row_gap, spec(GapValue::Cells(2)));
+    assert_eq!(style.column_gap, spec(GapValue::Normal));
+    assert_eq!(serialize("column-gap", &style).as_deref(), Some("normal"));
+    assert_eq!(serialize("gap", &style).as_deref(), Some("2 normal"));
+    for (css, row, column, out) in [
+        ("1", GapValue::Cells(1), GapValue::Cells(1), "1"),
+        ("1 3", GapValue::Cells(1), GapValue::Cells(3), "1 3"),
+        (
+            "normal 10%",
+            GapValue::Normal,
+            GapValue::Calc(Box::new(CalcExpr::Percent(10.0))),
+            "normal 10%",
+        ),
+        ("2 2", GapValue::Cells(2), GapValue::Cells(2), "2"),
+    ] {
+        let mut style = TuiStyle::new();
+        set("gap", css, &mut style).unwrap();
+        assert_eq!(
+            (style.row_gap.clone(), style.column_gap.clone()),
+            (spec(row), spec(column)),
+            "{css}"
+        );
+        assert_eq!(serialize("gap", &style).as_deref(), Some(out), "{css}");
+    }
+    for bad in ["1 2 3", "-1", "auto", "1 -2"] {
+        assert_eq!(
+            set("gap", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+    assert_eq!(
+        property_mask("gap"),
+        Some(ImportantMask::ROW_GAP | ImportantMask::COLUMN_GAP)
+    );
+    assert_eq!(GapValue::Normal.resolve(7), 0);
+}

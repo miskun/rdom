@@ -32,9 +32,7 @@ pub(crate) fn css_text_of(style: &TuiStyle) -> String {
         }
         // Suppress longhand emission when its shorthand fires —
         // see the function-level docstring.
-        if let Some(shorthand) = shorthand_family_of(name)
-            && property_dispatch::serialize(shorthand, style).is_some()
-        {
+        if listed_under_shorthand(name, style) {
             continue;
         }
         if listed_under_logical_shorthand(name, style) {
@@ -91,6 +89,14 @@ pub(crate) fn listed_under_logical_shorthand(name: &str, style: &TuiStyle) -> bo
         .any(|s| property_dispatch::serialize(s, style).is_some())
 }
 
+/// True when the longhand `name` is covered by its shorthand family's
+/// shorthand, which serializes for `style` (D-M4-2): `cssText` names the
+/// shorthand once.
+fn listed_under_shorthand(name: &str, style: &TuiStyle) -> bool {
+    shorthand_family_of(name)
+        .is_some_and(|shorthand| property_dispatch::serialize(shorthand, style).is_some())
+}
+
 /// Map a longhand name to its shorthand parent name. Used by
 /// [`css_text_of`] to suppress longhand emission when the
 /// shorthand form represents the same state. Returns `None` for
@@ -100,6 +106,7 @@ fn shorthand_family_of(name: &str) -> Option<&'static str> {
     match name {
         "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => Some("padding"),
         "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => Some("margin"),
+        "row-gap" | "column-gap" => Some("gap"),
         "top" | "right" | "bottom" | "left" => Some("inset"),
         "overflow-x" | "overflow-y" => Some("overflow"),
         "transition-property"

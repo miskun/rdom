@@ -90,11 +90,17 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
         let [tl, tr, br, bl] = corners.each().map(|r| r.as_ref()?.as_specified().cloned());
         Some(Corners::new(tl?, tr?, br?, bl?))
     }
+    /// The inline style's `gap` in cells, when `row-gap` and
+    /// `column-gap` are both set to the same whole cells.
     fn gap(&self) -> Option<u16> {
-        self.inline_style()
-            .and_then(|s| s.gap.as_ref())
-            .and_then(|v| v.as_specified())
-            .and_then(|g| g.as_cells())
+        let style = self.inline_style()?;
+        let cells = |g: &Option<crate::style::Value<crate::layout::GapValue>>| {
+            g.as_ref()
+                .and_then(|v| v.as_specified())
+                .and_then(|g| g.as_cells())
+        };
+        let row = cells(&style.row_gap)?;
+        (cells(&style.column_gap)? == row).then_some(row)
     }
     fn overflow(&self) -> Option<Overflow> {
         self.inline_style()

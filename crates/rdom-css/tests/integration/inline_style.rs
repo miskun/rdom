@@ -29,7 +29,7 @@ fn parse_inline_multiple_declarations() {
     );
     assert_eq!(r.style.display, Some(Value::Specified(Display::Block)));
     assert_eq!(
-        r.style.gap,
+        r.style.row_gap,
         Some(Value::Specified(rdom_style::layout::GapValue::Cells(2)))
     );
 }

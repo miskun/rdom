@@ -73,7 +73,12 @@ pub struct ComputedStyle {
     /// `margin-trim` (CSS Box 4 §3): which content edges trim the
     /// adjoining children's margins. Initial `none`.
     pub margin_trim: crate::layout::MarginTrim,
-    pub gap: crate::layout::GapValue,
+    /// `row-gap` / `column-gap` (CSS Box Alignment 3 §8.1), initial
+    /// `normal`. A row flex container's items are `column-gap` apart, a
+    /// column's `row-gap`; rdom also spaces a block container's block
+    /// children by `row-gap` (DIVERGENCES).
+    pub row_gap: crate::layout::GapValue,
+    pub column_gap: crate::layout::GapValue,
     /// CSS `flex-shrink`. Default `1` (CSS spec). When total
     /// declared sizes exceed the parent's main-axis budget, items
     /// shrink proportional to `flex_shrink * basis`. `0` opts out.
@@ -268,7 +273,8 @@ impl ComputedStyle {
             padding: Padding::default(),
             margin: crate::layout::Margin::default(),
             margin_trim: crate::layout::MarginTrim::NONE,
-            gap: crate::layout::GapValue::Cells(0),
+            row_gap: crate::layout::GapValue::Normal,
+            column_gap: crate::layout::GapValue::Normal,
             flex_shrink: 1.0,
             order: 0,
             flex_grow: 0.0,
@@ -427,7 +433,8 @@ mod tests {
         assert_eq!(s.overflow_x, Overflow::Visible);
         assert_eq!(s.overflow_y, Overflow::Visible);
         assert_eq!(s.border, Border::none());
-        assert_eq!(s.gap, crate::layout::GapValue::Cells(0));
+        assert_eq!(s.row_gap, crate::layout::GapValue::Normal);
+        assert_eq!(s.column_gap, crate::layout::GapValue::Normal);
         assert_eq!(s.padding, Padding::default());
         assert_eq!(s.display, Display::Block);
         assert_eq!(s.flow, crate::layout::Flow::Block);

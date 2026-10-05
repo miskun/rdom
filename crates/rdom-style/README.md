@@ -82,7 +82,7 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   and the intrinsic keywords `min-content` / `max-content` /
   `fit-content` / `fit-content()`), `box-sizing` (initial `content-box`),
   `aspect-ratio`, `contain-intrinsic-size` (+ `-width` / `-height` /
-  `-inline-size` / `-block-size`), `gap`, `padding` and
+  `-inline-size` / `-block-size`), `gap` (+ `row-gap` / `column-gap`), `padding` and
   `margin` (+ four longhands each, `margin: auto`), `margin-trim`, `border` and
   `border-top` / `-right` / `-bottom` / `-left` (width, style and color
   in any order: `border: 1px solid red`), `border-style`,

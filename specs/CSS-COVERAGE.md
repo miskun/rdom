@@ -76,7 +76,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 6 | 1 | 2 | 2 | 11 |
-| 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 7 | 1 | 9 | 0 | 17 |
+| 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 9 | 0 | 8 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **123** | **29** | **109** | **46** | **307** |
+| **Total** | **125** | **28** | **108** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 138 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 136 rows Partial / Missing.
 
-Headline: rdom parses **155 property names** (`property_names()`, after C6-FLEX-LONGHANDS). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, `line-height`, `text-align`, and grid.
+Headline: rdom parses **157 property names** (`property_names()`, after C6-GAP). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, `line-height`, `text-align`, and grid.
 
 ---
 
@@ -145,7 +145,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 35 | `@supports` | Evaluate `(prop: value)` against the dispatch table, `selector()`, `not` / `and` / `or`. Lets pasted CSS degrade intentionally. | S | Blanket |
 | 36 | `white-space: pre-line` / `break-spaces` (+ Text 4 `white-space-collapse`, `text-wrap-mode`) | `pre-line` collapses spaces but keeps newlines; `break-spaces` keeps and wraps trailing spaces. | S | No |
 | 37 | `flex-direction: row-reverse / column-reverse` | Shipped (C6-DIRECTION-REVERSE; §3.8): main-start and main-end swap, with `direction`; a reversed scroll container scrolls from its main-start edge with a negative `scrollLeft` / `scrollTop`. | S | No |
-| 38 | `row-gap` / `column-gap` / two-value `gap` | Separate gaps per axis (today `gap` is one value for both). | S | No |
+| 38 | `row-gap` / `column-gap` / two-value `gap` | Shipped (C6-GAP; §3.8): per-axis gaps, `normal`, the two-value shorthand. | S | No |
 | 39 | Color syntax completeness: `rgb()` space syntax / `%` channels / `/ alpha`; `color-mix()`; relative color syntax; system colors (`Canvas`, `CanvasText`, …); `light-dark()` + `color-scheme` | Shipped (C3-RGB, C3-MIX, C3-RELATIVE, C3-SYSTEM, C3-SCHEME; §3.4) — system colors map onto the terminal's default fg / bg and the UA palette; `light-dark()` picks by the terminal's reported background and follows its theme changes (mode 2031). | S–M | No |
 | 40 | `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default`, `:user-valid` / `:user-invalid`, `:modal`, `:link` / `:any-link`, `:lang()`, `:scope`, `:popover-open` | Form / link / context state rdom already tracks (or can) for every one. | S each | Partial — `:read-*`, `:user-*`, `:modal` Yes; rest No |
 | 41 | `float` / `clear` | Line-box exclusion beside a floated box; sidebars and drop-caps. Deliberately out of scope today. | L | Yes |
@@ -369,8 +369,8 @@ dropped. The audit's six, with where each stands:
 | `align-content` | Missing | Needs `flex-wrap`. | No | `FLEX` |
 | `justify-items` / `justify-self` | Missing | Grid / block-level alignment. | No | grid, `BLOCK` |
 | `place-content` / `place-items` / `place-self` | Missing | Shorthands. | No | `DISP` |
-| `gap` | Partial | One value for both axes (cells, `%`, `calc()`); two-value form rejected. | No | `V/spacing.rs::parse_gap` |
-| `row-gap` / `column-gap` | Missing | Per-axis gap. | No | `DISP`, `TS::gap` |
+| `gap` | Supported | `<'row-gap'> <'column-gap'>?` (CSS Box Alignment 3 §8.3), one value setting both; serialized as one when they agree (C6-GAP). | — | `V/spacing.rs::parse_gap_shorthand` |
+| `row-gap` / `column-gap` | Supported | `normal | <length-percentage [0,∞]>`, initial `normal` (0 in flex), separate fields ready for grid's two axes (§8.1): a row flex container's items are `column-gap` apart, a column's `row-gap` (`flex-wrap`'s lines will take the other); rdom also spaces a block container's block children by `row-gap` (§4 below). A `gap` transition animates both (C6-GAP). | — | `DISP`, `TS::row_gap` / `column_gap`, `layout_pass::resolve_gap` |
 | Auto margins in flex | Supported | Main and cross axis. | — | `FLEX/main_axis.rs`, `FLEX/cross.rs` |
 | Min-content protection (`min-width: auto`) | Supported | Flexbox §4.5: the automatic minimum size on the main axis, `auto` the initial value (undeclared = `auto`); 0 on the cross axis (C3G-MIN-AUTO). | — | `rdom-tui/src/render/layout_pass/intrinsic.rs` |
 
@@ -558,7 +558,7 @@ dropped. The audit's six, with where each stands:
 | `transition-delay` | Partial | Negative delays rejected (Transitions 1 allows them: start part-way). | No | `TR::parse_time_ms` |
 | `transition` | Supported | Shorthand list. | — | `TR` |
 | `transition-behavior` | Missing | `allow-discrete`. | Yes | `TR` |
-| Animatable property set | Partial | `color`, `background-color`, `border-color`, `width`, `height`, `padding`, `gap`, `top` / `right` / `bottom` / `left`, `z-index`; not `opacity`, `margin`, `min-*` / `max-*`, `inset` as a name. | No | `TR::parse_animatable_property` |
+| Animatable property set | Partial | `color`, `background-color`, `border-color`, `width`, `height`, `padding`, `gap` (both axes, C6-GAP), `top` / `right` / `bottom` / `left`, `z-index`, `visibility` (C6-VISIBILITY); not `opacity`, `margin`, `min-*` / `max-*`, `inset` as a name. | No | `TR::parse_animatable_property` |
 | `@keyframes` | Missing | — | Yes | `AT`, `TR` |
 | `animation` / `animation-name` / `-duration` / `-timing-function` / `-delay` / `-iteration-count` / `-direction` / `-fill-mode` / `-play-state` / `-composition` | Missing | — | Yes | `DISP`, `TR` |
 | `@starting-style` | Missing | Entry transitions. | Blanket | `AT`, `TR` |
@@ -659,6 +659,7 @@ dropped. The audit's six, with where each stands:
 | Bare integer color `0–255` → xterm-256 palette index (`color: 208`) | `tui_color.rs::parse_simple_color` | No |
 | `reset` color keyword (terminal default fg / bg) | `tui_color.rs::parse_simple_color` | No |
 | `::scrollbar`, `::scrollbar-thumb`, `::scrollbar-thumb:vertical` / `:horizontal` | `PE` | Yes |
+| `row-gap` between a block container's block-level children (CSS Box Alignment 3 §8 applies gaps to flex, grid and multi-column containers only) | `BLOCK/mod.rs` | Yes |
 
 ---
 
@@ -667,8 +668,8 @@ dropped. The audit's six, with where each stands:
 Every *Partial* or *Missing* row above whose Doc'd column is `No` or `Wrong`. These need either an
 implementation or a `DIVERGENCES.md` entry before the acid page's coverage test can be honest.
 
-133 rows as audited. Through C6-FLEX-LONGHANDS, 44 have shipped and two have partly shipped
-(each annotated *Shipped* where it stands); 87 remain open (Phase 0 listed each of them in
+133 rows as audited. Through C6-GAP, 46 have shipped and two have partly shipped
+(each annotated *Shipped* where it stands); 85 remain open (Phase 0 listed each of them in
 `DIVERGENCES.md` §3).
 
 **3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6)**
@@ -751,8 +752,8 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `align-content` — Missing: Needs `flex-wrap`.
 - `justify-items` / `justify-self` — Missing: Grid / block-level alignment.
 - `place-content` / `place-items` / `place-self` — Missing: Shorthands.
-- `gap` — Partial: One value for both axes (cells, `%`, `calc()`); two-value form rejected.
-- `row-gap` / `column-gap` — Missing: Per-axis gap.
+- `gap` — Partial: One value for both axes (cells, `%`, `calc()`); two-value form rejected. *Shipped: C6-GAP.*
+- `row-gap` / `column-gap` — Missing: Per-axis gap. *Shipped: C6-GAP.*
 
 **3.10 Positioned layout (Position 3, CSS 2.1 §9)**
 
