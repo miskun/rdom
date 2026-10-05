@@ -95,16 +95,15 @@ fn padding_box(dom: &Dom<TuiExt>, id: NodeId) -> Option<LayoutRect> {
     };
     let pb = crate::render::layout_pass::geometry::compute_padding_box(ext.layout, c.border);
     let content = ext.content_layout;
-    let (bar_y, bar_x) = crate::render::layout_pass::gutter_axes(
+    let g = crate::render::layout_pass::gutters(
         c,
         ext.scroll_content_height > usize::from(content.height),
         ext.scroll_content_width > usize::from(content.width),
     );
-    let left = bar_y && crate::render::layout_pass::gutter::bar_on_left(c);
     Some(LayoutRect::new(
-        pb.x + i32::from(left),
+        pb.x + i32::from(g.left),
         pb.y,
-        pb.width.saturating_sub(u16::from(bar_y)),
-        pb.height.saturating_sub(u16::from(bar_x)),
+        pb.width.saturating_sub(g.columns()),
+        pb.height.saturating_sub(g.bottom),
     ))
 }

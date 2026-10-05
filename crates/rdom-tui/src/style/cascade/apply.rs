@@ -258,6 +258,8 @@ pub(super) fn apply_style(
         continue_: CONTINUE,
         webkit_box_orient: WEBKIT_BOX_ORIENT,
         scrollbar_gutter: SCROLLBAR_GUTTER,
+        scrollbar_width: SCROLLBAR_WIDTH,
+        scrollbar_color: SCROLLBAR_COLOR,
         scroll_behavior: SCROLL_BEHAVIOR,
         // `display` owns both halves: `display: inherit` takes the
         // parent's outer and inner display.

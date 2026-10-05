@@ -2345,6 +2345,13 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.webkit_box_orient = rdom_style::layout::BoxOrient::Vertical;
     parent.overflow_y = Overflow::Scroll;
     parent.scrollbar_gutter = ScrollbarGutter::Stable;
+    parent.scrollbar_width = rdom_style::layout::ScrollbarWidth::Thin;
+    parent.scrollbar_color = rdom_style::layout::ScrollbarColor::Colors {
+        thumb: Color::Rgb(1, 1, 1).into(),
+        track: Color::Rgb(2, 2, 2).into(),
+    };
+    parent.float = rdom_style::layout::Float::Left;
+    parent.clear = rdom_style::layout::Clear::Both;
     parent.scroll_behavior = ScrollBehavior::Smooth;
     parent.display = Display::Inline;
     parent.white_space = WhiteSpace::Pre;
@@ -2425,6 +2432,16 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
             "scroll-behavior",
             child.scroll_behavior == parent.scroll_behavior,
         ),
+        (
+            "scrollbar-width",
+            child.scrollbar_width == parent.scrollbar_width,
+        ),
+        (
+            "scrollbar-color",
+            child.scrollbar_color == parent.scrollbar_color,
+        ),
+        ("float", child.float == parent.float),
+        ("clear", child.clear == parent.clear),
         ("display", child.display == parent.display),
         ("white-space", child.white_space == parent.white_space),
         ("user-select", child.user_select == parent.user_select),

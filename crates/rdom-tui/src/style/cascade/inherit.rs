@@ -47,6 +47,8 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     working.writing_mode = parent.writing_mode;
     // CSS Overflow 4 §4.3: `block-ellipsis` inherits.
     working.block_ellipsis = parent.block_ellipsis.clone();
+    // CSS Scrollbars 1 §2: `scrollbar-color` inherits.
+    working.scrollbar_color = parent.scrollbar_color.clone();
     // `border-collapse` does NOT inherit in rdom — documented
     // divergence (BORDER-MODEL-1). Containers that want their direct
     // children to participate in collapse declare it themselves;
@@ -137,4 +139,5 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.clear != b.clear
         || a.flow != b.flow
         || a.scrollbar_gutter != b.scrollbar_gutter
+        || a.scrollbar_width != b.scrollbar_width
 }

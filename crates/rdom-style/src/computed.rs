@@ -226,6 +226,11 @@ pub struct ComputedStyle {
     /// `Scroll`). `Stable` always reserves to prevent reflow when
     /// a scrollbar appears.
     pub scrollbar_gutter: crate::layout::ScrollbarGutter,
+    /// `scrollbar-width` (CSS Scrollbars 1 §3). Not inherited.
+    pub scrollbar_width: crate::layout::ScrollbarWidth,
+    /// `scrollbar-color` (CSS Scrollbars 1 §2), its colors as specified.
+    /// Inherited.
+    pub scrollbar_color: crate::layout::ScrollbarColor,
     /// CSS `scroll-behavior` — whether a programmatic scroll of this
     /// scroll container animates (`Smooth`) or jumps (`Auto`, default).
     /// Read by the runtime's scroll paths, not by layout.
@@ -435,6 +440,8 @@ impl ComputedStyle {
             webkit_box_orient: crate::layout::BoxOrient::InlineAxis,
             line_clamp_container: false,
             scrollbar_gutter: crate::layout::ScrollbarGutter::Auto,
+            scrollbar_width: crate::layout::ScrollbarWidth::Auto,
+            scrollbar_color: crate::layout::ScrollbarColor::Auto,
             scroll_behavior: crate::layout::ScrollBehavior::Auto,
             display: Display::Block,
             flow: crate::layout::Flow::Block,

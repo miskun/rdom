@@ -882,3 +882,19 @@ fn overflow_hints() {
     let c = ComputedStyle::initial();
     assert!(!c.is_scroll_container() && !c.clips_overflow());
 }
+
+/// C8-SCROLLBAR: `ScrollbarGutter::StableBothEdges` is a new arm (or ask
+/// `is_stable()`); `ScrollbarWidth` and `ScrollbarColor` are new.
+#[test]
+fn scrollbar_hints() {
+    let reserves = |g: layout::ScrollbarGutter| match g {
+        layout::ScrollbarGutter::Auto => false,
+        layout::ScrollbarGutter::Stable | layout::ScrollbarGutter::StableBothEdges => true,
+    };
+    assert!(reserves(layout::ScrollbarGutter::StableBothEdges));
+    assert!(layout::ScrollbarGutter::StableBothEdges.is_stable());
+    let s = TuiStyle::new()
+        .scrollbar_width(layout::ScrollbarWidth::Thin)
+        .scrollbar_color(layout::ScrollbarColor::Auto);
+    assert!(s.scrollbar_width.is_some() && s.scrollbar_color.is_some());
+}

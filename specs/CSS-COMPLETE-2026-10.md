@@ -175,7 +175,7 @@ row comes from.
 | C8-OVERFLOW-CLIP | `overflow: clip`, two-value `overflow`, `overflow-clip-margin`, logical `overflow-block` / `-inline` | done |
 | C8-TEXT-OVERFLOW | `text-overflow: clip / ellipsis / <string>` | done |
 | C8-LINE-CLAMP | `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | done |
-| C8-SCROLLBAR | `scrollbar-gutter: both-edges`, `scrollbar-width`, `scrollbar-color` | |
+| C8-SCROLLBAR | `scrollbar-gutter: both-edges`, `scrollbar-width`, `scrollbar-color` | done |
 | C8-OVERSCROLL | `overscroll-behavior` (+ axis / logical longhands) | |
 | C8-SCROLL-PADDING | `scroll-padding*` / `scroll-margin*` | |
 | C8-SNAP | `scroll-snap-type` / `-align` / `-stop` | |
@@ -4754,3 +4754,28 @@ row comes from.
   block-child test; no float width → the width test; trimming off → the trim test; the band
   window off → the `text-overflow` test. Changed expectation: none. No
   snapshot changed.
+- 2026-10-05 — C8-SCROLLBAR (CSS Overflow 3 §3.3, CSS Scrollbars 1 §2–§3). rdom-style: the scrollbar
+  values in `layout/scrollbar.rs` — `ScrollbarGutter` (moved from `keywords.rs`) gains
+  `StableBothEdges` (`auto | stable && both-edges?`, `both-edges` only beside `stable`, either
+  order; Breaking — rdom-style), `ScrollbarWidth` (`auto | thin | none`), `ScrollbarColor` (`auto |
+  <color>{2}`, thumb then track, colors kept as specified, inherited), and
+  `NATIVE_SCROLLBAR_TRACK` / `_THUMB`, which the UA's `::scrollbar*` rules now use too; parsers in
+  `parse/values/scrollbar.rs`, set / serialize in `property_dispatch/scrollbar.rs`. rdom-tui
+  layout: one helper, `gutter::gutters` (the vertical bar's column on its side, its twin on the
+  opposite edge under `both-edges`, the horizontal bar's row), replaces the per-site
+  `gutter_axes` arithmetic in the content area, the containing block, and the block, grid and
+  wrapped-flex intrinsic sizes; `gutter_axes` reserves nothing under `scrollbar-width: none`, and
+  `stable` now reserves on an `overflow: hidden` box too (§3.3 — it was `scroll` / `auto` only;
+  Changed — rdom-tui). Paint: `Look` decides what styles a bar — rdom's pseudo-elements while
+  both standard properties are `auto`, the standard properties alone otherwise (Chromium's
+  precedence over `::-webkit-scrollbar`); `thin` (decided, DIVERGENCES §1): the one-cell bar, no
+  track glyph, the thumb in the light line; `scrollbar-color`: the track cells filled with the
+  track color, the thumb glyph in the thumb color on it, resolved against the element as
+  `caret-color` is; `bars_shown` is false under `none`, so paint, hit-testing and dragging see no
+  bar while the wheel, keys and script still scroll. Red: `scrollbar_tests.rs` (4) did not compile
+  (no types or fields); `css_phase8/scrollbar.rs` — 8 of 8 failed (the strict parse rejecting the
+  properties; the hidden box `(0, 10)` for `(0, 9)`); green after. Mutation (each restored and
+  touched): no `both-edges` and no hidden-`stable` → four layout tests; the standard look off →
+  the three paint tests. Changed expectations: `apply_tests`, `canonical_values`, the
+  important-setter test and `cascade_inherits_exactly_the_style_crates_inherited_set` (which also
+  probes `float` / `clear` now) list the new properties. No snapshot changed.

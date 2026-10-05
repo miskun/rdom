@@ -147,6 +147,8 @@ define_fields! {
     Continue => continue_ : CONTINUE,
     WebkitBoxOrient => webkit_box_orient : WEBKIT_BOX_ORIENT,
     ScrollbarGutter => scrollbar_gutter : SCROLLBAR_GUTTER,
+    ScrollbarWidth => scrollbar_width : SCROLLBAR_WIDTH,
+    ScrollbarColor => scrollbar_color : SCROLLBAR_COLOR,
     ScrollBehavior => scroll_behavior : SCROLL_BEHAVIOR,
     Width => width : WIDTH,
     Height => height : HEIGHT,
@@ -342,5 +344,6 @@ pub fn inherits(name: &str) -> bool {
             | "direction"
             | "writing-mode"
             | "block-ellipsis"
+            | "scrollbar-color"
     )
 }

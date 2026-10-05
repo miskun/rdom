@@ -85,11 +85,11 @@ pub(super) fn content_size_with(
         }
         Direction::Column => {
             let chrome = Sizer::horizontal(computed, cb_width).chrome();
-            let (gutter_column, _) =
-                crate::render::layout_pass::gutter_axes(computed, false, false);
+            let gutter_columns =
+                crate::render::layout_pass::gutters(computed, false, false).columns();
             let width = cross_budget
                 .saturating_sub(chrome)
-                .saturating_sub(u16::from(gutter_column));
+                .saturating_sub(gutter_columns);
             let columns = laid_out_axis(computed, Dimension::Columns, Some(width));
             let rows = laid_out_axis(computed, Dimension::Rows, None);
             size_grid(dom, id, computed, columns, Some(rows), inherit, false)

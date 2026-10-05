@@ -1,6 +1,6 @@
 //! Keyword-valued layout properties: `flex-direction` (the axis and the
 //! one-value [`FlexDirection`]), `flex-wrap`,
-//! `scrollbar-gutter`, `scroll-behavior`, `box-sizing`, `direction`,
+//! `scroll-behavior`, `box-sizing`, `direction`,
 //! `writing-mode`, `display` (outer [`Display`] and inner [`Flow`]),
 //! `white-space`, `caret-color`, `caret-text-color`, `pointer-events`,
 //! `visibility`, `user-select`, `text-decoration`, `position` and
@@ -75,34 +75,6 @@ pub enum FlexWrap {
     /// `wrap-reverse`: as `wrap`, with cross-start and cross-end swapped
     /// — the first line at the cross-end edge.
     WrapReverse,
-}
-
-/// CSS `scrollbar-gutter` — controls whether a scrollable element
-/// reserves space for its scrollbar even when not actively
-/// showing one. CSS spec default is `Auto`: reserve nothing
-/// until the scrollbar actually appears (content reflows when
-/// it does). `Stable` always reserves so content never reflows.
-///
-/// rdom uses this to gate `reserve_scrollbar_gutter` in the
-/// layout pass. With `Auto`, an `overflow: auto` element doesn't
-/// give up cells for a scrollbar gutter that may never be needed
-/// — important for single-row affordances like a closed
-/// `<details>` summary. With `Stable`, the cell is reserved even
-/// at rest, useful for live-updating content where mid-frame
-/// reflow would be visually disruptive.
-///
-/// Does not inherit (matches CSS). Initial value: `Auto`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ScrollbarGutter {
-    /// Reserve gutter cells only when the scrollbar actually
-    /// shows (i.e. `Overflow::Scroll` always reserves; `Auto`
-    /// only when content overflows). CSS default.
-    #[default]
-    Auto,
-    /// Always reserve a gutter for any axis with `Scroll` or
-    /// `Auto` overflow — even when content fits. Content never
-    /// reflows when a scrollbar appears.
-    Stable,
 }
 
 /// CSS `scroll-behavior` (CSSOM View §12.1): how a programmatic scroll

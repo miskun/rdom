@@ -205,6 +205,10 @@ pub struct TuiStyle {
     /// `scrollbar-gutter: auto | stable`. Gates the layout pass's
     /// gutter reservation for scrollable elements. Default `Auto`.
     pub scrollbar_gutter: Option<Value<crate::layout::ScrollbarGutter>>,
+    /// `scrollbar-width` (CSS Scrollbars 1 §3).
+    pub scrollbar_width: Option<Value<crate::layout::ScrollbarWidth>>,
+    /// `scrollbar-color` (CSS Scrollbars 1 §2).
+    pub scrollbar_color: Option<Value<crate::layout::ScrollbarColor>>,
     /// `scroll-behavior: auto | smooth` (CSSOM View §12.1). Whether a
     /// programmatic scroll of this container animates. Default `Auto`.
     pub scroll_behavior: Option<Value<crate::layout::ScrollBehavior>>,

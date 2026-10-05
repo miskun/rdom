@@ -66,6 +66,8 @@ const PERTURB: &[(&str, &str)] = &[
     ("continue", "discard"),
     ("-webkit-box-orient", "vertical"),
     ("scrollbar-gutter", "stable"),
+    ("scrollbar-width", "thin"),
+    ("scrollbar-color", "red blue"),
     ("scroll-behavior", "smooth"),
     // Before `flex-shrink`, which overrides its shrink: it perturbs
     // `flex_grow` and `flex_basis`.
@@ -204,6 +206,8 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         continue_,
         webkit_box_orient,
         scrollbar_gutter,
+        scrollbar_width,
+        scrollbar_color,
         scroll_behavior,
         display,
         flow,
@@ -309,6 +313,8 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         continue_,
         webkit_box_orient,
         scrollbar_gutter,
+        scrollbar_width,
+        scrollbar_color,
         scroll_behavior,
         display,
         flow,

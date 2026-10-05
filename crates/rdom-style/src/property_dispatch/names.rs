@@ -56,6 +56,8 @@ const PROPERTY_NAMES: &[&str] = &[
     "-webkit-line-clamp",
     "-webkit-box-orient",
     "scrollbar-gutter",
+    "scrollbar-width",
+    "scrollbar-color",
     "scroll-behavior",
     // Layout — sizing
     "width",

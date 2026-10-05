@@ -125,7 +125,7 @@ pub(super) use flow::{flow_axis, gap_along, resolve_gap};
 use auto_height::resolve_auto_height;
 pub(crate) use clip_edge::ClipEdges;
 pub(crate) use grid::GridLines;
-pub(super) use gutter::{gutter_axes, reserve_scrollbar_gutter, reserve_scrollbar_gutter_forced};
+pub(super) use gutter::{gutters, reserve_scrollbar_gutter, reserve_scrollbar_gutter_forced};
 pub(crate) use ifc::is_ifc_block;
 use scroll_extent::{clamp_scroll_offset, record_scroll_content_size};
 pub(crate) use scroll_extent::{
@@ -347,9 +347,9 @@ pub(super) fn layout_node(
     // Convergent in two passes: a narrower viewport can only
     // increase overflow, never decrease it, so the second pass's
     // gutter decision sticks.
-    use crate::layout::ScrollbarGutter;
     let auto_no_stable_y = matches!(computed.overflow_y, Overflow::Auto)
-        && !matches!(computed.scrollbar_gutter, ScrollbarGutter::Stable);
+        && !computed.scrollbar_gutter.is_stable()
+        && computed.scrollbar_width != crate::layout::ScrollbarWidth::None;
     // `scrollbar-gutter` reserves the vertical bar's gutter only (CSS
     // Overflow 3 §3.3): an `auto` horizontal bar always waits for overflow.
     let auto_no_stable_x = matches!(computed.overflow_x, Overflow::Auto);

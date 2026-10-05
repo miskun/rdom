@@ -304,6 +304,8 @@ fn every_property_has_important_setter() {
         .align_self_important(crate::layout::Align::Center)
         .flex_grow_important(1.0)
         .scrollbar_gutter_important(crate::layout::ScrollbarGutter::Stable)
+        .scrollbar_width_important(crate::layout::ScrollbarWidth::Thin)
+        .scrollbar_color_important(crate::layout::ScrollbarColor::Auto)
         .overflow_clip_margin_important(Default::default())
         .text_overflow_important(Default::default())
         .max_lines_important(Some(1))

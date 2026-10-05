@@ -34,7 +34,8 @@ pub(super) fn wrapped_cross_size(
     cross_budget: u16,
     cb_width: u16,
 ) -> u16 {
-    let (gutter_col, gutter_row) = crate::render::layout_pass::gutter_axes(computed, false, false);
+    let g = crate::render::layout_pass::gutters(computed, false, false);
+    let (gutter_col, gutter_row) = (g.columns(), g.bottom);
     match query {
         // A row's lines stack vertically.
         Direction::Column => {
@@ -51,7 +52,7 @@ pub(super) fn wrapped_cross_size(
                 .map_or(outer, |m| outer.max(m));
             let main = outer
                 .saturating_sub(kw.sizer().chrome())
-                .saturating_sub(u16::from(gutter_col));
+                .saturating_sub(gutter_col);
             crate::render::layout_pass::flex::lines_cross_size(dom, id, children, main, 0, main)
         }
         // A column's lines sit side by side.
@@ -67,7 +68,7 @@ pub(super) fn wrapped_cross_size(
             );
             let main = outer
                 .saturating_sub(Sizer::vertical(computed, cb_width).chrome())
-                .saturating_sub(u16::from(gutter_row));
+                .saturating_sub(gutter_row);
             crate::render::layout_pass::flex::lines_cross_size(dom, id, children, main, u16::MAX, 0)
         }
     }

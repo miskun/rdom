@@ -149,6 +149,95 @@ fn thumb_cell<'a>(
     }
 }
 
+/// Light thumb glyphs of a `scrollbar-width: thin` bar: the track's line
+/// weight, where the default thumb is heavy.
+const THIN_THUMB_V: &str = "│";
+const THIN_THUMB_H: &str = "─";
+
+/// What styles `computed`'s bars (CSS Scrollbars 1 §2–§3): rdom's
+/// `::scrollbar` / `::scrollbar-thumb` pseudo-elements while
+/// `scrollbar-width` and `scrollbar-color` are both `auto`; once either is
+/// not, the standard properties alone, the pseudo-elements ignored —
+/// Chromium's precedence over its `::-webkit-scrollbar` pseudo-elements.
+#[derive(Clone, Copy)]
+enum Look {
+    Pseudos,
+    /// `thin`, and the thumb and track colors (`None`: the platform's).
+    Standard {
+        thin: bool,
+        colors: Option<(Color, Color)>,
+    },
+}
+
+impl Look {
+    fn of(dom: &Dom<TuiExt>, computed: &ComputedStyle) -> Self {
+        use crate::layout::{ScrollbarColor, ScrollbarWidth};
+        if computed.scrollbar_width == ScrollbarWidth::Auto
+            && computed.scrollbar_color == ScrollbarColor::Auto
+        {
+            return Self::Pseudos;
+        }
+        let colors = match &computed.scrollbar_color {
+            ScrollbarColor::Auto => None,
+            // Specified colors, resolved against the element's own color
+            // and used color scheme (`currentcolor`, `var()`,
+            // `light-dark()`), as `caret-color` is.
+            ScrollbarColor::Colors { thumb, track } => {
+                let scheme = computed
+                    .color_scheme
+                    .used(crate::style::CascadeExt::color_scheme(dom));
+                let cx = crate::ColorContext::new(computed.fg).with_scheme(scheme);
+                let resolve = |c: &crate::TuiColor| c.resolve(&computed.vars, &cx);
+                resolve(thumb).zip(resolve(track))
+            }
+        };
+        Self::Standard {
+            thin: computed.scrollbar_width == ScrollbarWidth::Thin,
+            colors,
+        }
+    }
+
+    /// A track cell: the pseudo-element's, or the standard bar's — none
+    /// drawn when thin, else the light line; the track color filling the
+    /// cell, or the platform's track color for the glyph.
+    fn track(self, pseudo: Option<&ComputedStyle>, axis: ScrollbarAxis) -> (&str, Style) {
+        let Self::Standard { thin, colors } = self else {
+            return track_cell(pseudo, axis);
+        };
+        let glyph = match (thin, axis) {
+            (true, _) => " ",
+            (false, ScrollbarAxis::Vertical) => FALLBACK_TRACK_V,
+            (false, ScrollbarAxis::Horizontal) => FALLBACK_TRACK_H,
+        };
+        let style = match colors {
+            Some((_, track)) => Style::new().fg(track).bg(track),
+            None if thin => Style::new(),
+            None => Style::new().fg(crate::layout::NATIVE_SCROLLBAR_TRACK),
+        };
+        (glyph, style)
+    }
+
+    /// A thumb cell: the pseudo-element's, or the standard bar's — the
+    /// light line when thin, else the heavy one — in the thumb color on
+    /// the track color, or the platform's thumb color.
+    fn thumb(self, pseudo: Option<&ComputedStyle>, axis: ScrollbarAxis) -> (&str, Style) {
+        let Self::Standard { thin, colors } = self else {
+            return thumb_cell(pseudo, axis);
+        };
+        let glyph = match (thin, axis) {
+            (true, ScrollbarAxis::Vertical) => THIN_THUMB_V,
+            (true, ScrollbarAxis::Horizontal) => THIN_THUMB_H,
+            (false, ScrollbarAxis::Vertical) => FALLBACK_THUMB_V,
+            (false, ScrollbarAxis::Horizontal) => FALLBACK_THUMB_H,
+        };
+        let style = match colors {
+            Some((thumb, track)) => Style::new().fg(thumb).bg(track),
+            None => Style::new().fg(crate::layout::NATIVE_SCROLLBAR_THUMB),
+        };
+        (glyph, style)
+    }
+}
+
 /// Paint vertical and/or horizontal scrollbars for `id` if its
 /// overflow properties demand them. No-op when both axes are
 /// `Visible` / `Hidden`.
@@ -197,11 +286,12 @@ pub(super) fn paint_scrollbars(
     // whether the OTHER axis also paints so the bottom-right corner
     // stays unclaimed.
     let (y_paints, x_paints) = bars_shown(ext, computed);
+    let look = Look::of(dom, computed);
 
     if y_paints {
         let (track_glyph, track_style) =
-            track_cell(ext.computed_scrollbar.as_deref(), ScrollbarAxis::Vertical);
-        let (thumb_glyph, thumb_style) = thumb_cell(
+            look.track(ext.computed_scrollbar.as_deref(), ScrollbarAxis::Vertical);
+        let (thumb_glyph, thumb_style) = look.thumb(
             ext.computed_scrollbar_thumb_vertical.as_deref(),
             ScrollbarAxis::Vertical,
         );
@@ -223,8 +313,8 @@ pub(super) fn paint_scrollbars(
     }
     if x_paints {
         let (track_glyph, track_style) =
-            track_cell(ext.computed_scrollbar.as_deref(), ScrollbarAxis::Horizontal);
-        let (thumb_glyph, thumb_style) = thumb_cell(
+            look.track(ext.computed_scrollbar.as_deref(), ScrollbarAxis::Horizontal);
+        let (thumb_glyph, thumb_style) = look.thumb(
             ext.computed_scrollbar_thumb_horizontal.as_deref(),
             ScrollbarAxis::Horizontal,
         );
@@ -396,10 +486,14 @@ pub(crate) fn should_paint(overflow: Overflow, viewport: usize, content: usize) 
 
 /// Which of `ext`'s scrollbars show: `(vertical, horizontal)` — an
 /// `overflow: scroll` axis always, an `auto` one when its content
-/// overflows the scrollport. Paint, hit-testing and thumb dragging read
-/// this one answer, so the corner cell a horizontal bar takes from the
-/// vertical track (and back) is the same in all three.
+/// overflows the scrollport; none under `scrollbar-width: none` (CSS
+/// Scrollbars 1 §3: the box scrolls with no bar). Paint, hit-testing and
+/// thumb dragging read this one answer, so the corner cell a horizontal
+/// bar takes from the vertical track (and back) is the same in all three.
 pub(crate) fn bars_shown(ext: &crate::ext::TuiExt, computed: &ComputedStyle) -> (bool, bool) {
+    if computed.scrollbar_width == crate::layout::ScrollbarWidth::None {
+        return (false, false);
+    }
     let content = ext.content_layout;
     (
         should_paint(

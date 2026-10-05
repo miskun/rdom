@@ -281,6 +281,22 @@ impl TuiStyle {
         crate::layout::ScrollbarGutter
     );
     setter!(
+        "scrollbar-width",
+        scrollbar_width,
+        scrollbar_width,
+        scrollbar_width_important,
+        SCROLLBAR_WIDTH,
+        crate::layout::ScrollbarWidth
+    );
+    setter!(
+        "scrollbar-color",
+        scrollbar_color,
+        scrollbar_color,
+        scrollbar_color_important,
+        SCROLLBAR_COLOR,
+        crate::layout::ScrollbarColor
+    );
+    setter!(
         "direction",
         text_direction,
         text_direction,

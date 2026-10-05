@@ -14,8 +14,8 @@ use crate::parse::values::{
     parse_flex_shorthand, parse_gap, parse_inset_shorthand, parse_keyword, parse_length,
     parse_margin_longhand, parse_margin_shorthand, parse_max_size, parse_min_size, parse_opacity,
     parse_overflow, parse_overflow_clip_margin, parse_overflow_shorthand, parse_padding_shorthand,
-    parse_padding_value, parse_position, parse_scroll_behavior, parse_scrollbar_gutter, parse_size,
-    parse_text_decoration, parse_text_overflow, parse_time_list, parse_timing_function_list,
+    parse_padding_value, parse_position, parse_scroll_behavior, parse_size, parse_text_decoration,
+    parse_text_overflow, parse_time_list, parse_timing_function_list,
     parse_transition_property_list, parse_transition_shorthand, parse_z_index,
     unzip_transition_rules,
 };
@@ -84,6 +84,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         .or_else(|| super::contain::set(name, value, style))
         .or_else(|| super::line_clamp::set(name, value, style))
         .or_else(|| super::float::set(name, value, style))
+        .or_else(|| super::scrollbar::set(name, value, style))
         .or_else(|| super::grid::set(name, value, style))
     {
         return outcome.ok_or(DispatchError::InvalidValue);
@@ -275,9 +276,6 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         }),
         "overflow-y" => parse_overflow(value).map(|o| {
             style.overflow_y = Some(Value::Specified(o));
-        }),
-        "scrollbar-gutter" => parse_scrollbar_gutter(value).map(|g| {
-            style.scrollbar_gutter = Some(Value::Specified(g));
         }),
         "scroll-behavior" => parse_scroll_behavior(value).map(|b| {
             style.scroll_behavior = Some(Value::Specified(b));

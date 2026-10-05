@@ -66,17 +66,6 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .as_ref()
             .and_then(specified)
             .map(|o| serialize_overflow(o).to_string()),
-        "scrollbar-gutter" => style
-            .scrollbar_gutter
-            .as_ref()
-            .and_then(specified)
-            .map(|g| {
-                match g {
-                    crate::layout::ScrollbarGutter::Auto => "auto",
-                    crate::layout::ScrollbarGutter::Stable => "stable",
-                }
-                .to_string()
-            }),
         "margin-trim" => style
             .margin_trim
             .as_ref()

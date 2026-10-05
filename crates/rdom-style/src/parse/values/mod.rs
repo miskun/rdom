@@ -51,6 +51,7 @@ mod length;
 mod line_clamp;
 mod number;
 mod numeric;
+mod scrollbar;
 
 pub(crate) use numeric::{
     LengthPercentage, Range, components, integer, length_percentage, number, percentage,
@@ -105,8 +106,7 @@ pub use grid_shorthand::{
 };
 pub use keyword::{
     parse_keyword, parse_overflow, parse_overflow_clip_margin, parse_overflow_shorthand,
-    parse_position, parse_scroll_behavior, parse_scrollbar_gutter, parse_text_decoration,
-    parse_text_overflow,
+    parse_position, parse_scroll_behavior, parse_text_decoration, parse_text_overflow,
 };
 pub use length::{
     FlexShorthand, parse_contain_intrinsic, parse_flex_basis, parse_flex_factor,
@@ -118,6 +118,7 @@ pub use line_clamp::{
     parse_webkit_line_clamp,
 };
 pub use number::{parse_aspect_ratio, parse_opacity, parse_order, parse_z_index};
+pub use scrollbar::{parse_scrollbar_color, parse_scrollbar_gutter, parse_scrollbar_width};
 pub use shadow::parse_box_shadow;
 pub use spacing::{
     parse_gap, parse_gap_shorthand, parse_margin_longhand, parse_margin_shorthand,

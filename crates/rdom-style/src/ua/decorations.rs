@@ -4,7 +4,7 @@ use crate::color::named;
 use crate::color::system::HIGHLIGHT;
 use crate::counters::{CounterOp, CounterStyle};
 use crate::layout::{Display, Padding};
-use crate::{Color, Content, TuiStyle};
+use crate::{Content, TuiStyle};
 
 /// The UA rules of this group, in cascade order.
 pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
@@ -116,17 +116,17 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // The `*` universal host is required because the parser
         // rejects bare `::scrollbar` (host-required, same rule
         // as `::before` / `::after` / `::backdrop` / `::selection`).
-        // Scrollbar fg is inlined rather than borrowing a shared
-        // constant — track and thumb are independent design tokens
-        // even when their values relate to other UA colors. A future
-        // tweak to one must not silently move the other.
+        // Track and thumb are independent design tokens: the
+        // platform's colors (`NATIVE_SCROLLBAR_*`), which a bar styled
+        // by the standard properties under `scrollbar-color: auto` also
+        // paints in (CSS Scrollbars 1 §2).
         (
             "*::scrollbar",
-            TuiStyle::new().fg(Color::Rgb(0x2D, 0x2F, 0x31)),
+            TuiStyle::new().fg(crate::layout::NATIVE_SCROLLBAR_TRACK),
         ),
         (
             "*::scrollbar-thumb",
-            TuiStyle::new().fg(Color::Rgb(0x41, 0x43, 0x45)),
+            TuiStyle::new().fg(crate::layout::NATIVE_SCROLLBAR_THUMB),
         ),
         // ── Selection ──
         // Distinct bg color for selected text so a 1-cell selection

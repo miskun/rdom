@@ -89,6 +89,7 @@ mod importance;
 mod line_clamp;
 mod logical;
 mod names;
+mod scrollbar;
 mod serialize;
 pub(crate) mod set;
 mod shadow;
@@ -119,6 +120,8 @@ mod line_clamp_tests;
 mod logical_tests;
 #[cfg(test)]
 mod overflow_tests;
+#[cfg(test)]
+mod scrollbar_tests;
 #[cfg(test)]
 mod sizing_tests;
 #[cfg(test)]

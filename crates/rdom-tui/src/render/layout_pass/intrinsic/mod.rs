@@ -362,10 +362,10 @@ fn measure_content(
     // stable`) is part of the box: the vertical bar costs a column, the
     // horizontal bar a row. An `auto` gutter that only appears on overflow
     // is settled by `layout_node`'s second pass instead.
-    let (gutter_col, gutter_row) = super::gutter_axes(computed, false, false);
+    let g = super::gutters(computed, false, false);
     let gutter_main = match direction {
-        Direction::Row => u16::from(gutter_col),
-        Direction::Column => u16::from(gutter_row),
+        Direction::Row => g.columns(),
+        Direction::Column => g.bottom,
     };
     let border_main = border_main.saturating_add(gutter_main);
 

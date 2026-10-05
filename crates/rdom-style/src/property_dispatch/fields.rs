@@ -94,6 +94,8 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "continue" => &[Continue],
         "-webkit-box-orient" => &[WebkitBoxOrient],
         "scrollbar-gutter" => &[ScrollbarGutter],
+        "scrollbar-width" => &[ScrollbarWidth],
+        "scrollbar-color" => &[ScrollbarColor],
         "scroll-behavior" => &[ScrollBehavior],
         "width" => &[Width],
         "height" => &[Height],

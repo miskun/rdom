@@ -1,6 +1,6 @@
 //! Keyword-valued properties: the generic keyword-table matcher plus
 //! the single-keyword enums (`text-decoration`, `overflow`,
-//! `scrollbar-gutter`, `scroll-behavior`, `position`).
+//! `scroll-behavior`, `position`).
 
 use crate::layout::{Overflow, Position};
 use crate::parse::token::Token;
@@ -106,17 +106,6 @@ pub fn parse_text_overflow(value: &[Token]) -> Option<crate::layout::TextOverflo
         [left, right] => Some(TextOverflow::two(side(left)?, side(right)?)),
         _ => None,
     }
-}
-
-pub fn parse_scrollbar_gutter(value: &[Token]) -> Option<crate::layout::ScrollbarGutter> {
-    use crate::layout::ScrollbarGutter;
-    parse_keyword(
-        value,
-        &[
-            ("auto", ScrollbarGutter::Auto),
-            ("stable", ScrollbarGutter::Stable),
-        ],
-    )
 }
 
 pub fn parse_scroll_behavior(value: &[Token]) -> Option<crate::layout::ScrollBehavior> {

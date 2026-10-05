@@ -92,6 +92,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `Size::Flex(grow)` written by the `flex` shorthand | `TuiStyle::flex_grow` / `flex_shrink` / `flex_basis` (`flex` no longer touches `width` / `height`) | C6-FLEX-LONGHANDS | `flex_longhand_hints` |
 | `ZIndex::Value(i16)` | `ZIndex::Value(i32)` (`n.into()` from an `i16`) | C8-Z-INDEX | `z_index_hints` |
 | exhaustive `match` on `Overflow` | add the arm `Overflow::Clip` | C8-OVERFLOW-CLIP | `overflow_hints` |
+| `ScrollbarGutter::{Auto, Stable}` | `+ StableBothEdges`; `is_stable()`, `both_edges()`, `keyword()` | C8-SCROLLBAR | `scrollbar_hints` |
 
 #### `rdom-tui`
 
@@ -150,6 +151,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Breaking — `rdom-style`
 
+- **`ScrollbarGutter` gains `StableBothEdges`** (`scrollbar-gutter: stable both-edges`, CSS Overflow 3 §3.3), and `is_stable()` / `both_edges()` / `keyword()`; it moved to `layout/scrollbar.rs` (still `rdom_style::layout::ScrollbarGutter`). Migration: an exhaustive `match` adds the variant — or asks `is_stable()` where it matched `Stable`. (C8-SCROLLBAR)
 - **`Overflow` has a `Clip` variant** (CSS Overflow 3 §3.1): an exhaustive `match` adds the arm. (C8-OVERFLOW-CLIP)
 - **`ZIndex::Value` holds an `i32`** (was `i16`): `z-index` takes any `<integer>`, a value past `i32` clamped (CSS 2.1 §9.9.1, CSS Values 4 §5.1). Migration: a match arm binding the value gets an `i32`; `ZIndex::Value(n)` with an `i16` takes `n.into()`. (C8-Z-INDEX)
 - **`ComputedStyle::min_width` / `min_height` are `MinSize`** (were `Option<MinSize>`), initial `MinSize::Auto` (CSS Sizing 3 §5.2); an explicit `min-*: auto` no longer floors a flex item's cross size. Migration: `None` → `MinSize::Auto`, `Some(m)` → `m`; `.cells(basis)` for cells. (C3G-MIN-AUTO)
@@ -214,6 +216,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`scrollbar-width` and `scrollbar-color`** (CSS Scrollbars 1 §2–§3) and `scrollbar-gutter: stable both-edges`: `ScrollbarWidth`, `ScrollbarColor` (`Auto`, `Colors { thumb, track }`, inherited), `NATIVE_SCROLLBAR_TRACK` / `NATIVE_SCROLLBAR_THUMB` (the platform colors the UA's `::scrollbar*` rules use too), `TuiStyle::scrollbar_width` / `scrollbar_color` with their builders, `ComputedStyle::scrollbar_width` / `scrollbar_color`, `parse_scrollbar_width` / `parse_scrollbar_color`. (C8-SCROLLBAR)
 - **`float` and `clear`** (CSS 2.1 §9.5.1 / §9.5.2, with CSS Logical 1 §2.3's `inline-start` / `inline-end`): `Float` (`keyword`, `side`), `FloatSide`, `Clear` (`keyword`, `sides`), `TuiStyle::float` / `clear` with their builders, `ComputedStyle::float` / `clear`, `parse_float` / `parse_clear`. (C8-FLOAT)
 - **`line-clamp`, `max-lines`, `block-ellipsis`, `continue`** (CSS Overflow 4 §4) and the legacy `-webkit-line-clamp`, `-webkit-box-orient` and `display: -webkit-box` / `-webkit-inline-box` (as `flex` / `inline-flex`): `BlockEllipsis`, `Continue`, `BoxOrient`, `TuiStyle::max_lines` / `block_ellipsis` / `continue_` / `webkit_box_orient`, `ComputedStyle::line_clamp_container`, `parse_line_clamp` and the longhand parsers. (C8-LINE-CLAMP)
 - **`text-overflow`** (CSS Overflow 4 §3): `clip` / `ellipsis` / `<string>`, one or two values — `TextOverflow` (`one`, `two`, `values`, `line_sides`, `is_clip`), `TextOverflowSide`, `parse_text_overflow`, `TuiStyle::text_overflow`. (C8-TEXT-OVERFLOW)
@@ -358,6 +361,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **Scrollbar styling** (CSS Scrollbars 1, CSS Overflow 3 §3.3): `scrollbar-gutter: stable both-edges` reserves a gutter on both inline edges; `scrollbar-width: none` hides the bar and its gutter (the box still scrolls), `thin` draws the one-cell bar lighter (no track glyph, a light thumb); `scrollbar-color` paints the thumb and the track. Either standard property turns the `::scrollbar` / `::scrollbar-thumb` pseudo-elements off, as Chromium does its `::-webkit-scrollbar` ones. (C8-SCROLLBAR)
 - **Floats** (CSS 2.1 §9.5, §9.5.1 rules 1–9, §9.5.2, §10.6.7): a floated box is placed on the left or right of its containing block (`inline-start` / `inline-end` by its `direction`), beside or below the earlier floats; the line boxes beside it are shortened, a line with no room for its first word moves below it, and a float met in inline content goes on the current line when it fits there, else at the next line's top; `clear` moves a block (or a float) below the floats it names; a block formatting context root (`flow-root`, `overflow` other than `visible` / `clip`, …) contains its floats in its automatic height and goes beside — or below — the floats of its parent context instead of under them; floats inside `display: contents` float in the parent's flow, flex and grid items do not float. Floats paint after the in-flow content of their stacking context, each atomically (Appendix E step 5), are hit-tested above it, and count in the scrollable overflow. Intrinsic sizes measure floats (a block's min- / max-content width, the content height of a box sized from its content); `margin-trim` trims the margins of the floats at the edges it trims, line clamping hides what of a float passes the clamp point, and `text-overflow` marks the line box's edge beside a float. The float context is its own module, `layout_pass/float/`, whose exclusion-area API the inline packer consumes. (C8-FLOAT)
 - **Line clamping** (CSS Overflow 4 §4): a line-clamp container's automatic height ends after its Nth line box — its own, an anonymous box's or a block descendant's — what follows is hidden from paint and hit-testing, and the line ends with the `block-ellipsis`, giving up whole characters for it; `display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: N` does the same. CSSOM aliases drop a vendor prefix's hyphen (`webkit_line_clamp()`) and escape a keyword (`r#continue()`). (C8-LINE-CLAMP)
 - **`text-overflow: ellipsis` / `<string>`** paints per line box of a block whose inline axis clips: whole characters hidden to fit the marker (a wide one never split), the first character clipped rather than ellipsed, both edges marked when scrolled under two values; layout, hit-testing and copying keep the whole text (CSS Overflow 4 §3). (C8-TEXT-OVERFLOW)
@@ -427,6 +431,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Changed — `rdom-tui`
 
+- **`scrollbar-gutter: stable` reserves the gutter on an `overflow: hidden` box too** (CSS Overflow 3 §3.3: "present for overflow: hidden, scroll, or auto"); it reserved one for `scroll` and `auto` only. (C8-SCROLLBAR)
 - **`overflow` computes as CSS Overflow 3 §3.1 says**: beside a scrolling axis a `visible` one is `auto` and a `clip` one `hidden`; `scrollbar-gutter: stable` reserves the vertical bar's gutter only (§3.3), so `overflow: auto; scrollbar-gutter: stable` no longer takes a bottom row; a box that is not a scroll container keeps no scroll offset or scroll extent. `overflow: clip` clips per axis at its overflow clip edge, without a scroll container or a formatting context. (C8-OVERFLOW-CLIP)
 - **One stacking-context predicate**: `creates_stacking_context` takes the box's parent and answers for z-indexed flex and grid items too (CSS Flexbox §5.4, CSS Grid 2 §6.5), so it and `is_layered` agree and paint, hit-testing and the layer walk patch nothing. No behaviour change. (C7G-STACKING-ONE)
 - **Internal splits ahead of grid**, no behaviour or API change: the CSSOM serializer by property family, the line packer's intake and output, caret line navigation, `ComputedStyle`'s tests. (C6G-SPLITS)

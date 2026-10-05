@@ -36,6 +36,7 @@ mod keywords;
 mod line_clamp;
 mod overflow;
 mod rect;
+mod scrollbar;
 mod sides;
 mod sizing;
 #[cfg(test)]
@@ -57,12 +58,15 @@ pub use grid_areas::{GridTemplateAreas, NamedArea};
 pub use grid_placement::{GridAutoFlow, GridLine};
 pub use keywords::{
     BoxSizing, CaretColor, CaretTextColor, Direction, Display, FlexDirection, FlexWrap, Flow,
-    PointerEvents, Position, ScrollBehavior, ScrollbarGutter, TextDecoration, TextDirection,
-    UserSelect, Visibility, WhiteSpace, WritingMode, ZIndex,
+    PointerEvents, Position, ScrollBehavior, TextDecoration, TextDirection, UserSelect, Visibility,
+    WhiteSpace, WritingMode, ZIndex,
 };
 pub use line_clamp::{BlockEllipsis, BoxOrient, Continue};
 pub use overflow::{Overflow, OverflowClipMargin, TextOverflow, TextOverflowSide};
 pub use rect::LayoutRect;
+pub use scrollbar::{
+    NATIVE_SCROLLBAR_THUMB, NATIVE_SCROLLBAR_TRACK, ScrollbarColor, ScrollbarGutter, ScrollbarWidth,
+};
 pub use sides::{Corners, Sides};
 pub use sizing::{
     AspectRatio, ContainIntrinsicSize, FlexBasis, GapValue, IntrinsicSize, Length, MaxSize,
