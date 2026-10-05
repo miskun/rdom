@@ -135,6 +135,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
+| C6-MARGIN-SIDES | `margin` / `padding` stored per side (each side its own longhand with its own `!important` bit), so a logical or physical side cascades alone — finishes C5G-LOGICAL-IMPORTANT | |
 | C6-DISPLAY-KEYWORDS | `display: contents` / `flow-root` / multi-keyword syntax | |
 | C6-VISIBILITY | `visibility: visible / hidden / collapse` | |
 | C6-ORDER | `order` | |
