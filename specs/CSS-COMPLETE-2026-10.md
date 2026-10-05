@@ -4279,3 +4279,29 @@ row comes from.
   the variants. Not behavioural (the arms return what the wildcard did). The C6G-FRONTEND-API entry,
   which said DESIGN listed `SpannedTokens` as closed, is corrected in place. No test or snapshot
   changed.
+- 2026-10-09 — C7G-GRID-SETTERS (API N2). (1) Every grid node setter now says what it does with a
+  value outside the grammar: `set_grid_template_columns` / `-rows` and `set_grid_auto_*` refuse it
+  (a debug build panics, a release build keeps the earlier declaration, as CSSOM ignores an invalid
+  `setProperty`) after the builders' clamps (`fr` / `%`, `span 0`, an empty list as `none`);
+  `set_grid_row` / `-column` / `-area` refuse line 0 and a name `span` / `auto`;
+  `set_grid_template_areas` and `set_grid_auto_flow` are never refused (valid by construction); and
+  `set_justify_content`, whose doc the five other alignment setters point to, names the debug panic.
+  (2) New node setters: `set_grid()` / `set_inline_grid()` (`display: grid` / `inline-grid`, through
+  `TuiStyle::grid` / `inline_grid`; any other `display` stays a CSSOM write, which `set_grid`'s doc
+  names — a general display setter would need a type for the whole `display` value, which rdom keeps
+  as three fields), `set_grid_area(row_start, column_start, row_end, column_end)` and
+  `set_grid_area_named(name)`. (3) New builders: `TuiStyle::place_content` / `place_items` /
+  `place_self(align, justify)` (CSS Box Alignment 3 §5.5, §6.4, §6.5; each half checked by its
+  longhand) and `TuiStyle::grid_area_named(name)` — `grid-area: head` in one call (§8.4: a lone
+  `<custom-ident>` copied to all four lines); the four-line `grid_area` is unchanged. Not taken from
+  the gate's list: `From<&str>` / `From<i32>` for `GridLine` and `TrackSize::auto()` / `min_content()`
+  (the `TrackSize::AUTO` const and `TrackBreadth` variants cover them). The rdom-tui README's grid
+  section gains the same page built from the builders, rect-checked. Red: the new tests did not
+  compile (no `set_grid`, `set_grid_area`, `set_grid_area_named`, `set_inline_grid`, `place_*`,
+  `grid_area_named`). Green after: `tui_style::tests::place_builders_set_both_longhands` /
+  `grid_area_named_sets_all_four_lines`, and `css_phase7/setters.rs` (new) —
+  `node_setters_drive_grid_layout` lays out a page built only through node setters (an area name,
+  the four-line form with `nth_named(1, "main-start")`, `grid-row` / `grid-column`, `gap`; the rows
+  1 / 3 / 1 and columns 6 / 13 of §11.7) and `display_grid_node_setters_compute_their_display`
+  (`inline-grid` blockified to `grid` as a grid item, CSS Display 3 §2.7). No test expectation or
+  snapshot changed.

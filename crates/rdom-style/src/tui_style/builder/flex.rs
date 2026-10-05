@@ -230,4 +230,29 @@ impl TuiStyle {
     }
 
     setter!("order", order, order, order_important, ORDER, i32);
+
+    /// Set `place-content` (CSS Box Alignment 3 §5.5): `align-content` to
+    /// `align` and `justify-content` to `justify`. Chainable; each value
+    /// checked as its longhand's builder checks it (a debug build panics on
+    /// a value outside the grammar, a release build leaves that longhand
+    /// unset). CSS's one-value form is both arguments the same, except that
+    /// a baseline value gives `justify-content: start`.
+    pub fn place_content(self, align: impl Into<Alignment>, justify: impl Into<Alignment>) -> Self {
+        self.align_content(align).justify_content(justify)
+    }
+
+    /// Set `place-items` (§6.4): `align-items` to `align` and
+    /// `justify-items` to `justify`, each checked as
+    /// [`place_content`](Self::place_content)'s are. `place-items: center`
+    /// is `place_items(Align::Center, Align::Center)`.
+    pub fn place_items(self, align: impl Into<Alignment>, justify: impl Into<Alignment>) -> Self {
+        self.align_items(align).justify_items(justify)
+    }
+
+    /// Set `place-self` (§6.5): `align-self` to `align` and `justify-self`
+    /// to `justify`, each checked as [`place_content`](Self::place_content)'s
+    /// are.
+    pub fn place_self(self, align: impl Into<Alignment>, justify: impl Into<Alignment>) -> Self {
+        self.align_self(align).justify_self(justify)
+    }
 }

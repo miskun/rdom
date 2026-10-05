@@ -16,6 +16,7 @@ mod baseline;
 mod container;
 mod place;
 mod reresolve;
+mod setters;
 mod stacking;
 mod subgrid;
 mod tracks;

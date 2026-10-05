@@ -220,7 +220,9 @@ impl TuiStyle {
     }
 
     /// Set `grid-area` (§8.4): row-start, column-start, row-end,
-    /// column-end, in the shorthand's order. Chainable.
+    /// column-end, in the shorthand's order. Chainable; each line checked
+    /// as its longhand's (a debug build panics on line `0` or a name
+    /// `span` / `auto`; `GridLine::span(0)` is already a span of 1).
     pub fn grid_area(
         self,
         row_start: GridLine,
@@ -230,5 +232,17 @@ impl TuiStyle {
     ) -> Self {
         self.grid_row(row_start, row_end)
             .grid_column(column_start, column_end)
+    }
+
+    /// Set `grid-area: <name>` (§8.4): a lone `<custom-ident>` sets all
+    /// four lines to it — the item fills the named area `name` of
+    /// `grid-template-areas` (its `name-start` / `name-end` lines, §7.3.2),
+    /// or spans from the first line named `name` to the next. Chainable. A
+    /// name that is not a `<custom-ident>` a line may take (`span`, `auto`,
+    /// empty) is refused: a debug build panics, a release build leaves the
+    /// four declarations unset.
+    pub fn grid_area_named(self, name: &str) -> Self {
+        let line = || GridLine::named(name);
+        self.grid_area(line(), line(), line(), line())
     }
 }

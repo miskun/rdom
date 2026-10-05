@@ -177,6 +177,57 @@ fn main() -> std::result::Result<(), rdom_css::ParseError> {
 }
 ```
 
+The builders write the same declarations from Rust — here the page alone, its rules on classes and its items placed by area name:
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), StyleError> {
+    let sheet = Stylesheet::new()
+        .rule(".page", TuiStyle::new()
+            .grid()
+            .height(Size::Fixed(5))
+            .grid_template_columns(vec![TrackSize::cells(6), TrackSize::fr(1.0)])
+            .grid_template_rows(vec![TrackSize::AUTO, TrackSize::fr(1.0), TrackSize::AUTO])
+            .grid_template_areas(
+                GridTemplateAreas::new(["head head", "nav main", "foot foot"]).unwrap(),
+            )
+            .column_gap(1u16))?
+        .rule(".head", TuiStyle::new().grid_area_named("head"))?
+        .rule(".nav", TuiStyle::new().grid_area_named("nav"))?
+        .rule(".main", TuiStyle::new().grid_area_named("main"))?
+        .rule(".foot", TuiStyle::new().grid_area_named("foot"))?;
+
+    let mut dom: TuiDom = TuiDom::new();
+    let page = dom.create_element("div");
+    dom.set_attribute(page, "class", "page").unwrap();
+    dom.append_child(dom.root(), page).unwrap();
+    let mut items = Vec::new();
+    for class in ["head", "nav", "main", "foot"] {
+        let id = dom.create_element("div");
+        dom.set_attribute(id, "class", class).unwrap();
+        let text = dom.create_text_node(class);
+        dom.append_child(id, text).unwrap();
+        dom.append_child(page, id).unwrap();
+        items.push(id);
+    }
+
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 5));
+    let rects: Vec<(i32, i32, u16, u16)> = items
+        .iter()
+        .map(|&id| {
+            let r = dom.node(id).layout_rect().unwrap();
+            (r.x, r.y, r.width, r.height)
+        })
+        .collect();
+    assert_eq!(rects, [(0, 0, 20, 1), (0, 1, 6, 3), (7, 1, 13, 3), (0, 4, 20, 1)]);
+    Ok(())
+}
+```
+
+A node can carry the same declarations inline: `set_grid()`, `set_grid_template_columns(…)`, `set_grid_area_named("head")`, `set_grid_row(…)` and the other `TuiNodeMutExt` grid setters.
+
 ## Pseudo-elements and `content`
 
 ```rust

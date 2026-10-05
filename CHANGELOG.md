@@ -249,6 +249,8 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 - `From<IntrinsicSize>` for `Size` / `MinSize` / `MaxSize`, `IntrinsicSize::fit_content(cells)` / `fit_content_percent(p)`, `ImportantMask::intersects`, and `From<BorderRadius> for Corners<BorderRadius>` (`border_radius` takes `impl Into<Corners<BorderRadius>>`). (C5G-API-EDGES)
 - `FlexDirection` (CSS Flexbox §5.1): `ComputedStyle::flex_direction()`, `TuiStyle::flex_direction` / `flex_direction_important`, `direction_reverse_important`; `AlignProperty` and `Alignment::is_valid_for` check a Box Alignment grammar. (C6G-ALIGN-API)
 - **Per-side spacing builders** (CSS Box 3 §3.2 / §4.2): `margin_top` … `padding_left`, each with an `_important` twin; `padding` takes `impl Into<Padding>` (`From<u16> for Padding` / `PaddingValue`, `From<i16> for MarginValue`). (C6G-SIDE-SETTERS)
+- `TuiStyle::place_content` / `place_items` / `place_self(align, justify)` (CSS Box Alignment 3 §5.5, §6.4, §6.5), each half checked as its longhand; `grid_area_named("head")` is `grid-area: head` in one call (CSS Grid 2 §8.4). (C7G-GRID-SETTERS)
+
 
 ### Changed — `rdom-style`
 
@@ -386,6 +388,8 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 - **Grid items paint in order-modified document order and stack by `z-index`** (CSS Grid 2 §6.5), as flex items now do too (§5.4): a static item with a numeric `z-index` is a stacking context, painted and hit in its layer. (C7-GRID-PLACE)
 - `TuiNodeMutExt::set_grid_template_columns` / `set_grid_template_rows`, grammar-checked as the builders; the grid value types at the crate root and in the prelude. (C7-GRID-CORE)
 - Docs: the README has a grid section with a doctested page layout — named areas, `auto 1fr auto` rows, `gap`, a `repeat(auto-fill, minmax(…))` card grid and `grid-column: 1 / -1` — whose paint the doctest checks. (C7G-README-GRID)
+- Grid node setters: `set_grid()` / `set_inline_grid()`, `set_grid_area(…)` and `set_grid_area_named(name)`; every grid and alignment node setter documents what it clamps and what it refuses (a debug panic, the earlier declaration kept in release). (C7G-GRID-SETTERS)
+
 
 
 ### Changed — `rdom-tui`

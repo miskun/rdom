@@ -134,48 +134,101 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
         self.write_inline_style(|s| s.order = Some(Value::Specified(order)));
         self
     }
+    /// Declare `display: grid` inline (CSS Display 3 §2.1, CSS Grid 2
+    /// §5.1): a block-level grid container, as [`TuiStyle::grid`]. Any
+    /// other `display` value is a CSSOM write,
+    /// `style_mut().set_property("display", "inline-flex")`.
+    fn set_grid(&mut self) -> &mut Self {
+        self.write_inline_style(|s| *s = std::mem::take(s).grid());
+        self
+    }
+    /// Declare `display: inline-grid` inline: an inline-level grid
+    /// container, an atomic inline, as [`TuiStyle::inline_grid`].
+    fn set_inline_grid(&mut self) -> &mut Self {
+        self.write_inline_style(|s| *s = std::mem::take(s).inline_grid());
+        self
+    }
     /// Declare `grid-template-columns` inline (CSS Grid 2 §7.2), through
-    /// [`TuiStyle::grid_template_columns`] (an invalid list is refused).
+    /// [`TuiStyle::grid_template_columns`]: `TrackSize::fr` / `percent`
+    /// and `GridLine::span` clamp their numbers into range and a list of
+    /// no tracks is `none`; a list still outside the grammar (an `fr`
+    /// minimum, an automatic repetition beside a non-fixed size) is
+    /// refused — a debug build panics, a release build keeps the earlier
+    /// declaration, as CSSOM ignores an invalid `setProperty`.
     fn set_grid_template_columns(&mut self, t: impl Into<GridTemplate>) -> &mut Self {
         self.write_inline_style(|s| *s = std::mem::take(s).grid_template_columns(t));
         self
     }
-    /// Declare `grid-template-rows` inline (CSS Grid 2 §7.2).
+    /// Declare `grid-template-rows` inline (CSS Grid 2 §7.2), checked as
+    /// [`Self::set_grid_template_columns`] is.
     fn set_grid_template_rows(&mut self, t: impl Into<GridTemplate>) -> &mut Self {
         self.write_inline_style(|s| *s = std::mem::take(s).grid_template_rows(t));
         self
     }
-    /// Declare `grid-template-areas` inline (CSS Grid 2 §7.3).
+    /// Declare `grid-template-areas` inline (CSS Grid 2 §7.3). Never
+    /// refused: a [`GridTemplateAreas`] is valid by construction
+    /// (`GridTemplateAreas::new` returns `None` for rows that are not).
     fn set_grid_template_areas(&mut self, areas: GridTemplateAreas) -> &mut Self {
         self.write_inline_style(|s| s.grid_template_areas = Some(Value::Specified(areas)));
         self
     }
 
     /// Declare `grid-auto-columns` inline (CSS Grid 2 §7.6), through
-    /// [`TuiStyle::grid_auto_columns`] (an empty or invalid list is refused).
+    /// [`TuiStyle::grid_auto_columns`]: an empty list or a size outside
+    /// the grammar (an `fr` minimum) is refused — a debug build panics, a
+    /// release build keeps the earlier declaration.
     fn set_grid_auto_columns(&mut self, sizes: impl IntoIterator<Item = TrackSize>) -> &mut Self {
         self.write_inline_style(|s| *s = std::mem::take(s).grid_auto_columns(sizes));
         self
     }
-    /// Declare `grid-auto-rows` inline (CSS Grid 2 §7.6).
+    /// Declare `grid-auto-rows` inline (CSS Grid 2 §7.6), checked as
+    /// [`Self::set_grid_auto_columns`] is.
     fn set_grid_auto_rows(&mut self, sizes: impl IntoIterator<Item = TrackSize>) -> &mut Self {
         self.write_inline_style(|s| *s = std::mem::take(s).grid_auto_rows(sizes));
         self
     }
-    /// Declare `grid-auto-flow` inline (CSS Grid 2 §7.7).
+    /// Declare `grid-auto-flow` inline (CSS Grid 2 §7.7). Never refused:
+    /// every [`GridAutoFlow`] is a value.
     fn set_grid_auto_flow(&mut self, flow: GridAutoFlow) -> &mut Self {
         self.write_inline_style(|s| s.grid_auto_flow = Some(Value::Specified(flow)));
         self
     }
     /// Declare `grid-row` inline (CSS Grid 2 §8.4): its start and end
-    /// lines, each checked as [`TuiStyle::grid_row_start`] checks it.
+    /// lines, through [`TuiStyle::grid_row_start`] / `grid_row_end`. A line
+    /// outside `<grid-line>` (line `0`, a name `span` / `auto`) is refused
+    /// — a debug build panics, a release build keeps that longhand's
+    /// earlier declaration; `GridLine::span(0)` is already a span of 1.
     fn set_grid_row(&mut self, start: GridLine, end: GridLine) -> &mut Self {
         self.write_inline_style(|s| *s = std::mem::take(s).grid_row(start, end));
         self
     }
-    /// Declare `grid-column` inline (CSS Grid 2 §8.4).
+    /// Declare `grid-column` inline (CSS Grid 2 §8.4), checked as
+    /// [`Self::set_grid_row`] is.
     fn set_grid_column(&mut self, start: GridLine, end: GridLine) -> &mut Self {
         self.write_inline_style(|s| *s = std::mem::take(s).grid_column(start, end));
+        self
+    }
+    /// Declare `grid-area` inline (CSS Grid 2 §8.4): row-start,
+    /// column-start, row-end, column-end, in the shorthand's order, each
+    /// checked as [`Self::set_grid_row`] checks it.
+    fn set_grid_area(
+        &mut self,
+        row_start: GridLine,
+        column_start: GridLine,
+        row_end: GridLine,
+        column_end: GridLine,
+    ) -> &mut Self {
+        self.write_inline_style(|s| {
+            *s = std::mem::take(s).grid_area(row_start, column_start, row_end, column_end);
+        });
+        self
+    }
+    /// Declare `grid-area: <name>` inline (CSS Grid 2 §8.4): the item fills
+    /// the named area `name`, as [`TuiStyle::grid_area_named`]. A name a
+    /// line may not take (`span`, `auto`) is refused — a debug build
+    /// panics, a release build keeps the earlier declarations.
+    fn set_grid_area_named(&mut self, name: &str) -> &mut Self {
+        self.write_inline_style(|s| *s = std::mem::take(s).grid_area_named(name));
         self
     }
     /// Declare `visibility` inline (CSS Display 3 §4).
@@ -186,7 +239,10 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     /// Declare `justify-content` inline (CSS Box Alignment 3 §5.2): a
     /// keyword or an [`Alignment`](crate::layout::Alignment), checked
     /// against the property's grammar as the
-    /// [`TuiStyle::justify_content`] builder checks it.
+    /// [`TuiStyle::justify_content`] builder checks it — a value outside it
+    /// (`Align::Baseline`, `Align::SelfStart`) makes a debug build panic and
+    /// a release build keep the earlier declaration, as CSSOM ignores an
+    /// invalid `setProperty`.
     fn set_justify_content(&mut self, v: impl Into<Alignment>) -> &mut Self {
         let v = v.into();
         self.write_inline_style(|s| *s = std::mem::take(s).justify_content(v));

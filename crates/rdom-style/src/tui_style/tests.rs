@@ -492,3 +492,43 @@ fn padding_takes_a_count_as_margin_does() {
         TuiStyle::new().margin(crate::layout::Margin::all_cells(1))
     );
 }
+
+/// C7G-GRID-SETTERS: `place-items` / `place-content` / `place-self` (CSS
+/// Box Alignment 3 §6.4, §5.5, §6.5) set the `align-*` longhand from their
+/// first value and the `justify-*` one from their second, each checked as
+/// its longhand's builder checks it.
+#[test]
+fn place_builders_set_both_longhands() {
+    use crate::layout::Align;
+    assert_eq!(
+        TuiStyle::new().place_items(Align::Center, Align::Start),
+        TuiStyle::new()
+            .align_items(Align::Center)
+            .justify_items(Align::Start)
+    );
+    assert_eq!(
+        TuiStyle::new().place_content(Align::End, Align::SpaceBetween),
+        TuiStyle::new()
+            .align_content(Align::End)
+            .justify_content(Align::SpaceBetween)
+    );
+    assert_eq!(
+        TuiStyle::new().place_self(Align::Stretch, Align::Center),
+        TuiStyle::new()
+            .align_self(Align::Stretch)
+            .justify_self(Align::Center)
+    );
+}
+
+/// C7G-GRID-SETTERS: `grid-area: head` (CSS Grid 2 §8.4) — a lone
+/// `<custom-ident>` — sets all four placement longhands to that name, as
+/// the shorthand's omission rule copies it.
+#[test]
+fn grid_area_named_sets_all_four_lines() {
+    use crate::layout::GridLine;
+    let head = || GridLine::named("head");
+    assert_eq!(
+        TuiStyle::new().grid_area_named("head"),
+        TuiStyle::new().grid_area(head(), head(), head(), head())
+    );
+}
