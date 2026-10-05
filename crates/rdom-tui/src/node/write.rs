@@ -362,9 +362,14 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     /// Builder-time setup; at run time prefer
     /// [`TuiAccessorsMut::scroll_to`](crate::TuiAccessorsMut::scroll_to),
     /// which clamps and fires `scroll`. Either way the `App` repaints
-    /// on its next frame.
+    /// on its next frame. A write that moves the box is a scroll that
+    /// does not snap: a snap container no longer rests at its snap
+    /// position (CSS Scroll Snap 1 §5.4).
     fn set_scroll(&mut self, x: i32, y: i32) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
+            if (e.scroll_x, e.scroll_y) != (x, y) {
+                crate::runtime::scrollbar::state::set_snapped(e, (None, None));
+            }
             e.scroll_x = x;
             e.scroll_y = y;
         }

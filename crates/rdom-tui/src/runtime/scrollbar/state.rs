@@ -20,13 +20,22 @@ pub(crate) struct ScrollState {
     /// rest. Started by the programmatic scroll API and keyboard
     /// scrolling, stepped by the `App` each frame.
     pub(crate) smooth: Option<SmoothScroll>,
-    /// The boxes the container last snapped to, horizontally and
-    /// vertically (`runtime::scroll_snap`, CSS Scroll Snap 1 §5.4).
-    pub(crate) snapped: (Option<rdom_core::NodeId>, Option<rdom_core::NodeId>),
+    /// What the container is snapped to, horizontally and vertically
+    /// (`runtime::scroll_snap`, CSS Scroll Snap 1 §5.4): set by a snap,
+    /// cleared by any other scroll that moves it.
+    pub(crate) snapped: (Option<SnapRecord>, Option<SnapRecord>),
     /// The scrollbar gutters layout reserved inside the padding box (CSS
     /// Overflow 3 §5.2) — the scrollport is the padding box less them
     /// (`layout_pass::scrollport`). Only a scroll container reserves any.
     pub(crate) gutters: crate::render::layout_pass::gutter::Gutters,
+}
+
+/// A snap a container rests at on one axis: the box it snapped to and
+/// the offset that box's snap position was when it did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SnapRecord {
+    pub(crate) target: rdom_core::NodeId,
+    pub(crate) offset: i32,
 }
 
 /// The offsets `ext` was last painted with; `(0, 0)` before any.
@@ -45,8 +54,8 @@ pub(crate) fn smooth(ext: &TuiExt) -> Option<SmoothScroll> {
     ext.scroll_state.as_ref().and_then(|s| s.smooth)
 }
 
-/// The boxes `ext` last snapped to on each axis.
-pub(crate) fn snapped(ext: &TuiExt) -> (Option<rdom_core::NodeId>, Option<rdom_core::NodeId>) {
+/// What `ext` is snapped to on each axis.
+pub(crate) fn snapped(ext: &TuiExt) -> (Option<SnapRecord>, Option<SnapRecord>) {
     ext.scroll_state
         .as_ref()
         .map_or((None, None), |s| s.snapped)
@@ -68,11 +77,9 @@ pub(crate) fn set_gutters(ext: &mut TuiExt, gutters: crate::render::layout_pass:
     }
 }
 
-/// Record the boxes a snap came to rest on. Allocates only for one.
-pub(crate) fn set_snapped(
-    ext: &mut TuiExt,
-    snapped: (Option<rdom_core::NodeId>, Option<rdom_core::NodeId>),
-) {
+/// Record what a snap came to rest on (`(None, None)`: not snapped).
+/// Allocates only for a snap.
+pub(crate) fn set_snapped(ext: &mut TuiExt, snapped: (Option<SnapRecord>, Option<SnapRecord>)) {
     if let Some(s) = ext.scroll_state.as_mut() {
         s.snapped = snapped;
     } else if snapped != (None, None) {

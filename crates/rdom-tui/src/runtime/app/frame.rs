@@ -105,6 +105,10 @@ impl<B: Backend> App<B> {
             self.prelude.touched = true;
         }
 
+        // The `scroll` events of the frame's re-snaps (CSS Scroll Snap 1
+        // §5.4), queued between layout and paint: HTML fires them at the
+        // rendering update, never in the middle of one.
+        self.prelude.touched |= crate::runtime::scrollbar::fire_queued_scroll_events(&mut self.dom);
         // Drain transition events queued during this frame.
         self.dispatch_animation_events();
 
@@ -207,6 +211,7 @@ impl<B: Backend> App<B> {
             area,
         );
         self.note_pass(pass, false);
+        self.prelude.touched |= crate::runtime::scrollbar::fire_queued_scroll_events(&mut self.dom);
         if redraw == Redraw::Cascade {
             self.redraw = Redraw::Layout;
         }

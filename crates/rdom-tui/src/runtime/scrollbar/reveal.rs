@@ -11,7 +11,7 @@ use rdom_core::NodeId;
 
 use super::ScrollAxis;
 use super::geometry::{is_vertical_scroll_container, scrolls_vertically_by_style};
-use super::scroll::{ClampTo, set_scroll_with};
+use super::scroll::{ClampTo, WriteKind, set_scroll_with};
 use crate::TuiDom;
 use crate::layout::LayoutRect;
 use crate::node::TuiNodeExt;
@@ -158,6 +158,7 @@ fn ensure_visible_vertical_with(
             ScrollAxis::Vertical,
             cur_scroll + delta,
             clamp,
+            WriteKind::Free,
         );
     }
 }

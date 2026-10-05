@@ -14,8 +14,9 @@
 //! scroll animates to the snapped destination and settles there),
 //! `scrollIntoView`, a scrollbar thumb drag's release and a track click
 //! (`scrollbar::drag`), and after layout ([`resnap`], from the frame).
-//! The box each axis last snapped to is kept in the container's
-//! `ScrollState`, for §5.4.
+//! What each axis is snapped to — the box and its snap position — is kept
+//! in the container's `ScrollState` for §5.4, and cleared by any scroll
+//! that is not a snap's (`scrollbar::scroll`'s funnel).
 
 mod points;
 pub(crate) mod select;
@@ -25,6 +26,7 @@ use rdom_core::NodeId;
 use crate::TuiDom;
 use crate::layout::{ScrollSnapStrictness, ScrollSnapType};
 use crate::runtime::scrollbar::ScrollAxis;
+use crate::runtime::scrollbar::state::SnapRecord;
 pub(crate) use select::Intent;
 
 /// How `id` snaps: on the horizontal axis, on the vertical one, and
@@ -45,8 +47,9 @@ fn snapping(dom: &TuiDom, id: NodeId) -> Option<(bool, bool, bool)> {
 
 /// Where a scroll of `element` to `to` comes to rest (§6.2): on each axis
 /// it snaps on, the snap position [`select::choose`] picks for `motion`,
-/// else `to`. Records the box snapped to on each
-/// axis for [`resnap`].
+/// else `to`. Records the box snapped to on each axis and its snap
+/// position for [`resnap`] (the scroll's write keeps the record,
+/// `scrollbar::WriteKind::Snap`).
 pub(crate) fn snap(
     dom: &mut TuiDom,
     element: NodeId,
@@ -67,7 +70,7 @@ pub(crate) fn snap(
             pick(dom, element, ScrollAxis::Horizontal, to.0, i, mandatory)
         {
             out.0 = offset;
-            targets.0 = Some(target);
+            targets.0 = Some(SnapRecord { target, offset });
         }
     }
     if on_y {
@@ -78,13 +81,34 @@ pub(crate) fn snap(
         if let Some((offset, target)) = pick(dom, element, ScrollAxis::Vertical, to.1, i, mandatory)
         {
             out.1 = offset;
-            targets.1 = Some(target);
+            targets.1 = Some(SnapRecord { target, offset });
         }
     }
     if let Some(ext) = dom.node_mut(element).ext_mut() {
         crate::runtime::scrollbar::state::set_snapped(ext, targets);
     }
+    if targets != (None, None) {
+        Snapped::insert(dom, element);
+    }
     out
+}
+
+/// Document data: the snap containers a snap recorded a target in, in
+/// the order they first snapped — the ones [`resnap`] looks at.
+#[derive(Debug, Default)]
+struct Snapped(Vec<NodeId>);
+
+impl Snapped {
+    fn insert(dom: &mut TuiDom, id: NodeId) {
+        if dom.document_data::<Self>().is_none() {
+            dom.set_document_data(Self::default());
+        }
+        if let Some(set) = dom.document_data_mut::<Self>()
+            && !set.0.contains(&id)
+        {
+            set.0.push(id);
+        }
+    }
 }
 
 /// How a scroll moves, on both axes ([`Intent`] per axis).
@@ -111,58 +135,137 @@ fn pick(
     Some((points[i].position.offset, points[i].target))
 }
 
-/// §5.4 "Re-snapping After Layout Changes": each snap container that
-/// snapped to a box on an axis stays snapped to it — at its new snap
-/// position — while it still is one; a `mandatory` container whose box is
-/// gone rests at the position nearest its offset. Returns whether an
-/// offset moved (the layout is then stale).
+#[cfg(test)]
+thread_local! {
+    /// Containers [`resnap`] examined (cost tests).
+    pub(super) static VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// §5.4 "Re-snapping After Layout Changes": "If the scroll container was
+/// snapped before the content change and that same snap position still
+/// exists … the scroll container must be re-snapped to that same snap
+/// position after the content change." A container snapped to a box on
+/// an axis follows the box only when the layout moved its snap position —
+/// a container at rest at it is left alone, so a scroll that is not a
+/// snap's (whose write cleared the record, `scrollbar::scroll`) is never
+/// undone; a `mandatory` container whose box is gone rests at the
+/// position nearest its offset. A smooth scroll in flight is retargeted
+/// rather than cut short. Visits only the containers that snapped (the
+/// [`Snapped`] set, pruned of those no longer snapped, snapping or in
+/// the document); the `scroll` event of a move is queued for after the
+/// frame. Returns whether an offset moved (the layout is then stale).
 pub(crate) fn resnap(dom: &mut TuiDom) -> bool {
-    let mut containers = Vec::new();
-    collect_snap_containers(dom, dom.root(), &mut containers);
+    let containers = dom
+        .document_data_mut::<Snapped>()
+        .map(|s| std::mem::take(&mut s.0))
+        .unwrap_or_default();
+    let mut kept = Vec::with_capacity(containers.len());
     let mut moved = false;
     for id in containers {
+        #[cfg(test)]
+        VISITS.with(|c| c.set(c.get() + 1));
+        if !dom.contains(id) {
+            continue;
+        }
         let Some((on_x, on_y, mandatory)) = snapping(dom, id) else {
             continue;
         };
         let Some(ext) = dom.node(id).ext() else {
             continue;
         };
-        let (cur_x, cur_y) = (ext.scroll_x, ext.scroll_y);
-        let snapped = crate::runtime::scrollbar::state::snapped(ext);
-        let resolve = |axis: ScrollAxis, on: bool, target: Option<NodeId>, cur: i32| {
-            if !on {
-                return cur;
-            }
-            let points = points::snap_points(dom, id, axis);
-            if let Some(p) = target.and_then(|t| points.iter().find(|p| p.target == t)) {
-                return p.position.offset;
-            }
-            if !mandatory {
-                return cur;
-            }
-            let positions: Vec<select::Position> = points.iter().map(|p| p.position).collect();
-            select::choose(&positions, cur, Intent::Nearest, true)
-                .map_or(cur, |i| positions[i].offset)
-        };
-        let x = resolve(ScrollAxis::Horizontal, on_x, snapped.0, cur_x);
-        let y = resolve(ScrollAxis::Vertical, on_y, snapped.1, cur_y);
-        if (x, y) != (cur_x, cur_y) {
-            moved |= crate::runtime::scrollbar::write_offsets(dom, id, x, y);
+        let (cur_x, cur_y) = crate::runtime::smooth_scroll::destination(dom, id);
+        let (rec_x, rec_y) = crate::runtime::scrollbar::state::snapped(ext);
+        if (rec_x, rec_y) == (None, None) {
+            continue;
         }
+        let x = follow(
+            dom,
+            id,
+            ScrollAxis::Horizontal,
+            on_x,
+            rec_x,
+            cur_x,
+            mandatory,
+        );
+        let y = follow(dom, id, ScrollAxis::Vertical, on_y, rec_y, cur_y, mandatory);
+        if let Some(ext) = dom.node_mut(id).ext_mut() {
+            crate::runtime::scrollbar::state::set_snapped(ext, (x.1, y.1));
+        }
+        if (x.1, y.1) != (None, None) {
+            kept.push(id);
+        }
+        if (x.0, y.0) != (cur_x, cur_y) {
+            // A smooth scroll in flight lands there instead; its next
+            // step moves the box.
+            if !crate::runtime::smooth_scroll::retarget(dom, id, (x.0, y.0)) {
+                moved |= crate::runtime::scrollbar::write_offsets_queued(dom, id, x.0, y.0);
+            }
+        }
+    }
+    if let Some(set) = dom.document_data_mut::<Snapped>() {
+        // Containers that snapped while this ran (a listener's scroll)
+        // are already in the set; keep them after the survivors.
+        let added = std::mem::take(&mut set.0);
+        set.0 = kept;
+        for id in added {
+            if !set.0.contains(&id) {
+                set.0.push(id);
+            }
+        }
+    } else if !kept.is_empty() {
+        dom.set_document_data(Snapped(kept));
     }
     moved
 }
 
-/// The snap containers in `id`'s subtree, in tree order.
-fn collect_snap_containers(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
-    for child in dom.node(id).child_nodes() {
-        let cid = child.id();
-        if snapping(dom, cid).is_some() {
-            out.push(cid);
+/// Where a container snapped as `record` on `axis` rests after a layout,
+/// at `cur` now, and what it is snapped to then: the record's box's snap
+/// position when the layout moved it; `cur` when it did not, when the
+/// container does not snap on `axis` or was not snapped there; under
+/// `mandatory` the position nearest `cur` when the box is gone.
+fn follow(
+    dom: &TuiDom,
+    id: NodeId,
+    axis: ScrollAxis,
+    on: bool,
+    record: Option<SnapRecord>,
+    cur: i32,
+    mandatory: bool,
+) -> (i32, Option<SnapRecord>) {
+    let (true, Some(record)) = (on, record) else {
+        return (cur, None);
+    };
+    let points = points::snap_points(dom, id, axis);
+    if let Some(p) = points.iter().find(|p| p.target == record.target) {
+        let offset = p.position.offset;
+        if offset == record.offset {
+            return (cur, Some(record));
         }
-        collect_snap_containers(dom, cid, out);
+        return (
+            offset,
+            Some(SnapRecord {
+                target: record.target,
+                offset,
+            }),
+        );
+    }
+    if !mandatory {
+        return (cur, None);
+    }
+    let positions: Vec<select::Position> = points.iter().map(|p| p.position).collect();
+    match select::choose(&positions, cur, Intent::Nearest, true) {
+        Some(i) => (
+            positions[i].offset,
+            Some(SnapRecord {
+                target: points[i].target,
+                offset: positions[i].offset,
+            }),
+        ),
+        None => (cur, None),
     }
 }
 
+#[cfg(test)]
+mod resnap_tests;
 #[cfg(test)]
 mod tests;

@@ -19,7 +19,7 @@
 use rdom_core::NodeId;
 
 use super::geometry::scroll_metrics;
-use super::scroll::set_scroll;
+use super::scroll::{WriteKind, set_scroll};
 use super::{ScrollAxis, ScrollbarHit, ScrollbarPart};
 use crate::TuiDom;
 use crate::render::paint_pass::scrollbar::thumb_geometry;
@@ -87,7 +87,7 @@ fn page(dom: &mut TuiDom, hit: ScrollbarHit) {
         ScrollAxis::Vertical => to.1,
         ScrollAxis::Horizontal => to.0,
     };
-    set_scroll(dom, hit.element, hit.axis, value);
+    set_scroll(dom, hit.element, hit.axis, value, WriteKind::Snap);
 }
 
 /// Begin a thumb-drag session. Engages pointer capture on the
@@ -141,7 +141,7 @@ pub(crate) fn extend_drag(router: &Router, dom: &mut TuiDom, mouse_x: u16, mouse
     // included, for an `rtl` box).
     let new_scroll = drag.initial_scroll + scroll_delta;
     let before = scroll_metrics(dom, drag.element, drag.axis).1;
-    let actually_set = set_scroll(dom, drag.element, drag.axis, new_scroll);
+    let actually_set = set_scroll(dom, drag.element, drag.axis, new_scroll, WriteKind::Free);
     actually_set != before
 }
 
@@ -163,7 +163,7 @@ pub(crate) fn end_drag(router: &mut Router, dom: &mut TuiDom) {
             crate::runtime::scroll_snap::Motion::To,
         );
         if to != at {
-            super::scroll::write_offsets(dom, drag.element, to.0, to.1);
+            super::scroll::write_offsets(dom, drag.element, to.0, to.1, WriteKind::Snap);
         }
     }
 }

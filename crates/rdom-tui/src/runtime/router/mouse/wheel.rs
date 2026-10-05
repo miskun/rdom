@@ -81,10 +81,8 @@ pub(super) fn handle_wheel(
             // actually moved (matches HTML — at-the-bottom wheel
             // ticks are no-ops and don't fire scroll).
             //
-            // Viewport size is the padding-box (CSS Overflow 3 §3
-            // scrollport), not `content_layout` — the two diverge
-            // under M5.5b border-collapse.
-            // The legal range is `scroll::ScrollBounds` — an `rtl` box's
+            // The legal range is `layout_pass::scroll_bounds` (the
+            // scrollport against the scrollable overflow) — an `rtl` box's
             // `scrollLeft` and a `column-reverse` box's `scrollTop` run
             // negative, so the wheel reaches that overflow (CSSOM View §4).
             let bounds = crate::runtime::scrollbar::scroll_bounds(dom, id);
@@ -113,19 +111,19 @@ pub(super) fn handle_wheel(
                 }
                 None => (old_x, old_y),
             };
-            if let Some(ext) = dom.node_mut(id).ext_mut() {
-                ext.scroll_x = new_x;
-                ext.scroll_y = new_y;
-            }
-            if old_x != new_x || old_y != new_y {
+            if (new_x, new_y) != (old_x, old_y) {
                 // A user scroll is instant whatever `scroll-behavior`
                 // says, and aborts this box's smooth scroll in flight
-                // (CSSOM View "perform a scroll", step 1).
+                // (CSSOM View "perform a scroll", step 1). The offsets
+                // are the snap's: the funnel fires `scroll`.
                 crate::runtime::smooth_scroll::abort(dom, id);
-                // `scroll`: bubbles, NOT cancelable per HTML.
-                let mut tui_scroll = TuiEvent::new("scroll");
-                tui_scroll.event.cancelable = false;
-                dispatch(router, dom, id, &mut tui_scroll);
+                crate::runtime::scrollbar::write_offsets(
+                    dom,
+                    id,
+                    new_x,
+                    new_y,
+                    crate::runtime::scrollbar::WriteKind::Snap,
+                );
                 return RouteOutcome::redraw(true);
             }
             // At the rail end in this direction: chain to the next

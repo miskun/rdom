@@ -4936,3 +4936,29 @@ row comes from.
   runs phases 1–2 five times (3 rounds, the re-snap's, the reveal's), and at most 3 × `MAX_ROUNDS`. Red:
   `cost_tests::a_reach_its_own_scrollbar_changes_converges_in_one_layout` — `0..=1` for `0..=0` (2 runs);
   green after (3, then 1 on the next layout). No test expectation or snapshot changed.
+- 2026-10-10 — C8G-RESNAP (architect B2, N4, N10; split first, N9). Found: `resnap` ran after every
+  layout and wrote the recorded target's position whenever the offset differed from it, while only
+  `snap()` set the record and nothing cleared it — so a smooth PageDown under `y mandatory` jumped to its
+  destination on the first frame (the animation never showed; `scroll` fired twice a frame, back and
+  forth), and every thumb-drag move after a snap was pulled back on the next frame; `resnap` also walked
+  the whole tree each laid-out frame and dispatched `scroll` between layout and paint. Decision, two
+  rules: (1) a snap records the box and the offset of its snap position (`ScrollState::snapped`,
+  `SnapRecord`); `resnap` moves the container only when layout moved that position (§5.4: "re-snapped to
+  that same snap position"), retargeting a smooth scroll in flight instead of cutting it; (2) every
+  runtime scroll write goes through one funnel (`scrollbar::scroll::write`), whose `WriteKind` says
+  whether it is a snap's (`Snap`: the snapped destination, a smooth step towards it, the wheel's
+  snapped tick, a track page, a drag release) or not (`Free`: thumb-drag moves, autoscroll, caret /
+  node reveal), and a `Free` write that moves the box clears the record — the wheel's inline copy of the
+  write is gone; `TuiNodeMutExt::set_scroll` clears it too. (1) also covers writes that bypass the
+  funnel (`TuiExt::scroll_y` is public). `resnap` visits only the containers a snap recorded a target in
+  (document data `Snapped`, pruned as records clear), and queues its `scroll` events
+  (`scroll::write_offsets_queued`); the `App` fires them after painting (`fire_queued_scroll_events`,
+  in `draw_if_dirty` and the off-frame `cascade_and_layout`), HTML's rendering-update timing. Split
+  first (own commit): `handle_wheel` to `router/mouse/wheel.rs` (`mod.rs` 592 → 462). Red:
+  `scroll_snap/resnap_tests.rs` — 4 of 5 failed (the smooth mid-frame at 9 for between 0 and 9; the drag
+  pulled back to 6; `resnap` dispatched mid-pipeline, 2 events for 1; 1 container visited for 0; the
+  after-paint pin passed before and after). Green after; two tests added while fixing:
+  `a_layout_change_mid_drag_keeps_the_drag` (mutation: the funnel not clearing → 9 for 13) and
+  `a_layout_that_does_not_move_the_target_leaves_the_offset` (mutation: re-snap regardless of the
+  position → 6 for 8); each restored and touched. The frame layout-run pin (C8G-ABSPOS-EXTENT) is
+  unchanged: 5. No existing test expectation or snapshot changed.

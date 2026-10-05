@@ -46,7 +46,7 @@ use rdom_core::NodeId;
 use crate::TuiDom;
 use crate::layout::ScrollBehavior;
 use crate::node::TuiNodeExt;
-use crate::runtime::scrollbar::{scroll_bounds, write_offsets};
+use crate::runtime::scrollbar::{WriteKind, scroll_bounds, write_offsets};
 
 /// How long a smooth scroll takes, whatever its distance. Browsers use
 /// a UA-defined duration (Firefox about 150–400 ms, Chromium a
@@ -229,7 +229,8 @@ pub(crate) fn perform_scroll(
     let to = bounds.clamp(x, y);
     let to = crate::runtime::scroll_snap::snap(dom, element, to, motion);
     if !is_smooth(dom, element, behavior) {
-        write_offsets(dom, element, to.0, to.1);
+        // The destination a snap chose (or the plain one): a snap's write.
+        write_offsets(dom, element, to.0, to.1, WriteKind::Snap);
         return;
     }
     let mut node = dom.node_mut(element);
@@ -247,6 +248,25 @@ pub(crate) fn perform_scroll(
             }),
         );
     }
+}
+
+/// Point the smooth scroll in flight on `element` at `to` (a re-snap
+/// after layout moved its snap position, CSS Scroll Snap 1 §5.4),
+/// clamped to the scroll range. Returns `false` when none is in flight.
+pub(crate) fn retarget(dom: &mut TuiDom, element: NodeId, to: (i32, i32)) -> bool {
+    let to = match scroll_bounds(dom, element) {
+        Some(b) => b.clamp(to.0, to.1),
+        None => to,
+    };
+    let mut node = dom.node_mut(element);
+    let Some(ext) = node.ext_mut() else {
+        return false;
+    };
+    let Some(anim) = state::smooth(ext) else {
+        return false;
+    };
+    state::set_smooth(ext, Some(SmoothScroll { to, ..anim }));
+    true
 }
 
 /// Abort the smooth scroll in flight on `element`, if any.
@@ -340,7 +360,9 @@ fn step(dom: &mut TuiDom, element: NodeId, now: Instant, outcome: &mut StepOutco
     };
     // The state is settled before the write: a `scroll` listener that
     // starts another scroll of this box retargets or aborts it.
-    outcome.moved |= write_offsets(dom, element, x, y);
+    // A step towards the destination `perform_scroll` snapped: it keeps
+    // the snap record.
+    outcome.moved |= write_offsets(dom, element, x, y, WriteKind::Snap);
 }
 
 /// Cubic ease-out: fast start, gentle landing.

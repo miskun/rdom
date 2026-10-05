@@ -11,7 +11,7 @@ use rdom_core::NodeId;
 
 use super::ScrollAxis;
 use super::geometry::{nearest_scroll_container, offset_from_area_start};
-use super::scroll::set_scroll;
+use super::scroll::{WriteKind, set_scroll};
 use crate::TuiDom;
 use crate::node::TuiNodeExt;
 
@@ -124,6 +124,6 @@ pub(crate) fn autoscroll_step(
         },
         None => return false,
     };
-    let after = set_scroll(dom, container, axis, before + step);
+    let after = set_scroll(dom, container, axis, before + step, WriteKind::Free);
     after != before
 }

@@ -70,7 +70,11 @@ pub use keys::SCROLL_FOCUS_ATTR;
 pub(crate) use keys::{handle_scroll_key, scroll_focus_target};
 pub(crate) use painted::{moved_since_paint, note_painted};
 pub(crate) use reveal::{reveal_caret, scroll_into_view, service_caret_reveal};
-pub(crate) use scroll::{scroll_bounds, write_offsets};
+#[cfg(test)]
+pub(crate) use scroll::take_queued_scroll_events;
+pub(crate) use scroll::{
+    WriteKind, fire_queued_scroll_events, scroll_bounds, write_offsets, write_offsets_queued,
+};
 
 /// Which scrollbar axis a user is interacting with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -293,6 +293,7 @@ fn a_caret_reveal_keeps_an_rtl_offset_on_the_origin_side_before_overflow() {
         ScrollAxis::Horizontal,
         -3,
         super::scroll::ClampTo::NextLayout,
+        super::scroll::WriteKind::Free,
     );
     assert_eq!(written, -3);
 }
