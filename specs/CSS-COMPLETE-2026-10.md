@@ -3907,3 +3907,7 @@ row comes from.
   subjects → `[0, 4]`). Mutation checks (restored and touched): the rows not distributed → the
   `align-content` test. No other test expectation and no snapshot changed. DIVERGENCES: §3's interim
   grid alignment line goes; §1's whole-cell alignment entry names grid.
+- 2026-10-08 — C7-GRID-RERESOLVE, prep (no behaviour change, no test changed): the sizing run leaves
+  `grid/mod.rs` (491 lines with C7-GRID-ALIGN, and §11.1 steps 3–4 grow it) for `grid/size.rs` —
+  `size_grid`, `tracks_of`, `run`, `trim` and their records; `mod.rs` keeps the axes, `Grid`, the
+  shared item helpers and `layout_grid_children` (225 / 288 lines). Moves only.
