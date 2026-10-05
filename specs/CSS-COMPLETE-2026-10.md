@@ -33,7 +33,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 1 | Syntax, cascade, custom properties | done 2026-10-05 (both gates; 20 gate fixes `C1G-*`; their re-review rides with the Phase 2 gate) |
 | 2 | Values, units, math functions | done 2026-10-05 (both gates; 20 gate fixes `C2G-*`; their re-review rides with the Phase 3 gate; C2-LH partial until C9-LINE-HEIGHT) |
 | 3 | Color | done 2026-10-06 (both gates; 16 gate fixes `C3G-*` incl. rdom's own terminal input reader; re-review rides with the Phase 4 gate) |
-| 4 | Backgrounds and borders | gates run 2026-10-06; `C4G-*` fixes in progress (C4-SPACING layout with C13-TFC) |
+| 4 | Backgrounds and borders | gates run 2026-10-06; `C4G-*` batch A done, batch B open (C4-SPACING layout with C13-TFC) |
 | 5 | Box model and sizing (incl. logical properties) | |
 | 6 | Display, visibility, flexbox, box alignment | |
 | 7 | Grid | |
@@ -1222,4 +1222,11 @@ row comes from.
   (four side colors, one translucent, a `calc()` radius) counted 9 allocations with the
   C3G-TRANSLUCENT-FAST `test_alloc` allocator; green: 0. The translucent border tests
   (`color_tests.rs`) pass unchanged.
+- 2026-10-06 — C4G-PAINT-SPLIT: no behaviour change. `paint_pass/mod.rs` (583 lines after
+  C4G-SHADOW-ORDER) → `mod.rs` (188: `PaintExt`, `layout_rect_to_grid`, the module map),
+  `stacking_walk.rs` (177: `paint_stacking_context` / `_body`, `paint_layers`, `paint_plain`,
+  `recurse_children`, `orphan_inline`, `paints_child_box`) and `box_paint.rs` (254: `BoxFrame`,
+  `paint_box`, `paint_content`, `compute_border_priority`, `fills`); `fills`, `paints_child_box` and
+  `paint_stacking_context` re-exported at their old paths. Every test passes unchanged. Phase 4 gate
+  batch A (C4G-ESC-GRACE … C4G-PAINT-SPLIT) done; batch B open.
 
