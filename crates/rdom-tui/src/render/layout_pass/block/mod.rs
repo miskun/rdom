@@ -108,7 +108,12 @@ pub(super) fn layout_block_children(
     // nodes are inline-level participants in an anonymous block per
     // CSS 2.1 §9.2.1.1 rule 2.
     let raw_children: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
-    if raw_children.is_empty() {
+    // CSS 2.1 §12.1: `::before` / `::after` are the host's first / last
+    // children, so a host whose only content is its generated text still
+    // has an inline run — the pseudo-elements alone — and a line box.
+    let pseudos = crate::render::inline::generated::visible_inline_pseudos(dom, id);
+    let has_pseudos = pseudos.before || pseudos.after;
+    if raw_children.is_empty() && !has_pseudos {
         return BlockMeasurement::default();
     }
 
@@ -130,7 +135,7 @@ pub(super) fn layout_block_children(
     // just before the in-flow sibling that follows them is placed.
     let (mut static_before, mut static_trailing) =
         super::positioning::static_anchors(dom, &raw_children);
-    if in_flow.is_empty() {
+    if in_flow.is_empty() && !has_pseudos {
         // Clear any stale anonymous boxes from a previous layout —
         // matches flex's `ext.inline_layout = None` reset.
         if let Some(ext) = dom.node_mut(id).ext_mut() {
@@ -173,6 +178,11 @@ pub(super) fn layout_block_children(
     }
 
     let mut runs = drop_lineless_runs(dom, id, runs, &mut static_before, &mut static_trailing);
+    if runs.is_empty() && has_pseudos {
+        // No in-flow child holds a line: the pseudo-elements are the
+        // whole inline content, in one anonymous block box.
+        runs.push(Run::pseudo_only(raw_children.len()));
+    }
 
     // CSS 2.1 §9.2.1.1: a `::before` (`::after`) whose host starts
     // (ends) with a block-level child is an inline box with no inline

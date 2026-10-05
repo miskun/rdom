@@ -1770,3 +1770,18 @@ row comes from.
   3), the next line's `cc` was drawn under the box, and the atom's rows did not hit-test to it; green
   after, with `vertical.rs` / `boxes.rs` unit tests for the line arithmetic. No existing expectation
   or snapshot changed.
+- 2026-10-07 — C5G-PSEUDO-ONLY (gate fix): an element whose only content is its `::before` /
+  `::after` shows it (CSS 2.1 §12.1 — they are its first / last child boxes — and §9.2.1.1, an
+  anonymous line box). Root cause, one idea in three places: "content" meant child nodes. Block
+  layout (`layout_block_children`) returned a zero measurement for a box with no (in-flow) children
+  before it ever formed runs; it now forms one pseudo-only run (`Run::pseudo_only`) when no child
+  bears a line and the host has visible inline pseudo-elements, which the anonymous-box paint
+  already draws. Margin collapse-through (`is_collapse_through_shape`) took such a box for empty and
+  let the next sibling over it; a visible pseudo now counts as a line box. The intrinsic Column size
+  of a childless box counted only padding and border (`pseudo_main` is Row-only); it now takes the
+  rows the pseudos pack to (`wrapped_rows`), so a flex item or inline block measures them. Inline
+  hosts (`<p>a<span class=b></span>c</p>`) were already right — the packer walks an inline box's
+  pseudos — and are pinned as regression guards. Red: `css_phase5/pseudo_only.rs` — the block host
+  with `::before`, `::after` and both painted `next` on row 0 (nothing of `<`/`>`), the flex item the
+  same, `margin: 1 0` left the sibling at row 1 (`["      ", "next  ", …]`); green after. No
+  expectation or snapshot changed.

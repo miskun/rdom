@@ -346,7 +346,9 @@ fn content_size(
         //     same text.
         //
         // (b) No text (or whitespace-only text). Just `::before` /
-        //     `::after` chrome on the Row axis plus padding/border.
+        //     `::after` plus padding/border: their widths on the Row
+        //     axis, on the Column axis the rows they pack to — they are
+        //     the box's content (CSS 2.1 §12.1), a line box of their own.
         if has_non_whitespace_text(dom, id) {
             let content = match direction {
                 Direction::Row => inline_width(dom, id, measure),
@@ -359,7 +361,19 @@ fn content_size(
                 .saturating_add(pad_main)
                 .saturating_add(border_main);
         }
-        return pseudo_main
+        let pseudo_rows = || {
+            let p = crate::render::inline::generated::visible_inline_pseudos(dom, id);
+            if p.before || p.after {
+                wrapped_rows(dom, id, computed, cross_budget, containing_block_width)
+            } else {
+                0
+            }
+        };
+        let generated = match direction {
+            Direction::Row => pseudo_main,
+            Direction::Column => pseudo_rows(),
+        };
+        return generated
             .saturating_add(pad_main)
             .saturating_add(border_main);
     }

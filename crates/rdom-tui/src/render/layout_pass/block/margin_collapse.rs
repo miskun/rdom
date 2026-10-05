@@ -49,8 +49,9 @@ fn is_statically_empty_collapse_through(
 
 /// The height-independent half of collapse-through: no vertical
 /// padding or border, no `min-height` pinning, and no in-flow content
-/// (an in-flow element child or a non-whitespace text child separates
-/// the margins; out-of-flow children take no space in normal flow).
+/// (an in-flow element child, a non-whitespace text child or a visible
+/// `::before` / `::after` — a line box, CSS 2.1 §8.3.1 — separates the
+/// margins; out-of-flow children take no space in normal flow).
 fn is_collapse_through_shape(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedStyle) -> bool {
     if !computed.padding.top.is_zero() || !computed.padding.bottom.is_zero() {
         return false;
@@ -61,6 +62,10 @@ fn is_collapse_through_shape(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedS
     if let crate::layout::MinSize::Cells(n) = computed.min_height
         && n > 0
     {
+        return false;
+    }
+    let pseudos = crate::render::inline::generated::visible_inline_pseudos(dom, id);
+    if pseudos.before || pseudos.after {
         return false;
     }
     for child in dom.node(id).child_nodes() {

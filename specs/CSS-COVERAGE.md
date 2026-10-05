@@ -488,7 +488,7 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `::before` / `::after` | Supported | Inline, block-first, positioned (paint / hit-test notes documented). A pseudo-element with no compound before it attaches to the implicit `*` (`::before`, `div ::before`, `div > ::after`; Selectors 4 §5.2, C5G-BARE-PSEUDO). | Yes | `PE` |
+| `::before` / `::after` | Supported | Inline, block-first, positioned (paint / hit-test notes documented). A pseudo-element with no compound before it attaches to the implicit `*` (`::before`, `div ::before`, `div > ::after`; Selectors 4 §5.2, C5G-BARE-PSEUDO). An element whose only content is its `::before` / `::after` shows it, a line tall (C5G-PSEUDO-ONLY). | Yes | `PE` |
 | `::selection` | Supported | Highlight style. | — | `PE` |
 | `::placeholder` | Supported | Layered on the host's `::before` box (documented). | Yes | `PE` |
 | `::backdrop` | Supported | Modal dialogs (no top layer, documented). | Yes | `PE` |
