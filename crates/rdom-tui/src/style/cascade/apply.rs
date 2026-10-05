@@ -223,36 +223,10 @@ pub(super) fn apply_style(
         flex_shrink: FLEX_SHRINK,
         flex_basis: FLEX_BASIS,
         order: ORDER,
-        grid_template_columns: GRID_TEMPLATE_COLUMNS,
-        grid_template_rows: GRID_TEMPLATE_ROWS,
         grid_template_areas: GRID_TEMPLATE_AREAS,
         grid_auto_flow: GRID_AUTO_FLOW,
-        grid_row_start: GRID_ROW_START,
-        grid_row_end: GRID_ROW_END,
-        grid_column_start: GRID_COLUMN_START,
-        grid_column_end: GRID_COLUMN_END,
     );
-    // `grid-auto-*`: a declared list becomes the computed one, owned; the
-    // initial `auto` stays borrowed (C7G-INITIAL-ALLOC).
-    let owned = |v: &Vec<crate::layout::TrackSize>| std::borrow::Cow::Owned(v.clone());
-    apply_converted(
-        &mut working.grid_auto_columns,
-        &style.grid_auto_columns,
-        style.important.contains(ImportantMask::GRID_AUTO_COLUMNS),
-        important_pass,
-        kw,
-        |c| &c.grid_auto_columns,
-        owned,
-    );
-    apply_converted(
-        &mut working.grid_auto_rows,
-        &style.grid_auto_rows,
-        style.important.contains(ImportantMask::GRID_AUTO_ROWS),
-        important_pass,
-        kw,
-        |c| &c.grid_auto_rows,
-        owned,
-    );
+    apply_grid(working, style, important_pass, kw);
     apply_border_collapse(
         &mut working.border_collapse,
         &mut working.border_collapse_declared,
@@ -339,6 +313,51 @@ impl Initials {
 /// ([`Keywords::resolve`]) — `inherit` the parent's computed value
 /// (inherited property or not — CSS Cascade 4 §7.2), `initial` the
 /// property's initial value, `revert` the rolled-back cascade's.
+/// The grid longhands whose `TuiStyle` value a consumer can write
+/// outside the grammar (the fields are public; the builders check):
+/// such a declaration is ignored, as a CSS parser drops an invalid one
+/// (CSS Syntax 3 §8.1), so layout reads only valid values
+/// (C7G-TRACK-VALIDITY). A declared `grid-auto-*` list becomes the
+/// computed one, owned; the initial `auto` stays borrowed
+/// (C7G-INITIAL-ALLOC).
+fn apply_grid(
+    working: &mut ComputedStyle,
+    style: &TuiStyle,
+    important_pass: bool,
+    kw: &Keywords<'_>,
+) {
+    use crate::layout::{GridLine, GridTemplate, TrackSize};
+    let template = |v: &GridTemplate| v.is_valid().then(|| v.clone());
+    let auto = |v: &Vec<TrackSize>| {
+        TrackSize::is_valid_list(v).then(|| std::borrow::Cow::Owned(v.clone()))
+    };
+    let line = |v: &GridLine| v.is_valid().then(|| v.clone());
+    let important = |mask| style.important.contains(mask);
+    macro_rules! grid {
+        ($($field:ident: $mask:ident => $to:expr),* $(,)?) => {$(
+            apply_converted(
+                &mut working.$field,
+                &style.$field,
+                important(ImportantMask::$mask),
+                important_pass,
+                kw,
+                |c| &c.$field,
+                $to,
+            );
+        )*};
+    }
+    grid!(
+        grid_template_columns: GRID_TEMPLATE_COLUMNS => template,
+        grid_template_rows: GRID_TEMPLATE_ROWS => template,
+        grid_auto_columns: GRID_AUTO_COLUMNS => auto,
+        grid_auto_rows: GRID_AUTO_ROWS => auto,
+        grid_row_start: GRID_ROW_START => line,
+        grid_row_end: GRID_ROW_END => line,
+        grid_column_start: GRID_COLUMN_START => line,
+        grid_column_end: GRID_COLUMN_END => line,
+    );
+}
+
 fn apply_value<T: Clone>(
     target: &mut T,
     value: &Option<Value<T>>,
@@ -354,12 +373,13 @@ fn apply_value<T: Clone>(
         important_pass,
         kw,
         field,
-        T::clone,
+        |v| Some(v.clone()),
     );
 }
 
 /// [`apply_value`] for a property whose declared form `S` differs from
-/// its computed one `T`: `to` computes a declared value.
+/// its computed one `T`, or may lie outside its grammar: `to` computes a
+/// declared value, `None` ignoring the declaration (the value stays).
 fn apply_converted<S, T: Clone>(
     target: &mut T,
     value: &Option<Value<S>>,
@@ -367,15 +387,19 @@ fn apply_converted<S, T: Clone>(
     important_pass: bool,
     kw: &Keywords<'_>,
     field: fn(&ComputedStyle) -> &T,
-    to: impl Fn(&S) -> T,
+    to: impl Fn(&S) -> Option<T>,
 ) {
     if let Some(v) = value
         && matches_pass(important_prop, important_pass)
     {
-        *target = match kw.resolve(v) {
-            Resolved::Specified(x) => to(x),
-            Resolved::From(source) => field(source).clone(),
-        };
+        match kw.resolve(v) {
+            Resolved::Specified(x) => {
+                if let Some(x) = to(x) {
+                    *target = x;
+                }
+            }
+            Resolved::From(source) => *target = field(source).clone(),
+        }
     }
 }
 

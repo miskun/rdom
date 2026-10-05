@@ -44,15 +44,18 @@ impl GridLine {
         }
     }
 
-    /// `span <count>`.
+    /// `span <count>`. The count is `<integer [1,∞]>` (§8.3): 0 is 1.
     pub fn span(count: u32) -> Self {
-        GridLine::Span { count, name: None }
+        GridLine::Span {
+            count: count.max(1),
+            name: None,
+        }
     }
 
-    /// `span <count> <name>` (`span a` is a count of 1).
+    /// `span <count> <name>` (`span a` is a count of 1; 0 is 1).
     pub fn span_named(count: u32, name: &str) -> Self {
         GridLine::Span {
-            count,
+            count: count.max(1),
             name: Some(name.to_string()),
         }
     }

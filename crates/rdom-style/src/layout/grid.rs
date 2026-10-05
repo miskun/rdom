@@ -55,6 +55,16 @@ impl TrackBreadth {
         )
     }
 
+    /// Whether the breadth is in the grammar: a percentage
+    /// `<percentage [0,∞]>` and an `fr` `<flex [0,∞]>` (§7.2.1), so
+    /// neither negative, NaN nor infinite.
+    pub fn is_valid(&self) -> bool {
+        match self {
+            TrackBreadth::Percent(v) | TrackBreadth::Fr(v) => v.is_finite() && *v >= 0.0,
+            _ => true,
+        }
+    }
+
     /// The flex factor of an `fr` breadth.
     pub fn flex(&self) -> Option<f32> {
         match self {
@@ -125,14 +135,17 @@ impl TrackSize {
         TrackSize::Breadth(TrackBreadth::Cells(n))
     }
 
-    /// A track of `factor` fr (`1fr`).
+    /// A track of `factor` fr (`1fr`). `<flex>` is `[0,∞]` (§7.2.4): a
+    /// negative or NaN factor is 0 and an infinite one the largest finite
+    /// factor, as for `flex-grow` ([`valid_flex_factor`](super::valid_flex_factor)).
     pub fn fr(factor: f32) -> Self {
-        TrackSize::Breadth(TrackBreadth::Fr(factor))
+        TrackSize::Breadth(TrackBreadth::Fr(super::sizing::valid_flex_factor(factor)))
     }
 
-    /// A track `p` percent of the grid container's content box.
+    /// A track `p` percent of the grid container's content box, kept in
+    /// `<percentage [0,∞]>` (§7.2.1) as [`fr`](Self::fr) keeps its factor.
     pub fn percent(p: f32) -> Self {
-        TrackSize::Breadth(TrackBreadth::Percent(p))
+        TrackSize::Breadth(TrackBreadth::Percent(super::sizing::valid_flex_factor(p)))
     }
 
     /// `minmax(min, max)`.
@@ -190,14 +203,21 @@ impl TrackSize {
         }
     }
 
-    /// Whether the size is in the grammar: no `fr` minimum, and a
+    /// Whether the size is in the grammar: every breadth valid
+    /// ([`TrackBreadth::is_valid`]), no `fr` minimum, and a
     /// `fit-content()` limit that is a length or percentage.
     pub fn is_valid(&self) -> bool {
         match self {
-            TrackSize::Breadth(_) => true,
-            TrackSize::MinMax(min, _) => min.flex().is_none(),
-            TrackSize::FitContent(limit) => limit.is_fixed(),
+            TrackSize::Breadth(b) => b.is_valid(),
+            TrackSize::MinMax(min, max) => min.flex().is_none() && min.is_valid() && max.is_valid(),
+            TrackSize::FitContent(limit) => limit.is_fixed() && limit.is_valid(),
         }
+    }
+
+    /// Whether `sizes` is a `<track-size>+` (`grid-auto-columns` /
+    /// `grid-auto-rows`, §7.6): at least one size, each valid.
+    pub fn is_valid_list(sizes: &[Self]) -> bool {
+        !sizes.is_empty() && sizes.iter().all(Self::is_valid)
     }
 }
 
@@ -245,9 +265,14 @@ pub struct TrackRepeat {
 }
 
 impl TrackRepeat {
-    /// `repeat(count, sizes…)` with unnamed lines.
+    /// `repeat(count, sizes…)` with unnamed lines. The count is
+    /// `<integer [1,∞]>` (§7.2.3): `RepeatCount::Count(0)` is 1.
     pub fn new(count: RepeatCount, sizes: impl IntoIterator<Item = TrackSize>) -> Self {
         let sizes: Vec<TrackSize> = sizes.into_iter().collect();
+        let count = match count {
+            RepeatCount::Count(0) => RepeatCount::Count(1),
+            other => other,
+        };
         Self {
             count,
             line_names: vec![Vec::new(); sizes.len() + 1],
@@ -483,14 +508,21 @@ impl GridTemplate {
     }
 }
 
+/// A list of no tracks is `none` (no explicit grid, §7.2), so a list
+/// built from a possibly empty collection is always a value.
 impl From<TrackList> for GridTemplate {
     fn from(list: TrackList) -> Self {
-        GridTemplate::Tracks(list)
+        if list.items.is_empty() {
+            GridTemplate::None
+        } else {
+            GridTemplate::Tracks(list)
+        }
     }
 }
 
+/// An empty `Vec` is `none`, as for [`TrackList`].
 impl From<Vec<TrackSize>> for GridTemplate {
     fn from(sizes: Vec<TrackSize>) -> Self {
-        GridTemplate::Tracks(TrackList::new(sizes))
+        TrackList::new(sizes).into()
     }
 }

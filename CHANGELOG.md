@@ -252,6 +252,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 
 ### Changed — `rdom-style`
 
+- **Grid values built in Rust stay in their grammar**: `TrackSize::fr` / `percent` clamp a negative or NaN number to 0, `GridLine::span(0)` and `repeat(0, …)` are 1, an empty track list is `none`, and `is_valid` refuses a NaN or negative `fr` / `%`. The cascade ignores an invalid value written to a `TuiStyle` field. (C7G-TRACK-VALIDITY)
 - **A kept color function is parsed once**: `ColorFunction` holds its parsed form (shared behind an `Arc`) beside its text, so `color-mix()` / `light-dark()` / relative colors are no longer re-parsed per element per cascade. Equality and hashing stay by text; no behaviour change. (C3G-COLOR-FUNCTION-PARSED)
 - **One way to add a layered rule; the cascade hooks in one module.** `Stylesheet::add_rule_in_layer` is removed (use `add_style_rule(…, RuleContext::default().in_layer(layer))`); the `var()` substitution hooks and `set_parsed` / `set_unset` move to `rdom_style::backend`, and `var` is private. (C1G-API-SURFACE)
 - **Ill-typed math expressions are invalid** (CSS Values 4 §10.9): a product of two lengths (`calc(50% * 10%)`) or a division by a length drops the declaration; a bare number still unifies with a length. (C2-TRIG)

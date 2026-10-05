@@ -4088,3 +4088,24 @@ row comes from.
   after. `grid_tests::viewport_units_in_an_auto_track_list_compute_to_cells` covers the owned path
   (mutation: never making the list owned → `50vw minmax(10vh, 1fr)` kept; reverted and touched).
   No test expectation or snapshot changed.
+- 2026-10-09 — C7G-TRACK-VALIDITY (architect N2, API N1): layout reads only valid grid values. Where
+  a value has an in-range neighbour the builder clamps to it (DESIGN's clamp-or-panic rule):
+  `TrackSize::fr` / `percent` keep `[0,∞]` through `valid_flex_factor` (CSS Grid 2 §7.2.1 / §7.2.4),
+  `GridLine::span` / `span_named` and `TrackRepeat::new` (so `TrackList::repeat`) make a count of 0 one
+  (§8.3, §7.2.3), and `From<TrackList>` / `From<Vec<TrackSize>>` give a list of no tracks as
+  `GridTemplate::None` (§7.2) — so `grid_template_columns(Vec::new())` and `TrackList::default()` are
+  `none`. `TrackBreadth::is_valid` (new) refuses a negative, NaN or infinite `fr` / `%`, and
+  `TrackSize::is_valid` asks it of every breadth; `TrackSize::is_valid_list` (new) is `<track-size>+`,
+  shared by the `grid-auto-*` builders and the cascade. Making the types' fields private was not
+  enough on its own (an empty list is still constructible) and is an API change for batch B, so the
+  boundary is the cascade: `apply_grid` ignores a declared grid template, auto-track list or line
+  outside its grammar, written straight into a public `TuiStyle` field — as a CSS parser ignores an
+  invalid declaration (CSS Syntax 3 §8.1), so a lower declaration applies. Chosen over filtering in
+  `GridTemplate::tracks()`, which would have kept the invalid value as computed and laid it out as
+  `none` over a valid lower declaration. A `ComputedStyle` written by hand into `TuiExt::computed`
+  is outside this (the cascade's output, not an input). Red (`css_phase7/validity.rs`, 5 tests):
+  `span 0`, `repeat(0, 3) 4` and the empty list debug-panicked in the builders; a NaN `fr` laid the
+  `1fr` beside it out 0 wide (`(0, 0)` for `(0, 10)`); a `TrackList::default()` field value panicked
+  layout (`template.rs:93`, index out of bounds). Green after. Mutation: no validity check for the
+  template in `apply_grid` → the index panic again (reverted, touched). DESIGN's clamp-or-panic
+  paragraph names the grid builders and the cascade check.

@@ -12,7 +12,7 @@ use crate::layout::{Display, Flow, GridLine, GridTemplate, TrackSize};
 /// A value outside the grammar ([`GridTemplate::is_valid`]) is refused.
 macro_rules! template_setter {
     ($css:literal, $field:ident, $setter:ident, $important_setter:ident, $mask:ident) => {
-        #[doc = concat!("Set `", $css, "` to `v` — `GridTemplate::None`, a `TrackList`, or a `Vec<TrackSize>`. Chainable. A list outside the grammar ([`GridTemplate::is_valid`]: an `fr` minimum, an automatic repetition beside a non-fixed size, …) is refused: a debug build panics, a release build leaves the declaration unset, as a CSS parser drops it.")]
+        #[doc = concat!("Set `", $css, "` to `v` — `GridTemplate::None`, a `TrackList`, or a `Vec<TrackSize>`. Chainable. A list outside the grammar ([`GridTemplate::is_valid`]: an `fr` minimum, an automatic repetition beside a non-fixed size, …) is refused: a debug build panics, a release build leaves the declaration unset, as a CSS parser drops it. A list of no tracks is `none`; `TrackSize::fr` / `percent`, `TrackList::repeat` and `GridLine::span` keep their numbers in range.")]
         pub fn $setter(mut self, v: impl Into<GridTemplate>) -> Self {
             if let Some(v) = checked(v.into(), $css) {
                 self.$field = Some(Value::Specified(v));
@@ -70,7 +70,7 @@ macro_rules! auto_setter {
 
 /// `sizes` when it is a `<track-size>+`; refused as [`checked`] refuses.
 fn checked_sizes(sizes: Vec<TrackSize>, property: &str) -> Option<Vec<TrackSize>> {
-    let ok = !sizes.is_empty() && sizes.iter().all(TrackSize::is_valid);
+    let ok = TrackSize::is_valid_list(&sizes);
     debug_assert!(
         ok,
         "`{}` is not a value of `{property}` (CSS Grid 2 §7.6)",
