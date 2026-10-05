@@ -4805,3 +4805,27 @@ fn fixed_box_inside_a_nested_context_keeps_the_viewport_clip() {
         .expect("the fixed box is in its context's positioned layer");
     assert_eq!(entry.clip, crate::render::Rect::new(0, 0, 20, 10));
 }
+
+/// C7G-MINOR (C6G-CONTENTS-STATE's one reset): a grid container turned
+/// `display: contents` (CSS Display 3 §2.5) keeps none of its box's
+/// state — its kept grid lines (CSS Grid 2 §9.1) included.
+#[test]
+fn a_grid_turned_contents_keeps_no_grid_lines() {
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let g = dom.create_element("div");
+    dom.set_attribute(g, "class", "g").unwrap();
+    dom.append_child(root, g).unwrap();
+    let item = dom.create_element("div");
+    dom.append_child(g, item).unwrap();
+    let sheet = |display: &str| {
+        let css = format!(".g {{ display: {display}; grid-template-columns: 2 3 }}");
+        rdom_css::from_css_strict(&css).expect("sheet parses")
+    };
+    cascade(&mut dom, &sheet("grid"));
+    dom.layout_dom(Rect::new(0, 0, 20, 5));
+    assert!(dom.node(g).ext().unwrap().grid_lines.is_some());
+    cascade(&mut dom, &sheet("contents"));
+    dom.layout_dom(Rect::new(0, 0, 20, 5));
+    assert!(dom.node(g).ext().unwrap().grid_lines.is_none());
+}

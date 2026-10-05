@@ -67,6 +67,7 @@
 
 mod apply;
 mod blockify;
+pub(crate) use blockify::children_are_items;
 mod content;
 mod counters;
 mod custom;

@@ -23,7 +23,8 @@ use crate::style::{PseudoElementTarget, Rule};
 /// The buffers of one element's rule matching, kept for the whole
 /// cascade pass and reused by every element and pseudo-element
 /// (`C1G-CASCADE-ALLOC`): candidate indices, the matched rules, their
-/// sorted order, their layer ranks and the ladder.
+/// sorted order, their layer ranks and the ladder — and the one piece of
+/// walk state a restyle reads across elements, `items_changed`.
 #[derive(Default)]
 pub(super) struct Scratch<'a> {
     candidates: Vec<u32>,
@@ -33,6 +34,11 @@ pub(super) struct Scratch<'a> {
     pub(super) sorted: Vec<&'a Rule>,
     pub(super) ranks: Vec<u32>,
     pub(super) plan: Plan,
+    /// Elements a restyle gave a new answer to "are my children's boxes
+    /// flex or grid items?" — their `display: contents`-ness or their
+    /// flex / grid flow changed — this pass (`walk::style_element`'s
+    /// restyle guard, C7G-MINOR). Empty unless one did.
+    pub(super) items_changed: Vec<rdom_core::NodeId>,
 }
 
 /// One matched rule: which of the requested targets it styles, its

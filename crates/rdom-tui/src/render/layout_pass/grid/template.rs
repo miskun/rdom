@@ -169,7 +169,9 @@ impl<'a> Explicit<'a> {
 /// definite size (or maximum), the most repetitions that do not overflow
 /// it — at least one; else with a definite minimum the fewest that reach
 /// it; else one. Each track counts as its max track sizing function when
-/// that is definite, else its min one; gaps count between every track.
+/// that is definite — floored by a definite min one, as a track's growth
+/// limit is never below its base size (§11.4), so `minmax(5, 2)` counts
+/// as 5 — else its min one; gaps count between every track.
 fn auto_repetitions(template: &GridTemplate, bounds: Bounds) -> usize {
     let Some(list) = template.tracks() else {
         return 0;
@@ -177,9 +179,11 @@ fn auto_repetitions(template: &GridTemplate, bounds: Bounds) -> usize {
     let basis = bounds.size;
     let definite = |s: &TrackSize| -> u32 {
         let pick = |b: &TrackBreadth| b.cells(basis).map(u32::from);
-        pick(s.max_sizing())
-            .or_else(|| pick(s.min_sizing()))
-            .unwrap_or(0)
+        let min = pick(s.min_sizing());
+        match pick(s.max_sizing()) {
+            Some(max) => max.max(min.unwrap_or(0)),
+            None => min.unwrap_or(0),
+        }
     };
     let (mut others, mut other_tracks) = (0u32, 0u32);
     let mut repeat = None;

@@ -38,7 +38,7 @@ pub(super) fn blockify(working: &mut ComputedStyle) {
 /// document root's fragment) is no flex container: rdom's viewport column
 /// only stands in for a browser's `<body>`, whose children are not flex
 /// items.
-pub(super) fn children_are_items(
+pub(crate) fn children_are_items(
     dom: &Dom<TuiExt>,
     parent: Option<NodeId>,
     parent_computed: &ComputedStyle,

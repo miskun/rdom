@@ -219,3 +219,32 @@ fn the_initial_style_allocates_nothing_for_grid() {
     let cloned = allocations_in(|| drop(std::hint::black_box(initial.clone())));
     assert_eq!(cloned, 0, "a clone of the initial style allocations");
 }
+
+/// C7G-MINOR — a restyle (`Mode::Restyle`) that leaves a `display:
+/// contents` element's style unchanged keeps its subtree, as it does any
+/// element's, unless its children's parent box (CSS Display 3 §2.5: the
+/// one above it) changed whether it lays out flex or grid items — what
+/// their blockification reads (§2.7, `apply_tests::
+/// a_restyle_unblockifies_the_children_of_a_contents_item`). Here it did
+/// not: the restyle visits the `contents` element alone, not its 100
+/// children.
+#[test]
+fn an_unchanged_contents_element_keeps_its_subtree_in_a_restyle() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let c = dom.create_element("div");
+    dom.set_attribute(c, "class", "c").unwrap();
+    dom.append_child(root, c).unwrap();
+    for _ in 0..100 {
+        let span = dom.create_element("span");
+        dom.append_child(c, span).unwrap();
+    }
+    let css = sheet(".c { display: contents }");
+    dom.cascade(&css);
+    let sheets = [&css];
+    let registry = Rc::new(PropertyRegistry::new(&sheets));
+    super::walk::probe::take();
+    restyle_vars(&mut dom, &sheets, registry, &[c]);
+    let visits = super::walk::probe::take();
+    assert!(visits <= 2, "visited {visits} nodes");
+}

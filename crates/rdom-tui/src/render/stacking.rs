@@ -119,20 +119,17 @@ pub(crate) fn paints_atomically(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedS
 }
 
 /// Whether the in-flow children of `parent` are flex or grid items: the
-/// element their boxes are laid out in — `parent`, or past fragments and
-/// box-less elements the one above — is a flex or grid container.
+/// element their boxes are laid out in — `parent`, or past box-less
+/// elements the one above — is a flex or grid container. The cascade's
+/// answer (`cascade::children_are_items`, what blockification reads), so
+/// paint and computed `display` agree (C7G-MINOR: this walk also went
+/// through a `Fragment`, which a tree only has at its root — inserting
+/// one unwraps it).
 fn is_item_of(dom: &Dom<TuiExt>, parent: NodeId) -> bool {
-    let mut p = dom.node(parent);
-    while p.node_type() == NodeType::Fragment || crate::render::box_tree::is_contents(dom, p.id()) {
-        match p.parent_node() {
-            Some(up) => p = up,
-            None => return false,
-        }
-    }
-    p.node_type() == NodeType::Element
-        && p.ext()
-            .and_then(|e| e.computed.as_ref())
-            .is_some_and(|pc| pc.flow.is_flex_or_grid())
+    dom.node(parent)
+        .ext()
+        .and_then(|e| e.computed.as_deref())
+        .is_some_and(|c| crate::style::cascade::children_are_items(dom, Some(parent), c))
 }
 
 /// Does the element `c`, a child of `parent`, paint and hit from its

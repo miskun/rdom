@@ -31,21 +31,15 @@ pub(super) fn resolve(
             size_to_singles(grid, t, members, c, space);
         }
     }
-    // Step 3: spanning items that cross no flexible track, by span.
-    let widest = items
-        .iter()
-        .zip(&flexible)
-        .filter(|(s, f)| !**f && s.len() > 1)
-        .map(|(s, _)| s.len())
-        .max()
-        .unwrap_or(0);
-    for len in 2..=widest {
-        let group: Vec<usize> = (0..items.len())
-            .filter(|&i| !flexible[i] && items[i].len() == len)
-            .collect();
-        if !group.is_empty() {
-            accommodate(grid, items, &group, c, space, Share::Equal);
-        }
+    // Step 3: spanning items that cross no flexible track, grouped by
+    // span in increasing order — sorted once, so the cost is the items',
+    // not the widest span's times theirs (C7G-MINOR).
+    let mut spanning: Vec<usize> = (0..items.len())
+        .filter(|&i| !flexible[i] && items[i].len() > 1)
+        .collect();
+    spanning.sort_by_key(|&i| items[i].len());
+    for group in spanning.chunk_by(|&a, &b| items[a].len() == items[b].len()) {
+        accommodate(grid, items, group, c, space, Share::Equal);
     }
     // Step 4: every item crossing a flexible track, together, into the
     // flexible tracks only.

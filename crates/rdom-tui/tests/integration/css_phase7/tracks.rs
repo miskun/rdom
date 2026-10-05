@@ -240,3 +240,20 @@ fn flexible_rows_of_an_auto_height_grid_size_to_their_items() {
     assert_eq!(row_spans(&dom, &ids), [(0, 1), (1, 2)]);
     assert_eq!(rect(&dom, g).height, 3);
 }
+
+/// C7G-MINOR — CSS Grid 2 §7.2.3.2 with §11.4: an automatic repetition
+/// counts each track as its definite max track sizing function, which a
+/// track never has below its definite min one (its growth limit is
+/// floored by its base size), so `minmax(5, 2)` counts as 5: two fit in
+/// 12 cells, and the third item wraps to a second row.
+#[test]
+fn a_max_below_the_min_counts_as_the_min_in_an_auto_repetition() {
+    let (dom, _, ids) = grid(
+        ".g { display: grid; width: 12; grid-template-columns: repeat(auto-fill, minmax(5, 2)) }",
+        &["a", "b", "c"],
+        20,
+        4,
+    );
+    assert_eq!(columns(&dom, &ids), [(0, 5), (5, 5), (0, 5)]);
+    assert_eq!(rect(&dom, ids[2]).y, 1);
+}

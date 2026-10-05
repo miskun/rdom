@@ -317,9 +317,26 @@ fn style_element<'a>(
     let reads_moved_counters =
         counters.is_changed() && dom.node(id).ext().is_some_and(|e| e.reads_counters);
     // A box-less element's children take their parent box — so whether
-    // they are flex items, blockified — from above it: its own style
-    // staying the same does not keep theirs.
-    let keeps_subtree = computed.display != crate::layout::Display::Contents;
+    // they are flex or grid items, blockified (CSS Display 3 §2.5 /
+    // §2.7) — from above it: its own style staying the same keeps theirs
+    // only while no element between it and that box changed the answer
+    // in this restyle (C7G-MINOR). An element that changes it is noted
+    // for the walk below it.
+    let item_parent = |c: &ComputedStyle| {
+        (
+            c.display == crate::layout::Display::Contents,
+            c.flow.is_flex_or_grid(),
+        )
+    };
+    if mode == Mode::Restyle
+        && previous
+            .as_deref()
+            .is_some_and(|p| item_parent(p) != item_parent(&computed))
+    {
+        scratch.items_changed.push(id);
+    }
+    let keeps_subtree = computed.display != crate::layout::Display::Contents
+        || !items_changed_above(dom, id, &scratch.items_changed);
     if mode == Mode::Restyle
         && let Some(previous) = previous.as_ref().filter(|p| ***p == computed)
         && !reads_moved_counters
@@ -430,6 +447,30 @@ fn style_element<'a>(
         reads_counters,
         restyle: mode == Mode::Restyle,
     })
+}
+
+/// Whether the restyle changed the answer the box-less element `id`'s
+/// children read for their blockification: whether an element between
+/// it and its box parent, or the box parent (CSS Display 3 §2.5), is
+/// among `changed` — which the top-down walk filled before reaching `id`.
+fn items_changed_above(dom: &Dom<TuiExt>, id: NodeId, changed: &[NodeId]) -> bool {
+    if changed.is_empty() {
+        return false;
+    }
+    let mut cur = dom.node(id).parent_node();
+    while let Some(n) = cur {
+        if n.node_type() != NodeType::Element {
+            return false;
+        }
+        if changed.contains(&n.id()) {
+            return true;
+        }
+        if !crate::render::box_tree::is_contents(dom, n.id()) {
+            return false;
+        }
+        cur = n.parent_node();
+    }
+    false
 }
 
 /// A restyle kept the element `id`'s style (`computed`): its boxes and

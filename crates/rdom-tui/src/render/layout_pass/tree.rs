@@ -117,7 +117,7 @@ fn zero_contents_children(dom: &mut Dom<TuiExt>, id: NodeId, origin: LayoutRect)
 
 /// Reset everything `ext`'s element derived from having a box — its
 /// rects (to `rect`, a zero-size one), margin-collapse memo, line boxes,
-/// anonymous block boxes, scroll extent and offsets — when it has none
+/// anonymous block boxes, scroll extent and offsets, grid lines — when it has none
 /// (`display: none` / `contents`, CSS Display 3 §2.5). Layout writes
 /// these only on a node it lays out, so a box-less node would otherwise
 /// keep its box days' values, and caret, hit-test and focus code reading
@@ -135,6 +135,7 @@ fn clear_box_state(ext: &mut TuiExt, rect: LayoutRect) {
     ext.scroll_y = 0;
     ext.scroll_state = None;
     ext.static_position = None;
+    ext.grid_lines = None;
 }
 
 /// Move `id`'s laid-out subtree by `(dx, dy)`: every element's rects,

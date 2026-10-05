@@ -36,7 +36,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 4 | Backgrounds and borders | done 2026-10-06 (both gates; 19 gate fixes `C4G-*`; their re-review rides with the Phase 5 gate; C4-SPACING layout with C13-TFC) |
 | 5 | Box model and sizing (incl. logical properties) | done 2026-10-07 (both gates; 19 gate fixes `C5G-*`; their re-review rides with the Phase 6 gate; C5-CONTAIN-SIZE use with C14-CONTAIN) |
 | 6 | Display, visibility, flexbox, box alignment | done 2026-10-08 (both gates; 28 gate fixes `C6G-*`; their re-review rides with the Phase 7 gate) |
-| 7 | Grid | gates run 2026-10-09; `C7G-*` fixes in progress |
+| 7 | Grid | gates run 2026-10-09; `C7G-*` batch A (correctness and cost) done, batch B (API and docs) next |
 | 8 | Positioning, floats, overflow, scrolling | |
 | 9 | Inline text and decoration | |
 | 10 | Lists, counters, generated content, pseudo-elements | |
@@ -4216,3 +4216,32 @@ row comes from.
   predicate (it could not know the item rule); green after, with `the_rule_is_the_items` pinning the
   block-flow, positioned and opacity answers. No behaviour change: no other test and no snapshot
   changed.
+- 2026-10-09 — C7G-MINOR (architect N9 and the gate's two ACCEPT records). (1) `tree::clear_box_state`
+  reset every box value but the new `grid_lines`, against C6G-CONTENTS-STATE's one reset; it now
+  clears them. Red: `layout_pass::tests::a_grid_turned_contents_keeps_no_grid_lines` (the lines kept);
+  green after (not observable outside: a box-less element is never a containing block). (2) The
+  restyle guard of C6G-BLOCKIFY recascaded a `display: contents` element's whole subtree whenever it
+  was restyled, its style unchanged or not. Decision: keep the subtree when the style is unchanged
+  and no element between it and its box parent, nor the box parent, changed in this restyle the
+  answer its children's blockification reads (`children_are_items`: their `contents`-ness or their
+  flex / grid flow) — the walk is top-down, so such an element was restyled first and noted in the
+  pass's `Scratch::items_changed` (empty unless one did). A stored per-element bit was tried first and
+  dropped: it grew `TuiExt` past its size tripwire (448 B for 440), a cost every element pays for a
+  restyle-only saving. Red: `cascade::cost_tests::
+  an_unchanged_contents_element_keeps_its_subtree_in_a_restyle` — 101 nodes visited for 1; green
+  after. Mutation: the guard never firing → `apply_tests::
+  a_restyle_unblockifies_the_children_of_a_contents_item` fails (`Block`; reverted, touched). (3) `blockify::children_are_items` stopped at a `Fragment`,
+  `stacking::is_item_of` walked through one. A `Fragment` is only ever a tree's root (rdom-core
+  unwraps one on insertion), so the two never disagreed on a reachable tree; made one answer by
+  construction: `is_item_of` is `children_are_items` (re-exported from `cascade`). Not behavioural, no
+  test. (4) Step 3 of §11.5 rescanned all items for each span length up to the widest (O(widest ×
+  items); `span 10000` is reachable): the spanning items are sorted by span once and taken in
+  `chunk_by` groups. Not behavioural; the sizing tests pin the order. (5) `auto_repetitions` counted a
+  `minmax(5, 2)` track by its max, 2: a definite max is now floored by a definite min (a growth limit
+  is never below its base size, §11.4). Red: `css_phase7/tracks.rs::
+  a_max_below_the_min_counts_as_the_min_in_an_auto_repetition` — three columns of 5 in a 12-wide grid,
+  the third at x 10 (checked against the unchanged `template.rs` by stashing it); green after. (6)
+  DIVERGENCES §2 records the accepted exception: grid re-resolution detects aspect-ratio transfers
+  only, a `column wrap` flex item's height-dependent min-content width not; and, found with
+  C7G-MEMO-PURITY, that a subgrid stays out of its parent's baseline groups on its non-subgridded axis
+  too. No snapshot changed.
