@@ -128,9 +128,19 @@ impl<'a> Measured<'a> {
     /// box and its margins.
     fn outer(&self, i: usize, max_content: bool) -> u32 {
         let (cross, cb) = self.budgets[i];
-        let border_box = match self.transfers.get(i).copied().flatten() {
-            Some(width) => width,
-            None => self.item(i).contribution(
+        let border_box = match (
+            self.placed[i].size,
+            self.transfers.get(i).copied().flatten(),
+        ) {
+            (Some((min, max)), _) => {
+                if max_content {
+                    max
+                } else {
+                    min
+                }
+            }
+            (None, Some(width)) => width,
+            (None, None) => self.item(i).contribution(
                 self.dom,
                 self.dimension.direction(),
                 cross,
@@ -161,7 +171,7 @@ impl<'a> Measured<'a> {
             Size::Calc(e) => e.contains_percent(),
             Size::Fixed(_) | Size::Intrinsic(_) => false,
         };
-        if !behaves_auto {
+        if !behaves_auto || self.placed[i].size.is_some() {
             return self.cached(i, 0);
         }
         let kw = item.keywords(dom, &computed, direction, cross, cb);

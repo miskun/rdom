@@ -25,6 +25,18 @@ pub(super) struct Placed {
     /// Its physical margins `margin-trim` drops (`grid::trim`), set once
     /// the grid's size is known.
     pub(super) trim: Sides<bool>,
+    /// The item of a subgrid sized in its parent's tracks (§9.5): the
+    /// extra margin, either sign, the subgrid's edges and gutters give it
+    /// on the axis it is sized on there. 0 for a grid's own item.
+    pub(super) extra: Sides<i32>,
+    /// Its border-box min- and max-content size on the axis being sized,
+    /// when it is not measured from its content: a subgrid measured on
+    /// its other axis, a subgrid's empty edge, or (0) a subgrid whose
+    /// items size the axis in its place (§9.5).
+    pub(super) size: Option<(u16, u16)>,
+    /// The width of the item of a subgrid whose columns are not this
+    /// grid's, which its rows' contributions wrap to.
+    pub(super) width: Option<u16>,
 }
 
 /// The items placed, and the implicit grid's size: how many tracks it
@@ -331,6 +343,9 @@ pub(super) fn place(
                 columns,
                 rows,
                 trim: Sides::default(),
+                extra: Sides::default(),
+                size: None,
+                width: None,
             }
         })
         .collect();

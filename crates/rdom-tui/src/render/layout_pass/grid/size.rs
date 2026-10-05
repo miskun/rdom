@@ -1,139 +1,135 @@
-//! The sizing run of a grid (CSS Grid 2 §11.1): its items placed (§8),
-//! each axis's tracks built ([`tracks_of`]: explicit, implicit, collapsed)
-//! and sized by the track sizing algorithm over the items'
-//! contributions ([`run`]) — the columns, then the rows at the columns'
-//! widths. Both the layout (`layout_grid_children`) and the container's
-//! intrinsic measurement (`intrinsic::content_size`) size through
-//! [`size_grid`].
+//! The sizing run of a grid (CSS Grid 2 §11.1): its items placed
+//! (`places`), each axis's tracks built (`track::tracks_of`) and sized
+//! by the track sizing algorithm over the items' contributions
+//! ([`run`]) — the columns, then the rows at the columns' widths, then
+//! each once more when the rows changed a column contribution (steps
+//! 3–4). An axis a subgrid takes from its parent is not sized: its
+//! tracks are the parent's (§9); an axis a child subgrids is sized with
+//! the child's items in the child's place (§9.5). Both the layout
+//! (`layout_grid_children`) and the container's intrinsic measurement
+//! (`intrinsic::content_size`) size through [`size_grid`].
 
 use rdom_core::{Dom, NodeId};
 
 use super::lines::{AxisLines, GridLines};
-use super::placement::{self, Placed};
+use super::placement::Placed;
+use super::places::{PlacedGrid, place_grid};
 use super::sizing::{self, Frame};
+use super::subgrid::{self, Inherit};
 use super::template::{Bounds, Explicit};
-use super::track::{Track, TrackGrid};
+use super::track::{Extent, TrackGrid, tracks_of};
 use super::{AxisContext, Dimension, Grid, baseline, content_bounds, contribution, margins};
 use crate::ext::TuiExt;
-use crate::layout::{Sides, TrackSize};
-use crate::render::layout_pass::items;
+use crate::layout::Sides;
+use crate::render::layout_pass::box_sizing::Sizer;
+use crate::render::layout_pass::intrinsic::Measure;
 use crate::style::ComputedStyle;
 
-/// Size the grid of `id` (styled `computed`): its items placed (§8.5),
-/// its columns sized under `columns` (§11.3), then — with `rows` — its
-/// rows at the columns' widths (§11.1 steps 1–2), and the columns and
-/// rows once more each when the rows changed what an item contributes to
-/// the columns (steps 3–4).
+/// Size the grid of `id` (styled `computed`), which takes the axes
+/// `inherit` names from its parent: its items placed (§8.5), its columns
+/// sized under `columns` (§11.3), then — with `rows` — its rows at the
+/// columns' widths (§11.1 steps 1–2), and the columns and rows once more
+/// each when the rows changed what an item contributes to the columns
+/// (steps 3–4).
 pub(super) fn size_grid(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,
     columns: AxisContext,
     rows: Option<AxisContext>,
+    inherit: &Inherit,
 ) -> Grid {
     #[cfg(test)]
     RUNS.with(|r| r.borrow_mut().push(None));
-    let mut children = items::items_of(dom, id);
-    // §8.5: placement takes the items in order-modified document order
-    // (CSS Display 3 §3).
-    items::sort_by_order(dom, &mut children);
     let row_bounds = rows.map_or_else(Bounds::default, |r| r.bounds);
-    let areas = &computed.grid_template_areas;
-    let explicit_columns =
-        Explicit::of(&computed.grid_template_columns, columns.bounds).with_areas(areas, false);
-    let explicit_rows =
-        Explicit::of(&computed.grid_template_rows, row_bounds).with_areas(areas, true);
-    // §8.3: each item's lines on both axes, against the explicit grid's.
-    let column_lines = explicit_columns.lines();
-    let row_lines = explicit_rows.lines();
-    let areas = children
-        .iter()
-        .map(|c| {
-            let s = c.computed(dom);
-            (
-                placement::resolve(&s.grid_row_start, &s.grid_row_end, row_lines),
-                placement::resolve(&s.grid_column_start, &s.grid_column_end, column_lines),
-            )
-        })
-        .collect();
-    let mut placement = placement::place(
-        children,
-        areas,
-        explicit_rows.count,
-        explicit_columns.count,
-        computed.grid_auto_flow,
-    );
-    for p in &mut placement.items {
-        p.trim = trim(computed, p, placement.columns, placement.rows);
-    }
-    let n = placement.items.len();
-    let placed = &placement.items;
-    let column_extent = Extent {
-        count: placement.columns,
-        before: placement.columns_before,
-    };
-    let row_extent = Extent {
-        count: placement.rows,
-        before: placement.rows_before,
+    let grid = place_grid(dom, id, computed, columns.bounds, row_bounds, inherit);
+    let placed = &grid.placement.items;
+    let fixed = |dimension: Dimension| {
+        inherit
+            .on(dimension)
+            .and_then(|i| i.extents.as_deref())
+            .map(TrackGrid::fixed)
     };
     // The columns sized for items that transfer `transfers` (their
     // ratio widths) to them. Columns measure their items with no width
     // yet: a percentage of it is cyclic (CSS Sizing 3 §5.2.1), so 0.
     let size_columns = |transfers: &[Option<u16>]| {
-        let mut grid = tracks_of(
-            &explicit_columns,
+        if let Some(fixed) = fixed(Dimension::Columns) {
+            return fixed;
+        }
+        let mut tracks = tracks_of(
+            &grid.columns,
             &computed.grid_auto_columns,
-            column_extent,
+            Extent {
+                count: grid.placement.columns,
+                before: grid.placement.columns_before,
+            },
             placed,
             Dimension::Columns,
             columns.bounds,
         );
+        let list = run_items(dom, computed, &grid, Dimension::Columns, None);
+        let mut transfers = transfers.to_vec();
+        transfers.resize(list.len(), None);
         let budgets = Budgets {
-            budgets: vec![(0, 0); n],
+            budgets: vec![(0, 0); list.len()],
             shims: Vec::new(),
-            transfers: transfers.to_vec(),
+            transfers,
         };
         run(
             dom,
-            &mut grid,
-            placed,
+            &mut tracks,
+            &list,
             Dimension::Columns,
             budgets,
             columns,
             computed,
         );
-        grid
+        tracks
     };
     // The rows sized at `column_grid`'s widths, and the baseline shims.
     let size_rows = |column_grid: &TrackGrid, rows: AxisContext| {
-        let mut grid = tracks_of(
-            &explicit_rows,
-            &computed.grid_auto_rows,
-            row_extent,
-            placed,
-            Dimension::Rows,
-            rows.bounds,
-        );
-        // Each item's content wraps to its grid area's width, less its
-        // margins (§11.1 step 2).
         let extents = column_grid.extents();
+        // Each item's content wraps to its grid area's width, less its
+        // margins (§11.1 step 2); a subgrid's item to its width there.
         let areas: Vec<u16> = placed
             .iter()
             .map(|p| span_size(&extents, p.columns.start, p.columns.end))
             .collect();
-        let budgets = placed
+        // §11.5 step 1: the baseline-aligned items' shims count toward
+        // their rows — a subgrid is stretched, so not one of them.
+        let baselines: Vec<_> = baseline::shims(dom, computed, placed, &areas)
+            .into_iter()
+            .zip(&grid.subgrids)
+            .map(|(s, sub)| s.filter(|_| !sub.any()))
+            .collect();
+        if let Some(fixed) = fixed(Dimension::Rows) {
+            return (fixed, baselines);
+        }
+        let mut tracks = tracks_of(
+            &grid.rows,
+            &computed.grid_auto_rows,
+            Extent {
+                count: grid.placement.rows,
+                before: grid.placement.rows_before,
+            },
+            placed,
+            Dimension::Rows,
+            rows.bounds,
+        );
+        let list = run_items(dom, computed, &grid, Dimension::Rows, Some(&extents));
+        let budgets = list
             .iter()
-            .zip(&areas)
-            .map(|(p, &area)| {
+            .map(|p| {
+                let area = p
+                    .width
+                    .unwrap_or_else(|| span_size(&extents, p.columns.start, p.columns.end));
                 let m = margins(dom, p, area);
                 let width =
                     (i32::from(area) - m.left - m.right).clamp(0, i32::from(u16::MAX)) as u16;
                 (width, area)
             })
             .collect();
-        // §11.5 step 1: the baseline-aligned items' shims count toward
-        // their rows.
-        let baselines = baseline::shims(dom, computed, placed, &areas);
         let shims = baselines
             .iter()
             .map(|s| s.map_or(0, |s| s.offset.max(0) as u32))
@@ -145,14 +141,14 @@ pub(super) fn size_grid(
         };
         run(
             dom,
-            &mut grid,
-            placed,
+            &mut tracks,
+            &list,
             Dimension::Rows,
             budgets,
             rows,
             computed,
         );
-        (grid, baselines)
+        (tracks, baselines)
     };
     // §11.1 step 1: the columns, the ratio items' widths transferred from
     // the heights known without the rows.
@@ -187,103 +183,131 @@ pub(super) fn size_grid(
         before,
         edges: Vec::new(),
     };
+    let lines = GridLines {
+        columns: axis(&grid.columns, grid.placement.columns_before),
+        rows: axis(&grid.rows, grid.placement.rows_before),
+        rtl: false,
+        origin: (0, 0),
+        subgrids: Vec::new(),
+    };
+    let inherited = |dimension: Dimension| inherit.on(dimension).and_then(|i| i.extents.clone());
     Grid {
         columns: column_grid,
         rows: row_grid,
-        lines: GridLines {
-            columns: axis(&explicit_columns, placement.columns_before),
-            rows: axis(&explicit_rows, placement.rows_before),
-        },
-        placed: placement.items,
+        lines,
+        inherited_columns: inherited(Dimension::Columns),
+        inherited_rows: inherited(Dimension::Rows),
+        subgrids: grid.subgrids,
+        placed: grid.placement.items,
         baselines,
     }
 }
 
-/// Which of `p`'s physical margins `margin-trim` drops on its grid
-/// container (CSS Box 4 §3): those adjoining a trimmed edge of the grid
-/// — `block-start` / `block-end` the items in its first / last row,
-/// `inline-start` / `inline-end` those in its first / last column (the
-/// right / left one under `direction: rtl`), of a grid `columns` ×
-/// `rows` tracks.
-fn trim(container: &ComputedStyle, p: &Placed, columns: usize, rows: usize) -> Sides<bool> {
-    let t = container.margin_trim;
-    let start = t.inline_start && p.columns.start == 0;
-    let end = t.inline_end && p.columns.end == columns;
-    let (left, right) = if crate::render::layout_pass::margin_trim::inline_reversed(container) {
-        (end, start)
-    } else {
-        (start, end)
-    };
-    Sides {
-        top: t.block_start && p.rows.start == 0,
-        right,
-        bottom: t.block_end && p.rows.end == rows,
-        left,
-    }
-}
-
-/// The size of one axis's implicit grid.
-#[derive(Debug, Clone, Copy)]
-struct Extent {
-    /// Tracks in all.
-    count: usize,
-    /// Implicit tracks before the explicit grid.
-    before: usize,
-}
-
-/// One axis's tracks (`extent` of them): the explicit ones, and around
-/// them implicit ones sized by the `implicit` pattern (§7.6:
-/// `grid-auto-columns` / `-rows` — the first after the explicit grid
-/// takes its first size and so on forwards, the last before it its last
-/// size and so on backwards), each initialized against the percentage
-/// basis `bounds.size` (§11.4); an `auto-fit` repetition's tracks that
-/// no item spans are collapsed (§7.2.3.2).
-fn tracks_of(
-    explicit: &Explicit<'_>,
-    implicit: &[TrackSize],
-    extent: Extent,
-    placed: &[Placed],
+/// The items that size `grid`'s tracks on `dimension`, its own items
+/// first and in order (so their indices are `placed`'s): an item that
+/// subgrids the axis contributes nothing itself — its items, flattened
+/// into these tracks, follow the grid's own (§9.5); one that subgrids
+/// only the other axis is measured as a grid sized with that axis
+/// inherited. `columns`, for the rows, are the columns' extents.
+fn run_items(
+    dom: &Dom<TuiExt>,
+    computed: &ComputedStyle,
+    grid: &PlacedGrid<'_>,
     dimension: Dimension,
-    bounds: Bounds,
-) -> TrackGrid {
-    const AUTO: TrackSize = TrackSize::AUTO;
-    let Extent { count, before } = extent;
-    let mut occupied = vec![false; count];
-    for p in placed {
-        for t in dimension.span(p).tracks() {
-            occupied[t] = true;
+    columns: Option<&[(u32, u32)]>,
+) -> Vec<Placed> {
+    let placed = &grid.placement.items;
+    let mut list = placed.clone();
+    let rtl = crate::render::layout_pass::margin_trim::inline_reversed(computed);
+    let gap = match dimension {
+        Dimension::Columns => computed.column_gap.resolve(0),
+        Dimension::Rows => computed.row_gap.resolve(0),
+    };
+    let mut flattened = Vec::new();
+    for (k, p) in placed.iter().enumerate() {
+        let sub = grid.subgrids[k];
+        if !sub.any() {
+            continue;
+        }
+        let area = columns.map_or(0, |e| span_size(e, p.columns.start, p.columns.end));
+        let inherit = grid.inherit_for(dom, p, computed, (columns, None), area);
+        if sub.on(dimension) {
+            list[k].size = Some((0, 0));
+            list[k].trim = Sides {
+                top: true,
+                right: true,
+                bottom: true,
+                left: true,
+            };
+            let c = p.item.computed(dom);
+            let e = subgrid::edges(&c, area);
+            let content = i32::from(area) - e.left - e.right;
+            flattened.extend(subgrid::flatten(
+                dom,
+                p,
+                dimension,
+                &inherit,
+                rtl,
+                gap,
+                Some(content.clamp(0, i32::from(u16::MAX)) as u16),
+            ));
+        } else {
+            list[k].size = Some(measure_subgrid(dom, p, dimension, &inherit, area));
         }
     }
-    let collapsed: Vec<bool> = (0..count)
-        .map(|t| t >= before && explicit.auto_fit.contains(&(t - before)) && !occupied[t])
-        .collect();
-    let pattern = |k: usize, forwards: bool| -> &TrackSize {
-        let n = implicit.len();
-        match n {
-            0 => &AUTO,
-            _ if forwards => &implicit[k % n],
-            _ => &implicit[n - 1 - k % n],
+    list.extend(flattened);
+    list
+}
+
+/// The border-box min- and max-content size on `dimension` of the
+/// subgrid `p`, which subgrids only the other axis (`inherit`): its
+/// tracks on `dimension` sized as its content size is (§5.2) with the
+/// other axis its parent's, plus its padding and border. `area` is its
+/// grid area's width.
+fn measure_subgrid(
+    dom: &Dom<TuiExt>,
+    p: &Placed,
+    dimension: Dimension,
+    inherit: &Inherit,
+    area: u16,
+) -> (u16, u16) {
+    let crate::render::layout_pass::items::Item::Element(id) = p.item else {
+        return (0, 0);
+    };
+    // Once a pass for each subgrid, axis, area and inherited axis (its
+    // own measurement nests the measurements of its subgrids): a chain of
+    // nested subgrids costs its length, not its square.
+    let key = (id, format!("{dimension:?} {area} {inherit:?}"));
+    if let Some(size) = crate::render::layout_pass::intrinsic::get_subgrid(dom, &key) {
+        return size;
+    }
+    let c = p.item.computed(dom);
+    let content = |measure| {
+        super::intrinsic::content_size_with(
+            dom,
+            id,
+            &c,
+            dimension.direction(),
+            area,
+            area,
+            measure,
+            inherit,
+        )
+    };
+    let chrome = Sizer::along(&c, dimension.direction(), area).chrome();
+    let size = |n: u16| n.saturating_add(chrome);
+    let sizes = match dimension {
+        Dimension::Columns => (
+            size(content(Measure::MinContent)),
+            size(content(Measure::MaxContent)),
+        ),
+        Dimension::Rows => {
+            let h = size(content(Measure::MaxContent));
+            (h, h)
         }
     };
-    let tracks = (0..count)
-        .map(|t| {
-            if collapsed[t] {
-                return Track::collapsed();
-            }
-            let size = if t < before {
-                pattern(before - 1 - t, false)
-            } else {
-                let k = t - before;
-                explicit
-                    .sizes
-                    .get(k)
-                    .copied()
-                    .unwrap_or_else(|| pattern(k - explicit.sizes.len(), true))
-            };
-            Track::new(size, bounds.size)
-        })
-        .collect();
-    TrackGrid::new(tracks, &collapsed, u32::from(bounds.gap))
+    crate::render::layout_pass::intrinsic::put_subgrid(dom, key, sizes);
+    sizes
 }
 
 /// What one axis's items are measured against: each item's budget on
@@ -331,7 +355,7 @@ fn run(
 
 /// The extent of tracks `start..end` of `extents` (each track's start
 /// and end offset), gutters included.
-fn span_size(extents: &[(u32, u32)], start: usize, end: usize) -> u16 {
+pub(super) fn span_size(extents: &[(u32, u32)], start: usize, end: usize) -> u16 {
     let size = extents[end - 1].1 - extents[start].0;
     size.min(u32::from(u16::MAX)) as u16
 }

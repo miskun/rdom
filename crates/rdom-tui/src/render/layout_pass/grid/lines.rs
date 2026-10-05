@@ -18,6 +18,15 @@ use crate::style::ComputedStyle;
 pub(crate) struct GridLines {
     pub(super) columns: AxisLines,
     pub(super) rows: AxisLines,
+    /// The grid's columns run from the right (`direction: rtl`).
+    pub(super) rtl: bool,
+    /// Its content box's inline-start edge (the right one under `rtl`)
+    /// and top, absolute and unscrolled — what its tracks' offsets count
+    /// from.
+    pub(super) origin: (i32, i32),
+    /// Its items that subgrid an axis, and their grid areas' spans — for
+    /// their own layout, which takes its tracks from these lines (§9).
+    pub(super) subgrids: Vec<(NodeId, super::track::Span, super::track::Span)>,
 }
 
 /// One axis of a laid-out grid.

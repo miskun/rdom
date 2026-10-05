@@ -52,6 +52,7 @@ These are intrinsic to terminals. They will not change.
   1. *Scope.* CSS restricts `border-collapse: collapse` to `<table>` boxes; rdom honors it on any flex or block container. Terminal UIs lean on shared-border rendering for non-table chrome. A grid container's items keep their own borders: grid gutters are the way to space them.
   2. *Inheritance.* CSS makes `border-collapse` inheritable. rdom makes it non-inheriting. A container that wants its direct children to participate must declare `border-collapse: collapse` itself — no spooky action across subtrees. The reset means demo / consumer subtrees never inherit a chrome's collapse decision implicitly.
   3. *Scope of effect within a subtree.* Within a single collapse container, the overlap-share affects only the container's **direct children**. The "transparent intermediate" recursive propagation present in earlier rdom builds is gone — to share borders with a more deeply nested element, every container in the chain declares collapse explicitly.
+- **A subgrid's items align their baselines among themselves.** CSS Grid 2 §9 has the items of a subgrid share baseline groups with the parent's items in the same row; rdom aligns a subgrid's `baseline` items within the subgrid only, and they add no baseline shim to the parent's rows (C7-SUBGRID). A subgrid itself is stretched on the axes it subgrids, so it never baseline-aligns there.
 - **The 2×2 outcome grid for `gap` × `border-collapse`** is the canonical reference for what authors get:
 
   | `gap` on parent | `border-collapse` on parent | Outcome |
@@ -291,7 +292,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Grid
 
-- `subgrid` — C7-SUBGRID (parsed and serialized; until its layout lands a subgrid lays out as `none`)
 
 ### Positioned layout
 

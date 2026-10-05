@@ -3,6 +3,9 @@
 //! resolved for this layout, its base size and growth limit, and the
 //! gutters between the tracks.
 
+use super::Dimension;
+use super::placement::Placed;
+use super::template::{Bounds, Explicit};
 use crate::layout::{TrackBreadth, TrackSize};
 
 /// A min track sizing function (§11.1), a length resolved to cells.
@@ -210,6 +213,26 @@ impl TrackGrid {
         self.tracks[span.tracks()].iter().map(size).sum::<u32>() + self.inner_gutters(span)
     }
 
+    /// Fixed tracks at `extents` (start and end offsets, in order): a
+    /// subgridded axis's, sized by its parent (§9) — each track its
+    /// extent, each gutter the space to the next.
+    pub(super) fn fixed(extents: &[(i32, i32)]) -> Self {
+        let size = |a: i32, b: i32| u32::try_from(b - a).unwrap_or(0);
+        let tracks: Vec<Track> = extents
+            .iter()
+            .map(|&(a, b)| {
+                let n = size(a, b);
+                Track::with(MinFn::Fixed(n), MaxFn::Fixed(n))
+            })
+            .collect();
+        let gutters = extents.windows(2).map(|w| size(w[0].1, w[1].0)).collect();
+        Self {
+            collapsed: vec![false; tracks.len()],
+            tracks,
+            gutters,
+        }
+    }
+
     /// The whole grid's extent: the base sizes and every gutter.
     pub(super) fn total(&self) -> u32 {
         self.tracks.iter().map(|t| t.base).sum::<u32>() + self.gutters.iter().sum::<u32>()
@@ -227,4 +250,68 @@ impl TrackGrid {
         }
         out
     }
+}
+
+/// The size of one axis's implicit grid.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Extent {
+    /// Tracks in all.
+    pub(super) count: usize,
+    /// Implicit tracks before the explicit grid.
+    pub(super) before: usize,
+}
+
+/// One axis's tracks (`extent` of them): the explicit ones, and around
+/// them implicit ones sized by the `implicit` pattern (§7.6:
+/// `grid-auto-columns` / `-rows` — the first after the explicit grid
+/// takes its first size and so on forwards, the last before it its last
+/// size and so on backwards), each initialized against the percentage
+/// basis `bounds.size` (§11.4); an `auto-fit` repetition's tracks that
+/// no item spans are collapsed (§7.2.3.2).
+pub(super) fn tracks_of(
+    explicit: &Explicit<'_>,
+    implicit: &[TrackSize],
+    extent: Extent,
+    placed: &[Placed],
+    dimension: Dimension,
+    bounds: Bounds,
+) -> TrackGrid {
+    const AUTO: TrackSize = TrackSize::AUTO;
+    let Extent { count, before } = extent;
+    let mut occupied = vec![false; count];
+    for p in placed {
+        for t in dimension.span(p).tracks() {
+            occupied[t] = true;
+        }
+    }
+    let collapsed: Vec<bool> = (0..count)
+        .map(|t| t >= before && explicit.auto_fit.contains(&(t - before)) && !occupied[t])
+        .collect();
+    let pattern = |k: usize, forwards: bool| -> &TrackSize {
+        let n = implicit.len();
+        match n {
+            0 => &AUTO,
+            _ if forwards => &implicit[k % n],
+            _ => &implicit[n - 1 - k % n],
+        }
+    };
+    let tracks = (0..count)
+        .map(|t| {
+            if collapsed[t] {
+                return Track::collapsed();
+            }
+            let size = if t < before {
+                pattern(before - 1 - t, false)
+            } else {
+                let k = t - before;
+                explicit
+                    .sizes
+                    .get(k)
+                    .copied()
+                    .unwrap_or_else(|| pattern(k - explicit.sizes.len(), true))
+            };
+            Track::new(size, bounds.size)
+        })
+        .collect();
+    TrackGrid::new(tracks, &collapsed, u32::from(bounds.gap))
 }

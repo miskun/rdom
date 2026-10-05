@@ -22,6 +22,7 @@ use rdom_core::{Dom, NodeId};
 
 use super::baseline::Shim;
 use super::placement::Placed;
+use super::subgrid::SubAxes;
 use super::{Grid, content};
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{
@@ -46,20 +47,25 @@ pub(super) fn arrange(
 ) -> Vec<AnonymousIfc> {
     let rtl = crate::render::layout_pass::margin_trim::inline_reversed(computed);
     // §10.5: the tracks distributed in the content box by
-    // `justify-content` / `align-content`.
-    let columns = content::distribute(
-        &grid.columns,
-        container.width,
-        computed.justify_content,
-        content::inline_ends(rtl),
-    );
-    let rows = grid.rows.as_ref().map_or_else(Vec::new, |r| {
+    // `justify-content` / `align-content` — a subgridded axis's are its
+    // parent's, already placed (§9).
+    let columns = grid.inherited_columns.clone().unwrap_or_else(|| {
         content::distribute(
-            r,
-            container.height,
-            computed.align_content,
-            content::BLOCK_ENDS,
+            &grid.columns,
+            container.width,
+            computed.justify_content,
+            content::inline_ends(rtl),
         )
+    });
+    let rows = grid.inherited_rows.clone().unwrap_or_else(|| {
+        grid.rows.as_ref().map_or_else(Vec::new, |r| {
+            content::distribute(
+                r,
+                container.height,
+                computed.align_content,
+                content::BLOCK_ENDS,
+            )
+        })
     });
     // The tracks' edges, absolute (unscrolled), for §9.1: an `rtl` grid's
     // columns start at their right edge.
@@ -76,6 +82,11 @@ pub(super) fn arrange(
         .iter()
         .map(|&(a, b)| (container.y + a, container.y + b))
         .collect();
+    lines.rtl = rtl;
+    lines.origin = (if rtl { right } else { container.x }, container.y);
+    for (p, &sub) in grid.placed.iter().zip(&grid.subgrids) {
+        super::subgrid::record(&mut lines, p, sub);
+    }
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.grid_lines = Some(Box::new(lines));
     }
@@ -101,6 +112,7 @@ pub(super) fn arrange(
             computed,
             area,
             grid.baselines.get(k).and_then(Option::as_ref),
+            grid.subgrids.get(k).copied().unwrap_or_default(),
         );
         rect.x -= scroll_x;
         rect.y -= scroll_y;
@@ -122,15 +134,23 @@ fn cells(n: i32) -> u16 {
 /// self-alignment says (CSS Grid 2 §6.2), then placed in the area by its
 /// `auto` margins (§10.2), its baseline group's shim (`shim`, §10.4 with
 /// Box Alignment 3 §9.3) or its self-alignment (§10.3, §10.4).
+#[allow(clippy::too_many_arguments)]
 fn fit(
     dom: &Dom<TuiExt>,
     p: &Placed,
     container: &ComputedStyle,
     area: LayoutRect,
     shim: Option<&Shim>,
+    sub: SubAxes,
 ) -> LayoutRect {
     let f = ItemFit::new(dom, p, container, area.width);
-    let width = f.width(dom, Some(area.height));
+    let available_w = fill(area.width, f.m.left, f.m.right);
+    // §9: "The subgrid is always stretched in its subgridded
+    // dimension(s)": its self-alignment and sizes are ignored there.
+    let width = match sub.columns {
+        true => available_w,
+        false => f.width(dom, Some(area.height)),
+    };
     let available_h = fill(area.height, f.m.top, f.m.bottom);
     let stretch_h = !f.auto.top
         && !f.auto.bottom
@@ -139,19 +159,24 @@ fn fit(
             Align::Normal => f.ratio.is_none(),
             _ => false,
         };
-    let height = match shim {
-        Some(s) => s.height,
-        None => f.height(dom, width, Some(area.height), stretch_h),
+    let height = match (shim, sub.rows) {
+        (_, true) => available_h,
+        (Some(s), false) => s.height,
+        (None, false) => f.height(dom, width, Some(area.height), stretch_h),
     };
 
     let rtl = |s: &ComputedStyle| s.text_direction == TextDirection::Rtl;
-    let free_x = i32::from(fill(area.width, f.m.left, f.m.right)) - i32::from(width);
-    let x = auto_margin_offset(free_x, f.auto.left, f.auto.right)
-        .unwrap_or_else(|| justify_offset(f.justify, free_x, rtl(container), rtl(&f.c)));
+    let free_x = i32::from(available_w) - i32::from(width);
+    let x = match sub.columns {
+        true => 0,
+        false => auto_margin_offset(free_x, f.auto.left, f.auto.right)
+            .unwrap_or_else(|| justify_offset(f.justify, free_x, rtl(container), rtl(&f.c))),
+    };
     // The block axis runs top to bottom (`horizontal-tb`) for the
     // container and the item alike.
     let free_y = i32::from(available_h) - i32::from(height);
     let y = match shim {
+        _ if sub.rows => 0,
         Some(s) if s.last => free_y - s.offset,
         Some(s) => s.offset,
         None => auto_margin_offset(free_y, f.auto.top, f.auto.bottom)

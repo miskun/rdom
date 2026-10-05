@@ -38,7 +38,7 @@ use inline::{
     border_main_cost, has_non_whitespace_text, inline_width, pseudo_content_width, wrapped_rows,
 };
 pub(crate) use keywords::Keywords;
-pub(super) use memo::{begin_pass, end_pass};
+pub(super) use memo::{begin_pass, end_pass, get_subgrid, put_subgrid};
 
 /// Measure an element's intrinsic size along `direction`. Used to
 /// resolve `Size::Auto`. `cross_budget` is the container's

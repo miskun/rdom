@@ -45,8 +45,10 @@ mod cost_tests;
 mod intrinsic;
 mod lines;
 mod placement;
+mod places;
 mod size;
 mod sizing;
+mod subgrid;
 mod template;
 mod track;
 
@@ -113,6 +115,13 @@ struct Grid {
     /// Each item's baseline shim (§10.4), by item; empty when only the
     /// columns were sized.
     baselines: Vec<Option<baseline::Shim>>,
+    /// The axes each item subgrids (§9), by item.
+    subgrids: Vec<subgrid::SubAxes>,
+    /// A subgridded axis's tracks, taken from the parent (§9): offsets
+    /// from the content box's start, which `arrange` places by instead
+    /// of distributing the sized tracks.
+    inherited_columns: Option<Vec<(i32, i32)>>,
+    inherited_rows: Option<Vec<(i32, i32)>>,
     /// The explicit grid's size, its line names, and the implicit tracks
     /// before it, on each axis — the lines an absolutely positioned box
     /// is placed by (§9.1), their edges filled in by `arrange`.
@@ -120,15 +129,19 @@ struct Grid {
 }
 
 /// `p`'s margins, their percentages against `cb` (its grid area's
-/// width), either sign: an `auto` one 0, a trimmed one 0.
+/// width), either sign: an `auto` one 0, a trimmed one 0 — plus the
+/// extra margin a subgrid's edges give its item sized in the parent's
+/// tracks (§9.5).
 fn margins(dom: &Dom<TuiExt>, p: &Placed, cb: u16) -> Sides<i32> {
     let c = p.item.computed(dom);
-    let side = |m: &MarginValue, trimmed: bool| if trimmed { 0 } else { i32::from(m.resolve(cb)) };
+    let side = |m: &MarginValue, trimmed: bool, extra: i32| {
+        extra + if trimmed { 0 } else { i32::from(m.resolve(cb)) }
+    };
     Sides {
-        top: side(&c.margin.top, p.trim.top),
-        right: side(&c.margin.right, p.trim.right),
-        bottom: side(&c.margin.bottom, p.trim.bottom),
-        left: side(&c.margin.left, p.trim.left),
+        top: side(&c.margin.top, p.trim.top, p.extra.top),
+        right: side(&c.margin.right, p.trim.right, p.extra.right),
+        bottom: side(&c.margin.bottom, p.trim.bottom, p.extra.bottom),
+        left: side(&c.margin.left, p.trim.left, p.extra.left),
     }
 }
 
@@ -202,7 +215,8 @@ pub(super) fn layout_grid_children(
         Dimension::Rows,
         rows_definite.then_some(container.height),
     );
-    let grid = size_grid(dom, id, computed, columns, Some(rows));
+    let inherit = subgrid::from_parent(dom, id, computed);
+    let grid = size_grid(dom, id, computed, columns, Some(rows), &inherit);
     arrange::arrange(dom, id, computed, grid, container)
 }
 

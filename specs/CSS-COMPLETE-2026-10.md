@@ -159,7 +159,7 @@ row comes from.
 | C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | done |
 | C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | done |
 | C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | done |
-| C7-SUBGRID | `subgrid` | partial — the layout (part 2) |
+| C7-SUBGRID | `subgrid` | done |
 | C7-GRID-RERESOLVE | CSS Grid 2 §11.1 steps 3–4: the columns, then the rows, sized again once when the rows changed an item's column contribution (part 1 follow-up) | done |
 | C7-ABSPOS-PADDING-EDGE | An absolutely positioned box's containing block is its positioned ancestor's padding box (CSS 2.1 §10.1, Grid §9.1) (part 1 follow-up) | |
 | C7-SPLIT | File-size pass on `layout_pass/grid/*` and the files Phase 7 touched (TECH_DEBT `SIZE-1`) | |
@@ -3952,3 +3952,48 @@ row comes from.
   `None` parser stub; green after. Added green, then mutation-checked:
   `a_line_name_list_expands_over_the_subgrids_lines` (`auto-fill` repeated `fill` times rather than
   `fill / names` → `[…, "c", "d", "c"]`). No other test expectation and no snapshot changed.
+- 2026-10-08 — C7-SUBGRID, part 2 of 2: the subgrid layout (CSS Grid 2 §9, §9.5). Structure — the
+  grid modules grow by concern, not into `size.rs`: `grid/places.rs` (new: a grid's explicit grids and
+  its items placed — `place_grid` / `PlacedGrid`, moved out of `size_grid` with `trim`, plus §9's
+  clamping), `grid/subgrid.rs` (new: which items subgrid (`axes`), what a subgrid takes from its parent
+  (`Inherit` / `Inherited`: tracks, merged names, extents in its content box), from the parent's
+  sizing state (`inherited`) or its laid-out lines (`from_parent`), and the parent's view of its items
+  (`flatten`)); `track.rs` takes `tracks_of` / `Extent` and gains `TrackGrid::fixed` (an inherited
+  axis's tracks). Behaviour: (1) an in-flow grid item that is a grid container with `subgrid` on an
+  axis takes that axis from its parent — not when absolutely positioned or not a grid's item (`none`,
+  §9; the parent's `GridLines` now lists its subgrid children and their spans, so a grid that is no
+  item of a grid finds none). (2) Its explicit grid there is the spanned tracks (`Explicit::subgrid`:
+  the parent's names for those lines, reversed with the tracks when the directions differ, and its own
+  `<line-name-list>` expanded over them; named areas add names but no tracks); placement clamps every
+  area into it before auto-placement ("the same procedure as for clamping placement in an overly-large
+  grid") and after, so it has no implicit tracks there; an auto-placed subgrid spans its name list's
+  explicit lines less one. (3) Its tracks there are the parent's (`Grid::inherited_*`, placed by
+  `arrange` instead of distributed): offsets from its content box — the edge tracks losing its margin,
+  border and padding — and with a gap of its own half the difference taken off each side of each
+  inner gutter, the leading half rounded down (whole cells); `normal` keeps the parent's. (4) It is
+  stretched on a subgridded axis whatever its self-alignment or size. (5) The parent's sizing run on an
+  axis a child subgrids (`size::run_items`): the child contributes nothing itself (its row in the run
+  list kept, index-aligned, with a zero size and trimmed margins) and its items — recursively through
+  nested subgrids on that axis — follow, mapped into the parent's tracks, with the child's edge margin,
+  border and padding (and gap difference) as `Placed::extra` margin, an edge no item touches holding a
+  zero-sized item of that margin alone (§9.5); on the rows their widths are the child's inherited
+  columns or, for a rows-only subgrid, its own columns sized at its content width (`Placed::width`).
+  On an axis the child does not subgrid it is measured as a grid with the other axis inherited
+  (`measure_subgrid` → `intrinsic::content_size_with`; `Placed::size` carries the min- and
+  max-content border boxes into `contribution::Measured`), not through the generic intrinsic path,
+  whose parent lines would be the last pass's. Bounded: unmemoized, each subgrid's own layout
+  re-measured its nested subgrids, so a chain of depth d made (d + 1)(d + 4)/2 `size_grid` calls a pass;
+  the measurement is now memoized per pass (`intrinsic::memo`'s second table, keyed by the element and
+  the axis, area and inherited tracks it was measured with), 2 + 2d —
+  `cost_tests::nested_subgrids_are_sized_a_bounded_number_of_times`, red without the memo (`5` for `4`
+  at depth 1). Decided, recorded in DIVERGENCES §2: a subgrid's items align baselines among
+  themselves (§9 shares the groups with the parent's row). Red: `css_phase7/subgrid.rs` — 9 of 10
+  failed against part 1 (every subgrid a one-column grid of its own: `[(0, 12), (0, 12), (0, 12)]`);
+  the `none` guard passed as it stood. Added after (green, mutation-checked): the direction test.
+  Mutation checks (each alone, restored and touched): `flatten` off → the sizing and padding tests;
+  the edge margin off → the padding test; the parent's names off → the line-names test (which
+  survived until it was made discriminating — a missing name clamps into the last track, which the
+  first version's expectation happened to be; it now names the subgrid's first line); the own gap
+  ignored → the gap test; the pre-placement clamp off → the clamping test (`(3, 0)`: the auto item
+  took the far item's cell); the auto span off → its test; the direction reversal off → the direction
+  test. No other test expectation and no snapshot changed.

@@ -9,7 +9,8 @@ use std::borrow::Cow;
 
 use super::placement::Lines;
 use crate::layout::{
-    GridTemplate, GridTemplateAreas, RepeatCount, TrackBreadth, TrackListItem, TrackSize,
+    GridTemplate, GridTemplateAreas, LineNameList, RepeatCount, TrackBreadth, TrackListItem,
+    TrackSize,
 };
 
 /// The most tracks rdom creates on one axis. CSS Grid 2 §8 lets a UA
@@ -44,6 +45,9 @@ pub(super) struct Explicit<'a> {
     /// The tracks an `auto-fit` repetition produced, which collapse when
     /// they hold no item (§7.2.3.2).
     pub(super) auto_fit: std::ops::Range<usize>,
+    /// A subgridded axis (§9): its tracks are its parent's, so named
+    /// areas do not add any.
+    pub(super) inherited: bool,
 }
 
 impl<'a> Explicit<'a> {
@@ -54,6 +58,7 @@ impl<'a> Explicit<'a> {
             count: 0,
             names: vec![Vec::new()],
             auto_fit: 0..0,
+            inherited: false,
         };
         let Some(list) = template.tracks() else {
             return out;
@@ -100,7 +105,9 @@ impl<'a> Explicit<'a> {
         } else {
             areas.column_count()
         };
-        self.count = self.count.max(tracks.min(MAX_TRACKS));
+        if !self.inherited {
+            self.count = self.count.max(tracks.min(MAX_TRACKS));
+        }
         self.names.resize_with(self.count + 1, Vec::new);
         for area in areas.areas() {
             let span = if rows { area.rows } else { area.columns };
@@ -111,6 +118,27 @@ impl<'a> Explicit<'a> {
             self.names[span.end].push(Cow::Owned(format!("{}-end", area.name)));
         }
         self
+    }
+
+    /// A subgridded axis's explicit grid (§9): the `tracks` its parent's
+    /// grid area spans, each line named by the parent (`parent`) and by
+    /// the subgrid's own `<line-name-list>` (`own`).
+    pub(super) fn subgrid(tracks: usize, parent: Vec<Vec<String>>, own: &LineNameList) -> Self {
+        let mut names: Vec<Vec<Cow<'a, str>>> = parent
+            .into_iter()
+            .map(|n| n.into_iter().map(Cow::Owned).collect())
+            .collect();
+        names.resize_with(tracks + 1, Vec::new);
+        for (line, own) in names.iter_mut().zip(own.expand(tracks + 1)) {
+            line.extend(own.into_iter().map(Cow::Owned));
+        }
+        Explicit {
+            sizes: Vec::new(),
+            count: tracks,
+            names,
+            auto_fit: 0..0,
+            inherited: true,
+        }
     }
 
     /// The explicit grid's lines, for placement.

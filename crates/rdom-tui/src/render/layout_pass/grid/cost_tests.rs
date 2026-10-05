@@ -135,3 +135,51 @@ fn re_resolution_is_bounded_to_once_an_axis() {
     let calls = runs_per_call(".g { display: grid; grid-template-columns: auto 1fr }");
     assert!(calls.iter().all(|c| c == &[C] || c == &[C, R]), "{calls:?}");
 }
+
+/// How many `size_grid` calls one layout pass makes for a grid holding a
+/// chain of `depth` column subgrids, each the next's parent, the
+/// innermost holding two text items.
+fn nested_subgrid_calls(depth: usize) -> usize {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let g = dom.create_element("div");
+    dom.set_attribute(g, "class", "g").unwrap();
+    dom.append_child(root, g).unwrap();
+    let mut parent = g;
+    for _ in 0..depth {
+        let s = dom.create_element("div");
+        dom.set_attribute(s, "class", "s").unwrap();
+        dom.append_child(parent, s).unwrap();
+        parent = s;
+    }
+    for text in ["aa", "bbb"] {
+        let e = dom.create_element("div");
+        dom.append_child(parent, e).unwrap();
+        let t = dom.create_text_node(text);
+        dom.append_child(e, t).unwrap();
+    }
+    let sheet = rdom_css::from_css_strict(
+        ".g { display: grid; grid-template-columns: auto auto } \
+         .s { grid-column: 1 / 3; display: grid; grid-template-columns: subgrid }",
+    )
+    .expect("sheet parses");
+    dom.cascade(&sheet);
+    RUNS.with(|r| r.borrow_mut().clear());
+    dom.layout_dom(Rect::new(0, 0, 40, 20));
+    RUNS.with(|r| r.borrow().iter().filter(|run| run.is_none()).count())
+}
+
+/// CSS Grid 2 §9.5: a subgrid's items size its parent's tracks, and a
+/// column subgrid's height is its rows sized at its parent's columns —
+/// measured by sizing it, which measures its own subgrids the same way.
+/// The recursion is bounded: each subgrid of a chain is sized once to be
+/// measured (the pass memoizes the measurement, so its parent's own
+/// layout does not measure it again) and once to be laid out — 2 + 2 ×
+/// depth calls in all, where unmemoized measurements made the count
+/// grow with the square of the depth.
+#[test]
+fn nested_subgrids_are_sized_a_bounded_number_of_times() {
+    for depth in 0..7 {
+        assert_eq!(nested_subgrid_calls(depth), 2 + 2 * depth, "depth {depth}");
+    }
+}

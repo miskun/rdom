@@ -7,6 +7,7 @@
 
 use rdom_core::{Dom, NodeId};
 
+use super::subgrid::Inherit;
 use super::template::Bounds;
 use super::{AxisContext, Dimension, content_bounds, laid_out_axis, size_grid, stretches};
 use crate::ext::TuiExt;
@@ -32,6 +33,34 @@ pub(in crate::render::layout_pass) fn content_size(
     cb_width: u16,
     measure: Measure,
 ) -> u16 {
+    // A subgrid measured as its parent arranges it takes the parent's
+    // laid-out tracks (§9).
+    let inherit = super::subgrid::from_parent(dom, id, computed);
+    content_size_with(
+        dom,
+        id,
+        computed,
+        direction,
+        cross_budget,
+        cb_width,
+        measure,
+        &inherit,
+    )
+}
+
+/// [`content_size`] for a grid that takes the axes `inherit` names from
+/// its parent.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn content_size_with(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    direction: Direction,
+    cross_budget: u16,
+    cb_width: u16,
+    measure: Measure,
+    inherit: &Inherit,
+) -> u16 {
     let total = match direction {
         Direction::Row => {
             let (min, max) = content_bounds(computed, Dimension::Columns);
@@ -50,7 +79,9 @@ pub(in crate::render::layout_pass) fn content_size(
                 },
                 stretch: stretches(computed, Dimension::Columns),
             };
-            size_grid(dom, id, computed, columns, None).columns.total()
+            size_grid(dom, id, computed, columns, None, inherit)
+                .columns
+                .total()
         }
         Direction::Column => {
             let chrome = Sizer::horizontal(computed, cb_width).chrome();
@@ -61,7 +92,7 @@ pub(in crate::render::layout_pass) fn content_size(
                 .saturating_sub(u16::from(gutter_column));
             let columns = laid_out_axis(computed, Dimension::Columns, Some(width));
             let rows = laid_out_axis(computed, Dimension::Rows, None);
-            size_grid(dom, id, computed, columns, Some(rows))
+            size_grid(dom, id, computed, columns, Some(rows), inherit)
                 .rows
                 .map_or(0, |r| r.total())
         }
