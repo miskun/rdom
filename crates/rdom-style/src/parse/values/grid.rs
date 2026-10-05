@@ -263,6 +263,7 @@ fn parse_breadth(value: &[Token]) -> Option<TrackBreadth> {
 
 /// The text of a `grid-template-*` value (CSSOM §6.7.2): `none`, or the
 /// track list as written — line names in brackets, `repeat()` kept.
+#[deny(clippy::wildcard_enum_match_arm)]
 pub fn serialize_grid_template(value: &GridTemplate) -> String {
     match value {
         GridTemplate::Tracks(list) => serialize_track_list(list),

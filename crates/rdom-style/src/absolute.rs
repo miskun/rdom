@@ -153,11 +153,12 @@ impl ComputedStyle {
 
 /// Every breadth of a track list, its viewport units absolute: a
 /// percentage-bearing `calc()` stays one, any other is whole cells.
+#[deny(clippy::wildcard_enum_match_arm)]
 fn absolutize_template(template: &mut crate::layout::GridTemplate, vp: Viewport) {
     use crate::layout::TrackListItem;
     let Some(list) = (match template {
         crate::layout::GridTemplate::Tracks(list) => Some(list),
-        _ => None,
+        crate::layout::GridTemplate::None | crate::layout::GridTemplate::Subgrid(_) => None,
     }) else {
         return;
     };

@@ -261,6 +261,8 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 - **A unitless fraction is a cell length**: `1.5` is accepted wherever a unitless integer is (sizes, spacing, insets, `gap`, borders, `box-shadow`, `flex`'s basis), as `calc(1.5)`; `flex: 1 2 0.5` now parses. (C4G-NUMBER-RANGE)
 - **An integer literal past `i32` is clamped, not made a non-integer** (CSS Syntax 3 §4.3.12): `9999999999` is `Token::Number(i32::MAX)` (was a `Float`), so integer grammars and cell lengths take it clamped; a property whose storage cannot hold it still rejects it. (C4G-NUMBER-RANGE)
 - **`flex: <n>` takes a basis of `0%`, as every engine does** (CSS Flexbox §7.2 / §7.3.3): an `auto`-height column of `flex: 1` items sizes them by content, and `flex: 1` serializes as `1 1 0%`. (C6G-FLEX-BASIS-ZERO)
+- `GridTemplate` stays `#[non_exhaustive]`, and every rdom-style read of it is an exhaustive match (`clippy::wildcard_enum_match_arm` denied), so a new value fails to compile where its layout answer is decided; DESIGN classifies every Phase 7 public type. (C7G-DESIGN-TYPES)
+
 
 ### Fixed — `rdom-style`
 

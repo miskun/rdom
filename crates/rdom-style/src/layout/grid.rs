@@ -464,8 +464,16 @@ impl LineNameList {
 }
 
 /// `grid-template-columns` / `grid-template-rows` (CSS Grid 2 §7.2, §9).
-/// `#[non_exhaustive]`: later grammars add variants; a reader that meets
-/// one it does not know has no explicit tracks.
+///
+/// `#[non_exhaustive]`: later grammars add values (CSS Grid 3's masonry
+/// axis), and a consumer that reads the value through [`tracks`](Self::tracks)
+/// / [`subgrid`](Self::subgrid) / [`is_valid`](Self::is_valid) needs no
+/// arm for them. Inside rdom-style, where it is defined, every match on it
+/// names each variant — the accessors and the other readers deny
+/// `clippy::wildcard_enum_match_arm` — so a new variant fails to compile at
+/// each read until it is decided there; rdom-tui reads it only through the
+/// accessors, never by a match (DESIGN "Which public types are
+/// `#[non_exhaustive]`").
 #[derive(Debug, Clone, PartialEq, Default)]
 #[non_exhaustive]
 pub enum GridTemplate {
@@ -480,6 +488,7 @@ pub enum GridTemplate {
     Subgrid(LineNameList),
 }
 
+#[deny(clippy::wildcard_enum_match_arm)]
 impl GridTemplate {
     /// The explicit track list, if any.
     pub fn tracks(&self) -> Option<&TrackList> {
@@ -493,7 +502,7 @@ impl GridTemplate {
     pub fn subgrid(&self) -> Option<&LineNameList> {
         match self {
             GridTemplate::Subgrid(names) => Some(names),
-            _ => None,
+            GridTemplate::None | GridTemplate::Tracks(_) => None,
         }
     }
 

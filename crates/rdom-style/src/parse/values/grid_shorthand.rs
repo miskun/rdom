@@ -134,6 +134,7 @@ fn parse_explicit_track_list(value: &[Token]) -> Option<TrackList> {
 /// `/ <columns>` unless the columns are `none` — possible only when the
 /// rows are a plain list of one size per area row and neither axis
 /// repeats.
+#[deny(clippy::wildcard_enum_match_arm)]
 pub fn serialize_grid_template_shorthand(t: &GridTemplateShorthand) -> Option<String> {
     if t.areas.is_none() {
         if t.rows == GridTemplate::None && t.columns == GridTemplate::None {
@@ -176,7 +177,7 @@ pub fn serialize_grid_template_shorthand(t: &GridTemplateShorthand) -> Option<St
             out.push("/".to_string());
             out.push(serialize_grid_template(&t.columns));
         }
-        _ => return None,
+        GridTemplate::Tracks(_) | GridTemplate::Subgrid(_) => return None,
     }
     Some(out.join(" "))
 }

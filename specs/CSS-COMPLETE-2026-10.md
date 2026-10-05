@@ -3162,7 +3162,8 @@ row comes from.
   `set_custom_source` with it, and marks any other after declaring it (`set_important`: the
   fields' bits, or the kept declaration's flag). rdom-css's `apply_declaration` makes one call.
   `parse::token::SpannedTokens` was a 3-tuple of parallel `Vec`s; it is a struct (`tokens`,
-  `positions`, `spans`; closed, a parse result whose every field is meaningful, DESIGN), built in
+  `positions`, `spans`; closed, a parse result whose every field is meaningful — DESIGN did not
+  list it until C7G-DESIGN-TYPES, though this entry said so), built in
   place by `tokenize_spans`. Red: the lib tests failed to compile (five arguments to a
   four-argument `set_from_source`; no `tokens` / `positions` / `spans` fields). Green after:
   `set_from_source_takes_important` (a plain property, a custom one, a `var()` value, an inline-axis
@@ -4259,3 +4260,22 @@ row comes from.
   `main` returned `Box<dyn Error>`, and `rdom_css::ParseError` does not implement `std::error::Error`
   (the example returns `ParseError` instead; the missing impl is a separate API finding, reported, not
   fixed here); then green, its painted rows as written. No test expectation or snapshot changed.
+- 2026-10-09 — C7G-DESIGN-TYPES (API B2): DESIGN's `#[non_exhaustive]` section classified none of
+  the Phase 7 public types. Now: the grid values `TrackBreadth`, `TrackSize`, `RepeatCount`,
+  `TrackRepeat`, `TrackListItem`, `TrackList`, `LineNameItem`, `LineNameList`, `GridLine`,
+  `GridAutoFlow` and `NamedArea` join the closed CSS value types (a layout must size or place each
+  whole); `GridTemplateShorthand` / `GridShorthand` join the shorthand records beside
+  `FlexShorthand`, with `SpannedTokens`; `GridTemplateAreas` (only `new` builds one, rectangular by
+  construction) and `ScrollRange` (accessors and `new`) are sealed by private fields. Batch A added no
+  public type (`TrackSize::AUTO_LIST` is a const). Decision on `GridTemplate`, the one
+  `#[non_exhaustive]` CSS value: kept open — a consumer reading it through `tracks()` / `subgrid()` /
+  `is_valid()` needs no arm for CSS Grid 3's masonry axis — and the silent-`none` risk is closed by a
+  rule instead: rdom-tui never matches it (it reads the accessors only), and every match on it in
+  rdom-style names each variant, under `#[deny(clippy::wildcard_enum_match_arm)]` on the accessors'
+  `impl`, `serialize_grid_template`, `serialize_grid_template_shorthand` and `absolutize_template`,
+  so a new variant fails to compile at each read and the accessors' answer is decided there. The rule
+  is in DESIGN and on the type's doc. Red: the lint added first, `cargo clippy` failed at the three
+  wildcard arms (`subgrid()`, `absolutize_template`, the shorthand serializer); green after naming
+  the variants. Not behavioural (the arms return what the wildcard did). The C6G-FRONTEND-API entry,
+  which said DESIGN listed `SpannedTokens` as closed, is corrected in place. No test or snapshot
+  changed.
