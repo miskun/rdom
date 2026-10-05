@@ -156,8 +156,15 @@ fn children_of(
     clip: Rect,
     viewport: Rect,
 ) {
-    for child in dom.node(node).child_nodes() {
-        let cid = child.id();
+    // A flex container's items paint in order-modified document order
+    // (CSS Flexbox §5.4).
+    let kids = if node == id {
+        crate::render::box_tree::paint_order_children(dom, id)
+    } else {
+        dom.node(node).child_nodes().map(|c| c.id()).collect()
+    };
+    for cid in kids {
+        let child = dom.node(cid);
         match child.node_type() {
             NodeType::Element if crate::render::box_tree::is_contents(dom, cid) => {
                 children_of(dom, cid, id, buf, clip, viewport);

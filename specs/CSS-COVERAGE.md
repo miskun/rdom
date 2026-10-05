@@ -75,7 +75,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
-| 3.7 Display and visibility (Display 3) | 5 | 1 | 3 | 2 | 11 |
+| 3.7 Display and visibility (Display 3) | 6 | 1 | 2 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **118** | **31** | **112** | **46** | **307** |
+| **Total** | **119** | **31** | **111** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 143 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 142 rows Partial / Missing.
 
-Headline: rdom parses **152 property names** (`property_names()`, after C6-VISIBILITY). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, and grid.
+Headline: rdom parses **153 property names** (`property_names()`, after C6-ORDER). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, and grid.
 
 ---
 
@@ -127,7 +127,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 17 | `:nth-child()` / `:nth-last-child()` / `:nth-of-type()` / `:nth-last-of-type()` / `:first-of-type` / `:last-of-type` / `:only-of-type` | Structural matching (`An+B`, `odd` / `even`, `of S`); zebra-striped lists and tables. | S | Partial — `:nth-child`, `:nth-of-type` Yes; the `*-of-type` trio No |
 | 18 | `:is()` / `:has()` | `:is()` shipped (C1G-IS-PARSE); `:has()` relational matching with invalidation on descendant change (M). | S / M | Yes |
 | 19 | `@media` | Evaluate `width` / `height` (in cells) / `orientation` / `aspect-ratio`, `color` / `monochrome`, `prefers-color-scheme` (from the terminal's reported background), `prefers-reduced-motion`, `hover` / `pointer`; re-cascade on `resize`. Also the `<style media>` attribute. | M | Yes |
-| 20 | `order` | Reorders flex (and grid) items for layout and paint, not for DOM / focus order. | S | No |
+| 20 | `order` | Shipped (C6-ORDER; §3.7): flex items lay out, paint and hit-test in order-modified document order; focus, selection and the DOM keep document order. Grid with C7. | S | No |
 | 21 | `@keyframes` + `animation-*` | Keyframed animation on the existing transition clock and interpolators. | L | Yes |
 | 22 | `display: contents` / `display: flow-root` / multi-keyword `display` | Shipped (C6-DISPLAY-KEYWORDS; §3.7): `contents` generates no box and its children and pseudo-elements join the parent's formatting context; `flow-root` establishes a BFC; the two-keyword syntax with `list-item`. | M / S / S | No |
 | 23 | `text-transform` | `uppercase` / `lowercase` / `capitalize` at shaping time (copy keeps the DOM text, as browsers do); `full-width` maps ASCII to U+FF01–FF5E (2 cells each). | S | No |
@@ -350,7 +350,7 @@ dropped. The audit's six, with where each stands:
 | `display: run-in` | N/A | Unimplemented by browsers; no TUI use. | — | — |
 | `display: ruby*` | N/A | Ruby annotations need half-height text above a base. | — | — |
 | `visibility` | Supported | `visible` / `hidden` / `collapse`, inherited (CSS Display 3 §4): a hidden box keeps its place and draws nothing (no shadow, background, border, text, canvas or scrollbar), a `visible` descendant draws; it is no hit target (a visible descendant is, with it on the path), not Tab-focusable, and its text is not copied. `collapse` on a flex item is a strut (Flexbox §4.4: no main size or main margins, its cross size kept); on a `<tr>` it removes the row while its cells still size the columns (CSS 2.1 §17.5.5); elsewhere it is `hidden`. Transitions: `visible` for the whole run with a `visible` end. Column collapse (`<col>`) with C13-TFC. | Yes | `KW::Visibility`, `render/visibility.rs`, `FLEX/main_axis.rs` |
-| `order` | Missing | Visual reorder of flex / grid items. | No | `FLEX` |
+| `order` | Supported | `<integer>` (math rounded, clamped to `i32`), not inherited (CSS Flexbox §5.4): flex items are laid out (margin-trim's first / last item included), painted and hit-tested in order-modified document order (`render/box_tree.rs::paint_order_children`); sequential focus, selection, copy and the DOM keep document order (§5.4.1). Grid items with C7. | — | `FLEX`, `render/box_tree.rs` |
 
 ### 3.8 Flexbox and box alignment (Flexbox 1, Align 3)
 
@@ -667,8 +667,8 @@ dropped. The audit's six, with where each stands:
 Every *Partial* or *Missing* row above whose Doc'd column is `No` or `Wrong`. These need either an
 implementation or a `DIVERGENCES.md` entry before the acid page's coverage test can be honest.
 
-133 rows as audited. Through C6-VISIBILITY, 40 have shipped and two have partly shipped
-(each annotated *Shipped* where it stands); 91 remain open (Phase 0 listed each of them in
+133 rows as audited. Through C6-ORDER, 41 have shipped and two have partly shipped
+(each annotated *Shipped* where it stands); 90 remain open (Phase 0 listed each of them in
 `DIVERGENCES.md` §3).
 
 **3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6)**
@@ -736,7 +736,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `display: flow-root` — Missing: Block that establishes an independent BFC. *Shipped: C6-DISPLAY-KEYWORDS.*
 - Multi-keyword `display` (`block flex`, `inline flow-root`) — Missing: Two-value syntax. *Shipped: C6-DISPLAY-KEYWORDS.*
 - `visibility` — Missing: `visible` / `hidden` / `collapse`. *Shipped: C6-VISIBILITY.*
-- `order` — Missing: Visual reorder of flex / grid items.
+- `order` — Missing: Visual reorder of flex / grid items. *Shipped: C6-ORDER.*
 
 **3.8 Flexbox and box alignment (Flexbox 1, Align 3)**
 

@@ -138,7 +138,7 @@ row comes from.
 | C6-MARGIN-SIDES | `margin` / `padding` stored per side (each side its own longhand with its own `!important` bit), so a logical or physical side cascades alone — finishes C5G-LOGICAL-IMPORTANT || done |
 | C6-DISPLAY-KEYWORDS | `display: contents` / `flow-root` / multi-keyword syntax | done |
 | C6-VISIBILITY | `visibility: visible / hidden / collapse` | done |
-| C6-ORDER | `order` | |
+| C6-ORDER | `order` | done |
 | C6-DIRECTION-REVERSE | `flex-direction: row-reverse / column-reverse` | |
 | C6-FLEX-LONGHANDS | `flex-grow` / `flex-basis` longhands; full `flex` shorthand (incl. basis) | partial — the shorthand's grammar, shrink and stored basis landed with C2G-FLEX-SHORTHAND; remain the longhands and the basis in layout (`ComputedStyle::flex_basis` is cascaded, unread) |
 | C6-WRAP | `flex-wrap` / `flex-flow`, multi-line flex containers | |
@@ -2086,3 +2086,21 @@ row comes from.
   expectations: the canonical-values table, the important-setter coverage and the inherited-set
   probe gain `visibility`; the C1 `initial` test perturbs it. The rdom-style README lists
   `visibility` and the display keywords (C6-DISPLAY-KEYWORDS left them out).
+- 2026-10-08 — C6-ORDER: `order: <integer>` (CSS Flexbox §5.4; a math function rounds, a value
+  past `i32` clamps, CSS Values 4 §10.9 / §5.1), not inherited (`TuiStyle` / `ComputedStyle::order`,
+  `ImportantMask::ORDER`, builder, `parse::values::parse_order`). Decided — one ordering:
+  `render/box_tree.rs::sort_by_order` (a stable sort by `order`, no-op when every item's is 0; a
+  child that is not a flex item keys 0) orders the flex container's in-flow items before
+  `layout_flex_children` and the intrinsic children of a flex container (so `margin-trim` trims
+  the first / last items of that order), and `paint_order_children` (an element flex container's
+  items, through fragments and box-less children, in that order; any other node's child nodes) is
+  what the in-flow paint walk (`stacking_walk::children_of`), the stacking walks
+  (`collect_layers`, `atom_shadows_in`) and hit-testing (`descend_children_reverse`) iterate —
+  §5.4: `order` affects painting as it does layout. The root fragment's children (rdom's viewport
+  column) are not reordered, like C6-VISIBILITY's `collapse`. Not changed (§5.4.1): Tab order,
+  selection, copy, the DOM. Red: the rdom-style test failed to compile (`order` field); with the
+  model in, the three `css_phase6/order.rs` tests failed — `[0, 2, 4, 6]` for `[6, 0, 4, 2]`,
+  `abb` for `baa`, the reordered button left of the other; green after. Mutation checks (each
+  alone, reverted): paint ignoring `order` → `bba` (the painting test); hit-testing ignoring it →
+  the hit at (1, 0) is `b`; layout ignoring it → all three tests. Changed expectations: the
+  canonical-values table, important-setter coverage and the C1 `initial` test gain `order`.

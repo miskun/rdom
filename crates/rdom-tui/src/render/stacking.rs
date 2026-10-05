@@ -220,8 +220,15 @@ impl Walk<'_> {
     fn children(&mut self, id: NodeId, box_parent: NodeId, unit: Option<usize>) {
         let dom = self.dom;
         let viewport = self.viewport;
-        for child in dom.node(id).child_nodes() {
-            let cid = child.id();
+        // A flex container's items in order-modified document order (CSS
+        // Flexbox §5.4: `order` affects painting).
+        let kids = if id == box_parent {
+            crate::render::box_tree::paint_order_children(dom, id)
+        } else {
+            dom.node(id).child_nodes().map(|c| c.id()).collect()
+        };
+        for cid in kids {
+            let child = dom.node(cid);
             match child.node_type() {
                 // A box-less element's children are its parent box's
                 // (CSS Display 3 §2.5), as a fragment's are.
@@ -364,8 +371,13 @@ fn atom_shadows_in(
     clip: Rect,
     f: &mut impl FnMut(ShadowEntry),
 ) {
-    for child in dom.node(id).child_nodes() {
-        let cid = child.id();
+    let kids = if id == box_parent {
+        crate::render::box_tree::paint_order_children(dom, id)
+    } else {
+        dom.node(id).child_nodes().map(|c| c.id()).collect()
+    };
+    for cid in kids {
+        let child = dom.node(cid);
         match child.node_type() {
             NodeType::Fragment => {
                 atom_shadows_in(dom, cid, box_parent, clip, f);

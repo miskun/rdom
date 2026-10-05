@@ -115,3 +115,48 @@ pub(crate) fn holds_block_box(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 pub(crate) fn generated_text(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> Option<&str> {
     crate::render::inline::generated::static_pseudo_text(dom, host, StyleSlot::from(slot))
 }
+
+/// `id` is an element flex container (`display: flex` / `inline-flex`).
+/// The document root's children are flex items of rdom's viewport
+/// column only as a layout device, so the root is not one.
+pub(crate) fn is_flex_container(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    let node = dom.node(id);
+    node.node_type() == NodeType::Element
+        && node
+            .computed()
+            .is_some_and(|c| c.flow == crate::layout::Flow::Flex)
+}
+
+/// A flex item's `order` (CSS Flexbox §5.4); 0 for a child that is not
+/// a flex item (out of flow: absolutely positioned or `display: none`).
+pub(crate) fn order_of(dom: &Dom<TuiExt>, id: NodeId) -> i32 {
+    let in_flow = crate::render::layout_pass::is_in_flow(dom, id);
+    dom.node(id)
+        .computed()
+        .filter(|_| in_flow)
+        .map_or(0, |c| c.order)
+}
+
+/// Sort `items` — flex items in document order — into order-modified
+/// document order (CSS Flexbox §5.4): ascending `order`, document order
+/// among equals (a stable sort). No-op when every `order` is 0.
+pub(crate) fn sort_by_order(dom: &Dom<TuiExt>, items: &mut [NodeId]) {
+    if items.iter().any(|&c| order_of(dom, c) != 0) {
+        items.sort_by_key(|&c| order_of(dom, c));
+    }
+}
+
+/// The children of `id` in paint order: its child nodes, except that a
+/// flex container's are its items (through fragments and box-less
+/// children) in order-modified document order — CSS Flexbox §5.4:
+/// `order` affects painting, and so hit-testing, as it does layout.
+pub(crate) fn paint_order_children(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {
+    if is_flex_container(dom, id) {
+        let mut items = crate::render::layout_pass::element_children_of(dom, id);
+        if items.iter().any(|&c| order_of(dom, c) != 0) {
+            sort_by_order(dom, &mut items);
+            return items;
+        }
+    }
+    dom.node(id).child_nodes().map(|c| c.id()).collect()
+}

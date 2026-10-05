@@ -234,10 +234,13 @@ pub(super) fn layout_children(
     //
     // Their `LayoutRect` stays at the default zero from
     // `TuiExt::default` until something writes to it.
-    let children: Vec<NodeId> = element_children_of(dom, id)
+    let mut children: Vec<NodeId> = element_children_of(dom, id)
         .into_iter()
         .filter(|&c| super::is_in_flow(dom, c))
         .collect();
+    // CSS Flexbox §5.4: the items are laid out in order-modified
+    // document order.
+    crate::render::box_tree::sort_by_order(dom, &mut children);
     // `D-M2-2`: a positioned child's static position in a flex
     // container is the content box's start — Flexbox §4.1 places it as
     // the sole item; `justify-content` / `align-items` are not applied

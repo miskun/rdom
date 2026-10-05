@@ -9,4 +9,5 @@ pub(crate) use super::css_phase5::{el, lay_out, paint, rect, rows, size};
 
 mod display;
 mod margin_sides;
+mod order;
 mod visibility;

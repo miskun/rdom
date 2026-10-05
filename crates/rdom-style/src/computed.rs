@@ -78,6 +78,9 @@ pub struct ComputedStyle {
     /// declared sizes exceed the parent's main-axis budget, items
     /// shrink proportional to `flex_shrink * basis`. `0` opts out.
     pub flex_shrink: f32,
+    /// `order` (CSS Flexbox §5.4): the item's place in order-modified
+    /// document order, which flex layout and paint use. Initial `0`.
+    pub order: i32,
     /// `flex-basis` (CSS Flexbox §7.3.3), from the `flex` shorthand.
     /// Cascaded but not laid out yet (C6-FLEX-LONGHANDS).
     pub flex_basis: crate::layout::FlexBasis,
@@ -261,6 +264,7 @@ impl ComputedStyle {
             margin_trim: crate::layout::MarginTrim::NONE,
             gap: crate::layout::GapValue::Cells(0),
             flex_shrink: 1.0,
+            order: 0,
             flex_basis: crate::layout::FlexBasis::Auto,
             border: Border::none(),
             border_style: Border::none(),

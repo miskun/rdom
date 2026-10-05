@@ -336,3 +336,15 @@ fn visibility_hints() {
     assert!(ImportantMask::VISIBILITY.intersects(ImportantMask::all()));
     let _ = style::transition::AnimatableProperty::Visibility;
 }
+
+/// C6-ORDER: the `order` field, builder, bit and parser.
+#[test]
+fn order_hints() {
+    let s = TuiStyle::new().order(-1);
+    assert_eq!(s.order, Some(Value::Specified(-1)));
+    let ComputedStyle { order, .. } = ComputedStyle::initial();
+    assert_eq!(order, 0);
+    let tokens = style::parse::tokenize("3").unwrap();
+    assert_eq!(style::parse::values::parse_order(&tokens), Some(3));
+    assert!(ImportantMask::ORDER.intersects(ImportantMask::all()));
+}

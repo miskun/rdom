@@ -58,6 +58,7 @@ const PROPERTY_NAMES: &[&str] = &[
     // Flex shorthand (sets width and height in one declaration).
     "flex",
     "flex-shrink",
+    "order",
     // Padding (shorthand + longhands)
     "padding",
     "padding-top",
@@ -301,6 +302,7 @@ define_fields! {
     Gap => gap : GAP,
     FlexShrink => flex_shrink : FLEX_SHRINK,
     FlexBasis => flex_basis : FLEX_BASIS,
+    Order => order : ORDER,
     PaddingTop => padding.top : PADDING_TOP,
     PaddingRight => padding.right : PADDING_RIGHT,
     PaddingBottom => padding.bottom : PADDING_BOTTOM,
@@ -405,6 +407,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "gap" => &[Gap],
         "flex" => &[Width, Height, FlexShrink, FlexBasis],
         "flex-shrink" => &[FlexShrink],
+        "order" => &[Order],
         // CSS Box 3 §3.2 / §4.2: the shorthand sets the four longhands.
         "padding" => &[PaddingTop, PaddingRight, PaddingBottom, PaddingLeft],
         "padding-top" => &[PaddingTop],

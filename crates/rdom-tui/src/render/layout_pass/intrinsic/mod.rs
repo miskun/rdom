@@ -377,10 +377,15 @@ fn measure_content(
     // `<details>` element's hidden `<pre>` body inflated the
     // intrinsic from ~1 row (summary) to ~15, starving the
     // sibling `flex: 1` panel of its share of the main axis.
-    let children: Vec<NodeId> = super::element_children_of(dom, id)
+    let mut children: Vec<NodeId> = super::element_children_of(dom, id)
         .into_iter()
         .filter(|&c| super::is_in_flow(dom, c))
         .collect();
+    // A flex container's first and last items (`margin-trim`) are in
+    // order-modified document order (CSS Flexbox §5.4).
+    if computed.flow == crate::layout::Flow::Flex {
+        crate::render::box_tree::sort_by_order(dom, &mut children);
+    }
 
     if children.is_empty() {
         // No element children. Two cases:

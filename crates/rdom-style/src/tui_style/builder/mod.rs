@@ -409,6 +409,7 @@ impl TuiStyle {
         POINTER_EVENTS,
         crate::layout::PointerEvents
     );
+    setter!("order", order, order, order_important, ORDER, i32);
     setter!(
         "visibility",
         visibility,

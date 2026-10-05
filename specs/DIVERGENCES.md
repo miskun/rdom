@@ -283,7 +283,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 - `display: grid` / `inline-grid` — C7-GRID-CORE
 - `display: table` family — C13-TFC
 - `visibility: collapse` on a table column (`<col>` / `<colgroup>`; rows collapse, C6-VISIBILITY) — C13-TFC
-- `order` — C6-ORDER
 
 ### Flexbox and box alignment
 

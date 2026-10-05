@@ -272,6 +272,11 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .as_ref()
             .and_then(specified)
             .map(|n| n.to_string()),
+        "order" => style
+            .order
+            .as_ref()
+            .and_then(specified)
+            .map(|n| n.to_string()),
 
         // Layout — sizing
         "width" => style.width.as_ref().and_then(specified).map(serialize_size),

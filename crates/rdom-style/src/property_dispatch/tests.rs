@@ -58,6 +58,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("gap", "2"),
         ("flex", "1"),
         ("flex-shrink", "1"),
+        ("order", "-2"),
         ("padding", "1 2 3 4"),
         ("padding-top", "5"),
         ("padding-right", "6"),

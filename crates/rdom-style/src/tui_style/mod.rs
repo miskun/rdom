@@ -105,6 +105,9 @@ pub struct TuiStyle {
     /// opts out of shrinking (the item keeps its declared size
     /// and overflows). Larger values shrink more aggressively.
     pub flex_shrink: Option<Value<f32>>,
+    /// `order` (CSS Flexbox §5.4): the item's place in order-modified
+    /// document order.
+    pub order: Option<Value<i32>>,
     /// `flex-basis`, set by the `flex` shorthand (CSS Flexbox §7.2).
     pub flex_basis: Option<Value<crate::layout::FlexBasis>>,
     /// `border-top-style` … `border-left-style` (CSS Backgrounds 3
@@ -395,6 +398,9 @@ impl TuiStyle {
         n += self.padding.each().iter().filter(|p| p.is_some()).count();
         n += self.margin.each().iter().filter(|m| m.is_some()).count();
         if self.gap.is_some() {
+            n += 1
+        }
+        if self.order.is_some() {
             n += 1
         }
         n += self

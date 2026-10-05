@@ -97,6 +97,8 @@ mod border_tests;
 #[cfg(test)]
 mod display_tests;
 #[cfg(test)]
+mod flex_tests;
+#[cfg(test)]
 mod logical_tests;
 #[cfg(test)]
 mod sizing_tests;

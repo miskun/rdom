@@ -313,6 +313,9 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         "flex-shrink" => parse_flex_factor(value).map(|n| {
             style.flex_shrink = Some(Value::Specified(n));
         }),
+        "order" => crate::parse::values::parse_order(value).map(|n| {
+            style.order = Some(Value::Specified(n));
+        }),
 
         // Padding shorthand + longhands
         "padding" => parse_padding_shorthand(value).map(|p| {
