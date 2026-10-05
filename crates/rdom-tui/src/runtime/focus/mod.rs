@@ -45,7 +45,26 @@ use crate::{TuiDom, TuiEvent};
 ///
 /// Pass `None` to clear focus (fires only blur + focusout).
 pub fn focus_node(dom: &mut TuiDom, new_focus: Option<NodeId>) {
+    let before = dom.focused();
     focus_node_with(dom, new_focus, None);
+    // HTML's focusing steps: "scroll the element into view" — here
+    // `nearest` on both axes, as browsers reveal a focused element —
+    // into each scroll container's optimal viewing region (its
+    // `scroll-padding`, the element's `scroll-margin`: CSS Scroll Snap 1
+    // §4). Pointer focus does not scroll (`focus_node_by_pointer`).
+    if let Some(id) = new_focus
+        && dom.focused() == Some(id)
+        && before != Some(id)
+    {
+        use crate::runtime::smooth_scroll::{ScrollIntoViewOptions, ScrollLogicalPosition};
+        crate::runtime::scrollbar::scroll_element_into_view(
+            dom,
+            id,
+            ScrollIntoViewOptions::new()
+                .block(ScrollLogicalPosition::Nearest)
+                .inline(ScrollLogicalPosition::Nearest),
+        );
+    }
 }
 
 /// The focus fixup (HTML "update the rendering", after style and

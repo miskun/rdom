@@ -65,7 +65,7 @@ pub use keywords::{
 pub use line_clamp::{BlockEllipsis, BoxOrient, Continue};
 pub use overflow::{Overflow, OverflowClipMargin, TextOverflow, TextOverflowSide};
 pub use rect::LayoutRect;
-pub use scroll::OverscrollBehavior;
+pub use scroll::{OverscrollBehavior, ScrollPadding};
 pub use scrollbar::{
     NATIVE_SCROLLBAR_THUMB, NATIVE_SCROLLBAR_TRACK, ScrollbarColor, ScrollbarGutter, ScrollbarWidth,
 };

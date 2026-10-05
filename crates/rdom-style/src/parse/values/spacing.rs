@@ -41,7 +41,7 @@ pub fn parse_gap_shorthand(value: &[Token]) -> Option<(GapValue, GapValue)> {
 /// Expand 1..=4 side values clockwise from the top (CSS Box 3 §3.2 /
 /// §4.2): one → all, two → vertical / horizontal, three → top /
 /// horizontal / bottom, four → top, right, bottom, left.
-fn expand_sides<T: Clone>(vals: &[T]) -> Option<[T; 4]> {
+pub(crate) fn expand_sides<T: Clone>(vals: &[T]) -> Option<[T; 4]> {
     Some(match vals {
         [a] => [a.clone(), a.clone(), a.clone(), a.clone()],
         [a, b] => [a.clone(), b.clone(), a.clone(), b.clone()],

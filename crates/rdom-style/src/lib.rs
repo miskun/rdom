@@ -61,6 +61,7 @@ mod absolute;
 mod attr;
 pub mod color;
 mod computed;
+mod content;
 mod custom_value;
 mod modifier;
 mod specificity;
@@ -71,7 +72,8 @@ mod ua;
 mod value;
 
 pub use color::Color;
-pub use computed::{ComputedStyle, Content, ContentContext, VarMap};
+pub use computed::{ComputedStyle, VarMap};
+pub use content::{Content, ContentContext};
 pub use counters::{CounterOp, CounterStyle};
 pub use custom_value::CustomValue;
 pub use modifier::Modifier;

@@ -177,7 +177,7 @@ row comes from.
 | C8-LINE-CLAMP | `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | done |
 | C8-SCROLLBAR | `scrollbar-gutter: both-edges`, `scrollbar-width`, `scrollbar-color` | done |
 | C8-OVERSCROLL | `overscroll-behavior` (+ axis / logical longhands) | done |
-| C8-SCROLL-PADDING | `scroll-padding*` / `scroll-margin*` | |
+| C8-SCROLL-PADDING | `scroll-padding*` / `scroll-margin*` | done |
 | C8-SNAP | `scroll-snap-type` / `-align` / `-stop` | |
 | C8-OVERFLOW-TEXT | A non-clipping descendant's overflowing line boxes count toward the ancestor's scrollable overflow | done |
 | C8-CB-COMPLETE | Containing block for positioned boxes, completing C7-ABSPOS-PADDING-EDGE: `sticky` ancestors in the ancestor walks, the scrollbar gutter excluded, scroll offsets applied inside a positioned scroller, one shared ancestor walk (elements and pseudo-elements, incl. the §9.1 grid area for pseudos) | done |
@@ -4796,3 +4796,26 @@ row comes from.
   the tests scroll with `set_scroll_*`, the runtime's clamp. `apply_tests`, `canonical_values`,
   the important-setter test and the inheritance probes list the new properties. No snapshot
   changed.
+- 2026-10-05 — C8-SCROLL-PADDING (CSS Scroll Snap 1 §4.1 / §4.2, CSSOM View §5.1, HTML focusing
+  steps). rdom-style: `ScrollPadding` (`auto | <length-percentage [0,∞]>`, `resolve(port)`: a
+  percentage of the scrollport's size on the side's axis, `auto` 0) in `layout/scroll.rs`;
+  `scroll-margin` sides are `i16` cells (a `<length>` of either sign; a percentage is none, a
+  viewport-relative length rejected, DIVERGENCES §2); the shorthands take one to four sides and
+  serialize in their shortest form; the physical longhands are fields (`scroll_padding_top` …
+  `scroll_margin_left`), the block-axis logicals `logical.rs` aliases and the inline-axis ones
+  directional mappings (replayed by the cascade with the element's `direction`); viewport units in
+  a `scroll-padding` resolve at computed-value time (`absolute.rs`, the C2G gate). rdom-tui:
+  `into_view::inset` (the optimal viewing region: the scrollport less `scroll-padding`) and
+  `outset` (the scroll snap area: the border box plus `scroll-margin`) — `scroll_element_into_view`
+  aligns the outset box once per call in each container's inset port. Found: rdom never scrolled a
+  focused element into view; `focus::focus_node` (Tab, Shift+Tab, `focus()`) now does, `nearest`
+  on both axes, as browsers reveal focus (Changed — rdom-tui); pointer focus does not. Red:
+  `scroll_tests.rs` additions did not compile (no fields); `css_phase8/scroll_padding.rs` — 4 of 4
+  failed (the strict parse rejecting the properties); green after. Mutation (each restored and
+  touched): no inset, no outset and no focus scroll → all four. Changed expectations:
+  `apply_tests`, `canonical_values`, the important-setter test and the inheritance probes list the
+  new properties. No existing test or snapshot changed with the focus scroll. Splits (both files
+  were at 597–599 lines and C8-SNAP adds to them): the builder's scrolling and scrollbar setters
+  moved to `tui_style/builder/scroll.rs` (`builder/mod.rs` 599 → 488), and `Content` /
+  `ContentContext` to the new `content.rs` (`computed.rs` 597 → 512; both still re-exported from
+  the crate root).

@@ -76,3 +76,80 @@ fn the_longhands_and_the_logical_longhands() {
     );
     assert!(!inherits("overscroll-behavior-y"));
 }
+
+/// Scroll Snap 1 §4.1: `scroll-padding: [auto | <length-percentage
+/// [0,∞]>]{1,4}` — the box-model side order; `auto`, a percentage, no
+/// negative value.
+#[test]
+fn scroll_padding_takes_one_to_four_sides() {
+    let mut style = TuiStyle::new();
+    set("scroll-padding", "1 auto 10% 2", &mut style).unwrap();
+    for (side, text) in [
+        ("scroll-padding-top", "1"),
+        ("scroll-padding-right", "auto"),
+        ("scroll-padding-bottom", "10%"),
+        ("scroll-padding-left", "2"),
+    ] {
+        assert_eq!(serialize(side, &style).as_deref(), Some(text), "{side}");
+    }
+    assert_eq!(
+        serialize("scroll-padding", &style).as_deref(),
+        Some("1 auto 10% 2")
+    );
+    set("scroll-padding", "3", &mut style).unwrap();
+    assert_eq!(serialize("scroll-padding", &style).as_deref(), Some("3"));
+    for bad in ["-1", "1 2 3 4 5", "none"] {
+        assert_eq!(
+            set("scroll-padding", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+}
+
+/// Scroll Snap 1 §4.2: `scroll-margin: <length>{1,4}` — either sign, no
+/// percentage, no `auto`.
+#[test]
+fn scroll_margin_takes_one_to_four_lengths() {
+    let mut style = TuiStyle::new();
+    set("scroll-margin", "1 -2", &mut style).unwrap();
+    assert_eq!(
+        serialize("scroll-margin-left", &style).as_deref(),
+        Some("-2")
+    );
+    assert_eq!(
+        serialize("scroll-margin-bottom", &style).as_deref(),
+        Some("1")
+    );
+    assert_eq!(serialize("scroll-margin", &style).as_deref(), Some("1 -2"));
+    for bad in ["auto", "10%", "1 2 3 4 5"] {
+        assert_eq!(
+            set("scroll-margin", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+}
+
+/// Scroll Snap 1 §4.1–§4.2 with CSS Logical 1: the block-axis
+/// longhands and shorthands are the top / bottom ones in
+/// `horizontal-tb`.
+#[test]
+fn the_block_axis_logicals_are_top_and_bottom() {
+    let mut style = TuiStyle::new();
+    set("scroll-padding-block", "1 2", &mut style).unwrap();
+    set("scroll-margin-block-end", "3", &mut style).unwrap();
+    assert_eq!(
+        serialize("scroll-padding-top", &style).as_deref(),
+        Some("1")
+    );
+    assert_eq!(
+        serialize("scroll-padding-bottom", &style).as_deref(),
+        Some("2")
+    );
+    assert_eq!(
+        serialize("scroll-margin-bottom", &style).as_deref(),
+        Some("3")
+    );
+    assert!(!inherits("scroll-padding-top") && !inherits("scroll-margin-top"));
+}

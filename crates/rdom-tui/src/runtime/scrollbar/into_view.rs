@@ -45,6 +45,11 @@ pub(crate) fn scroll_element_into_view(
     if !rendered {
         return;
     }
+    // CSS Scroll Snap 1 §4.2 / CSSOM View §5.1: the area aligned is the
+    // element's border box outset by its `scroll-margin`.
+    if let Some(c) = dom.node(element).computed() {
+        rect = outset(rect, c);
+    }
     let mut cur = dom.node(element).parent_node().map(|p| p.id());
     while let Some(container) = cur {
         if establishes_scrolling_box(dom, container) {
@@ -79,7 +84,13 @@ fn scroll_container(
         .computed()
         .map(|c| c.border)
         .unwrap_or_default();
-    let port = crate::layout::compute_padding_box(ext.layout, border);
+    let padding_box = crate::layout::compute_padding_box(ext.layout, border);
+    // CSS Scroll Snap 1 §4.1: the element is aligned in the optimal
+    // viewing region — the scrollport inset by `scroll-padding`.
+    let port = ext
+        .computed
+        .as_deref()
+        .map_or(padding_box, |c| inset(padding_box, c));
     let (cur_x, cur_y) = (ext.scroll_x, ext.scroll_y);
     let laid = super::state::laid_out(ext);
     let (laid_x, laid_y) = (laid.0, laid.1);
@@ -113,6 +124,42 @@ fn scroll_container(
         y: port.y + rel_y - (to_y - cur_y),
         ..rect
     }
+}
+
+/// `rect` outset by `c`'s `scroll-margin` (CSS Scroll Snap 1 §4.2): its
+/// scroll snap area. A negative margin insets it.
+pub(crate) fn outset(rect: LayoutRect, c: &crate::style::ComputedStyle) -> LayoutRect {
+    let (t, r, b, l) = (
+        i32::from(c.scroll_margin_top),
+        i32::from(c.scroll_margin_right),
+        i32::from(c.scroll_margin_bottom),
+        i32::from(c.scroll_margin_left),
+    );
+    let len = |n: i32| n.clamp(0, i32::from(u16::MAX)) as u16;
+    LayoutRect::new(
+        rect.x - l,
+        rect.y - t,
+        len(i32::from(rect.width) + l + r),
+        len(i32::from(rect.height) + t + b),
+    )
+}
+
+/// The scrollport `port` inset by `c`'s `scroll-padding` (CSS Scroll
+/// Snap 1 §4.1): its optimal viewing region. A percentage is of the
+/// scrollport's size on the side's axis; `auto` is 0.
+pub(crate) fn inset(port: LayoutRect, c: &crate::style::ComputedStyle) -> LayoutRect {
+    let (t, r, b, l) = (
+        c.scroll_padding_top.resolve(port.height),
+        c.scroll_padding_right.resolve(port.width),
+        c.scroll_padding_bottom.resolve(port.height),
+        c.scroll_padding_left.resolve(port.width),
+    );
+    LayoutRect::new(
+        port.x + i32::from(l),
+        port.y + i32::from(t),
+        port.width.saturating_sub(l.saturating_add(r)),
+        port.height.saturating_sub(t.saturating_add(b)),
+    )
 }
 
 /// CSSOM View §5.1 on one axis: the scroll delta that aligns an element

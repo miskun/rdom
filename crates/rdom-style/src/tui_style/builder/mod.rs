@@ -3,7 +3,7 @@
 //! border and shadow setters are in `decoration`, the sizing ones
 //! (`width` / `height`, `min-*` / `max-*`, `aspect-ratio`) in `sizing`,
 //! the margin and padding ones in `spacing`, the flex and box-alignment
-//! ones in `flex`.
+//! ones in `flex`, the scrolling and scrollbar ones in `scroll`.
 
 use super::{ImportantMask, TuiStyle};
 #[allow(unused_imports)]
@@ -41,6 +41,7 @@ macro_rules! setter {
 mod decoration;
 mod flex;
 mod grid;
+mod scroll;
 mod sizing;
 mod spacing;
 
@@ -273,46 +274,6 @@ impl TuiStyle {
         crate::layout::BoxOrient
     );
     setter!(
-        "scrollbar-gutter",
-        scrollbar_gutter,
-        scrollbar_gutter,
-        scrollbar_gutter_important,
-        SCROLLBAR_GUTTER,
-        crate::layout::ScrollbarGutter
-    );
-    setter!(
-        "scrollbar-width",
-        scrollbar_width,
-        scrollbar_width,
-        scrollbar_width_important,
-        SCROLLBAR_WIDTH,
-        crate::layout::ScrollbarWidth
-    );
-    setter!(
-        "scrollbar-color",
-        scrollbar_color,
-        scrollbar_color,
-        scrollbar_color_important,
-        SCROLLBAR_COLOR,
-        crate::layout::ScrollbarColor
-    );
-    setter!(
-        "overscroll-behavior-x",
-        overscroll_behavior_x,
-        overscroll_behavior_x,
-        overscroll_behavior_x_important,
-        OVERSCROLL_BEHAVIOR_X,
-        crate::layout::OverscrollBehavior
-    );
-    setter!(
-        "overscroll-behavior-y",
-        overscroll_behavior_y,
-        overscroll_behavior_y,
-        overscroll_behavior_y_important,
-        OVERSCROLL_BEHAVIOR_Y,
-        crate::layout::OverscrollBehavior
-    );
-    setter!(
         "direction",
         text_direction,
         text_direction,
@@ -359,14 +320,6 @@ impl TuiStyle {
         box_sizing_important,
         BOX_SIZING,
         crate::layout::BoxSizing
-    );
-    setter!(
-        "scroll-behavior",
-        scroll_behavior,
-        scroll_behavior,
-        scroll_behavior_important,
-        SCROLL_BEHAVIOR,
-        crate::layout::ScrollBehavior
     );
     setter!(
         "white-space",

@@ -2353,6 +2353,8 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.float = rdom_style::layout::Float::Left;
     parent.overscroll_behavior_x = rdom_style::layout::OverscrollBehavior::Contain;
     parent.overscroll_behavior_y = rdom_style::layout::OverscrollBehavior::None;
+    parent.scroll_padding_top = rdom_style::layout::ScrollPadding::Length(Default::default());
+    parent.scroll_margin_top = 2;
     parent.clear = rdom_style::layout::Clear::Both;
     parent.scroll_behavior = ScrollBehavior::Smooth;
     parent.display = Display::Inline;
@@ -2450,6 +2452,14 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         (
             "overscroll-behavior-y",
             child.overscroll_behavior_y == parent.overscroll_behavior_y,
+        ),
+        (
+            "scroll-padding-top",
+            child.scroll_padding_top == parent.scroll_padding_top,
+        ),
+        (
+            "scroll-margin-top",
+            child.scroll_margin_top == parent.scroll_margin_top,
         ),
         ("clear", child.clear == parent.clear),
         ("display", child.display == parent.display),

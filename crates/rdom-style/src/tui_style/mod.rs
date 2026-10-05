@@ -213,6 +213,22 @@ pub struct TuiStyle {
     pub overscroll_behavior_x: Option<Value<crate::layout::OverscrollBehavior>>,
     /// `overscroll-behavior-y`.
     pub overscroll_behavior_y: Option<Value<crate::layout::OverscrollBehavior>>,
+    /// `scroll-padding-top` (CSS Scroll Snap 1 §4.1).
+    pub scroll_padding_top: Option<Value<crate::layout::ScrollPadding>>,
+    /// `scroll-padding-right` (CSS Scroll Snap 1 §4.1).
+    pub scroll_padding_right: Option<Value<crate::layout::ScrollPadding>>,
+    /// `scroll-padding-bottom` (CSS Scroll Snap 1 §4.1).
+    pub scroll_padding_bottom: Option<Value<crate::layout::ScrollPadding>>,
+    /// `scroll-padding-left` (CSS Scroll Snap 1 §4.1).
+    pub scroll_padding_left: Option<Value<crate::layout::ScrollPadding>>,
+    /// `scroll-margin-top` (CSS Scroll Snap 1 §4.2), in cells.
+    pub scroll_margin_top: Option<Value<i16>>,
+    /// `scroll-margin-right` (CSS Scroll Snap 1 §4.2), in cells.
+    pub scroll_margin_right: Option<Value<i16>>,
+    /// `scroll-margin-bottom` (CSS Scroll Snap 1 §4.2), in cells.
+    pub scroll_margin_bottom: Option<Value<i16>>,
+    /// `scroll-margin-left` (CSS Scroll Snap 1 §4.2), in cells.
+    pub scroll_margin_left: Option<Value<i16>>,
     /// `scroll-behavior: auto | smooth` (CSSOM View §12.1). Whether a
     /// programmatic scroll of this container animates. Default `Auto`.
     pub scroll_behavior: Option<Value<crate::layout::ScrollBehavior>>,

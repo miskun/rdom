@@ -46,6 +46,13 @@ fn block_axis(name: &str) -> Option<Mapping> {
         // CSS Overscroll Behavior 1 §3: the block / inline axis's.
         "overscroll-behavior-block" => One("overscroll-behavior-y"),
         "overscroll-behavior-inline" => One("overscroll-behavior-x"),
+        // CSS Scroll Snap 1 §4.1–§4.2.
+        "scroll-padding-block-start" => One("scroll-padding-top"),
+        "scroll-padding-block-end" => One("scroll-padding-bottom"),
+        "scroll-padding-block" => Pair("scroll-padding-top", "scroll-padding-bottom"),
+        "scroll-margin-block-start" => One("scroll-margin-top"),
+        "scroll-margin-block-end" => One("scroll-margin-bottom"),
+        "scroll-margin-block" => Pair("scroll-margin-top", "scroll-margin-bottom"),
         "block-size" => One("height"),
         "min-inline-size" => One("min-width"),
         "min-block-size" => One("min-height"),
@@ -102,6 +109,8 @@ fn inline_axis(name: &str, direction: TextDirection) -> Option<Mapping> {
     const COLOR: (&str, &str) = ("border-left-color", "border-right-color");
     const STYLE: (&str, &str) = ("border-left-style", "border-right-style");
     const WIDTH: (&str, &str) = ("border-left-width", "border-right-width");
+    const SCROLL_PADDING: (&str, &str) = ("scroll-padding-left", "scroll-padding-right");
+    const SCROLL_MARGIN: (&str, &str) = ("scroll-margin-left", "scroll-margin-right");
     const TOP: (&str, &str) = ("border-top-left-radius", "border-top-right-radius");
     const BOTTOM: (&str, &str) = ("border-bottom-left-radius", "border-bottom-right-radius");
     Some(match name {
@@ -114,6 +123,12 @@ fn inline_axis(name: &str, direction: TextDirection) -> Option<Mapping> {
         "inset-inline-start" => side(INSET, false),
         "inset-inline-end" => side(INSET, true),
         "inset-inline" => pair(INSET),
+        "scroll-padding-inline-start" => side(SCROLL_PADDING, false),
+        "scroll-padding-inline-end" => side(SCROLL_PADDING, true),
+        "scroll-padding-inline" => pair(SCROLL_PADDING),
+        "scroll-margin-inline-start" => side(SCROLL_MARGIN, false),
+        "scroll-margin-inline-end" => side(SCROLL_MARGIN, true),
+        "scroll-margin-inline" => pair(SCROLL_MARGIN),
         "border-inline-start" => side(BORDER, false),
         "border-inline-end" => side(BORDER, true),
         "border-inline-start-color" => side(COLOR, false),
@@ -147,6 +162,18 @@ pub(super) const NAMES: &[&str] = &[
     "overflow-inline",
     "overscroll-behavior-block",
     "overscroll-behavior-inline",
+    "scroll-padding-block-start",
+    "scroll-padding-block-end",
+    "scroll-padding-block",
+    "scroll-padding-inline-start",
+    "scroll-padding-inline-end",
+    "scroll-padding-inline",
+    "scroll-margin-block-start",
+    "scroll-margin-block-end",
+    "scroll-margin-block",
+    "scroll-margin-inline-start",
+    "scroll-margin-inline-end",
+    "scroll-margin-inline",
     "margin-block-start",
     "margin-block-end",
     "margin-block",

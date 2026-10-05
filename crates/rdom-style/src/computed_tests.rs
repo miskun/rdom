@@ -1,6 +1,7 @@
 //! `ComputedStyle` tests.
 
 use super::*;
+use crate::Content;
 use std::collections::HashMap;
 
 #[test]

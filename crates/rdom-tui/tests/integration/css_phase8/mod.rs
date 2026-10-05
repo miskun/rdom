@@ -14,6 +14,7 @@ mod line_clamp;
 mod overflow_clip;
 mod overflow_text;
 mod rtl_line_overflow;
+mod scroll_padding;
 mod scrollbar;
 mod text_overflow;
 mod z_index;
