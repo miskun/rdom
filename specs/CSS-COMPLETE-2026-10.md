@@ -33,7 +33,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 1 | Syntax, cascade, custom properties | done 2026-10-05 (both gates; 20 gate fixes `C1G-*`; their re-review rides with the Phase 2 gate) |
 | 2 | Values, units, math functions | done 2026-10-05 (both gates; 20 gate fixes `C2G-*`; their re-review rides with the Phase 3 gate; C2-LH partial until C9-LINE-HEIGHT) |
 | 3 | Color | done 2026-10-06 (both gates; 16 gate fixes `C3G-*` incl. rdom's own terminal input reader; re-review rides with the Phase 4 gate) |
-| 4 | Backgrounds and borders | gates run 2026-10-06; `C4G-*` batch A done, batch B open (C4-SPACING layout with C13-TFC) |
+| 4 | Backgrounds and borders | done 2026-10-06 (both gates; 19 gate fixes `C4G-*`; their re-review rides with the Phase 5 gate; C4-SPACING layout with C13-TFC) |
 | 5 | Box model and sizing (incl. logical properties) | |
 | 6 | Display, visibility, flexbox, box alignment | |
 | 7 | Grid | |
@@ -1350,3 +1350,24 @@ row comes from.
   `Corners` geometry; decided `PaintLength` stays closed (each form resolves differently into a
   weight, a corner or an offset — a painter meeting an unknown one would guess). rdom-style README —
   `border-spacing` listed, and the `Value` row describes `Value<T>`, the CSS-wide-keyword wrapper.
+- 2026-10-06 — C4G-EDGE-TESTS: `tests/integration/css_phase4_gates.rs`, one test per edge case.
+  (1) An opaque side meeting a translucent one at a corner: green on first run — the corner goes to
+  the opaque horizontal side, whole, and the translucent left / right blend on their own cells only
+  (C4G-BORDER-COST's ring strips leave the corners to the opaque pass). (2) `border-width: -1px`
+  (and `-1`, `-0.5em`, inside `border` / `border-left`) is rejected, `calc(-1px)` clamps to 0: green
+  (characterisation). (3) A percentage radius: `50%` / `25%` / `50% / 25%` of a 2 × 2 border box
+  round; against a zero-size border box nothing is drawn, no panic, no NaN — green. Found while
+  writing it: `width: 0; border: solid` draws nothing, because rdom sizes as `border-box` without
+  flooring the box at its border and padding (CSS Box Sizing 3 §3.1 floors the content box at zero);
+  layout, so not fixed here — written into DIVERGENCES §2's border-box entry, to be fixed with
+  C5-BOX-SIZING. (4) `border: var(--b)` with `--b: rounded` (and `1px rounded red`): the radius
+  arrives — the substituted declaration goes through the same `border` set arm, side effect
+  included; green. (5) Decided: `dashed` / `dotted` draw dash glyphs — `glyphs::dash_glyph` on a
+  straight run (N + S or E + W, one weight): `dashed` the double dash `╌╎` (heavy `╍╏`), `dotted`
+  the finer triple dash `┄┆` (heavy `┅┇`); corners, junctions, stubs and weight mixes have no
+  dashed glyph and stay solid (so a rounded dashed ring is `╭╌╌╌╮`). Red:
+  `dashed_and_dotted_draw_dash_glyphs` drew `┌───┐`; green after, with
+  `dashed_and_dotted_runs_pick_the_dash_glyphs` (code points, and the `None` cases). DIVERGENCES
+  §2 border-style entry and the coverage row updated; CHANGELOG Changed. No showcase snapshot
+  changed: no demo or UA rule uses `dashed` / `dotted`.
+- 2026-10-06 — Phase 4 closed: 8 items (C4-SPACING partial — layout with C13-TFC) + 19 gate fixes (batch A 11, batch B 8). Gate-fix re-review folded into the Phase 5 gate. Carried to Phase 5: a box smaller than its border and padding is not floored at them (found by C4G-EDGE-TESTS, DIVERGENCES §2) — C5-BOX-SIZING.

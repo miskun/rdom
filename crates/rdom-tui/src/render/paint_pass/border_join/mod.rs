@@ -14,14 +14,17 @@
 //! (`glyphs::junction_glyph`) by the line each direction carries:
 //!
 //! - `BorderStyle::Double` → a double line (`║═╔╗╚╝╠╣╦╩╬`).
-//! - Anything else (`Solid`, `Dashed`, `Dotted`, `Ridge`, `Outset`,
-//!   `Groove`, `Inset`) → a single line, light (`│─┌┐└┘├┤┬┴┼`) or
-//!   heavy (`┃━┏┓┗┛┣┫┳┻╋`) by its winner's `border-width`, the mixed
-//!   junctions (`┍┿╽`) where weights meet. The non-solid keywords
-//!   parse and rank correctly in conflict resolution but degrade to
-//!   the single-line glyph set on the terminal — CSS-faithful "render
-//!   as best you can" per the medium constraint documented in
-//!   `DIVERGENCES.md`.
+//! - `Dashed` / `Dotted` on a straight run (N + S or E + W, one weight)
+//!   → Unicode's dash glyphs (`╌╎` / `┄┆`, heavy `╍╏` / `┅┇`); their
+//!   corners and junctions have no dashed form and take the single-line
+//!   glyph below.
+//! - Anything else (`Solid`, `Ridge`, `Outset`, `Groove`, `Inset`) → a
+//!   single line, light (`│─┌┐└┘├┤┬┴┼`) or heavy (`┃━┏┓┗┛┣┫┳┻╋`) by its
+//!   winner's `border-width`, the mixed junctions (`┍┿╽`) where weights
+//!   meet. The 3-D keywords parse and rank correctly in conflict
+//!   resolution but degrade to the single-line glyph set on the
+//!   terminal — CSS-faithful "render as best you can" per the medium
+//!   constraint documented in `DIVERGENCES.md`.
 //! - A double axis crossing a light one → Unicode's mixed glyphs
 //!   (`╒╓╕╖╘╙╛╜╞╟╡╢╤╥╧╨╪╫`). Unicode has no glyph where a heavy line
 //!   meets a double one, nor where one axis is double on one side and
@@ -41,7 +44,8 @@
 mod glyphs;
 
 use glyphs::{
-    DOUBLE_TABLE, Line, ROUNDED_TABLE, half_block_quad_glyph, junction_glyph, line_glyph,
+    DOUBLE_TABLE, Line, ROUNDED_TABLE, dash_glyph, half_block_quad_glyph, junction_glyph,
+    line_glyph,
 };
 use rdom_core::Dom;
 use rdom_style::layout::{BorderStyle, BorderWeight, CornerStyle};
@@ -124,13 +128,17 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
                     continue;
                 }
             }
-            let replacement = junction_glyph(lines).unwrap_or_else(|| {
-                if dominant.style == BorderStyle::Double {
-                    DOUBLE_TABLE[mask as usize]
-                } else {
-                    line_glyph(line_weights(&cell_state))
-                }
-            });
+            // A straight run of a dashed / dotted line draws Unicode's
+            // dash glyphs; its corners and junctions stay solid.
+            let replacement = dash_glyph(lines, dominant.style)
+                .or_else(|| junction_glyph(lines))
+                .unwrap_or_else(|| {
+                    if dominant.style == BorderStyle::Double {
+                        DOUBLE_TABLE[mask as usize]
+                    } else {
+                        line_glyph(line_weights(&cell_state))
+                    }
+                });
             if replacement.is_empty() {
                 continue;
             }

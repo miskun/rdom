@@ -1,7 +1,9 @@
 //! The border glyph tables the joiner picks from: single-line
 //! junctions by per-direction weight (light / heavy), double-line
-//! junctions, the double / single mixes, the rounded corners, and the
-//! half-block quadrant set.
+//! junctions, the double / single mixes, the rounded corners, the
+//! dashed / dotted runs, and the half-block quadrant set.
+
+use rdom_style::layout::BorderStyle;
 
 /// Half-block glyph for an inward-quadrant set (see
 /// `Buffer::half_block_quads`). Index bits: `QUAD_TL=1, QUAD_TR=2,
@@ -187,6 +189,35 @@ pub(super) fn junction_glyph(lines: [Line; 4]) -> Option<&'static str> {
     }
 }
 
+/// The dash glyph of a straight run of a `dashed` or `dotted` line (CSS
+/// Backgrounds 3 §4.2: a series of dashes / dots), or `None` for any
+/// other style or cell. `lines` must be one straight axis — N + S or
+/// E + W, one weight: Unicode has no dashed corner, junction or weight
+/// mix, so those cells keep the solid glyph. `dashed` is the double dash
+/// (`╌╎`, heavy `╍╏`), `dotted` the triple dash (`┄┆`, heavy `┅┇`) —
+/// the finer pattern; each glyph checked against its Unicode name
+/// ("… DOUBLE DASH …", "… TRIPLE DASH …").
+pub(super) fn dash_glyph(lines: [Line; 4], style: BorderStyle) -> Option<&'static str> {
+    // [style][vertical?][heavy?]
+    const DASHES: [[[&str; 2]; 2]; 2] = [[["╌", "╍"], ["╎", "╏"]], [["┄", "┅"], ["┆", "┇"]]];
+    let pattern = match style {
+        BorderStyle::Dashed => 0,
+        BorderStyle::Dotted => 1,
+        _ => return None,
+    };
+    let (vertical, line) = match lines {
+        [n, Line::None, s, Line::None] if n == s => (1, n),
+        [Line::None, e, Line::None, w] if e == w => (0, e),
+        _ => return None,
+    };
+    let heavy = match line {
+        Line::Light => 0,
+        Line::Heavy => 1,
+        Line::None | Line::Double => return None,
+    };
+    Some(DASHES[pattern][vertical][heavy])
+}
+
 /// A double vertical line (N, S) meeting light horizontal ones (E, W),
 /// indexed like [`DOUBLE_TABLE`]; each glyph checked against its
 /// Unicode name ("… DOUBLE AND … SINGLE").
@@ -315,5 +346,36 @@ mod tests {
         assert_eq!(junction_glyph([O, H, D, O]), None);
         assert_eq!(junction_glyph([D, L, L, O]), None);
         assert_eq!(junction_glyph([L, D, O, L]), None);
+    }
+
+    /// `C4G-EDGE-TESTS`: the dash glyphs by code point (U+2504–U+2507
+    /// TRIPLE DASH, U+254C–U+254F DOUBLE DASH), straight runs only.
+    #[test]
+    fn dashed_and_dotted_runs_pick_the_dash_glyphs() {
+        use BorderStyle::{Dashed, Dotted, Solid};
+        for (lines, style, code) in [
+            ([O, L, O, L], Dashed, 0x254C),
+            ([O, H, O, H], Dashed, 0x254D),
+            ([L, O, L, O], Dashed, 0x254E),
+            ([H, O, H, O], Dashed, 0x254F),
+            ([O, L, O, L], Dotted, 0x2504),
+            ([O, H, O, H], Dotted, 0x2505),
+            ([L, O, L, O], Dotted, 0x2506),
+            ([H, O, H, O], Dotted, 0x2507),
+        ] {
+            let glyph = dash_glyph(lines, style).unwrap();
+            assert_eq!(glyph.chars().next().map(u32::from), Some(code), "{lines:?}");
+        }
+        // Corners, junctions, lone stubs, mixed weights, other styles.
+        for (lines, style) in [
+            ([O, L, L, O], Dashed),
+            ([L, L, L, L], Dotted),
+            ([L, O, O, O], Dashed),
+            ([L, O, H, O], Dashed),
+            ([O, D, O, D], Dashed),
+            ([O, L, O, L], Solid),
+        ] {
+            assert_eq!(dash_glyph(lines, style), None, "{lines:?} {style:?}");
+        }
     }
 }

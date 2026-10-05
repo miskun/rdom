@@ -17,10 +17,11 @@
 ///
 /// **Terminal-faithful degradation:** the substrate paints `None`,
 /// `Hidden`, `Solid`, and `Double` with distinct glyphs (`│─┌┐└┘` /
-/// `║═╔╗╚╝`). `Dashed`, `Dotted`, `Ridge`, `Outset`, `Groove`,
-/// `Inset` parse and *rank* correctly in conflict resolution — the
-/// data model is faithful — but render as `Solid` because rdom has
-/// no distinct glyph set for them yet. Matches CSS's "render as
+/// `║═╔╗╚╝`), and `Dashed` / `Dotted` with Unicode's dash glyphs on
+/// straight runs (`╌╎` / `┄┆`; corners solid). `Ridge`, `Outset`,
+/// `Groove`, `Inset` parse and *rank* correctly in conflict
+/// resolution — the data model is faithful — but render as `Solid`
+/// because a cell has no 3-D shading. Matches CSS's "render as
 /// best you can on this medium" principle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub enum BorderStyle {
@@ -36,9 +37,11 @@ pub enum BorderStyle {
     Solid,
     /// Double-line border. `║═╔╗╚╝`.
     Double,
-    /// Dashed. Parses + ranks per CSS; renders as `Solid`.
+    /// Dashed: the double-dash glyphs `╌╎` (heavy `╍╏`) on straight
+    /// runs, solid corners.
     Dashed,
-    /// Dotted. Parses + ranks per CSS; renders as `Solid`.
+    /// Dotted: the triple-dash glyphs `┄┆` (heavy `┅┇`) on straight
+    /// runs, solid corners.
     Dotted,
     /// 3D ridge. Parses + ranks per CSS; renders as `Solid`.
     Ridge,
