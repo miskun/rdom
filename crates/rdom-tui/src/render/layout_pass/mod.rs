@@ -388,13 +388,29 @@ fn layout_fragment_children(dom: &mut Dom<TuiExt>, id: NodeId, container: Layout
     for n in positioning::out_of_flow_positioned_children(dom, id) {
         positioning::record_static_position(dom, n, container.x, container.y);
     }
-    // Fragment uses a Column-like default with no gap/padding —
-    // treat it like an invisible Column container.
-    let fallback = ComputedStyle::initial();
-    layout_flex_children(dom, &children, container, &fallback);
+    // The fragment root lays its children out in rdom's viewport
+    // column: an invisible column flex container with no gap or
+    // padding (its children stretch to the viewport's width, as a
+    // browser's `<body>` blocks do).
+    let mut viewport_column = ComputedStyle::initial();
+    viewport_column.flow = crate::layout::Flow::Flex;
+    viewport_column.direction = Direction::Column;
+    layout_flex_children(dom, &children, container, &viewport_column);
 }
 
 // ─── Tree helpers ───────────────────────────────────────────────────
+
+/// The axis `computed`'s in-flow children are laid out along: a flex
+/// container's main axis (`flex-direction`, CSS Flexbox §5.1), every
+/// other box's block axis — vertical, as every box lays out
+/// `horizontal-tb` (DIVERGENCES §1). `flex-direction` applies to flex
+/// containers only, so it never turns a block container sideways.
+pub(super) fn flow_axis(computed: &ComputedStyle) -> Direction {
+    match computed.flow {
+        crate::layout::Flow::Flex => computed.direction,
+        crate::layout::Flow::Block | crate::layout::Flow::FlowRoot => Direction::Column,
+    }
+}
 
 /// Resolve the gap between `computed`'s children laid out along `axis`
 /// (CSS Box Alignment 3 §8.1): `column-gap` between items placed

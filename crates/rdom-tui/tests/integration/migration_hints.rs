@@ -405,3 +405,15 @@ fn gap_hints() {
     assert!(style::parse::values::parse_gap_shorthand(&tokens).is_some());
     assert!((ImportantMask::ROW_GAP | ImportantMask::COLUMN_GAP).intersects(ImportantMask::all()));
 }
+
+/// C6-FLEX-DIRECTION-INITIAL: `flex-direction`'s initial value is `row`
+/// — `Direction`'s default, `ComputedStyle::initial()`'s — and the
+/// builders that ask for a column.
+#[test]
+fn flex_direction_initial_hints() {
+    assert_eq!(Direction::default(), Direction::Row);
+    assert_eq!(ComputedStyle::initial().direction, Direction::Row);
+    let s = TuiStyle::new().flex_column();
+    assert_eq!(s.direction, Some(Value::Specified(Direction::Column)));
+    let _ = TuiStyle::new().flex().direction(Direction::Column);
+}

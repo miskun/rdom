@@ -4,13 +4,14 @@
 //! `pointer-events`, `user-select`, `text-decoration`, `position` and
 //! `z-index`.
 
-/// Flexbox main-axis direction. Maps to CSS `flex-direction`.
+/// Flexbox main-axis direction. Maps to CSS `flex-direction`; the
+/// default is its initial value, `row` (CSS Flexbox §5.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Direction {
     /// Children laid out left to right (`flex-direction: row`).
+    #[default]
     Row,
     /// Children laid out top to bottom (`flex-direction: column`).
-    #[default]
     Column,
 }
 

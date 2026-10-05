@@ -10,7 +10,7 @@ use crate::{Color, Content, TuiStyle};
 pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
     vec![
         // ── Select widget ──
-        // `<select>` is a Block flex column (default direction).
+        // `<select>` is a block container: its options stack vertically.
         // `<option>` is a Block row displaying its text label.
         // `<optgroup>` renders its label as a bold separator.
         // Selection highlight is bg LightBlue / fg Black; the
@@ -149,9 +149,9 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // `<tbody>` / `<tfoot>` row groups (or bare `<tr>`s),
         // and `<td>` / `<th>` cells inside rows.
         //
-        // V1 uses plain flex layout: the table and row groups
-        // flow vertically (default Column direction); each
-        // `<tr>` is a horizontal flex container whose children
+        // V1 uses plain block and flex layout: the table and row
+        // groups are block containers, their rows stacking
+        // vertically; each `<tr>` is a row flex container whose children
         // are the cells. Column widths sync across rows via a
         // pre-pass that computes max content width per column
         // index and writes Fixed widths to each cell.

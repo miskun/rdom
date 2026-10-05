@@ -115,7 +115,7 @@ fn root_fragment_distributes_to_children() {
     dom.append_child(root, b).unwrap();
 
     // Both children default to Auto (content) — no content, so 0+padding.
-    // Fragment defaults to Column direction.
+    // The fragment root lays its children out in the viewport column.
     cascade(&mut dom, &Stylesheet::bare());
     dom.layout_dom(Rect::new(0, 0, 20, 10));
 
@@ -325,7 +325,7 @@ fn column_stacks_vertically() {
     dom.append_child(root, a).unwrap();
     dom.append_child(root, b).unwrap();
 
-    // Fragment root defaults to Column.
+    // The fragment root lays its children out in the viewport column.
     let sheet = Stylesheet::bare()
         .rule_unchecked("a", TuiStyle::new().height(Size::Fixed(3)))
         .rule_unchecked("b", TuiStyle::new().height(Size::Fixed(2)));
@@ -541,7 +541,7 @@ fn auto_nested_element_recursive_fit() {
     dom.layout_dom(Rect::new(0, 0, 50, 5));
 
     // outer (Row) → its intrinsic width = inner.intrinsic + padding(2)
-    //   inner (default Column) → queried Row = max of children = 2 (text)
+    //   inner (a block container) → queried Row = max of children = 2 (text)
     //   outer intrinsic = 2 + 2 = 4
     assert_eq!(layout_rect_of(&dom, outer).width, 4);
 }

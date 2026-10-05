@@ -97,7 +97,7 @@ pub(super) fn collapse_parent_edge_insets(
     let needs_inset =
         |id: NodeId, edge: CollapseEdge| -> bool { !has_effective_border_on_edge(dom, id, edge) };
 
-    let (top, bottom, left, right) = match parent.direction {
+    let (top, bottom, left, right) = match super::flow_axis(parent) {
         Direction::Column => {
             // Main axis vertical. First column-child touches
             // parent's top; last touches parent's bottom. Cross

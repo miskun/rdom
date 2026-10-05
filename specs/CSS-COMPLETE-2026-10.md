@@ -141,7 +141,7 @@ row comes from.
 | C6-ORDER | `order` | done |
 | C6-DIRECTION-REVERSE | `flex-direction: row-reverse / column-reverse` | done |
 | C6-FLEX-LONGHANDS | `flex-grow` / `flex-basis` longhands; full `flex` shorthand (incl. basis) | done |
-| C6-FLEX-DIRECTION-INITIAL | `flex-direction` initial value `row` (Flexbox §5.1): decouple the block-container axis from `flex-direction`, remove the DIVERGENCES §2 entry | |
+| C6-FLEX-DIRECTION-INITIAL | `flex-direction` initial value `row` (Flexbox §5.1): decouple the block-container axis from `flex-direction`, remove the DIVERGENCES §2 entry | done |
 | C6-WRAP | `flex-wrap` / `flex-flow`, multi-line flex containers | |
 | C6-JUSTIFY | `justify-content` (all distribution values) | |
 | C6-ALIGN | `align-items` / `align-self` (incl. `baseline` where meaningful) | |
@@ -2211,3 +2211,27 @@ row comes from.
   `nav.rs` 441). Production files touched by part 1 now under the bar: `property_dispatch/table.rs`
   439 (C6-FLEX-LONGHANDS split), `intrinsic/mod.rs` 585 and `tui_style/builder/mod.rs` 569 — near
   it, for C6-SPLIT; the `flex/*` files are 219–403.
+- 2026-10-08 — C6-FLEX-DIRECTION-INITIAL: `flex-direction`'s initial value is `row` (CSS Flexbox
+  §5.1; `ComputedStyle::initial().direction` and `Direction::default()`, Breaking — rdom-style).
+  Root fix first — decided, one rule: `layout_pass::flow_axis(computed)` is the axis a box's in-flow
+  children lay out along: a flex container's `flex-direction` axis, every other box's block axis
+  (vertical; every box is `horizontal-tb`, DIVERGENCES §1). `flex-direction` applies to flex
+  containers only (§5.1 "Applies to"), so the intrinsic children pass (`along`, the sum-or-max
+  choice) and the `border-collapse` parent-edge insets read `flow_axis`, not `direction`; the flex
+  line reads `direction` (a flex container's), and the fragment root lays its children out in an
+  explicit viewport column (`Flow::Flex` + `Direction::Column`, was `ComputedStyle::initial()`).
+  Red: `css_phase6/flex_direction_initial.rs` — the `display: flex` container without
+  `flex-direction` placed its items at `[(0, 0), (0, 0), (0, 0)]` against `[(0, 0), (2, 0), (4, 0)]`
+  (a column of 0-high items), and a block with `flex-direction: row` inside a row measured its
+  shrink-to-fit width as the sum of its children (6 against 3) — the coupling, a bug before the
+  initial value changed; the root-stack test passed (guard); the rdom-style `initial_is_safe_defaults`
+  assertion was updated to `Row`. Green after. Mutation checks (each alone, reverted, the file
+  touched): `flow_axis` returning `direction` for block flow → the block test; the fragment's
+  column dropped (its style the initial `row`) → the root-stack test and three `visibility` tests.
+  Showcase, examples, UA sheet, READMEs: every `display: flex` rule already declares
+  `flex-direction` (checked by a scan of each rule block), and the UA's flex rule (`<tr>`) sets
+  `Direction::Row`; the UA comments that said "default column" now say block container. Changed
+  expectations (test probes, not layout): the C1 `initial` test perturbs `flex-direction:
+  column-reverse` (`row-reverse` now leaves the axis at its initial value) and the inherited-set
+  probe's parent takes `Direction::Column`. No layout expectation changed; no snapshot changed.
+  DIVERGENCES §2's entry removed; COVERAGE §3.8's row says `row`.

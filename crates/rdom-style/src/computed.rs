@@ -126,6 +126,9 @@ pub struct ComputedStyle {
     /// groups from each other, matching CSS 2.1 §17.6.2.1's table-
     /// equals-boundary rule extended to rdom's non-table elements.
     pub border_collapse_declared: bool,
+    /// `flex-direction`'s axis (CSS Flexbox §5.1); initial `row`. Read
+    /// by flex containers only: a block container's children stack on
+    /// its block axis whatever this says.
     pub direction: Direction,
     /// `row-reverse` / `column-reverse` (CSS Flexbox §5.1): main-start
     /// and main-end of `direction`'s axis swap. Initial `false`.
@@ -287,7 +290,7 @@ impl ComputedStyle {
             border_spacing: crate::layout::BorderSpacing::default(),
             border_collapse: crate::layout::BorderCollapse::Separate,
             border_collapse_declared: false,
-            direction: Direction::Column,
+            direction: Direction::Row,
             flex_reverse: false,
             text_direction: crate::layout::TextDirection::Ltr,
             writing_mode: crate::layout::WritingMode::HorizontalTb,
@@ -429,7 +432,8 @@ mod tests {
         assert_eq!(s.modifiers, Modifier::empty());
         assert_eq!(s.width, Size::Auto);
         assert_eq!(s.height, Size::Auto);
-        assert_eq!(s.direction, Direction::Column);
+        // CSS Flexbox §5.1: `flex-direction`'s initial value is `row`.
+        assert_eq!(s.direction, Direction::Row);
         assert_eq!(s.overflow_x, Overflow::Visible);
         assert_eq!(s.overflow_y, Overflow::Visible);
         assert_eq!(s.border, Border::none());

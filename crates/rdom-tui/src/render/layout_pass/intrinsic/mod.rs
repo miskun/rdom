@@ -470,7 +470,7 @@ fn measure_content(
     // along the queried axis, of every child where they stack across it.
     // Under `rtl` the first child's inline-start margin is its right one
     // (CSS Writing Modes 4 §2.1).
-    let along = computed.direction == direction;
+    let along = super::flow_axis(computed) == direction;
     let trim = super::margin_trim::trimmed_edges(computed);
     // The queried axis runs from its physical end: a row under `rtl`, and
     // a reversed flex container's main axis (CSS Flexbox §5.1) — its
@@ -529,7 +529,7 @@ fn measure_content(
             .unwrap_or(0);
         (i32::from(inner) + margins).clamp(0, i32::from(u16::MAX)) as u16
     };
-    let intrinsic_children: u16 = if computed.direction == direction {
+    let intrinsic_children: u16 = if along {
         // Children flow along the queried axis — sum their outer main
         // sizes plus gaps. Intrinsic sizing has no container size:
         // percent gaps are 0.

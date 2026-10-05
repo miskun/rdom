@@ -41,7 +41,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("text-decoration", "underline"),
     ("opacity", "0.5"),
     ("display", "inline-flex"),
-    ("flex-direction", "row-reverse"),
+    ("flex-direction", "column-reverse"),
     ("direction", "rtl"),
     ("writing-mode", "vertical-lr"),
     ("white-space", "pre"),

@@ -2328,7 +2328,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ..Border::default()
     };
     parent.border_collapse = BorderCollapse::Collapse;
-    parent.direction = Direction::Row;
+    parent.direction = Direction::Column;
     parent.overflow_x = Overflow::Hidden;
     parent.overflow_y = Overflow::Scroll;
     parent.scrollbar_gutter = ScrollbarGutter::Stable;
