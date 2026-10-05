@@ -2644,3 +2644,27 @@ row comes from.
   item and the container's), 2 allocations in one iteration and in three. Mutation checks (each
   alone, reverted and touched): the specified-base skip off → 8 resolutions; the Column memo off →
   13 Column measurements. No test expectation and no snapshot changed.
+- 2026-10-08 — C6G-BLOCK-ALIGN (AN11, AN12, AN13). AN11: `layout_children_aligned` laid a block
+  container's content out, measured it, and laid it out again at the `align-content` offset — in
+  the scrollbar second pass and the scroll-clamp re-layout too — so under k aligned ancestors the
+  innermost box was laid out 2^k times. Decision: layout is translation-invariant, so the content is
+  moved, not re-laid: `tree::shift_content` (the container's anonymous block boxes and its
+  children's subtrees) over a `tree::shift_subtree` that now serves `position: sticky` as well (its
+  private copy in `sticky.rs` removed), moving rects, anonymous boxes, positioned-pseudo rects and —
+  new — recorded static positions, which an out-of-flow box inside the moved content was placed
+  from. AN12 (CSS 2.1 §10.7): `align_content_lead` returned 0 for every content-sized box (an
+  `auto` height in block flow), but `min-height` can make one taller than its content —
+  `min-height: 10; align-content: center` around 2 rows centers them at row 4 in Chromium; the lead
+  now compares against the height the box resolves to, the content clamped by `min-height` /
+  `max-height`, from `auto_height::used_content_height`, which `resolve_auto_height` and the lead
+  share with the gating (`is_content_sized`). AN13 (Box Alignment 3 §4.2, checked against the TR:
+  "the fallback alignment for first baseline is safe self-start (for self-alignment)", last baseline
+  `safe self-end`): `justify_offset` fell back to the containing block's `start` / `end`; it now uses
+  the box's own (`self_rtl`), and the doc cites §4.2 (it said §9.3). Red: `css_phase6/place.rs`
+  `align_content_uses_the_resolved_height` — 0 for 4; `justify_self_baseline_falls_back_on_the_boxs_own_direction`
+  — 0 for 16 (an `rtl` box in an `ltr` container); `block/align_tests.rs`
+  `nested_aligned_containers_lay_out_each_box_once` (a `layout_node` counter) — 16 layouts at 3
+  levels for 5. Green after: one layout per box. The static-position assertion (an absolutely
+  positioned box after the moved content, at row 6) was added with the shift. Mutation checks (each
+  alone, reverted and touched): no shift → the two `align-content` tests; static positions not
+  moved → row 2 for 6. No snapshot changed.

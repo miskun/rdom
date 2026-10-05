@@ -168,60 +168,7 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
     let dx = placed.x - natural.x;
     let dy = placed.y - natural.y;
     let _ = scrollport_id; // reserved for future debug logging
-    shift_subtree(dom, id, dx, dy);
-}
-
-fn shift_subtree(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32) {
-    if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.layout = LayoutRect::new(
-            ext.layout.x + dx,
-            ext.layout.y + dy,
-            ext.layout.width,
-            ext.layout.height,
-        );
-        ext.content_layout = LayoutRect::new(
-            ext.content_layout.x + dx,
-            ext.content_layout.y + dy,
-            ext.content_layout.width,
-            ext.content_layout.height,
-        );
-        // The element's own text lives in anonymous block boxes (mixed
-        // content) and its pseudos in `before_layout` / `after_layout`;
-        // both carry their own rects and pin with the element.
-        for anon in &mut ext.anonymous_blocks {
-            anon.rect = LayoutRect::new(
-                anon.rect.x + dx,
-                anon.rect.y + dy,
-                anon.rect.width,
-                anon.rect.height,
-            );
-        }
-        for pseudo in [&mut ext.before_layout, &mut ext.after_layout]
-            .into_iter()
-            .flatten()
-        {
-            pseudo.rect = LayoutRect::new(
-                pseudo.rect.x + dx,
-                pseudo.rect.y + dy,
-                pseudo.rect.width,
-                pseudo.rect.height,
-            );
-        }
-    }
-    let child_ids: Vec<NodeId> = dom
-        .node(id)
-        .child_nodes()
-        .filter(|c| {
-            matches!(
-                c.node_type(),
-                NodeType::Element | NodeType::Fragment | NodeType::Text
-            )
-        })
-        .map(|c| c.id())
-        .collect();
-    for c in child_ids {
-        shift_subtree(dom, c, dx, dy);
-    }
+    super::tree::shift_subtree(dom, id, dx, dy);
 }
 
 fn nearest_scrollport(dom: &Dom<TuiExt>, id: NodeId) -> Option<(NodeId, LayoutRect)> {

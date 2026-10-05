@@ -31,27 +31,7 @@ pub(crate) fn resolve_auto_height(
     measurement: Option<block::BlockMeasurement>,
     gutter_rows: u16,
 ) {
-    let parent_is_block_flow = crate::render::box_tree::box_parent(dom, id)
-        .and_then(|p| {
-            use crate::node::TuiNodeExt;
-            dom.node(p)
-                .tui_ext()
-                .and_then(|e| e.computed.as_ref().map(|c| c.flow))
-        })
-        .is_none_or(|f| f.is_block_flow());
-    let is_out_of_flow_positioned = matches!(
-        computed.position,
-        crate::layout::Position::Absolute | crate::layout::Position::Fixed
-    );
-    // An intrinsic keyword is the automatic size on the block axis (CSS
-    // Sizing 3 §3.1): resolved here like `auto`.
-    if !matches!(
-        computed.height,
-        crate::layout::Size::Auto | crate::layout::Size::Intrinsic(_)
-    ) || !computed.flow.is_block_flow()
-        || !parent_is_block_flow
-        || is_out_of_flow_positioned
-    {
+    if !is_content_sized(dom, id, computed) {
         return;
     }
     // An IFC block or pure-text leaf has no `BlockMeasurement`; its
@@ -67,6 +47,59 @@ pub(crate) fn resolve_auto_height(
     }) else {
         return;
     };
+    let content_h = used_content_height(
+        dom,
+        id,
+        computed,
+        containing_block_width,
+        measurement.content_height,
+    );
+    let sizer = Sizer::vertical(computed, containing_block_width);
+    let outer_h = content_h
+        .saturating_add(sizer.chrome())
+        .saturating_add(gutter_rows);
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        ext.layout.height = outer_h;
+        ext.content_layout.height = content_h;
+    }
+}
+
+/// Whether `id`'s height is resolved from its content here (the gating
+/// above): a block-flow box with an `auto` (or keyword) height, in
+/// block flow, in flow.
+pub(crate) fn is_content_sized(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedStyle) -> bool {
+    let parent_is_block_flow = crate::render::box_tree::box_parent(dom, id)
+        .and_then(|p| {
+            use crate::node::TuiNodeExt;
+            dom.node(p)
+                .tui_ext()
+                .and_then(|e| e.computed.as_ref().map(|c| c.flow))
+        })
+        .is_none_or(|f| f.is_block_flow());
+    let is_out_of_flow_positioned = matches!(
+        computed.position,
+        crate::layout::Position::Absolute | crate::layout::Position::Fixed
+    );
+    // An intrinsic keyword is the automatic size on the block axis (CSS
+    // Sizing 3 §3.1): resolved here like `auto`.
+    matches!(
+        computed.height,
+        crate::layout::Size::Auto | crate::layout::Size::Intrinsic(_)
+    ) && computed.flow.is_block_flow()
+        && parent_is_block_flow
+        && !is_out_of_flow_positioned
+}
+
+/// The content-box height of a content-sized box (`is_content_sized`)
+/// whose content is `content_height` rows: the content clamped by
+/// `min-height` / `max-height` (CSS 2.1 §10.7).
+pub(crate) fn used_content_height(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    containing_block_width: u16,
+    content_height: u16,
+) -> u16 {
     // `min-height` / `max-height` percentages resolve against the
     // containing block's height when it is definite (CSS 2.1 §10.7).
     let basis = block::nearest_block_ancestor_height_is_definite(dom, id)
@@ -85,16 +118,9 @@ pub(crate) fn resolve_auto_height(
     let sizer = Sizer::vertical(computed, containing_block_width);
     // A keyword bound is the content height itself (CSS Sizing 3 §3.1),
     // which the measured content already is: no clamp.
-    let content_h = crate::layout::clamp_size(
-        measurement.content_height,
+    crate::layout::clamp_size(
+        content_height,
         sizer.inner_opt(computed.min_height.cells(basis)),
         sizer.inner_opt(computed.max_height.cells(basis)),
-    );
-    let outer_h = content_h
-        .saturating_add(sizer.chrome())
-        .saturating_add(gutter_rows);
-    if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.layout.height = outer_h;
-        ext.content_layout.height = content_h;
-    }
+    )
 }

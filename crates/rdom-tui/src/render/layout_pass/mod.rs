@@ -159,6 +159,12 @@ impl LayoutExt for Dom<TuiExt> {
 
 // ─── Per-node layout ────────────────────────────────────────────────
 
+#[cfg(test)]
+thread_local! {
+    /// Elements [`layout_node`] laid out (cost tests).
+    pub(super) static LAYOUTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Lay out `id` as occupying `outer_rect`, then recurse into
 /// children using this element's `content_layout` as their container.
 /// `containing_block_width` is the width percent padding and margins
@@ -183,6 +189,8 @@ pub(super) fn layout_node(
         return;
     }
 
+    #[cfg(test)]
+    LAYOUTS.with(|c| c.set(c.get() + 1));
     let computed = dom
         .node(id)
         .computed_rc()
@@ -247,7 +255,7 @@ pub(super) fn layout_node(
     // captures the margin-collapse-aware content extent for block-
     // flow elements (CSS 2.1 §10.6.3 — used below to resolve
     // `height: Auto` on this element).
-    let measurement = layout_children_aligned(dom, id, inner, &computed);
+    let measurement = layout_children_aligned(dom, id, inner, &computed, containing_block_width);
 
     // Collapse the geometry of any `display:none` child subtree. The in-flow
     // layout above filters those children out (they take no space), so without
@@ -329,7 +337,8 @@ pub(super) fn layout_node(
             // differently in the narrower area and the forced gutter
             // row is part of this box, so the `auto` height resolves
             // again from the new measurement.
-            let measurement = layout_children_aligned(dom, id, inner_v2, &computed);
+            let measurement =
+                layout_children_aligned(dom, id, inner_v2, &computed, containing_block_width);
             resolve_auto_height(
                 dom,
                 id,
@@ -365,7 +374,7 @@ pub(super) fn layout_node(
             .ext()
             .map(|e| e.content_layout)
             .unwrap_or(inner);
-        let _ = layout_children_aligned(dom, id, final_inner, &computed);
+        let _ = layout_children_aligned(dom, id, final_inner, &computed, containing_block_width);
         record_scroll_content_size(dom, id, final_inner, &computed);
     }
     // The offsets the children were just placed with.
@@ -376,22 +385,31 @@ pub(super) fn layout_node(
 
 /// [`layout_children`], with a block container's content shifted on its
 /// block axis by `align-content` (CSS Box Alignment 3 §5.1): laid out
-/// once to measure it, again at its offset when it moves.
+/// once, measured, and moved to its offset (`tree::shift_content` —
+/// layout is translation-invariant, so laying it out again at the offset
+/// would only repeat the work, once per aligned ancestor).
 fn layout_children_aligned(
     dom: &mut Dom<TuiExt>,
     id: NodeId,
     inner: LayoutRect,
     computed: &ComputedStyle,
+    containing_block_width: u16,
 ) -> Option<block::BlockMeasurement> {
     let measurement = layout_children(dom, id, inner, computed);
     let lead = measurement.as_ref().map_or(0, |m| {
-        block::align_content_lead(dom, id, computed, inner, m.content_height)
+        block::align_content_lead(
+            dom,
+            id,
+            computed,
+            inner,
+            m.content_height,
+            containing_block_width,
+        )
     });
-    if lead == 0 {
-        return measurement;
+    if lead != 0 {
+        tree::shift_content(dom, id, lead);
     }
-    let shifted = LayoutRect::new(inner.x, inner.y + lead, inner.width, inner.height);
-    layout_children(dom, id, shifted, computed)
+    measurement
 }
 
 /// Fragment case: children inherit our container rect directly

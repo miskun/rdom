@@ -248,3 +248,51 @@ fn align_content_makes_a_block_container_independent() {
     assert_eq!(offset(""), 0);
     assert_eq!(offset(".b { align-content: start }"), 2);
 }
+
+/// §5.1 with CSS 2.1 §10.7 (C6G-BLOCK-ALIGN): an `auto`-height block
+/// container is as tall as its content only until `min-height` makes it
+/// taller — then `align-content` places the content in that height.
+#[test]
+fn align_content_uses_the_resolved_height() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let o = el(&mut dom, root, "div", "");
+    let b = el(&mut dom, o, "div", "b");
+    let c = el(&mut dom, b, "div", "c");
+    let a = el(&mut dom, b, "div", "a");
+    lay_out(
+        &mut dom,
+        ".b { min-height: 10; width: 6; align-content: center } .c { height: 2 } \
+         .a { position: absolute; height: 1; width: 1 }",
+        20,
+        14,
+    );
+    assert_eq!(size(&dom, b).1, 10);
+    assert_eq!(rect(&dom, c).y - rect(&dom, b).y, 4);
+    // The out-of-flow box's static position moves with the content
+    // (CSS 2.1 §10.6.4: where its hypothetical box would be, after `c`).
+    assert_eq!(rect(&dom, a).y - rect(&dom, b).y, 6);
+}
+
+/// Box Alignment 3 §4.2 (C6G-BLOCK-ALIGN): the fallback of `first
+/// baseline` in self-alignment is `safe self-start`, of `last baseline`
+/// `safe self-end` — the box's own start and end, so an `rtl` box in an
+/// `ltr` container falls back to its right edge for `baseline`.
+#[test]
+fn justify_self_baseline_falls_back_on_the_boxs_own_direction() {
+    let x = |value: &str| {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let p = el(&mut dom, root, "div", "p");
+        let c = el(&mut dom, p, "div", "c");
+        lay_out(
+            &mut dom,
+            &format!(".p {{ width: 20 }} .c {{ width: 4; direction: rtl; justify-self: {value} }}"),
+            20,
+            4,
+        );
+        rect(&dom, c).x
+    };
+    assert_eq!(x("baseline"), 16);
+    assert_eq!(x("last baseline"), 0);
+}

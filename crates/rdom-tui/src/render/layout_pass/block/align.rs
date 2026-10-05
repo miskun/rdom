@@ -7,9 +7,13 @@
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
-use crate::layout::{Align, Alignment, LayoutRect, Overflow, OverflowAlign, Size, TextDirection};
+use crate::layout::{Align, Alignment, LayoutRect, Overflow, OverflowAlign, TextDirection};
 use crate::node::TuiNodeExt;
 use crate::style::ComputedStyle;
+
+#[cfg(test)]
+#[path = "align_tests.rs"]
+mod tests;
 
 /// A block-level box's effective `justify-self` (§6.1): its own, or for
 /// `auto` its parent's `justify-items` — a `legacy` value as its side.
@@ -42,8 +46,9 @@ pub(super) fn aligns(value: Alignment) -> bool {
 /// `self-start` / `self-end` by the box's own (`self_rtl`), `left` /
 /// `right` physically, `center` with the leading space rounded down;
 /// `flex-start` / `flex-end` are `start` / `end` outside flex, and the
-/// baseline values fall back to `safe start` / `safe end` (§9.3). A
-/// `safe` value that would overflow aligns as `start` (§4.4).
+/// baseline values fall back to `safe self-start` / `safe self-end` —
+/// the box's own edges (§4.2). A `safe` value that would overflow
+/// aligns as `start` (§4.4).
 pub(super) fn justify_offset(value: Alignment, free: i32, rtl: bool, self_rtl: bool) -> i32 {
     let start = if rtl { free } else { 0 };
     let end = if rtl { 0 } else { free };
@@ -53,12 +58,12 @@ pub(super) fn justify_offset(value: Alignment, free: i32, rtl: bool, self_rtl: b
         return start;
     }
     match value.keyword {
-        Align::Start | Align::FlexStart | Align::Baseline => start,
-        Align::End | Align::FlexEnd | Align::LastBaseline => end,
-        Align::SelfStart if self_rtl => free,
-        Align::SelfStart => 0,
-        Align::SelfEnd if self_rtl => 0,
-        Align::SelfEnd => free,
+        Align::Start | Align::FlexStart => start,
+        Align::End | Align::FlexEnd => end,
+        Align::SelfStart | Align::Baseline if self_rtl => free,
+        Align::SelfStart | Align::Baseline => 0,
+        Align::SelfEnd | Align::LastBaseline if self_rtl => 0,
+        Align::SelfEnd | Align::LastBaseline => free,
         Align::Left => 0,
         Align::Right => free,
         Align::Center => free.div_euclid(2),
@@ -79,10 +84,12 @@ pub(super) fn is_rtl(computed: &ComputedStyle) -> bool {
 }
 
 /// §5.1: the block-axis offset `align-content` gives a block container's
-/// content (`content_height` cells of it) in its content box `inner` —
-/// 0 for `normal`, and for a box whose height is its content's (an
-/// `auto` height in block flow, resolved from the content after this
-/// pass). `start`, `flex-start`, `stretch`, `space-between` and
+/// content (`content_height` cells of it) in its content box — `inner`,
+/// or for a box whose height is its content's (an `auto` height in block
+/// flow) the height it resolves to: the content clamped by `min-height`
+/// / `max-height` (CSS 2.1 §10.7, `auto_height::used_content_height`),
+/// so content-sized boxes move only when `min-height` makes them taller.
+/// 0 for `normal`. `start`, `flex-start`, `stretch`, `space-between` and
 /// `baseline` keep it at the top; `end`, `flex-end` and `last baseline`
 /// put it at the bottom; `center`, `space-around` and `space-evenly`
 /// center it (the leading space rounded down). Content taller than the
@@ -94,23 +101,19 @@ pub(in crate::render::layout_pass) fn align_content_lead(
     computed: &ComputedStyle,
     inner: LayoutRect,
     content_height: u16,
+    containing_block_width: u16,
 ) -> i32 {
+    use crate::render::layout_pass::auto_height::{is_content_sized, used_content_height};
     let value = computed.align_content;
     if value.keyword == Align::Normal || !computed.flow.is_block_flow() {
         return 0;
     }
-    let content_sized = matches!(computed.height, Size::Auto | Size::Intrinsic(_))
-        && !matches!(
-            computed.position,
-            crate::layout::Position::Absolute | crate::layout::Position::Fixed
-        )
-        && crate::render::box_tree::box_parent(dom, id)
-            .and_then(|p| dom.node(p).computed().map(|c| c.flow))
-            .is_none_or(|f| f.is_block_flow());
-    if content_sized {
-        return 0;
-    }
-    let free = i32::from(inner.height) - i32::from(content_height);
+    let height = if is_content_sized(dom, id, computed) {
+        used_content_height(dom, id, computed, containing_block_width, content_height)
+    } else {
+        inner.height
+    };
+    let free = i32::from(height) - i32::from(content_height);
     if free < 0
         && (value.overflow == OverflowAlign::Safe || computed.overflow_y != Overflow::Visible)
     {

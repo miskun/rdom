@@ -1,7 +1,7 @@
 //! Tree helpers of the layout pass: the element children a container
 //! lays out (fragments and `display: contents` elements unwrapped), the
-//! in-flow predicate, and the geometry reset of `display: none`
-//! subtrees and box-less elements.
+//! in-flow predicate, the geometry reset of `display: none`
+//! subtrees and box-less elements, and moving a laid-out subtree.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -134,6 +134,53 @@ fn clear_box_state(ext: &mut TuiExt, rect: LayoutRect) {
     ext.scroll_y = 0;
     ext.scroll_state = None;
     ext.static_position = None;
+}
+
+/// Move `id`'s laid-out subtree by `(dx, dy)`: every element's rects,
+/// its anonymous block boxes, its positioned pseudo-elements and its
+/// recorded static position — what a layout at the moved origin would
+/// have written, since layout is translation-invariant. Used where a
+/// box moves after its subtree was laid out (`position: sticky`) and
+/// where content is aligned after it was measured (`align-content`).
+pub(super) fn shift_subtree(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32) {
+    let shift = |r: LayoutRect| LayoutRect::new(r.x + dx, r.y + dy, r.width, r.height);
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        ext.layout = shift(ext.layout);
+        ext.content_layout = shift(ext.content_layout);
+        for anon in &mut ext.anonymous_blocks {
+            anon.rect = shift(anon.rect);
+        }
+        for pseudo in [&mut ext.before_layout, &mut ext.after_layout]
+            .into_iter()
+            .flatten()
+        {
+            pseudo.rect = shift(pseudo.rect);
+        }
+        if let Some(p) = ext.static_position.as_mut() {
+            p.x += dx;
+            p.y += dy;
+        }
+    }
+    shift_children(dom, id, dx, dy);
+}
+
+/// Move the laid-out content of `id` — its anonymous block boxes and
+/// its children's subtrees, not its own box — by `dy` rows.
+pub(super) fn shift_content(dom: &mut Dom<TuiExt>, id: NodeId, dy: i32) {
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        for anon in &mut ext.anonymous_blocks {
+            anon.rect.y += dy;
+        }
+    }
+    shift_children(dom, id, 0, dy);
+}
+
+fn shift_children(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32) {
+    let mut child = dom.node(id).first_child().map(|c| c.id());
+    while let Some(c) = child {
+        shift_subtree(dom, c, dx, dy);
+        child = dom.node(c).next_sibling().map(|n| n.id());
+    }
 }
 
 fn collect_element_children(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {

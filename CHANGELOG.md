@@ -324,6 +324,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Nested inline blocks and baseline-aligned flex rows lay out in linear time.** Their block-axis measurements were not memoized, so each level re-measured every level below it — quadratic for inline blocks, exponential for nested `align-items: baseline` rows (11469 measurements at 8 levels, now 9). (C6G-ATOM-COST)
 - **Paint and hit-testing walk a box's children without allocating** unless a flex item's `order` is not 0: the paint-order walk collected every node's children into a `Vec` per frame (a flex container's twice). (C6G-ORDER-ALLOC)
 - **Flex layout does less work per container**: an item's automatic minimum is resolved once per flex run and not at all where it cannot bind (a `width: 6` item), and the flexible-length loop allocates two buffers whatever its iterations (was two more per iteration). (C6G-FLEX-COST)
+- **Block `align-content` moves the laid-out content instead of laying it out again, and honours `min-height`** (CSS Box Alignment 3 §5.1): nested aligned containers laid their content out twice per level, and an `auto`-height box taller than its content through `min-height` left it at the top; `justify-self: baseline` falls back on the box's own direction (§4.2). (C6G-BLOCK-ALIGN)
 
 ### Changed — `rdom-showcase`
 
