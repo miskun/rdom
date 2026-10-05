@@ -57,6 +57,11 @@ impl<'a> Cursor<'a> {
     }
 
     /// The unconsumed remainder of the source.
+    /// The byte offset into the source the cursor has reached.
+    pub fn offset(&self) -> usize {
+        self.pos
+    }
+
     pub fn rest(&self) -> &'a str {
         &self.source[self.pos..]
     }

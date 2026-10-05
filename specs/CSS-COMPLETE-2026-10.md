@@ -1889,3 +1889,21 @@ row comes from.
   (`margin-left` priority `"important"` against `""`) failed; green after, with the rdom-style unit
   `replayed_declarations_mark_their_own_side` and the `margin-left` assertion C5G-CSSOM-LOGICAL left
   for this item.
+- 2026-10-07 — C5G-CUSTOM-SERIALIZE (gate fix): custom properties and declarations holding `var()` /
+  `attr()` keep their source text (CSS Variables 1 §2: the value is the token sequence as written;
+  §3 for a pending-substitution value), trimmed, comments and inner whitespace included. The
+  tokenizer gains `tokenize_spans` (`SpannedTokens`: byte ranges, `TokenSpan`, beside the positions; `tokenize_at` is it without
+  them; `Cursor::offset`), `rdom-css`'s block parser cuts each value's text from the body (first
+  value token to last, `!important` excluded) and passes it through the new
+  `property_dispatch::set_from_source` / `set_custom_source`; `set` (the CSSOM path) passes its
+  string. A custom property stores the text as its `CustomValue` (tokenized from it as before); a
+  kept `var()` declaration records it (`PendingDeclaration::text`, read by `value_text()`), and the
+  substitution still works on the tokens. Decided — kept non-custom text (background image,
+  position, size) lowercases keywords, function names and units, keeping `--*` names, strings and
+  URLs (CSSOM §6.7.2; `render_keywords_lowercase`); the DIVERGENCES background entry says so. Red:
+  `custom_properties_and_var_declarations_keep_their_text` (rdom-css: `Some("1 -2")` against
+  `Some("1 - 2")`), `set_keeps_a_custom_propertys_text` (same) and
+  `kept_background_text_lowercases_keywords` (`LINEAR-GRADIENT(TO RIGHT, RED 10PX, BLUE)` kept
+  upper-case) failed; green after. No expectation changed. Split: `property_dispatch/set.rs` reached
+  613 lines — the declaring entry points (`set`, `set_from_source`, `set_from_tokens`, the custom
+  paths) moved to `property_dispatch/declare.rs` (159), `set.rs` keeps `set_parsed` (468).

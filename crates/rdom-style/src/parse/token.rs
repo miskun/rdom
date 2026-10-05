@@ -111,18 +111,36 @@ pub fn tokenize_at(
     line: u32,
     col: u32,
 ) -> Result<(Vec<Token>, Vec<TokenPos>), TokenizerError> {
+    tokenize_spans(source, line, col).map(|(tokens, positions, _)| (tokens, positions))
+}
+
+/// A token's byte range in its source.
+pub type TokenSpan = std::ops::Range<usize>;
+
+/// [`tokenize_spans`]' result: the tokens, and parallel to them their
+/// positions and byte ranges.
+pub type SpannedTokens = (Vec<Token>, Vec<TokenPos>, Vec<TokenSpan>);
+
+/// [`tokenize_at`] with each token's byte range in `source` too, so a
+/// caller can cut a value's text out as written — the whitespace and
+/// comments between its tokens included (CSS Variables 1 §2: a custom
+/// property's value is the token sequence as written).
+pub fn tokenize_spans(source: &str, line: u32, col: u32) -> Result<SpannedTokens, TokenizerError> {
     let mut cursor = Cursor::at(source, line, col);
     let mut tokens = Vec::new();
     let mut positions = Vec::new();
+    let mut spans = Vec::new();
     loop {
         skip_ws_and_comments(&mut cursor)?;
         match cursor.peek() {
-            None => return Ok((tokens, positions)),
+            None => return Ok((tokens, positions, spans)),
             Some(c) => {
                 let pos = (cursor.line(), cursor.col());
+                let start = cursor.offset();
                 let tok = read_one(&mut cursor, c)?;
                 tokens.push(tok);
                 positions.push(pos);
+                spans.push(start..cursor.offset());
             }
         }
     }

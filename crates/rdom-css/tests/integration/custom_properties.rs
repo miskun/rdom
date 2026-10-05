@@ -214,3 +214,26 @@ fn imported_roots_sit_at_the_import() {
         Some("red")
     );
 }
+
+// ── As written (C5G-CUSTOM-SERIALIZE) ──────────────────────────────
+
+/// CSS Variables 1 §2: a custom property's value is its token sequence
+/// as written — whitespace between tokens, a comment and the case of an
+/// identifier included, leading / trailing whitespace trimmed — and
+/// CSSOM reads that text back. A declaration holding `var()` is kept as
+/// written until the cascade (§3), so it reads back the same way.
+#[test]
+fn custom_properties_and_var_declarations_keep_their_text() {
+    let r = rdom_css::parse_inline(
+        "--x:  1 - 2 ; --y: A  /* c */ b; --z: calc( 1px+2px ); color: var(--c ,  RED ) !important",
+    );
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    let value = |n: &str| r.style.custom_property_value(n).map(str::to_string);
+    assert_eq!(value("x").as_deref(), Some("1 - 2"));
+    assert_eq!(value("y").as_deref(), Some("A  /* c */ b"));
+    assert_eq!(value("z").as_deref(), Some("calc( 1px+2px )"));
+    assert_eq!(
+        rdom_style::property_dispatch::serialize("color", &r.style).as_deref(),
+        Some("var(--c ,  RED )")
+    );
+}

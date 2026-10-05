@@ -36,7 +36,7 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
         .iter()
         .find(|d| d.name == name && d.has_substitution)
     {
-        return Some(crate::parse::values::render_value(&d.value));
+        return Some(d.value_text());
     }
     // An inline-axis flow-relative property is mapped only by the
     // cascade (CSS Logical 1 §4): read from its last declarations, a

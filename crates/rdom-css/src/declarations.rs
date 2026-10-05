@@ -7,7 +7,7 @@
 //! `!important` → delegate one declaration at a time).
 
 use rdom_style::TuiStyle;
-use rdom_style::parse::token::{Token, TokenPos, TokenizerErrorKind, tokenize_at};
+use rdom_style::parse::token::{Token, TokenPos, TokenizerErrorKind, tokenize_spans};
 use rdom_style::parse::values::render_value;
 use rdom_style::property_dispatch::{self, DispatchError};
 
@@ -55,7 +55,7 @@ impl DeclarationRun {
     /// collect its declarations; a malformed one warns now.
     pub(crate) fn push(&mut self, body: &str, line: u32, col: u32, warnings: &mut Vec<Warning>) {
         self.first_warning.get_or_insert(warnings.len());
-        let (tokens, positions) = match tokenize_at(body, line, col) {
+        let (tokens, positions, spans) = match tokenize_spans(body, line, col) {
             Ok(t) => t,
             Err(e) => {
                 let kind = match e.kind {
@@ -78,11 +78,17 @@ impl DeclarationRun {
                 return;
             }
         };
-        let decls = split_declarations(&tokens, &positions, warnings);
+        let source = Source {
+            body,
+            positions: &positions,
+            spans: &spans,
+        };
+        let decls = split_declarations(&tokens, &source, warnings);
         self.decls
             .extend(decls.into_iter().map(|d| OwnedDeclaration {
                 name: d.name.to_string(),
                 value: d.value.to_vec(),
+                text: d.text.to_string(),
                 important: d.important,
                 at: d.at,
             }));
@@ -97,13 +103,21 @@ impl DeclarationRun {
             let decl = RawDeclaration {
                 name: &decl.name,
                 value: &decl.value,
+                text: &decl.text,
                 important: decl.important,
                 at: decl.at,
             };
             if let Some(name) = decl.name.strip_prefix("--") {
-                // Custom property: untyped, kept as its tokens, importance
-                // per declaration.
-                if property_dispatch::set_custom(name, decl.value, decl.important, style).is_err() {
+                // Custom property: untyped, kept as written (CSS
+                // Variables 1 §2), importance per declaration.
+                let kept = property_dispatch::set_custom_source(
+                    name,
+                    decl.value,
+                    Some(decl.text),
+                    decl.important,
+                    style,
+                );
+                if kept.is_err() {
                     warnings.push(invalid_value(&decl));
                 }
                 continue;
@@ -120,6 +134,7 @@ impl DeclarationRun {
 struct OwnedDeclaration {
     name: String,
     value: Vec<Token>,
+    text: String,
     important: bool,
     at: TokenPos,
 }
@@ -128,6 +143,10 @@ struct OwnedDeclaration {
 struct RawDeclaration<'a> {
     name: &'a str,
     value: &'a [Token],
+    /// The value as written: the source from its first token to its
+    /// last (`!important` excluded), whitespace and comments between
+    /// them kept.
+    text: &'a str,
     important: bool,
     /// Position of the property name in the source.
     at: TokenPos,
@@ -138,9 +157,29 @@ struct RawDeclaration<'a> {
 /// A non-empty segment that doesn't match is dropped (CSS Syntax 3
 /// §5.4.4) with a `MalformedDeclaration` warning; empty segments
 /// (`;;`, trailing `;`) are silently fine.
+/// A declaration block's source and, parallel to its tokens, their
+/// positions and byte ranges in it.
+struct Source<'a> {
+    body: &'a str,
+    positions: &'a [TokenPos],
+    spans: &'a [rdom_style::parse::token::TokenSpan],
+}
+
+impl<'a> Source<'a> {
+    /// The source of tokens `range` (empty for none).
+    fn text(&self, range: std::ops::Range<usize>) -> &'a str {
+        match (self.spans.get(range.start), range.end.checked_sub(1)) {
+            (Some(first), Some(last)) if range.start < range.end => {
+                &self.body[first.start..self.spans[last].end]
+            }
+            _ => "",
+        }
+    }
+}
+
 fn split_declarations<'a>(
     tokens: &'a [Token],
-    positions: &[TokenPos],
+    source: &Source<'a>,
     warnings: &mut Vec<Warning>,
 ) -> Vec<RawDeclaration<'a>> {
     let mut out = Vec::new();
@@ -151,8 +190,13 @@ fn split_declarations<'a>(
         let at_end = i == len;
         if at_end || tokens[i] == Token::Semicolon {
             let segment = &tokens[start..i];
-            let at = positions.get(start).copied().unwrap_or((0, 0));
-            match into_declaration(segment, at) {
+            let at = source.positions.get(start).copied().unwrap_or((0, 0));
+            let text = |value: &[Token]| {
+                // The value is the segment past `name :`, its first token
+                // at `start + 2`.
+                source.text(start + 2..start + 2 + value.len())
+            };
+            match into_declaration(segment, at, text) {
                 Some(decl) => out.push(decl),
                 None if !segment.is_empty() => warnings.push(Warning {
                     kind: WarningKind::MalformedDeclaration(render_value(segment)),
@@ -170,7 +214,11 @@ fn split_declarations<'a>(
     out
 }
 
-fn into_declaration(segment: &[Token], at: TokenPos) -> Option<RawDeclaration<'_>> {
+fn into_declaration<'a>(
+    segment: &'a [Token],
+    at: TokenPos,
+    text: impl FnOnce(&[Token]) -> &'a str,
+) -> Option<RawDeclaration<'a>> {
     if segment.is_empty() {
         return None;
     }
@@ -186,6 +234,7 @@ fn into_declaration(segment: &[Token], at: TokenPos) -> Option<RawDeclaration<'_
     Some(RawDeclaration {
         name,
         value,
+        text: text(value),
         important,
         at,
     })
@@ -233,7 +282,7 @@ fn apply_declaration(decl: RawDeclaration, style: &mut TuiStyle, warnings: &mut 
     // Single source of truth: rdom_style::property_dispatch owns
     // the name→setter table. The block parser is now a thin
     // tokenizer + per-declaration loop on top of that.
-    match property_dispatch::set_from_tokens(name, value, style) {
+    match property_dispatch::set_from_source(name, value, decl.text, style) {
         Ok(()) => {
             if decl.important {
                 property_dispatch::set_important(name, true, style);

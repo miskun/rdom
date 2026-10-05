@@ -38,9 +38,14 @@
 //! - `css_wide.rs`: the CSS-wide keywords (`inherit` / `initial` /
 //!   `unset`) — detection, storage across every owned field, and
 //!   the all-fields-agree serialization rule.
-//! - `set.rs`: [`set`] / [`set_from_tokens`] — parse a declaration
-//!   value and write the owned field(s), including custom
-//!   properties and per-side longhand merging.
+//! - `declare.rs`: [`set`] / [`set_from_source`] / [`set_from_tokens`]
+//!   / [`set_custom`] — declare on a block: custom properties, and the
+//!   values kept for the cascade (`var()` / `attr()`, inline-axis
+//!   flow-relative properties) with their text.
+//! - `set.rs`: `set_parsed` — parse a declaration value and write the
+//!   owned field(s), including per-side longhand merging.
+//! - `importance.rs`: [`set_important`] / [`is_important`] — a
+//!   declaration's `!important`.
 //! - `serialize.rs`: [`serialize`] — property → CSS text, one arm
 //!   per name.
 //! - `background.rs` / `border.rs` / `shadow.rs` / `contain.rs`: the
@@ -76,6 +81,7 @@ mod background;
 mod border;
 mod contain;
 mod css_wide;
+mod declare;
 mod importance;
 mod logical;
 mod serialize;
@@ -97,9 +103,9 @@ mod tests;
 #[cfg(test)]
 mod writing_tests;
 
+pub use declare::{set, set_custom, set_custom_source, set_from_source, set_from_tokens};
 pub use importance::{is_important, set_important};
 pub use serialize::serialize;
-pub use set::{set, set_custom, set_from_tokens};
 // `set_parsed` / `set_unset` are backend hooks, public through
 // `crate::backend`.
 pub use logical::is_storage_alias;

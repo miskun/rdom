@@ -36,9 +36,23 @@ pub struct PendingDeclaration {
     /// since an inline-axis one's physical side is not known until the
     /// cascade.
     pub important: bool,
+    /// The value as written (trimmed), when the declaring caller had it
+    /// ([`set_from_source`](crate::property_dispatch::set_from_source)):
+    /// what CSSOM reads back for a `var()` / `attr()` value (CSS
+    /// Variables 1 §3), rather than the tokens' serialization.
+    pub(crate) text: Option<Box<str>>,
 }
 
 impl PendingDeclaration {
+    /// The value's text: as written when kept, else its tokens
+    /// serialized.
+    pub fn value_text(&self) -> String {
+        match &self.text {
+            Some(t) => t.to_string(),
+            None => crate::parse::values::render_value(&self.value),
+        }
+    }
+
     pub fn new(name: &str, value: &[Token], has_substitution: bool) -> Self {
         PendingDeclaration {
             name: name.to_string(),
@@ -51,6 +65,7 @@ impl PendingDeclaration {
             },
             directional: crate::property_dispatch::is_directional(name),
             important: false,
+            text: None,
         }
     }
 }

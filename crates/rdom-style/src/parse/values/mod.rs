@@ -86,6 +86,32 @@ pub use transition::{
 
 use crate::parse::token::Token;
 
+/// [`render_value`] for a specified value CSSOM serializes (CSSOM §6.7.2):
+/// keywords, function names and units in ASCII lowercase — they are
+/// ASCII case-insensitive (CSS Values 4 §2.1) — while a custom
+/// property name (`--Foo`, case-sensitive), a string and a URL keep
+/// their case. The kept text of a background image or position.
+pub(crate) fn render_keywords_lowercase(value: &[Token]) -> String {
+    let lowered: Vec<Token> = value
+        .iter()
+        .map(|t| match t {
+            Token::Ident(s) if !s.starts_with("--") => Token::Ident(s.to_ascii_lowercase()),
+            Token::Function(f) => Token::Function(f.to_ascii_lowercase()),
+            Token::Dimension {
+                value,
+                integer,
+                unit,
+            } => Token::Dimension {
+                value: *value,
+                integer: *integer,
+                unit: unit.to_ascii_lowercase(),
+            },
+            other => other.clone(),
+        })
+        .collect();
+    render_value(&lowered)
+}
+
 /// Render a `&[Token]` slice back to CSS text the way CSSOM serializes a
 /// component value list (CSSOM §6.7.2; CSS Syntax 3 §9): one space
 /// between component values, none just inside parentheses or before a

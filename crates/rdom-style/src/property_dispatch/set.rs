@@ -1,8 +1,9 @@
-//! `set` / `set_from_tokens`: parse a declaration value and write the
-//! owned `TuiStyle` field(s). Owns custom-property (`--*`) storage,
-//! CSS-wide keyword routing, and the per-side longhand merge rules
-//! (`padding-top`, `border-left-style`, …) that read the current
-//! shorthand value before writing one side.
+//! `set_parsed`: parse a declaration value with its property's grammar
+//! and write the owned `TuiStyle` field(s). Owns CSS-wide keyword
+//! routing and the per-side longhand merge rules (`padding-top`,
+//! `border-left-style`, …) that read the current shorthand value before
+//! writing one side. Declaring on a block — `set` / `set_from_tokens`,
+//! what is kept for the cascade, custom properties — is `declare`.
 
 use super::DispatchError;
 use super::css_wide::{css_wide_keyword, set_css_wide};
@@ -10,7 +11,7 @@ use super::table::canonical_property_name;
 use crate::layout::{
     CaretColor, CaretTextColor, Direction, Display, Size, TextDirection, UserSelect, WhiteSpace,
 };
-use crate::parse::token::{Token, tokenize};
+use crate::parse::token::Token;
 use crate::parse::values::{
     current_margin, current_padding, parse_aspect_ratio, parse_color, parse_content,
     parse_counter_ops, parse_flex_factor, parse_flex_shorthand, parse_gap, parse_inset_shorthand,
@@ -22,82 +23,6 @@ use crate::parse::values::{
     unzip_transition_rules,
 };
 use crate::{TuiStyle, Value};
-
-/// Set `name = value` on `style`. Tokenizes the value first; for
-/// callers that already have tokens, prefer [`set_from_tokens`].
-pub fn set(name: &str, value: &str, style: &mut TuiStyle) -> Result<(), DispatchError> {
-    let tokens = tokenize(value).map_err(|_| DispatchError::InvalidValue)?;
-    set_from_tokens(name, &tokens, style)
-}
-
-/// Pre-tokenized variant of [`set`]. The block parser in
-/// `rdom-css` calls this to avoid re-tokenizing each declaration's
-/// value when the surrounding block was already tokenized.
-///
-/// A value containing `var()` (CSS Variables 1 §3) is checked for
-/// `var()` syntax only and kept as tokens on `style.pending`, for the
-/// cascade to substitute and parse per element; once a block holds one,
-/// later declarations are recorded there too so the cascade replays
-/// them in order.
-pub fn set_from_tokens(
-    name: &str,
-    value: &[Token],
-    style: &mut TuiStyle,
-) -> Result<(), DispatchError> {
-    if name.starts_with("--") {
-        return set_parsed(name, value, style);
-    }
-    let name = &*canonical_property_name(name);
-    if crate::var::contains_substitution(value) {
-        if super::table::fields_of(name).is_none() {
-            return Err(DispatchError::UnknownProperty);
-        }
-        if !crate::var::valid_var_syntax(value) {
-            return Err(DispatchError::InvalidValue);
-        }
-        style.pending.retain(|d| d.name != name);
-        style
-            .pending
-            .push(crate::var::PendingDeclaration::new(name, value, true));
-        return Ok(());
-    }
-    // CSS Logical 1 §4: an inline-axis property maps by the element's
-    // `direction`, which only the cascade knows — kept as written (its
-    // value checked now), with the block's later declarations, for the
-    // cascade to replay in order (`logical.rs`).
-    if super::logical::is_directional(name) {
-        super::logical::set_mapped(name, value, &mut TuiStyle::new(), TextDirection::Ltr)
-            .unwrap_or(Err(DispatchError::UnknownProperty))?;
-        // A CSS-wide keyword is kept in its canonical spelling.
-        let value = match value {
-            [Token::Ident(kw)] if css_wide_keyword(value).is_some() => {
-                vec![Token::Ident(kw.to_ascii_lowercase())]
-            }
-            _ => value.to_vec(),
-        };
-        style.pending.retain(|d| d.name != name);
-        style
-            .pending
-            .push(crate::var::PendingDeclaration::new(name, &value, false));
-        return Ok(());
-    }
-    set_parsed(name, value, style)?;
-    if style.has_pending() {
-        style.pending.retain(|d| d.name != name);
-        if style
-            .pending
-            .iter()
-            .any(|d| d.has_substitution || d.directional)
-        {
-            style
-                .pending
-                .push(crate::var::PendingDeclaration::new(name, value, false));
-        } else {
-            style.pending.clear();
-        }
-    }
-    Ok(())
-}
 
 /// Set `name` to the CSS-wide `unset` — the value of a declaration
 /// invalid at computed-value time (CSS Variables 1 §3.1).
@@ -115,24 +40,6 @@ pub(crate) fn set_unset_in(name: &str, style: &mut TuiStyle, direction: TextDire
     }
     // Every table name accepts a CSS-wide keyword.
     let _ = set_css_wide(name, super::css_wide::CssWide::Unset, style);
-}
-
-/// Declare the custom property `--name` (`name` without the dashes) as
-/// `value`, `!important` when `important` — the one path for a parsed
-/// custom property, the block parser's and `set`'s. The value is any
-/// token sequence (CSS Variables 1 §2) except one holding a
-/// `<bad-url-token>` (§2.1), which is `InvalidValue`.
-pub fn set_custom(
-    name: &str,
-    value: &[Token],
-    important: bool,
-    style: &mut TuiStyle,
-) -> Result<(), DispatchError> {
-    if value.contains(&Token::BadUrl) {
-        return Err(DispatchError::InvalidValue);
-    }
-    style.set_custom_property(name, &crate::parse::values::render_value(value), important);
-    Ok(())
 }
 
 /// Parse `value` with `name`'s own grammar and write it — no `var()`
@@ -168,7 +75,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         if custom.is_empty() {
             return Err(DispatchError::UnknownProperty);
         }
-        return set_custom(custom, value, false, style);
+        return super::declare::set_custom(custom, value, false, style);
     }
     let name = &*canonical_property_name(name);
     if let Some(kw) = css_wide_keyword(value) {

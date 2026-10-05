@@ -310,3 +310,37 @@ fn unitless_fractions_are_cell_lengths_everywhere() {
         assert_eq!(bare, via_calc, "{name}: {value} vs {calc}");
     }
 }
+
+/// C5G-CUSTOM-SERIALIZE — CSSOM §6.7.2: a specified value serializes its
+/// keywords, function names and units in ASCII lowercase; the kept text
+/// of an image or a position does too (strings and URLs keep theirs).
+#[test]
+fn kept_background_text_lowercases_keywords() {
+    let mut s = TuiStyle::new();
+    set(
+        "background-image",
+        "LINEAR-GRADIENT(TO RIGHT, RED 10PX, BLUE), url(\"A.png\")",
+        &mut s,
+    )
+    .unwrap();
+    assert_eq!(
+        serialize("background-image", &s).as_deref(),
+        Some("linear-gradient(to right, red 10px, blue), url(\"A.png\")")
+    );
+    set("background-position", "CENTER TOP", &mut s).unwrap();
+    assert_eq!(
+        serialize("background-position", &s).as_deref(),
+        Some("center top")
+    );
+}
+
+/// C5G-CUSTOM-SERIALIZE — the CSSOM `setProperty` path keeps a custom
+/// property's text as written, as the block parser does.
+#[test]
+fn set_keeps_a_custom_propertys_text() {
+    let mut s = TuiStyle::new();
+    set("--x", " 1 - 2 ", &mut s).unwrap();
+    assert_eq!(s.custom_property_value("x"), Some("1 - 2"));
+    set("color", "var(--c ,  RED )", &mut s).unwrap();
+    assert_eq!(serialize("color", &s).as_deref(), Some("var(--c ,  RED )"));
+}

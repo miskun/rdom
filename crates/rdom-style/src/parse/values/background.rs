@@ -9,7 +9,7 @@
 
 use super::color::parse_color;
 use super::numeric::{Range, components, length_percentage, split_commas};
-use super::render_value;
+use super::render_keywords_lowercase;
 use crate::TuiColor;
 use crate::layout::{BackgroundAttachment, BackgroundRepeat, RepeatStyle, VisualBox};
 use crate::parse::token::Token;
@@ -217,7 +217,9 @@ fn image_text(part: &[Token]) -> Option<String> {
         {
             Some(url_text(url))
         }
-        [Token::Function(f), .., Token::RParen] if is_gradient(f) => Some(render_value(part)),
+        [Token::Function(f), .., Token::RParen] if is_gradient(f) => {
+            Some(render_keywords_lowercase(part))
+        }
         _ => None,
     }
 }
@@ -420,11 +422,12 @@ fn visual_box(part: &[Token]) -> Option<VisualBox> {
 }
 
 /// Component values as CSS text, one space apart, each rendered by
-/// [`render_value`] (which keeps a sign on its number, `-5%`).
+/// [`render_keywords_lowercase`] (which keeps a sign on its number,
+/// `-5%`, and lowercases the keywords, CSSOM §6.7.2).
 fn join_components(parts: &[&[Token]]) -> String {
     parts
         .iter()
-        .map(|c| render_value(c))
+        .map(|c| render_keywords_lowercase(c))
         .collect::<Vec<_>>()
         .join(" ")
 }
