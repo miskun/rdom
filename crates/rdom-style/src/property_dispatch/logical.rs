@@ -330,6 +330,11 @@ fn inline_longhands(name: &str) -> &'static [&'static str] {
     }
 }
 
+/// Whether the kept declaration `d` sets the inline-axis longhand `l`.
+fn sets_longhand(d: &crate::var::PendingDeclaration, l: &str) -> bool {
+    inline_longhands(&d.name).contains(&l) && !d.restriction.drops(l)
+}
+
 /// For each inline-axis longhand of `name`, the index in `style.pending`
 /// of the last declaration that sets it (CSSOM §6.6: a longhand's value
 /// is its last declaration's). `None` when one of them has none.
@@ -344,7 +349,7 @@ fn last_declarations(name: &str, style: &TuiStyle) -> Option<Vec<usize>> {
             style
                 .pending
                 .iter()
-                .rposition(|d| d.directional && inline_longhands(&d.name).contains(l))
+                .rposition(|d| d.directional && sets_longhand(d, l))
         })
         .collect()
 }
@@ -366,7 +371,7 @@ pub(super) fn serialize_inline_axis(name: &str, style: &TuiStyle) -> Option<Opti
         style
             .pending
             .iter()
-            .any(|d| d.directional && inline_longhands(&d.name).contains(l))
+            .any(|d| d.directional && sets_longhand(d, l))
     };
     if !inline_longhands(name).iter().any(declared) {
         return None;
@@ -445,6 +450,18 @@ pub(super) fn remove_inline_axis(name: &str, style: &mut TuiStyle) -> bool {
             continue;
         }
         removed = true;
+        // A value waiting for substitution cannot be split before the
+        // cascade: the declaration stays, without the removed longhands.
+        if d.has_substitution {
+            let mut d = d;
+            let dropped: Vec<String> = gone.iter().map(|l| l.to_string()).collect();
+            match &mut d.restriction {
+                crate::var::Restriction::Without(names) => names.extend(dropped),
+                other => *other = crate::var::Restriction::Without(dropped),
+            }
+            kept.push(d);
+            continue;
+        }
         let mut alone = TuiStyle::new();
         alone.pending.push(d.clone());
         for l in longhands.iter().filter(|l| !gone.contains(l)) {

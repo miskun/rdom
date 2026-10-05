@@ -2842,3 +2842,38 @@ row comes from.
   checks (each alone, restored and touched): no ancestor walk → the `display: none` cases; no
   visibility check → all three focus tests; no fixup → the blur test; copy on the computed value →
   `"ac"`. No snapshot changed.
+- 2026-10-08 — C6G-CSSOM-EDGES (AN14). Verified first against CSSOM §6.6 `removeProperty` ("if
+  property is a shorthand, for each longhand property longhand that property maps to … remove
+  longhand"; `margin`'s longhands are the four physical sides, CSS Box 4 §3.2, and
+  `margin-inline-start` is a property of its own in the same logical group, CSS Logical 1 §4 —
+  Chromium and Gecko leave it). Three edges. (1) `margin-inline-start: 1; margin-left: 2` keeps
+  `margin-left` as a kept (`pending`) declaration after the flow-relative one, for order;
+  `remove("margin")` dropped only kept declarations *named* `margin`, so the kept `margin-left`
+  replayed at the cascade — left 2 after the removal, the browsers' 1. And a kept shorthand
+  (`margin-inline-start: 1; margin: 3`) replayed whole after `removeProperty("margin-left")`.
+  `table::remove_kept_longhands` now drops a kept declaration that sets only the removed
+  property's fields and keeps one that sets others too, restricted. (2) `remove_inline_axis`
+  split a kept shorthand into declarations of its remaining longhands by serializing them; a
+  `var()` value (pending substitution, CSS Variables 1 §3) serializes to nothing per longhand, so
+  removing `margin-inline-start` from `margin-inline: var(--m)` dropped `margin-inline-end` too. It
+  now keeps such a declaration whole, restricted. Decision for both: `PendingDeclaration::
+  restriction` (`var::Restriction`: `All`, `Without(longhands)` — mapped by the element's
+  direction at replay — or `Within(mask)`), which the replay honours by writing the declaration
+  apart and copying the fields it still sets (`property_dispatch::copy_fields`, over a
+  `Field::EVERY` the table macro now emits), its `!important` bits restricted alike; CSSOM reads a
+  restricted shorthand as not set (`""`), and the inline-axis longhand lookups skip a longhand it
+  dropped. (3) `TuiStyle::first_line_subset` (`::placeholder`'s properties, CSS Pseudo-Elements 4
+  §4.3) dropped `pending`, so `::placeholder { color: var(--c) }` set no colour; it keeps the kept
+  declarations of the subset's properties (a shorthand like `background` restricted `Within` the
+  subset) while one waits for substitution. The `::placeholder` overlay at
+  `style_selector::rules_for` was dead and is removed, as redundant: no `::first-line` property is
+  flow-relative and the subset keeps declarations only with a substitution, for which
+  `directional_overlays` precomputes nothing. Red: `logical_tests::removing_margin_removes_a_kept_physical_longhand`
+  ([0, 0, 0, 2] for [0, 0, 0, 1]); `removing_a_longhand_of_a_kept_shorthand_keeps_its_other_sides`
+  ([3, 3, 3, 3] for [3, 3, 3, 1]); `removing_one_side_of_a_var_shorthand_keeps_the_other` (no
+  right margin for 2); `cascade::tests::a_placeholder_color_from_a_custom_property_applies` (the
+  UA grey for red). Green after. Mutation checks (each alone, restored and touched): the old
+  name-only removal → (1) and its shorthand twin; no restriction recorded → the shorthand case;
+  the `var()` split back → (2); the subset's kept declarations cleared → (3). Keeping a declaration whose every field was
+  removed, restricted to nothing, instead of dropping it is an equivalent mutation (it writes no
+  field) and survives. No snapshot changed.

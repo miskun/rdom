@@ -490,7 +490,7 @@ dropped. The audit's six, with where each stands:
 |---|---|---|---|---|
 | `::before` / `::after` | Supported | Inline, block-first, positioned (paint / hit-test notes documented). A pseudo-element with no compound before it attaches to the implicit `*` (`::before`, `div ::before`, `div > ::after`; Selectors 4 §5.2, C5G-BARE-PSEUDO). An element whose only content is its `::before` / `::after` shows it, a line tall (C5G-PSEUDO-ONLY). | Yes | `PE` |
 | `::selection` | Supported | Highlight style. | — | `PE` |
-| `::placeholder` | Supported | Layered on the host's `::before` box (documented). | Yes | `PE` |
+| `::placeholder` | Supported | Layered on the host's `::before` box (documented); the `::first-line` properties, a `var()` value included (C6G-CSSOM-EDGES). | Yes | `PE` |
 | `::backdrop` | Supported | Modal dialogs (no top layer, documented). | Yes | `PE` |
 | `::marker` | Missing | Marker box styling. | Yes | `PE`, `CASC` |
 | `::first-line` / `::first-letter` | Missing | First line / letter styling. | Yes | `PE`, `IFC` |

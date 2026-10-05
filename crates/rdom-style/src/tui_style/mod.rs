@@ -280,7 +280,11 @@ impl TuiStyle {
     /// §2.1.1, §4.3) — among those rdom has: `color`, `background-color`,
     /// the font properties (`font-weight` / `font-style`),
     /// `text-decoration`, `opacity`, and custom properties. Everything
-    /// else is dropped with its `!important` bit.
+    /// else is dropped with its `!important` bit. A declaration kept for
+    /// the cascade (a `var()` value, CSS Variables 1 §3) stays when it
+    /// sets one of them, restricted to them; none is flow-relative, so
+    /// the subset keeps a declaration only while one waits for
+    /// substitution.
     pub fn first_line_subset(&self) -> Self {
         let keep = ImportantMask::FG
             | ImportantMask::BG
@@ -288,7 +292,26 @@ impl TuiStyle {
             | ImportantMask::ITALIC
             | ImportantMask::TEXT_DECORATION
             | ImportantMask::OPACITY;
+        let mut pending: Vec<crate::var::PendingDeclaration> = self
+            .pending
+            .iter()
+            .filter(|d| {
+                crate::property_dispatch::property_mask(&d.name).is_some_and(|m| m.intersects(keep))
+            })
+            .cloned()
+            .map(|mut d| {
+                let own = crate::property_dispatch::property_mask(&d.name).unwrap_or_default();
+                if !keep.contains(own) {
+                    d.restriction = crate::var::Restriction::Within(keep);
+                }
+                d
+            })
+            .collect();
+        if !pending.iter().any(|d| d.has_substitution) {
+            pending.clear();
+        }
         Self {
+            pending,
             fg: self.fg.clone(),
             bg: self.bg.clone(),
             bold: self.bold,

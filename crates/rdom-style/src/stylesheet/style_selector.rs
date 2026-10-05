@@ -160,11 +160,12 @@ impl Stylesheet {
                 let source_idx = self.next_source_idx;
                 self.next_source_idx += 1;
                 // CSS Pseudo-Elements 4 §4.3: only the `::first-line`
-                // properties apply to `::placeholder`.
+                // properties apply to `::placeholder`. None of them is
+                // flow-relative, and the subset keeps declarations only
+                // while one waits for substitution, so it has no
+                // direction-mapped forms to precompute.
                 let (style, directional) = if item.pseudo == PseudoElementTarget::Placeholder {
-                    let subset = style.first_line_subset();
-                    let directional = subset.directional_overlays().map(std::sync::Arc::new);
-                    (subset, directional)
+                    (style.first_line_subset(), None)
                 } else {
                     (style.clone(), directional.clone())
                 };

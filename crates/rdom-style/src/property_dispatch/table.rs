@@ -66,6 +66,20 @@ macro_rules! define_fields {
                 crate::ImportantMask::bit(self as usize)
             }
 
+            /// Every field.
+            const EVERY: &'static [Field] = &[$(Field::$variant,)+];
+
+            /// Copy the field from `from` to `to` when `from` sets it.
+            fn copy(self, from: &TuiStyle, to: &mut TuiStyle) {
+                match self {
+                    $(Field::$variant => {
+                        if let Some(v) = &from.$($field).+ {
+                            to.$($field).+ = Some(v.clone());
+                        }
+                    })+
+                }
+            }
+
             /// Clear the field; `true` if it was set.
             fn take(self, style: &mut TuiStyle) -> bool {
                 match self {
@@ -392,6 +406,15 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
     )
 }
 
+/// Copy every field of `mask` that `from` sets onto `to`.
+pub(crate) fn copy_fields(from: &TuiStyle, to: &mut TuiStyle, mask: crate::ImportantMask) {
+    for f in Field::EVERY {
+        if mask.contains(f.mask()) {
+            f.copy(from, to);
+        }
+    }
+}
+
 /// Clear the named property from `style` — reset its field(s) to
 /// `None` and drop its `!important` bit. Returns `true` iff the
 /// property was previously set (any of its fields was `Some`).
@@ -414,17 +437,49 @@ pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
         drop_unneeded_pending(style);
         return removed;
     }
-    let pending = style.pending.len();
-    style.pending.retain(|d| d.name != name);
+    let removed_kept = remove_kept_longhands(name, style);
     drop_unneeded_pending(style);
     // `|` not `||`: every field must be cleared, not just the first.
     let was_set = fields
         .iter()
-        .fold(pending != style.pending.len(), |acc, f| f.take(style) | acc);
+        .fold(removed_kept, |acc, f| f.take(style) | acc);
     style.important = style
         .important
         .without(property_mask(name).unwrap_or_default());
     was_set
+}
+
+/// CSSOM §6.6 `removeProperty` of the physical property `name` among
+/// the kept declarations: one that sets only `name`'s longhands (`name`
+/// itself, or a longhand of it) goes; one that sets others too (a
+/// shorthand of `name`) stays, restricted to those others
+/// (`Restriction::Without`), so a substitution it waits for still
+/// reaches them. A flow-relative declaration is a property of its own
+/// (CSS Logical 1 §4: `margin-inline-start` is no longhand of `margin`)
+/// and stays. Returns whether anything was removed.
+fn remove_kept_longhands(name: &str, style: &mut TuiStyle) -> bool {
+    use crate::var::Restriction;
+    let gone = property_mask(name).unwrap_or_default();
+    let mut removed = false;
+    let mut kept = Vec::with_capacity(style.pending.len());
+    for mut d in std::mem::take(&mut style.pending) {
+        let own = property_mask(&d.name).unwrap_or_default();
+        if d.directional || !own.intersects(gone) {
+            kept.push(d);
+            continue;
+        }
+        removed = true;
+        if gone.contains(own) {
+            continue;
+        }
+        match &mut d.restriction {
+            Restriction::Without(names) => names.push(name.to_string()),
+            other => *other = Restriction::Without(vec![name.to_string()]),
+        }
+        kept.push(d);
+    }
+    style.pending = kept;
+    removed
 }
 
 /// Kept declarations are needed while one holds a substitution function

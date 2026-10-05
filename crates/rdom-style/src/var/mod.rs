@@ -42,6 +42,7 @@ use std::collections::HashMap;
 pub use crate::custom_value::CustomValue;
 use crate::parse::token::Token;
 pub use pending::PendingDeclaration;
+pub(crate) use pending::Restriction;
 pub use resolve::{ComputedStep, resolve_custom_properties};
 
 /// The most tokens one `var()` substitution may produce (CSS Variables

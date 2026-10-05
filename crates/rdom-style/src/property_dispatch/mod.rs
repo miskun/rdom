@@ -122,7 +122,7 @@ pub use serialize::serialize;
 pub use logical::is_storage_alias;
 pub(crate) use logical::{is_directional, mapped_mask};
 pub(crate) use set::{set_parsed_in, set_unset_in};
-pub(crate) use table::{IMPORTANT_BITS, important_bit_name};
+pub(crate) use table::{IMPORTANT_BITS, copy_fields, important_bit_name};
 pub use table::{canonical_property_name, inherits, property_mask, property_names, remove};
 pub(crate) use value_serializers::serialize_math;
 

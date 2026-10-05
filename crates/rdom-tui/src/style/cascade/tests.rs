@@ -3010,3 +3010,18 @@ fn ua_select_size_one_renders_as_a_dropdown() {
         "size=3 is the list box"
     );
 }
+
+/// CSS Pseudo-Elements 4 §4.3 with CSS Variables 1 §3: a `::placeholder`
+/// declaration keeps its `var()` until the cascade — `color: var(--c)`
+/// takes the input's `--c` (C6G-CSSOM-EDGES: the `::first-line` subset
+/// dropped the kept declarations, so the placeholder had no color).
+#[test]
+fn a_placeholder_color_from_a_custom_property_applies() {
+    let sheet = rdom_css::from_css_strict(
+        "input { --c: rgb(255, 0, 0) } \
+         input::placeholder { color: var(--c); padding: var(--c) }",
+    )
+    .expect("sheet parses");
+    let b = placeholder_box(&sheet, None).unwrap();
+    assert_eq!(b.fg, Color::Rgb(255, 0, 0));
+}

@@ -279,3 +279,46 @@ fn replayed_declarations_mark_their_own_side() {
             .contains(crate::ImportantMask::BORDER_LEFT_COLOR)
     );
 }
+
+// ── C6G-CSSOM-EDGES: removal against kept declarations ─────────────
+
+/// CSSOM §6.6 `removeProperty("margin")` removes `margin`'s longhands —
+/// the four physical sides (CSS Box 4 §3.2), whatever declares them —
+/// and leaves the flow-relative `margin-inline-start`, a property of its
+/// own: in `ltr` the left margin is its 1, not the removed 2 (as in
+/// Chromium and Gecko).
+#[test]
+fn removing_margin_removes_a_kept_physical_longhand() {
+    let mut s = style(&[("margin-inline-start", "1"), ("margin-left", "2")]);
+    assert!(remove("margin", &mut s));
+    assert_eq!(margin(&resolved(&s, TextDirection::Ltr)), [0, 0, 0, 1]);
+    assert_eq!(serialize("margin-left", &s), None);
+    assert_eq!(serialize("margin-inline-start", &s).as_deref(), Some("1"));
+}
+
+/// CSSOM §6.6: removing a longhand set by a kept shorthand declaration
+/// removes that longhand only — `margin: 3` after `margin-inline-start:
+/// 1` keeps its top, right and bottom, and the left margin is the
+/// inline-start's.
+#[test]
+fn removing_a_longhand_of_a_kept_shorthand_keeps_its_other_sides() {
+    let mut s = style(&[("margin-inline-start", "1"), ("margin", "3")]);
+    assert!(remove("margin-left", &mut s));
+    assert_eq!(margin(&resolved(&s, TextDirection::Ltr)), [3, 3, 3, 1]);
+}
+
+/// CSSOM §6.6: removing one longhand of `margin-inline: var(--m)` keeps
+/// the other — still pending substitution (CSS Variables 1 §3), so it
+/// serializes as `""` and the shorthand no longer reads back, but it
+/// applies at computed-value time.
+#[test]
+fn removing_one_side_of_a_var_shorthand_keeps_the_other() {
+    let mut s = style(&[("margin-inline", "var(--m)")]);
+    assert!(remove("margin-inline-start", &mut s));
+    let vars: HashMap<String, crate::CustomValue> =
+        [("m".to_string(), crate::CustomValue::new("2"))].into();
+    let cx = SubstitutionContext::new().with_direction(TextDirection::Ltr);
+    assert_eq!(margin(&s.substituted(&vars, &cx)), [0, 2, 0, 0]);
+    assert_eq!(serialize("margin-inline", &s).unwrap_or_default(), "");
+    assert_eq!(serialize("margin-inline-start", &s).unwrap_or_default(), "");
+}

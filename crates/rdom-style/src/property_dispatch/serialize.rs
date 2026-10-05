@@ -29,11 +29,9 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
     let name = &*canonical_property_name(name);
     // A `var()` value is kept as written until the cascade (CSS
     // Variables 1 §3).
-    if let Some(d) = style
-        .pending
-        .iter()
-        .find(|d| d.name == name && d.has_substitution)
-    {
+    if let Some(d) = style.pending.iter().find(|d| {
+        d.name == name && d.has_substitution && d.restriction == crate::var::Restriction::All
+    }) {
         return Some(d.value_text());
     }
     // An inline-axis flow-relative property is mapped only by the

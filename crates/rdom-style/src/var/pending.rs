@@ -41,6 +41,56 @@ pub struct PendingDeclaration {
     /// what CSSOM reads back for a `var()` / `attr()` value (CSS
     /// Variables 1 §3), rather than the tokens' serialization.
     pub(crate) text: Option<Box<str>>,
+    /// The longhands it no longer sets (CSSOM §6.6: a longhand removed
+    /// from a shorthand declaration, or one outside the properties a
+    /// rule applies to) — [`Restriction`].
+    pub(crate) restriction: Restriction,
+}
+
+/// Which of its longhands a kept declaration still sets. A shorthand
+/// whose value waits for substitution cannot be split into longhand
+/// declarations before the cascade, so it is kept whole and replayed
+/// into the fields its restriction leaves.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) enum Restriction {
+    /// Every longhand.
+    #[default]
+    All,
+    /// All but these longhands (property names; a flow-relative one is
+    /// mapped by the element's direction at replay).
+    Without(Vec<String>),
+    /// Only the fields of this mask (`::placeholder`'s `::first-line`
+    /// properties, none of them flow-relative).
+    Within(crate::ImportantMask),
+}
+
+impl Restriction {
+    /// The fields of `mask` — those a declaration of `name` writes for
+    /// an element of `direction` — the restriction leaves.
+    pub(crate) fn keep(
+        &self,
+        mask: crate::ImportantMask,
+        direction: crate::layout::TextDirection,
+    ) -> crate::ImportantMask {
+        match self {
+            Restriction::All => mask,
+            Restriction::Without(names) => names.iter().fold(mask, |m, n| {
+                m.without(crate::property_dispatch::mapped_mask(n, direction).unwrap_or_default())
+            }),
+            Restriction::Within(within) => mask.without(mask.without(*within)),
+        }
+    }
+
+    /// Whether the restriction drops the longhand `name`.
+    pub(crate) fn drops(&self, name: &str) -> bool {
+        match self {
+            Restriction::All => false,
+            Restriction::Without(names) => names.iter().any(|n| n == name),
+            Restriction::Within(within) => {
+                crate::property_dispatch::property_mask(name).is_none_or(|m| !within.contains(m))
+            }
+        }
+    }
 }
 
 impl PendingDeclaration {
@@ -66,6 +116,7 @@ impl PendingDeclaration {
             directional: crate::property_dispatch::is_directional(name),
             important: false,
             text: None,
+            restriction: Restriction::All,
         }
     }
 }
@@ -185,29 +236,42 @@ impl TuiStyle {
         for decl in self.pending.iter().filter(|d| keep(d)) {
             let mask =
                 crate::property_dispatch::mapped_mask(&decl.name, cx.direction).unwrap_or_default();
+            let written = decl.restriction.keep(mask, cx.direction);
             out.important = if decl.important {
-                out.important | mask
+                out.important | written
             } else {
-                out.important.without(mask)
+                out.important.without(written)
             };
-            let set = |tokens: &[Token], out: &mut TuiStyle| {
+            let parse = |tokens: &[Token], out: &mut TuiStyle| {
                 crate::property_dispatch::set_parsed_in(&decl.name, tokens, out, cx.direction)
                     .is_ok()
             };
-            let parsed = if decl.has_substitution {
-                substitute_at(
-                    &decl.value,
-                    0,
-                    Some(&decl.heads),
-                    &mut |n| lookup_in(vars, n),
-                    cx.attrs,
-                )
-                .is_ok_and(|t| set(&t, out))
-            } else {
-                set(&decl.value, out)
+            let write = |out: &mut TuiStyle| {
+                let parsed = if decl.has_substitution {
+                    substitute_at(
+                        &decl.value,
+                        0,
+                        Some(&decl.heads),
+                        &mut |n| lookup_in(vars, n),
+                        cx.attrs,
+                    )
+                    .is_ok_and(|t| parse(&t, out))
+                } else {
+                    parse(&decl.value, out)
+                };
+                if !parsed {
+                    crate::property_dispatch::set_unset_in(&decl.name, out, cx.direction);
+                }
             };
-            if !parsed {
-                crate::property_dispatch::set_unset_in(&decl.name, out, cx.direction);
+            if decl.restriction == Restriction::All {
+                write(out);
+            } else {
+                // Only the longhands it still sets: written apart, then
+                // copied over.
+                let mut scratch = TuiStyle::default();
+                write(&mut scratch);
+                let keep = decl.restriction.keep(mask, cx.direction);
+                crate::property_dispatch::copy_fields(&scratch, out, keep);
             }
         }
     }
