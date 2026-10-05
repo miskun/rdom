@@ -3724,3 +3724,30 @@ row comes from.
   stubbed `parse_grid_line` / `parse_grid_auto_flow` failed the three parse tests; green after.
   Changed expectations: the canonical-values table, the important-setter coverage and the C1
   `initial` perturbation gain the eight names. Inert until part 2.
+- 2026-10-08 — C7-GRID-PLACE, part 2 of 3: the placement algorithm (CSS Grid 2 §8). Lines
+  (`grid/placement.rs::resolve`, numbered from 0 at the explicit grid's first line): a positive
+  integer counts from the explicit grid's start, a negative one from its end (§8.3); `<n> <ident>`
+  the nth line of that name from either end, every implicit line on that side counting when the
+  explicit grid has too few; a lone `<custom-ident>` first the line named `<ident>-start` (`-end` for
+  an end edge) — the hook named areas fill (C7-GRID-AREAS: `grid-template-areas` adds those names to
+  `template::Explicit::names`, which `Lines` reads) — else `1 <ident>`; `span <n>` / `span <ident>`
+  from the other edge's line, searching outward. §8.3.1: lines in the wrong order swap, an end equal to
+  the start drops, the end's span drops beside the start's, a lone span to a name is a span of one;
+  lines clamped to ±10 000 (§8's note). Auto-placement (`place`, generic over the flow's major and
+  minor axes): step 1 the items definite on both axes; step 2 the items locked to a major track (sparse:
+  past the step's earlier items in that track; dense: from the first line); step 3 the minor extent
+  (the explicit grid, every definite minor line, the widest auto span); step 4 the cursor — a definite
+  minor position moves it (a new major track when behind it), an automatic one takes the next fitting
+  position from it, `dense` restarting from the grid's start each time. The implicit grid spans every
+  line used, before the explicit grid too (`Placement::{columns,rows}_before`, which C7-GRID-AUTO's
+  backwards pattern sizes). Occupancy is a per-major-line list of minor ranges. Red:
+  `css_phase7/place.rs` — all 13 failed against the auto-placing placement of C7-GRID-CORE (after
+  two coincidental passes were made discriminating: the row-locked item first in document order, and
+  the area-edge test's `main-start` moved off line 1); green after, with two more added for step 2's
+  ordering and the cursor's new row (each red under its mutation below). Mutation checks (each alone,
+  restored and touched): `dense` ignored → the flow test; step 2 off → the row-locked test; the
+  `-start` / `-end` lookup off → the area-edge test; no swap → the conflicts test; no implicit named
+  lines → its test; column flow as row → the flow test; negative lines off → two tests; the cursor's
+  new-row bump off → its test; named spans as plain spans → the named-lines test. No other test
+  expectation and no snapshot changed. DIVERGENCES §3: the placement line goes; absolutely
+  positioned grid children (part 3) are listed until then.

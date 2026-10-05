@@ -367,6 +367,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 - **Phase 6 node setters** on `TuiNodeMutExt`: `set_visibility`, `set_order`, `set_flex_wrap`, `set_flex_direction`, the six alignment setters (grammar-checked as the builders), `set_margin`; `set_padding` takes `impl Into<Padding>`. The prelude gains `Margin`, `Visibility`, `GapValue`, `FlexDirection`. (C6G-SIDE-SETTERS)
 - **Grid layout** (CSS Grid 2): a grid container's items — elements, pseudo-elements, text runs — auto-placed in its `grid-template-*` tracks and implicit rows, sized by the track sizing algorithm (§11) in whole cells; `inline-grid` atoms, `rtl` columns, `margin-trim`, scrolling. (C7-GRID-CORE)
 - **Implicit grid tracks take `grid-auto-columns` / `grid-auto-rows`** (CSS Grid 2 §7.6), the sizes repeated as a pattern from the explicit grid outward; `TuiNodeMutExt::set_grid_auto_columns` / `set_grid_auto_rows`. (C7-GRID-AUTO)
+- **Grid items are placed by their lines** (CSS Grid 2 §8): `grid-row` / `grid-column` / `grid-area` with integers, names and spans, conflicts per §8.3.1, implicit tracks before and after the explicit grid, and §8.5 auto-placement under `grid-auto-flow` (`row` / `column`, `dense`). (C7-GRID-PLACE)
 - `TuiNodeMutExt::set_grid_template_columns` / `set_grid_template_rows`, grammar-checked as the builders; the grid value types at the crate root and in the prelude. (C7-GRID-CORE)
 
 ### Changed — `rdom-tui`

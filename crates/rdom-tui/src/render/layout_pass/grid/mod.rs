@@ -6,8 +6,9 @@
 //! pseudo-elements and anonymous items wrapping its runs of text — the
 //! item model flex shares, `layout_pass::items`) out in a grid of tracks:
 //! the explicit grid of `grid-template-columns` / `-rows` (§7.2,
-//! [`template`]), the items placed in it (§8.5, [`placement`]) and the
-//! implicit tracks that adds (§7.5), each axis's tracks sized by the
+//! [`template`]), the items placed in it by their lines and the
+//! auto-placement algorithm (§8, [`placement`]) and the implicit tracks
+//! that adds (§7.5), each axis's tracks sized by the
 //! track sizing algorithm (§11.3, [`sizing`], over the items'
 //! contributions, [`contribution`]) — the columns first, then the rows at
 //! the columns' widths (§11.1) — and each item laid out in its grid area
@@ -47,7 +48,7 @@ use crate::render::layout_pass::items;
 use crate::style::ComputedStyle;
 
 pub(super) use intrinsic::content_size;
-use placement::Placed;
+use placement::{Lines, Placed};
 use sizing::{Frame, Space};
 use template::{Bounds, Explicit};
 use track::{Span, Track, TrackGrid};
@@ -110,16 +111,37 @@ fn size_grid(
     rows: Option<AxisContext>,
 ) -> Grid {
     let mut children = items::items_of(dom, id);
-    // §8.5: auto-placement takes the items in order-modified document
-    // order (CSS Display 3 §3).
+    // §8.5: placement takes the items in order-modified document order
+    // (CSS Display 3 §3).
     items::sort_by_order(dom, &mut children);
     let row_bounds = rows.map_or_else(Bounds::default, |r| r.bounds);
     let explicit_columns = Explicit::of(&computed.grid_template_columns, columns.bounds);
     let explicit_rows = Explicit::of(&computed.grid_template_rows, row_bounds);
+    // §8.3: each item's lines on both axes, against the explicit grid's.
+    let column_lines = Lines {
+        tracks: explicit_columns.sizes.len(),
+        names: &explicit_columns.names,
+    };
+    let row_lines = Lines {
+        tracks: explicit_rows.sizes.len(),
+        names: &explicit_rows.names,
+    };
+    let areas = children
+        .iter()
+        .map(|c| {
+            let s = c.computed(dom);
+            (
+                placement::resolve(&s.grid_row_start, &s.grid_row_end, row_lines),
+                placement::resolve(&s.grid_column_start, &s.grid_column_end, column_lines),
+            )
+        })
+        .collect();
     let mut placement = placement::place(
         children,
-        explicit_columns.sizes.len(),
+        areas,
         explicit_rows.sizes.len(),
+        explicit_columns.sizes.len(),
+        computed.grid_auto_flow,
     );
     for p in &mut placement.items {
         p.trim = trim(computed, p, placement.columns, placement.rows);
