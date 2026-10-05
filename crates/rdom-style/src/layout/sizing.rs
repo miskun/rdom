@@ -333,10 +333,8 @@ pub fn valid_flex_factor(v: f32) -> f32 {
 }
 
 /// Value of `flex-basis` (CSS Flexbox §7.3.3: `content | <'width'>`),
-/// set by the `flex` shorthand (§7.2). Stored and cascaded; the layout
-/// pass does not read it yet — a growing item's basis is 0 and a
-/// non-growing one's is its `width` / `height` (C6-FLEX-LONGHANDS,
-/// DIVERGENCES).
+/// set by the `flex-basis` longhand and the `flex` shorthand (§7.2):
+/// the flex base size of the item (§9.2 step 3).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum FlexBasis {
     /// `auto`: the item's main size property. The initial value.
@@ -349,6 +347,9 @@ pub enum FlexBasis {
     /// `<percentage>` or a math function holding one, against the flex
     /// container's inner main size.
     Calc(Box<crate::calc::CalcExpr>),
+    /// An intrinsic size keyword (CSS Sizing 3 §3.1): `min-content`,
+    /// `max-content`, `fit-content`, `fit-content(<l>)`.
+    Intrinsic(IntrinsicSize),
 }
 
 /// One axis of `contain-intrinsic-size` (CSS Sizing 4 §6.1): `auto?

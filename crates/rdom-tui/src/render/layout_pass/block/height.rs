@@ -146,17 +146,35 @@ pub(crate) fn nearest_block_ancestor_height_is_definite(dom: &Dom<TuiExt>, id: N
         }
         match parent_computed.height {
             Size::Fixed(_) => return true,
-            // Plain `auto` height tracks content → indefinite
-            // (CSS 2.1 §10.5). True for a block-flow box AND for a
-            // column flex item with no grow (its main size is its
-            // content). The narrower `auto`-cross-stretch case (a row
-            // flex item) is conservatively left indefinite too; see
-            // DIVERGENCES.md "Percentage height". An intrinsic keyword
-            // is the content height too (CSS Sizing 3 §3.1).
-            Size::Auto | Size::Intrinsic(_) => return false,
+            // Plain `auto` height tracks content → indefinite (CSS 2.1
+            // §10.5) for a block-flow box. A flex item's is not: CSS
+            // Flexbox §9.8 makes its post-flexing main size (a column
+            // item) and its stretched cross size (a row item — rdom
+            // stretches every item without an `auto` cross margin)
+            // definite when its flex container's size is, so chain up
+            // to the container. An intrinsic keyword is the content
+            // height too (CSS Sizing 3 §3.1).
+            //
+            // The document root's children are items of rdom's viewport
+            // column (DIVERGENCES): only one that grows has a size the
+            // viewport fixes — definite, as a `<n>fr` one is below.
+            Size::Auto | Size::Intrinsic(_) => {
+                match crate::render::box_tree::box_parent(dom, parent_id) {
+                    Some(gp) if crate::render::box_tree::is_flex_container(dom, gp) => {
+                        cur = parent_id;
+                    }
+                    Some(gp)
+                        if dom.node(gp).node_type() == rdom_core::NodeType::Fragment
+                            && parent_computed.flex_grow > 0.0 =>
+                    {
+                        return true;
+                    }
+                    _ => return false,
+                }
+            }
             Size::Flex(_) => {
-                // `flex: …` shorthand on the height ⇒ a growing /
-                // flexing item. CSS Flexbox §9.8: a flex item in a
+                // `<n>fr` on the height ⇒ a growing / flexing item.
+                // CSS Flexbox §9.8: a flex item in a
                 // flex container with a definite main size has a
                 // DEFINITE post-flexing main size, so percentages of
                 // its content resolve against it — even though its own

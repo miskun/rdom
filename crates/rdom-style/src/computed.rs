@@ -81,8 +81,11 @@ pub struct ComputedStyle {
     /// `order` (CSS Flexbox §5.4): the item's place in order-modified
     /// document order, which flex layout and paint use. Initial `0`.
     pub order: i32,
-    /// `flex-basis` (CSS Flexbox §7.3.3), from the `flex` shorthand.
-    /// Cascaded but not laid out yet (C6-FLEX-LONGHANDS).
+    /// `flex-grow` (CSS Flexbox §7.3.1): the item's share of positive
+    /// free space. Initial `0`.
+    pub flex_grow: f32,
+    /// `flex-basis` (CSS Flexbox §7.3.3): the flex base size (§9.2
+    /// step 3). Initial `auto`.
     pub flex_basis: crate::layout::FlexBasis,
     /// The used border: [`border_style`](Self::border_style) with every
     /// zero-width side `none` (CSS Backgrounds 3 §4.3) — what layout
@@ -268,6 +271,7 @@ impl ComputedStyle {
             gap: crate::layout::GapValue::Cells(0),
             flex_shrink: 1.0,
             order: 0,
+            flex_grow: 0.0,
             flex_basis: crate::layout::FlexBasis::Auto,
             border: Border::none(),
             border_style: Border::none(),

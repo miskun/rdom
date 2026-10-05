@@ -76,7 +76,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 6 | 1 | 2 | 2 | 11 |
-| 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 4 | 2 | 11 | 0 | 17 |
+| 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 7 | 1 | 9 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **120** | **30** | **111** | **46** | **307** |
+| **Total** | **123** | **29** | **109** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 141 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 138 rows Partial / Missing.
 
-Headline: rdom parses **153 property names** (`property_names()`, after C6-ORDER). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, and grid.
+Headline: rdom parses **155 property names** (`property_names()`, after C6-FLEX-LONGHANDS). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, `line-height`, `text-align`, and grid.
 
 ---
 
@@ -111,7 +111,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 1 | `justify-content` | Distribute free main-axis cells: `flex-start` / `flex-end` / `center` / `space-between` / `space-around` / `space-evenly` (`start` / `end` aliases); integer remainder goes to the first gaps. | M | No |
 | 2 | `align-items` / `align-self` | Cross-axis placement: `stretch` (today's only behavior) / `flex-start` / `flex-end` / `center` / `baseline` (= first text row). `Align` enum already exists in `KW` but nothing sets or reads it. | M | No |
 | 3 | `flex-wrap` / `flex-flow` / `align-content` | Break items onto multiple flex lines when the main size overflows; `align-content` distributes the lines. Needed for tag clouds, toolbars that wrap, card grids without grid. | L | No |
-| 4 | `flex-grow` / `flex-basis` longhands | `flex-grow: <n>` alone (today only the `flex` shorthand grows); `flex-basis: auto / <cells> / <pct> / content` as the real hypothetical main size instead of the collapsed `0%`. | M | Wrong |
+| 4 | `flex-grow` / `flex-basis` longhands | Shipped (C6-FLEX-LONGHANDS; §3.8): both longhands, and the `flex-basis` the flex base size of Flexbox §9.2; §9.7 resolves the flexible lengths from it. | M | Wrong |
 | 5 | `display: grid` + `grid-template-*`, `grid-auto-*`, `grid-row/column*`, `grid-area`, `grid` | A cell-quantized grid formatting context: track sizing in cells / `fr` / `%` / `auto` / `minmax()` / `repeat()`, line- and area-based placement. The most-used modern layout after flex. | L | Yes |
 | 6 | `line-height` | Rows per line box in whole rows: `normal` / `1` = one row; `2` = text on the first row of each two-row line box (blank row below, or half-leading split rounded); `<cells>`. | M | No |
 | 7 | `text-align` (+ `text-align-last`, `text-justify`) | Per-line horizontal placement of inline content in the line box: `start` / `end` / `left` / `right` / `center` / `justify` (spread whole spaces between words). | M | Yes |
@@ -257,7 +257,7 @@ dropped. The audit's six, with where each stands:
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
 | `<number>` cells (unitless) | Supported | rdom's length unit; see §4. An integer or a fraction (`1.5`, the same length as `calc(1.5)`), in every cell-length property (C4G-NUMBER-RANGE); an integer literal keeps its value in the token (a custom property passes it on whole, C5G-INT-CLAMP-SITE) and a length clamps it to `i32::MAX` where it consumes it (CSS Values 4 §5.1), then to the property's range or rejected by it. | Yes | `V/length.rs`, `V/spacing.rs` |
-| `<percentage>` | Supported | Every length-bearing property (`width` / `height`, `min-*` / `max-*`, `padding`, `margin`, the insets, `gap`), bare and in math functions, each against its spec's basis; `opacity`, where a percentage is a number in math too (`calc(50%)`, `min(1, 50%)`, C2G-CALC-SEMANTICS). (`flex-basis` takes it when the property lands, C6-FLEX-LONGHANDS.) C2-PERCENT. | — | `V/numeric.rs::length_percentage` |
+| `<percentage>` | Supported | Every length-bearing property (`width` / `height`, `min-*` / `max-*`, `padding`, `margin`, the insets, `gap`), bare and in math functions, each against its spec's basis; `opacity`, where a percentage is a number in math too (`calc(50%)`, `min(1, 50%)`, C2G-CALC-SEMANTICS). `flex-basis` against the flex container's inner main size (C6-FLEX-LONGHANDS). C2-PERCENT. | — | `V/numeric.rs::length_percentage` |
 | `<number>` (fractional) | Supported | `opacity`, `cubic-bezier()`, times, flex factors (`flex: 0.5`, `flex-shrink: 1.5`, `1.5fr`; factors summing below one share that fraction of the free space, Flexbox §9.7) (C2-NUMBER); math functions of type `<number>` in every `<number>` and `<integer>` property (`z-index: calc(1 + 1)`, rounded) and registered `<number>` / `<integer>` / `<percentage>`; no basis folded at parse time — a percentage where none is allowed is invalid, a viewport unit in `<number>` math is rejected (documented) (C2G-CALC-SEMANTICS). | — | `V/numeric.rs::number`, `V/length.rs` |
 | `calc()` | Supported | `+ - * /`, parentheses, nested `calc()`, percent-bearing forms resolved at layout, IEEE division (`1/0` is +∞, `0/0` NaN; the top level clamps to a symmetric range, NaN is 0), nesting ≤ 32 and tree depth ≤ 256 (documented); «percent» is its own type (`CalcKind::Percent`) (C2G-CALC-SEMANTICS, C2G-CALC-DEPTH). Whitespace relaxation documented. | Yes | `CALC` |
 | `min()` / `max()` / `clamp()` | Supported | Inside and outside `calc()`, nested, mixed with percentages (resolved at layout), `clamp()` with `none` bounds (C2-MINMAX). | — | `CALC` |
@@ -359,10 +359,10 @@ dropped. The audit's six, with where each stands:
 | `flex-direction` | Supported | `row` / `row-reverse` / `column` / `column-reverse` (CSS Flexbox §5.1; the axis plus `flex_reverse`): a reversed main axis lays out from its main-start edge — a `row-reverse` from the right under `ltr`, from the left under `rtl`; a `column-reverse` from the bottom — with each item's main-start margin on that side and `margin-trim` mapped to it (C6-DIRECTION-REVERSE). A reversed scroll container's scrolling area origin is its main-start edge (CSSOM View §4): `scrollLeft` / `scrollTop` run `-overflow ..= 0`, starting at 0 (`TuiExt::scroll_y` is signed like `scroll_x`). The initial value is `column` (DIVERGENCES §2). | Yes | `DISP/set.rs`, `KW::Direction`, `FLEX/placement.rs` |
 | `flex-wrap` | Missing | Single-line only. | No | `FLEX` |
 | `flex-flow` | Missing | Shorthand of the two above. | No | `DISP` |
-| `flex` | Partial | Full Flexbox §7.2 grammar (`none`, `auto`, 1–3 values in either order, the unitless-zero rule); grow → `width` + `height`, shrink → `flex-shrink`, basis stored as `flex_basis` but not laid out (a growing item's basis is 0%, documented; C2G-FLEX-SHORTHAND, layout with C6-FLEX-LONGHANDS). | Yes | `V/length.rs::parse_flex_shorthand` |
-| `flex-grow` | Missing | Not in the property table (DIVERGENCES suggests `flex-grow: 1` as a workaround). | Wrong | `DISP`, `FLEX/main_axis.rs` |
+| `flex` | Supported | Full Flexbox §7.2 grammar (`none`, `auto`, 1–3 values in either order, the unitless-zero rule), setting its three longhands — `flex-grow`, `flex-shrink`, `flex-basis` — and nothing else (C2G-FLEX-SHORTHAND, C6-FLEX-LONGHANDS). | — | `V/length.rs::parse_flex_shorthand` |
+| `flex-grow` | Supported | `<number [0,∞]>`, initial 0 (Flexbox §7.3.1): the share of positive free space (§9.7); rdom's `width: <n>fr` is a basis of 0 growing by `n` when `flex-grow` is 0 (C6-FLEX-LONGHANDS). | — | `DISP`, `FLEX/distribute.rs` |
 | `flex-shrink` | Supported | `<number [0,∞]>`, fractions included (C2-NUMBER). | — | `DISP/set.rs`, `FLEX/main_axis.rs` |
-| `flex-basis` | Missing | Basis ignored (documented as part of `flex`); the longhand does not exist. | No | `DISP`, `FLEX/main_axis.rs` |
+| `flex-basis` | Supported | `auto` (the main size property; its content size when that is `auto`), `content` (max-content), cells, `%` (of the container's inner main size; `content` when indefinite), `calc()`, the intrinsic keywords (C5-INTRINSIC), measuring the box `box-sizing` names: the flex base size (Flexbox §9.2 step 3) that §9.7 grows by `flex-grow` and shrinks by `flex-shrink × base`, min / max violations frozen by their total, the §4.5 automatic minimum included; positive free space left after that goes to `auto` margins (C6-FLEX-LONGHANDS). | — | `DISP`, `FLEX/main_axis.rs`, `FLEX/distribute.rs` |
 | `justify-content` | Missing | Main-axis distribution. | No | `FLEX/placement.rs` |
 | `align-items` | Missing | Cross-axis placement (always `stretch` unless a cross margin is `auto`). `KW::Align` exists, unused. | No | `FLEX/cross.rs` |
 | `align-self` | Missing | Per-item override. | No | `FLEX/cross.rs` |
@@ -667,8 +667,8 @@ dropped. The audit's six, with where each stands:
 Every *Partial* or *Missing* row above whose Doc'd column is `No` or `Wrong`. These need either an
 implementation or a `DIVERGENCES.md` entry before the acid page's coverage test can be honest.
 
-133 rows as audited. Through C6-DIRECTION-REVERSE, 42 have shipped and two have partly shipped
-(each annotated *Shipped* where it stands); 89 remain open (Phase 0 listed each of them in
+133 rows as audited. Through C6-FLEX-LONGHANDS, 44 have shipped and two have partly shipped
+(each annotated *Shipped* where it stands); 87 remain open (Phase 0 listed each of them in
 `DIVERGENCES.md` §3).
 
 **3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6)**
@@ -743,8 +743,8 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `flex-direction` — Partial: `row` / `column`; `row-reverse` / `column-reverse` rejected. *Shipped: C6-DIRECTION-REVERSE.*
 - `flex-wrap` — Missing: Single-line only.
 - `flex-flow` — Missing: Shorthand of the two above.
-- `flex-grow` — Missing *(DIVERGENCES says otherwise)*: Not in the property table (DIVERGENCES suggests `flex-grow: 1` as a workaround).
-- `flex-basis` — Missing: Basis ignored (documented as part of `flex`); the longhand does not exist.
+- `flex-grow` — *Shipped: C6-FLEX-LONGHANDS.* Missing *(DIVERGENCES says otherwise)*: Not in the property table (DIVERGENCES suggests `flex-grow: 1` as a workaround).
+- `flex-basis` — Missing: Basis ignored (documented as part of `flex`); the longhand does not exist. *Shipped: C6-FLEX-LONGHANDS.*
 - `justify-content` — Missing: Main-axis distribution.
 - `align-items` — Missing: Cross-axis placement (always `stretch` unless a cross margin is `auto`). `KW::Align` exists, unused.
 - `align-self` — Missing: Per-item override.
@@ -890,7 +890,8 @@ undocumented gaps of §5 and extensions of §4 are now listed there too (§3 and
    `TextDecoration::LineThrough => Modifier::CROSSED_OUT`).
 2. **A `flex-grow` longhand is implied to exist** ("write `width: auto; flex-grow: 1` instead";
    "`flex-grow` / `flex-shrink` / `flex: <n>` accept integers only"). `flex-grow` is not in
-   `PROPERTY_NAMES`; the declaration is `UnknownProperty`.
+   `PROPERTY_NAMES`; the declaration is `UnknownProperty`. *Resolved: C6-FLEX-LONGHANDS — the
+   longhand exists.*
 3. **`top` / `right` / `bottom` / `left` are said to take a bare percentage** (§Values, "Width /
    height / top / right / bottom / left / gap take both forms"). `parse_length` has no
    `Token::Percentage` arm; only `calc(…%)` works.

@@ -56,6 +56,10 @@ impl ComputedStyle {
                 MaxSize::Intrinsic(k) => Some(k),
                 _ => None,
             },
+            match &mut self.flex_basis {
+                FlexBasis::Intrinsic(k) => Some(k),
+                _ => None,
+            },
         ];
         for size in [
             &mut self.contain_intrinsic_width,

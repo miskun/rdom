@@ -14,7 +14,7 @@ use super::value_serializers::{
     serialize_transition_shorthand, shortest_sides, side_value, specified,
 };
 use crate::layout::{
-    CaretColor, CaretTextColor, Direction, Position, Size, UserSelect, WhiteSpace, ZIndex,
+    CaretColor, CaretTextColor, Direction, Position, UserSelect, WhiteSpace, ZIndex,
 };
 use crate::{Content, TuiStyle};
 
@@ -250,26 +250,28 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             .to_string()
         }),
 
-        // Flex shorthand: `<grow> <shrink> <basis>`, when the fields
-        // hold what `flex` writes — `width` and `height` agree on a
-        // `Size::Flex(grow)` (or `Auto`, grow 0) and the shrink and basis
-        // are declared. Otherwise the longhands carry it.
+        // Flex shorthand: `<grow> <shrink> <basis>` when its three
+        // longhands are declared (CSS Flexbox §7.2).
         "flex" => match (
-            style.width.as_ref().and_then(specified),
-            style.height.as_ref().and_then(specified),
+            style.flex_grow.as_ref().and_then(specified),
             style.flex_shrink.as_ref().and_then(specified),
             style.flex_basis.as_ref().and_then(specified),
         ) {
-            (Some(w), Some(h), Some(shrink), Some(basis)) if w == h => {
-                let grow = match w {
-                    Size::Flex(n) => n.to_string(),
-                    Size::Auto => "0".to_string(),
-                    _ => return None,
-                };
+            (Some(grow), Some(shrink), Some(basis)) => {
                 Some(format!("{grow} {shrink} {}", serialize_flex_basis(basis)))
             }
             _ => None,
         },
+        "flex-grow" => style
+            .flex_grow
+            .as_ref()
+            .and_then(specified)
+            .map(|n| n.to_string()),
+        "flex-basis" => style
+            .flex_basis
+            .as_ref()
+            .and_then(specified)
+            .map(serialize_flex_basis),
         "flex-shrink" => style
             .flex_shrink
             .as_ref()

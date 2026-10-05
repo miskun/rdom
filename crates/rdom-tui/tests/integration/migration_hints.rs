@@ -369,3 +369,22 @@ fn reverse_and_signed_scroll_top_hints() {
     let y: i32 = dom.node(div).ext().unwrap().scroll_y;
     assert_eq!(usize::try_from(y).unwrap_or(0), 0);
 }
+
+/// C6-FLEX-LONGHANDS: `flex` sets the three longhands (not `width`),
+/// `flex_grow`, `FlexBasis::Intrinsic`, the parser.
+#[test]
+fn flex_longhand_hints() {
+    let mut s = TuiStyle::new().flex_grow(1.0);
+    style::property_dispatch::set("flex", "2 1 0", &mut s).unwrap();
+    assert_eq!(s.flex_grow, Some(Value::Specified(2.0)));
+    assert!(s.width.is_none());
+    let ComputedStyle { flex_grow, .. } = ComputedStyle::initial();
+    assert_eq!(flex_grow, 0.0);
+    let _ = FlexBasis::Intrinsic(IntrinsicSize::MinContent);
+    let tokens = style::parse::tokenize("content").unwrap();
+    assert_eq!(
+        style::parse::values::parse_flex_basis(&tokens),
+        Some(FlexBasis::Content)
+    );
+    assert!(ImportantMask::FLEX_GROW.intersects(ImportantMask::all()));
+}

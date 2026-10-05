@@ -76,7 +76,7 @@ Special-case patches that only satisfy the current fixture, silent fallbacks tha
 
 3. **Flow dispatch** — for elements with element children that aren't an IFC. The cascaded `Flow` (Phase 1 of BFC-1) picks between:
    - `Flow::Block` → `block::layout_block_children`: CSS 2.1 §10 normal flow. Children stack vertically in document order; mixed inline+block content folds inline runs into **anonymous block boxes** (CSS 2.1 §9.2.1.1) that establish their own IFC. Margin collapse per §8.3.1 (adjacent siblings, parent-first/last-child, empty-block collapse-through, full upward propagation). Height: `Auto` resolves from the actual measured content extent; `Percent` resolves only against a *definite* containing block, walking the ancestor chain (§10.5). `row-gap` from CSS3 Box Alignment applies between adjacent block-level element children.
-   - `Flow::Flex` → `flex::layout_flex_children`: CSS Flexible Box L1 distribution along `direction`. Main-axis grow / shrink / `flex-basis` per §9; cross-axis stretch; `gap` between items; auto-min content floor per §4.5 (`M5-MIN-CONTENT-1`). Establishes a new BFC.
+   - `Flow::Flex` → `flex::layout_flex_children`: CSS Flexible Box L1 distribution along `direction`. Main-axis flex base size from `flex-basis` (§9.2), then grow / shrink with min / max freezing (§9.7, `flex/distribute.rs`), leftover free space to `auto` margins; cross-axis stretch; `gap` between items; auto-min content floor per §4.5 (`M5-MIN-CONTENT-1`). Establishes a new BFC.
 
 CSS3 Display Module two-value mapping is the source of truth: `display: block` → outer `Block` + inner `Block`; `display: flex` → outer `Block` + inner `Flex`. The parser writes both fields atomically (`tui_style::display()` setter).
 

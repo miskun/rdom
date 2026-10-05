@@ -140,7 +140,7 @@ row comes from.
 | C6-VISIBILITY | `visibility: visible / hidden / collapse` | done |
 | C6-ORDER | `order` | done |
 | C6-DIRECTION-REVERSE | `flex-direction: row-reverse / column-reverse` | done |
-| C6-FLEX-LONGHANDS | `flex-grow` / `flex-basis` longhands; full `flex` shorthand (incl. basis) | partial — the shorthand's grammar, shrink and stored basis landed with C2G-FLEX-SHORTHAND; remain the longhands and the basis in layout (`ComputedStyle::flex_basis` is cascaded, unread) |
+| C6-FLEX-LONGHANDS | `flex-grow` / `flex-basis` longhands; full `flex` shorthand (incl. basis) | done |
 | C6-WRAP | `flex-wrap` / `flex-flow`, multi-line flex containers | |
 | C6-JUSTIFY | `justify-content` (all distribution values) | |
 | C6-ALIGN | `align-items` / `align-self` (incl. `baseline` where meaningful) | |
@@ -2142,3 +2142,39 @@ row comes from.
   `FLEX_REVERSE`; scroll-reading tests and the showcase's scroll readout take `i32`
   (`sidebar_scroll_end_regression`, `scrollable_list_keyboard_scroll`, the app tests). No snapshot
   changed.
+- 2026-10-08 — C6-FLEX-LONGHANDS (done; was partial): the `flex-grow` (`<number [0,∞]>`,
+  initial 0) and `flex-basis` (`content | <'width'>`: `auto`, `content`, cells, `%`, `calc()`,
+  and the intrinsic keywords — `FlexBasis::Intrinsic`, Breaking) longhands (CSS Flexbox §7.3), and
+  the `flex` shorthand sets exactly its three longhands (`fields_of("flex")`), no longer `width` /
+  `height` (Breaking — rdom-style; `flex: inherit` now inherits the factors). Layout — decided,
+  spec order: `main_axis` computes each item's flex base size (§9.2 step 3): a definite
+  `flex-basis` through `Keywords` (so the `Sizer`: `box-sizing` applies, as for `width`; a
+  percentage against the container's inner main size, `content` when that is indefinite), `auto`
+  the main size property (its content size when `auto`), `content` the max-content size
+  (`content_max_size`, ignoring a declared main size); rdom's `width: <n>fr` (`Size::Flex`) is a
+  base of 0 growing by `n` when `flex-grow` is 0; a table cell's used column width is a base that
+  does not grow. `distribute` is §9.7 as written: the factor is grow when the outer hypothetical
+  sizes leave free space, else shrink; inflexible items (factor 0, or a max / min clamp against
+  the direction) freeze at their hypothetical size; the loop shares the free space (scaled when the
+  factors sum below one) by `flex-grow` or the overflow by `flex-shrink × base` (rolling whole
+  cells), clamps, and freezes by the sign of the total violation; the §4.5 automatic minimum is
+  resolved lazily, and skipped when growing from a content-sized base (it cannot bind). Then §9.5
+  step 12: only the space left goes to `auto` main-axis margins (`flex/mod.rs`; they took it
+  before `flex-grow` did). Found: with grow no longer in `height`, the §9.8 definite-height chain
+  lost the `flex: 1` panes — `nearest_block_ancestor_height_is_definite` now treats any item of an
+  element flex container as its container's (§9.8: the post-flexing main size and the stretched
+  cross size are definite), and a growing child of the root fragment as definite (it was
+  `Size::Flex`); DIVERGENCES' "Percentage height" entry rewritten (its row-stretch gap is closed).
+  Red: the rdom-style tests failed to compile (`flex_grow`, `FlexBasis::Intrinsic`); the nine
+  `css_phase6/flex_longhands.rs` tests failed — seven on the strict parse (`flex-grow` /
+  `flex-basis` unknown), `flex: 1 1 auto` gave `[6, 6]` for `[7, 5]` and the zero-basis item
+  `[6, 6]` for `[8, 4]`; green after. Mutation checks (each alone, reverted): `flex-basis`
+  ignored → seven tests; no automatic minimum when growing → the zero-basis test; shrink weighted
+  by the factor alone → the scaled-shrink test. Changed expectations:
+  `flex_auto_margin_starves_flex_grow` asserted the reverse of §9.7 / §8.1 — now
+  `flex_grow_takes_the_free_space_before_auto_margins` (A 30 wide at 0, B at 30);
+  `flex_shorthand_full_grammar` asserts `flex_grow` and untouched `width` / `height`; the numeric
+  math test reads `flex_grow`; the canonical-values table, important-setter coverage and the C1
+  `initial` test (`flex: 2 0 7`) gain the longhands. No snapshot changed. Split:
+  `property_dispatch/table.rs` reached 602 lines — the name list, case folding and `all`'s names
+  moved to `property_dispatch/names.rs` (172; `table.rs` 439), paths re-exported unchanged.

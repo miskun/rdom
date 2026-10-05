@@ -216,13 +216,13 @@ fn trig_functions_type_check_and_serialize() {
 #[test]
 fn number_properties_take_number_math_functions() {
     use crate::TuiStyle;
-    use crate::layout::Size;
+
     use crate::property_dispatch::set;
     let mut s = TuiStyle::default();
     set("opacity", "calc(1 / 4)", &mut s).unwrap();
     assert_eq!(s.opacity, Some(crate::Value::Specified(0.25)));
     set("flex", "calc(1 / 2)", &mut s).unwrap();
-    assert_eq!(s.width, Some(crate::Value::Specified(Size::Flex(0.5))));
+    assert_eq!(s.flex_grow, Some(crate::Value::Specified(0.5)));
     set("flex-shrink", "max(2, pi)", &mut s).unwrap();
     assert_eq!(
         s.flex_shrink,

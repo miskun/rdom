@@ -84,6 +84,7 @@ mod css_wide;
 mod declare;
 mod importance;
 mod logical;
+mod names;
 mod serialize;
 pub(crate) mod set;
 mod shadow;

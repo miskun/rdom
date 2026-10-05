@@ -101,8 +101,12 @@ pub fn parse_flex_shorthand(value: &[Token]) -> Option<FlexShorthand> {
 }
 
 /// `flex-basis: content | <'width'>` (CSS Flexbox §7.3.3): `auto`,
-/// `content` or a `<length-percentage [0,∞]>`.
-fn parse_flex_basis(value: &[Token]) -> Option<FlexBasis> {
+/// `content`, a `<length-percentage [0,∞]>` or an intrinsic size
+/// keyword (CSS Sizing 3 §3.1).
+pub fn parse_flex_basis(value: &[Token]) -> Option<FlexBasis> {
+    if let Some(k) = parse_intrinsic(value) {
+        return Some(FlexBasis::Intrinsic(k));
+    }
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(FlexBasis::Auto),
         [Token::Ident(s)] if s.eq_ignore_ascii_case("content") => Some(FlexBasis::Content),
@@ -114,7 +118,8 @@ fn parse_flex_basis(value: &[Token]) -> Option<FlexBasis> {
     }
 }
 
-/// `flex-shrink: <number [0,∞]>` (CSS Flexbox §7.3.2).
+/// `flex-grow` / `flex-shrink: <number [0,∞]>` (CSS Flexbox §7.3.1 /
+/// §7.3.2).
 pub fn parse_flex_factor(value: &[Token]) -> Option<f32> {
     flex_factor(number(value, Range::NonNegative)?)
 }

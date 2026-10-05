@@ -196,6 +196,7 @@ pub(super) fn apply_style(
     value!(
         margin_trim: MARGIN_TRIM,
         gap: GAP,
+        flex_grow: FLEX_GROW,
         flex_shrink: FLEX_SHRINK,
         flex_basis: FLEX_BASIS,
         order: ORDER,

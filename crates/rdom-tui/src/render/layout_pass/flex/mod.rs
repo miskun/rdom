@@ -9,8 +9,12 @@
 //! 2. `Size::Percent(p)` → `main_budget * p / 100` (treated as
 //!    fixed once resolved; does not participate in flex distribution).
 //! 3. `Size::Auto` → intrinsic (content fit), via [`intrinsic::intrinsic_size`].
-//! 4. `Size::Flex(w)` → share of the remaining main-axis budget
-//!    proportional to `w`.
+//! 4. `Size::Flex(w)` (rdom's `fr`) → a flex base size of 0 growing
+//!    by `w` (when `flex-grow` is 0).
+//!
+//! `flex-basis` (`auto` → the main size above) gives the flex base
+//! size; `flex-grow` / `flex-shrink` resolve the flexible lengths (§9.7,
+//! `distribute`).
 //!
 //! Final size clamped to `min_*` / `max_*`.
 //!
@@ -324,24 +328,11 @@ pub(super) fn layout_flex_children(
     let overlap = SiblingOverlap::new(parent, gap, direction);
     let overlap_savings = overlap.savings(dom, children);
 
-    // Space left after sizes + gaps + non-auto margins, plus the
-    // cells reclaimed by sibling-overlap.
-    let remaining = (i32::from(main_budget) - line.consumed_fixed - i32::from(gap_total)
-        + i32::from(overlap_savings))
-    .clamp(0, i32::from(u16::MAX)) as u16;
-
-    // CSS rule for flex auto-margins: when free space > 0 AND any
-    // auto margins exist on the main axis, those margins consume the
-    // free space; flex-grow does NOT grow. When free space ≤ 0, autos
-    // resolve to 0 and flex-shrink takes over. (M5.3b)
-    let auto_main_count = line.auto_main_count;
-    let auto_margins = AutoMainMargins {
-        share: (remaining as u32).checked_div(auto_main_count).unwrap_or(0) as u16,
-        remainder: (remaining as u32).checked_rem(auto_main_count).unwrap_or(0),
-    };
-    let flex_remaining: u16 = if auto_main_count > 0 { 0 } else { remaining };
-
-    let net_budget = (main_budget as i32) - (gap_total as i32) + (overlap_savings as i32);
+    // §9.7: the extent the items' main sizes share — the main size less
+    // the gaps and the non-auto margins, plus the cells reclaimed by
+    // sibling-overlap.
+    let net =
+        i32::from(main_budget) - i32::from(gap_total) + i32::from(overlap_savings) - line.margins;
     let final_main = resolve_flexible_lengths(
         dom,
         &line.items,
@@ -349,10 +340,20 @@ pub(super) fn layout_flex_children(
         MainAxisBudget {
             main: main_budget,
             cross: cross_budget,
-            flex_remaining,
-            net: net_budget,
+            net,
         },
     );
+
+    // §9.5 step 12 / §8.1: the free space left after the flexible
+    // lengths are resolved goes to the `auto` main-axis margins — none
+    // when an item grew to take it.
+    let used: i32 = final_main.iter().map(|&n| i32::from(n)).sum();
+    let remaining = (net - used).clamp(0, i32::from(u16::MAX)) as u16;
+    let auto_main_count = line.auto_main_count;
+    let auto_margins = AutoMainMargins {
+        share: (remaining as u32).checked_div(auto_main_count).unwrap_or(0) as u16,
+        remainder: (remaining as u32).checked_rem(auto_main_count).unwrap_or(0),
+    };
 
     place_items(
         dom,

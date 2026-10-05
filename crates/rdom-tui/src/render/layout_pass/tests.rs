@@ -1258,13 +1258,12 @@ fn flex_main_axis_cells_margin_offsets_child() {
 }
 
 #[test]
-fn flex_auto_margin_starves_flex_grow() {
-    // CSS rule: when free space > 0 AND any auto margins exist,
-    // auto margins consume the free space; flex-grow is starved.
-    // Container 40, child A Flex(1) with margin: auto, child B
-    // Fixed(10). Remaining after B = 30. Two auto margins on A → 30
-    // / 2 = 15 each. A's flex-grow gets 0 (starved). A's flex
-    // resolves to 0 cells, sandwiched between two 15-cell margins.
+fn flex_grow_takes_the_free_space_before_auto_margins() {
+    // CSS Flexbox §9.7 then §9.5 step 12 / §8.1: the flexible lengths
+    // are resolved first — A (`1fr`, a basis of 0 growing by 1) takes
+    // all 30 free cells — and the `auto` margins share what is left,
+    // nothing. (C6-FLEX-LONGHANDS; this test asserted the reverse, auto
+    // margins starving the grow, which no browser does.)
     use rdom_style::layout::{Margin, MarginValue};
     let mut dom = tui_dom();
     let root = dom.root();
@@ -1293,11 +1292,8 @@ fn flex_auto_margin_starves_flex_grow() {
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 40, 5));
 
-    // A is starved (flex-grow doesn't grow when autos eat the space).
-    assert_eq!(layout_rect_of(&dom, a).width, 0);
-    // A starts at left-margin = 15.
-    assert_eq!(layout_rect_of(&dom, a).x, 15);
-    // B follows: x = 15 (A start) + 0 (A width) + 15 (A right margin) = 30.
+    assert_eq!(layout_rect_of(&dom, a).width, 30);
+    assert_eq!(layout_rect_of(&dom, a).x, 0);
     assert_eq!(layout_rect_of(&dom, b).x, 30);
 }
 

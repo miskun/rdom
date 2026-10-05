@@ -108,7 +108,10 @@ pub struct TuiStyle {
     /// `order` (CSS Flexbox §5.4): the item's place in order-modified
     /// document order.
     pub order: Option<Value<i32>>,
-    /// `flex-basis`, set by the `flex` shorthand (CSS Flexbox §7.2).
+    /// `flex-grow` (CSS Flexbox §7.3.1), also set by the `flex`
+    /// shorthand.
+    pub flex_grow: Option<Value<f32>>,
+    /// `flex-basis` (§7.3.3), also set by the `flex` shorthand.
     pub flex_basis: Option<Value<crate::layout::FlexBasis>>,
     /// `border-top-style` … `border-left-style` (CSS Backgrounds 3
     /// §4.2), one longhand per side; initial `none`.
@@ -407,6 +410,14 @@ impl TuiStyle {
         if self.order.is_some() {
             n += 1
         }
+        n += [
+            self.flex_grow.is_some(),
+            self.flex_shrink.is_some(),
+            self.flex_basis.is_some(),
+        ]
+        .iter()
+        .filter(|set| **set)
+        .count();
         n += self
             .border_style
             .each()

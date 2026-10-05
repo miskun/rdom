@@ -61,3 +61,77 @@ fn flex_direction_takes_the_reverse_keywords() {
     set("flex-direction", "column", &mut style).unwrap();
     assert_eq!(style.flex_reverse, Some(Value::Specified(false)));
 }
+
+/// CSS Flexbox §7.3.1 / §7.3.3: `flex-grow: <number [0,∞]>` (initial
+/// 0) and `flex-basis: content | <'width'>` — `auto`, `content`, a
+/// `<length-percentage [0,∞]>` and the intrinsic size keywords (CSS
+/// Sizing 3 §3.1). The `flex` shorthand serializes from the three
+/// longhands, and owns exactly them.
+#[test]
+fn flex_grow_and_flex_basis_longhands() {
+    use crate::calc::CalcExpr;
+    use crate::layout::{FlexBasis, IntrinsicSize};
+    for (css, n) in [("0", 0.0), ("1.5", 1.5), ("calc(2 * 2)", 4.0)] {
+        let mut style = TuiStyle::new();
+        set("flex-grow", css, &mut style).unwrap();
+        assert_eq!(style.flex_grow, Some(Value::Specified(n)), "{css}");
+    }
+    for bad in ["-1", "auto", "1px"] {
+        assert_eq!(
+            set("flex-grow", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+    for (css, basis, out) in [
+        ("auto", FlexBasis::Auto, "auto"),
+        ("content", FlexBasis::Content, "content"),
+        ("4", FlexBasis::Cells(4), "4"),
+        (
+            "50%",
+            FlexBasis::Calc(Box::new(CalcExpr::Percent(50.0))),
+            "50%",
+        ),
+        (
+            "min-content",
+            FlexBasis::Intrinsic(IntrinsicSize::MinContent),
+            "min-content",
+        ),
+        (
+            "max-content",
+            FlexBasis::Intrinsic(IntrinsicSize::MaxContent),
+            "max-content",
+        ),
+        (
+            "fit-content",
+            FlexBasis::Intrinsic(IntrinsicSize::FitContent),
+            "fit-content",
+        ),
+    ] {
+        let mut style = TuiStyle::new();
+        set("flex-basis", css, &mut style).unwrap();
+        assert_eq!(style.flex_basis, Some(Value::Specified(basis)), "{css}");
+        assert_eq!(
+            serialize("flex-basis", &style).as_deref(),
+            Some(out),
+            "{css}"
+        );
+    }
+    for bad in ["-1", "none", "1 2"] {
+        assert_eq!(
+            set("flex-basis", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+    let mut style = TuiStyle::new();
+    set("flex-grow", "2", &mut style).unwrap();
+    set("flex-shrink", "0", &mut style).unwrap();
+    set("flex-basis", "30%", &mut style).unwrap();
+    assert_eq!(serialize("flex", &style).as_deref(), Some("2 0 30%"));
+    assert_eq!(
+        property_mask("flex"),
+        Some(ImportantMask::FLEX_GROW | ImportantMask::FLEX_SHRINK | ImportantMask::FLEX_BASIS)
+    );
+    assert!(!inherits("flex-grow") && !inherits("flex-basis"));
+}

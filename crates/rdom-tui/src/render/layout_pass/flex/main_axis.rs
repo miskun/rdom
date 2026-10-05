@@ -1,32 +1,37 @@
 //! Main-axis sizing of flex items — CSS Flexible Box §9.2.
 //!
-//! Owns the per-item main-size bookkeeping ([`ChildMain`],
-//! [`MainNatural`]) and the gathering pass that turns each item's
-//! declared size and main-axis margins into a natural size plus the
-//! line's consumed space ([`collect_main_axis_items`]). The §9.7
-//! distribution of the free space is `distribute`.
+//! Owns the per-item main-size bookkeeping ([`ChildMain`]) and the
+//! gathering pass that turns each item's `flex-basis`, main size and
+//! main-axis margins into its flex base size and flex factors
+//! ([`collect_main_axis_items`]; §9.2 step 3). The §9.7 resolution of
+//! the flexible lengths is `distribute`.
 
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
-use crate::layout::{Direction, MarginValue, Size};
+use crate::layout::{Direction, FlexBasis, MarginValue, Size};
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite;
-use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
+use crate::render::layout_pass::intrinsic::{Keywords, content_max_size, intrinsic_size};
 use crate::render::layout_pass::margin_trim::FlexTrim;
 use crate::style::ComputedStyle;
-
-/// An item's main size before flexible-length resolution.
-pub(super) enum MainNatural {
-    Fixed(u16),
-    Flex(f32),
-    Auto(u16),
-}
 
 /// Per-item main-axis inputs gathered before distribution.
 pub(super) struct ChildMain {
     pub(super) id: NodeId,
-    pub(super) main: MainNatural,
+    /// The flex base size (§9.2 step 3), a border box in cells.
+    pub(super) base: u16,
+    /// `flex-grow` (`width: <n>fr`, rdom's grow, when `flex-grow` is 0).
+    pub(super) grow: f32,
+    /// `flex-shrink`.
+    pub(super) shrink: f32,
+    /// The base is the item's content size (`content`, or `auto` with an
+    /// `auto` main size): its automatic minimum (§4.5) is no larger, so
+    /// growing cannot violate it.
+    pub(super) content_base: bool,
+    /// The main size property is `auto` (the cross pass then derives no
+    /// size from `aspect-ratio`).
+    pub(super) main_auto: bool,
     /// Explicit `min: <n>` cell floor, or `None` for "use auto-min
     /// resolved lazily during shrink". `None` covers both an unset
     /// min (CSS spec default for flex items) and an explicit
@@ -53,18 +58,16 @@ pub(super) struct MainBudgets {
 /// the free-space computation needs.
 pub(super) struct MainAxisItems {
     pub(super) items: Vec<ChildMain>,
-    /// Main-axis cells already spoken for by non-flex sizes and
-    /// non-auto margins. Signed: a negative margin frees main-axis
-    /// space (Flexbox §9.7 counts outer sizes; CSS margins may be
-    /// negative).
-    pub(super) consumed_fixed: i32,
+    /// The items' non-`auto` main-axis margins. Signed: a negative
+    /// margin frees main-axis space (Flexbox §9.7 counts outer sizes;
+    /// CSS margins may be negative).
+    pub(super) margins: i32,
     /// Number of `auto` main-axis margins across the line.
     pub(super) auto_main_count: u32,
 }
 
-/// Gather per-child (Size, min, max, is_flex) tuples for the main
-/// axis, together with the line's consumed space and auto-margin
-/// count.
+/// Gather each item's flex base size, factors, min and max for the main
+/// axis, together with the line's margins and auto-margin count.
 ///
 /// `trim` is the container's `margin-trim` (CSS Box 4 §3.2): a trimmed
 /// main-start (main-end) edge zeroes the first (last) item's margin
@@ -86,7 +89,7 @@ pub(super) fn collect_main_axis_items(
         cross: cross_budget,
     } = budgets;
     let mut child_info: Vec<ChildMain> = Vec::with_capacity(children.len());
-    let mut consumed_fixed: i32 = 0;
+    let mut margins: i32 = 0;
     let mut auto_main_count: u32 = 0;
     // The basis `min-*` / `max-*` percentages resolve against: the
     // container's main size — for a column, its height, which is
@@ -107,7 +110,11 @@ pub(super) fn collect_main_axis_items(
         if super::is_collapsed(dom, child) {
             child_info.push(ChildMain {
                 id: child,
-                main: MainNatural::Fixed(0),
+                base: 0,
+                grow: 0.0,
+                shrink: 0.0,
+                content_base: false,
+                main_auto: false,
                 min: Some(0),
                 max: Some(0),
                 main_start_margin: MarginValue::Cells(0),
@@ -175,7 +182,7 @@ pub(super) fn collect_main_axis_items(
                 i32::from(m.resolve(main_cb_w))
             }
         };
-        consumed_fixed += margin_consumed(&main_start_m) + margin_consumed(&main_end_m);
+        margins += margin_consumed(&main_start_m) + margin_consumed(&main_end_m);
         if matches!(main_start_m, MarginValue::Auto) {
             auto_main_count += 1;
         }
@@ -183,29 +190,57 @@ pub(super) fn collect_main_axis_items(
             auto_main_count += 1;
         }
 
-        // A percentage or `calc()` resolves against the parent's
-        // main-axis content area at layout time, and is a fixed cell
-        // value once resolved — it does NOT take part in flex weight
-        // distribution. A used column width is already a border box.
-        let natural = if let Some(w) = used_column_width {
-            MainNatural::Fixed(w)
-        } else {
+        // CSS Flexbox §9.2 step 3, the flex base size. A definite
+        // `flex-basis` is it (measuring the box `box-sizing` names, as
+        // `width` does; a percentage against the container's inner main
+        // size, and as `content` when that is indefinite); `auto` takes
+        // the main size property; `content`, or `auto` with an `auto`
+        // main size, the item's content size. `width: <n>fr` (rdom) is
+        // a basis of 0 growing by `n`. A table cell's used column width
+        // (TABLE-COLSYNC-1) is its base and does not grow. The result
+        // is a fixed cell value — percentages resolve here, not in the
+        // distribution.
+        let used_size = |size: &Size, basis: Option<u16>| match (direction, size) {
             // A keyword height is the content height, as `auto` is (CSS
             // Sizing 3 §3.1).
-            let declared = match (direction, main_size) {
-                (Direction::Column, Size::Intrinsic(_)) => None,
-                _ => kw.size(main_size, Some(main_budget), main_budget),
+            (Direction::Column, Size::Intrinsic(_)) => None,
+            _ => kw.size(size, basis, main_budget),
+        };
+        let content = || intrinsic_size(dom, child, direction, cross_budget, main_cb_w);
+        let main_auto = matches!(main_size, Size::Auto | Size::Intrinsic(_));
+        let mut grow = c.flex_grow;
+        let (base, content_base) = if let Some(w) = used_column_width {
+            grow = 0.0;
+            (w, false)
+        } else {
+            let basis_size = match &c.flex_basis {
+                FlexBasis::Auto => None,
+                FlexBasis::Content => Some(Size::Auto),
+                FlexBasis::Cells(n) => Some(Size::Fixed(*n)),
+                FlexBasis::Calc(e) => Some(Size::Calc(e.clone())),
+                FlexBasis::Intrinsic(k) => Some(Size::Intrinsic(k.clone())),
             };
-            match (main_size, declared) {
-                (Size::Flex(w), _) => MainNatural::Flex(*w),
-                (_, Some(cells)) => MainNatural::Fixed(cells),
-                _ => {
-                    // The container's inner width is definite here, so
-                    // the item's percent padding / margins resolve
-                    // against it.
-                    let intrinsic = intrinsic_size(dom, child, direction, cross_budget, main_cb_w);
-                    MainNatural::Auto(intrinsic)
+            match (basis_size, main_size) {
+                // `content`: the max-content size, whatever the main
+                // size property says (§9.2 step 3.E).
+                (Some(Size::Auto), _) => (
+                    content_max_size(dom, child, direction, cross_budget, main_cb_w),
+                    true,
+                ),
+                (Some(b), _) => match used_size(&b, main_basis) {
+                    Some(cells) => (cells, false),
+                    None => (content(), true),
+                },
+                (None, Size::Flex(w)) => {
+                    if grow <= 0.0 {
+                        grow = *w;
+                    }
+                    (0, false)
                 }
+                (None, size) => match used_size(size, Some(main_budget)) {
+                    Some(cells) => (cells, false),
+                    None => (content(), true),
+                },
             }
         };
 
@@ -244,10 +279,6 @@ pub(super) fn collect_main_axis_items(
         // is a future polish tracked as `M5-MIN-CONTENT-2`.
         let min = kw.min(min_raw, main_basis, main_budget);
 
-        if let MainNatural::Fixed(n) | MainNatural::Auto(n) = natural {
-            consumed_fixed += i32::from(n);
-        }
-
         // Pre-resolve `Calc` margins to `Cells` here so the placement
         // loop can match on `Cells | Auto` exhaustively. Calc
         // percent resolves against the parent's main-axis width
@@ -261,7 +292,11 @@ pub(super) fn collect_main_axis_items(
         };
         child_info.push(ChildMain {
             id: child,
-            main: natural,
+            base,
+            grow,
+            shrink: c.flex_shrink,
+            content_base,
+            main_auto,
             min,
             max,
             main_start_margin: resolve_margin(main_start_m),
@@ -271,7 +306,7 @@ pub(super) fn collect_main_axis_items(
 
     MainAxisItems {
         items: child_info,
-        consumed_fixed,
+        margins,
         auto_main_count,
     }
 }

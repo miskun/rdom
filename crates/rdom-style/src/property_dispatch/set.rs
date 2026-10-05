@@ -8,7 +8,7 @@ use super::DispatchError;
 use super::css_wide::{css_wide_keyword, set_css_wide};
 use super::table::canonical_property_name;
 use crate::layout::{
-    CaretColor, CaretTextColor, Direction, Sides, Size, TextDirection, UserSelect, WhiteSpace,
+    CaretColor, CaretTextColor, Direction, Sides, TextDirection, UserSelect, WhiteSpace,
 };
 use crate::parse::token::Token;
 use crate::parse::values::{
@@ -300,25 +300,20 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
             style.gap = Some(Value::Specified(g));
         }),
 
-        // Flex shorthand (CSS Flexbox §7.2) — its grow goes to `width`
-        // + `height` (rdom's flex model: `Size::Flex(grow)`, which on
-        // the cross axis reads as "stretch", the default
-        // `align-items: stretch`; a zero grow is `Size::Auto`), its
-        // shrink to `flex-shrink`, its basis to `flex-basis` (stored;
-        // laid out with C6-FLEX-LONGHANDS).
+        // Flex shorthand (CSS Flexbox §7.2): its three longhands.
         "flex" => parse_flex_shorthand(value).map(|f| {
-            let size = if f.grow > 0.0 {
-                Size::Flex(f.grow)
-            } else {
-                Size::Auto
-            };
-            style.width = Some(Value::Specified(size.clone()));
-            style.height = Some(Value::Specified(size));
+            style.flex_grow = Some(Value::Specified(f.grow));
             style.flex_shrink = Some(Value::Specified(f.shrink));
             style.flex_basis = Some(Value::Specified(f.basis));
         }),
+        "flex-grow" => parse_flex_factor(value).map(|n| {
+            style.flex_grow = Some(Value::Specified(n));
+        }),
         "flex-shrink" => parse_flex_factor(value).map(|n| {
             style.flex_shrink = Some(Value::Specified(n));
+        }),
+        "flex-basis" => crate::parse::values::parse_flex_basis(value).map(|b| {
+            style.flex_basis = Some(Value::Specified(b));
         }),
         "order" => crate::parse::values::parse_order(value).map(|n| {
             style.order = Some(Value::Specified(n));

@@ -148,6 +148,15 @@ impl TuiStyle {
         self
     }
     setter!(
+        "flex-grow",
+        flex_grow,
+        flex_grow,
+        flex_grow_important,
+        FLEX_GROW,
+        f32,
+        crate::layout::valid_flex_factor
+    );
+    setter!(
         "flex-shrink",
         flex_shrink,
         flex_shrink,

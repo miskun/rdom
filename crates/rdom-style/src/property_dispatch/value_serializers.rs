@@ -112,6 +112,7 @@ pub(super) fn serialize_flex_basis(b: &crate::layout::FlexBasis) -> String {
         crate::layout::FlexBasis::Content => "content".to_string(),
         crate::layout::FlexBasis::Cells(n) => n.to_string(),
         crate::layout::FlexBasis::Calc(expr) => serialize_math(expr),
+        crate::layout::FlexBasis::Intrinsic(k) => serialize_intrinsic(k),
     }
 }
 

@@ -17,7 +17,7 @@ use crate::style::ComputedStyle;
 
 use super::collapse::SiblingOverlap;
 use super::cross::{CrossPlacement, ResolvedMain, place_cross};
-use super::main_axis::{ChildMain, MainNatural};
+use super::main_axis::ChildMain;
 use crate::render::layout_pass::margin_trim::FlexTrim;
 
 /// The main-axis free space split across the line's `auto` main
@@ -126,7 +126,7 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
         // Whether the child's main-axis size was declared `Auto` —
         // needed so the cross resolver knows whether to apply
         // aspect-ratio (which requires the main axis to be explicit).
-        let main_was_auto = matches!(child_info[i].main, MainNatural::Auto(_));
+        let main_was_auto = child_info[i].main_auto;
 
         let CrossPlacement {
             size: cross_size,
