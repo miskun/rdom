@@ -1,8 +1,9 @@
 //! The CSS Text properties' value grammars (CSS Text 3 / 4).
 
+use super::numeric::{LengthPercentage, Range, length_percentage, number};
 use super::parse_keyword;
 use crate::layout::{
-    Hyphens, LineBreak, OverflowWrap, TextWrapMode, WhiteSpaceCollapse, WordBreak,
+    Hyphens, LineBreak, OverflowWrap, TabSize, TextWrapMode, WhiteSpaceCollapse, WordBreak,
 };
 use crate::parse::token::Token;
 
@@ -122,4 +123,17 @@ pub fn parse_hyphens(value: &[Token]) -> Option<Hyphens> {
             ("auto", Hyphens::Auto),
         ],
     )
+}
+
+/// `tab-size: <number [0,∞]> | <length [0,∞]>` (CSS Text 3 §4.2): a
+/// number of spaces, or a length known at parse time (a percentage or a
+/// viewport unit has no basis here and is invalid).
+pub fn parse_tab_size(value: &[Token]) -> Option<TabSize> {
+    if let Some(n) = number(value, Range::NonNegative) {
+        return Some(TabSize::Number(n as f32));
+    }
+    match length_percentage(value, Range::NonNegative)? {
+        LengthPercentage::Cells(c) => Some(TabSize::Length(c as f32)),
+        LengthPercentage::Integer(_) | LengthPercentage::Expr(_) => None,
+    }
 }

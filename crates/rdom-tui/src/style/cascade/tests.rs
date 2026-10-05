@@ -2382,6 +2382,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.text.overflow_wrap = rdom_style::layout::OverflowWrap::Anywhere;
     parent.text.line_break = rdom_style::layout::LineBreak::Strict;
     parent.text.hyphens = rdom_style::layout::Hyphens::None;
+    parent.text.tab_size = rdom_style::layout::TabSize::Number(2.0);
     parent.user_select = UserSelect::None;
     parent.pointer_events = PointerEvents::None;
     parent.visibility = rdom_style::layout::Visibility::Hidden;
@@ -2527,6 +2528,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
             child.text.line_break == parent.text.line_break,
         ),
         ("hyphens", child.text.hyphens == parent.text.hyphens),
+        ("tab-size", child.text.tab_size == parent.text.tab_size),
         ("user-select", child.user_select == parent.user_select),
         (
             "pointer-events",

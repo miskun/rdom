@@ -165,3 +165,41 @@ fn the_line_breaking_properties_take_their_keywords() {
         Some(Value::Specified(crate::layout::OverflowWrap::BreakWord))
     );
 }
+
+/// CSS Text 3 §4.2: `tab-size: <number [0,∞]> | <length [0,∞]>` — a
+/// number counts spaces, a length is a length (cells, `ch`); negative
+/// values and percentages are invalid; inherited, initial 8.
+#[test]
+fn tab_size_takes_a_number_or_a_length() {
+    use crate::layout::TabSize;
+    for (text, value, out) in [
+        ("4", TabSize::Number(4.0), "4"),
+        ("2.5", TabSize::Number(2.5), "2.5"),
+        ("0", TabSize::Number(0.0), "0"),
+        ("3ch", TabSize::Length(3.0), "3ch"),
+    ] {
+        let mut style = TuiStyle::new();
+        set("tab-size", text, &mut style).unwrap_or_else(|e| panic!("{text}: {e:?}"));
+        assert_eq!(style.text.tab_size, Some(Value::Specified(value)), "{text}");
+        assert_eq!(
+            serialize("tab-size", &style).as_deref(),
+            Some(out),
+            "{text}"
+        );
+    }
+    for bad in ["-1", "50%", "auto", "4 4"] {
+        assert_eq!(
+            set("tab-size", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+    assert!(inherits("tab-size"));
+    assert_eq!(
+        crate::layout::TextStyle::default().tab_size,
+        TabSize::Number(8.0)
+    );
+    assert_eq!(TabSize::Number(2.5).cells(), 2);
+    assert_eq!(TabSize::Number(3.5).cells(), 4);
+    assert_eq!(TabSize::Length(3.0).cells(), 3);
+}

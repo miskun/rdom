@@ -196,7 +196,7 @@ row comes from.
 | C9-TEXT-ALIGN | `text-align` (incl. `start` / `end` / `justify`), `text-align-last`, `text-justify` | |
 | C9-TEXT-INDENT | `text-indent` | |
 | C9-TEXT-TRANSFORM | `text-transform` (case mapping, `full-width`) | |
-| C9-TAB-SIZE | `tab-size` and real tab stops in `pre` | |
+| C9-TAB-SIZE | `tab-size` and real tab stops in `pre` | done |
 | C9-BREAKING | `word-break`, `overflow-wrap` / `word-wrap`, `line-break`, `hyphens` (soft hyphens) | done |
 | C9-LINE-HEIGHT | `line-height` (whole-row line boxes) | |
 | C9-VERTICAL-ALIGN | `vertical-align` for inline-blocks and inline content | |
@@ -5361,3 +5361,25 @@ row comes from.
   between ideographs, now documented) — the test asserts the next byte on line 2. Mutation (restored,
   touched): no emergency split → two tests; no shown hyphen → two; closing punctuation breakable → one;
   `anywhere` off → one. No existing test expectation or snapshot changed.
+- 2026-10-11 — C9-TAB-SIZE (CSS Text 3 §4.2, §4.1.1, §4.1.2). rdom-style: `tab-size: <number [0,∞]> | <length
+  [0,∞]>` (`TabSize::Number` / `Length`, `cells()` rounding onto the grid half to even — a space is one cell,
+  so both are cells), inherited, initial 8; a percentage or a viewport length has no basis and is invalid;
+  serialized as a number or `<n>ch`. rdom-tui — what rdom did: a preserved tab in `pre` / `pre-wrap` /
+  `<textarea>` was one space (DIVERGENCES §3), and the caret counted it as one cell. Now a preserved tab is a
+  `GraphemeKind::Preserved { tab: Some(size) }` piece, laid at placement (`packer/emit.rs::layout_tabs`): the
+  word starts at a known cell of a line whose start is `line_origin()` cells from the block's starting content
+  edge (the floats' share of that side; the right edge under `rtl`), and each tab takes `size - pos % size`
+  cells (§4.2: "lines up the start edge of the next glyph with the next tab stop ... multiples of the tab
+  size from the starting content edge"; the 0.5ch rule cannot apply to whole cells), 0 at `tab-size: 0`
+  ("preserved tabs are not rendered"). It renders as that many spaces through C9-BREAKING's `SourceMap` (one
+  source byte, N text bytes), so the caret, hit-testing, selection and the textarea's editing caret step over
+  it as one character (`the_caret_moves_over_a_tab_as_one_character`). A tab is preserved white space: it
+  hangs at a soft wrap under `pre-wrap` and is a soft wrap opportunity at the end of its sequence (each one
+  under `break-spaces`), as C9-WHITE-SPACE's spaces. Tabs are placed again where the word lands — after a
+  wrap, and in `fit_empty_line` when a line moves below a float (found by the test: the first draft placed
+  them only on a wrap, so a line moved down kept the tab width of the band beside the float, ` abcdefg` for
+  `    abcdefg`). Red: `css_phase9/tab_size.rs` — 4 of 4 failed (`a b` for `a       b`, `ab cd` for `ab  cd`,
+  `a b` for `ab` at `tab-size: 0`, the caret at 2 for 4); green after; the float test added after (red on the
+  first draft as above, green after the fix). Mutation (restored, touched): no tab layout → five; no re-layout
+  in `fit_empty_line` or after a wrap → the float test; the line origin at 0 → the float test. Changed
+  expectation: none. Collapsible tabs (`normal`) are still spaces (§4.1.1).

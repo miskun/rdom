@@ -94,13 +94,16 @@ impl<'a> LinePacker<'a> {
                 self.push_collapsible(origin, source_offset, segment_break);
                 self.last_class = None;
             }
-            WhiteSpaceClass::PreservedSpace | WhiteSpaceClass::PreservedTab => {
-                // A tab advances one cell (tab stops are C9-TAB-SIZE); a
-                // carriage return or a segment break converted to a space
-                // is a space (CSS Text 3 §4, Text 4 §4.1).
+            class @ (WhiteSpaceClass::PreservedSpace | WhiteSpaceClass::PreservedTab) => {
+                // A carriage return or a segment break converted to a
+                // space is a space (CSS Text 3 §4, Text 4 §4.1); a tab is
+                // one cell until its line places it at its tab stop
+                // (§4.2, `emit::layout_tabs`).
                 let text: &'a str = if g == " " { g } else { " " };
+                let tab = (class == WhiteSpaceClass::PreservedTab).then_some(self.run.tab_size);
                 let kind = GraphemeKind::Preserved {
                     hangs: self.run.hangs_spaces(),
+                    tab,
                 };
                 let piece = self.piece(origin, source_offset, g, Cow::Borrowed(text), 1, kind);
                 self.push_to_word(piece);

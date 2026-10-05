@@ -314,7 +314,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 - `text-align`, `text-align-last`, `text-justify` (lines are left-aligned) — C9-TEXT-ALIGN
 - `text-indent` — C9-TEXT-INDENT
 - `text-transform` — C9-TEXT-TRANSFORM
-- `tab-size` and tab stops (a tab in `<pre>` renders as one space) — C9-TAB-SIZE
 - `line-height` — C9-LINE-HEIGHT
 - `vertical-align` (inline blocks sit on the baseline, its initial value) — C9-VERTICAL-ALIGN (table cells: C13-TABLE-PROPS)
 

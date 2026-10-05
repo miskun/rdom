@@ -20,6 +20,8 @@ pub(crate) struct RunStyle {
     pub(crate) breaks: BreakRules,
     /// `overflow-wrap` — `anywhere` under `word-break: break-word` (§5.2).
     pub(crate) overflow_wrap: OverflowWrap,
+    /// `tab-size` in cells (§4.2).
+    pub(crate) tab_size: u16,
 }
 
 impl Default for RunStyle {
@@ -29,6 +31,7 @@ impl Default for RunStyle {
             wraps: true,
             breaks: BreakRules::default(),
             overflow_wrap: OverflowWrap::Normal,
+            tab_size: 8,
         }
     }
 }
@@ -56,6 +59,7 @@ impl RunStyle {
             } else {
                 text.overflow_wrap
             },
+            tab_size: text.tab_size.cells(),
         }
     }
 

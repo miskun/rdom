@@ -85,7 +85,7 @@ pub use layout::{
     NamedArea, Overflow, OverflowAlign, OverflowClipMargin, OverflowWrap, OverscrollBehavior,
     Padding, PaddingValue, PaintLength, RepeatCount, RepeatStyle, ScrollPadding, ScrollSnapAlign,
     ScrollSnapAxis, ScrollSnapStop, ScrollSnapStrictness, ScrollSnapType, ScrollbarColor,
-    ScrollbarGutter, ScrollbarWidth, Sides, Size, SnapAlign, TextDirection, TextOverflow,
+    ScrollbarGutter, ScrollbarWidth, Sides, Size, SnapAlign, TabSize, TextDirection, TextOverflow,
     TextOverflowSide, TextStyle, TextWrapMode, TrackBreadth, TrackList, TrackListItem, TrackRepeat,
     TrackSize, UserSelect, Visibility, VisualBox, WhiteSpace, WhiteSpaceCollapse, WordBreak,
     WritingMode, ZIndex,

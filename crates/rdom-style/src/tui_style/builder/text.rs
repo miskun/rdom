@@ -1,6 +1,6 @@
 //! The CSS Text setters of the `TuiStyle` builder (CSS Text 3 / 4):
 //! `white-space` and its longhands, `word-break`, `overflow-wrap`,
-//! `line-break`, `hyphens`.
+//! `line-break`, `hyphens`, `tab-size`.
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
@@ -74,6 +74,13 @@ impl TuiStyle {
         line_break_important,
         LINE_BREAK,
         crate::layout::LineBreak
+    );
+    text_setter!(
+        "tab-size",
+        tab_size,
+        tab_size_important,
+        TAB_SIZE,
+        crate::layout::TabSize
     );
     text_setter!(
         "hyphens",

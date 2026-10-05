@@ -31,5 +31,6 @@ pub(super) fn apply_text(
         overflow_wrap: OVERFLOW_WRAP,
         line_break: LINE_BREAK,
         hyphens: HYPHENS,
+        tab_size: TAB_SIZE,
     );
 }

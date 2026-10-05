@@ -7,6 +7,7 @@
 pub(crate) use super::css_phase5::{el, lay_out, paint, rect, rows, size};
 
 mod breaking;
+mod tab_size;
 mod white_space;
 
 use rdom_tui::{NodeId, TuiDom};

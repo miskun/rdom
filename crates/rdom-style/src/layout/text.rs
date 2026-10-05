@@ -247,6 +247,32 @@ impl Hyphens {
     }
 }
 
+/// `tab-size` (CSS Text 3 §4.2): the distance between tab stops — a
+/// number of spaces, or a length. Inherited; initial `8`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TabSize {
+    /// A multiple of the advance width of the space: in a terminal, cells.
+    Number(f32),
+    /// A length, in cells.
+    Length(f32),
+}
+
+impl Default for TabSize {
+    fn default() -> Self {
+        TabSize::Number(8.0)
+    }
+}
+
+impl TabSize {
+    /// The tab size in whole cells: a space is one cell, so a number and
+    /// a length alike round onto the grid (half to even, as every
+    /// fractional length does — DIVERGENCES §1).
+    pub fn cells(self) -> u16 {
+        let (TabSize::Number(v) | TabSize::Length(v)) = self;
+        crate::calc::to_cells(f64::from(v)).clamp(0, i32::from(u16::MAX)) as u16
+    }
+}
+
 /// The computed CSS Text properties of an element
 /// ([`ComputedStyle::text`](crate::ComputedStyle::text)). All of them
 /// inherit, so the cascade copies the group from the parent whole.
@@ -264,6 +290,8 @@ pub struct TextStyle {
     pub line_break: LineBreak,
     /// `hyphens` (CSS Text 3 §6.1).
     pub hyphens: Hyphens,
+    /// `tab-size` (CSS Text 3 §4.2).
+    pub tab_size: TabSize,
 }
 
 impl TextStyle {

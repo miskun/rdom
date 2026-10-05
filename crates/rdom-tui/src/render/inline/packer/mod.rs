@@ -99,8 +99,9 @@ enum GraphemeKind {
     /// `WhiteSpaceClass::Collapsible`'s.
     Collapsible { segment_break: bool },
     /// A preserved space or tab; `hangs` when it hangs at the end of a
-    /// line (CSS Text 3 §4.1.2, `RunStyle::hangs_spaces`).
-    Preserved { hangs: bool },
+    /// line (CSS Text 3 §4.1.2, `RunStyle::hangs_spaces`); a tab holds its
+    /// text's tab size in cells (§4.2).
+    Preserved { hangs: bool, tab: Option<u16> },
     /// A soft hyphen (CSS Text 3 §6.1): nothing, or — `shows`, its text's
     /// `hyphens` not `none` — a hyphen when the line breaks after it.
     SoftHyphen { shows: bool },
@@ -279,6 +280,19 @@ impl<'a> LinePacker<'a> {
         self.band.1
     }
 
+    /// Cells from the block's starting content edge — the left one, the
+    /// right one under `rtl` — to the current line's start: the floats'
+    /// share of that side.
+    pub(super) fn line_origin(&self) -> u16 {
+        let (start, width) = self.band;
+        let from_start = if self.rtl {
+            i32::from(self.content_width) - (start + i32::from(width))
+        } else {
+            start
+        };
+        from_start.clamp(0, i32::from(u16::MAX)) as u16
+    }
+
     /// A new line starts at row `cur_top`: the floats waiting for it are
     /// placed at its top, and its band read.
     pub(super) fn open_line(&mut self) {
@@ -324,6 +338,9 @@ impl<'a> LinePacker<'a> {
             };
             self.cur_top = next;
             self.band = ex.band(next);
+            // The word's tabs count from the moved line's start (CSS
+            // Text 3 §4.2).
+            self.layout_tabs(0);
         }
     }
 

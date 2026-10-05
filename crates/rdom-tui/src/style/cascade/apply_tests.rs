@@ -56,6 +56,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("overflow-wrap", "anywhere"),
     ("line-break", "strict"),
     ("hyphens", "none"),
+    ("tab-size", "4"),
     ("user-select", "none"),
     ("pointer-events", "none"),
     ("visibility", "hidden"),
@@ -377,6 +378,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         overflow_wrap,
         line_break,
         hyphens,
+        tab_size,
     } = text;
     macro_rules! check_text {
         ($($field:ident),* $(,)?) => {$(
@@ -391,6 +393,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         overflow_wrap,
         line_break,
         hyphens,
+        tab_size,
     );
     // CSS Box Alignment 3 §6.2: `justify-items: initial` is `legacy`,
     // which computes to `normal` under a parent without a `legacy` value.

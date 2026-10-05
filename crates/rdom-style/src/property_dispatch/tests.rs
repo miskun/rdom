@@ -182,6 +182,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("word-wrap", "break-word"),
         ("line-break", "strict"),
         ("hyphens", "none"),
+        ("tab-size", "4"),
         ("direction", "rtl"),
         ("writing-mode", "vertical-rl"),
         ("inline-size", "6"),

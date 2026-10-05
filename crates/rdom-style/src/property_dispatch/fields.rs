@@ -86,6 +86,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "overflow-wrap" | "word-wrap" => &[OverflowWrap],
         "line-break" => &[LineBreak],
         "hyphens" => &[Hyphens],
+        "tab-size" => &[TabSize],
         "user-select" => &[UserSelect],
         "pointer-events" => &[PointerEvents],
         "visibility" => &[Visibility],

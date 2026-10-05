@@ -59,6 +59,7 @@ impl LinePacker<'_> {
         } else {
             0
         };
+        self.layout_tabs(self.cur_line_width.saturating_add(separator));
         let fit = self.word_fit();
         let projected = self
             .cur_line_width
@@ -70,6 +71,7 @@ impl LinePacker<'_> {
             self.break_line(LineEnd::Soft);
             self.clear_pending_space();
             self.drop_leading_collapsible();
+            self.layout_tabs(0);
             self.fit_empty_line(self.word_fit());
             self.split_word();
             self.emit_word_to_current_line(0);
@@ -81,6 +83,35 @@ impl LinePacker<'_> {
             }
             self.emit_word_to_current_line(separator);
             self.clear_pending_space();
+        }
+    }
+
+    /// Place the word buffer's tabs at their tab stops (CSS Text 3 §4.2):
+    /// the word starts `at` cells into the current line, whose start is
+    /// [`Self::line_origin`] cells from the block's starting content edge;
+    /// each tab "lines up the start edge of the next glyph with the next
+    /// tab stop", the multiples of its tab size from that edge — none
+    /// rendered at a tab size of 0.
+    pub(super) fn layout_tabs(&mut self, at: u16) {
+        let mut pos = self.line_origin().saturating_add(at);
+        let mut changed = false;
+        for g in &mut self.word_buffer {
+            if let GraphemeKind::Preserved {
+                tab: Some(size), ..
+            } = g.kind
+            {
+                let width = if size == 0 { 0 } else { size - pos % size };
+                if width != g.width {
+                    g.width = width;
+                    g.text = spaces(width);
+                    g.mapped = width != 1;
+                    changed = true;
+                }
+            }
+            pos = pos.saturating_add(g.width);
+        }
+        if changed {
+            self.word_width = self.word_buffer.iter().map(|g| g.width).sum();
         }
     }
 
@@ -136,6 +167,7 @@ impl LinePacker<'_> {
             self.break_line(LineEnd::Soft);
             self.word_buffer = rest;
             self.word_width = rest_width;
+            self.layout_tabs(0);
             self.fit_empty_line(self.word_fit());
         }
     }
@@ -146,7 +178,7 @@ impl LinePacker<'_> {
         self.word_buffer
             .iter()
             .rev()
-            .take_while(|g| g.kind == GraphemeKind::Preserved { hangs: true })
+            .take_while(|g| matches!(g.kind, GraphemeKind::Preserved { hangs: true, .. }))
             .map(|g| g.width)
             .sum()
     }
@@ -342,5 +374,14 @@ impl LinePacker<'_> {
         if self.line_has_content() {
             self.break_line(LineEnd::Forced);
         }
+    }
+}
+
+/// `n` spaces: a tab's rendering.
+fn spaces(n: u16) -> std::borrow::Cow<'static, str> {
+    const SPACES: &str = "                                                                ";
+    match SPACES.get(..usize::from(n)) {
+        Some(s) => std::borrow::Cow::Borrowed(s),
+        None => std::borrow::Cow::Owned(" ".repeat(usize::from(n))),
     }
 }

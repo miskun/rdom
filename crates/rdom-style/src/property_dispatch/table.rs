@@ -139,6 +139,7 @@ define_fields! {
     OverflowWrap => text.overflow_wrap : OVERFLOW_WRAP,
     LineBreak => text.line_break : LINE_BREAK,
     Hyphens => text.hyphens : HYPHENS,
+    TabSize => text.tab_size : TAB_SIZE,
     UserSelect => user_select : USER_SELECT,
     PointerEvents => pointer_events : POINTER_EVENTS,
     Visibility => visibility : VISIBILITY,
@@ -361,6 +362,7 @@ pub fn inherits(name: &str) -> bool {
             | "word-wrap"
             | "line-break"
             | "hyphens"
+            | "tab-size"
             | "pointer-events"
             | "visibility"
             | "caret-color"
