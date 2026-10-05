@@ -105,8 +105,8 @@ pub(crate) use box_paint::fills;
 // The chrome-substitution contract the built-ins implement
 // (`runtime::builtins::inline_chrome`); see `inline_paint::chrome`.
 pub(crate) use inline_paint::{ChromeText, InlineChromeFn};
-use stacking_walk::paint_stacking_context;
 pub(crate) use stacking_walk::paints_child_box;
+use stacking_walk::{paint_line_atom, paint_stacking_context};
 
 /// Extension trait on `Dom<TuiExt>` adding `paint_dom(buf, clip)`.
 pub trait PaintExt: crate::sealed::Sealed {

@@ -22,7 +22,7 @@
 //! 3. Convert the in-fragment byte offset to a cell offset via
 //!    unicode-width per grapheme.
 //! 4. Return `(ifc.content_rect.x + fragment.x + cell_offset,
-//!    ifc.content_rect.y + line_index)`.
+//!    ifc.content_rect.y + the line's text row)`.
 //!
 //! Generated content (`::before` / `::after`, list markers) is packed
 //! into the same lines as [`GeneratedFragment`](crate::render::inline::GeneratedFragment)s,
@@ -64,7 +64,7 @@ pub fn cell_of_position(dom: &Dom<TuiExt>, pos: Position) -> Option<(u16, u16)> 
         let text = dom.node(pos.node).node_value()?;
         let (line_idx, col) = phantom_line_and_column(text, pos.offset)?;
         let x = (content.x + col as i32).max(0) as u16;
-        let y = (content.y + line_idx as i32).max(0) as u16;
+        let y = (content.y + text_row_of_line(layout, line_idx)).max(0) as u16;
         return Some((x, y));
     }
 
@@ -74,8 +74,18 @@ pub fn cell_of_position(dom: &Dom<TuiExt>, pos: Position) -> Option<(u16, u16)> 
     let cell_in_frag = cells_before_byte(&fragment.text, offset_in_frag);
 
     let x = (content.x + fragment.x as i32 + cell_in_frag as i32).max(0) as u16;
-    let y = (content.y + line_idx as i32).max(0) as u16;
+    let y = (content.y + text_row_of_line(layout, line_idx)).max(0) as u16;
     Some((x, y))
+}
+
+/// The row line `line_idx`'s text sits on, from the top of `layout`; a
+/// line past the last line box (a phantom line after a trailing
+/// newline) is one row each below it.
+fn text_row_of_line(layout: &InlineLayout, line_idx: usize) -> i32 {
+    match layout.lines.get(line_idx) {
+        Some(line) => i32::from(line.text_row()),
+        None => i32::from(layout.height()) + (line_idx - layout.lines.len()) as i32,
+    }
 }
 
 /// Compute (line_index, column) for a position that has no

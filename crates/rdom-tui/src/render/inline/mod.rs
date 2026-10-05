@@ -21,6 +21,10 @@
 //!    If it doesn't fit at the current cursor + pending space, wrap
 //!    to a new line.
 //!
+//! 5. When a line is done, settle its height (`vertical`): one row,
+//!    or as many as its tallest atomic inline block needs, its text on
+//!    the baseline row (CSS 2.1 §10.8). The data model is `boxes`.
+//!
 //! Words longer than the content width overflow their line — CSS's
 //! default `overflow-wrap: normal` behavior. Paint clips.
 //!
@@ -40,9 +44,11 @@
 //! script clustering) is out of scope.
 
 mod align;
+mod boxes;
 mod caret;
 pub(crate) mod generated;
 mod packer;
+mod vertical;
 
 #[cfg(test)]
 mod tests;
@@ -52,108 +58,10 @@ use rdom_core::{Dom, NodeId, NodeType};
 use crate::ext::{PseudoSlot, StyleSlot, TuiExt};
 use crate::layout::WhiteSpace;
 
+pub use boxes::{GeneratedFragment, InlineFragment, InlineLayout, LineBox};
 pub use caret::cell_of_position;
 pub(crate) use caret::cells_before_byte;
 use packer::LinePacker;
-
-/// One visible chunk of text painted contiguously on a single line
-/// with a single owner element + source text node. An inline
-/// element whose text wraps produces multiple fragments (one per
-/// line). A whitespace-collapsed separator ("a <b>bold</b>") is
-/// also a single fragment whose text is `" "`.
-///
-/// **Atomic inline-block fragments** (`atomic = true`) carry a
-/// `Display::InlineBlock` element participating in IFC. Their
-/// `text` is empty; their `width` is the box's intrinsic main-
-/// axis size including UA pseudo content (`<button>`'s `[ … ]`).
-/// Paint renders them via the regular inline-content path at
-/// `(x, line_y, width)`; selection skips them; hit-test routes to
-/// `node`. Closes the bracketed-button-inside-`<p>` case of
-/// `IFC-MIXED-TEXT-INLINEBLOCK-1`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InlineFragment {
-    /// The direct element parent of the source text, or — for
-    /// `atomic = true` fragments — the inline-block element itself.
-    /// Click / hover routes here.
-    pub node: NodeId,
-    /// The source `Text` node whose data this fragment renders. For
-    /// whitespace-collapsed separators, this is the text node that
-    /// contained the first collapsed whitespace byte. For
-    /// `atomic = true` fragments, set to the inline-block element
-    /// (sentinel — there's no source text node).
-    pub text_node: NodeId,
-    /// Byte offset in `text_node`'s data where this fragment's
-    /// first grapheme sits. The runtime's `position_at` walks
-    /// fragment graphemes from `x` to compute the hit position.
-    /// `0` for atomic fragments.
-    pub source_byte_offset: usize,
-    /// X offset from the IFC block's content area left edge.
-    pub x: u16,
-    /// Visible cell width of `text` (or, for atomic fragments,
-    /// the inline-block's intrinsic main-axis content size).
-    pub width: u16,
-    /// Normalized text to paint. No control characters; no leading /
-    /// trailing whitespace when this fragment brackets a line.
-    /// Empty for `atomic = true` fragments.
-    pub text: String,
-    /// True iff this fragment is an atomic inline-block box
-    /// (`Display::InlineBlock` participating in IFC). See the type
-    /// doc for the full contract.
-    pub atomic: bool,
-}
-
-/// A run of a host's static `::before` / `::after` content on one
-/// line. CSS 2.1 §12.1: generated content is an inline box, the first
-/// / last child of its host, so the packer lays it out with the text —
-/// it wraps, and the text after it starts past it.
-///
-/// Generated content has no DOM node and no DOM position, so it is kept
-/// apart from [`LineBox::fragments`]: hit-testing, the caret,
-/// selection highlight and copy only ever see text and atoms, and a
-/// click on a generated cell clamps to the nearest text position.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GeneratedFragment {
-    /// The element whose pseudo-element this is (paint reads its
-    /// `computed_before` / `computed_after`).
-    pub host: NodeId,
-    /// Which of the host's pseudo-elements this run belongs to.
-    pub slot: PseudoSlot,
-    /// X offset from the inline flow's content-area left edge.
-    pub x: u16,
-    /// Visible cell width of `text`.
-    pub width: u16,
-    /// The normalized generated text on this line.
-    pub text: String,
-}
-
-/// One line of inline content.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct LineBox {
-    /// Fragments in left-to-right order, each non-overlapping.
-    pub fragments: Vec<InlineFragment>,
-    /// Generated-content runs on this line, left to right. They occupy
-    /// cells between / around `fragments` — never overlapping them.
-    pub generated: Vec<GeneratedFragment>,
-    /// Total visible width of this line, generated content included
-    /// (≤ content width unless a single word overflowed).
-    pub width: u16,
-}
-
-/// Full inline layout for an IFC block.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InlineLayout {
-    pub lines: Vec<LineBox>,
-    /// The content width this layout was packed for. Paint reuses it
-    /// to know where to clip overflowing fragments.
-    pub content_width: u16,
-}
-
-impl InlineLayout {
-    /// Height in lines. Each line occupies one row in the TUI.
-    pub fn height(&self) -> u16 {
-        self.lines.len() as u16
-    }
-}
 
 /// True iff `id` has a populated `inline_layout` on its `TuiExt`.
 /// Singular variant of [`inline_flow_container`].
@@ -307,8 +215,9 @@ pub fn scrolled_content_rect(
 }
 
 /// The atomic (`display: inline-block`) fragments of `layout`, each with
-/// the outer rect it occupies when the layout is painted at `origin`
-/// (one row per line). Both the block pass (anonymous boxes) and the
+/// the border-box rect it occupies when the layout is painted at
+/// `origin` — placed in its line box on the line's baseline
+/// (`vertical`). Both the block pass (anonymous boxes) and the
 /// flex pass (single IFC) recurse `layout_node` into these so the
 /// inline-block's own subtree lays out; the snapshot exists because the
 /// caller cannot hold `&InlineLayout` while mutating the arena.
@@ -317,16 +226,15 @@ pub fn atomic_placements(
     origin: crate::layout::LayoutRect,
 ) -> Vec<(NodeId, crate::layout::LayoutRect)> {
     let mut atoms = Vec::new();
-    for (line_idx, line) in layout.lines.iter().enumerate() {
-        let line_y = origin.y + line_idx as i32;
+    for line in &layout.lines {
         for fragment in line.fragments.iter().filter(|f| f.atomic) {
             atoms.push((
                 fragment.node,
                 crate::layout::LayoutRect::new(
                     origin.x + fragment.x as i32,
-                    line_y,
+                    origin.y + i32::from(line.top) + i32::from(fragment.y),
                     fragment.width,
-                    1,
+                    fragment.height,
                 ),
             ));
         }
@@ -457,9 +365,7 @@ pub(crate) fn pack_run(
                     .map(|c| c.display)
                     .unwrap_or(Display::Block);
                 if matches!(display, Display::InlineBlock) {
-                    let intrinsic =
-                        atomic_inline_block_intrinsic_width(dom, child_id, packer.content_width());
-                    packer.push_atomic_inline_block(child_id, intrinsic);
+                    push_atom(dom, child_id, &mut packer);
                     continue;
                 }
                 walk_inline_box(dom, child_id, &mut packer);
@@ -529,17 +435,11 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
                 // CSS 2.1 §10.8: a `Display::InlineBlock` element
                 // participates in IFC as a single atomic inline-
                 // level box. Don't recurse into it — the packer
-                // emits a width-`intrinsic` placeholder fragment,
-                // and paint renders the box's content (including
-                // UA pseudos like `<button>`'s `[ ]`) via the
-                // regular inline-content path at that rect.
+                // emits one fragment of its width and rows, the layout
+                // pass lays the element out at that rect and paint
+                // paints it there as a box, at its turn in the line.
                 if matches!(display, Display::InlineBlock) {
-                    let intrinsic = atomic_inline_block_intrinsic_width(
-                        dom,
-                        child.id(),
-                        packer.content_width(),
-                    );
-                    packer.push_atomic_inline_block(child.id(), intrinsic);
+                    push_atom(dom, child.id(), packer);
                     continue;
                 }
                 walk_inline_box(dom, child.id(), packer);
@@ -562,6 +462,15 @@ fn walk_inline_box<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker
     if let Some(text) = generated::static_pseudo_text(dom, id, StyleSlot::After) {
         packer.push_generated(id, PseudoSlot::After, text);
     }
+}
+
+/// Push the inline block `id` as an atom: its width and its rows in
+/// the line (`vertical`).
+fn push_atom(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'_>) {
+    let cb_width = packer.content_width();
+    let width = atomic_inline_block_intrinsic_width(dom, id, cb_width);
+    let rows = vertical::atom_rows(dom, id, width, cb_width);
+    packer.push_atomic_inline_block(id, width, rows);
 }
 
 /// Intrinsic main-axis (row) content width of an inline-block

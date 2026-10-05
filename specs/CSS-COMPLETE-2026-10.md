@@ -1743,3 +1743,30 @@ row comes from.
   pins its width. Red:
   `a_relative_pseudo_with_both_insets_only_shifts` failed — `(10, 1, 8, 2)` (stretched both ways)
   against `(10, 1, 1, 1)`; green after, `(8, 1, 1, 1)` under `rtl`. No expectation changed.
+- 2026-10-07 — C5G-ATOM-BOX (gate fix, closes TECH_DEBT `ATOM-BOX-1`): an inline block in a line is
+  one atomic box, laid out and painted by its line. Layout (CSS 2.1 §10.8 / §10.8.1): line boxes have
+  heights — `LineBox` gains `top` / `height` / `baseline`, `InlineFragment` `y` / `height` (Breaking —
+  rdom-tui, the data model moved to `render/inline/boxes.rs` to keep `inline/mod.rs` under the bar);
+  the packer measures each atom (`inline/vertical.rs`: its border-box height through the `Sizer`,
+  its positive vertical margins, its baseline — the last row of its content, or its bottom margin
+  edge with no content or clipping overflow) and settles each line: the baseline row is the most rows
+  any atom has above its baseline, the height adds the most below; text and generated content sit on
+  the baseline row. `atomic_placements` lays the atom out at its border box in the line (the IFC's
+  atoms now in the *scrolled* content rect, as paint reads them). Paint (Appendix E 7.2.1.4.1.1): the
+  line paints each atom at its turn through `stacking_walk::paint_line_atom` — the same in-flow path
+  as a block child (shadows whole, background, inset shadows, border, its background phase, content;
+  a stacking context as one) — and `recurse_children` / `paints_child_box` skip an inline block in a
+  block container (`in_a_line`), so the anonymous-box path no longer paints it twice and the
+  `painted_as_box` special case of C5G-INLINE-BLOCK-SHADOW is gone. Consumers moved from "line *i* is
+  row *i*" to the line geometry: hit-testing (`line_at_row`, `LineBox::covers`), the caret
+  (`text_row`; Up / Down step line box by line box), static positions, the opacity group's extent,
+  the band paint clips to. Decided: whole-row baseline alignment with `vertical-align: baseline` only
+  (C9-VERTICAL-ALIGN adds the rest); a negative vertical margin on an atom counts as zero (an atom
+  above its line would cover the previous one); the baseline is the content's last row (DIVERGENCES
+  §2, Layout). Red: `css_phase5/atom_box.rs` — inside text the bordered atom painted `aab  cc` on one
+  row (no border, no background; `Rgb(0, 0, 255)` where the translucent fill should composite to
+  `(128, 0, 127)`), padding gave `aab  cc`; beside bare text the box and the line content disagreed
+  (`aab─┐cc` / `  │b│  `, padding `aabb cc` — painted twice), the atom was 1 row (`height: 1`, not
+  3), the next line's `cc` was drawn under the box, and the atom's rows did not hit-test to it; green
+  after, with `vertical.rs` / `boxes.rs` unit tests for the line arithmetic. No existing expectation
+  or snapshot changed.

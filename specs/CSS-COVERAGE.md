@@ -340,7 +340,7 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `display: block` / `inline` / `inline-block` / `flex` / `inline-flex` / `none` | Supported | Outer + inner (`Flow`) pair. | — | `DISP/set.rs`, `KW::Display`, `KW::Flow` |
+| `display: block` / `inline` / `inline-block` / `flex` / `inline-flex` / `none` | Supported | Outer + inner (`Flow`) pair. An inline block sits in its line on the baseline, the line box growing to its margin box, and paints there as a box (C5G-ATOM-BOX). | — | `DISP/set.rs`, `KW::Display`, `KW::Flow` |
 | `display: contents` | Missing | No box; children join the parent. | No | `KW::Display`, layout tree builder |
 | `display: flow-root` | Missing | Block that establishes an independent BFC. | No | `KW::Flow`, `BLOCK/margin_collapse.rs` |
 | `display: list-item` | Missing | Marker box. | Yes | `KW`, `CASC/counters.rs` |

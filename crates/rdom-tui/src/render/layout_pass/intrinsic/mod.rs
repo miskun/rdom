@@ -90,7 +90,7 @@ pub(super) fn content_min_size(
 /// (CSS Sizing 3 §5.1): its content unwrapped, plus padding and border,
 /// ignoring the element's own declared size — the `max-content`
 /// keyword's size, as [`content_min_size`] is `min-content`'s.
-pub(super) fn content_max_size(
+pub(crate) fn content_max_size(
     dom: &Dom<TuiExt>,
     id: NodeId,
     direction: Direction,

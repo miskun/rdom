@@ -165,8 +165,7 @@ pub(crate) fn vertical_motion(dom: &mut TuiDom, from: Position, delta_y: i32) ->
     });
     let target_x = stored_sticky.unwrap_or(current_x);
 
-    let target_y_i32 = current_y as i32 + delta_y;
-    let new_pos = compute_vertical_target(dom, from_flow, target_x, target_y_i32, delta_y);
+    let new_pos = compute_vertical_target(dom, from_flow, target_x, current_y, delta_y);
 
     if let Some(id) = editable
         && let Some(ext) = dom.node_mut(id).ext_mut()
@@ -189,8 +188,8 @@ pub(crate) fn line_edge_position(dom: &TuiDom, from: Position, forward: bool) ->
     let flow = crate::render::inline::inline_flow_for_text(dom, from.node)?;
     let (_, y) = cell_of_position(dom, from)?;
     let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
-    let line_idx = (y as i32 - content.y) as usize;
-    let target_line = layout.lines.get(line_idx)?;
+    let row = u16::try_from(y as i32 - content.y).ok()?;
+    let target_line = &layout.lines[layout.line_at_row(row)?];
     if forward {
         target_line
             .fragments
@@ -204,21 +203,39 @@ pub(crate) fn line_edge_position(dom: &TuiDom, from: Position, forward: bool) ->
     }
 }
 
-/// Resolve the target `Position` for vertical motion given a
-/// desired `(target_x, target_y)` inside `from_ifc`. Handles the
-/// in-bounds case via hit-test, clamps to end-of-line for shorter
-/// lines, and clamps to line-start / line-end at the edges of
-/// content (Up-at-top / Down-at-bottom).
+/// Resolve the target `Position` for vertical motion `delta_y` lines
+/// from the caret row `from_y`, at column `target_x`, inside
+/// `from_flow`. Motion goes line box by line box — a line holding a
+/// tall inline block spans several rows, its text on one of them (CSS
+/// 2.1 §10.8). Handles the in-bounds case via hit-test, clamps to
+/// end-of-line for shorter lines, and clamps to line-start / line-end
+/// at the edges of content (Up-at-top / Down-at-bottom).
 fn compute_vertical_target(
     dom: &TuiDom,
     from_flow: crate::render::inline::InlineFlow,
     target_x: u16,
-    target_y_i32: i32,
+    from_y: u16,
     delta_y: i32,
 ) -> Option<Position> {
     use crate::render::inline::{inline_flow_for_text, inline_flow_layout};
 
     let (layout, content) = inline_flow_layout(dom, from_flow)?;
+    // The caret's line; a caret past the last line box (a phantom line
+    // after a trailing newline) counts one row per line there.
+    let row = i32::from(from_y) - content.y;
+    let height = i32::from(layout.height());
+    let from_line = match u16::try_from(row).ok().and_then(|r| layout.line_at_row(r)) {
+        Some(i) => i as i64,
+        None if row >= height => layout.lines.len() as i64 + i64::from(row - height),
+        None => i64::from(row),
+    };
+    let target_line_i = from_line + i64::from(delta_y);
+    // The target line's text row, or a row just outside the content.
+    let target_y_i32 = match usize::try_from(target_line_i) {
+        Ok(i) if i < layout.lines.len() => content.y + i32::from(layout.lines[i].text_row()),
+        Ok(_) => content.y + i32::from(layout.height()),
+        Err(_) => content.y - 1,
+    };
 
     // Up past the first line → clamp to line-start of first line.
     if target_y_i32 < content.y {
@@ -234,10 +251,11 @@ fn compute_vertical_target(
         return None;
     }
 
-    let target_line_idx = (target_y_i32 - content.y) as usize;
-
     // Down past the last line → clamp to line-end of last line.
-    if target_line_idx >= layout.lines.len() {
+    let Some(target_line_idx) = usize::try_from(target_line_i)
+        .ok()
+        .filter(|&i| i < layout.lines.len())
+    else {
         if delta_y > 0
             && let Some(last_line) = layout.lines.last()
             && let Some(last_frag) = last_line.fragments.last()
@@ -248,7 +266,7 @@ fn compute_vertical_target(
             });
         }
         return None;
-    }
+    };
 
     let target_y = target_y_i32 as u16;
 
@@ -462,8 +480,8 @@ fn caret_line_start(dom: &TuiDom, from: Position) -> Option<Position> {
     let flow = crate::render::inline::inline_flow_for_text(dom, from.node)?;
     let (_, y) = cell_of_position(dom, from)?;
     let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
-    let line_idx = (y as i32 - content.y) as usize;
-    let target_line = layout.lines.get(line_idx)?;
+    let row = u16::try_from(y as i32 - content.y).ok()?;
+    let target_line = &layout.lines[layout.line_at_row(row)?];
     // Start of line = position of the first fragment's first byte.
     // Going through `position_at(0, y)` doesn't work because column
     // 0 sits inside the textarea's left padding (no fragment there)
@@ -484,8 +502,8 @@ fn caret_line_end(dom: &TuiDom, from: Position) -> Option<Position> {
     let flow = crate::render::inline::inline_flow_for_text(dom, from.node)?;
     let (_, y) = cell_of_position(dom, from)?;
     let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
-    let line_idx = (y as i32 - content.y) as usize;
-    let target_line = layout.lines.get(line_idx)?;
+    let row = u16::try_from(y as i32 - content.y).ok()?;
+    let target_line = &layout.lines[layout.line_at_row(row)?];
     // End of line = position just past the last fragment on the
     // line. `position_at(u16::MAX, y)` doesn't work because no
     // fragment covers cells past the line's content; the hit-test

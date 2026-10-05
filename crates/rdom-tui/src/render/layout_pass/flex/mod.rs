@@ -106,19 +106,17 @@ pub(super) fn layout_children(
         // Compute + store the inline layout at the block's final
         // content width. Paint reads this back directly.
         let inline_layout = compute_inline_layout(dom, id, container.width);
-        super::positioning::record_static_positions_in_ifc(
-            dom,
-            id,
-            &inline_layout,
-            crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(container),
-        );
+        // The lines sit in the *scrolled* content rect, as paint and
+        // hit-test read them back.
+        let lines_at = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(container);
+        super::positioning::record_static_positions_in_ifc(dom, id, &inline_layout, lines_at);
         // Atomic inline-block fragments (`<button>` in
         // `<p>hi <button>X</button> ok</p>`) need their layout rect
         // written so hit-test descends into them, and need
         // `layout_node` recursion so their own subtrees lay out
         // (text wrap, pseudos, descendants). Snapshot fragments
         // first to satisfy the borrow checker.
-        let atoms = crate::render::inline::atomic_placements(&inline_layout, container);
+        let atoms = crate::render::inline::atomic_placements(&inline_layout, lines_at);
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.inline_layout = Some(inline_layout);
         }

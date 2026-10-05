@@ -144,8 +144,12 @@ pub(in crate::render::layout_pass) fn static_position_in_ifc(
         .and_then(|e| e.computed.as_ref())
         .is_some_and(|c| matches!(c.display, Display::Inline | Display::InlineBlock));
     match last {
-        Some((line, end)) if inline_level => (origin.x + end, origin.y + line as i32),
-        Some((line, _)) => (origin.x, origin.y + line as i32 + 1),
+        // On the line's baseline row (its text row), or below the line box.
+        Some((line, end)) if inline_level => (
+            origin.x + end,
+            origin.y + i32::from(layout.lines[line].text_row()),
+        ),
+        Some((line, _)) => (origin.x, origin.y + i32::from(layout.lines[line].bottom())),
         None => (origin.x, origin.y),
     }
 }

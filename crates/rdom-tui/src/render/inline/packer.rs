@@ -33,6 +33,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::layout::WhiteSpace;
 
+use super::vertical::{self, AtomRows};
 use super::{GeneratedFragment, InlineFragment, LineBox};
 use crate::ext::PseudoSlot;
 
@@ -88,7 +89,12 @@ pub(super) struct LinePacker<'a> {
     cur_fragments: Vec<InlineFragment>,
     /// Committed generated content on the current line.
     cur_generated: Vec<GeneratedFragment>,
+    /// The atoms on the current line: their fragment's index in
+    /// `cur_fragments` and their rows (`vertical`).
+    cur_atoms: Vec<(usize, AtomRows)>,
     cur_line_width: u16,
+    /// The top row of the current line: the rows of the lines above.
+    cur_top: u16,
 
     /// Accumulated since the last break opportunity — not yet
     /// committed to the current line.
@@ -120,7 +126,9 @@ impl<'a> LinePacker<'a> {
             lines: Vec::new(),
             cur_fragments: Vec::new(),
             cur_generated: Vec::new(),
+            cur_atoms: Vec::new(),
             cur_line_width: 0,
+            cur_top: 0,
             word_buffer: Vec::new(),
             word_width: 0,
             pending_space: false,
@@ -448,7 +456,9 @@ impl<'a> LinePacker<'a> {
             text_node,
             source_byte_offset: source_offset,
             x,
+            y: 0,
             width,
+            height: 1,
             text: text.to_string(),
             atomic: false,
         });
@@ -470,7 +480,10 @@ impl<'a> LinePacker<'a> {
     /// proxy mechanism as text — emit a width-`width` placeholder
     /// grapheme to lean on the existing wrap logic, then upgrade
     /// the just-pushed fragment to `atomic = true`.
-    pub(super) fn push_atomic_inline_block(&mut self, node: NodeId, width: u16) {
+    ///
+    /// `rows` is the atom's block-axis geometry; the line it lands on
+    /// grows to hold it when the line is settled (`vertical`).
+    pub(super) fn push_atomic_inline_block(&mut self, node: NodeId, width: u16, rows: AtomRows) {
         if !self.word_buffer.is_empty() {
             self.commit_word();
         }
@@ -504,12 +517,15 @@ impl<'a> LinePacker<'a> {
             self.pending_space_source = None;
         }
         let x = self.cur_line_width;
+        self.cur_atoms.push((self.cur_fragments.len(), rows));
         self.cur_fragments.push(InlineFragment {
             node,
             text_node: node, // sentinel — atom has no source text node
             source_byte_offset: 0,
             x,
+            y: 0,
             width,
+            height: rows.height,
             text: String::new(),
             atomic: true,
         });
@@ -521,14 +537,21 @@ impl<'a> LinePacker<'a> {
     }
 
     fn break_line(&mut self) {
-        let fragments = std::mem::take(&mut self.cur_fragments);
+        let mut fragments = std::mem::take(&mut self.cur_fragments);
         let generated = std::mem::take(&mut self.cur_generated);
+        let (baseline, height) = vertical::settle_line(&mut fragments, &self.cur_atoms);
+        self.cur_atoms.clear();
         let width = self.cur_line_width;
         self.cur_line_width = 0;
+        let top = self.cur_top;
+        self.cur_top = top.saturating_add(height);
         self.lines.push(LineBox {
             fragments,
             generated,
             width,
+            top,
+            height,
+            baseline,
         });
     }
 

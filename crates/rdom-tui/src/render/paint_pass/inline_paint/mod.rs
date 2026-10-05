@@ -82,8 +82,9 @@ pub(super) fn paint_inline_content(
     computed: &ComputedStyle,
     inner: LayoutRect,
     buf: &mut Buffer,
-    clip: Rect,
+    clips: (Rect, Rect),
 ) {
+    let (clip, viewport) = clips;
     // Mixed content (a direct text run AND in-flow block children): the own
     // text run lives in an anonymous block, painted by `paint_anonymous_blocks`.
     // This Path-3 pass would paint the own text a SECOND time (at a different x
@@ -120,7 +121,7 @@ pub(super) fn paint_inline_content(
         .tui_ext()
         .and_then(|e| e.inline_layout.as_ref())
     {
-        paint_lines(dom, id, layout, inner, buf, clip);
+        paint_lines(dom, id, layout, inner, buf, (clip, viewport));
         return;
     }
 
@@ -138,16 +139,10 @@ pub(super) fn paint_inline_content(
         return;
     }
 
-    // Path 3: no inline_layout (either because the element is IFC-
-    // zeroed as a flex/IFC child OR because it has no own text and
-    // no children). Fall back to single-row chrome — render
-    // ::before + own_text_content (if any) + ::after at the inner
-    // rect. This covers the BFC-1 phase 3.5b atomic inline-block
-    // path: `paint_anonymous_blocks` / `paint_ifc` paint the
-    // atomic by calling back into `paint_inline_content` at the
-    // fragment's rect, but the inline-block child's own
-    // `inline_layout` was cleared during the parent IFC's zeroing
-    // pass.
+    // Path 3: no inline_layout (the element is IFC-zeroed as a flex
+    // child, or has no own text and no children). Fall back to
+    // single-row chrome — render ::before + own_text_content (if any)
+    // + ::after at the inner rect.
     paint_single_row_chrome(
         dom,
         id,
@@ -168,21 +163,25 @@ fn paint_lines(
     layout: &crate::render::inline::InlineLayout,
     inner: LayoutRect,
     buf: &mut Buffer,
-    clip: Rect,
+    (clip, viewport): (Rect, Rect),
 ) {
     // `inner` is the *scrolled* content rect (see
     // `inline::scrolled_content_rect`): the block shows `inner.height`
-    // lines starting at its own `scroll_y`.
-    let first_visible_line = dom.node(id).ext().map_or(0, |e| e.scroll_y as i32);
-    paint_inline_layout(dom, layout, inner, first_visible_line, id, buf, clip);
+    // rows starting at its own `scroll_y`.
+    let at = FlowPlacement {
+        inner,
+        first_visible_line: dom.node(id).ext().map_or(0, |e| e.scroll_y as i32),
+        bg_dedup_owner: id,
+    };
+    paint_inline_layout(dom, layout, at, buf, clip, viewport);
 
     // Anchor href tagging for whole-element anchors (e.g.
     // block-level `<a>` with text content and no inline descendants).
     // Per-fragment anchors are handled inside the loop.
     if let Some(href) = anchor_href_for(dom, id) {
         // Walk every line and tag the painted width.
-        for (line_index, line) in layout.lines.iter().enumerate() {
-            let line_y = inner.y + line_index as i32;
+        for line in &layout.lines {
+            let line_y = inner.y + i32::from(line.text_row());
             if line_y < clip.y as i32 || line_y >= clip.bottom() as i32 {
                 continue;
             }
@@ -217,10 +216,10 @@ fn anchor_href_for(dom: &Dom<TuiExt>, id: NodeId) -> Option<String> {
 pub(super) fn paint_ifc(
     dom: &Dom<TuiExt>,
     id: NodeId,
-    _block_computed: &ComputedStyle,
     inner: LayoutRect,
     buf: &mut Buffer,
     clip: Rect,
+    viewport: Rect,
 ) {
     let Some(inline_layout) = dom
         .node(id)
@@ -229,8 +228,12 @@ pub(super) fn paint_ifc(
     else {
         return;
     };
-    let first_visible_line = dom.node(id).ext().map_or(0, |e| e.scroll_y as i32);
-    paint_inline_layout(dom, inline_layout, inner, first_visible_line, id, buf, clip);
+    let at = FlowPlacement {
+        inner,
+        first_visible_line: dom.node(id).ext().map_or(0, |e| e.scroll_y as i32),
+        bg_dedup_owner: id,
+    };
+    paint_inline_layout(dom, inline_layout, at, buf, clip, viewport);
     // Caret is painted by `paint_node` once per element that owns
     // an inline-flow container (IFC blocks AND pure-text leaf
     // blocks); the call used to live here, but textareas/inputs go
@@ -254,6 +257,7 @@ pub(super) fn paint_anonymous_blocks(
     container_id: NodeId,
     buf: &mut Buffer,
     clip: Rect,
+    viewport: Rect,
 ) {
     let Some(ext) = dom.node(container_id).tui_ext() else {
         return;
@@ -262,22 +266,32 @@ pub(super) fn paint_anonymous_blocks(
     // anonymous box by the layout pass (CSS 2.1 §9.2.1.1); they arrive
     // here as the layouts' generated fragments.
     for anon in &ext.anonymous_blocks {
-        paint_inline_layout(
-            dom,
-            &anon.inline_layout,
-            anon.rect,
-            0,
-            container_id,
-            buf,
-            clip,
-        );
+        let at = FlowPlacement {
+            inner: anon.rect,
+            first_visible_line: 0,
+            bg_dedup_owner: container_id,
+        };
+        paint_inline_layout(dom, &anon.inline_layout, at, buf, clip, viewport);
     }
 }
 
-/// Shared body: paint `inline_layout` at `rect` (the IFC's content
-/// area in viewport coords). `bg_dedup_owner` is the element whose
+/// Where an inline layout paints: `inner` is the inline flow's content
+/// area in viewport coords, `first_visible_line` the first row of it
+/// the flow shows (its own scroll offset; 0 for an anonymous box, whose
+/// rect is already scrolled), and `bg_dedup_owner` the element whose
 /// `fill_bg` already covers fragments owned by it — those fragments
 /// paint with `glyph_style`, leaving that bg to its owner.
+#[derive(Clone, Copy)]
+struct FlowPlacement {
+    inner: LayoutRect,
+    first_visible_line: i32,
+    bg_dedup_owner: NodeId,
+}
+
+/// Shared body: paint `inline_layout` where `at` says. Each line's text
+/// and generated content sit on its baseline row; each atomic inline
+/// block paints as a box at its turn (`stacking_walk::paint_line_atom`),
+/// clipped to the rows the flow shows.
 ///
 /// Generated fragments (`::before` / `::after`) paint at the cells the
 /// packer gave them, in their pseudo-element's style; they never take
@@ -285,97 +299,70 @@ pub(super) fn paint_anonymous_blocks(
 fn paint_inline_layout(
     dom: &Dom<TuiExt>,
     inline_layout: &crate::render::inline::InlineLayout,
-    inner: LayoutRect,
-    first_visible_line: i32,
-    bg_dedup_owner: NodeId,
+    at: FlowPlacement,
     buf: &mut Buffer,
     clip: Rect,
+    viewport: Rect,
 ) {
+    let FlowPlacement {
+        inner,
+        first_visible_line,
+        bg_dedup_owner,
+    } = at;
+    // The flow shows `inner.height` rows starting at
+    // `first_visible_line`; rows outside that band are above the
+    // scrollport or past the content box. `overflow: hidden` on the
+    // block is enforced by the caller's clip rect (set in `paint_node`
+    // based on overflow mode).
+    let band_top = inner.y + first_visible_line;
+    let band_bottom = band_top + i32::from(inner.height);
+    let in_band = |row: i32| row >= band_top && row < band_bottom;
+    let atom_clip = clip.intersection(Rect::new(
+        clip.x,
+        band_top.clamp(0, i32::from(u16::MAX)) as u16,
+        clip.width,
+        (band_bottom - band_top.max(0)).clamp(0, i32::from(u16::MAX)) as u16,
+    ));
     // The current selection range (document-ordered) — computed once
     // per IFC paint, reused across fragments. `None` when there's no
     // selection or it's collapsed (caret only, nothing to highlight).
     let selection_range = dom.selection_range().filter(|r| !r.is_collapsed());
-    for (line_index, line) in inline_layout.lines.iter().enumerate() {
-        let line_y = inner.y + line_index as i32;
-        if line_y < clip.y as i32 || line_y >= clip.bottom() as i32 {
-            continue;
-        }
-        // The block shows `inner.height` lines starting at
-        // `first_visible_line` (its own scroll offset; 0 for an
-        // anonymous box, whose rect is already scrolled). Lines outside
-        // that band are above the scrollport or past the content box.
-        // `overflow: hidden` on the block is enforced by the caller's
-        // clip rect (set in `paint_node` based on overflow mode).
-        let li = line_index as i32;
-        if li < first_visible_line || li >= first_visible_line + inner.height as i32 {
-            continue;
-        }
+    for line in &inline_layout.lines {
+        let line_y = inner.y + i32::from(line.text_row());
+        let text_visible =
+            in_band(line_y) && line_y >= clip.y as i32 && line_y < clip.bottom() as i32;
 
         let line_right = clip
             .right()
             .min(inner.x.saturating_add(inner.width as i32).max(0) as u16);
-        for generated in &line.generated {
-            paint_generated(
-                dom,
-                generated,
-                inner.x,
-                line_y as u16,
-                clip.x,
-                line_right,
-                buf,
-            );
+        if text_visible {
+            for generated in &line.generated {
+                paint_generated(
+                    dom,
+                    generated,
+                    inner.x,
+                    line_y as u16,
+                    clip.x,
+                    line_right,
+                    buf,
+                );
+            }
         }
 
         for fragment in &line.fragments {
             let frag_x = inner.x + fragment.x as i32;
-            if frag_x >= clip.right() as i32 {
+
+            // An atomic inline block paints as a box at its laid-out
+            // rect, atomically (CSS 2.1 Appendix E, 7.2.1.4.1.1): its
+            // shadows, background, border, then its content — over the
+            // line content painted before it. The line is its one
+            // painter; a positioned atom is skipped there (its stacking
+            // context's layers paint it).
+            if fragment.atomic {
+                super::paint_line_atom(dom, fragment.node, buf, atom_clip, viewport);
                 continue;
             }
-
-            // Atomic inline-block fragments are rendered via the
-            // regular inline-content path at the fragment's rect —
-            // pseudo content (`<button>`'s `[ ]`), own text, and
-            // background all paint through the host element's
-            // normal paint pass. Done before the text-fragment
-            // body so atom-specific paint doesn't double-touch
-            // the text path. See `crate::render::inline::InlineFragment`
-            // doc for the contract.
-            if fragment.atomic {
-                let atom_rect = LayoutRect::new(frag_x, line_y, fragment.width, 1);
-                let atom_computed = dom
-                    .node(fragment.node)
-                    .ext()
-                    .and_then(|e| e.computed.clone())
-                    .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
-                // A positioned atom belongs to its stacking context's
-                // positioned layer, which paints it; painting it here
-                // too would blend it twice under `opacity`.
-                if atom_computed.position != crate::layout::Position::Static {
-                    continue;
-                }
-                // The atom paints atomically, as if it created a
-                // stacking context (CSS 2.1 Appendix E, 7.2.1.4.1.1):
-                // its outer shadows go down whole at its turn, over the
-                // line content painted before it (C5G-INLINE-BLOCK-SHADOW)
-                // — here, unless its parent's content paint also reaches
-                // it as a box (an anonymous box's atom), which paints them.
-                let painted_as_box = dom
-                    .node(fragment.node)
-                    .parent_node()
-                    .is_some_and(|p| super::paints_child_box(dom, p.id(), fragment.node));
-                if !painted_as_box {
-                    super::shadow::paint_outer_shadows(
-                        buf,
-                        &atom_computed,
-                        atom_rect,
-                        clip,
-                        super::shadow::Shadows::Whole,
-                    );
-                }
-                // Reuse paint_inline_content: it handles
-                // ::before / own text / ::after at the given inner
-                // rect.
-                paint_inline_content(dom, fragment.node, &atom_computed, atom_rect, buf, clip);
+            if !text_visible || frag_x >= clip.right() as i32 {
                 continue;
             }
 
@@ -399,9 +386,7 @@ fn paint_inline_layout(
 
             let start_x = frag_x.max(clip.x as i32) as u16;
             let skip = start_x as i32 - frag_x;
-            let budget_right = clip
-                .right()
-                .min(inner.x.saturating_add(inner.width as i32).max(0) as u16);
+            let budget_right = line_right;
             if start_x >= budget_right {
                 continue;
             }

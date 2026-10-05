@@ -10,7 +10,7 @@ use super::box_paint::{paint_box, paint_content};
 use super::group;
 use super::shadow::{self, Shadows};
 use crate::ext::TuiExt;
-use crate::layout::Display;
+use crate::layout::{Display, Flow};
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::is_ifc_block;
 use crate::render::stacking::{
@@ -160,16 +160,10 @@ pub(super) fn recurse_children(
                 // orphaned" inline elements (no layout rect, no
                 // inline_layout) — keep skipping those so they don't
                 // paint as zero-sized blocks at (0,0).
-                if orphan_inline(dom, cid) {
+                if orphan_inline(dom, cid) || in_a_line(dom, id, cid) {
                     continue;
                 }
-                match child.ext().and_then(|e| e.computed.as_ref()) {
-                    Some(c) if is_positioned(c) => continue,
-                    Some(c) if creates_stacking_context(c) => {
-                        paint_stacking_context(dom, cid, buf, clip, viewport);
-                    }
-                    _ => paint_plain(dom, id, cid, buf, clip, viewport),
-                }
+                paint_in_flow(dom, id, cid, buf, clip, viewport);
             }
             NodeType::Fragment => recurse_children(dom, cid, buf, clip, viewport),
             // Text is consumed by the parent's inline pass; comments and
@@ -178,6 +172,62 @@ pub(super) fn recurse_children(
             _ => {}
         }
     }
+}
+
+/// Paint the in-flow element `id`, a child of `parent`, in place: a
+/// positioned one is skipped (its stacking context's layers paint it),
+/// one that establishes a stacking context paints as one, any other as
+/// a plain box ([`paint_plain`]).
+fn paint_in_flow(
+    dom: &Dom<TuiExt>,
+    parent: NodeId,
+    id: NodeId,
+    buf: &mut Buffer,
+    clip: Rect,
+    viewport: Rect,
+) {
+    match dom.node(id).computed() {
+        Some(c) if is_positioned(c) => {}
+        Some(c) if creates_stacking_context(c) => {
+            paint_stacking_context(dom, id, buf, clip, viewport);
+        }
+        _ => paint_plain(dom, parent, id, buf, clip, viewport),
+    }
+}
+
+/// Paint the atomic inline box `atom` at its turn in its line (CSS 2.1
+/// Appendix E, 7.2.1.4.1.1: an inline block paints atomically, as if it
+/// created a stacking context — its outer shadows, background, border,
+/// then its content), over the line content painted before it. The line
+/// is its one painter: its parent's content paint skips it
+/// ([`in_a_line`]).
+pub(super) fn paint_line_atom(
+    dom: &Dom<TuiExt>,
+    atom: NodeId,
+    buf: &mut Buffer,
+    clip: Rect,
+    viewport: Rect,
+) {
+    let Some(parent) = dom.node(atom).parent_node().map(|p| p.id()) else {
+        return;
+    };
+    paint_in_flow(dom, parent, atom, buf, clip, viewport);
+}
+
+/// True when the element child `child` of `parent` is an atom of one of
+/// `parent`'s lines — an inline block in a block container, packed into
+/// an inline formatting context (`parent`'s own or an anonymous block
+/// box's) — so the line paints it ([`paint_line_atom`]), not
+/// [`recurse_children`]. A flex container's inline-block children are
+/// flex items (blockified, CSS Flexbox §4) and paint as boxes.
+fn in_a_line(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool {
+    let p = dom.node(parent);
+    p.node_type() == NodeType::Element
+        && p.computed().is_some_and(|c| c.flow == Flow::Block)
+        && dom
+            .node(child)
+            .computed()
+            .is_some_and(|c| c.display == Display::InlineBlock)
 }
 
 /// An inline element with no inline layout: outside an inline
@@ -195,7 +245,7 @@ fn orphan_inline(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 /// child `child` through [`recurse_children`] and paints it as a box:
 /// `parent` has no canvas callback and is not an inline formatting
 /// context (whose inline children `paint_ifc` paints), and `child` is
-/// not an orphan inline. `stacking::collect_layers` asks, to gather the
+/// neither an orphan inline nor an atom of one of its lines. `stacking::collect_layers` asks, to gather the
 /// boxes whose shadows paint in the background phase.
 pub(crate) fn paints_child_box(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool {
     let p = dom.node(parent);
@@ -203,5 +253,5 @@ pub(crate) fn paints_child_box(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId)
     if element && (p.ext().is_some_and(|e| e.canvas_paint.is_some()) || is_ifc_block(dom, parent)) {
         return false;
     }
-    !orphan_inline(dom, child)
+    !orphan_inline(dom, child) && !in_a_line(dom, parent, child)
 }

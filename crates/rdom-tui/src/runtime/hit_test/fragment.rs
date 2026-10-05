@@ -74,8 +74,9 @@ fn clamp_to_line_layout(
     } else if (y as i32) >= content.y + content.height as i32 {
         (layout.lines.len() - 1, false, true)
     } else {
-        let raw = (y as i32 - content.y) as usize;
-        (raw.min(layout.lines.len() - 1), false, false)
+        let row = (y as i32 - content.y) as u16;
+        let line = layout.line_at_row(row).unwrap_or(layout.lines.len() - 1);
+        (line, false, false)
     };
 
     let target_line = &layout.lines[line_idx];
@@ -142,11 +143,8 @@ fn fragment_at_layout(
     x: u16,
     y: u16,
 ) -> Option<&InlineFragment> {
-    let line_index = y as i32 - content.y;
-    if line_index < 0 || line_index as usize >= layout.lines.len() {
-        return None;
-    }
-    let line = &layout.lines[line_index as usize];
+    let row = u16::try_from(y as i32 - content.y).ok()?;
+    let line = &layout.lines[layout.line_at_row(row)?];
 
     let x_local_i = x as i32 - content.x;
     if x_local_i < 0 {
@@ -156,7 +154,11 @@ fn fragment_at_layout(
 
     line.fragments
         .iter()
-        .find(|&fragment| x_local >= fragment.x && x_local < fragment.x + fragment.width)
+        .find(|&fragment| {
+            x_local >= fragment.x
+                && x_local < fragment.x + fragment.width
+                && line.covers(fragment, row)
+        })
         .map(|v| v as _)
 }
 

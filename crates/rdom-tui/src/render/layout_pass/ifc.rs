@@ -18,10 +18,10 @@
 //! **Display::InlineBlock in IFC** (BFC-1 phase 3.5b): an
 //! inline-block child participates in IFC as an atomic inline-
 //! level box (CSS 2.1 §10.8) — the IFC packer emits one fragment
-//! per inline-block carrying the box's intrinsic width, and paint
-//! renders it via the regular `paint_inline_content` path at that
-//! rect. UA pseudo content (`<button>`'s `[ ]` brackets) shows
-//! through.
+//! per inline-block carrying the box's intrinsic width and rows (its
+//! line box grows to hold it, CSS 2.1 §10.8), and paint paints it as a
+//! box at that rect, at its turn in the line (C5G-ATOM-BOX). UA pseudo
+//! content (`<button>`'s `[ ]` brackets) shows through.
 
 use rdom_core::{Dom, NodeId, NodeType};
 

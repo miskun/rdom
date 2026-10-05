@@ -294,12 +294,10 @@ fn hit_fragment(
     let ext = dom.node(ifc_block).ext()?;
     let layout = ext.inline_layout.as_ref()?;
 
-    // Line index is the y-offset within content.
-    let line_index = y as i32 - content.y;
-    if line_index < 0 || line_index as usize >= layout.lines.len() {
-        return None;
-    }
-    let line = &layout.lines[line_index as usize];
+    // The line box spanning the row (CSS 2.1 §10.8: a line is as tall
+    // as its tallest atom).
+    let row = u16::try_from(y as i32 - content.y).ok()?;
+    let line = &layout.lines[layout.line_at_row(row)?];
 
     // Local x within content.
     let x_local_i = x as i32 - content.x;
@@ -309,7 +307,10 @@ fn hit_fragment(
     let x_local = x_local_i as u16;
 
     for fragment in &line.fragments {
-        if x_local >= fragment.x && x_local < fragment.x + fragment.width {
+        if x_local >= fragment.x
+            && x_local < fragment.x + fragment.width
+            && line.covers(fragment, row)
+        {
             return Some(fragment.node);
         }
     }

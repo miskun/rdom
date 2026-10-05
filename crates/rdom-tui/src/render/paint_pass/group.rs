@@ -112,7 +112,7 @@ fn collect_rows(dom: &Dom<TuiExt>, id: NodeId, rows: &mut Option<(i64, i64)>) {
             // Lines past the box (overflowing text, anchor tagging)
             // still address rows below its content origin.
             let y = i64::from(ext.content_layout.y);
-            extend(rows, y, y + layout.lines.len() as i64);
+            extend(rows, y, y + i64::from(layout.height()));
         }
     }
     for child in node.child_nodes() {

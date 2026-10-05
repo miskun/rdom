@@ -177,7 +177,7 @@ pub(super) fn paint_content(
         // Text rows are addressed through the *scrolled* content rect so
         // a scroll container's first `scroll_y` lines sit above the port.
         let text_inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(inner);
-        paint_ifc(dom, id, computed, text_inner, buf, children_clip);
+        paint_ifc(dom, id, text_inner, buf, children_clip, viewport);
         // Caret overlay — paint at the end so it sits on top of
         // every fragment in the inline flow. IFC blocks always have
         // an `inline_layout`, so this fires unconditionally.
@@ -194,7 +194,14 @@ pub(super) fn paint_content(
 
     // Compute ::before / own text / ::after paint positions.
     let text_inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(inner);
-    paint_inline_content(dom, id, computed, text_inner, buf, children_clip);
+    paint_inline_content(
+        dom,
+        id,
+        computed,
+        text_inner,
+        buf,
+        (children_clip, viewport),
+    );
 
     // Caret overlay for pure-text leaf blocks (e.g. <input>,
     // <textarea>) — they go through `paint_inline_content` rather
@@ -215,7 +222,7 @@ pub(super) fn paint_content(
     // has block children; each carries its own `InlineLayout` +
     // rect on `TuiExt.anonymous_blocks`. No-op when the Vec is
     // empty (pure-flex, pure-IFC, or pure-block containers).
-    paint_anonymous_blocks(dom, id, buf, children_clip);
+    paint_anonymous_blocks(dom, id, buf, children_clip, viewport);
 
     // Scrollbar overlay (after children so it sits on top if
     // anything encroached).

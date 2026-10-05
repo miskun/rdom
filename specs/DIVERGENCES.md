@@ -66,6 +66,7 @@ These are intrinsic to terminals. They will not change.
 - **`aspect-ratio` rounds onto the cell grid** (half-to-even) and applies on the flex cross axis, from a definite main size. The full `auto || <ratio>` grammar is parsed; nothing in rdom has a natural aspect ratio, so `auto && <ratio>` uses the ratio — on the content box, as the spec says for that form — and a degenerate ratio (a zero term) behaves as `auto`. Cells are not square (a terminal cell is about twice as tall as wide), so `aspect-ratio: 1` is square in cells, not on screen.
 - **Anonymous block boxes (CSS 2.1 §9.2.1.1), not anonymous inline boxes.** Mixed inline + block children inside a block-flow container produce **anonymous BLOCK boxes** wrapping each inline run (text + `display: inline` + atomic `display: inline-block`). Each anon box establishes its own IFC. This matches CSS for block containers; what rdom does NOT yet generate is anonymous *inline* boxes for the `<span>foo <span>bar</span> baz</span>` text-around-inline-around-text shape inside an existing IFC (inline-ancestor-breaking). Texts inside one inline element render as a single fragment; nested inline-ancestor-breaking is deferred.
 - **Inline backgrounds only.** Inline borders are not painted.
+- **A line box holds its inline blocks in whole rows.** A line grows to the margin box of its tallest inline block (CSS 2.1 §10.8), which sits on the line's baseline — the row its text is on — and paints at its turn in the line as a box (C5G-ATOM-BOX). An inline block's baseline (§10.8.1) is taken as the last row of its content — its last line box whenever the content ends in one; a block child with a bottom margin or padding below its last line moves it lower than a browser would — or its bottom margin edge when it has no content or clips its overflow. A negative vertical margin on an inline block counts as zero in its line: rows are whole, and an atom pulled above its line box would cover the line before it.
 - **No `masonry` / `grid-lanes`, by decision.** CSS Grid 3's masonry layout is a Working Draft whose syntax is still moving (`display: masonry` against `display: grid-lanes`), so rdom does not implement it until the spec settles. Grid Level 1 / 2 is scheduled (C7-*, §3).
 
 - **`margin-trim` drops one margin of a collapsed-through edge child.** When the first (last) in-flow block child of a block container is empty and its margins collapse through it (CSS 2.1 §8.3.1), CSS Box 4 §3 trims every margin adjoining the trimmed edge; rdom trims that child's start (end) margin and keeps its other one, which still separates the next sibling.
@@ -333,7 +334,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 - `tab-size` and tab stops (a tab in `<pre>` renders as one space) — C9-TAB-SIZE
 - `word-break`, `overflow-wrap` / `word-wrap`, `line-break`, `hyphens` and soft hyphens — C9-BREAKING
 - `line-height` — C9-LINE-HEIGHT
-- `vertical-align` (one baseline per row) — C9-VERTICAL-ALIGN (table cells: C13-TABLE-PROPS)
+- `vertical-align` (inline blocks sit on the baseline, its initial value) — C9-VERTICAL-ALIGN (table cells: C13-TABLE-PROPS)
 
 ### Text decoration
 
