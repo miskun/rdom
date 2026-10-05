@@ -409,5 +409,7 @@ fn aspect_base(
         basis,
         budgets.cross,
     )?;
-    super::cross::aspect_cross_from_main(cross, ratio, cross_dir, c, cb_width)
+    crate::render::layout_pass::box_sizing::aspect_cross_from_main(
+        cross, ratio, cross_dir, c, cb_width,
+    )
 }

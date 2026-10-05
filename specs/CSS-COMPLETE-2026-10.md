@@ -158,7 +158,7 @@ row comes from.
 | C7-GRID-PLACE | `grid-row` / `grid-column` (+ start / end), `grid-area`, auto-placement, `grid-auto-flow` (`dense`) | done |
 | C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | done |
 | C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | done |
-| C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | |
+| C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | partial — baseline self-alignment (part 2), `justify-content` / `align-content` (part 3) |
 | C7-SUBGRID | `subgrid` | |
 
 ### Phase 8 — Positioning, floats, overflow, scrolling (audit §3.10, §3.11)
@@ -3839,3 +3839,30 @@ row comes from.
   off → the `cssText` test (`grid-row-start: a; …; grid-row: a / 3; grid-column: 2 / b; grid-area: a /
   2 / 3 / b;`). Changed expectations: the canonical-values table gains the two names. No snapshot
   changed. DIVERGENCES §3's grid list loses the line.
+- 2026-10-08 — C7-GRID-ALIGN, part 1 of 3 (self-alignment; baseline alignment is part 2, content
+  distribution part 3): each grid item aligns in its grid area (CSS Grid 2 §10.2–§10.4, Box Alignment
+  3 §6.1 / §6.2). `grid/arrange.rs::fit` now works in physical cells (the area mirrored for `rtl`
+  first, no longer the item after) and reuses block layout's `block::justify_offset` — the one
+  keyword-to-offset map block-level and absolutely positioned boxes use (`start` / `end` by the
+  container's direction, `self-*` by the item's, `left` / `right`, `center` rounded down, the baseline
+  values as `safe self-start` / `self-end`, `safe` at the start on overflow) — on both axes, the block
+  axis top to bottom. Sizing per §6.2: `normal` / `stretch` fill an `auto` size, any other value takes
+  `fit-content` (inline) or the content height (block); `stretch` with a definite size behaves as
+  `start` (Box Alignment §6.1); an item with a preferred aspect ratio is, under `normal`, "sized
+  consistent with the size calculation rules for block-level elements" — its `auto` width fills the
+  area (or follows the ratio from a definite height), its `auto` height follows the ratio, and it
+  sits at the start; the ratio transfer is flex's `aspect_cross_from_main`, moved to
+  `layout_pass::box_sizing` so both use it (no fork). `auto` margins take positive free space first
+  (§10.2: two share it, the leading one rounded down; one takes it), and are 0 when there is none, the
+  alignment applying then. `justify-items: legacy <side>` aligns as its side. Red: `css_phase7/align.rs`
+  — 8 tests, all failed against part 1's arrange (every non-stretched item at its area's start:
+  `justify-self: end` at 0, `align-self: end` at 0, `margin-left: auto` at 0, an `aspect-ratio: 2` item
+  10 × 8 instead of 10 × 5, the overflowing `end` item at 0 not -4); green after. Two expectations were
+  corrected while green, both the test's own arithmetic: the `rtl` test's column is the container's
+  right half (x 10–20), and the abspos test names its area's end lines (`2 / 2 / 3 / 3`: with `2 / 2`
+  the end lines are `auto`, the containing block's edges, §9.1). The abspos check (C6G-DOCS's
+  self-alignment in the grid-area containing block) passed as it stood — the area is the containing
+  block, so the existing alignment applies; it is kept as the pin. Mutation checks (restored and
+  touched): `auto` margins never absorbing → the margins test; the aspect ratio ignored → its test;
+  `auto` not taking `*-items` → the justify, align and margins tests. No other test expectation and no
+  snapshot changed.

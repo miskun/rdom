@@ -104,6 +104,47 @@ impl Sizer {
     }
 }
 
+/// Compute the cross-axis cell count from the main-axis cell count and
+/// an `aspect-ratio` value (CSS Sizing 4 §5.1). `Row` direction: cross
+/// is height, so `height = width * h / w`. `Column` direction: cross is
+/// width, so `width = height * w / h`. The ratio sizes the border box
+/// (rdom's box-sizing box), or the content box for `auto && <ratio>` —
+/// the main size's padding and border come off first and the cross
+/// size's are added back. Half-to-even rounding to integer cells.
+/// `None` for a degenerate ratio, which behaves as `auto`.
+pub(in crate::render::layout_pass) fn aspect_cross_from_main(
+    main: u16,
+    ratio: crate::layout::AspectRatio,
+    direction: Direction,
+    computed: &ComputedStyle,
+    cb_width: u16,
+) -> Option<u16> {
+    let r = ratio.value()?;
+    // (main-axis, cross-axis) padding + border, for the content box.
+    let main_sizer = Sizer::along(computed, direction, cb_width);
+    let (main_edges, cross_edges) = if ratio.auto() || main_sizer.is_content_box() {
+        let horizontal = Sizer::horizontal(computed, cb_width).chrome();
+        let vertical = Sizer::vertical(computed, cb_width).chrome();
+        match direction {
+            Direction::Row => (horizontal, vertical),
+            Direction::Column => (vertical, horizontal),
+        }
+    } else {
+        (0, 0)
+    };
+    let main = f32::from(main.saturating_sub(main_edges));
+    let cross_f = match direction {
+        Direction::Row => main / r,
+        Direction::Column => main * r,
+    };
+    let cross = if cross_f.is_finite() {
+        cross_f.max(0.0).round_ties_even().min(f32::from(u16::MAX)) as u16
+    } else {
+        0
+    };
+    Some(cross.saturating_add(cross_edges))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

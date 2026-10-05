@@ -292,7 +292,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Grid
 
-- Box alignment in grid — C7-GRID-ALIGN (until then a grid item stretches to its area where its size is `auto` and its self-alignment `normal` or `stretch`, and otherwise sits at the area's start; the tracks sit at the grid container's start)
+- Box alignment in grid — C7-GRID-ALIGN (until then `align-self: baseline` / `last baseline` in a grid fall back to `safe self-start` / `safe self-end`, and the tracks sit at the grid container's start whatever `justify-content` / `align-content` say)
 - `subgrid` — C7-SUBGRID
 
 ### Positioned layout
