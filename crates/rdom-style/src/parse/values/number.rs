@@ -35,8 +35,7 @@ pub fn parse_z_index(value: &[Token]) -> Option<ZIndex> {
 /// an integer (CSS Values 4 §10.9) and a value past `i32` clamps to it
 /// (§5.1).
 pub fn parse_order(value: &[Token]) -> Option<i32> {
-    let n = integer(value)?;
-    Some(n.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32)
+    integer(value).map(super::numeric::clamp_i32)
 }
 
 /// `aspect-ratio: auto || <ratio>` (CSS Sizing 4 §5.1), `<ratio> =

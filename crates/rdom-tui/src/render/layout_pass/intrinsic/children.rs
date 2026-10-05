@@ -177,9 +177,20 @@ pub(super) fn children_size(
         // sizes plus gaps. Intrinsic sizing has no container size:
         // percent gaps are 0. A collapsed flex item takes no gap (CSS
         // Flexbox §9.4 step 10).
+        // A block container's gaps sit between its block-level children
+        // only — none around an inline child's anonymous block, as block
+        // layout places them (`block::layout_block_children`).
         let spaced = children
             .iter()
-            .filter(|c| !(flex && c.is_collapsed(dom)))
+            .filter(|c| match c {
+                _ if flex => !c.is_collapsed(dom),
+                FlexItem::Element(id) => dom
+                    .node(*id)
+                    .ext()
+                    .and_then(|e| e.computed.as_ref())
+                    .is_none_or(|cs| cs.display == crate::layout::Display::Block),
+                FlexItem::Anonymous(_) => false,
+            })
             .count();
         let gap_total = crate::render::layout_pass::gap_along(computed, direction)
             .resolve(0)

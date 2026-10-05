@@ -45,14 +45,14 @@ pub(super) fn set_scroll_with(
     let Some(bounds) = scroll_bounds(dom, element) else {
         return 0;
     };
-    let (min, max) = match axis {
-        ScrollAxis::Vertical => (bounds.min_y, bounds.max_y),
-        ScrollAxis::Horizontal => (bounds.min_x, bounds.max_x),
+    let (min, max, origin_at_end) = match axis {
+        ScrollAxis::Vertical => (bounds.min_y, bounds.max_y, bounds.origin_at_end.1),
+        ScrollAxis::Horizontal => (bounds.min_x, bounds.max_x, bounds.origin_at_end.0),
     };
     let clamped = match clamp {
         ClampTo::CurrentExtent => value.clamp(min, max),
         // The origin is the bound at 0; the far one waits for layout.
-        ClampTo::NextLayout if min < 0 => value.min(0),
+        ClampTo::NextLayout if origin_at_end => value.min(0),
         ClampTo::NextLayout => value.max(0),
     };
     let changed = if let Some(ext) = dom.node_mut(element).ext_mut() {
@@ -97,6 +97,10 @@ pub(crate) struct ScrollBounds {
     pub(crate) max_x: i32,
     pub(crate) min_y: i32,
     pub(crate) max_y: i32,
+    /// Whether each axis's scrolling area origin is its right (bottom)
+    /// edge, `(horizontal, vertical)` — known from the box, not from the
+    /// extent, which is 0 while nothing overflows.
+    pub(crate) origin_at_end: (bool, bool),
 }
 
 impl ScrollBounds {
@@ -127,6 +131,7 @@ pub(crate) fn scroll_bounds(dom: &TuiDom, element: NodeId) -> Option<ScrollBound
         max_x,
         min_y,
         max_y,
+        origin_at_end: crate::render::layout_pass::origin_at_end(dom, element),
     })
 }
 

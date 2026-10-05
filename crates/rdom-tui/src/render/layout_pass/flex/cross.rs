@@ -271,6 +271,17 @@ pub(super) fn baseline_box(
         FlexItem::Anonymous(anon) => anon.content_rows(dom, main.size),
     };
     let (first, last) = rows.unwrap_or((synthesized, synthesized));
+    // CSS Box Alignment 3 §9.1: "for legacy reasons" a scroll container's
+    // last baselines are its block-end margin edge — its scrollbar gutter
+    // and clipped content aside (as an inline block's in its line,
+    // `inline::vertical::atom_rows`).
+    let scrolls = computed.overflow_x != crate::layout::Overflow::Visible
+        || computed.overflow_y != crate::layout::Overflow::Visible;
+    let last = if scrolls {
+        (i32::from(height) + margin_bottom - 1).clamp(0, i32::from(u16::MAX)) as u16
+    } else {
+        last
+    };
     BaselineBox {
         margin_top,
         height,

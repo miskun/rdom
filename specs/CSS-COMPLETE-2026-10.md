@@ -2888,3 +2888,25 @@ row comes from.
   — 3 for 14 (the expected count from `property_mask(name).count()` per declared property, plus
   the directional, the `var()` and the custom one). Green after. Mutation check (restored and
   touched): flow-relative declarations not counted → 13. `tui_style/mod.rs` 566 → 396 lines.
+- 2026-10-08 — C6G-MINOR (AN19's parts outside the box tree). Behavioural, each red first: (1)
+  `flex::cross::baseline_box` took a scroll container's last baseline from its content rows; CSS
+  Box Alignment 3 §9.1 ("for legacy reasons … a block-level or inline-level block container that
+  is a scroll container always has a last baseline set, whose baselines all correspond to its
+  block-end margin edge") puts it at the margin box's bottom row, as `inline::vertical::atom_rows`
+  already does for an inline block — which also keeps a horizontal scrollbar gutter row out of the
+  answer. Red: `css_phase6/minor.rs` `a_scroll_containers_last_baseline_is_its_block_end_edge` — `b`
+  at row 0 for 2 beside an `overflow: hidden; padding-bottom: 2` item. (2) `intrinsic::children`
+  summed `row-gap` between every in-flow element child of a block container, while block layout
+  places it between block-level children only (an inline child's anonymous block has none): a
+  block of `p`, `span`, `p` with `row-gap: 2` measured 7 rows for its layout's 5 —
+  `the_intrinsic_row_gap_skips_inline_children`, 7 for 5. (3) `ClampTo::NextLayout` (caret reveal)
+  inferred the origin side from a negative minimum, so an `rtl` (or reversed) box that did not
+  overflow yet clamped to `[0, ∞)` — the wrong side for one frame; `ScrollBounds` now carries
+  `origin_at_end` from the box (`layout_pass::origin_at_end`, now crate-visible). Red:
+  `rtl_tests::a_caret_reveal_keeps_an_rtl_offset_on_the_origin_side_before_overflow` — 0 for -3.
+  Green after; mutation checks (each alone, restored and touched): each fix reverted fails its own
+  test. Not behavioural, no test: `is_collapsed_table_row` reads the visibility before the tag
+  compare (`is_in_flow` runs it for every in-flow element); `parse_order` uses
+  `numeric::clamp_i32` (its range test unchanged); the `cell_sizer` doc says what it reads now (the
+  computed style after a cascade — an app re-syncing — else the UA `<td>` / `<th>` padding with
+  `content-box` or the cell's inline `box-sizing`, percentages against 0). No snapshot changed.

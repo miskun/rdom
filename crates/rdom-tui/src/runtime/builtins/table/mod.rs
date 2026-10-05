@@ -208,11 +208,13 @@ fn colspan_of(dom: &TuiDom, cell: NodeId) -> usize {
         .map_or(1, |n| n.min(1000))
 }
 
-/// The cell's horizontal `box-sizing` conversion (CSS UI 3 §3.1): from
-/// its computed style once it is cascaded; before that — `App::build`
-/// runs this pass before the first cascade — from the UA cell rule
-/// (`padding: 0 1`, the initial `content-box`) with the cell's inline
-/// `box-sizing`, the same inputs the pass reads its widths from.
+/// The cell's horizontal `box-sizing` conversion (CSS UI 3 §3.1), its
+/// padding percentages against 0 (the pass knows no table width): from
+/// its computed style once a cascade has run — an app re-syncing the
+/// columns — else (`App::build` runs this pass before the first cascade)
+/// from the UA `<td>` / `<th>` rule (`padding: 0 1`) with the initial
+/// `box-sizing: content-box`, unless the cell's inline style declares
+/// one — the inline style the pass reads author widths from.
 fn cell_sizer(dom: &TuiDom, cell: NodeId) -> Sizer {
     use crate::node::TuiNodeExt;
     if let Some(computed) = dom.node(cell).computed() {

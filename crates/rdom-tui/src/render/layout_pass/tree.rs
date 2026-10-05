@@ -49,11 +49,12 @@ pub(crate) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 /// groups (DIVERGENCES: tables are flex rows).
 pub(crate) fn is_collapsed_table_row(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     let node = dom.node(id);
-    node.tag_name() == Some("tr")
-        && node
-            .ext()
-            .and_then(|e| e.computed.as_ref())
-            .is_some_and(|c| c.visibility == crate::layout::Visibility::Collapse)
+    // The visibility first: it is a field read, and almost never
+    // `collapse`; the tag compare runs for every in-flow element.
+    node.ext()
+        .and_then(|e| e.computed.as_ref())
+        .is_some_and(|c| c.visibility == crate::layout::Visibility::Collapse)
+        && node.tag_name() == Some("tr")
         && node
             .parent_node()
             .is_some_and(|p| matches!(p.tag_name(), Some("table" | "thead" | "tbody" | "tfoot")))

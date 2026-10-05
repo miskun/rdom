@@ -21,6 +21,7 @@ mod flex_spec;
 mod gap;
 mod justify;
 mod margin_sides;
+mod minor;
 mod order;
 mod place;
 mod visibility;

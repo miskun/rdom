@@ -268,3 +268,31 @@ fn scroll_into_view_inline_start_is_the_right_edge() {
         "left edges meet"
     );
 }
+
+/// C6G-MINOR: a caret reveal clamps only the origin side
+/// (`ClampTo::NextLayout`, the extent being stale) — for an `rtl` box
+/// the origin is the right edge, so the legal side is `(-∞, 0]` even
+/// while the last layout recorded no overflow (the side was inferred
+/// from a negative minimum, so it clamped to `[0, ∞)` until the box
+/// overflowed).
+#[test]
+fn a_caret_reveal_keeps_an_rtl_offset_on_the_origin_side_before_overflow() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let s = dom.create_element("div");
+    dom.set_attribute(s, "class", "s").unwrap();
+    dom.append_child(root, s).unwrap();
+    let sheet =
+        rdom_css::from_css_strict(".s { direction: rtl; overflow-x: auto; width: 10; height: 3 }")
+            .unwrap();
+    dom.cascade(&sheet);
+    dom.layout_dom(AREA);
+    let written = super::scroll::set_scroll_with(
+        &mut dom,
+        s,
+        ScrollAxis::Horizontal,
+        -3,
+        super::scroll::ClampTo::NextLayout,
+    );
+    assert_eq!(written, -3);
+}

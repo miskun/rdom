@@ -151,7 +151,7 @@ fn trailing_newline_caret_row(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 /// main-start edge of its main axis (CSS Flexbox §5.1: the right one of
 /// an `ltr` `row-reverse`, the bottom one of a `column-reverse`) and the
 /// cross-start edge of its cross axis.
-fn origin_at_end(dom: &Dom<TuiExt>, id: NodeId) -> (bool, bool) {
+pub(crate) fn origin_at_end(dom: &Dom<TuiExt>, id: NodeId) -> (bool, bool) {
     let Some(c) = dom.node(id).ext().and_then(|e| e.computed.as_ref()) else {
         return (false, false);
     };

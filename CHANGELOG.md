@@ -335,6 +335,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Flex sizing follows CSS Flexbox §4.5 / §9.2 / §9.7 in its corner cases**: the automatic minimum is clamped by `max-*` and counts in the hypothetical sizes that decide growing or shrinking, `flex-shrink` scales by the content-box base, a line with no room shrinks, `inline-block` items stretch, and an `aspect-ratio` item takes its base from a definite cross size. (C6G-FLEX-SPEC)
 - **A `visibility: collapse` flex item is a strut as CSS Flexbox §9.4 step 10 makes it**: its cross size is its line's laid out uncollapsed (it was measured at its zero main size — `a b c` held a 3-row line for 1), and no gap or `justify-content` share is placed beside it. (C6G-COLLAPSE)
 - **One "rendered and visible" answer for focus and copy** (HTML §6.6.2): `is_focusable` / `is_tab_focusable` (and `focus()`) refuse a hidden element or one under `display: none`, as Tab did; a focused element that becomes either is blurred after the frame's cascade (the focus fixup); copy reads the used `visibility`, as paint. New `tabindex::is_rendered_and_visible`. (C6G-VISIBILITY-ONE-ANSWER)
+- **Small layout and scroll fixes**: a scroll container's last baseline in a flex line is its block-end margin edge (CSS Box Alignment 3 §9.1); a block's intrinsic height counts no `row-gap` beside an inline child; a caret reveal in an `rtl` / reversed box keeps its offset on the origin side before the box overflows. (C6G-MINOR)
 
 ### Changed — `rdom-showcase`
 
