@@ -4,7 +4,8 @@ use rdom_core::NodeRef;
 
 use crate::ext::TuiExt;
 use crate::layout::{
-    Border, BorderRadius, BoxSizing, Corners, Direction, LayoutRect, Overflow, Padding, Size,
+    Border, BorderRadius, BoxSizing, Corners, Direction, LayoutRect, MarginTrim, Overflow, Padding,
+    Size, TextDirection, WritingMode,
 };
 use crate::style::{ComputedStyle, TuiStyle};
 
@@ -20,11 +21,15 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
     // property wasn't set via a node setter or inline style). Layout
     // reads the post-cascade `ComputedStyle`; these are the author-input
     // side, kept symmetric with the `set_*` setters in `TuiNodeMutExt`.
+    /// The inline style's `width` — of the box `box-sizing` names (CSS
+    /// UI 3 §3.1) — when set.
     fn width(&self) -> Option<Size> {
         self.inline_style()
             .and_then(|s| s.width.as_ref())
             .and_then(|v| v.as_specified().cloned())
     }
+    /// The inline style's `height` — of the box `box-sizing` names (CSS
+    /// UI 3 §3.1) — when set.
     fn height(&self) -> Option<Size> {
         self.inline_style()
             .and_then(|s| s.height.as_ref())
@@ -36,6 +41,27 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
             .and_then(|s| s.box_sizing.as_ref())
             .and_then(|v| v.as_specified().copied())
     }
+    /// The inline style's `direction` (CSS Writing Modes 4 §2.1), when
+    /// set. ([`direction`](Self::direction) is `flex-direction`.)
+    fn text_direction(&self) -> Option<TextDirection> {
+        self.inline_style()
+            .and_then(|s| s.text_direction.as_ref())
+            .and_then(|v| v.as_specified().copied())
+    }
+    /// The inline style's `writing-mode` (CSS Writing Modes 4 §3.1), when
+    /// set.
+    fn writing_mode(&self) -> Option<WritingMode> {
+        self.inline_style()
+            .and_then(|s| s.writing_mode.as_ref())
+            .and_then(|v| v.as_specified().copied())
+    }
+    /// The inline style's `margin-trim` (CSS Box 4 §3), when set.
+    fn margin_trim(&self) -> Option<MarginTrim> {
+        self.inline_style()
+            .and_then(|s| s.margin_trim.as_ref())
+            .and_then(|v| v.as_specified().copied())
+    }
+    /// The inline style's `flex-direction`, when set.
     fn direction(&self) -> Option<Direction> {
         self.inline_style()
             .and_then(|s| s.direction.as_ref())

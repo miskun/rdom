@@ -4,7 +4,10 @@
 use rdom_core::NodeMut;
 
 use crate::ext::TuiExt;
-use crate::layout::{Border, BorderRadius, BoxSizing, Corners, Direction, Overflow, Padding, Size};
+use crate::layout::{
+    Border, BorderRadius, BoxSizing, Corners, Direction, MarginTrim, Overflow, Padding, Size,
+    TextDirection, WritingMode,
+};
 use crate::style::{TuiStyle, Value};
 
 /// Mutation helpers for `TuiExt`-bearing elements. All methods return
@@ -36,14 +39,18 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     // `EXT-LAYOUT-SETTERS-1` these wrote raw `ext` fields that layout
     // ignored.) On a `NodeMut` each call also rewrites the `style`
     // attribute.
-    /// Declare `width` inline. A flex weight is kept in `<number [0,∞]>`
-    /// ([`Size::validated`]).
+    /// Declare `width` inline: the width of the box `box-sizing` names —
+    /// the content box by default, the border box under `box-sizing:
+    /// border-box` (CSS UI 3 §3.1). A flex weight is kept in `<number
+    /// [0,∞]>` ([`Size::validated`]).
     fn set_width(&mut self, w: impl Into<Size>) -> &mut Self {
         let w = w.into().validated();
         self.write_inline_style(|s| s.width = Some(Value::Specified(w)));
         self
     }
-    /// Declare `height` inline. A flex weight is kept in `<number
+    /// Declare `height` inline: the height of the box `box-sizing` names
+    /// — the content box by default, the border box under `box-sizing:
+    /// border-box` (CSS UI 3 §3.1). A flex weight is kept in `<number
     /// [0,∞]>` ([`Size::validated`]).
     fn set_height(&mut self, h: impl Into<Size>) -> &mut Self {
         let h = h.into().validated();
@@ -85,6 +92,24 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
         self.write_inline_style(|s| s.box_sizing = Some(Value::Specified(b)));
         self
     }
+    /// Declare `direction` inline (CSS Writing Modes 4 §2.1): the inline
+    /// base direction. (`set_direction` is `flex-direction`.)
+    fn set_text_direction(&mut self, d: TextDirection) -> &mut Self {
+        self.write_inline_style(|s| s.text_direction = Some(Value::Specified(d)));
+        self
+    }
+    /// Declare `writing-mode` inline (CSS Writing Modes 4 §3.1).
+    fn set_writing_mode(&mut self, m: WritingMode) -> &mut Self {
+        self.write_inline_style(|s| s.writing_mode = Some(Value::Specified(m)));
+        self
+    }
+    /// Declare `margin-trim` inline (CSS Box 4 §3).
+    fn set_margin_trim(&mut self, t: MarginTrim) -> &mut Self {
+        self.write_inline_style(|s| s.margin_trim = Some(Value::Specified(t)));
+        self
+    }
+    /// Declare `flex-direction` inline (`direction` is
+    /// [`set_text_direction`](Self::set_text_direction)).
     fn set_direction(&mut self, d: Direction) -> &mut Self {
         self.write_inline_style(|s| s.direction = Some(Value::Specified(d)));
         self
@@ -99,10 +124,15 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
         self
     }
     /// Set the inline style's four `border-*-radius`es (CSS Backgrounds 3
-    /// §5.1; `BorderRadius::cells(1.0)` rounds every corner), as the
-    /// `TuiStyle::border_radius` builder does.
-    fn set_border_radius(&mut self, r: BorderRadius) -> &mut Self {
-        self.write_inline_style(|s| s.border_radius = Corners::all(Some(Value::Specified(r))));
+    /// §5.1): one [`BorderRadius`] for every corner
+    /// (`BorderRadius::cells(1.0)` rounds them all) or a [`Corners`] of
+    /// them — the shape [`border_radius`](crate::TuiNodeExt::border_radius)
+    /// reads back — as the `TuiStyle::border_radius` builder does.
+    fn set_border_radius(&mut self, r: impl Into<Corners<BorderRadius>>) -> &mut Self {
+        let corners = r.into();
+        self.write_inline_style(|s| {
+            s.border_radius = corners.map(|r| Some(Value::Specified(r)));
+        });
         self
     }
     fn set_gap(&mut self, g: u16) -> &mut Self {

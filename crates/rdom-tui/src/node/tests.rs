@@ -134,3 +134,40 @@ fn scroll_setter() {
     assert_eq!(e.scroll_x, 12);
     assert_eq!(e.scroll_y, 34);
 }
+
+/// C5G-API-EDGES: `direction` (CSS Writing Modes 4 §2.1), `writing-mode`
+/// (§3.1) and `margin-trim` (CSS Box 4 §3) have node setters and getters
+/// like `box-sizing`'s; `set_border_radius` takes what `border_radius`
+/// returns — four corners, or one radius for all four.
+#[test]
+fn phase5_node_setters_round_trip() {
+    use crate::layout::{BorderRadius, Corners, MarginTrim, TextDirection, WritingMode};
+    let mut dom: TuiDom = TuiDom::new();
+    let div = dom.create_element("div");
+    let trim = MarginTrim {
+        block_start: true,
+        ..MarginTrim::NONE
+    };
+    let corners = Corners::new(
+        BorderRadius::cells(1.0),
+        BorderRadius::cells(0.0),
+        BorderRadius::cells(1.0),
+        BorderRadius::cells(0.0),
+    );
+    dom.node_mut(div)
+        .set_text_direction(TextDirection::Rtl)
+        .set_writing_mode(WritingMode::VerticalRl)
+        .set_margin_trim(trim)
+        .set_border_radius(corners.clone());
+    let n = dom.node(div);
+    assert_eq!(n.text_direction(), Some(TextDirection::Rtl));
+    assert_eq!(n.writing_mode(), Some(WritingMode::VerticalRl));
+    assert_eq!(n.margin_trim(), Some(trim));
+    assert_eq!(n.border_radius(), Some(corners));
+    dom.node_mut(div)
+        .set_border_radius(BorderRadius::cells(1.0));
+    assert_eq!(
+        dom.node(div).border_radius(),
+        Some(Corners::all(BorderRadius::cells(1.0)))
+    );
+}

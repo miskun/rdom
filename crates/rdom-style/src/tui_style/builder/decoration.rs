@@ -19,14 +19,17 @@ impl TuiStyle {
             | ImportantMask::BORDER_LEFT_STYLE;
         self
     }
-    /// Set the four `border-*-radius`es (`BorderRadius::cells(1)` rounds
-    /// every corner). Chainable.
-    pub fn border_radius(mut self, radius: BorderRadius) -> Self {
-        self.border_radius = Corners::all(Some(Value::Specified(radius)));
+    /// Set the four `border-*-radius`es: one [`BorderRadius`] for every
+    /// corner (`BorderRadius::cells(1.0)` rounds them all), or a
+    /// [`Corners`] of them. Chainable.
+    pub fn border_radius(mut self, radius: impl Into<Corners<BorderRadius>>) -> Self {
+        self.border_radius = radius.into().map(|r| Some(Value::Specified(r)));
         self
     }
-    pub fn border_radius_important(mut self, radius: BorderRadius) -> Self {
-        self.border_radius = Corners::all(Some(Value::Specified(radius)));
+    /// Like `border_radius` but also marks the four `border-*-radius`
+    /// declarations `!important`.
+    pub fn border_radius_important(mut self, radius: impl Into<Corners<BorderRadius>>) -> Self {
+        self.border_radius = radius.into().map(|r| Some(Value::Specified(r)));
         self.important |= ImportantMask::BORDER_TOP_LEFT_RADIUS
             | ImportantMask::BORDER_TOP_RIGHT_RADIUS
             | ImportantMask::BORDER_BOTTOM_RIGHT_RADIUS
@@ -36,6 +39,7 @@ impl TuiStyle {
     // Backgrounds (CSS Backgrounds 3 §3), one entry per layer. Only the
     // clip of the final layer has an effect; the rest are inert.
     setter!(
+        "background-image",
         background_image,
         background_image,
         background_image_important,
@@ -43,6 +47,7 @@ impl TuiStyle {
         Vec<String>
     );
     setter!(
+        "background-position",
         background_position,
         background_position,
         background_position_important,
@@ -50,6 +55,7 @@ impl TuiStyle {
         Vec<String>
     );
     setter!(
+        "background-size",
         background_size,
         background_size,
         background_size_important,
@@ -57,6 +63,7 @@ impl TuiStyle {
         Vec<String>
     );
     setter!(
+        "background-repeat",
         background_repeat,
         background_repeat,
         background_repeat_important,
@@ -64,6 +71,7 @@ impl TuiStyle {
         Vec<crate::layout::BackgroundRepeat>
     );
     setter!(
+        "background-attachment",
         background_attachment,
         background_attachment,
         background_attachment_important,
@@ -71,6 +79,7 @@ impl TuiStyle {
         Vec<crate::layout::BackgroundAttachment>
     );
     setter!(
+        "background-origin",
         background_origin,
         background_origin,
         background_origin_important,
@@ -78,6 +87,7 @@ impl TuiStyle {
         Vec<crate::layout::VisualBox>
     );
     setter!(
+        "background-clip",
         background_clip,
         background_clip,
         background_clip_important,
@@ -99,6 +109,7 @@ impl TuiStyle {
     }
 
     setter!(
+        "box-shadow",
         box_shadow,
         box_shadow,
         box_shadow_important,
@@ -106,6 +117,7 @@ impl TuiStyle {
         Vec<BoxShadow>
     );
     setter!(
+        "border-spacing",
         border_spacing,
         border_spacing,
         border_spacing_important,

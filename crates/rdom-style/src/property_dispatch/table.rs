@@ -273,7 +273,7 @@ define_fields! {
     Opacity => opacity : OPACITY,
     Display => display : DISPLAY,
     Flow => flow : FLOW,
-    Direction => direction : DIRECTION,
+    Direction => direction : FLEX_DIRECTION,
     TextDirection => text_direction : TEXT_DIRECTION,
     WritingMode => writing_mode : WRITING_MODE,
     WhiteSpace => white_space : WHITE_SPACE,

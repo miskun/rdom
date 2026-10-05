@@ -86,6 +86,18 @@ impl ImportantMask {
         true
     }
 
+    /// Some bit of `other` is set in `self`.
+    pub const fn intersects(self, other: Self) -> bool {
+        let mut i = 0;
+        while i < WORDS {
+            if self.words[i] & other.words[i] != 0 {
+                return true;
+            }
+            i += 1;
+        }
+        false
+    }
+
     /// No bit set.
     pub const fn is_empty(self) -> bool {
         let mut i = 0;
@@ -182,5 +194,28 @@ mod tests {
         assert_eq!(M::all().count(), super::IMPORTANT_BITS);
         assert!(M::empty().is_empty() && !m.is_empty());
         assert_eq!(format!("{:?}", M::FG | M::BG), "ImportantMask(FG | BG)");
+    }
+
+    /// C5G-API-EDGES: `intersects` — any bit in common; and the
+    /// `flex-direction` bit is named for its property, beside
+    /// `TEXT_DIRECTION` (CSS `direction`).
+    #[test]
+    fn intersects_and_the_flex_direction_bit() {
+        let m = M::FG | M::BG;
+        assert!(m.intersects(M::BG | M::WIDTH));
+        assert!(!m.intersects(M::WIDTH));
+        assert!(!M::empty().intersects(M::all()));
+        assert_eq!(
+            crate::property_dispatch::property_mask("flex-direction"),
+            Some(M::FLEX_DIRECTION)
+        );
+        assert_eq!(
+            crate::property_dispatch::property_mask("direction"),
+            Some(M::TEXT_DIRECTION)
+        );
+        assert_eq!(
+            format!("{:?}", M::FLEX_DIRECTION),
+            "ImportantMask(FLEX_DIRECTION)"
+        );
     }
 }

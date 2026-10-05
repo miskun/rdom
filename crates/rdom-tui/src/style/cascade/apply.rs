@@ -184,7 +184,7 @@ pub(super) fn apply_style(
         kw,
     );
     value!(
-        direction: DIRECTION,
+        direction: FLEX_DIRECTION,
         text_direction: TEXT_DIRECTION,
         writing_mode: WRITING_MODE,
         overflow_x: OVERFLOW_X,

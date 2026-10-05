@@ -1819,3 +1819,22 @@ row comes from.
   test failed to compile — `cannot find parse / backend / property_dispatch in style` (10),
   `ContainIntrinsicSize` / `MarginTrim` / `TextDirection` / `WritingMode` not in scope (5); green
   after.
+- 2026-10-07 — C5G-API-EDGES (gate fix, API): `From<IntrinsicSize>` for `Size` / `MinSize` / `MaxSize`
+  and `IntrinsicSize::fit_content(cells)` / `fit_content_percent(p)` (the variant holds a `CalcExpr`,
+  so one constructor per limit kind); `ImportantMask::intersects` (const, word-wise); `From<BorderRadius>`
+  for `Corners<BorderRadius>` with `set_border_radius` and the `border_radius` builders taking
+  `impl Into<Corners<BorderRadius>>` — what `border_radius()` returns; node setters / getters for
+  `direction` (`set_text_direction`, `set_direction` staying `flex-direction`), `writing-mode` and
+  `margin-trim`, like `box-sizing`'s. `setter!` takes the CSS property name first and its docs name it
+  (`flex-direction`, `direction`, `font-weight`, `font-style`); `flow` — no CSS property of its own —
+  has hand-written setters documented as `display`'s inner type. `ImportantMask::DIRECTION` is
+  `FLEX_DIRECTION` (Breaking — rdom-style, the bit was in 0.5.0; hint given; the cascade's apply table
+  follows). The `width` / `height` builders, node setters and getters say they measure the box
+  `box-sizing` names. Red: `intrinsic_keywords_convert_into_every_size`,
+  `intersects_and_the_flex_direction_bit`, `a_radius_converts_into_four_corners` (rdom-style) and
+  `phase5_node_setters_round_trip` (rdom-tui) failed to compile — no `From<IntrinsicSize>`, no
+  `fit_content` / `fit_content_percent` / `intersects` / `FLEX_DIRECTION`, no corner `From`, no
+  `set_text_direction` / `text_direction` / `writing_mode` / `margin_trim`; green after. The doc
+  changes have no test. Splits (files past the bar): the builder's sizing setters moved to
+  `tui_style/builder/sizing.rs` (`builder/mod.rs` 615 → 514), and `layout/sizing.rs`'s tests to
+  `layout/sizing_tests.rs` (609 → 537).

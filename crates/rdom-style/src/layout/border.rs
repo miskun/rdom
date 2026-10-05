@@ -260,6 +260,14 @@ impl Default for BorderRadius {
     }
 }
 
+/// One radius is every corner — the one-value form of `border-radius`
+/// (CSS Backgrounds 3 §5.2).
+impl From<BorderRadius> for super::Corners<BorderRadius> {
+    fn from(r: BorderRadius) -> Self {
+        super::Corners::all(r)
+    }
+}
+
 impl BorderRadius {
     /// The same radius on both axes.
     pub fn circle(radius: PaintLength) -> Self {
@@ -499,5 +507,22 @@ mod tests {
                 BorderStyle::Solid
             )
         );
+    }
+
+    /// C5G-API-EDGES: one radius is every corner (CSS Backgrounds 3
+    /// §5.2's one-value form), so a setter taking corners takes a radius.
+    #[test]
+    fn a_radius_converts_into_four_corners() {
+        use crate::layout::Corners;
+        let r = BorderRadius::cells(1.0);
+        assert_eq!(Corners::from(r.clone()), Corners::all(r.clone()));
+        let style = crate::TuiStyle::new().border_radius(Corners::new(
+            r.clone(),
+            BorderRadius::cells(0.0),
+            r.clone(),
+            BorderRadius::cells(0.0),
+        ));
+        assert!(style.border_radius.top_right.is_some());
+        let _ = crate::TuiStyle::new().border_radius(r);
     }
 }

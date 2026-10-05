@@ -1,6 +1,7 @@
 //! The `TuiStyle` builder: chainable setters for every property
 //! (`.fg(…)`, `.padding(…)`, `….._important(…)`); the background,
-//! border and shadow setters are in `decoration`.
+//! border and shadow setters are in `decoration`, the sizing ones
+//! (`width` / `height`, `min-*` / `max-*`, `aspect-ratio`) in `sizing`.
 
 use super::{ImportantMask, TuiStyle};
 #[allow(unused_imports)]
@@ -10,19 +11,23 @@ use crate::layout::{
 };
 use crate::{Content, TuiColor, Value};
 
+/// A builder setter and its `!important` twin for one `TuiStyle` field:
+/// `setter!("css-name", field, setter, important_setter, MASK, Type)`,
+/// with an optional last `$valid` path that keeps a Rust-built value in
+/// the property's range. The docs name the CSS property (`css-name`),
+/// not the Rust field (`direction` is `flex-direction`).
 macro_rules! setter {
-    ($field:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
-        setter!($field, $setter, $important_setter, $mask, $ty, std::convert::identity);
+    ($css:literal, $field:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
+        setter!($css, $field, $setter, $important_setter, $mask, $ty, std::convert::identity);
     };
-    // `$valid` keeps a Rust-built value in the property's range.
-    ($field:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty, $valid:path) => {
-        #[doc = concat!("Set the `", stringify!($field), "` property to `v`. Chainable.")]
+    ($css:literal, $field:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty, $valid:path) => {
+        #[doc = concat!("Set the `", $css, "` property to `v`. Chainable.")]
         pub fn $setter(mut self, v: $ty) -> Self {
             self.$field = Some(Value::Specified($valid(v)));
             self
         }
 
-        #[doc = concat!("Like `", stringify!($setter), "` but also marks the declaration `!important`.")]
+        #[doc = concat!("Like `", stringify!($setter), "` but also marks the `", $css, "` declaration `!important`.")]
         pub fn $important_setter(mut self, v: $ty) -> Self {
             self.$field = Some(Value::Specified($valid(v)));
             self.important |= ImportantMask::$mask;
@@ -32,6 +37,7 @@ macro_rules! setter {
 }
 
 mod decoration;
+mod sizing;
 
 impl TuiStyle {
     pub fn fg(mut self, color: impl Into<TuiColor>) -> Self {
@@ -78,8 +84,8 @@ impl TuiStyle {
         self.border_fg(TuiColor::var(name))
     }
 
-    setter!(bold, bold, bold_important, BOLD, bool);
-    setter!(italic, italic, italic_important, ITALIC, bool);
+    setter!("font-weight", bold, bold, bold_important, BOLD, bool);
+    setter!("font-style", italic, italic, italic_important, ITALIC, bool);
 
     /// CSS `opacity`. Clamped to `[0.0, 1.0]` at the call site
     /// (out-of-range inputs are silently saturated). Custom
@@ -98,101 +104,14 @@ impl TuiStyle {
         self
     }
 
-    /// `aspect-ratio: <w> / <h>`. Never fails: a `u16` term is finite and
-    /// non-negative, and a zero term makes a degenerate ratio, which
-    /// behaves as `auto` (CSS Sizing 4 §5.1). For fractional terms or
-    /// `auto && <ratio>`, build an [`AspectRatio`](crate::layout::AspectRatio)
-    /// or use the CSS parser.
-    pub fn aspect_ratio(mut self, w: u16, h: u16) -> Self {
-        let ratio = crate::layout::AspectRatio::new(f32::from(w), f32::from(h))
-            .expect("u16 terms are finite and non-negative");
-        self.aspect_ratio = Some(Value::Specified(Some(ratio)));
-        self
-    }
-    /// `aspect-ratio` with `!important`.
-    pub fn aspect_ratio_important(mut self, w: u16, h: u16) -> Self {
-        let ratio = crate::layout::AspectRatio::new(f32::from(w), f32::from(h))
-            .expect("u16 terms are finite and non-negative");
-        self.aspect_ratio = Some(Value::Specified(Some(ratio)));
-        self.important |= ImportantMask::ASPECT_RATIO;
-        self
-    }
-
-    // Layout setters.
-    // A flex weight is kept in `<number [0,∞]>` (`Size::validated`).
-    /// Set the `width` property. Accepts a `u16` (cells) or a
-    /// [`Size`]; a flex weight is kept in `<number [0,∞]>`. Chainable.
-    pub fn width(mut self, v: impl Into<Size>) -> Self {
-        self.width = Some(Value::Specified(v.into().validated()));
-        self
-    }
-    /// Like `width` but marks the declaration `!important`.
-    pub fn width_important(mut self, v: impl Into<Size>) -> Self {
-        self.width = Some(Value::Specified(v.into().validated()));
-        self.important |= ImportantMask::WIDTH;
-        self
-    }
-    /// Set the `height` property. Accepts a `u16` (cells) or a
-    /// [`Size`]; a flex weight is kept in `<number [0,∞]>`. Chainable.
-    pub fn height(mut self, v: impl Into<Size>) -> Self {
-        self.height = Some(Value::Specified(v.into().validated()));
-        self
-    }
-    /// Like `height` but marks the declaration `!important`.
-    pub fn height_important(mut self, v: impl Into<Size>) -> Self {
-        self.height = Some(Value::Specified(v.into().validated()));
-        self.important |= ImportantMask::HEIGHT;
-        self
-    }
-    /// Set the `min-width` property. Accepts a `u16` (cells) or a
-    /// [`MinSize`](crate::layout::MinSize). Chainable.
-    pub fn min_width(mut self, v: impl Into<crate::layout::MinSize>) -> Self {
-        self.min_width = Some(Value::Specified(v.into()));
-        self
-    }
-    /// Like `min_width` but marks the declaration `!important`.
-    pub fn min_width_important(mut self, v: impl Into<crate::layout::MinSize>) -> Self {
-        self.min_width = Some(Value::Specified(v.into()));
-        self.important |= ImportantMask::MIN_WIDTH;
-        self
-    }
-    /// Set the `max-width` property. Accepts a `u16` (cells) or a
-    /// [`MaxSize`](crate::layout::MaxSize). Chainable.
-    pub fn max_width(mut self, v: impl Into<crate::layout::MaxSize>) -> Self {
-        self.max_width = Some(Value::Specified(v.into()));
-        self
-    }
-    /// Like `max_width` but marks the declaration `!important`.
-    pub fn max_width_important(mut self, v: impl Into<crate::layout::MaxSize>) -> Self {
-        self.max_width = Some(Value::Specified(v.into()));
-        self.important |= ImportantMask::MAX_WIDTH;
-        self
-    }
-    /// Set the `min-height` property. Accepts a `u16` (cells) or a
-    /// [`MinSize`](crate::layout::MinSize). Chainable.
-    pub fn min_height(mut self, v: impl Into<crate::layout::MinSize>) -> Self {
-        self.min_height = Some(Value::Specified(v.into()));
-        self
-    }
-    /// Like `min_height` but marks the declaration `!important`.
-    pub fn min_height_important(mut self, v: impl Into<crate::layout::MinSize>) -> Self {
-        self.min_height = Some(Value::Specified(v.into()));
-        self.important |= ImportantMask::MIN_HEIGHT;
-        self
-    }
-    /// Set the `max-height` property. Accepts a `u16` (cells) or a
-    /// [`MaxSize`](crate::layout::MaxSize). Chainable.
-    pub fn max_height(mut self, v: impl Into<crate::layout::MaxSize>) -> Self {
-        self.max_height = Some(Value::Specified(v.into()));
-        self
-    }
-    /// Like `max_height` but marks the declaration `!important`.
-    pub fn max_height_important(mut self, v: impl Into<crate::layout::MaxSize>) -> Self {
-        self.max_height = Some(Value::Specified(v.into()));
-        self.important |= ImportantMask::MAX_HEIGHT;
-        self
-    }
-    setter!(padding, padding, padding_important, PADDING, Padding);
+    setter!(
+        "padding",
+        padding,
+        padding,
+        padding_important,
+        PADDING,
+        Padding
+    );
     /// Set the `margin` property. Accepts a `Margin` struct or a
     /// plain `i16` (via `From<i16> for Margin` — applies `n` cells
     /// on all four sides). Chainable.
@@ -221,6 +140,7 @@ impl TuiStyle {
         self
     }
     setter!(
+        "flex-shrink",
         flex_shrink,
         flex_shrink,
         flex_shrink_important,
@@ -229,6 +149,7 @@ impl TuiStyle {
         crate::layout::valid_flex_factor
     );
     setter!(
+        "flex-basis",
         flex_basis,
         flex_basis,
         flex_basis_important,
@@ -243,6 +164,7 @@ impl TuiStyle {
         self
     }
     setter!(
+        "border-collapse",
         border_collapse,
         border_collapse,
         border_collapse_important,
@@ -250,13 +172,15 @@ impl TuiStyle {
         crate::layout::BorderCollapse
     );
     setter!(
+        "flex-direction",
         direction,
         direction,
         direction_important,
-        DIRECTION,
+        FLEX_DIRECTION,
         Direction
     );
     setter!(
+        "overflow-x",
         overflow_x,
         overflow_x,
         overflow_x_important,
@@ -264,6 +188,7 @@ impl TuiStyle {
         Overflow
     );
     setter!(
+        "overflow-y",
         overflow_y,
         overflow_y,
         overflow_y_important,
@@ -314,8 +239,20 @@ impl TuiStyle {
         self.important |= ImportantMask::DISPLAY;
         self
     }
-    setter!(flow, flow, flow_important, FLOW, crate::layout::Flow);
+    /// Set the inner display type — the second half of `display`
+    /// (`flex` in `display: flex`, CSS Display 3 §2.2). Chainable.
+    pub fn flow(mut self, v: crate::layout::Flow) -> Self {
+        self.flow = Some(Value::Specified(v));
+        self
+    }
+    /// Like `flow` but also marks the inner display type `!important`.
+    pub fn flow_important(mut self, v: crate::layout::Flow) -> Self {
+        self.flow = Some(Value::Specified(v));
+        self.important |= ImportantMask::FLOW;
+        self
+    }
     setter!(
+        "counter-reset",
         counter_reset,
         counter_reset,
         counter_reset_important,
@@ -323,6 +260,7 @@ impl TuiStyle {
         Vec<crate::counters::CounterOp>
     );
     setter!(
+        "counter-increment",
         counter_increment,
         counter_increment,
         counter_increment_important,
@@ -330,6 +268,7 @@ impl TuiStyle {
         Vec<crate::counters::CounterOp>
     );
     setter!(
+        "color-scheme",
         color_scheme,
         color_scheme,
         color_scheme_important,
@@ -370,6 +309,7 @@ impl TuiStyle {
     }
 
     setter!(
+        "scrollbar-gutter",
         scrollbar_gutter,
         scrollbar_gutter,
         scrollbar_gutter_important,
@@ -377,6 +317,7 @@ impl TuiStyle {
         crate::layout::ScrollbarGutter
     );
     setter!(
+        "direction",
         text_direction,
         text_direction,
         text_direction_important,
@@ -384,6 +325,7 @@ impl TuiStyle {
         crate::layout::TextDirection
     );
     setter!(
+        "writing-mode",
         writing_mode,
         writing_mode,
         writing_mode_important,
@@ -391,6 +333,7 @@ impl TuiStyle {
         crate::layout::WritingMode
     );
     setter!(
+        "margin-trim",
         margin_trim,
         margin_trim,
         margin_trim_important,
@@ -398,6 +341,7 @@ impl TuiStyle {
         crate::layout::MarginTrim
     );
     setter!(
+        "contain-intrinsic-width",
         contain_intrinsic_width,
         contain_intrinsic_width,
         contain_intrinsic_width_important,
@@ -405,6 +349,7 @@ impl TuiStyle {
         crate::layout::ContainIntrinsicSize
     );
     setter!(
+        "contain-intrinsic-height",
         contain_intrinsic_height,
         contain_intrinsic_height,
         contain_intrinsic_height_important,
@@ -412,6 +357,7 @@ impl TuiStyle {
         crate::layout::ContainIntrinsicSize
     );
     setter!(
+        "box-sizing",
         box_sizing,
         box_sizing,
         box_sizing_important,
@@ -419,6 +365,7 @@ impl TuiStyle {
         crate::layout::BoxSizing
     );
     setter!(
+        "scroll-behavior",
         scroll_behavior,
         scroll_behavior,
         scroll_behavior_important,
@@ -426,6 +373,7 @@ impl TuiStyle {
         crate::layout::ScrollBehavior
     );
     setter!(
+        "white-space",
         white_space,
         white_space,
         white_space_important,
@@ -433,6 +381,7 @@ impl TuiStyle {
         WhiteSpace
     );
     setter!(
+        "user-select",
         user_select,
         user_select,
         user_select_important,
@@ -440,6 +389,7 @@ impl TuiStyle {
         UserSelect
     );
     setter!(
+        "pointer-events",
         pointer_events,
         pointer_events,
         pointer_events_important,
@@ -447,6 +397,7 @@ impl TuiStyle {
         crate::layout::PointerEvents
     );
     setter!(
+        "caret-color",
         caret_color,
         caret_color,
         caret_color_important,
@@ -454,6 +405,7 @@ impl TuiStyle {
         CaretColor
     );
     setter!(
+        "caret-text-color",
         caret_text_color,
         caret_text_color,
         caret_text_color_important,
@@ -461,6 +413,7 @@ impl TuiStyle {
         CaretTextColor
     );
     setter!(
+        "text-decoration",
         text_decoration,
         text_decoration,
         text_decoration_important,
@@ -469,27 +422,51 @@ impl TuiStyle {
     );
 
     // Content setter.
-    setter!(content, content, content_important, CONTENT, Content);
+    setter!(
+        "content",
+        content,
+        content,
+        content_important,
+        CONTENT,
+        Content
+    );
 
     // ── Positioning setters (M2) ─────────────────────────────────────
     setter!(
+        "position",
         position,
         position,
         position_important,
         POSITION,
         crate::layout::Position
     );
-    setter!(top, top, top_important, TOP, crate::layout::Length);
-    setter!(right, right, right_important, RIGHT, crate::layout::Length);
+    setter!("top", top, top, top_important, TOP, crate::layout::Length);
     setter!(
+        "right",
+        right,
+        right,
+        right_important,
+        RIGHT,
+        crate::layout::Length
+    );
+    setter!(
+        "bottom",
         bottom,
         bottom,
         bottom_important,
         BOTTOM,
         crate::layout::Length
     );
-    setter!(left, left, left_important, LEFT, crate::layout::Length);
     setter!(
+        "left",
+        left,
+        left,
+        left_important,
+        LEFT,
+        crate::layout::Length
+    );
+    setter!(
+        "z-index",
         z_index,
         z_index,
         z_index_important,

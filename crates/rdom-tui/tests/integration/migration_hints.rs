@@ -197,10 +197,13 @@ fn render_hints() {
 }
 
 /// C5-BOX-SIZING, C5-INTRINSIC, C5-MARGIN-TRIM, C5-CONTAIN-SIZE,
-/// C5-WRITING: the Phase 5 style fields, their builders and values, the
-/// node setter and the border-box reset.
+/// C5-WRITING, C5G-API-EDGES: the Phase 5 style fields, their builders
+/// and values, the node setter, the border-box reset and the renamed
+/// `flex-direction` bit.
 #[test]
 fn box_model_hints() {
+    let flex_direction = ImportantMask::FLEX_DIRECTION;
+    assert!(flex_direction.intersects(ImportantMask::all()));
     let s = TuiStyle::new()
         .box_sizing(BoxSizing::BorderBox)
         .width(Size::Intrinsic(IntrinsicSize::MinContent))

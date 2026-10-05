@@ -27,6 +27,8 @@ mod keywords;
 mod rect;
 mod sides;
 mod sizing;
+#[cfg(test)]
+mod sizing_tests;
 
 pub use background::{BackgroundAttachment, BackgroundRepeat, BoxShadow, RepeatStyle, VisualBox};
 pub use border::{
