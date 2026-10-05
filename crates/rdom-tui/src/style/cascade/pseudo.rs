@@ -77,29 +77,46 @@ pub(super) fn compute_pseudo_style(
 
     // Pseudo-elements inherit from the host's computed style (per spec),
     // not from the host's parent.
-    let mut working = ComputedStyle::initial();
-    inherit_inheritable_from(&mut working, host_computed);
-    // Pseudo-elements share the host's vars (which came from the
-    // merged stylesheet roots).
-    working.vars = host_computed.vars.clone();
-
     // Pseudo-elements don't have their own inline_style on `TuiExt`.
     let decls = Declarations::new(sorted, ranks, None);
     // `attr()` on a pseudo-element reads its originating element's
     // attributes (CSS Values 5 §8.7).
     let attrs = |name: &str| dom.node(id).get_attribute(name);
-    let substituted = prepare(
-        &mut working,
-        plan,
-        decls,
-        cx.sheets.registry(),
-        None,
-        &attrs,
-        cx.sheets.viewport(),
-    );
-    let decls = decls.with(substituted.as_ref());
     let preferred = cx.sheets.color_scheme();
-    let colors = apply_cascade_ladder(&mut working, plan, decls, host_computed, preferred);
+    // The inline-axis flow-relative properties map by the pseudo-element's
+    // own `direction`, as for an element (`walk::compute_element_style`).
+    let directional = decls.has_directional();
+    let mut direction = host_computed.text_direction;
+    let (mut working, substituted, colors) = loop {
+        // Pseudo-elements inherit from the host's computed style (per
+        // spec), not from the host's parent, and share the host's vars
+        // (which came from the merged stylesheet roots).
+        let mut working = ComputedStyle::initial();
+        inherit_inheritable_from(&mut working, host_computed);
+        working.vars = host_computed.vars.clone();
+        working.text_direction = direction;
+        let substituted = prepare(
+            &mut working,
+            plan,
+            decls,
+            cx.sheets.registry(),
+            None,
+            &attrs,
+            cx.sheets.viewport(),
+        );
+        let colors = apply_cascade_ladder(
+            &mut working,
+            plan,
+            decls.with(substituted.as_ref()),
+            host_computed,
+            preferred,
+        );
+        if !directional || working.text_direction == direction {
+            break (working, substituted, colors);
+        }
+        direction = working.text_direction;
+    };
+    let decls = decls.with(substituted.as_ref());
     colors.finalize(&mut working, host_computed.fg, preferred);
 
     finalize_bfc_formation(&mut working);

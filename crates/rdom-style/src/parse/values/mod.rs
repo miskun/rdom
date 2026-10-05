@@ -38,7 +38,9 @@ mod length;
 mod number;
 mod numeric;
 
-pub(crate) use numeric::{LengthPercentage, Range, integer, length_percentage, number, percentage};
+pub(crate) use numeric::{
+    LengthPercentage, Range, components, integer, length_percentage, number, percentage,
+};
 pub use numeric::{MAX_ANGLE_DEGREES, parse_angle};
 mod shadow;
 mod spacing;

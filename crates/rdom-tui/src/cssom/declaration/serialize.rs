@@ -29,6 +29,11 @@ use rdom_style::property_dispatch;
 pub(crate) fn css_text_of(style: &TuiStyle) -> String {
     let mut out = String::new();
     for &name in property_dispatch::property_names() {
+        // A block-axis flow-relative property is its physical twin's
+        // storage: listed under that name.
+        if property_dispatch::is_storage_alias(name) {
+            continue;
+        }
         // Suppress longhand emission when its shorthand fires —
         // see the function-level docstring.
         if let Some(shorthand) = shorthand_family_of(name)

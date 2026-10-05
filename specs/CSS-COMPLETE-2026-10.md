@@ -128,7 +128,7 @@ row comes from.
 | C5-MINMAX-SIZE | `min-*` / `max-*`: `none`, `%`, `calc()` | done (`%` / `calc()` with C2-PERCENT, `none` with C2G-MAX-NONE) |
 | C5-MARGIN-TRIM | `margin-trim` | done |
 | C5-CONTAIN-SIZE | `contain-intrinsic-size` (+ longhands) | partial — used with C14 contain |
-| C5-LOGICAL | Logical properties: `inline-size` / `block-size` / `min-*` / `max-*`, `margin-*` / `padding-*` / `border-*` / `inset-*` / radius logical forms (horizontal-tb ltr mapping) | |
+| C5-LOGICAL | Logical properties: `inline-size` / `block-size` / `min-*` / `max-*`, `margin-*` / `padding-*` / `border-*` / `inset-*` / radius logical forms (horizontal-tb ltr mapping) | done |
 | C5-WRITING | `direction` and `writing-mode` for the values a terminal can render (rtl lines; vertical documented N/A if not) | done |
 
 ### Phase 6 — Display, visibility, flexbox, box alignment (audit §3.7, §3.8)
@@ -1525,3 +1525,41 @@ row comes from.
   table now and, per Cascade 4 §3.2, not in `all`, so the test skips it and asserts it stays unset.
   `cascade_inherits_exactly_the_style_crates_inherited_set` gains probes for `direction` and
   `writing-mode` (and the non-inherited `box-sizing` / `margin-trim` of the earlier items).
+- 2026-10-07 — C5-LOGICAL (after C5-WRITING): the 52 flow-relative properties of CSS Logical 1
+  §2–§6 (`property_dispatch/logical.rs`, its `NAMES` appended to `property_names()`, which is now
+  `PROPERTY_NAMES` + those). Decided — no duplicated storage, order preserved: (1) the block-axis
+  properties and the sizes map onto their physical twins *when declared* (`set_mapped` → `set_parsed`
+  of the physical name; a `Pair` takes one or two components, a `Both` the whole value) — exact in
+  rdom, whose layout is `horizontal-tb` only (C5-WRITING), so CSS Logical 1 §4's "later declaration
+  wins" holds by storage, within a block and across the cascade; (2) the inline-axis properties and
+  the corner radii depend on `direction`, known only per element, so they ride the order-preserving
+  replay `var()` already has: the declaration (value checked when declared; a CSS-wide keyword
+  lower-cased) goes on the block's `pending` list as `directional` and every later declaration of the
+  block follows it there; the cascade replays the list with `SubstitutionContext::direction`
+  (`set_parsed_in` / `set_unset_in`). The element's own `direction` decides, and the ladder is what
+  computes it: `compute_element_style` / the pseudo-element path run the ladder with the inherited
+  direction and, when a matched block holds a directional declaration and the element's computed
+  direction differs, once more with it (a logical property cannot change `direction`, so two runs
+  suffice; elements without one pay one scan). `fields_of` for a flow-relative name is its physical
+  properties' fields (both sides for an inline-axis one, built once from the mapping), which routes
+  `!important`, removal and the CSS-wide keywords; the two edges this leaves (an important inline-axis
+  declaration marks both sides important in its block; CSSOM `removeProperty` clears both) are in
+  DIVERGENCES §2. CSSOM reads an inline-axis property back as written (from `pending`), a block-axis
+  one from its physical twin. Found and fixed: the `pending` replay started from an empty `margin` /
+  `padding`, so a replayed side longhand dropped the block's shorthand sides — `margin: 1;
+  margin-left: var(--x)` came out `0 0 0 x` (now seeded from the block; regression test
+  `a_substituted_longhand_keeps_its_shorthands_other_sides`). Not done: `overflow-block` /
+  `overflow-inline` (C8-OVERFLOW-CLIP), the logical keywords of other properties (`text-align: start`
+  …, with their properties). Red: `logical_tests.rs` (rdom-style) and `css_phase5/logical.rs` were
+  written first — the former did not compile (`SubstitutionContext::with_direction`) — and both first
+  ran after the implementation; their round-trip rows also needed `canonical_values` entries
+  (`property_names_matches_canonical_values_table` failed until added). Changed expectations: none
+  beyond the canonical table's new rows. Found by the workspace run: CSSOM `cssText` / `length` /
+  `item()` enumerate `property_names()`, so a shared-storage name listed `width` twice (`width: 16;
+  inline-size: 16;` in `set_width_from_a_listener_lays_out_on_the_next_frame`, and the `dom_api`
+  demo's snapshot) — `property_dispatch::is_storage_alias` keeps the block-axis flow-relative names out
+  of those enumerations (listed under the physical name); test `cssom_lists_shared_storage_once`. No
+  snapshot or expectation changed.
+  The batch's rustdoc gate (run before this last commit) found a link C5-SPLIT broke —
+  `read_api.rs`'s `[`TuiAccessorsMut::style_mut`]` no longer in scope after the move — fixed here with
+  a `super::` path, along with a link from `set_parsed`'s docs to the crate-private `set_parsed_in`.

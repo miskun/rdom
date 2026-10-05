@@ -139,7 +139,7 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// Returns an **owned snapshot** of the inline style (clone
     /// of `TuiExt::inline_style`). Re-fetch via `style()` after
     /// mutation to observe new values. The write side is
-    /// [`TuiAccessorsMut::style_mut`].
+    /// [`TuiAccessorsMut::style_mut`](super::TuiAccessorsMut::style_mut).
     fn style(&self) -> Option<crate::cssom::StyleDeclaration>;
 
     // ── Per-tag accessors — `<input>` + `<textarea>` (step 30a) ──

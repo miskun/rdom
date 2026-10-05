@@ -9,6 +9,7 @@ use rdom_tui::{CascadeExt, LayoutExt, LayoutRect, NodeId, PaintExt, TuiDom, TuiN
 mod box_sizing;
 mod contain;
 mod intrinsic;
+mod logical;
 mod margin_trim;
 mod writing;
 

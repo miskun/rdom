@@ -425,9 +425,6 @@ fn compute_element_style(
     // Start from initial + inherit subset from parent. That includes
     // the custom-property map (an `Rc` clone; `apply_cascade_ladder`
     // copies on write only when this element declares `--*`).
-    let mut working = ComputedStyle::initial();
-    inherit_inheritable_from(&mut working, parent);
-
     // Collect matching non-pseudo-element rules across all sheets.
     // Cascade order is (specificity, scope proximity, sheet_idx,
     // source_idx) — later sheets win same-specificity contests just
@@ -455,18 +452,39 @@ fn compute_element_style(
         .and_then(|p| p.custom_properties.as_ref());
     // `attr()` reads this element's attributes (CSS Values 5 §8.7).
     let attrs = |name: &str| dom.node(id).get_attribute(name);
-    let substituted = prepare(
-        &mut working,
-        plan,
-        decls,
-        sheets.registry(),
-        transitions,
-        &attrs,
-        sheets.viewport(),
-    );
-    let decls = decls.with(substituted.as_ref());
     let preferred = sheets.color_scheme();
-    let colors = apply_cascade_ladder(&mut working, plan, decls, parent, preferred);
+    // An inline-axis flow-relative property maps by the element's own
+    // `direction` (CSS Logical 1 §4), which this very ladder decides: the
+    // first run assumes the inherited one, and a block holding such a
+    // property re-runs with the element's own when they differ.
+    let directional = decls.has_directional();
+    let mut direction = parent.text_direction;
+    let (mut working, substituted, colors) = loop {
+        let mut working = ComputedStyle::initial();
+        inherit_inheritable_from(&mut working, parent);
+        working.text_direction = direction;
+        let substituted = prepare(
+            &mut working,
+            plan,
+            decls,
+            sheets.registry(),
+            transitions,
+            &attrs,
+            sheets.viewport(),
+        );
+        let colors = apply_cascade_ladder(
+            &mut working,
+            plan,
+            decls.with(substituted.as_ref()),
+            parent,
+            preferred,
+        );
+        if !directional || working.text_direction == direction {
+            break (working, substituted, colors);
+        }
+        direction = working.text_direction;
+    };
+    let decls = decls.with(substituted.as_ref());
     // `currentcolor` takes the element's final `color`, `light-dark()`
     // its final `color-scheme`.
     colors.finalize(&mut working, parent.fg, preferred);

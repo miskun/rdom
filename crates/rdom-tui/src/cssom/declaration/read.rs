@@ -90,20 +90,25 @@ impl StyleDeclaration {
     /// [`property_dispatch::property_names`] for which
     /// [`property_dispatch::serialize`] returns `Some`).
     pub fn length(&self) -> usize {
-        property_dispatch::property_names()
-            .iter()
-            .filter(|&&name| property_dispatch::serialize(name, &self.inline).is_some())
-            .count()
+        declared_names(&self.inline).count()
     }
 
     /// `el.style.item(i)` — name of the i-th set property in
     /// [`property_dispatch::property_names`] iteration order, or
     /// `None` past the end.
     pub fn item(&self, index: usize) -> Option<&'static str> {
-        property_dispatch::property_names()
-            .iter()
-            .copied()
-            .filter(|&name| property_dispatch::serialize(name, &self.inline).is_some())
-            .nth(index)
+        declared_names(&self.inline).nth(index)
     }
+}
+
+/// The names `style` holds a value for, in
+/// [`property_dispatch::property_names`] order — a block-axis
+/// flow-relative property shares its physical twin's storage and is
+/// listed under that name only ([`property_dispatch::is_storage_alias`]).
+fn declared_names(style: &TuiStyle) -> impl Iterator<Item = &'static str> + '_ {
+    property_dispatch::property_names()
+        .iter()
+        .copied()
+        .filter(|&name| !property_dispatch::is_storage_alias(name))
+        .filter(move |&name| property_dispatch::serialize(name, style).is_some())
 }

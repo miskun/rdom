@@ -157,6 +157,13 @@ impl<'a> Declarations<'a> {
         }
     }
 
+    /// Whether a block holds an inline-axis flow-relative property (CSS
+    /// Logical 1), which maps by the element's `direction`.
+    pub(super) fn has_directional(self) -> bool {
+        let any = |s: &TuiStyle| s.pending.iter().any(|d| d.directional);
+        self.sorted.iter().any(|r| any(&r.style)) || self.inline.is_some_and(any)
+    }
+
     /// No matched rule and no inline style.
     pub(super) fn is_empty(self) -> bool {
         self.sorted.is_empty() && self.inline.is_none()
@@ -233,13 +240,16 @@ impl Substituted {
         decls: Declarations<'_>,
         vars: &crate::style::VarMap,
         attrs: rdom_style::backend::AttrLookup<'_>,
+        direction: crate::layout::TextDirection,
     ) -> Option<Self> {
         let any = decls.sorted.iter().any(|r| r.style.has_pending())
             || decls.inline.is_some_and(TuiStyle::has_pending);
         if !any {
             return None;
         }
-        let cx = rdom_style::backend::SubstitutionContext::new().with_attrs(attrs);
+        let cx = rdom_style::backend::SubstitutionContext::new()
+            .with_attrs(attrs)
+            .with_direction(direction);
         let sub = |s: &TuiStyle| s.has_pending().then(|| s.substituted_pending(vars, &cx));
         Some(Substituted {
             rules: decls.sorted.iter().map(|r| sub(&r.style)).collect(),
@@ -251,8 +261,9 @@ impl Substituted {
 /// The custom properties of `decls` folded into `working.vars`, then
 /// the declarations' `var()`s substituted from them and their `attr()`s
 /// from `attrs` (the element's — for a pseudo-element, its originating
-/// element's — attributes, CSS Values 5 §8.7) — the inputs of
-/// [`apply_cascade_ladder`].
+/// element's — attributes, CSS Values 5 §8.7), and their inline-axis
+/// flow-relative properties mapped by `working.text_direction` (CSS
+/// Logical 1 §4) — the inputs of [`apply_cascade_ladder`].
 pub(super) fn prepare(
     working: &mut ComputedStyle,
     plan: &Plan,
@@ -274,7 +285,7 @@ pub(super) fn prepare(
         viewport,
     );
     let vars = working.animated_vars.as_ref().unwrap_or(&working.vars);
-    Substituted::new(decls, vars, attrs)
+    Substituted::new(decls, vars, attrs, working.text_direction)
 }
 
 /// Memoized rollback states of one element's ladder: `state_before(i)`

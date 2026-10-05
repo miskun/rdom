@@ -78,7 +78,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.7 Display and visibility (Display 3) | 1 | 0 | 8 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
-| 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 3 | 1 | 2 | 1 | 7 |
+| 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 0 | 1 | 14 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
@@ -90,14 +90,14 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.19 User interface (UI 4) | 2 | 1 | 8 | 1 | 12 |
 | 3.20 Tables (Tables 3, CSS 2.1 §17) | 0 | 0 | 4 | 0 | 4 |
 | 3.21 Conditional rules and containment (Conditional 3/5, Contain 2/3, Will Change 1) | 0 | 0 | 6 | 1 | 7 |
-| 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 0 | 2 | 6 | 1 | 9 |
+| 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **108** | **30** | **123** | **46** | **307** |
+| **Total** | **114** | **30** | **117** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 153 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 147 rows Partial / Missing.
 
-Headline: rdom parses **99 property names** (`PROPERTY_NAMES`, after C5-WRITING). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, and grid.
+Headline: rdom parses **151 property names** (`property_names()`, after C5-LOGICAL). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, `visibility`, and grid.
 
 ---
 
@@ -133,7 +133,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 23 | `text-transform` | `uppercase` / `lowercase` / `capitalize` at shaping time (copy keeps the DOM text, as browsers do); `full-width` maps ASCII to U+FF01–FF5E (2 cells each). | S | No |
 | 24 | `text-indent` | First line of each block starts `n` cells in (negative = hanging); `hanging` / `each-line` keywords. | S | No |
 | 25 | `ch` / `lh` / `rlh` and viewport units `vw` / `vh` / `vmin` / `vmax` (+ `s`/`l`/`d` variants) | `1ch` = one column exactly on a monospaced grid; `1lh` = one row; `1vw` = 1% of the terminal's columns, `1vh` = 1% of its rows (rdom knows the viewport). | S | Yes (classified as pixel-dependent; see §6) |
-| 26 | Logical properties (`inline-size`, `block-size`, `margin-inline*`, `padding-block*`, `inset-inline*`, `border-inline*`, …) | 1:1 aliases of the physical properties (rdom is horizontal-tb, LTR only). | S | No |
+| 26 | Logical properties (`inline-size`, `block-size`, `margin-inline*`, `padding-block*`, `inset-inline*`, `border-inline*`, …) | Shipped (C5-LOGICAL; §3.22): the block axis and sizes are their physical twins (horizontal-tb), the inline axis maps by `direction` (C5-WRITING). | S | Yes |
 | 27 | `border-radius` (+ per-corner) | Shipped (C4-RADIUS; §3.5): any non-zero radius → rounded corner glyphs `╭╮╰╯` per corner; `0` → square. | S | Yes |
 | 28 | `border-width` (+ per-side) and width component of `border` | Shipped (C4-BORDER-WIDTH; §3.5): `0` = no border on that side; `thin` / `medium` / `1` = light glyphs; `thick` / `≥2` / ≥5px = heavy box-drawing glyphs (`━┃┏┓┗┛`); never more than one cell. | S | Yes |
 | 29 | `list-style-type` / `list-style-position` / `list-style` / `::marker` / `display: list-item` | Marker from a counter style or `<string>`; `outside` hangs it in the padding, `inside` puts it on the first line (today's behavior via `li::before`). | M | Yes |
@@ -396,7 +396,7 @@ dropped. The audit's six, with where each stands:
 | `position` | Supported | `static` / `relative` / `absolute` / `fixed` / `sticky` (sticky containing block simplified, documented). | Yes | `V/keyword.rs::parse_position`, `POS` |
 | `top` / `right` / `bottom` / `left` | Supported | `auto`, signed cells, `%`, `calc()` (C2-PERCENT / C8-INSETS). | — | `V/length.rs::parse_length` |
 | `inset` | Supported | 1–4 values of `auto` / signed cells / `%` / `calc()` (C2-PERCENT / C8-INSETS). | — | `V/length.rs::parse_inset_shorthand` |
-| `inset-block` / `inset-inline` (+ `-start` / `-end`) | Missing | Logical aliases. | No | `DISP` |
+| `inset-block` / `inset-inline` (+ `-start` / `-end`) | Supported | Block axis → `top` / `bottom`, inline axis → `left` / `right` by `direction` (C5-LOGICAL). | — | `DISP` (`logical.rs`) |
 | `z-index` | Partial | `auto` / `i16` (documented). | Yes | `V/number.rs::parse_z_index` |
 | `float` / `clear` | Missing | Out of scope by decision. | Yes | `BLOCK`, `IFC` |
 | `clip` (CSS 2.1, deprecated) | N/A | Superseded by `clip-path`; no new content uses it. | — | — |
@@ -607,12 +607,12 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `inline-size` / `block-size` / `min-*-size` / `max-*-size` | Missing | Aliases of `width` / `height` / `min-*` / `max-*`. | No | `DISP` |
-| `margin-inline` / `margin-block` (+ `-start` / `-end`) | Missing | Aliases of physical margins. | No | `DISP` |
-| `padding-inline` / `padding-block` (+ `-start` / `-end`) | Missing | Aliases of physical padding. | No | `DISP` |
-| `border-inline` / `border-block` (+ `-start` / `-end`, `-color` / `-style` / `-width`) | Missing | Aliases of physical borders. | No | `DISP` |
-| `border-start-start-radius` / … (4 corners) | Missing | Aliases of `border-*-radius`. | No | `DISP` |
-| `inset-inline` / `inset-block` | Missing | See §3.10. | No | `DISP` |
+| `inline-size` / `block-size` / `min-*-size` / `max-*-size` | Supported | Their physical twins in horizontal-tb, one storage (C5-LOGICAL). | — | `DISP` |
+| `margin-inline` / `margin-block` (+ `-start` / `-end`) | Supported | Block axis → top / bottom when declared; inline axis → left / right by the element's `direction` in the cascade, in declaration order (C5-LOGICAL). | — | `DISP` |
+| `padding-inline` / `padding-block` (+ `-start` / `-end`) | Supported | As the margins (C5-LOGICAL). | — | `DISP` |
+| `border-inline` / `border-block` (+ `-start` / `-end`, `-color` / `-style` / `-width`) | Supported | As the margins; one or two values for the axis longhands (C5-LOGICAL). | — | `DISP` |
+| `border-start-start-radius` / … (4 corners) | Supported | Block side first, the inline side by `direction` (C5-LOGICAL). | — | `DISP` |
+| `inset-inline` / `inset-block` | Supported | See §3.10 (C5-LOGICAL). | — | `DISP` |
 | `text-align: start / end`, `float: inline-start`, `resize: block / inline` | Missing | Logical keywords (follow their properties). | No | — |
 | `writing-mode` | Partial | All five values parse, inherit and compute (C5-WRITING); every box lays out as `horizontal-tb` — vertical flow could be emulated, but glyphs cannot be rotated in a cell (DIVERGENCES §1). | Yes | `KW`, `CASC` |
 | `direction` / `unicode-bidi` | Partial | `direction: ltr \| rtl` (C5-WRITING; the `dir` attribute through the UA sheet): inline-start is the right edge — line starts, block over-constraint, flex rows / column cross axis, positioned insets, `margin-trim`, the vertical scrollbar side. `unicode-bidi` and bidi reordering N/A: terminals differ (DIVERGENCES §1). | Yes | `KW`, `IFC`, `BLOCK`, `FLEX`, `POS` |
@@ -757,7 +757,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 - `top` / `right` / `bottom` / `left` — Partial *(DIVERGENCES says otherwise)*: `auto`, signed cells, `calc()`; bare `%` rejected.
 - `inset` — Partial: 1–4 values of `auto` / signed cells; `calc()` and `%` rejected.
-- `inset-block` / `inset-inline` (+ `-start` / `-end`) — Missing: Logical aliases.
+- `inset-block` / `inset-inline` (+ `-start` / `-end`) — Missing: Logical aliases. *Shipped: C5-LOGICAL.*
 
 **3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1)**
 
@@ -855,11 +855,11 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 **3.22 Logical properties and writing modes (Logical 1, Writing Modes 4)**
 
-- `inline-size` / `block-size` / `min-*-size` / `max-*-size` — Missing: Aliases of `width` / `height` / `min-*` / `max-*`.
-- `margin-inline` / `margin-block` (+ `-start` / `-end`) — Missing: Aliases of physical margins.
-- `padding-inline` / `padding-block` (+ `-start` / `-end`) — Missing: Aliases of physical padding.
-- `border-inline` / `border-block` (+ `-start` / `-end`, `-color` / `-style` / `-width`) — Missing: Aliases of physical borders.
-- `border-start-start-radius` / … (4 corners) — Missing: Aliases of `border-*-radius`.
+- `inline-size` / `block-size` / `min-*-size` / `max-*-size` — Missing: Aliases of `width` / `height` / `min-*` / `max-*`. *Shipped: C5-LOGICAL.*
+- `margin-inline` / `margin-block` (+ `-start` / `-end`) — Missing: Aliases of physical margins. *Shipped: C5-LOGICAL.*
+- `padding-inline` / `padding-block` (+ `-start` / `-end`) — Missing: Aliases of physical padding. *Shipped: C5-LOGICAL.*
+- `border-inline` / `border-block` (+ `-start` / `-end`, `-color` / `-style` / `-width`) — Missing: Aliases of physical borders. *Shipped: C5-LOGICAL.*
+- `border-start-start-radius` / … (4 corners) — Missing: Aliases of `border-*-radius`. *Shipped: C5-LOGICAL.*
 - `text-align: start / end`, `float: inline-start`, `resize: block / inline` — Missing: Logical keywords (follow their properties).
 
 **3.23 Transforms, filters, masking, compositing**

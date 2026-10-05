@@ -7,7 +7,9 @@
 use super::DispatchError;
 use super::css_wide::{css_wide_keyword, set_css_wide};
 use super::table::canonical_property_name;
-use crate::layout::{CaretColor, CaretTextColor, Direction, Display, Size, UserSelect, WhiteSpace};
+use crate::layout::{
+    CaretColor, CaretTextColor, Direction, Display, Size, TextDirection, UserSelect, WhiteSpace,
+};
 use crate::parse::token::{Token, tokenize};
 use crate::parse::values::{
     current_margin, current_padding, parse_aspect_ratio, parse_color, parse_content,
@@ -59,10 +61,34 @@ pub fn set_from_tokens(
             .push(crate::var::PendingDeclaration::new(name, value, true));
         return Ok(());
     }
+    // CSS Logical 1 §4: an inline-axis property maps by the element's
+    // `direction`, which only the cascade knows — kept as written (its
+    // value checked now), with the block's later declarations, for the
+    // cascade to replay in order (`logical.rs`).
+    if super::logical::is_directional(name) {
+        super::logical::set_mapped(name, value, &mut TuiStyle::new(), TextDirection::Ltr)
+            .unwrap_or(Err(DispatchError::UnknownProperty))?;
+        // A CSS-wide keyword is kept in its canonical spelling.
+        let value = match value {
+            [Token::Ident(kw)] if css_wide_keyword(value).is_some() => {
+                vec![Token::Ident(kw.to_ascii_lowercase())]
+            }
+            _ => value.to_vec(),
+        };
+        style.pending.retain(|d| d.name != name);
+        style
+            .pending
+            .push(crate::var::PendingDeclaration::new(name, &value, false));
+        return Ok(());
+    }
     set_parsed(name, value, style)?;
     if style.has_pending() {
         style.pending.retain(|d| d.name != name);
-        if style.pending.iter().any(|d| d.has_substitution) {
+        if style
+            .pending
+            .iter()
+            .any(|d| d.has_substitution || d.directional)
+        {
             style
                 .pending
                 .push(crate::var::PendingDeclaration::new(name, value, false));
@@ -76,7 +102,17 @@ pub fn set_from_tokens(
 /// Set `name` to the CSS-wide `unset` — the value of a declaration
 /// invalid at computed-value time (CSS Variables 1 §3.1).
 pub fn set_unset(name: &str, style: &mut TuiStyle) {
+    set_unset_in(name, style, TextDirection::Ltr);
+}
+
+/// [`set_unset`] for an element of `direction`: a flow-relative
+/// property unsets the physical property it maps to.
+pub(crate) fn set_unset_in(name: &str, style: &mut TuiStyle, direction: TextDirection) {
     let name = &*canonical_property_name(name);
+    let unset = [Token::Ident("unset".to_string())];
+    if super::logical::set_mapped(name, &unset, style, direction).is_some() {
+        return;
+    }
     // Every table name accepts a CSS-wide keyword.
     let _ = set_css_wide(name, super::css_wide::CssWide::Unset, style);
 }
@@ -100,8 +136,31 @@ pub fn set_custom(
 }
 
 /// Parse `value` with `name`'s own grammar and write it — no `var()`
-/// handling; the cascade calls this with substituted tokens.
+/// handling; the cascade calls this with substituted tokens. A
+/// flow-relative inline-axis property maps as under `ltr`; the cascade
+/// maps them by the element's direction instead (`SubstitutionContext::direction`).
 pub fn set_parsed(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(), DispatchError> {
+    set_parsed_in(name, value, style, TextDirection::Ltr)
+}
+
+/// [`set_parsed`] for an element of `direction`: a flow-relative
+/// property writes the physical property it maps to (CSS Logical 1).
+pub(crate) fn set_parsed_in(
+    name: &str,
+    value: &[Token],
+    style: &mut TuiStyle,
+    direction: TextDirection,
+) -> Result<(), DispatchError> {
+    let mapped =
+        super::logical::set_mapped(&canonical_property_name(name), value, style, direction);
+    if let Some(outcome) = mapped {
+        return outcome;
+    }
+    set_physical(name, value, style)
+}
+
+/// [`set_parsed`] for every name but the flow-relative ones.
+fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(), DispatchError> {
     if let Some(custom) = name.strip_prefix("--") {
         // CSS Variables 1 §2: any `--*` name is valid and untyped;
         // the value is kept verbatim (no css-wide keyword handling

@@ -104,6 +104,8 @@ These are intrinsic to terminals. They will not change.
 
 ### Cascade & selectors
 
+- **The flow-relative properties share the physical ones' storage.** CSS Logical 1 §4 keeps `margin-block-start` and `margin-top` as two declarations with one computed value. rdom lays out only `horizontal-tb`, so a block-axis or size property is written into its physical twin's storage when declared (the later declaration wins, as §4 asks) and CSSOM reads either name from it. An inline-axis property (`margin-inline-start`, `border-inline-end-color`, `inset-inline`, the `border-start-end-radius` corners, …) maps by the element's `direction`, so a block keeps it as written, with its later declarations, and the cascade replays them in order with the element's direction. Two edges of that: an `!important` inline-axis declaration marks both physical sides it could map to as important in its block — a normal `border-right-color` beside an important `border-inline-start-color` in the same block becomes important too — and CSSOM `removeProperty` of an inline-axis property also clears both of those physical properties in that declaration block.
+
 Supported selector grammar: type, class, ID, attribute, descendant, child (`>`), adjacent sibling (`+`), general sibling (`~`), comma list. Supported pseudo-classes: `:hover`, `:active`, `:focus`, `:focus-within`, `:focus-visible`, `:checked`, `:indeterminate` (`<progress>` without `value` only), `:open`, `:disabled`, `:enabled`, `:valid`, `:invalid`, `:required`, `:optional`, `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`, `:not(<list>)`, `:is(<list>)`, `:where(<list>)`, `:placeholder-shown`.
 
 - **`:active` follows the primary pointer button only.** The `App` activates the pressed element (Selectors 4 §9.4; `:hover` / `:active` / `:focus-within` match its ancestors too, as on the web) from a left-button press to its release — the release clears it before its own `mouseup` / `click` / `dblclick` run, as in Blink — including a press whose `mousedown` was cancelled (as in Blink); a scrollbar press activates nothing. Browsers also activate a button held down with Space and the labeled control of an active `<label>` (HTML §4.16.3); rdom does neither.
@@ -272,7 +274,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Logical properties and writing modes
 
-- `inline-size` / `block-size`, logical `margin-*` / `padding-*` / `border-*` / `inset-*` / radius properties, `overflow-block` / `-inline` — C5-LOGICAL (overflow: C8-OVERFLOW-CLIP)
+- `overflow-block` / `overflow-inline` (the logical properties shipped with C5-LOGICAL) — C8-OVERFLOW-CLIP
 - Logical keywords (`text-align: start / end`, `float: inline-start`, `resize: block / inline`) — with C9-TEXT-ALIGN, C8-FLOAT, C12-CONTROLS
 
 ### Display and visibility

@@ -47,6 +47,9 @@
 //!   `set` / `serialize` arms of the `background` and `border` shorthands
 //!   and their longhands, of `box-shadow`, and of `contain-intrinsic-size`
 //!   and its longhands.
+//! - `logical.rs`: the flow-relative properties (CSS Logical 1) — the
+//!   block-axis ones mapped onto their physical twins when declared, the
+//!   inline-axis ones kept for the cascade to map by `direction`.
 //! - `value_serializers.rs`: the per-value-type serializers
 //!   (`serialize_color`, `serialize_calc`, …) `serialize.rs` folds
 //!   over.
@@ -73,6 +76,7 @@ mod background;
 mod border;
 mod contain;
 mod css_wide;
+mod logical;
 mod serialize;
 pub(crate) mod set;
 mod shadow;
@@ -84,6 +88,8 @@ mod background_tests;
 #[cfg(test)]
 mod border_tests;
 #[cfg(test)]
+mod logical_tests;
+#[cfg(test)]
 mod sizing_tests;
 #[cfg(test)]
 mod tests;
@@ -94,7 +100,9 @@ pub use serialize::serialize;
 pub use set::{set, set_custom, set_from_tokens};
 // `set_parsed` / `set_unset` are backend hooks, public through
 // `crate::backend`.
-pub(crate) use set::{set_parsed, set_unset};
+pub(crate) use logical::is_directional;
+pub use logical::is_storage_alias;
+pub(crate) use set::{set_parsed_in, set_unset_in};
 pub(crate) use table::{IMPORTANT_BITS, important_bit_name};
 pub use table::{canonical_property_name, inherits, property_mask, property_names, remove};
 pub(crate) use value_serializers::serialize_math;

@@ -148,7 +148,7 @@ const ALL_EXCLUDES: &[&str] = &["direction", "unicode-bidi"];
 /// [`ALL_EXCLUDES`], so a property added to the table is covered
 /// without touching `all`.
 pub(super) fn all_property_names() -> impl Iterator<Item = &'static str> {
-    PROPERTY_NAMES
+    property_names()
         .iter()
         .copied()
         .filter(|n| !ALL_EXCLUDES.contains(n))
@@ -172,9 +172,17 @@ fn all_fields() -> &'static [Field] {
 
 /// The full list of property names supported by the dispatch
 /// table. Sorted by category, not alphabetic — step 27's iteration
-/// preserves this order for stable camelCase output.
+/// preserves this order for stable camelCase output. The flow-relative
+/// properties (CSS Logical 1, `logical.rs`) come last.
 pub fn property_names() -> &'static [&'static str] {
-    PROPERTY_NAMES
+    static NAMES: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    NAMES.get_or_init(|| {
+        PROPERTY_NAMES
+            .iter()
+            .chain(super::logical::NAMES)
+            .copied()
+            .collect()
+    })
 }
 
 macro_rules! define_fields {
@@ -475,7 +483,8 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "writing-mode" => &[WritingMode],
         // CSS Cascade 4 §3.2: every property in the table.
         "all" => all_fields(),
-        _ => return None,
+        // CSS Logical 1: the physical properties' fields.
+        _ => return super::logical::fields(name),
     })
 }
 

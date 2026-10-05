@@ -27,6 +27,10 @@ pub struct PendingDeclaration {
     /// The value's `attr()` names and types, parsed once here rather
     /// than at every substitution.
     pub(crate) heads: crate::attr::AttrHeads,
+    /// The property is a flow-relative inline-axis one (CSS Logical 1):
+    /// it maps by the element's `direction`, so it waits for the cascade
+    /// even without a substitution function.
+    pub directional: bool,
 }
 
 impl PendingDeclaration {
@@ -40,6 +44,7 @@ impl PendingDeclaration {
             } else {
                 Default::default()
             },
+            directional: crate::property_dispatch::is_directional(name),
         }
     }
 }
@@ -77,8 +82,13 @@ impl TuiStyle {
         vars: &HashMap<String, CustomValue>,
         cx: &SubstitutionContext<'_, '_>,
     ) -> TuiStyle {
+        // `margin` / `padding` keep their four sides in one field, which a
+        // replayed side longhand updates: it starts from the block's own
+        // sides (`margin: 1; margin-left: var(--x)` keeps 1 elsewhere).
         let mut out = TuiStyle {
             important: self.important,
+            margin: self.margin.clone(),
+            padding: self.padding.clone(),
             ..TuiStyle::default()
         };
         self.replay_pending(vars, cx, &mut out);
@@ -92,6 +102,10 @@ impl TuiStyle {
         out: &mut TuiStyle,
     ) {
         for decl in &self.pending {
+            let set = |tokens: &[Token], out: &mut TuiStyle| {
+                crate::property_dispatch::set_parsed_in(&decl.name, tokens, out, cx.direction)
+                    .is_ok()
+            };
             let parsed = if decl.has_substitution {
                 substitute_at(
                     &decl.value,
@@ -100,12 +114,12 @@ impl TuiStyle {
                     &mut |n| lookup_in(vars, n),
                     cx.attrs,
                 )
-                .is_ok_and(|t| crate::property_dispatch::set_parsed(&decl.name, &t, out).is_ok())
+                .is_ok_and(|t| set(&t, out))
             } else {
-                crate::property_dispatch::set_parsed(&decl.name, &decl.value, out).is_ok()
+                set(&decl.value, out)
             };
             if !parsed {
-                crate::property_dispatch::set_unset(&decl.name, out);
+                crate::property_dispatch::set_unset_in(&decl.name, out, cx.direction);
             }
         }
     }

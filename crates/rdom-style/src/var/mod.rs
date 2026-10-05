@@ -119,6 +119,9 @@ pub struct SubstitutionContext<'a, 'c> {
     /// The computed-value step ([`ComputedStep`]); only
     /// [`resolve_custom_properties`] reads it.
     pub computed: Option<ComputedStep<'c>>,
+    /// The element's `direction`, which maps the inline-axis
+    /// flow-relative properties (CSS Logical 1 §4). Default `ltr`.
+    pub direction: crate::layout::TextDirection,
 }
 
 impl<'a, 'c> SubstitutionContext<'a, 'c> {
@@ -130,6 +133,12 @@ impl<'a, 'c> SubstitutionContext<'a, 'c> {
     /// This context for the element whose attributes `attrs` gives.
     pub fn with_attrs(mut self, attrs: crate::attr::AttrLookup<'a>) -> Self {
         self.attrs = Some(attrs);
+        self
+    }
+
+    /// This context for an element whose `direction` is `direction`.
+    pub fn with_direction(mut self, direction: crate::layout::TextDirection) -> Self {
+        self.direction = direction;
         self
     }
 
