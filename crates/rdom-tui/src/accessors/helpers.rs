@@ -76,10 +76,7 @@ pub(super) fn read_scroll_x(dom: &TuiDom, id: NodeId) -> i32 {
 
 pub(super) fn read_scroll_y(dom: &TuiDom, id: NodeId) -> i32 {
     use crate::node::TuiNodeExt;
-    dom.node(id)
-        .tui_ext()
-        .map(|e| e.scroll_y as i32)
-        .unwrap_or(0)
+    dom.node(id).tui_ext().map(|e| e.scroll_y).unwrap_or(0)
 }
 
 /// `HTMLElement.isContentEditable` (HTML §6.8.1): walk ancestors

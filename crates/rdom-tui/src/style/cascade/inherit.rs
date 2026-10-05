@@ -83,6 +83,7 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.border_collapse != b.border_collapse
         || a.border_collapse_declared != b.border_collapse_declared
         || a.direction != b.direction
+        || a.flex_reverse != b.flex_reverse
         || a.text_direction != b.text_direction
         || a.overflow_x != b.overflow_x
         || a.overflow_y != b.overflow_y

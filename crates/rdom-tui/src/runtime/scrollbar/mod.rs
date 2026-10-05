@@ -53,6 +53,8 @@ mod keys;
 mod painted;
 mod reveal;
 #[cfg(test)]
+mod reverse_tests;
+#[cfg(test)]
 mod rtl_tests;
 mod scroll;
 pub(crate) mod state;

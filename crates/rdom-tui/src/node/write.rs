@@ -111,7 +111,10 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     /// Declare `flex-direction` inline (`direction` is
     /// [`set_text_direction`](Self::set_text_direction)).
     fn set_direction(&mut self, d: Direction) -> &mut Self {
-        self.write_inline_style(|s| s.direction = Some(Value::Specified(d)));
+        self.write_inline_style(|s| {
+            s.direction = Some(Value::Specified(d));
+            s.flex_reverse = Some(Value::Specified(false));
+        });
         self
     }
     fn set_padding(&mut self, p: Padding) -> &mut Self {
@@ -185,7 +188,7 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     /// [`TuiAccessorsMut::scroll_to`](crate::TuiAccessorsMut::scroll_to),
     /// which clamps and fires `scroll`. Either way the `App` repaints
     /// on its next frame.
-    fn set_scroll(&mut self, x: i32, y: usize) -> &mut Self {
+    fn set_scroll(&mut self, x: i32, y: i32) -> &mut Self {
         if let Some(e) = self.tui_ext_mut() {
             e.scroll_x = x;
             e.scroll_y = y;

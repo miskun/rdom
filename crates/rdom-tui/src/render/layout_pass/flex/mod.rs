@@ -247,7 +247,7 @@ pub(super) fn layout_children(
     // (DIVERGENCES). Both scroll offsets apply, as they do to the
     // in-flow items.
     let (static_x, static_y) = dom.node(id).ext().map_or((container.x, container.y), |e| {
-        (container.x - e.scroll_x, container.y - e.scroll_y as i32)
+        (container.x - e.scroll_x, container.y - e.scroll_y)
     });
     for n in super::positioning::out_of_flow_positioned_children(dom, id) {
         super::positioning::record_static_position(dom, n, static_x, static_y);
@@ -299,10 +299,13 @@ pub(super) fn layout_flex_children(
 
     let trim = FlexTrim::of(parent, direction);
     // CSS Writing Modes 4 §2.1: under `rtl` the inline axis — a row's
-    // main axis, a column's cross axis — runs right to left. The items
-    // are sized and placed in a mirrored frame (their right margin the
-    // inline-start one) and flipped back across the container.
-    let mirror = super::margin_trim::inline_reversed(parent);
+    // main axis, a column's cross axis — runs right to left; CSS Flexbox
+    // §5.1: `row-reverse` / `column-reverse` swap the main axis's start
+    // and end (so a `row-reverse` under `rtl` runs left to right). A
+    // mirrored axis is laid out in a mirrored frame (the item's
+    // physical end margin its start one) and flipped back across the
+    // container.
+    let flip = AxisFlip::of(parent, direction);
     let line = collect_main_axis_items(
         dom,
         children,
@@ -312,7 +315,7 @@ pub(super) fn layout_flex_children(
             cross: cross_budget,
         },
         trim,
-        mirror,
+        flip.main,
     );
 
     // Gap total = (n - 1) * gap.
@@ -364,7 +367,36 @@ pub(super) fn layout_flex_children(
             auto_margins,
             overlap,
             trim,
-            mirror,
+            flip,
         },
     );
+}
+
+/// Which of a flex container's axes run from their physical end edge
+/// — right to left, or bottom to top.
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct AxisFlip {
+    /// The main axis: a row's under `rtl` XOR `row-reverse`, a column's
+    /// under `column-reverse`.
+    pub(super) main: bool,
+    /// The cross axis: a column's under `rtl` (a row's cross axis, the
+    /// block axis, runs top to bottom).
+    pub(super) cross: bool,
+}
+
+impl AxisFlip {
+    pub(super) fn of(container: &ComputedStyle, direction: Direction) -> Self {
+        let rtl = super::margin_trim::inline_reversed(container);
+        let reverse = container.flex_reverse;
+        match direction {
+            Direction::Row => Self {
+                main: rtl != reverse,
+                cross: false,
+            },
+            Direction::Column => Self {
+                main: reverse,
+                cross: rtl,
+            },
+        }
+    }
 }

@@ -44,10 +44,13 @@ pub(crate) struct FlexTrim {
 }
 
 impl FlexTrim {
-    /// `container`'s trim, laid out along `direction`.
+    /// `container`'s trim, laid out along `direction`. Under
+    /// `row-reverse` / `column-reverse` main-start is the inline-end /
+    /// block-end side (CSS Flexbox §5.1), so the first item's main-start
+    /// margin adjoins that edge.
     pub(crate) fn of(container: &ComputedStyle, direction: Direction) -> Self {
         let t = container.margin_trim;
-        match direction {
+        let trim = match direction {
             Direction::Row => Self {
                 main_start: t.inline_start,
                 main_end: t.inline_end,
@@ -60,6 +63,15 @@ impl FlexTrim {
                 cross_start: t.inline_start,
                 cross_end: t.inline_end,
             },
+        };
+        if container.flex_reverse {
+            Self {
+                main_start: trim.main_end,
+                main_end: trim.main_start,
+                ..trim
+            }
+        } else {
+            trim
         }
     }
 }

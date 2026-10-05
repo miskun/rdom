@@ -26,7 +26,7 @@ pub(crate) fn scroll_offset(dom: &Dom<TuiExt>, container: NodeId, direction: Dir
     };
     match direction {
         Direction::Row => ext.scroll_x,
-        Direction::Column => ext.scroll_y as i32,
+        Direction::Column => ext.scroll_y,
     }
 }
 

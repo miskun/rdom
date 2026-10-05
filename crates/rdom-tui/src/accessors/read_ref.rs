@@ -94,7 +94,7 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
 
     fn scroll_top(&self) -> Option<i32> {
         use crate::node::TuiNodeExt;
-        Some(self.tui_ext()?.scroll_y as i32)
+        Some(self.tui_ext()?.scroll_y)
     }
 
     fn scroll_left(&self) -> Option<i32> {

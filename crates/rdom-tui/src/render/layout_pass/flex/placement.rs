@@ -43,9 +43,9 @@ pub(super) struct FlexLine<'a> {
     /// The container's `margin-trim` (CSS Box 4 §3.2); its main-axis
     /// half was applied to the items' margins already.
     pub(super) trim: FlexTrim,
-    /// The container is `rtl`: the items were placed in a mirrored
-    /// frame and are flipped back across it (horizontal axis only).
-    pub(super) mirror: bool,
+    /// The axes that run from their physical end: the items were placed
+    /// in a frame mirrored on them and are flipped back across it.
+    pub(super) flip: super::AxisFlip,
 }
 
 /// Position each child along the main axis, scrolling by the parent's
@@ -61,7 +61,7 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
         auto_margins,
         overlap,
         trim,
-        mirror,
+        flip,
     } = line;
 
     let scroll_main = parent_scroll(dom, children, direction);
@@ -143,7 +143,7 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
                 was_auto: main_was_auto,
                 trim_cross_start: trim.cross_start,
                 trim_cross_end: trim.cross_end,
-                mirror,
+                mirror: flip.cross,
             },
         );
 
@@ -162,18 +162,23 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
             ),
         };
 
-        let child_rect = if mirror {
-            let scroll_x = match direction {
-                Direction::Row => scroll_main,
-                Direction::Column => scroll_cross,
-            };
-            LayoutRect {
-                x: mirror_x(child_rect.x, child_rect.width, container, scroll_x),
-                ..child_rect
-            }
-        } else {
-            child_rect
+        // Flip each mirrored axis back across the container: the
+        // horizontal one by its `scrollLeft`, the vertical by `scrollTop`.
+        let (flip_x, flip_y) = match direction {
+            Direction::Row => (flip.main, flip.cross),
+            Direction::Column => (flip.cross, flip.main),
         };
+        let (scroll_x, scroll_y) = match direction {
+            Direction::Row => (scroll_main, scroll_cross),
+            Direction::Column => (scroll_cross, scroll_main),
+        };
+        let mut child_rect = child_rect;
+        if flip_x {
+            child_rect.x = mirror_x(child_rect.x, child_rect.width, container, scroll_x);
+        }
+        if flip_y {
+            child_rect.y = mirror_y(child_rect.y, child_rect.height, container, scroll_y);
+        }
         layout_node(dom, *child_id, child_rect, container.width);
 
         // Advance cursor past this child + main-end margin + gap.
@@ -199,4 +204,12 @@ pub(super) fn place_items(dom: &mut Dom<TuiExt>, children: &[NodeId], line: Flex
 fn mirror_x(x: i32, width: u16, container: LayoutRect, scroll_x: i32) -> i32 {
     let from_start = x + scroll_x - container.x;
     container.x + i32::from(container.width) - from_start - i32::from(width) - scroll_x
+}
+
+/// `y` (a box `height` tall, scrolled up by `scroll_y`) mirrored across
+/// `container`: a `column-reverse` main axis runs bottom to top (CSS
+/// Flexbox §5.1).
+fn mirror_y(y: i32, height: u16, container: LayoutRect, scroll_y: i32) -> i32 {
+    let from_start = y + scroll_y - container.y;
+    container.y + i32::from(container.height) - from_start - i32::from(height) - scroll_y
 }

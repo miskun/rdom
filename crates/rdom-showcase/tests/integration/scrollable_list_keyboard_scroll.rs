@@ -40,7 +40,7 @@ fn find_by_class(dom: &TuiDom, id: NodeId, class: &str) -> Option<NodeId> {
     None
 }
 
-fn scroll_y(app: &App<TestBackend>, list: NodeId) -> usize {
+fn scroll_y(app: &App<TestBackend>, list: NodeId) -> i32 {
     app.dom().node(list).tui_ext().unwrap().scroll_y
 }
 

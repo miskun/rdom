@@ -129,7 +129,11 @@ pub struct TuiStyle {
     /// flex container. See `crate::layout::BorderCollapse` for the
     /// divergence rationale.
     pub border_collapse: Option<Value<crate::layout::BorderCollapse>>,
+    /// `flex-direction`'s axis (CSS Flexbox §5.1); `flex_reverse` is
+    /// whether main-start and main-end swap (`row-reverse` /
+    /// `column-reverse`). The property writes both.
     pub direction: Option<Value<Direction>>,
+    pub flex_reverse: Option<Value<bool>>,
     /// CSS `direction` (CSS Writing Modes 4 §2.1). Inherited. (`direction`
     /// above is `flex-direction`.)
     pub text_direction: Option<Value<crate::layout::TextDirection>>,
@@ -416,6 +420,9 @@ impl TuiStyle {
             .filter(|r| r.is_some())
             .count();
         if self.direction.is_some() {
+            n += 1
+        }
+        if self.flex_reverse.is_some() {
             n += 1
         }
         if self.text_direction.is_some() {

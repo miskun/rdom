@@ -97,7 +97,7 @@ pub(crate) fn autoscroll_step_for(
         pointer.1 as i32,
         pb.y,
         pb.height,
-        ext.scroll_y,
+        offset_from_area_start(dom, container, ScrollAxis::Vertical, pb.height as usize),
         ext.scroll_content_height,
     ) {
         return Some((ScrollAxis::Vertical, step));
@@ -123,7 +123,7 @@ pub(crate) fn autoscroll_step(
 ) -> bool {
     let before = match dom.node(container).tui_ext() {
         Some(e) => match axis {
-            ScrollAxis::Vertical => e.scroll_y as i32,
+            ScrollAxis::Vertical => e.scroll_y,
             ScrollAxis::Horizontal => e.scroll_x,
         },
         None => return false,

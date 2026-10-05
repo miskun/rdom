@@ -207,7 +207,7 @@ mod tests {
         assert!(!M::empty().intersects(M::all()));
         assert_eq!(
             crate::property_dispatch::property_mask("flex-direction"),
-            Some(M::FLEX_DIRECTION)
+            Some(M::FLEX_DIRECTION | M::FLEX_REVERSE)
         );
         assert_eq!(
             crate::property_dispatch::property_mask("direction"),

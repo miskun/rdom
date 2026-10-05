@@ -173,7 +173,7 @@ fn paint_lines(
     // rows starting at its own `scroll_y`.
     let at = FlowPlacement {
         inner,
-        first_visible_line: dom.node(id).ext().map_or(0, |e| e.scroll_y as i32),
+        first_visible_line: dom.node(id).ext().map_or(0, |e| e.scroll_y),
         bg_dedup_owner: id,
     };
     paint_inline_layout(dom, layout, at, buf, clip, viewport);
@@ -233,7 +233,7 @@ pub(super) fn paint_ifc(
     };
     let at = FlowPlacement {
         inner,
-        first_visible_line: dom.node(id).ext().map_or(0, |e| e.scroll_y as i32),
+        first_visible_line: dom.node(id).ext().map_or(0, |e| e.scroll_y),
         bg_dedup_owner: id,
     };
     paint_inline_layout(dom, inline_layout, at, buf, clip, viewport);

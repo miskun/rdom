@@ -148,7 +148,7 @@ pub(super) fn layout_block_children(
         let (scroll_x, scroll_y) = dom
             .node(id)
             .ext()
-            .map_or((0, 0), |e| (e.scroll_x, e.scroll_y as i32));
+            .map_or((0, 0), |e| (e.scroll_x, e.scroll_y));
         for &n in &static_trailing {
             super::positioning::record_static_position(
                 dom,

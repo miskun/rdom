@@ -39,7 +39,7 @@ pub(crate) fn record_scroll_content_size(
     // layout_flex_children). Add it back to compute the un-scrolled
     // content extent.
     let (scroll_x, scroll_y) = match dom.node(id).ext() {
-        Some(ext) => (ext.scroll_x, ext.scroll_y as i32),
+        Some(ext) => (ext.scroll_x, ext.scroll_y),
         None => return,
     };
 
@@ -144,24 +144,60 @@ fn trailing_newline_caret_row(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     last_text.is_some_and(|t| t.node_value().is_some_and(|v| v.ends_with('\n')))
 }
 
+/// Whether `id`'s scrolling area origin is at its right / bottom edge
+/// (CSSOM View §4): the edge content starts from on each axis. A
+/// horizontal box starts at its inline-start edge — the right one under
+/// `direction: rtl` (CSS Writing Modes 4 §2.1); a flex container at the
+/// main-start edge of its main axis (CSS Flexbox §5.1: the right one of
+/// an `ltr` `row-reverse`, the bottom one of a `column-reverse`) and the
+/// cross-start edge of its cross axis.
+fn origin_at_end(dom: &Dom<TuiExt>, id: NodeId) -> (bool, bool) {
+    let Some(c) = dom.node(id).ext().and_then(|e| e.computed.as_ref()) else {
+        return (false, false);
+    };
+    if c.flow == crate::layout::Flow::Flex {
+        let flip = super::flex::AxisFlip::of(c, c.direction);
+        return match c.direction {
+            crate::layout::Direction::Row => (flip.main, flip.cross),
+            crate::layout::Direction::Column => (flip.cross, flip.main),
+        };
+    }
+    (super::margin_trim::inline_reversed(c), false)
+}
+
+/// The legal offsets on one axis: `0 ..= overflow` from an origin at the
+/// left / top edge, `-overflow ..= 0` from one at the right / bottom.
+fn bounds(overflow: usize, origin_at_end: bool) -> (i32, i32) {
+    let overflow = i32::try_from(overflow).unwrap_or(i32::MAX);
+    if origin_at_end {
+        (-overflow, 0)
+    } else {
+        (0, overflow)
+    }
+}
+
 /// The legal `scrollLeft` values of `id` for a scrollport `viewport`
-/// cells wide: CSSOM View §4 puts the scrolling area origin at the
-/// inline-start edge of a horizontal box — its right edge under
-/// `direction: rtl` (CSS Writing Modes 4 §2.1) — so the offsets run
-/// `0 ..= overflow` (`ltr`) or `-overflow ..= 0` (`rtl`), `overflow`
-/// being the scroll width past the scrollport.
+/// cells wide (CSSOM View §4): `0 ..= overflow`, or `-overflow ..= 0`
+/// when the scrolling area origin is the right edge (an `rtl` box, a
+/// `row-reverse` flex container under `ltr`; [`origin_at_end`]),
+/// `overflow` being the scroll width past the scrollport.
 pub(crate) fn scroll_x_bounds(dom: &Dom<TuiExt>, id: NodeId, viewport: usize) -> (i32, i32) {
-    let node = dom.node(id);
-    let Some(ext) = node.ext() else {
+    let Some(ext) = dom.node(id).ext() else {
         return (0, 0);
     };
-    let overflow =
-        i32::try_from(ext.scroll_content_width.saturating_sub(viewport)).unwrap_or(i32::MAX);
-    let rtl = ext
-        .computed
-        .as_ref()
-        .is_some_and(|c| c.text_direction == crate::layout::TextDirection::Rtl);
-    if rtl { (-overflow, 0) } else { (0, overflow) }
+    let overflow = ext.scroll_content_width.saturating_sub(viewport);
+    bounds(overflow, origin_at_end(dom, id).0)
+}
+
+/// The legal `scrollTop` values of `id` for a scrollport `viewport`
+/// rows tall, as [`scroll_x_bounds`]: `-overflow ..= 0` for a
+/// `column-reverse` flex container, whose origin is its bottom edge.
+pub(crate) fn scroll_y_bounds(dom: &Dom<TuiExt>, id: NodeId, viewport: usize) -> (i32, i32) {
+    let Some(ext) = dom.node(id).ext() else {
+        return (0, 0);
+    };
+    let overflow = ext.scroll_content_height.saturating_sub(viewport);
+    bounds(overflow, origin_at_end(dom, id).1)
 }
 
 /// How far `id`'s scrollport sits from the left edge of its scrollable
@@ -172,6 +208,14 @@ pub(crate) fn scroll_x_from_area_start(dom: &Dom<TuiExt>, id: NodeId, viewport: 
     let (min_x, _) = scroll_x_bounds(dom, id, viewport);
     let scroll_x = dom.node(id).ext().map_or(0, |e| e.scroll_x);
     usize::try_from(scroll_x.saturating_sub(min_x)).unwrap_or(0)
+}
+
+/// [`scroll_x_from_area_start`] for the vertical axis: how far the
+/// scrollport sits below the top edge of the scrollable overflow area.
+pub(crate) fn scroll_y_from_area_start(dom: &Dom<TuiExt>, id: NodeId, viewport: usize) -> usize {
+    let (min_y, _) = scroll_y_bounds(dom, id, viewport);
+    let scroll_y = dom.node(id).ext().map_or(0, |e| e.scroll_y);
+    usize::try_from(scroll_y.saturating_sub(min_y)).unwrap_or(0)
 }
 
 /// Clamp `id`'s scroll offset to its legal range on each axis
@@ -200,9 +244,9 @@ pub(crate) fn clamp_scroll_offset(
     };
     let vp = ext.content_layout;
     let (min_x, max_x) = scroll_x_bounds(dom, id, vp.width as usize);
-    let max_y = ext.scroll_content_height.saturating_sub(vp.height as usize);
+    let (min_y, max_y) = scroll_y_bounds(dom, id, vp.height as usize);
     let new_x = ext.scroll_x.clamp(min_x, max_x);
-    let new_y = ext.scroll_y.min(max_y);
+    let new_y = ext.scroll_y.clamp(min_y, max_y);
     if new_x == ext.scroll_x && new_y == ext.scroll_y {
         return false;
     }

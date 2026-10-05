@@ -472,10 +472,19 @@ fn measure_content(
     // (CSS Writing Modes 4 §2.1).
     let along = computed.direction == direction;
     let trim = super::margin_trim::trimmed_edges(computed);
-    let reversed = direction == Direction::Row && super::margin_trim::inline_reversed(computed);
+    // The queried axis runs from its physical end: a row under `rtl`, and
+    // a reversed flex container's main axis (CSS Flexbox §5.1) — its
+    // first item then sits at the right (bottom) edge.
+    let flex_reversed =
+        computed.flow == crate::layout::Flow::Flex && computed.flex_reverse && along;
+    let reversed = match direction {
+        Direction::Row => super::margin_trim::inline_reversed(computed) != flex_reversed,
+        Direction::Column => flex_reversed,
+    };
     let (trim_start, trim_end) = match direction {
         Direction::Row if reversed => (trim.right, trim.left),
         Direction::Row => (trim.left, trim.right),
+        Direction::Column if reversed => (trim.bottom, trim.top),
         Direction::Column => (trim.top, trim.bottom),
     };
     let last = children.len() - 1;
@@ -505,6 +514,7 @@ fn measure_content(
                 let (a, b) = match direction {
                     Direction::Row if reversed => (&cs.margin.right, &cs.margin.left),
                     Direction::Row => (&cs.margin.left, &cs.margin.right),
+                    Direction::Column if reversed => (&cs.margin.bottom, &cs.margin.top),
                     Direction::Column => (&cs.margin.top, &cs.margin.bottom),
                 };
                 let side = |m: &crate::layout::MarginValue, keep: bool| {

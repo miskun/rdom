@@ -178,7 +178,13 @@ pub(super) fn paint_scrollbars(
         id,
         content_layout.width as usize,
     );
-    let scroll_y = ext.scroll_y;
+    // The vertical thumb likewise: at the bottom at rest for a
+    // `column-reverse` box (its scroll origin is the bottom edge).
+    let scroll_y = crate::render::layout_pass::scroll_y_from_area_start(
+        dom,
+        id,
+        content_layout.height as usize,
+    );
     let (content_w, content_h) = (ext.scroll_content_width, ext.scroll_content_height);
 
     // Both track and thumb glyphs are axis-sensitive (`│` vs `─`

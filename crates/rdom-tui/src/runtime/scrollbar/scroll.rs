@@ -46,7 +46,7 @@ pub(super) fn set_scroll_with(
         return 0;
     };
     let (min, max) = match axis {
-        ScrollAxis::Vertical => (0, bounds.max_y),
+        ScrollAxis::Vertical => (bounds.min_y, bounds.max_y),
         ScrollAxis::Horizontal => (bounds.min_x, bounds.max_x),
     };
     let clamped = match clamp {
@@ -58,9 +58,8 @@ pub(super) fn set_scroll_with(
     let changed = if let Some(ext) = dom.node_mut(element).ext_mut() {
         match axis {
             ScrollAxis::Vertical => {
-                let y = clamped as usize;
-                let changed = ext.scroll_y != y;
-                ext.scroll_y = y;
+                let changed = ext.scroll_y != clamped;
+                ext.scroll_y = clamped;
                 changed
             }
             ScrollAxis::Horizontal => {
@@ -87,21 +86,26 @@ pub(super) fn set_scroll_with(
 
 /// The legal scroll offsets of a scroll container against the extent
 /// the last layout recorded and its padding-box scrollport (CSS
-/// Overflow 3 §3): `scrollTop` in `0 ..= max_y`, `scrollLeft` in
-/// `min_x ..= max_x` — `0 ..= overflow`, or `-overflow ..= 0` for an
-/// `rtl` box, whose scrolling area origin is its right edge (CSSOM
-/// View §4, `layout_pass::scroll_x_bounds`).
+/// Overflow 3 §3): `scrollLeft` in `min_x ..= max_x`, `scrollTop` in
+/// `min_y ..= max_y` — `0 ..= overflow`, or `-overflow ..= 0` when the
+/// scrolling area origin is the right (bottom) edge: an `rtl` box, a
+/// `row-reverse` / `column-reverse` flex container (CSSOM View §4,
+/// `layout_pass::scroll_x_bounds` / `scroll_y_bounds`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ScrollBounds {
     pub(crate) min_x: i32,
     pub(crate) max_x: i32,
+    pub(crate) min_y: i32,
     pub(crate) max_y: i32,
 }
 
 impl ScrollBounds {
     /// `(x, y)` clamped into the bounds.
     pub(crate) fn clamp(&self, x: i32, y: i32) -> (i32, i32) {
-        (x.clamp(self.min_x, self.max_x), y.clamp(0, self.max_y))
+        (
+            x.clamp(self.min_x, self.max_x),
+            y.clamp(self.min_y, self.max_y),
+        )
     }
 }
 
@@ -116,10 +120,13 @@ pub(crate) fn scroll_bounds(dom: &TuiDom, element: NodeId) -> Option<ScrollBound
     let pb = crate::layout::compute_padding_box(ext.layout, border);
     let (min_x, max_x) =
         crate::render::layout_pass::scroll_x_bounds(dom, element, pb.width as usize);
+    let (min_y, max_y) =
+        crate::render::layout_pass::scroll_y_bounds(dom, element, pb.height as usize);
     Some(ScrollBounds {
         min_x,
         max_x,
-        max_y: (ext.scroll_content_height as i32 - pb.height as i32).max(0),
+        min_y,
+        max_y,
     })
 }
 
@@ -137,7 +144,6 @@ pub(crate) fn write_offsets(dom: &mut TuiDom, element: NodeId, x: i32, y: i32) -
         return false;
     };
     let (x, y) = bounds.clamp(x, y);
-    let y = y as usize;
     let changed = match dom.node_mut(element).ext_mut() {
         Some(ext) => {
             let changed = (ext.scroll_x, ext.scroll_y) != (x, y);

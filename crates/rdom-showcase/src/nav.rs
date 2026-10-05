@@ -253,7 +253,9 @@ fn read_scroll_info(dom: &TuiDom, target: NodeId) -> Option<ScrollInfo> {
         return None;
     }
     Some(ScrollInfo {
-        scroll_y: ext.scroll_y,
+        // `scrollTop` is signed (negative in a `column-reverse` box);
+        // this demo's panes scroll from the top.
+        scroll_y: usize::try_from(ext.scroll_y).unwrap_or(0),
         content_height,
         viewport_height,
     })

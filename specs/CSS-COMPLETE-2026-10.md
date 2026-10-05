@@ -139,7 +139,7 @@ row comes from.
 | C6-DISPLAY-KEYWORDS | `display: contents` / `flow-root` / multi-keyword syntax | done |
 | C6-VISIBILITY | `visibility: visible / hidden / collapse` | done |
 | C6-ORDER | `order` | done |
-| C6-DIRECTION-REVERSE | `flex-direction: row-reverse / column-reverse` | |
+| C6-DIRECTION-REVERSE | `flex-direction: row-reverse / column-reverse` | done |
 | C6-FLEX-LONGHANDS | `flex-grow` / `flex-basis` longhands; full `flex` shorthand (incl. basis) | partial — the shorthand's grammar, shrink and stored basis landed with C2G-FLEX-SHORTHAND; remain the longhands and the basis in layout (`ComputedStyle::flex_basis` is cascaded, unread) |
 | C6-WRAP | `flex-wrap` / `flex-flow`, multi-line flex containers | |
 | C6-JUSTIFY | `justify-content` (all distribution values) | |
@@ -2104,3 +2104,41 @@ row comes from.
   alone, reverted): paint ignoring `order` → `bba` (the painting test); hit-testing ignoring it →
   the hit at (1, 0) is `b`; layout ignoring it → all three tests. Changed expectations: the
   canonical-values table, important-setter coverage and the C1 `initial` test gain `order`.
+- 2026-10-08 — C6-DIRECTION-REVERSE: `flex-direction: row | row-reverse | column | column-reverse`
+  (CSS Flexbox §5.1). Model: the axis stays `direction` (`Direction` is the layout axis
+  everywhere, so it gains no variants) and `flex_reverse` joins it — `TuiStyle` / `ComputedStyle`,
+  `ImportantMask::FLEX_REVERSE`, owned by `flex-direction` like `display`'s `list_item`; the
+  `direction` builder and node setter write `false` as `flex-direction: row` does,
+  `direction_reverse(axis)` the reversed form. Layout — decided, one rule for both mirrors:
+  `flex::AxisFlip` says which axes run from their physical end — a row's main axis under `rtl`
+  XOR `row-reverse`, a column's under `column-reverse`, a column's cross axis under `rtl` — and
+  the existing mirrored frame does the rest: main-axis margins swap (now on the vertical axis
+  too), the placement flips x by `mirror_x` and y by the new `mirror_y`; C5-WRITING's
+  `rtl`-only mirror is the `AxisFlip` of an unreversed row. `FlexTrim::of` swaps main-start /
+  main-end under reversal (main-start is the inline-end / block-end side), and the intrinsic
+  contribution pass reads the reversed axis's margins and trimmed edges in the same order.
+  Scrolling (CSSOM View §4) — the scrolling area origin is the main-start edge, so the overflow
+  past main-end is reached with negative offsets, as Chromium and Gecko give a reversed
+  container: `scroll_extent::origin_at_end` (a flex container's `AxisFlip`, else `rtl` on the
+  horizontal axis) decides both `scroll_x_bounds` and the new `scroll_y_bounds`, and
+  `TuiExt::scroll_y` is a signed `scrollTop` (`i32`, was `usize` — Breaking, rdom-tui), the model
+  C5G-RTL-SCROLL gave `scroll_x`: `ScrollBounds` gains `min_y`, the wheel / keys / API / into-view
+  clamp through it, and the vertical thumb, its hit-test and the autoscroll bands measure
+  `scroll_y_from_area_start`. The brief's "overflow goes toward main-start" is read as: content
+  starts at main-start and overflows past main-end, which the negative offsets reach (a
+  `row-reverse` item wider than its box sticks out on the left). Found and recorded:
+  `flex-direction`'s initial value is `column` (CSS: `row`) — load-bearing (block containers
+  measure their children through that axis; the root's viewport column is one) — DIVERGENCES §2,
+  not changed here. Red: the rdom-style test failed to compile (`flex_reverse`); with the model in,
+  all five `css_phase6/direction_reverse.rs` tests failed — `[0, 2, 4]` for `[8, 6, 4]`, `[0, 1,
+  2]` for `[5, 4, 3]`, the main-start margin on the left (1 for 5), the trim on the wrong item
+  (1 for 8), `(0, 3)` for `(1, -2)`; after the layout half, the scroll test still failed
+  (`scrollLeft` clamped at 0 for -2); green after. `runtime/scrollbar/reverse_tests.rs` (wheel,
+  keys, thumb, initial position of a `column-reverse` scroller) was written with the scrolling
+  half. Mutation checks (each alone, reverted): the intrinsic pass ignoring reversal → the
+  max-content assertion (9 for 7); `FlexTrim::of` not swapping → the trim test; the vertical
+  origin never at the end → three `reverse_tests`. Changed expectations: `declared_count` 13 → 14
+  and 27 → 28 (`direction` writes the reverse flag); the `flex-direction` mask test gains
+  `FLEX_REVERSE`; scroll-reading tests and the showcase's scroll readout take `i32`
+  (`sidebar_scroll_end_regression`, `scrollable_list_keyboard_scroll`, the app tests). No snapshot
+  changed.

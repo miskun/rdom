@@ -119,6 +119,9 @@ pub struct ComputedStyle {
     /// equals-boundary rule extended to rdom's non-table elements.
     pub border_collapse_declared: bool,
     pub direction: Direction,
+    /// `row-reverse` / `column-reverse` (CSS Flexbox §5.1): main-start
+    /// and main-end of `direction`'s axis swap. Initial `false`.
+    pub flex_reverse: bool,
     /// CSS `direction` (CSS Writing Modes 4 §2.1): which edge is
     /// inline-start. Inherited; initial `ltr`. (`direction` above is
     /// `flex-direction`.)
@@ -275,6 +278,7 @@ impl ComputedStyle {
             border_collapse: crate::layout::BorderCollapse::Separate,
             border_collapse_declared: false,
             direction: Direction::Column,
+            flex_reverse: false,
             text_direction: crate::layout::TextDirection::Ltr,
             writing_mode: crate::layout::WritingMode::HorizontalTb,
             overflow_x: Overflow::Visible,

@@ -240,7 +240,7 @@ pub fn scrolled_content_rect(
     let mut content = dom.node(block).content_layout_rect()?;
     let ext = dom.node(block).ext()?;
     content.x -= ext.scroll_x;
-    content.y -= ext.scroll_y as i32;
+    content.y -= ext.scroll_y;
     Some(content)
 }
 

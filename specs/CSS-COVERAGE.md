@@ -76,7 +76,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
 | 3.7 Display and visibility (Display 3) | 6 | 1 | 2 | 2 | 11 |
-| 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 3 | 3 | 11 | 0 | 17 |
+| 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 4 | 2 | 11 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 0 | 0 | 10 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **119** | **31** | **111** | **46** | **307** |
+| **Total** | **120** | **30** | **111** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 142 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 141 rows Partial / Missing.
 
 Headline: rdom parses **153 property names** (`property_names()`, after C6-ORDER). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are flex alignment (`justify-content`, `align-items`), `flex-wrap`, the `flex-grow` / `flex-basis` longhands, `line-height`, `text-align`, and grid.
 
@@ -144,7 +144,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 34 | `@layer` | Cascade layers ordering author rules; anonymous / named / nested layers, `@layer a, b;` statements. | M | Blanket |
 | 35 | `@supports` | Evaluate `(prop: value)` against the dispatch table, `selector()`, `not` / `and` / `or`. Lets pasted CSS degrade intentionally. | S | Blanket |
 | 36 | `white-space: pre-line` / `break-spaces` (+ Text 4 `white-space-collapse`, `text-wrap-mode`) | `pre-line` collapses spaces but keeps newlines; `break-spaces` keeps and wraps trailing spaces. | S | No |
-| 37 | `flex-direction: row-reverse / column-reverse` | Reverse main-axis placement order. | S | No |
+| 37 | `flex-direction: row-reverse / column-reverse` | Shipped (C6-DIRECTION-REVERSE; §3.8): main-start and main-end swap, with `direction`; a reversed scroll container scrolls from its main-start edge with a negative `scrollLeft` / `scrollTop`. | S | No |
 | 38 | `row-gap` / `column-gap` / two-value `gap` | Separate gaps per axis (today `gap` is one value for both). | S | No |
 | 39 | Color syntax completeness: `rgb()` space syntax / `%` channels / `/ alpha`; `color-mix()`; relative color syntax; system colors (`Canvas`, `CanvasText`, …); `light-dark()` + `color-scheme` | Shipped (C3-RGB, C3-MIX, C3-RELATIVE, C3-SYSTEM, C3-SCHEME; §3.4) — system colors map onto the terminal's default fg / bg and the UA palette; `light-dark()` picks by the terminal's reported background and follows its theme changes (mode 2031). | S–M | No |
 | 40 | `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default`, `:user-valid` / `:user-invalid`, `:modal`, `:link` / `:any-link`, `:lang()`, `:scope`, `:popover-open` | Form / link / context state rdom already tracks (or can) for every one. | S each | Partial — `:read-*`, `:user-*`, `:modal` Yes; rest No |
@@ -356,7 +356,7 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `flex-direction` | Partial | `row` / `column`; `row-reverse` / `column-reverse` rejected. | No | `DISP/set.rs`, `KW::Direction` |
+| `flex-direction` | Supported | `row` / `row-reverse` / `column` / `column-reverse` (CSS Flexbox §5.1; the axis plus `flex_reverse`): a reversed main axis lays out from its main-start edge — a `row-reverse` from the right under `ltr`, from the left under `rtl`; a `column-reverse` from the bottom — with each item's main-start margin on that side and `margin-trim` mapped to it (C6-DIRECTION-REVERSE). A reversed scroll container's scrolling area origin is its main-start edge (CSSOM View §4): `scrollLeft` / `scrollTop` run `-overflow ..= 0`, starting at 0 (`TuiExt::scroll_y` is signed like `scroll_x`). The initial value is `column` (DIVERGENCES §2). | Yes | `DISP/set.rs`, `KW::Direction`, `FLEX/placement.rs` |
 | `flex-wrap` | Missing | Single-line only. | No | `FLEX` |
 | `flex-flow` | Missing | Shorthand of the two above. | No | `DISP` |
 | `flex` | Partial | Full Flexbox §7.2 grammar (`none`, `auto`, 1–3 values in either order, the unitless-zero rule); grow → `width` + `height`, shrink → `flex-shrink`, basis stored as `flex_basis` but not laid out (a growing item's basis is 0%, documented; C2G-FLEX-SHORTHAND, layout with C6-FLEX-LONGHANDS). | Yes | `V/length.rs::parse_flex_shorthand` |
@@ -667,8 +667,8 @@ dropped. The audit's six, with where each stands:
 Every *Partial* or *Missing* row above whose Doc'd column is `No` or `Wrong`. These need either an
 implementation or a `DIVERGENCES.md` entry before the acid page's coverage test can be honest.
 
-133 rows as audited. Through C6-ORDER, 41 have shipped and two have partly shipped
-(each annotated *Shipped* where it stands); 90 remain open (Phase 0 listed each of them in
+133 rows as audited. Through C6-DIRECTION-REVERSE, 42 have shipped and two have partly shipped
+(each annotated *Shipped* where it stands); 89 remain open (Phase 0 listed each of them in
 `DIVERGENCES.md` §3).
 
 **3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6)**
@@ -740,7 +740,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 **3.8 Flexbox and box alignment (Flexbox 1, Align 3)**
 
-- `flex-direction` — Partial: `row` / `column`; `row-reverse` / `column-reverse` rejected.
+- `flex-direction` — Partial: `row` / `column`; `row-reverse` / `column-reverse` rejected. *Shipped: C6-DIRECTION-REVERSE.*
 - `flex-wrap` — Missing: Single-line only.
 - `flex-flow` — Missing: Shorthand of the two above.
 - `flex-grow` — Missing *(DIVERGENCES says otherwise)*: Not in the property table (DIVERGENCES suggests `flex-grow: 1` as a workaround).

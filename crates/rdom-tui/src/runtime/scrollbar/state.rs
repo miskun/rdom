@@ -11,11 +11,11 @@ use crate::runtime::smooth_scroll::SmoothScroll;
 pub(crate) struct ScrollState {
     /// `(scroll_x, scroll_y)` as the `App`'s last frame painted them
     /// (`runtime::scrollbar::painted`): a difference asks for a frame.
-    pub(crate) painted: (i32, usize),
+    pub(crate) painted: (i32, i32),
     /// `(scroll_x, scroll_y)` as the last layout placed this box's
     /// children with them: how far a later scroll has moved them since
     /// (`runtime::scrollbar::into_view`).
-    pub(crate) laid_out: (i32, usize),
+    pub(crate) laid_out: (i32, i32),
     /// The smooth scroll in flight (`runtime::smooth_scroll`), `None` at
     /// rest. Started by the programmatic scroll API and keyboard
     /// scrolling, stepped by the `App` each frame.
@@ -23,13 +23,13 @@ pub(crate) struct ScrollState {
 }
 
 /// The offsets `ext` was last painted with; `(0, 0)` before any.
-pub(crate) fn painted(ext: &TuiExt) -> (i32, usize) {
+pub(crate) fn painted(ext: &TuiExt) -> (i32, i32) {
     ext.scroll_state.as_ref().map_or((0, 0), |s| s.painted)
 }
 
 /// The offsets `ext`'s children were last laid out with; `(0, 0)`
 /// before any.
-pub(crate) fn laid_out(ext: &TuiExt) -> (i32, usize) {
+pub(crate) fn laid_out(ext: &TuiExt) -> (i32, i32) {
     ext.scroll_state.as_ref().map_or((0, 0), |s| s.laid_out)
 }
 

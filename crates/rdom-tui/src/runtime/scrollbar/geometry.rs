@@ -29,7 +29,7 @@ pub(super) fn scroll_metrics(dom: &TuiDom, element: NodeId, axis: ScrollAxis) ->
         .unwrap_or_default();
     let pb = crate::layout::compute_padding_box(ext.layout, border);
     match axis {
-        ScrollAxis::Vertical => (pb.height, ext.scroll_y as i32),
+        ScrollAxis::Vertical => (pb.height, ext.scroll_y),
         ScrollAxis::Horizontal => (pb.width, ext.scroll_x),
     }
 }
@@ -37,8 +37,9 @@ pub(super) fn scroll_metrics(dom: &TuiDom, element: NodeId, axis: ScrollAxis) ->
 /// How far the scrollport of `element` sits from the start of its
 /// scrollable overflow area along `axis` — the scroll offset a
 /// scrollbar thumb, a thumb drag and the autoscroll bands measure,
-/// physical and never negative: `scrollTop`, or `scrollLeft` less its
-/// minimum (an `rtl` box's left extent, `layout_pass::scroll_x_bounds`).
+/// physical and never negative: `scrollLeft` / `scrollTop` less its
+/// minimum (an `rtl` box's left extent, a `column-reverse` box's top
+/// extent; `layout_pass::scroll_x_bounds` / `scroll_y_bounds`).
 /// `viewport` is the scrollport extent the caller measures against.
 pub(crate) fn offset_from_area_start(
     dom: &TuiDom,
@@ -47,7 +48,9 @@ pub(crate) fn offset_from_area_start(
     viewport: usize,
 ) -> usize {
     match axis {
-        ScrollAxis::Vertical => dom.node(element).tui_ext().map_or(0, |e| e.scroll_y),
+        ScrollAxis::Vertical => {
+            crate::render::layout_pass::scroll_y_from_area_start(dom, element, viewport)
+        }
         ScrollAxis::Horizontal => {
             crate::render::layout_pass::scroll_x_from_area_start(dom, element, viewport)
         }

@@ -80,9 +80,9 @@ fn scroll_container(
         .map(|c| c.border)
         .unwrap_or_default();
     let port = crate::layout::compute_padding_box(ext.layout, border);
-    let (cur_x, cur_y) = (ext.scroll_x, ext.scroll_y as i32);
+    let (cur_x, cur_y) = (ext.scroll_x, ext.scroll_y);
     let laid = super::state::laid_out(ext);
-    let (laid_x, laid_y) = (laid.0, laid.1 as i32);
+    let (laid_x, laid_y) = (laid.0, laid.1);
     // The inline axis's start is the right edge of an `rtl` box (CSS
     // Writing Modes 4 §2.1): `start` / `end` align that edge.
     let rtl = ext

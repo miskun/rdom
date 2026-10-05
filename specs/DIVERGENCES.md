@@ -44,6 +44,7 @@ These are intrinsic to terminals. They will not change.
 
 ### Layout
 
+- **`flex-direction`'s initial value is `column`, not `row`.** An element that sets `display: flex` without `flex-direction` lays its items out top to bottom; CSS Flexbox §5.1 makes `row` the initial value. rdom's block containers measure their children through the same axis (`ComputedStyle::direction`, which is `flex-direction`'s axis), and the viewport column the document root lays its children out in is one, so the initial value is load-bearing; write `flex-direction: row` for a browser's default. Found with C6-DISPLAY-KEYWORDS, recorded with C6-DIRECTION-REVERSE.
 - **Tables are flex rows with a column-sizing pre-pass, not a Table Formatting Context.** `<table>` is block flow, `<tr>` a flex row, cells flex items; `size_columns` (`runtime::builtins::table`) aligns each column from the author widths and the cells' content, keeps that used width apart from author intent (`TABLE-COLSYNC-1`), and settles `colspan` cells by spreading their excess over the spanned columns (CSS 2.2 §17.5.2.2). Not implemented: `rowspan` (rows are independent flex containers; the attribute is ignored), `display: table*` on arbitrary elements, anonymous table-box fixup (a stray `<td>`, a missing `<tr>`), the full §17.5.2 automatic algorithm with min-/max-content redistribution, percentage column widths, and CSS-rule (non-inline, non-`<col>`) cell widths. A real Table Formatting Context is scheduled (C13-TFC, §3).
 - **`border-collapse` is a layout-only, non-inheriting opt-in that applies to any container's direct children, not only `<table>`s.** Three divergence axes from CSS:
   1. *Scope.* CSS restricts `border-collapse: collapse` to `<table>` boxes; rdom honors it on any container (flex or block). Terminal UIs lean on shared-border rendering for non-table chrome.
@@ -286,7 +287,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Flexbox and box alignment
 
-- `flex-direction: row-reverse` / `column-reverse` — C6-DIRECTION-REVERSE
 - `flex-grow` / `flex-basis` longhands, the `flex` shorthand's basis in layout — C6-FLEX-LONGHANDS
 - `flex-wrap`, `flex-flow` — C6-WRAP
 - `justify-content` — C6-JUSTIFY

@@ -152,7 +152,7 @@ pub(crate) fn extend_drag(router: &Router, dom: &mut TuiDom, mouse_x: u16, mouse
     // included, for an `rtl` box).
     let new_scroll = drag.initial_scroll + scroll_delta;
     let before = match drag.axis {
-        ScrollAxis::Vertical => ext.scroll_y as i32,
+        ScrollAxis::Vertical => ext.scroll_y,
         ScrollAxis::Horizontal => ext.scroll_x,
     };
     let actually_set = set_scroll(dom, drag.element, drag.axis, new_scroll);

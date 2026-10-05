@@ -2869,7 +2869,7 @@ fn drag_autoscroll_scrolls_a_container_held_at_the_edge() {
     let mut app = test_app(dom, sheet, Rect::new(0, 0, 12, 6));
     app.draw_if_dirty().unwrap(); // layout → scroll_content_height = 10
 
-    let scroll_y = |app: &App<TestBackend>, id: NodeId| -> usize {
+    let scroll_y = |app: &App<TestBackend>, id: NodeId| -> i32 {
         app.dom()
             .node(id)
             .tui_ext()
@@ -2961,7 +2961,7 @@ fn text_selection_drag_past_edge_autoscrolls_and_keeps_extending() {
     let mut app = test_app(dom, sheet, Rect::new(0, 0, 14, 6));
     app.draw_if_dirty().unwrap();
 
-    let scroll_y = |app: &App<TestBackend>| -> usize {
+    let scroll_y = |app: &App<TestBackend>| -> i32 {
         app.dom()
             .node(scroller)
             .tui_ext()
@@ -3077,7 +3077,7 @@ fn autoscroll_continues_after_the_anchor_block_scrolls_out_of_view() {
     let mut app = test_app(dom, sheet, Rect::new(0, 0, 14, 6));
     app.draw_if_dirty().unwrap();
 
-    let scroll_y = |app: &App<TestBackend>| -> usize {
+    let scroll_y = |app: &App<TestBackend>| -> i32 {
         app.dom()
             .node(scroller)
             .tui_ext()
@@ -3103,7 +3103,7 @@ fn autoscroll_continues_after_the_anchor_block_scrolls_out_of_view() {
 
     assert_eq!(
         scroll_y(&app),
-        max_scroll,
+        max_scroll as i32,
         "autoscroll must reach the bottom even though the anchor block \
          (the captured node) scrolled out of view early"
     );
@@ -3176,7 +3176,7 @@ fn autoscroll_keeps_scrolling_when_pointer_overshoots_past_the_container() {
     let mut app = test_app(dom, sheet, Rect::new(0, 0, 14, 8));
     app.draw_if_dirty().unwrap();
 
-    let scroll_y = |app: &App<TestBackend>| -> usize {
+    let scroll_y = |app: &App<TestBackend>| -> i32 {
         app.dom()
             .node(scroller)
             .tui_ext()
@@ -3203,7 +3203,7 @@ fn autoscroll_keeps_scrolling_when_pointer_overshoots_past_the_container() {
 
     assert_eq!(
         scroll_y(&app),
-        max_scroll,
+        max_scroll as i32,
         "the drag owns its scroll container — overshooting onto the sibling \
          keeps scrolling the scroller to the end"
     );

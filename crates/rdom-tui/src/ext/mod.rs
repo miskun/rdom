@@ -127,9 +127,12 @@ pub struct TuiExt {
     /// fires no `scroll` event and leaves a smooth scroll in flight
     /// running.
     pub scroll_x: i32,
-    /// Vertical scroll offset in cells (`scrollTop`, `0 ..= overflow`).
-    /// Runtime-managed, as [`scroll_x`](Self::scroll_x).
-    pub scroll_y: usize,
+    /// Vertical scroll offset in cells: `scrollTop`, measured from the
+    /// scrolling area origin as [`scroll_x`](Self::scroll_x) is —
+    /// `0 ..= overflow`, or `-overflow ..= 0` in a `column-reverse` flex
+    /// container, whose origin is its bottom (main-start) edge (CSSOM
+    /// View §4, CSS Flexbox §5.1). Runtime-managed, as `scroll_x`.
+    pub scroll_y: i32,
     /// Scroll bookkeeping only scroll containers use — the offsets last
     /// painted and last laid out, and the smooth scroll in flight —
     /// boxed on first use (`runtime::scrollbar::state`,

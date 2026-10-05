@@ -30,3 +30,34 @@ fn order_takes_an_integer() {
     assert!(!inherits("order"));
     assert_eq!(property_mask("order"), Some(ImportantMask::ORDER));
 }
+
+/// CSS Flexbox §5.1: `flex-direction: row | row-reverse | column |
+/// column-reverse` — the axis and whether main-start and main-end swap,
+/// both owned by the property.
+#[test]
+fn flex_direction_takes_the_reverse_keywords() {
+    use crate::layout::Direction;
+    for (css, axis, reverse) in [
+        ("row", Direction::Row, false),
+        ("row-reverse", Direction::Row, true),
+        ("column", Direction::Column, false),
+        ("COLUMN-REVERSE", Direction::Column, true),
+    ] {
+        let mut style = TuiStyle::new();
+        set("flex-direction", css, &mut style).unwrap();
+        assert_eq!(style.direction, Some(Value::Specified(axis)), "{css}");
+        assert_eq!(style.flex_reverse, Some(Value::Specified(reverse)), "{css}");
+        assert_eq!(
+            serialize("flex-direction", &style).as_deref(),
+            Some(css.to_ascii_lowercase().as_str())
+        );
+    }
+    assert_eq!(
+        property_mask("flex-direction"),
+        Some(ImportantMask::FLEX_DIRECTION | ImportantMask::FLEX_REVERSE)
+    );
+    let mut style = TuiStyle::new();
+    set("flex-direction", "row-reverse", &mut style).unwrap();
+    set("flex-direction", "column", &mut style).unwrap();
+    assert_eq!(style.flex_reverse, Some(Value::Specified(false)));
+}

@@ -70,8 +70,9 @@ pub(super) struct MainAxisItems {
 /// main-start (main-end) edge zeroes the first (last) item's margin
 /// there.
 ///
-/// `mirror`: the container is `rtl` — a row's main-start margin is the
-/// item's right one.
+/// `mirror`: the main axis runs from its physical end (`AxisFlip::main`:
+/// a row under `rtl` or `row-reverse`, a `column-reverse`) — the item's
+/// main-start margin is its right (bottom) one.
 pub(super) fn collect_main_axis_items(
     dom: &Dom<TuiExt>,
     children: &[NodeId],
@@ -154,6 +155,7 @@ pub(super) fn collect_main_axis_items(
         let (main_start_m, main_end_m) = match direction {
             Direction::Row if mirror => (c.margin.right.clone(), c.margin.left.clone()),
             Direction::Row => (c.margin.left.clone(), c.margin.right.clone()),
+            Direction::Column if mirror => (c.margin.bottom.clone(), c.margin.top.clone()),
             Direction::Column => (c.margin.top.clone(), c.margin.bottom.clone()),
         };
         let main_start_m = if trim.main_start && i == 0 {

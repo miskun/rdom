@@ -133,12 +133,19 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
                 style.list_item = Some(Value::Specified(list_item));
             })
         }
+        // CSS Flexbox §5.1: the axis, and whether its start and end swap.
         "flex-direction" => parse_keyword(
             value,
-            &[("row", Direction::Row), ("column", Direction::Column)],
+            &[
+                ("row", (Direction::Row, false)),
+                ("row-reverse", (Direction::Row, true)),
+                ("column", (Direction::Column, false)),
+                ("column-reverse", (Direction::Column, true)),
+            ],
         )
-        .map(|d| {
+        .map(|(d, reverse)| {
             style.direction = Some(Value::Specified(d));
+            style.flex_reverse = Some(Value::Specified(reverse));
         }),
         "white-space" => parse_keyword(
             value,

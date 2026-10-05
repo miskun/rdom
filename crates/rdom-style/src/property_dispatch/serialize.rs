@@ -112,9 +112,12 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
             )
         }),
         "flex-direction" => style.direction.as_ref().and_then(specified).map(|d| {
-            match d {
-                Direction::Row => "row",
-                Direction::Column => "column",
+            let reverse = style.flex_reverse.as_ref().and_then(specified) == Some(&true);
+            match (d, reverse) {
+                (Direction::Row, false) => "row",
+                (Direction::Row, true) => "row-reverse",
+                (Direction::Column, false) => "column",
+                (Direction::Column, true) => "column-reverse",
             }
             .to_string()
         }),

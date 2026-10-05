@@ -109,7 +109,7 @@ fn pane_app() -> (App<TestBackend>, NodeId) {
     (app, pane)
 }
 
-fn scroll_y(app: &App<TestBackend>, id: NodeId) -> usize {
+fn scroll_y(app: &App<TestBackend>, id: NodeId) -> i32 {
     app.dom().node(id).ext().unwrap().scroll_y
 }
 

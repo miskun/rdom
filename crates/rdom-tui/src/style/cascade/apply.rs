@@ -210,6 +210,7 @@ pub(super) fn apply_style(
     );
     value!(
         direction: FLEX_DIRECTION,
+        flex_reverse: FLEX_REVERSE,
         text_direction: TEXT_DIRECTION,
         writing_mode: WRITING_MODE,
         overflow_x: OVERFLOW_X,

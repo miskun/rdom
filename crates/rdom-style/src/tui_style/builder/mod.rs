@@ -179,14 +179,26 @@ impl TuiStyle {
         BORDER_COLLAPSE,
         crate::layout::BorderCollapse
     );
-    setter!(
-        "flex-direction",
-        direction,
-        direction,
-        direction_important,
-        FLEX_DIRECTION,
-        Direction
-    );
+    /// Set the `flex-direction` axis to `v`, not reversed (`row` /
+    /// `column`). Chainable.
+    pub fn direction(mut self, v: Direction) -> Self {
+        self.direction = Some(Value::Specified(v));
+        self.flex_reverse = Some(Value::Specified(false));
+        self
+    }
+    /// Like `direction` but also marks the `flex-direction` declaration
+    /// `!important`.
+    pub fn direction_important(mut self, v: Direction) -> Self {
+        self.important |= ImportantMask::FLEX_DIRECTION | ImportantMask::FLEX_REVERSE;
+        self.direction(v)
+    }
+    /// Set `flex-direction` to the reversed form of `v` (`row-reverse` /
+    /// `column-reverse`, CSS Flexbox §5.1). Chainable.
+    pub fn direction_reverse(mut self, v: Direction) -> Self {
+        self.direction = Some(Value::Specified(v));
+        self.flex_reverse = Some(Value::Specified(true));
+        self
+    }
     setter!(
         "overflow-x",
         overflow_x,

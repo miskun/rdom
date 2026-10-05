@@ -106,8 +106,10 @@ fn check_element(dom: &TuiDom, id: NodeId, x: u16, y: u16) -> Option<ScrollbarHi
         if !should_paint(computed.overflow_y, viewport as usize, content_size) {
             return None;
         }
+        // A `column-reverse` box's thumb starts at the bottom.
+        let offset = offset_from_area_start(dom, id, ScrollAxis::Vertical, viewport as usize);
         let (thumb_size, thumb_off) =
-            thumb_geometry(track_len, viewport as usize, content_size, ext.scroll_y);
+            thumb_geometry(track_len, viewport as usize, content_size, offset);
         let cursor_along = (y as i32 - v_top) as u16;
         return Some(ScrollbarHit {
             element: id,

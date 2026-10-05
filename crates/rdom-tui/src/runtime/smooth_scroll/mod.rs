@@ -231,7 +231,7 @@ pub(crate) fn perform_scroll(
     let Some(ext) = node.ext_mut() else {
         return;
     };
-    let from = (ext.scroll_x, ext.scroll_y as i32);
+    let from = (ext.scroll_x, ext.scroll_y);
     if from != to {
         state::set_smooth(
             ext,
@@ -255,7 +255,7 @@ pub(crate) fn abort(dom: &mut TuiDom, element: NodeId) {
 /// while one is in flight, else its current offsets.
 pub(crate) fn destination(dom: &TuiDom, element: NodeId) -> (i32, i32) {
     match dom.node(element).tui_ext() {
-        Some(ext) => state::smooth(ext).map_or((ext.scroll_x, ext.scroll_y as i32), |s| s.to),
+        Some(ext) => state::smooth(ext).map_or((ext.scroll_x, ext.scroll_y), |s| s.to),
         None => (0, 0),
     }
 }

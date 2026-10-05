@@ -348,3 +348,24 @@ fn order_hints() {
     assert_eq!(style::parse::values::parse_order(&tokens), Some(3));
     assert!(ImportantMask::ORDER.intersects(ImportantMask::all()));
 }
+
+/// C6-DIRECTION-REVERSE: `flex_reverse`, the reversed builder, the
+/// two-bit `flex-direction` mask, and the signed `scroll_y`.
+#[test]
+fn reverse_and_signed_scroll_top_hints() {
+    let s = TuiStyle::new().direction_reverse(Direction::Column);
+    assert_eq!(s.flex_reverse, Some(Value::Specified(true)));
+    let ComputedStyle { flex_reverse, .. } = ComputedStyle::initial();
+    assert!(!flex_reverse);
+    assert_eq!(
+        style::property_dispatch::property_mask("flex-direction"),
+        Some(ImportantMask::FLEX_DIRECTION | ImportantMask::FLEX_REVERSE)
+    );
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+    dom.node_mut(div).set_scroll(0, -2);
+    let y: i32 = dom.node(div).ext().unwrap().scroll_y;
+    assert_eq!(usize::try_from(y).unwrap_or(0), 0);
+}

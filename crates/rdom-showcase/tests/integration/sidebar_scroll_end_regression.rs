@@ -94,7 +94,7 @@ fn sidebar_scrolled_to_end_has_no_gap_before_bottom_border() {
     let max_scroll = ext.scroll_content_height.saturating_sub(pb_h as usize);
 
     if let Some(ext) = dom.node_mut(sidebar).ext_mut() {
-        ext.scroll_y = max_scroll;
+        ext.scroll_y = max_scroll as i32;
     }
     dom.cascade_all(&refs);
     dom.layout_dom(viewport);

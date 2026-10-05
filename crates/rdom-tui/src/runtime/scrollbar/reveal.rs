@@ -140,7 +140,7 @@ fn ensure_visible_vertical_with(
             .map(|c| c.border)
             .unwrap_or_default();
         let pb = crate::layout::compute_padding_box(ext.layout, border);
-        (pb.y, pb.y + pb.height as i32, ext.scroll_y as i32)
+        (pb.y, pb.y + pb.height as i32, ext.scroll_y)
     };
     let r_top = reveal.y;
     let r_bottom = reveal.y + reveal.height as i32;

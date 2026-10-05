@@ -523,14 +523,14 @@ fn handle_wheel(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rou
             // scrollport), not `content_layout` — the two diverge
             // under M5.5b border-collapse.
             // The legal range is `scroll::ScrollBounds` — an `rtl` box's
-            // `scrollLeft` runs negative, so wheel-left reaches its left
-            // overflow (CSSOM View §4).
+            // `scrollLeft` and a `column-reverse` box's `scrollTop` run
+            // negative, so the wheel reaches that overflow (CSSOM View §4).
             let bounds = crate::runtime::scrollbar::scroll_bounds(dom, id);
             let (old_x, old_y, new_x, new_y) = match (bounds, dom.node_mut(id).ext_mut()) {
                 (Some(bounds), Some(ext)) => {
                     let (old_x, old_y) = (ext.scroll_x, ext.scroll_y);
                     if wants_y && y_scrollable {
-                        ext.scroll_y = (old_y as i32 + dy).clamp(0, bounds.max_y) as usize;
+                        ext.scroll_y = (old_y + dy).clamp(bounds.min_y, bounds.max_y);
                     }
                     if wants_x && x_scrollable {
                         ext.scroll_x = (old_x + dx).clamp(bounds.min_x, bounds.max_x);
