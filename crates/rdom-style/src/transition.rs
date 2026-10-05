@@ -69,6 +69,10 @@ pub enum AnimatableProperty {
     Left,
     /// `z-index`
     ZIndex,
+    /// `visibility` (CSS Display 3 §4: discrete, but `visible` for the
+    /// whole of a transition with a `visible` end, CSS Transitions 1
+    /// §2.1's rule for `visibility`).
+    Visibility,
 }
 
 /// Where a `steps()` easing jumps (CSS Easing 1 §2.3). `start` /

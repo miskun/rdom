@@ -263,7 +263,11 @@ fn collect(
     }
     *order += 1;
     let current_order = *order;
-    if let Some(t) = tab_index(dom, id) {
+    // A `visibility: hidden` element is not rendered visibly, so not
+    // focusable (HTML §6.6.3); its subtree is still walked — a
+    // `visible` descendant is (CSS Display 3 §4).
+    let shown = crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host);
+    if let Some(t) = tab_index(dom, id).filter(|_| shown) {
         if t > 0 {
             positive.push((t, current_order, id));
         } else if t == 0 {

@@ -223,6 +223,7 @@ pub(super) fn apply_style(
         white_space: WHITE_SPACE,
         user_select: USER_SELECT,
         pointer_events: POINTER_EVENTS,
+        visibility: VISIBILITY,
         caret_color: CARET_COLOR,
         caret_text_color: CARET_TEXT_COLOR,
     );

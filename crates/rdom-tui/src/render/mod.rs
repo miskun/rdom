@@ -32,6 +32,7 @@ pub mod style;
 pub mod terminal;
 #[cfg(any(test, feature = "test-util"))]
 pub mod virtual_screen;
+pub(crate) mod visibility;
 
 pub use backend::{Backend, TestBackend};
 pub use backend_crossterm::{CrosstermBackend, enter_tui_mode, leave_tui_mode};

@@ -164,6 +164,8 @@ pub struct TuiStyle {
     pub user_select: Option<Value<UserSelect>>,
     /// CSS `pointer-events` (`auto` | `none`). Inherited.
     pub pointer_events: Option<Value<crate::layout::PointerEvents>>,
+    /// CSS `visibility` (CSS Display 3 §4). Inherited.
+    pub visibility: Option<Value<crate::layout::Visibility>>,
     /// CSS `caret-color`. `Auto` (default) paints the caret cell
     /// with bg = underlying-cell fg. `Transparent` suppresses paint.
     /// `Color(c)` uses `c` as the caret bg. Inherits per CSS spec.
@@ -444,6 +446,9 @@ impl TuiStyle {
             n += 1
         }
         if self.pointer_events.is_some() {
+            n += 1
+        }
+        if self.visibility.is_some() {
             n += 1
         }
         if self.caret_color.is_some() {

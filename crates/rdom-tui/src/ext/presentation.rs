@@ -29,6 +29,9 @@ pub struct PresentationStyle {
     pub bottom: Option<Length>,
     pub left: Option<Length>,
     pub z_index: Option<ZIndex>,
+    /// `visibility` while a transition runs (CSS Display 3 §4: `visible`
+    /// for the whole run when either end is).
+    pub visibility: Option<crate::layout::Visibility>,
     /// The running transitions of registered custom properties (name
     /// without dashes → animated value). Not read by paint: the cascade
     /// applies them on top of the cascaded values
@@ -132,6 +135,7 @@ impl PresentationStyle {
             && self.bottom.is_none()
             && self.left.is_none()
             && self.z_index.is_none()
+            && self.visibility.is_none()
     }
 
     /// Drop every override. Called by the engine when an

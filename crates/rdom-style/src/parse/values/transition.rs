@@ -22,6 +22,7 @@ pub fn parse_animatable_property(name: &str) -> Option<AnimatableProperty> {
         "bottom" => AnimatableProperty::Bottom,
         "left" => AnimatableProperty::Left,
         "z-index" => AnimatableProperty::ZIndex,
+        "visibility" => AnimatableProperty::Visibility,
         _ => return None,
     })
 }

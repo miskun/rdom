@@ -324,3 +324,15 @@ fn display_keyword_hints() {
     );
     assert!(ImportantMask::LIST_ITEM.intersects(ImportantMask::all()));
 }
+
+/// C6-VISIBILITY: the `visibility` field, its value type, builder and
+/// bit, and the animatable property.
+#[test]
+fn visibility_hints() {
+    let s = TuiStyle::new().visibility(Visibility::Hidden);
+    assert_eq!(s.visibility, Some(Value::Specified(Visibility::Hidden)));
+    let ComputedStyle { visibility, .. } = ComputedStyle::initial();
+    assert!(visibility.is_visible());
+    assert!(ImportantMask::VISIBILITY.intersects(ImportantMask::all()));
+    let _ = style::transition::AnimatableProperty::Visibility;
+}

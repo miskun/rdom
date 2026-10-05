@@ -282,7 +282,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 - The marker box of `display: list-item` (the keyword parses and lays out as its outer and inner types, C6-DISPLAY-KEYWORDS) — C10-LIST-ITEM
 - `display: grid` / `inline-grid` — C7-GRID-CORE
 - `display: table` family — C13-TFC
-- `visibility` — C6-VISIBILITY
+- `visibility: collapse` on a table column (`<col>` / `<colgroup>`; rows collapse, C6-VISIBILITY) — C13-TFC
 - `order` — C6-ORDER
 
 ### Flexbox and box alignment

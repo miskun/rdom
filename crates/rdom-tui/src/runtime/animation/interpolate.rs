@@ -37,6 +37,9 @@ pub(super) fn interpolate(
         (AnimatedValue::ZIndex(a), AnimatedValue::ZIndex(b)) => {
             AnimatedValue::ZIndex(lerp_zindex(*a, *b, t))
         }
+        (AnimatedValue::Visibility(a), AnimatedValue::Visibility(b)) => {
+            AnimatedValue::Visibility(lerp_visibility(*a, *b, t))
+        }
         // Type mismatch — snap at midpoint.
         _ => {
             if t < 0.5 {
@@ -69,6 +72,29 @@ pub(super) fn lerp_color(a: Color, b: Color, t: f32, reset: Color) -> Color {
         Some(c) => c,
         None if t < 0.5 => a,
         None => b,
+    }
+}
+
+/// CSS Display 3 §4 (`visibility`'s animation type, after CSS
+/// Transitions 1 §2.1): with a `visible` end, every progress strictly
+/// between 0 and 1 is `visible`, the ends their own values; with
+/// neither end `visible`, a discrete step at the midpoint. A progress
+/// past an end (an overshooting easing) takes the nearer end.
+pub(super) fn lerp_visibility(
+    a: crate::layout::Visibility,
+    b: crate::layout::Visibility,
+    t: f32,
+) -> crate::layout::Visibility {
+    if t <= 0.0 {
+        a
+    } else if t >= 1.0 {
+        b
+    } else if a.is_visible() || b.is_visible() {
+        crate::layout::Visibility::Visible
+    } else if t < 0.5 {
+        a
+    } else {
+        b
     }
 }
 

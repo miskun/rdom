@@ -272,6 +272,7 @@ pub(super) fn serialize_transition_property(p: &TransitionProperty) -> String {
             AnimatableProperty::Bottom => "bottom",
             AnimatableProperty::Left => "left",
             AnimatableProperty::ZIndex => "z-index",
+            AnimatableProperty::Visibility => "visibility",
         }
         .to_string(),
     }

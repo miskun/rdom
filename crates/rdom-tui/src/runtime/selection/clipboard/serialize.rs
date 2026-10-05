@@ -156,7 +156,14 @@ impl Walk<'_> {
             return;
         };
         let (from, to, ends_here) = self.selected_bytes(id, data.len());
-        let copyable = used != UserSelect::None;
+        // HTML §3.2.7 rendered text: a node whose `visibility` is not
+        // `visible` contributes no text (CSS Display 3 §4).
+        let shown = dom
+            .node(id)
+            .parent_element()
+            .and_then(|p| p.ext().and_then(|e| e.computed.as_ref()))
+            .is_none_or(|c| c.visibility.is_visible());
+        let copyable = used != UserSelect::None && shown;
         let collapsible = dom
             .node(id)
             .parent_element()

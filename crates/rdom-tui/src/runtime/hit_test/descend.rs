@@ -87,7 +87,10 @@ pub(super) fn hit_stacking_context(
         root_in_path(path);
         return true;
     }
-    if contains && !transparent {
+    // A hidden root (CSS Display 3 §4) is on a descendant's path but is
+    // no target of its own.
+    let hidden = !crate::render::visibility::shows(dom, root, crate::ext::StyleSlot::Host);
+    if contains && !transparent && !hidden {
         path.push(root);
         return true;
     }
@@ -186,6 +189,18 @@ fn descend_plain(
         return content_clip.contains(x, y)
             && hit_content(dom, id, x, y, content_clip, viewport, path);
     }
+    // `visibility: hidden` (CSS Display 3 §4): the box draws nothing and
+    // is no target, but a `visible` descendant is — with the hidden
+    // element on its ancestor path, as the DOM has it.
+    if !crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host) {
+        let mark = path.len();
+        let hit =
+            content_clip.contains(x, y) && hit_content(dom, id, x, y, content_clip, viewport, path);
+        if hit {
+            path.insert(mark, id);
+        }
+        return hit;
+    }
 
     path.push(id);
     // Overflow clipping (CSS Overflow 3 §3 = padding-box; the same rect
@@ -224,7 +239,10 @@ fn hit_content(
         // block) that accepts pointer events. If none does — the block
         // itself is transparent — the point falls through.
         let mut target = owner;
-        while is_pointer_transparent(dom, target) {
+        // A hidden inline draws no text: the point is on what is beneath.
+        while is_pointer_transparent(dom, target)
+            || !crate::render::visibility::shows(dom, target, crate::ext::StyleSlot::Host)
+        {
             if target == id {
                 return false;
             }
@@ -341,6 +359,7 @@ fn hit_fragment(
                 crate::ext::PseudoSlot::After => node.computed_after(),
             };
             pseudo.is_none_or(|c| c.pointer_events != crate::layout::PointerEvents::None)
+                && crate::render::visibility::shows(dom, g.host, g.slot.into())
         })
         .map(|g| g.host)
 }

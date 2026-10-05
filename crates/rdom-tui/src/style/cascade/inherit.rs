@@ -32,6 +32,7 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     // on the parent's used value, resolved in `style::user_select`.
     working.white_space = parent.white_space;
     working.pointer_events = parent.pointer_events;
+    working.visibility = parent.visibility;
     // CSS UI 4 §7.1: `caret-color` inherits; rdom's `caret-text-color`
     // mirrors it.
     working.caret_color = parent.caret_color.clone();
@@ -85,6 +86,8 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.overflow_x != b.overflow_x
         || a.overflow_y != b.overflow_y
         || a.display != b.display
+        // `collapse` removes a flex item or table row from layout.
+        || a.visibility != b.visibility
         || a.white_space != b.white_space
         // Positioning: the box's placement, its containing-block role,
         // and stacking all feed layout / paint order.

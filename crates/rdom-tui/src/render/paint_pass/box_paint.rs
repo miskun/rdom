@@ -30,6 +30,11 @@ pub(super) struct BoxFrame {
     computed: ComputedStyle,
     inner: LayoutRect,
     pub(super) children_clip: Rect,
+    /// The box is drawn (`visibility: visible`, CSS Display 3 §4). A
+    /// hidden box paints nothing of its own — no shadow, background,
+    /// border, text, canvas or scrollbar — while its descendants paint
+    /// by their own `visibility`.
+    visible: bool,
 }
 
 /// Paint an element's own box — outer shadows (`shadows` says how),
@@ -83,12 +88,15 @@ pub(super) fn paint_box(
 
     let outer = dom.node(id).layout_rect().unwrap_or_default();
     let inner = dom.node(id).content_layout_rect().unwrap_or(outer);
+    let visible = crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host);
     // 0. Outer shadows, under the background (CSS Backgrounds 3 §6.1);
     // they may show while the box itself is outside the clip.
-    shadow::paint_outer_shadows(buf, &computed, outer, clip, shadows);
+    if visible {
+        shadow::paint_outer_shadows(buf, &computed, outer, clip, shadows);
+    }
 
-    // Fast path: element entirely outside the clip.
-    if let Some(outer_grid) = layout_rect_to_grid(outer, clip) {
+    // Fast path: element entirely outside the clip (or not drawn).
+    if let Some(outer_grid) = layout_rect_to_grid(outer, clip).filter(|_| visible) {
         // 1. Background fill over the `background-clip` box: an opaque
         // fill that clears glyphs from earlier paints (full CSS
         // occlusion). `opacity` is applied when the stacking context's
@@ -131,6 +139,7 @@ pub(super) fn paint_box(
         computed,
         inner,
         children_clip,
+        visible,
     })
 }
 
@@ -156,6 +165,9 @@ pub(super) fn paint_content(
     // path + child recursion. No callback → fall through to the
     // normal paint (HTML fallback-content behavior).
     if let Some(paint) = dom.node(id).ext().and_then(|e| e.canvas_paint.clone()) {
+        if !frame.visible {
+            return;
+        }
         let mut ctx = crate::runtime::builtins::canvas::RenderContext::new(
             buf,
             inner.x,
@@ -188,7 +200,9 @@ pub(super) fn paint_content(
         // change stays correct). `clip` (the incoming clip, NOT
         // children_clip) so the scrollbar can sit in the gutter
         // which is outside children_clip when overflow clips.
-        scrollbar::paint_scrollbars(dom, id, computed, buf, clip);
+        if frame.visible {
+            scrollbar::paint_scrollbars(dom, id, computed, buf, clip);
+        }
         return;
     }
 
@@ -226,7 +240,9 @@ pub(super) fn paint_content(
 
     // Scrollbar overlay (after children so it sits on top if
     // anything encroached).
-    scrollbar::paint_scrollbars(dom, id, computed, buf, clip);
+    if frame.visible {
+        scrollbar::paint_scrollbars(dom, id, computed, buf, clip);
+    }
 }
 
 /// Compute the structural priority for an element's border

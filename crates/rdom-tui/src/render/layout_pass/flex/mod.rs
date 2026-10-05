@@ -60,6 +60,26 @@ use distribute::{MainAxisBudget, resolve_flexible_lengths};
 use main_axis::{MainBudgets, collect_main_axis_items};
 use placement::{AutoMainMargins, FlexLine, place_items};
 
+/// `visibility: collapse` on a flex item (Flexbox §4.4): it is laid out
+/// as a strut — no main size, its cross size kept — and drawn as
+/// `hidden`. The document root's children are flex items of rdom's
+/// viewport column only as a layout device (DIVERGENCES), as a
+/// browser's `<body>` children are blocks: there `collapse` is
+/// `hidden` (CSS Display 3 §4).
+pub(in crate::render::layout_pass) fn is_collapsed(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    use crate::node::TuiNodeExt;
+    dom.node(id)
+        .computed()
+        .is_some_and(|c| c.visibility == crate::layout::Visibility::Collapse)
+        && crate::render::box_tree::box_parent(dom, id).is_some_and(|p| {
+            let parent = dom.node(p);
+            parent.node_type() == rdom_core::NodeType::Element
+                && parent
+                    .computed()
+                    .is_some_and(|c| c.flow == crate::layout::Flow::Flex)
+        })
+}
+
 /// Lay out the **element** children of `id` inside `container`, using
 /// `computed`'s `direction`, `gap`, and the children's own sizes.
 ///

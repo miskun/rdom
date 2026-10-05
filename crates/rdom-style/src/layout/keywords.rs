@@ -320,6 +320,28 @@ pub enum PointerEvents {
     None,
 }
 
+/// CSS `visibility` (CSS Display 3 §4): whether the box is drawn.
+/// Inherited; initial `visible`. A `hidden` box keeps its place and
+/// size but draws nothing and is neither hit nor focusable; a
+/// descendant may set `visible` again. `collapse` is `hidden`, except
+/// on a flex item (Flexbox §4.4: removed, leaving a cross-size strut)
+/// and a table row (CSS 2.1 §17.5.5: removed, its cells still sizing
+/// the columns).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Visibility {
+    #[default]
+    Visible,
+    Hidden,
+    Collapse,
+}
+
+impl Visibility {
+    /// `visible`: the box is drawn.
+    pub const fn is_visible(self) -> bool {
+        matches!(self, Visibility::Visible)
+    }
+}
+
 /// Controls whether the user can select text inside the element.
 /// Matches the CSS `user-select` property (CSS UI 4 §6.1). **Not
 /// inherited** — an element without a declaration computes `Auto` —

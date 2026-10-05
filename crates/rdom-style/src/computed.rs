@@ -171,6 +171,9 @@ pub struct ComputedStyle {
     pub user_select: UserSelect,
     /// CSS `pointer-events`. Inherited; initial `auto`.
     pub pointer_events: crate::layout::PointerEvents,
+    /// CSS `visibility` (CSS Display 3 §4). Inherited; initial
+    /// `visible`.
+    pub visibility: crate::layout::Visibility,
     /// Whether the caret is visible. `Auto` paints the caret as a
     /// REVERSED cell; `Transparent` suppresses caret paint. Inherits.
     /// Default `Auto`.
@@ -281,6 +284,7 @@ impl ComputedStyle {
             white_space: WhiteSpace::Normal,
             user_select: UserSelect::Auto,
             pointer_events: crate::layout::PointerEvents::Auto,
+            visibility: crate::layout::Visibility::Visible,
             caret_color: CaretColor::Auto,
             caret_text_color: CaretTextColor::Auto,
             content: None,

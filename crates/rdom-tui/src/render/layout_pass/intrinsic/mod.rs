@@ -474,7 +474,13 @@ fn measure_content(
         Direction::Column => (trim.top, trim.bottom),
     };
     let last = children.len() - 1;
+    let flex = computed.flow == crate::layout::Flow::Flex;
     let outer = |i: usize, c: NodeId| {
+        // Flexbox §4.4: a collapsed item is a strut — no main size, its
+        // cross size kept.
+        if flex && along && super::flex::is_collapsed(dom, c) {
+            return 0;
+        }
         let keep_start = !(trim_start && (!along || i == 0));
         let keep_end = !(trim_end && (!along || i == last));
         let inner = intrinsic_size_inner(

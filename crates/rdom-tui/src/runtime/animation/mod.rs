@@ -36,6 +36,7 @@ pub enum AnimatedProp {
     Bottom,
     Left,
     ZIndex,
+    Visibility,
 }
 
 impl AnimatedProp {
@@ -66,6 +67,7 @@ impl AnimatedProp {
             AnimatedProp::Bottom => "bottom",
             AnimatedProp::Left => "left",
             AnimatedProp::ZIndex => "z-index",
+            AnimatedProp::Visibility => "visibility",
         }
     }
 
@@ -88,6 +90,7 @@ impl AnimatedProp {
             AnimatableProperty::Bottom => AnimatedProp::Bottom,
             AnimatableProperty::Left => AnimatedProp::Left,
             AnimatableProperty::ZIndex => AnimatedProp::ZIndex,
+            AnimatableProperty::Visibility => AnimatedProp::Visibility,
             _ => return None,
         })
     }
@@ -106,6 +109,7 @@ pub enum AnimatedValue {
     U16(u16),
     Padding(crate::layout::Padding),
     ZIndex(ZIndex),
+    Visibility(crate::layout::Visibility),
 }
 
 // ── Active animation ──────────────────────────────────────────────
@@ -362,6 +366,8 @@ mod diff;
 mod interpolate;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod visibility_tests;
 
 pub use custom::PendingCustomEvent;
 use diff::{clear_presentation, write_presentation};

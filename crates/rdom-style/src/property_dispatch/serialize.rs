@@ -145,6 +145,14 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
                 crate::layout::PointerEvents::Auto => "auto".to_string(),
                 crate::layout::PointerEvents::None => "none".to_string(),
             }),
+        "visibility" => style.visibility.as_ref().and_then(specified).map(|v| {
+            match v {
+                crate::layout::Visibility::Visible => "visible",
+                crate::layout::Visibility::Hidden => "hidden",
+                crate::layout::Visibility::Collapse => "collapse",
+            }
+            .to_string()
+        }),
         "caret-color" => style
             .caret_color
             .as_ref()

@@ -34,6 +34,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("white-space", "pre"),
         ("user-select", "text"),
         ("pointer-events", "none"),
+        ("visibility", "hidden"),
         ("caret-color", "transparent"),
         ("caret-text-color", "auto"),
         ("overflow", "scroll"),

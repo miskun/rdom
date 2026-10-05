@@ -2335,6 +2335,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.white_space = WhiteSpace::Pre;
     parent.user_select = UserSelect::None;
     parent.pointer_events = PointerEvents::None;
+    parent.visibility = rdom_style::layout::Visibility::Hidden;
     parent.caret_color = CaretColor::Transparent;
     parent.caret_text_color = CaretTextColor::Color(Color::Rgb(1, 1, 1).into());
     parent.content = Some("x".into());
@@ -2405,6 +2406,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
             "pointer-events",
             child.pointer_events == parent.pointer_events,
         ),
+        ("visibility", child.visibility == parent.visibility),
         ("caret-color", child.caret_color == parent.caret_color),
         (
             "caret-text-color",

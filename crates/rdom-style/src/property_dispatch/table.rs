@@ -31,6 +31,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "white-space",
     "user-select",
     "pointer-events",
+    "visibility",
     "caret-color",
     "caret-text-color",
     // Layout — overflow
@@ -280,6 +281,7 @@ define_fields! {
     WhiteSpace => white_space : WHITE_SPACE,
     UserSelect => user_select : USER_SELECT,
     PointerEvents => pointer_events : POINTER_EVENTS,
+    Visibility => visibility : VISIBILITY,
     CaretColor => caret_color : CARET_COLOR,
     CaretTextColor => caret_text_color : CARET_TEXT_COLOR,
     OverflowX => overflow_x : OVERFLOW_X,
@@ -379,6 +381,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "white-space" => &[WhiteSpace],
         "user-select" => &[UserSelect],
         "pointer-events" => &[PointerEvents],
+        "visibility" => &[Visibility],
         "caret-color" => &[CaretColor],
         "caret-text-color" => &[CaretTextColor],
         "overflow" => &[OverflowX, OverflowY],
@@ -578,6 +581,7 @@ pub fn inherits(name: &str) -> bool {
             | "font-style"
             | "white-space"
             | "pointer-events"
+            | "visibility"
             | "caret-color"
             | "caret-text-color"
             | "color-scheme"

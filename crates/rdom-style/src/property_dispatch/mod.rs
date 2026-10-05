@@ -105,6 +105,8 @@ mod spacing_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod visibility_tests;
+#[cfg(test)]
 mod writing_tests;
 
 pub use declare::{set, set_custom, set_custom_source, set_from_source, set_from_tokens};

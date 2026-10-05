@@ -46,17 +46,25 @@ pub(super) fn paint_single_row_chrome(
     // of the clip; `paint_text_from` skips the clipped prefix.
     let mut cursor_x: i32 = inner.x;
     let budget_right = inner_grid.right();
+    // A `visibility: hidden` box keeps its cells and draws nothing in
+    // them (CSS Display 3 §4): the run advances past it.
+    let shows = |slot| crate::render::visibility::shows(dom, id, slot);
+    let paint = |buf: &mut Buffer, x: i32, slot, text: &str, style| {
+        if shows(slot) {
+            paint_text_from(buf, x, base_y, clip.x, budget_right, text, style)
+        } else {
+            x + unicode_width::UnicodeWidthStr::width(text) as i32
+        }
+    };
 
     if let Some(before) = dom.node(id).computed_before()
         && before.position == crate::layout::Position::Static
         && let Some(ref text) = before.content
     {
-        cursor_x = paint_text_from(
+        cursor_x = paint(
             buf,
             cursor_x,
-            base_y,
-            clip.x,
-            budget_right,
+            crate::ext::StyleSlot::Before,
             text,
             pseudo_style(
                 before,
@@ -66,12 +74,10 @@ pub(super) fn paint_single_row_chrome(
     }
 
     if !body_text.is_empty() {
-        cursor_x = paint_text_from(
+        cursor_x = paint(
             buf,
             cursor_x,
-            base_y,
-            clip.x,
-            budget_right,
+            crate::ext::StyleSlot::Host,
             body_text,
             body_style,
         );
@@ -81,12 +87,10 @@ pub(super) fn paint_single_row_chrome(
         && after.position == crate::layout::Position::Static
         && let Some(ref text) = after.content
     {
-        cursor_x = paint_text_from(
+        cursor_x = paint(
             buf,
             cursor_x,
-            base_y,
-            clip.x,
-            budget_right,
+            crate::ext::StyleSlot::After,
             text,
             pseudo_style(
                 after,

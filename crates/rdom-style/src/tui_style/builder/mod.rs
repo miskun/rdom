@@ -410,6 +410,14 @@ impl TuiStyle {
         crate::layout::PointerEvents
     );
     setter!(
+        "visibility",
+        visibility,
+        visibility,
+        visibility_important,
+        VISIBILITY,
+        crate::layout::Visibility
+    );
+    setter!(
         "caret-color",
         caret_color,
         caret_color,

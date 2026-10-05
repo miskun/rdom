@@ -282,6 +282,7 @@ fn every_property_has_important_setter() {
         .counter_reset_important(vec![])
         .counter_increment_important(vec![])
         .pointer_events_important(crate::layout::PointerEvents::None)
+        .visibility_important(crate::layout::Visibility::Hidden)
         .scrollbar_gutter_important(crate::layout::ScrollbarGutter::Stable)
         .scroll_behavior_important(crate::layout::ScrollBehavior::Smooth)
         .color_scheme_important(crate::color::ColorSchemeList::normal())

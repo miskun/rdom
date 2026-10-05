@@ -107,7 +107,10 @@ pub(super) fn paint_inline_content(
     // `paint_lines` too).
     let avail_single_row = inner.width;
     if let Some((text, style)) = inline_chrome(dom, id, computed, avail_single_row) {
-        paint_single_row_chrome(dom, id, &text, style, inner, buf, clip);
+        // The chrome is the host's own content (CSS Display 3 §4).
+        if crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host) {
+            paint_single_row_chrome(dom, id, &text, style, inner, buf, clip);
+        }
         return;
     }
 
@@ -365,6 +368,12 @@ fn paint_inline_layout(
             if !text_visible || frag_x >= clip.right() as i32 {
                 continue;
             }
+            // Text is drawn by its owner's `visibility` (CSS Display 3
+            // §4; it inherits, so a `visible` span shows inside a hidden
+            // block).
+            if !crate::render::visibility::shows(dom, fragment.node, crate::ext::StyleSlot::Host) {
+                continue;
+            }
 
             let computed = dom
                 .node(fragment.node)
@@ -460,6 +469,9 @@ fn paint_generated(
     let Some(computed) = computed else {
         return;
     };
+    if !crate::render::visibility::shows(dom, generated.host, generated.slot.into()) {
+        return;
+    }
     let style = pseudo_style(
         computed,
         presentation_of(dom, generated.host, generated.slot.into()),

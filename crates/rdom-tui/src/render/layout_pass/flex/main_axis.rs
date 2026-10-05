@@ -100,6 +100,20 @@ pub(super) fn collect_main_axis_items(
     };
 
     for (i, &child) in children.iter().enumerate() {
+        // Flexbox §4.4: a collapsed item is a strut — zero main size and
+        // no main-axis margins; the cross pass keeps its cross size, which
+        // holds the line's.
+        if super::is_collapsed(dom, child) {
+            child_info.push(ChildMain {
+                id: child,
+                main: MainNatural::Fixed(0),
+                min: Some(0),
+                max: Some(0),
+                main_start_margin: MarginValue::Cells(0),
+                main_end_margin: MarginValue::Cells(0),
+            });
+            continue;
+        }
         let c = dom
             .node(child)
             .computed_rc()

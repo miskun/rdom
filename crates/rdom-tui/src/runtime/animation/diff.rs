@@ -224,6 +224,13 @@ fn animatable_props_for(curr: &ComputedStyle, prev: &ComputedStyle) -> Vec<Anima
     if curr.z_index != prev.z_index {
         out.push(AnimatedProp::ZIndex);
     }
+    // CSS Display 3 §4: `visibility` interpolates only when one end is
+    // `visible`; between two non-visible values it is discrete.
+    if curr.visibility != prev.visibility
+        && (curr.visibility.is_visible() || prev.visibility.is_visible())
+    {
+        out.push(AnimatedProp::Visibility);
+    }
     out
 }
 
@@ -289,6 +296,7 @@ fn read_value(style: &ComputedStyle, prop: AnimatedProp) -> AnimatedValue {
         AnimatedProp::Bottom => AnimatedValue::Length(style.bottom.clone()),
         AnimatedProp::Left => AnimatedValue::Length(style.left.clone()),
         AnimatedProp::ZIndex => AnimatedValue::ZIndex(style.z_index),
+        AnimatedProp::Visibility => AnimatedValue::Visibility(style.visibility),
     }
 }
 
@@ -317,6 +325,7 @@ pub(super) fn write_presentation(
         (AnimatedProp::Bottom, AnimatedValue::Length(l)) => ext.bottom = Some(l),
         (AnimatedProp::Left, AnimatedValue::Length(l)) => ext.left = Some(l),
         (AnimatedProp::ZIndex, AnimatedValue::ZIndex(z)) => ext.z_index = Some(z),
+        (AnimatedProp::Visibility, AnimatedValue::Visibility(v)) => ext.visibility = Some(v),
         _ => {}
     }
 }
@@ -348,6 +357,7 @@ pub(super) fn clear_presentation(
         AnimatedProp::Bottom => presentation.bottom = None,
         AnimatedProp::Left => presentation.left = None,
         AnimatedProp::ZIndex => presentation.z_index = None,
+        AnimatedProp::Visibility => presentation.visibility = None,
     }
     ext.release_empty_presentation(slot);
 }

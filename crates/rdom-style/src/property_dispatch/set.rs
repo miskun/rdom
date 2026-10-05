@@ -175,6 +175,18 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         .map(|v| {
             style.pointer_events = Some(Value::Specified(v));
         }),
+        // CSS Display 3 §4.
+        "visibility" => parse_keyword(
+            value,
+            &[
+                ("visible", crate::layout::Visibility::Visible),
+                ("hidden", crate::layout::Visibility::Hidden),
+                ("collapse", crate::layout::Visibility::Collapse),
+            ],
+        )
+        .map(|v| {
+            style.visibility = Some(Value::Specified(v));
+        }),
         // `caret-color: auto | transparent | <color>`. Auto = caret
         // bg matches the underlying cell's fg (classic swap visual).
         // Transparent suppresses the caret paint entirely. A color

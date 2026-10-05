@@ -137,7 +137,7 @@ row comes from.
 |---|---|---|
 | C6-MARGIN-SIDES | `margin` / `padding` stored per side (each side its own longhand with its own `!important` bit), so a logical or physical side cascades alone — finishes C5G-LOGICAL-IMPORTANT || done |
 | C6-DISPLAY-KEYWORDS | `display: contents` / `flow-root` / multi-keyword syntax | done |
-| C6-VISIBILITY | `visibility: visible / hidden / collapse` | |
+| C6-VISIBILITY | `visibility: visible / hidden / collapse` | done |
 | C6-ORDER | `order` | |
 | C6-DIRECTION-REVERSE | `flex-direction: row-reverse / column-reverse` | |
 | C6-FLEX-LONGHANDS | `flex-grow` / `flex-basis` longhands; full `flex` shorthand (incl. basis) | partial — the shorthand's grammar, shrink and stored basis landed with C2G-FLEX-SHORTHAND; remain the longhands and the basis in layout (`ComputedStyle::flex_basis` is cascaded, unread) |
@@ -2048,3 +2048,41 @@ row comes from.
   `list_item` by hand (no single `display` value moves the outer type, the inner type and
   `list-item` at once). DIVERGENCES: the §3 display line removed, the list-item lines say the
   keyword parses and the marker is C10's. No snapshot changed.
+- 2026-10-08 — C6-VISIBILITY: `visibility: visible | hidden | collapse` (CSS Display 3 §4),
+  inherited (`Visibility`, `TuiStyle` / `ComputedStyle::visibility`, `ImportantMask::VISIBILITY`,
+  builder, root re-export). Decided — one answer: `render/visibility.rs::visibility_of` (the
+  presented value of a running transition, else the computed one) is what paint, hit-testing and
+  focus read. Paint: a non-visible box draws nothing of its own (`BoxFrame::visible`: no outer /
+  inset / backdrop shadow, background, border, canvas callback, chrome, scrollbars); text draws by
+  its owner's visibility and generated content by the pseudo-element's, so a `visible` descendant
+  shows inside a hidden box; the single-row path advances past a hidden run. Hit-testing: a hidden
+  box is no target — `descend_plain` / `hit_stacking_context` search its content and put it on a
+  visible descendant's path (the DOM ancestors), and an IFC point on a hidden inline's cells
+  resolves to what is beneath. Focus: a hidden element is skipped by Tab, its subtree still walked
+  (HTML §6.6.3). Copy: a hidden node's text is not copied (HTML §3.2.7 rendered text). `collapse`:
+  on a flex item (`flex::is_collapsed` — an element flex container's item; the document root's
+  children, flex items of rdom's viewport column only as a layout device, take `hidden`, as a
+  browser's `<body>` children would) the main-axis pass makes it a strut (Flexbox §4.4: main size,
+  min, max and main margins 0) and the cross pass keeps its cross size, which holds the line's;
+  intrinsic sizes drop its main contribution. The gaps beside a strut stay (it is still an item of
+  the line, CSS Box Alignment §8.1). On a table row (`tree::is_collapsed_table_row`: a `<tr>` of a
+  `<table>` or row group) it leaves the flow (`is_in_flow` false, its geometry zeroed with the
+  `display: none` subtrees) while `size_columns`, which reads every row, still sizes the columns
+  with its cells (CSS 2.1 §17.5.5); column collapse needs columns, so `<col>` waits for C13-TFC
+  (DIVERGENCES §3). Elsewhere `collapse` is `hidden`. Transitions: `AnimatableProperty::Visibility`
+  → `AnimatedProp::Visibility`; `lerp_visibility` is `visible` for every progress strictly inside
+  (0, 1) when either end is `visible`, the ends their own values; a change between two non-visible
+  values is not interpolable and is not registered (CSS Display 3 §4's animation type, after CSS
+  Transitions 1 §2.1); `PresentationStyle` gains `visibility` (non_exhaustive). `layout_differs`
+  includes `visibility` (`collapse` moves boxes). Red: the rdom-style test failed to compile
+  (`Visibility`); with the data model and cascade in, all six `css_phase6/visibility.rs` tests
+  failed for their reasons — the hidden box drew its border, background and `aavvii`, the hidden
+  block was hit (`NodeId(3)` against the parent), all three buttons were focusable, the
+  collapsed item took 7 cells (`c` at 10, not 3), the collapsed row kept its row (`y` 1, not 0),
+  `collapse` drew `aa`; green after. The root-children case was found by
+  `collapse_elsewhere_is_hidden` (the first `is_collapsed` made `.a` a strut, `y` 0). The
+  transition tests were written after `lerp_visibility`; mutation-checked: `lerp_visibility` made
+  a plain midpoint step → both transition tests fail. Changed
+  expectations: the canonical-values table, the important-setter coverage and the inherited-set
+  probe gain `visibility`; the C1 `initial` test perturbs it. The rdom-style README lists
+  `visibility` and the display keywords (C6-DISPLAY-KEYWORDS left them out).

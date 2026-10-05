@@ -47,6 +47,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("white-space", "pre"),
     ("user-select", "none"),
     ("pointer-events", "none"),
+    ("visibility", "hidden"),
     ("caret-color", "transparent"),
     ("caret-text-color", "red"),
     ("overflow-x", "scroll"),
@@ -163,6 +164,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         white_space,
         user_select,
         pointer_events,
+        visibility,
         caret_color,
         caret_text_color,
         // Generated content only; an element's own is always `None`.
@@ -234,6 +236,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         white_space,
         user_select,
         pointer_events,
+        visibility,
         caret_color,
         caret_text_color,
         position,

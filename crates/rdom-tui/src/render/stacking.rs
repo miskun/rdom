@@ -335,6 +335,8 @@ fn casts_backdrop_shadow(
     c: &ComputedStyle,
 ) -> bool {
     c.box_shadow.iter().any(|s| !s.inset)
+        // A `visibility: hidden` box draws no shadow (CSS Display 3 §4).
+        && crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host)
         && crate::render::paint_pass::paints_child_box(dom, box_parent, id)
 }
 
