@@ -69,3 +69,19 @@ fn strict_first_error_wins_when_multiple() {
     // not the `!` selector that comes later.
     assert!(matches!(err.kind, ParseErrorKind::ExpectedToken(_)));
 }
+
+/// C8-PARSE-ERROR (Rust API guidelines C-GOOD-ERR): a strict parse's
+/// error is a `std::error::Error`, so a consumer's `?` lifts it into
+/// `Box<dyn Error>`, and its `Display` names the problem and where.
+#[test]
+fn a_parse_error_is_a_std_error_with_a_position() {
+    fn strict() -> Result<(), Box<dyn std::error::Error>> {
+        parse_strict("! {}")?;
+        Ok(())
+    }
+    let err = strict().expect_err("the selector is invalid");
+    assert_eq!(err.to_string(), "1:1: invalid selector `!`");
+    let err = parse_strict("a { color: red; } /* open").expect_err("unterminated");
+    assert_eq!(err.to_string(), "1:19: unterminated comment");
+    assert!(std::error::Error::source(&err).is_none());
+}

@@ -148,3 +148,14 @@ pub enum DispatchError {
     /// `name` is known but `value` failed to parse.
     InvalidValue,
 }
+
+impl std::fmt::Display for DispatchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::UnknownProperty => "unknown CSS property",
+            Self::InvalidValue => "invalid value for property",
+        })
+    }
+}
+
+impl std::error::Error for DispatchError {}

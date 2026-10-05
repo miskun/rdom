@@ -325,3 +325,17 @@ fn set_property_remains_silent_on_parse_failure() {
         ""
     );
 }
+
+/// C8-PARSE-ERROR: a `SetPropertyError` reports the error it wraps as
+/// its `source()` (Rust API guidelines C-GOOD-ERR), so an error chain
+/// reaches the dispatch or tree error.
+#[test]
+fn set_property_error_sources_its_inner_error() {
+    use crate::cssom::{DispatchError, SetPropertyError};
+    use std::error::Error;
+    let err = SetPropertyError::Parse(DispatchError::InvalidValue);
+    let source = err.source().expect("the dispatch error");
+    assert_eq!(source.to_string(), "invalid value for property");
+    let err = SetPropertyError::Tree(rdom_core::DomError::HierarchyRequest);
+    assert!(err.source().is_some());
+}

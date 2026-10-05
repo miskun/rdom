@@ -90,6 +90,24 @@ pub enum TokenizerErrorKind {
     UnterminatedComment,
 }
 
+impl std::fmt::Display for TokenizerErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::UnterminatedString => "unterminated string",
+            Self::UnterminatedComment => "unterminated comment",
+        })
+    }
+}
+
+/// `line:column: problem`, both 1-based.
+impl std::fmt::Display for TokenizerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}: {}", self.line, self.column, self.kind)
+    }
+}
+
+impl std::error::Error for TokenizerError {}
+
 /// Tokenize `source` into a `Vec<Token>`. Whitespace and comments
 /// are skipped; unterminated comments / strings produce a
 /// `TokenizerError` and abort.

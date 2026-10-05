@@ -169,6 +169,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C8-INSETS | `top` / `right` / `bottom` / `left` / `inset`: `%` and `calc()` | done (with C2-PERCENT) |
+| C8-PARSE-ERROR | Every public error type implements `Display` and `std::error::Error` (found by C7G-README-GRID) | done |
 | C8-Z-INDEX | `z-index` full integer range | |
 | C8-FLOAT | `float` / `clear` (line-box exclusion, clearance) | |
 | C8-OVERFLOW-CLIP | `overflow: clip`, two-value `overflow`, `overflow-clip-margin`, logical `overflow-block` / `-inline` | |
@@ -4390,3 +4391,17 @@ row comes from.
   SIZES). Carried: C8-CB-COMPLETE (the padding-edge containing block's remaining cases) and
   C12-FOCUS-FLUSH (`focus()` flushing style, TECH_DEBT `FOCUS-FLUSH-1`), both scheduled. The `C7G-*`
   re-review rides with the Phase 8 gate.
+- 2026-10-05 — C8-PARSE-ERROR (found by C7G-README-GRID). Audit of every public error type in the
+  workspace (`pub struct|enum *Error`): `DomError`, rdom-core's selector `ParseError`, rdom-parser's
+  `ParseError`, `StyleError`, `PropertySyntaxError`, `RegisterPropertyError` and `SetPropertyError`
+  implemented `std::error::Error`; three did not — `rdom_css::ParseError` (no `Display` either),
+  `rdom_style::parse::token::TokenizerError` and `property_dispatch::DispatchError` (re-exported as
+  `rdom_tui::cssom::DispatchError`). Each now has `Display` (`line:column: problem` for the two with
+  a position, as rdom-parser's does; `ParseErrorKind` / `TokenizerErrorKind` display the problem) and
+  `Error`. `SetPropertyError` wrapped a `DispatchError` / `DomError` without reporting it: its
+  `source()` now returns the inner error, and its `Display` uses theirs instead of `{:?}`. The
+  rdom-tui README's grid example returns `Box<dyn std::error::Error>`, as a consumer's `main` would.
+  Red: `strict.rs::a_parse_error_is_a_std_error_with_a_position`, `token_tests::
+  a_tokenizer_error_is_a_std_error`, `property_dispatch::tests::a_dispatch_error_is_a_std_error` and
+  `declaration::tests::write::set_property_error_sources_its_inner_error` did not compile (no
+  `Display` / `Error`); green after. No test expectation or snapshot changed.

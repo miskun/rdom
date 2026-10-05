@@ -50,17 +50,18 @@ impl From<rdom_core::DomError> for SetPropertyError {
 impl core::fmt::Display for SetPropertyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Parse(DispatchError::UnknownProperty) => {
-                write!(f, "unknown CSS property")
-            }
-            Self::Parse(DispatchError::InvalidValue) => {
-                write!(f, "invalid value for property")
-            }
-            // `DispatchError` is `#[non_exhaustive]`.
-            Self::Parse(e) => write!(f, "CSS parse error: {e:?}"),
-            Self::Tree(e) => write!(f, "DOM tree error: {e:?}"),
+            Self::Parse(e) => e.fmt(f),
+            Self::Tree(e) => write!(f, "DOM tree error: {e}"),
         }
     }
 }
 
-impl std::error::Error for SetPropertyError {}
+impl std::error::Error for SetPropertyError {
+    /// The wrapped [`DispatchError`] or `DomError`.
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Parse(e) => Some(e),
+            Self::Tree(e) => Some(e),
+        }
+    }
+}

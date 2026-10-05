@@ -1116,3 +1116,12 @@ fn set_from_source_takes_important() {
     set_from_source("padding-top", &tokenize("2").unwrap(), None, false, &mut s).unwrap();
     assert!(!is_important("padding-top", &s));
 }
+
+/// C8-PARSE-ERROR: a dispatch error is a `std::error::Error`.
+#[test]
+fn a_dispatch_error_is_a_std_error() {
+    let err: Box<dyn std::error::Error> = Box::new(DispatchError::UnknownProperty);
+    assert_eq!(err.to_string(), "unknown CSS property");
+    let err: Box<dyn std::error::Error> = Box::new(DispatchError::InvalidValue);
+    assert_eq!(err.to_string(), "invalid value for property");
+}

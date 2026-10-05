@@ -262,7 +262,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - `FlexDirection` (CSS Flexbox §5.1): `ComputedStyle::flex_direction()`, `TuiStyle::flex_direction` / `flex_direction_important`, `direction_reverse_important`; `AlignProperty` and `Alignment::is_valid_for` check a Box Alignment grammar. (C6G-ALIGN-API)
 - **Per-side spacing builders** (CSS Box 3 §3.2 / §4.2): `margin_top` … `padding_left`, each with an `_important` twin; `padding` takes `impl Into<Padding>` (`From<u16> for Padding` / `PaddingValue`, `From<i16> for MarginValue`). (C6G-SIDE-SETTERS)
 - `TuiStyle::place_content` / `place_items` / `place_self(align, justify)` (CSS Box Alignment 3 §5.5, §6.4, §6.5), each half checked as its longhand; `grid_area_named("head")` is `grid-area: head` in one call (CSS Grid 2 §8.4). (C7G-GRID-SETTERS)
-
+- **`TokenizerError` and `DispatchError` are `std::error::Error`s**, with `Display` (`TokenizerErrorKind` too). (C8-PARSE-ERROR)
 
 ### Changed — `rdom-style`
 
@@ -307,6 +307,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **`@import`** (CSS Cascade 5 §3) through a host loader: `ImportLoader` and `parse_with_loader(source, &loader)`; rules join at the import's position, `layer(…)` layers them; new warnings `ImportIgnored`, `ImportCycle`, `ImportFailed { url, reason }`. (C1-IMPORT)
 - **`@property`** (CSS Properties and Values API 1 §3): `syntax`, `inherits` and `initial-value` register the custom property in the sheet; a missing or invalid descriptor, name, unsupported syntax or non-matching initial value registers nothing and warns the new `WarningKind::InvalidPropertyRule { name, reason }`. (C1-PROPERTY)
 - **The `@import` loader contract** (CSS Cascade 5 §3): `ImportLoader::load_from(url, base)` (default `load(url)`) returns a `LoadedSheet { url, text }` (its resolved `url` the base and cycle identity); `parse_with_loader_at`; `MAX_IMPORT_DEPTH` (16), `WarningKind::ImportTooDeep(url)`. (C1G-IMPORT-EDGES)
+- **`ParseError` is a `std::error::Error`**: it and `ParseErrorKind` implement `Display` (`1:19: unterminated comment`), so `?` lifts a strict parse's error into `Box<dyn Error>`. (C8-PARSE-ERROR)
 
 ### Changed — `rdom-css`
 
@@ -430,6 +431,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **A fully transparent color paints nothing**: `Cell::set_fg` / `set_bg` / `apply_style` and transparent-foreground glyph writes keep what the cell shows; no background fill or border is drawn in it (the border keeps its space). (C3-TRANSPARENT)
 - **Color transitions interpolate in Oklab** (CSS Color 4 §12.1) with premultiplied alpha, for `color`, `background-color`, `border-color` and registered `<color>`s; a `reset` endpoint is the canvas color for the property's role in the element's scheme. (C3-LAB, C3G-SCHEME-CONSISTENCY)
 - **A border corner takes its dominant side's color**: the wider side, then the heavier style, then the horizontal side (DIVERGENCES §2) — it took whichever side the joiner read first. (C4-BORDER-SIDES)
+- `SetPropertyError::source()` returns the `DispatchError` / `DomError` it wraps, and its `Display` uses theirs. (C8-PARSE-ERROR)
 
 ### Fixed — `rdom-tui`
 

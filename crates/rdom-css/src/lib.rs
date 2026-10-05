@@ -294,6 +294,27 @@ pub enum ParseErrorKind {
     ExpectedToken(&'static str),
 }
 
+impl std::fmt::Display for ParseErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnexpectedEof => f.write_str("unexpected end of input"),
+            Self::UnterminatedComment => f.write_str("unterminated comment"),
+            Self::UnterminatedString => f.write_str("unterminated string"),
+            Self::InvalidSelector(s) => write!(f, "invalid selector `{s}`"),
+            Self::ExpectedToken(what) => write!(f, "expected {what}"),
+        }
+    }
+}
+
+/// `line:column: problem`, both 1-based.
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}: {}", self.line, self.column, self.kind)
+    }
+}
+
+impl std::error::Error for ParseError {}
+
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct Warning {

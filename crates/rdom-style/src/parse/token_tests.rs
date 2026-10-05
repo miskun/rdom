@@ -239,3 +239,13 @@ fn tokenize_spans_names_its_parallel_lists() {
     assert_eq!(spanned.positions, vec![(3, 7), (3, 10)]);
     assert_eq!(spanned.spans, vec![0..1, 3..4]);
 }
+
+/// C8-PARSE-ERROR: a tokenizer error is a `std::error::Error` whose
+/// `Display` names the problem and its `line:column`.
+#[test]
+fn a_tokenizer_error_is_a_std_error() {
+    let err: Box<dyn std::error::Error> = Box::new(tokenize("a /* open").unwrap_err());
+    assert_eq!(err.to_string(), "1:3: unterminated comment");
+    let err = tokenize("\n  'open").unwrap_err();
+    assert_eq!(err.to_string(), "2:3: unterminated string");
+}

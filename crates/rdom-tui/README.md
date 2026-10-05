@@ -105,7 +105,7 @@ Boxes size as `box-sizing: content-box`, the CSS initial value: `width`, `height
 ```rust
 use rdom_tui::prelude::*;
 
-fn main() -> std::result::Result<(), rdom_css::ParseError> {
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let sheet = rdom_css::from_css_strict(
         r#"
         .page {
