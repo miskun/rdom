@@ -7,11 +7,11 @@
 
 use rdom_core::Dom;
 
-use super::item::FlexItem;
 use super::main_axis::ChildMain;
 use crate::ext::TuiExt;
 use crate::layout::{Direction, Overflow, Size, clamp_size};
 use crate::node::TuiNodeExt;
+use crate::render::layout_pass::items::Item;
 
 /// Budget figures the §9.7 loop distributes against.
 pub(super) struct MainAxisBudget {
@@ -230,7 +230,7 @@ fn floor_cells(x: f64) -> u32 {
 /// actually shrinking.
 pub(super) fn resolve_auto_min(
     dom: &Dom<TuiExt>,
-    item: &FlexItem,
+    item: &Item,
     direction: Direction,
     main_budget: u16,
     cross_budget: u16,
@@ -238,7 +238,7 @@ pub(super) fn resolve_auto_min(
     #[cfg(test)]
     super::cost_tests::AUTO_MINS.with(|c| c.set(c.get() + 1));
     // An element without a computed style has no box to size.
-    if let FlexItem::Element(id) = item
+    if let Item::Element(id) = item
         && dom.node(*id).computed().is_none()
     {
         return 0;

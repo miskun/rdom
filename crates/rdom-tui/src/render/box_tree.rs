@@ -205,7 +205,7 @@ pub(crate) fn holds_block_box(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 /// a box-less child — such a text, or a visible static `::before` /
 /// `::after` (CSS Display 3 §2.5). A block container whose only content
 /// this is packs it as a pure-text leaf; a flex container's text is its
-/// anonymous items' (CSS Flexbox §4, `layout_pass::flex::item`).
+/// anonymous items' (CSS Flexbox §4, `layout_pass::items`).
 pub(crate) fn holds_loose_text(
     dom: &Dom<TuiExt>,
     id: NodeId,

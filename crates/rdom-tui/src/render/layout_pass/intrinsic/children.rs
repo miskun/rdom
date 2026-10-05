@@ -8,7 +8,7 @@
 
 use rdom_core::{Dom, NodeId, NodeType};
 
-use crate::render::layout_pass::flex::item::FlexItem;
+use crate::render::layout_pass::items::Item;
 
 use super::inline::{border_main_cost, own_line_pseudo_rows};
 use super::{IntrinsicMode, Measure, intrinsic_size_inner, intrinsic_text, wrap};
@@ -27,7 +27,7 @@ pub(super) fn children_size(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,
-    children: &[FlexItem],
+    children: &[Item],
     direction: Direction,
     cross_budget: u16,
     containing_block_width: u16,
@@ -92,7 +92,7 @@ pub(super) fn children_size(
     };
     let last = children.len() - 1;
     let flex = computed.flow == crate::layout::Flow::Flex;
-    let outer = |i: usize, item: &FlexItem| {
+    let outer = |i: usize, item: &Item| {
         // Flexbox §4.4: a collapsed item is a strut — no main size, its
         // cross size kept.
         if flex && along && item.is_collapsed(dom) {
@@ -101,7 +101,7 @@ pub(super) fn children_size(
         let keep_start = !(trim_start && (!along || i == 0));
         let keep_end = !(trim_end && (!along || i == last));
         let inner = match item {
-            FlexItem::Element(c) => intrinsic_size_inner(
+            Item::Element(c) => intrinsic_size_inner(
                 dom,
                 *c,
                 direction,
@@ -112,7 +112,7 @@ pub(super) fn children_size(
             ),
             // An anonymous item's box (a text run's has no declared size,
             // margins, padding or border; a pseudo-element's is its own).
-            FlexItem::Anonymous(anon) => anon.box_size(
+            Item::Anonymous(anon) => anon.box_size(
                 dom,
                 direction,
                 child_cross_budget,
@@ -176,12 +176,12 @@ pub(super) fn children_size(
             .iter()
             .filter(|c| match c {
                 _ if flex => !c.is_collapsed(dom),
-                FlexItem::Element(id) => dom
+                Item::Element(id) => dom
                     .node(*id)
                     .ext()
                     .and_then(|e| e.computed.as_ref())
                     .is_none_or(|cs| cs.display == crate::layout::Display::Block),
-                FlexItem::Anonymous(_) => false,
+                Item::Anonymous(_) => false,
             })
             .count();
         let gap_total = crate::render::layout_pass::gap_along(computed, direction)

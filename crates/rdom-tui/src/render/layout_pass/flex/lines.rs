@@ -13,7 +13,7 @@ use std::ops::Range;
 
 use rdom_core::{Dom, NodeId};
 
-use super::item::FlexItem;
+use crate::render::layout_pass::items::Item;
 
 use super::align::{CrossFrame, LinePlan, PlanItem};
 use super::collapse::SiblingOverlap;
@@ -297,7 +297,7 @@ pub(super) fn line_cross_size(
 pub(in crate::render::layout_pass) fn lines_cross_size(
     dom: &Dom<TuiExt>,
     id: NodeId,
-    children: &[FlexItem],
+    children: &[Item],
     main: u16,
     cross: u16,
     cb_width: u16,

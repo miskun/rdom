@@ -8,15 +8,15 @@
 
 use rdom_core::Dom;
 
-use super::item::FlexItem;
 use crate::ext::TuiExt;
 use crate::layout::{Direction, FlexBasis, MarginValue, Size, clamp_size};
 use crate::render::layout_pass::intrinsic::Keywords;
+use crate::render::layout_pass::items::Item;
 use crate::render::layout_pass::margin_trim::FlexTrim;
 
 /// Per-item main-axis inputs gathered before distribution.
 pub(super) struct ChildMain {
-    pub(super) item: FlexItem,
+    pub(super) item: Item,
     /// The flex base size (§9.2 step 3), a border box in cells.
     pub(super) base: u16,
     /// The inner flex base size: the base less the item's padding and
@@ -173,7 +173,7 @@ pub(super) struct MainBudgets {
 /// main-start margin is its right (bottom) one.
 pub(super) fn collect_main_axis_items(
     dom: &Dom<TuiExt>,
-    children: &[FlexItem],
+    children: &[Item],
     direction: Direction,
     budgets: MainBudgets,
     trim: FlexTrim,
@@ -382,13 +382,13 @@ pub(super) fn collect_main_axis_items(
 /// box `box-sizing` names). `None` when it does not apply.
 fn aspect_base(
     dom: &Dom<TuiExt>,
-    item: &FlexItem,
+    item: &Item,
     c: &crate::style::ComputedStyle,
     direction: Direction,
     budgets: MainBudgets,
     cb_width: u16,
 ) -> Option<u16> {
-    let FlexItem::Element(id) = item else {
+    let Item::Element(id) = item else {
         return None;
     };
     let ratio = c.aspect_ratio?;

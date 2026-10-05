@@ -14,7 +14,7 @@ use crate::layout::{Direction, LayoutRect, MarginValue};
 use crate::render::layout_pass::gutter::scroll_offset;
 use crate::render::layout_pass::layout_node;
 
-use super::item::FlexItem;
+use crate::render::layout_pass::items::Item;
 
 use super::collapse::SiblingOverlap;
 use super::cross::{CrossPlacement, CrossSpace, ResolvedMain, place_cross};
@@ -116,7 +116,7 @@ pub(super) fn place_items(
     // The last item placed that is not a strut: a gap (and a collapsed
     // border's pullback) separates it from the next such item — a strut
     // takes neither (§9.4 step 10).
-    let mut prev_spaced: Option<&FlexItem> = None;
+    let mut prev_spaced: Option<&Item> = None;
     for (i, (ci, size)) in child_info.iter().zip(final_main).enumerate() {
         let child_computed = ci.item.computed(dom);
         if ci.strut.is_none() {
@@ -217,8 +217,8 @@ pub(super) fn place_items(
             child_rect.y = mirror_y(child_rect.y, child_rect.height, container, scroll_y);
         }
         match &ci.item {
-            FlexItem::Element(id) => layout_node(dom, *id, child_rect, container.width),
-            FlexItem::Anonymous(anon) => {
+            Item::Element(id) => layout_node(dom, *id, child_rect, container.width),
+            Item::Anonymous(anon) => {
                 anonymous.push(anon.lay_out(dom, child_rect, container.width));
             }
         }

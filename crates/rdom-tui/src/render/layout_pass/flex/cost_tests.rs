@@ -95,7 +95,7 @@ fn the_freeze_loop_allocates_nothing_per_iteration() {
         );
         let infos = collect_main_axis_items(
             &dom,
-            &super::item::elements(&items),
+            &crate::render::layout_pass::items::elements(&items),
             Direction::Row,
             budgets,
             trim,

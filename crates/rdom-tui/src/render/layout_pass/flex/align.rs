@@ -18,9 +18,9 @@
 use rdom_core::Dom;
 
 use super::cross::{BaselineBox, CrossSpace, ResolvedMain, baseline_box};
-use super::item::FlexItem;
 use crate::ext::TuiExt;
 use crate::layout::{Align, Alignment, Direction, OverflowAlign, TextDirection};
+use crate::render::layout_pass::items::Item;
 use crate::style::ComputedStyle;
 
 /// Where an item goes on its line's cross axis, in the frame whose
@@ -119,7 +119,7 @@ pub(super) struct LinePlan {
 
 /// What `plan_line` needs to measure an item.
 pub(super) struct PlanItem {
-    pub(super) item: FlexItem,
+    pub(super) item: Item,
     pub(super) main: ResolvedMain,
     /// The item is a strut (`ChildMain::strut`): no alignment, no
     /// baseline — placed at the line's cross-start.

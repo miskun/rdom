@@ -16,12 +16,12 @@
 
 use rdom_core::Dom;
 
-use super::item::FlexItem;
 use crate::ext::TuiExt;
 use crate::layout::{BorderCollapse, Direction, LayoutRect};
 use crate::render::layout_pass::border_collapse::{
     CollapseEdge, collapse_parent_edge_insets, has_effective_border_on_edge,
 };
+use crate::render::layout_pass::items::Item;
 use crate::style::ComputedStyle;
 
 /// Shrink `container` by the parent-child border-collapse inset.
@@ -49,15 +49,15 @@ use crate::style::ComputedStyle;
 /// panels) without touching `compute_content_area_collapsed`.
 pub(super) fn inset_container_for_children(
     dom: &Dom<TuiExt>,
-    children: &[FlexItem],
+    children: &[Item],
     parent: &ComputedStyle,
     container: LayoutRect,
 ) -> LayoutRect {
     let (top_inset, bot_inset, left_inset, right_inset) = collapse_parent_edge_insets(
         dom,
         (
-            children.first().and_then(FlexItem::node),
-            children.last().and_then(FlexItem::node),
+            children.first().and_then(Item::node),
+            children.last().and_then(Item::node),
         ),
         parent,
     );
@@ -114,8 +114,8 @@ impl SiblingOverlap {
     /// Whether items `a` (earlier) and `b` (its next sibling) share a
     /// cell: only when overlap is active AND both have a border on
     /// the shared edge (an anonymous item has none).
-    pub(super) fn between(&self, dom: &Dom<TuiExt>, a: &FlexItem, b: &FlexItem) -> bool {
-        let bordered = |item: &FlexItem, edge| {
+    pub(super) fn between(&self, dom: &Dom<TuiExt>, a: &Item, b: &Item) -> bool {
+        let bordered = |item: &Item, edge| {
             item.node()
                 .is_some_and(|id| has_effective_border_on_edge(dom, id, edge))
         };
@@ -127,13 +127,13 @@ impl SiblingOverlap {
     pub(super) fn savings<'a>(
         &self,
         dom: &Dom<TuiExt>,
-        children: impl Iterator<Item = &'a FlexItem>,
+        children: impl Iterator<Item = &'a Item>,
     ) -> u16 {
         if !self.active {
             return 0;
         }
         let mut savings: u16 = 0;
-        let mut prev: Option<&FlexItem> = None;
+        let mut prev: Option<&Item> = None;
         for item in children {
             if prev.is_some_and(|p| self.between(dom, p, item)) {
                 savings = savings.saturating_add(1);

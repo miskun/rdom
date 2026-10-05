@@ -44,6 +44,8 @@
 //!   `layout_flex_children`, `resolve_cross_size`.
 //! - `intrinsic` — `Size::Auto` resolution via content
 //!   measurement. Text / element / IFC paths.
+//! - `items` — the items a flex container lays out (elements,
+//!   pseudo-elements, anonymous items for runs of text).
 //! - `ifc` — IFC detection.
 //! - `tree` — element children, the in-flow predicate,
 //!   `display: none` geometry reset.
@@ -76,6 +78,7 @@ pub(crate) mod geometry;
 pub(crate) mod gutter;
 mod ifc;
 pub(crate) mod intrinsic;
+mod items;
 mod margin_trim;
 mod positioned_pseudos;
 mod positioning;
@@ -449,7 +452,7 @@ fn layout_fragment_children(dom: &mut Dom<TuiExt>, id: NodeId, container: Layout
     // Element items only: the root's text is not laid out.
     let anonymous = layout_flex_children(
         dom,
-        &flex::item::elements(&children),
+        &items::elements(&children),
         container,
         &viewport_column,
     );

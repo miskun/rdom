@@ -1,4 +1,4 @@
-//! Flex items — CSS Flexible Box §4: what a flex container lays out.
+//! The items a flex container lays out — CSS Flexible Box §4.
 //!
 //! "Each in-flow child of a flex container becomes a flex item, and
 //! each contiguous sequence of child text runs is wrapped in an
@@ -33,42 +33,44 @@ use crate::render::box_tree::BoxItem;
 use crate::render::layout_pass::intrinsic::Keywords;
 use crate::style::ComputedStyle;
 
-pub(in crate::render::layout_pass) use super::anonymous::AnonymousItem;
+mod anonymous;
+
+pub(in crate::render::layout_pass) use anonymous::AnonymousItem;
 
 /// One flex item of a container.
 #[derive(Debug, Clone)]
-pub(in crate::render::layout_pass) enum FlexItem {
+pub(in crate::render::layout_pass) enum Item {
     /// An in-flow element child (through box-less children).
     Element(NodeId),
     /// An anonymous block container item.
     Anonymous(Rc<AnonymousItem>),
 }
 
-impl FlexItem {
+impl Item {
     /// The element, for an element item.
     pub(in crate::render::layout_pass) fn node(&self) -> Option<NodeId> {
         match self {
-            FlexItem::Element(id) => Some(*id),
-            FlexItem::Anonymous(_) => None,
+            Item::Element(id) => Some(*id),
+            Item::Anonymous(_) => None,
         }
     }
 
     /// The item's computed style: its element's, or the anonymous box's.
     pub(in crate::render::layout_pass) fn computed(&self, dom: &Dom<TuiExt>) -> Rc<ComputedStyle> {
         match self {
-            FlexItem::Element(id) => dom
+            Item::Element(id) => dom
                 .node(*id)
                 .computed_rc()
                 .unwrap_or_else(|| Rc::new(ComputedStyle::initial())),
-            FlexItem::Anonymous(a) => a.style_rc(),
+            Item::Anonymous(a) => a.style_rc(),
         }
     }
 
     /// The box the item is laid out in: its flex container.
     pub(in crate::render::layout_pass) fn box_parent(&self, dom: &Dom<TuiExt>) -> Option<NodeId> {
         match self {
-            FlexItem::Element(id) => crate::render::box_tree::box_parent(dom, *id),
-            FlexItem::Anonymous(a) => Some(a.container()),
+            Item::Element(id) => crate::render::box_tree::box_parent(dom, *id),
+            Item::Anonymous(a) => Some(a.container()),
         }
     }
 
@@ -82,8 +84,8 @@ impl FlexItem {
             height_is_definite_below, nearest_block_ancestor_height_is_definite,
         };
         match self {
-            FlexItem::Element(id) => nearest_block_ancestor_height_is_definite(dom, *id),
-            FlexItem::Anonymous(a) => height_is_definite_below(dom, Some(a.container())),
+            Item::Element(id) => nearest_block_ancestor_height_is_definite(dom, *id),
+            Item::Anonymous(a) => height_is_definite_below(dom, Some(a.container())),
         }
     }
 
@@ -91,8 +93,8 @@ impl FlexItem {
     /// a pseudo-element's its own.
     pub(in crate::render::layout_pass) fn order(&self, dom: &Dom<TuiExt>) -> i32 {
         match self {
-            FlexItem::Element(id) => crate::render::box_tree::order_of(dom, *id),
-            FlexItem::Anonymous(a) => a.style().order,
+            Item::Element(id) => crate::render::box_tree::order_of(dom, *id),
+            Item::Anonymous(a) => a.style().order,
         }
     }
 
@@ -107,10 +109,10 @@ impl FlexItem {
         cb_width: u16,
     ) -> Keywords<'a> {
         match self {
-            FlexItem::Element(id) => {
+            Item::Element(id) => {
                 Keywords::new(dom, *id, computed, direction, cross_budget, cb_width)
             }
-            FlexItem::Anonymous(a) => Keywords::for_run(dom, a, direction, cross_budget, cb_width),
+            Item::Anonymous(a) => Keywords::for_run(dom, a, direction, cross_budget, cb_width),
         }
     }
 
@@ -125,14 +127,14 @@ impl FlexItem {
         cb_width: u16,
     ) -> u16 {
         match self {
-            FlexItem::Element(id) => crate::render::layout_pass::intrinsic::intrinsic_size(
+            Item::Element(id) => crate::render::layout_pass::intrinsic::intrinsic_size(
                 dom,
                 *id,
                 direction,
                 cross_budget,
                 cb_width,
             ),
-            FlexItem::Anonymous(a) => a.content_size(dom, direction, cross_budget, true, cb_width),
+            Item::Anonymous(a) => a.content_size(dom, direction, cross_budget, true, cb_width),
         }
     }
 
@@ -148,11 +150,11 @@ impl FlexItem {
     ) -> u16 {
         use crate::render::layout_pass::intrinsic::{content_max_size, content_min_size};
         match self {
-            FlexItem::Element(id) if max_content => {
+            Item::Element(id) if max_content => {
                 content_max_size(dom, *id, direction, cross_budget, cb_width)
             }
-            FlexItem::Element(id) => content_min_size(dom, *id, direction, cross_budget, cb_width),
-            FlexItem::Anonymous(a) => {
+            Item::Element(id) => content_min_size(dom, *id, direction, cross_budget, cb_width),
+            Item::Anonymous(a) => {
                 a.content_size(dom, direction, cross_budget, max_content, cb_width)
             }
         }
@@ -162,8 +164,8 @@ impl FlexItem {
     /// item inherits its container's `visibility`.
     pub(in crate::render::layout_pass) fn is_collapsed(&self, dom: &Dom<TuiExt>) -> bool {
         match self {
-            FlexItem::Element(id) => super::is_collapsed(dom, *id),
-            FlexItem::Anonymous(a) => a.style().visibility == crate::layout::Visibility::Collapse,
+            Item::Element(id) => super::flex::is_collapsed(dom, *id),
+            Item::Anonymous(a) => a.style().visibility == crate::layout::Visibility::Collapse,
         }
     }
 }
@@ -180,7 +182,7 @@ fn is_document_white_space(c: char) -> bool {
 /// each pseudo-element that generates a box, and an anonymous item per
 /// contiguous run of text that is not all white space. Out-of-flow and
 /// `display: none` children are no items and do not split a run.
-pub(in crate::render::layout_pass) fn flex_items(dom: &Dom<TuiExt>, id: NodeId) -> Vec<FlexItem> {
+pub(in crate::render::layout_pass) fn items_of(dom: &Dom<TuiExt>, id: NodeId) -> Vec<Item> {
     let sequence = crate::render::box_tree::flex_sequence(dom, id);
     let mut b = ItemsBuilder {
         dom,
@@ -202,7 +204,7 @@ pub(in crate::render::layout_pass) fn flex_items(dom: &Dom<TuiExt>, id: NodeId) 
                 NodeType::Text => b.extend_run(entry, i, n),
                 NodeType::Element if crate::render::layout_pass::is_in_flow(dom, n) => {
                     b.close_run();
-                    b.items.push(FlexItem::Element(n));
+                    b.items.push(Item::Element(n));
                 }
                 // Out-of-flow elements, comments: no item, no break.
                 _ => {}
@@ -213,13 +215,13 @@ pub(in crate::render::layout_pass) fn flex_items(dom: &Dom<TuiExt>, id: NodeId) 
     b.items
 }
 
-/// [`flex_items`]' state: the items so far, and the open text run.
+/// [`items_of`]' state: the items so far, and the open text run.
 struct ItemsBuilder<'a> {
     dom: &'a Dom<TuiExt>,
     container: NodeId,
     /// The anonymous box style, computed for the first anonymous item.
     style: Option<Rc<ComputedStyle>>,
-    items: Vec<FlexItem>,
+    items: Vec<Item>,
     run: Vec<BoxItem>,
     run_start: usize,
     run_end: usize,
@@ -241,14 +243,13 @@ impl ItemsBuilder<'_> {
                 Rc::new(crate::style::cascade::anonymous_box_style(&parent))
             })
             .clone();
-        self.items
-            .push(FlexItem::Anonymous(Rc::new(AnonymousItem::new(
-                container,
-                content,
-                child_range,
-                style,
-                None,
-            ))));
+        self.items.push(Item::Anonymous(Rc::new(AnonymousItem::new(
+            container,
+            content,
+            child_range,
+            style,
+            None,
+        ))));
     }
 
     /// A `::before` / `::after` item (CSS Flexbox §4: a child box,
@@ -271,14 +272,13 @@ impl ItemsBuilder<'_> {
             self.push_anonymous(vec![entry], child_range);
             return;
         };
-        self.items
-            .push(FlexItem::Anonymous(Rc::new(AnonymousItem::new(
-                self.container,
-                vec![entry],
-                child_range,
-                style,
-                Some((host, slot)),
-            ))));
+        self.items.push(Item::Anonymous(Rc::new(AnonymousItem::new(
+            self.container,
+            vec![entry],
+            child_range,
+            style,
+            Some((host, slot)),
+        ))));
     }
 
     fn extend_run(&mut self, entry: BoxItem, i: usize, text: NodeId) {
@@ -306,7 +306,7 @@ impl ItemsBuilder<'_> {
 /// Sort `items` — flex items in document order — into order-modified
 /// document order (CSS Flexbox §5.4): ascending `order`, document order
 /// among equals (a stable sort). No-op when every `order` is 0.
-pub(in crate::render::layout_pass) fn sort_by_order(dom: &Dom<TuiExt>, items: &mut [FlexItem]) {
+pub(in crate::render::layout_pass) fn sort_by_order(dom: &Dom<TuiExt>, items: &mut [Item]) {
     if items.iter().any(|c| c.order(dom) != 0) {
         items.sort_by_key(|c| c.order(dom));
     }
@@ -314,6 +314,6 @@ pub(in crate::render::layout_pass) fn sort_by_order(dom: &Dom<TuiExt>, items: &m
 
 /// `items` as element items (a block container's children, measured as
 /// flex items are).
-pub(in crate::render::layout_pass) fn elements(ids: &[NodeId]) -> Vec<FlexItem> {
-    ids.iter().map(|&id| FlexItem::Element(id)).collect()
+pub(in crate::render::layout_pass) fn elements(ids: &[NodeId]) -> Vec<Item> {
+    ids.iter().map(|&id| Item::Element(id)).collect()
 }

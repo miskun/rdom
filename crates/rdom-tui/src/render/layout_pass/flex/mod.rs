@@ -21,11 +21,6 @@
 //! - `mod.rs` — [`layout_children`] (the IFC / text-leaf / block / flex
 //!   dispatch) and [`layout_flex_children`], the orchestrator that
 //!   threads the flex lines through the pieces below in spec order.
-//! - [`item`] — the flex items (§4): elements, pseudo-elements and
-//!   anonymous items wrapping the runs of text, and their measurement.
-//! - `anonymous` — the box of an item with no node: a text run's
-//!   anonymous box, or a pseudo-element's own (its sizes, padding and
-//!   border), packed inside its edges.
 //! - [`main_axis`] — per-item main-size gathering (`ChildMain`, §9.2).
 //! - [`distribute`] — the §9.7 grow / shrink freeze loop and the lazy
 //!   §4.5 auto-min floor.
@@ -42,16 +37,17 @@
 //! - [`collapse`] — the flex-specific `border-collapse: collapse`
 //!   rules: parent-edge inset and one-cell sibling overlap.
 //!
+//! The flex items themselves (§4: elements, pseudo-elements and
+//! anonymous items wrapping the runs of text, and their measurement)
+//! are `layout_pass::items`.
 
 mod align;
-mod anonymous;
 mod collapse;
 mod content;
 #[cfg(test)]
 mod cost_tests;
 mod cross;
 mod distribute;
-pub(in crate::render::layout_pass) mod item;
 mod lines;
 mod main_axis;
 mod placement;
@@ -65,11 +61,11 @@ use crate::render::inline::compute_inline_layout;
 use crate::style::ComputedStyle;
 
 use super::ifc::is_ifc_block;
+use super::items::{self, Item};
 use super::margin_trim::FlexTrim;
 use super::{element_children_of, layout_node};
 use collapse::SiblingOverlap;
 use cross::CrossSpace;
-use item::FlexItem;
 pub(in crate::render::layout_pass) use lines::{is_multi_line, lines_cross_size};
 use main_axis::{MainBudgets, collect_main_axis_items};
 use placement::{FlexLine, place_items};
@@ -254,10 +250,10 @@ pub(super) fn layout_children(
     //
     // CSS Flexbox §4: the items are the in-flow children — elements, the
     // pseudo-elements, and an anonymous item per run of text.
-    let mut children = item::flex_items(dom, id);
+    let mut children = items::items_of(dom, id);
     // CSS Flexbox §5.4: the items are laid out in order-modified
     // document order.
-    item::sort_by_order(dom, &mut children);
+    items::sort_by_order(dom, &mut children);
     // `D-M2-2`: a positioned child's static position in a flex
     // container is the content box's start — Flexbox §4.1 places it as
     // the sole item; `justify-content` / `align-items` are not applied
@@ -299,7 +295,7 @@ pub(super) fn layout_children(
 /// modules.
 pub(super) fn layout_flex_children(
     dom: &mut Dom<TuiExt>,
-    children: &[FlexItem],
+    children: &[Item],
     container: LayoutRect,
     parent: &ComputedStyle,
 ) -> Vec<AnonymousIfc> {

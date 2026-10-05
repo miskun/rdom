@@ -382,8 +382,8 @@ fn measure_content(
     // them — in order-modified document order (§5.4: its first and last
     // items, for `margin-trim`).
     if computed.flow == crate::layout::Flow::Flex {
-        let mut items = super::flex::item::flex_items(dom, id);
-        super::flex::item::sort_by_order(dom, &mut items);
+        let mut items = super::items::items_of(dom, id);
+        super::items::sort_by_order(dom, &mut items);
         let content = if items.is_empty() {
             0
         } else {
@@ -455,7 +455,7 @@ fn measure_content(
         dom,
         id,
         computed,
-        &super::flex::item::elements(&children),
+        &super::items::elements(&children),
         direction,
         cross_budget,
         containing_block_width,

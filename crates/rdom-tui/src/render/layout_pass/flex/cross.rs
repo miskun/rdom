@@ -5,10 +5,10 @@
 
 use rdom_core::Dom;
 
-use super::item::FlexItem;
 use crate::ext::TuiExt;
 use crate::layout::{AspectRatio, Direction, MarginValue, Size, clamp_size};
 use crate::render::layout_pass::box_sizing::Sizer;
+use crate::render::layout_pass::items::Item;
 use crate::style::ComputedStyle;
 
 /// The already-resolved main axis, as the cross resolver sees it, and
@@ -113,7 +113,7 @@ fn cross_margins(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place_cross(
     dom: &Dom<TuiExt>,
-    item: &FlexItem,
+    item: &Item,
     child_computed: &ComputedStyle,
     container_width: u16,
     space: CrossSpace,
@@ -174,7 +174,7 @@ pub(super) fn place_cross(
 /// margins — what a multi-line container's line is as large as.
 pub(super) fn hypothetical_outer_cross(
     dom: &Dom<TuiExt>,
-    item: &FlexItem,
+    item: &Item,
     container_width: u16,
     space: CrossSpace,
     direction: Direction,
@@ -232,7 +232,7 @@ impl BaselineBox {
 /// alignment.
 pub(super) fn baseline_box(
     dom: &Dom<TuiExt>,
-    item: &FlexItem,
+    item: &Item,
     container_width: u16,
     space: CrossSpace,
     main: ResolvedMain,
@@ -259,14 +259,14 @@ pub(super) fn baseline_box(
     );
     let synthesized = height.saturating_sub(1);
     let rows = match item {
-        FlexItem::Element(id) => crate::render::inline::vertical::content_rows(
+        Item::Element(id) => crate::render::inline::vertical::content_rows(
             dom,
             *id,
             &computed,
             main.size,
             container_width,
         ),
-        FlexItem::Anonymous(anon) => anon.content_rows(dom, main.size, container_width),
+        Item::Anonymous(anon) => anon.content_rows(dom, main.size, container_width),
     };
     let (first, last) = rows.unwrap_or((synthesized, synthesized));
     // CSS Box Alignment 3 §9.1: "for legacy reasons" a scroll container's
@@ -373,7 +373,7 @@ struct MainAxisFacts {
 /// Then clamps by `min` / `max`.
 fn resolve_cross_size(
     dom: &Dom<TuiExt>,
-    item: &FlexItem,
+    item: &Item,
     computed: &ComputedStyle,
     space: CrossSpace,
     container_width: u16,

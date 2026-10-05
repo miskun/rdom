@@ -17,11 +17,11 @@ use super::{Measure, content_max_size, content_min_size, intrinsic_size_inner};
 use crate::ext::TuiExt;
 use crate::layout::{Direction, IntrinsicSize, MaxSize, MinSize, Size};
 use crate::render::layout_pass::box_sizing::Sizer;
-use crate::render::layout_pass::flex::item::AnonymousItem;
+use crate::render::layout_pass::items::AnonymousItem;
 use crate::style::ComputedStyle;
 
 /// What a keyword measures: an element's subtree, or the content of an
-/// anonymous or generated flex item (`flex::item`), which has no node.
+/// anonymous or generated flex item (`layout_pass::items`), which has no node.
 #[derive(Clone, Copy)]
 enum Subject<'a> {
     Node(NodeId),

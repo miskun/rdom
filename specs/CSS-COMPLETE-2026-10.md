@@ -3575,3 +3575,8 @@ row comes from.
   self-aligned (DIVERGENCES §4); a generated flex item's `aspect-ratio` (§9.2 step 3.B reads an
   element's); logical-side builders (a kept declaration, not a field); `SIZE-1` (TECH_DEBT) files,
   `walk.rs` and `layout_pass/mod.rs` added.
+- 2026-10-08 — C7-GRID-CORE, prep (no behaviour change, no test changed): the item model leaves
+  `flex/`, so grid shares it without reaching into flex — `flex/item.rs` and `flex/anonymous.rs`
+  are `layout_pass/items/{mod,anonymous}.rs`, `FlexItem` is `items::Item` and `flex_items`
+  `items::items_of` (CSS Grid 2 §6.1 builds grid items exactly as CSS Flexbox §4 builds flex
+  items). Moves and renames only.
