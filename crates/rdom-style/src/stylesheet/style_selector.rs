@@ -149,6 +149,9 @@ impl Stylesheet {
         style: TuiStyle,
         origin: RuleOrigin,
     ) -> Vec<Rule> {
+        // The direction-mapped forms of the block, built once for every
+        // item (and once for the `::placeholder` subset, if any).
+        let directional = style.directional_overlays().map(std::sync::Arc::new);
         selector
             .items
             .iter()
@@ -158,10 +161,12 @@ impl Stylesheet {
                 self.next_source_idx += 1;
                 // CSS Pseudo-Elements 4 §4.3: only the `::first-line`
                 // properties apply to `::placeholder`.
-                let style = if item.pseudo == PseudoElementTarget::Placeholder {
-                    style.first_line_subset()
+                let (style, directional) = if item.pseudo == PseudoElementTarget::Placeholder {
+                    let subset = style.first_line_subset();
+                    let directional = subset.directional_overlays().map(std::sync::Arc::new);
+                    (subset, directional)
                 } else {
-                    style.clone()
+                    (style.clone(), directional.clone())
                 };
                 Rule {
                     selector: SelectorList(vec![item.complex.clone()]),
@@ -173,6 +178,7 @@ impl Stylesheet {
                     source_text: item.text.clone(),
                     layer: None,
                     scope: None,
+                    directional,
                 }
             })
             .collect()

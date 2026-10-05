@@ -170,6 +170,30 @@ pub struct Rule {
     /// The innermost `@scope` the rule sits in (CSS Cascade 6 §2.5), as
     /// declared in its own sheet; `None` for an unscoped rule.
     pub scope: Option<ScopeId>,
+    /// `style`'s direction-mapped declarations replayed for each
+    /// `direction`, built with the rule ([`Rule::directional_overlay`]).
+    directional: Option<std::sync::Arc<[TuiStyle; 2]>>,
+}
+
+impl Rule {
+    /// The block's inline-axis flow-relative declarations (CSS Logical 1
+    /// §4) — with the declarations after them, in source order — mapped
+    /// for an element of `direction`, which the cascade applies after
+    /// [`style`](Self::style). Built once, when the rule is added, for a
+    /// block whose kept declarations need no substitution (no `var()` or
+    /// `attr()`: [`TuiStyle::needs_substitution`]), so the cascade parses
+    /// nothing per element; `None` for any other block (a block with a
+    /// substitution function replays per element).
+    pub fn directional_overlay(
+        &self,
+        direction: crate::layout::TextDirection,
+    ) -> Option<&TuiStyle> {
+        let [ltr, rtl] = self.directional.as_deref()?;
+        Some(match direction {
+            crate::layout::TextDirection::Rtl => rtl,
+            _ => ltr,
+        })
+    }
 }
 
 /// Error produced while parsing a stylesheet rule.

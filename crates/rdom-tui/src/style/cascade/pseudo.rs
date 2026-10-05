@@ -87,6 +87,7 @@ pub(super) fn compute_pseudo_style(
     // own `direction`, as for an element (`walk::compute_element_style`).
     let directional = decls.has_directional();
     let mut direction = host_computed.text_direction;
+    let mut runs = 0;
     let (mut working, substituted, colors) = loop {
         // Pseudo-elements inherit from the host's computed style (per
         // spec), not from the host's parent, and share the host's vars
@@ -107,16 +108,20 @@ pub(super) fn compute_pseudo_style(
         let colors = apply_cascade_ladder(
             &mut working,
             plan,
-            decls.with(substituted.as_ref()),
+            decls.with(substituted.as_ref(), direction),
             host_computed,
             preferred,
         );
         if !directional || working.text_direction == direction {
             break (working, substituted, colors);
         }
+        // A flow-relative property cannot change `direction`, so the run
+        // with the element's own direction settles it: two runs at most.
+        runs += 1;
+        debug_assert!(runs < 2, "the direction re-run settles `direction`");
         direction = working.text_direction;
     };
-    let decls = decls.with(substituted.as_ref());
+    let decls = decls.with(substituted.as_ref(), working.text_direction);
     colors.finalize(&mut working, host_computed.fg, preferred);
 
     finalize_bfc_formation(&mut working);

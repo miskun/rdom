@@ -92,6 +92,20 @@ fn logical_and_physical_declarations_cascade_together() {
     assert_eq!(rect(&dom, b).x, 4, "the more specific logical rule wins");
 }
 
+/// The same under `rtl`, where inline-start is the right margin: the
+/// block's direction-mapped form is built once with the sheet
+/// (C5G-LOGICAL-COST) and keeps the declarations' order.
+#[test]
+fn declaration_order_holds_under_rtl() {
+    let css = |decls: &str| {
+        format!(".wrap {{ direction: rtl; width: 20 }} .b {{ {decls}; width: 1; height: 1 }}")
+    };
+    let (dom, b) = one(&css("margin-right: 2; margin-inline-start: 5"));
+    assert_eq!(rect(&dom, b).x, 14, "the later logical margin (5) wins");
+    let (dom, b) = one(&css("margin-inline-start: 5; margin-right: 2"));
+    assert_eq!(rect(&dom, b).x, 17, "the later physical margin (2) wins");
+}
+
 /// CSS Logical 1 §6: `border-start-end-radius` is the corner at the
 /// block-start and inline-end sides — top-right under `ltr`, top-left
 /// under `rtl`.

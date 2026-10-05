@@ -141,6 +141,9 @@ pub(super) struct Declarations<'a> {
     pub ranks: &'a [u32],
     pub inline: Option<&'a TuiStyle>,
     pub substituted: Option<&'a Substituted>,
+    /// The element's `direction`, which picks each rule's
+    /// [`Rule::directional_overlay`].
+    pub direction: crate::layout::TextDirection,
 }
 
 impl<'a> Declarations<'a> {
@@ -154,6 +157,7 @@ impl<'a> Declarations<'a> {
             ranks,
             inline,
             substituted: None,
+            direction: crate::layout::TextDirection::Ltr,
         }
     }
 
@@ -170,20 +174,31 @@ impl<'a> Declarations<'a> {
     }
 
     /// These declarations with `var()` substituted (`None`: none held
-    /// `var()`).
-    pub(super) fn with(self, substituted: Option<&'a Substituted>) -> Self {
+    /// `var()`) for an element of `direction`.
+    pub(super) fn with(
+        self,
+        substituted: Option<&'a Substituted>,
+        direction: crate::layout::TextDirection,
+    ) -> Self {
         Declarations {
             substituted,
+            direction,
             ..self
         }
     }
 
     /// The `i`th matched rule's declaration blocks: the rule's own, then
-    /// its substituted `var()` declarations when it has any — applying
-    /// both in order is applying the substituted block.
+    /// its kept declarations — substituted per element when they hold
+    /// `var()` / `attr()`, else the rule's prebuilt form for the
+    /// element's direction (`Rule::directional_overlay`) — applying
+    /// both in order is applying the whole block.
     fn rule_blocks(self, i: usize) -> impl Iterator<Item = &'a TuiStyle> + 'a {
-        let overlay = self.substituted.and_then(|s| s.rules[i].as_ref());
-        std::iter::once(&self.sorted[i].style).chain(overlay)
+        let rule = self.sorted[i];
+        let overlay = self
+            .substituted
+            .and_then(|s| s.rules[i].as_ref())
+            .or_else(|| rule.directional_overlay(self.direction));
+        std::iter::once(&rule.style).chain(overlay)
     }
 
     /// The inline style's declaration blocks, the same way.
@@ -235,14 +250,18 @@ pub(super) struct Substituted {
 impl Substituted {
     /// Substitute the blocks of `decls` that hold `var()` from `vars`
     /// (the element's custom properties); `None` when none does, which
-    /// is the common case and costs one scan.
+    /// is the common case and costs one scan. A rule whose kept
+    /// declarations are only direction-mapped (no `var()` / `attr()`)
+    /// needs nothing here: its prebuilt form applies
+    /// (`Rule::directional_overlay`). An inline style is per element
+    /// anyway, and replays here.
     pub(super) fn new(
         decls: Declarations<'_>,
         vars: &crate::style::VarMap,
         attrs: rdom_style::backend::AttrLookup<'_>,
         direction: crate::layout::TextDirection,
     ) -> Option<Self> {
-        let any = decls.sorted.iter().any(|r| r.style.has_pending())
+        let any = decls.sorted.iter().any(|r| r.style.needs_substitution())
             || decls.inline.is_some_and(TuiStyle::has_pending);
         if !any {
             return None;
@@ -250,10 +269,15 @@ impl Substituted {
         let cx = rdom_style::backend::SubstitutionContext::new()
             .with_attrs(attrs)
             .with_direction(direction);
-        let sub = |s: &TuiStyle| s.has_pending().then(|| s.substituted_pending(vars, &cx));
+        let rule = |s: &TuiStyle| {
+            s.needs_substitution()
+                .then(|| s.substituted_pending(vars, &cx))
+        };
         Some(Substituted {
-            rules: decls.sorted.iter().map(|r| sub(&r.style)).collect(),
-            inline: decls.inline.and_then(sub),
+            rules: decls.sorted.iter().map(|r| rule(&r.style)).collect(),
+            inline: decls
+                .inline
+                .and_then(|s| s.has_pending().then(|| s.substituted_pending(vars, &cx))),
         })
     }
 }

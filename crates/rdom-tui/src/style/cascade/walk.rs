@@ -459,6 +459,7 @@ fn compute_element_style(
     // property re-runs with the element's own when they differ.
     let directional = decls.has_directional();
     let mut direction = parent.text_direction;
+    let mut runs = 0;
     let (mut working, substituted, colors) = loop {
         let mut working = ComputedStyle::initial();
         inherit_inheritable_from(&mut working, parent);
@@ -475,16 +476,20 @@ fn compute_element_style(
         let colors = apply_cascade_ladder(
             &mut working,
             plan,
-            decls.with(substituted.as_ref()),
+            decls.with(substituted.as_ref(), direction),
             parent,
             preferred,
         );
         if !directional || working.text_direction == direction {
             break (working, substituted, colors);
         }
+        // A flow-relative property cannot change `direction`, so the run
+        // with the element's own direction settles it: two runs at most.
+        runs += 1;
+        debug_assert!(runs < 2, "the direction re-run settles `direction`");
         direction = working.text_direction;
     };
-    let decls = decls.with(substituted.as_ref());
+    let decls = decls.with(substituted.as_ref(), working.text_direction);
     // `currentcolor` takes the element's final `color`, `light-dark()`
     // its final `color-scheme`.
     colors.finalize(&mut working, parent.fg, preferred);

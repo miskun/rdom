@@ -11,6 +11,7 @@
 use super::ladder::probe::{LADDER_WALKS, ROLLBACK_ALLOCS, take};
 use super::*;
 use crate::TuiDom;
+use crate::node::TuiNodeExt;
 use crate::style::Stylesheet;
 
 fn sheet(css: &str) -> Stylesheet {
@@ -86,4 +87,54 @@ fn headless_cascades_with_the_same_sheets_build_one_registry() {
     let other = sheet("div { color: blue }");
     dom.cascade_all(&[&css, &other]);
     assert_eq!(take_builds(), 1, "so is another list");
+}
+
+/// `C5G-LOGICAL-COST` — an inline-axis flow-relative property maps by
+/// the element's `direction` (CSS Logical 1 §4), but the block's two
+/// physical forms are built once, with the sheet: cascading an element
+/// against `margin-inline-start` (and a declaration after it, which
+/// keeps its order) allocates no more than against `margin-left`.
+#[test]
+fn a_logical_block_cascades_at_the_cost_of_its_physical_twin() {
+    use crate::test_alloc::allocations_in;
+    let cost = |css: &str| {
+        let mut dom = one_div();
+        let css = sheet(css);
+        // Warm-up: the first cascade builds the per-document caches.
+        dom.cascade(&css);
+        allocations_in(|| dom.cascade(&css))
+    };
+    let physical = cost("div { margin-left: 1; color: red }");
+    let logical = cost("div { margin-inline-start: 1; color: red }");
+    assert!(
+        logical <= physical,
+        "logical {logical} allocations, physical {physical}"
+    );
+}
+
+/// An element whose own `direction` differs from the inherited one runs
+/// the ladder at most twice when a matched block is directional (the
+/// second run with its own direction; a flow-relative property cannot
+/// change `direction`).
+#[test]
+fn a_direction_change_reruns_the_ladder_once() {
+    let mut dom = one_div();
+    let css = sheet("div { direction: rtl; margin-inline-start: 1 }");
+    take(&LADDER_WALKS);
+    dom.cascade(&css);
+    assert_eq!(
+        take(&LADDER_WALKS),
+        3,
+        "the element twice, ::selection once"
+    );
+    let div = dom.node(dom.root()).first_child().unwrap().id();
+    let margin = &dom.node(div).computed().unwrap().margin;
+    assert_eq!(
+        (margin.left.clone(), margin.right.clone()),
+        (
+            crate::layout::MarginValue::Cells(0),
+            crate::layout::MarginValue::Cells(1)
+        ),
+        "rtl: inline-start is the right margin"
+    );
 }

@@ -55,6 +55,36 @@ impl TuiStyle {
         !self.pending.is_empty()
     }
 
+    /// Does a kept declaration hold a substitution function (`var()`,
+    /// `attr()`), which only the element can resolve? Without one, the
+    /// kept declarations depend on the element's `direction` alone, and
+    /// a rule builds their form for each direction once
+    /// ([`Rule::directional_overlay`](crate::Rule::directional_overlay)).
+    pub fn needs_substitution(&self) -> bool {
+        self.pending.iter().any(|d| d.has_substitution)
+    }
+
+    /// The kept declarations of a style that holds an inline-axis
+    /// flow-relative property and no substitution function, replayed in
+    /// source order for an `ltr` and an `rtl` element — what
+    /// [`substituted_pending`](Self::substituted_pending) gives for each
+    /// direction, built once (`Rule::directional_overlay`). `None` when
+    /// nothing is kept or a substitution function is.
+    pub(crate) fn directional_overlays(&self) -> Option<[TuiStyle; 2]> {
+        if !self.has_pending() || self.needs_substitution() {
+            return None;
+        }
+        let vars = HashMap::new();
+        let overlay = |direction| {
+            let cx = SubstitutionContext::new().with_direction(direction);
+            self.substituted_pending(&vars, &cx)
+        };
+        Some([
+            overlay(crate::layout::TextDirection::Ltr),
+            overlay(crate::layout::TextDirection::Rtl),
+        ])
+    }
+
     /// This style with its pending declarations substituted from `vars`
     /// (the element's custom properties) and `cx` (its attributes), and
     /// parsed, in source order. A declaration invalid at computed-value

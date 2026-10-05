@@ -1671,3 +1671,22 @@ row comes from.
   `ESC _ x` row of `dcs_and_apc_strings_are_consumed` failed; green after. Changed expectation: that
   test (was `dcs_apc_pm_sos_strings_are_consumed`) drops its PM / SOS rows and their prefix-wait rows,
   which asserted the behaviour removed here.
+- 2026-10-07 — C5G-LOGICAL-COST (gate fix): an inline-axis flow-relative declaration put every later
+  declaration of its block on `pending`, which the cascade replayed per element (a throwaway
+  `TuiStyle`, the token re-parse, a `Vec` per element). Now a rule whose kept declarations need no
+  substitution (`TuiStyle::needs_substitution`: no `var()` / `attr()`) carries their two
+  direction-mapped forms, built once in `Stylesheet::rules_for` from `substituted_pending` with each
+  direction (`TuiStyle::directional_overlays`, shared by the items of a selector list through an
+  `Arc`; the `::placeholder` subset gets its own) — `Rule::directional_overlay(direction)`.
+  `Declarations` carries the element's direction (`with(substituted, direction)`) and `rule_blocks`
+  applies the rule's overlay after its block, exactly where the per-element replay went, so CSS
+  Logical 1 §4's declaration order is unchanged; `Substituted::new` now substitutes only blocks that
+  need it (and inline styles, which are per element anyway). Decided: built per rule at sheet build,
+  not cached inside `TuiStyle` — its fields are public, so a cache there could go stale; a `Rule` is
+  immutable once in a sheet. The direction re-run of the ladder stays (the element's own `direction`
+  is what the ladder computes) and is capped by a `debug_assert!` at two runs (walk.rs, pseudo.rs).
+  Red: `a_logical_block_cascades_at_the_cost_of_its_physical_twin` (counting allocator, warm second
+  cascade) failed — 27 allocations against 24 for `margin-left`; green after (≤).
+  `a_direction_change_reruns_the_ladder_once` (three ladder walks: the element twice, `::selection`)
+  and `declaration_order_holds_under_rtl` pin the cap and the order (both passed before; regression
+  guards). No expectation changed.
