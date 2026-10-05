@@ -121,6 +121,7 @@ define_fields! {
     Display => display : DISPLAY,
     Flow => flow : FLOW,
     ListItem => list_item : LIST_ITEM,
+    WebkitBox => webkit_box : WEBKIT_BOX,
     Direction => direction : FLEX_DIRECTION,
     FlexReverse => flex_reverse : FLEX_REVERSE,
     FlexWrap => flex_wrap : FLEX_WRAP,

@@ -57,17 +57,19 @@ pub(crate) fn clamp_point(dom: &Dom<TuiExt>, id: NodeId) -> Option<ClampPoint> {
     })
 }
 
-/// Gather `id`'s line boxes into `lines` and the bottom of every box of
-/// its block-level descendants into `bottom`. A descendant that is an
-/// independent formatting context (or a flex / grid container) counts
-/// as a box whose lines are its own; an out-of-flow one not at all.
+/// Gather `id`'s line boxes into `lines` and the bottom of the content
+/// of its block-level descendants into `bottom` — each one's content box,
+/// not its padding or border, which are no content to follow the Nth
+/// line. A descendant that is an independent formatting context (or a
+/// flex / grid container) counts as a box whose lines are its own (its
+/// border box); an out-of-flow one not at all.
 fn collect(dom: &Dom<TuiExt>, id: NodeId, root: bool, lines: &mut Vec<Line>, bottom: &mut i32) {
     let Some(ext) = dom.node(id).ext() else {
         return;
     };
     let box_less = crate::render::box_tree::is_contents(dom, id);
     if !root && !box_less {
-        *bottom = (*bottom).max(ext.layout.bottom());
+        *bottom = (*bottom).max(ext.content_layout.bottom());
     }
     if let (Some(il), Some(origin)) = (
         ext.inline_layout.as_ref(),

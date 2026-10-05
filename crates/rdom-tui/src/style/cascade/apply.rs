@@ -279,6 +279,7 @@ pub(super) fn apply_style(
         display: DISPLAY,
         flow: FLOW,
         list_item: LIST_ITEM,
+        webkit_box: WEBKIT_BOX,
         white_space: WHITE_SPACE,
         user_select: USER_SELECT,
         pointer_events: POINTER_EVENTS,

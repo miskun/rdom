@@ -271,6 +271,10 @@ pub struct ComputedStyle {
     /// inherited; default `false`. rdom has no `::marker` yet: a list
     /// item lays out as its outer and inner types say (DIVERGENCES).
     pub list_item: bool,
+    /// Whether `display` is `-webkit-box` / `-webkit-inline-box`
+    /// (Compat Standard §5; `TuiStyle::webkit_box`). Not inherited;
+    /// default `false`.
+    pub webkit_box: bool,
     /// True when this element establishes a new **block formatting
     /// context** per CSS 2.1 §9.4.1. Triggers: root element, flex
     /// containers, inline-blocks, absolute/fixed positioning,
@@ -483,6 +487,7 @@ impl ComputedStyle {
             display: Display::Block,
             flow: crate::layout::Flow::Block,
             list_item: false,
+            webkit_box: false,
             establishes_new_bfc: false,
             white_space: WhiteSpace::Normal,
             user_select: UserSelect::Auto,

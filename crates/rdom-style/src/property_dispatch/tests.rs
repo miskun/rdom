@@ -557,6 +557,7 @@ fn removing_display_clears_the_derived_flow() {
             crate::ImportantMask::DISPLAY
                 | crate::ImportantMask::FLOW
                 | crate::ImportantMask::LIST_ITEM
+                | crate::ImportantMask::WEBKIT_BOX
         )
     );
 }

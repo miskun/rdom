@@ -122,6 +122,7 @@ impl TuiStyle {
         self.display = Some(Value::Specified(Display::Block));
         self.flow = Some(Value::Specified(Flow::Grid));
         self.list_item = Some(Value::Specified(false));
+        self.webkit_box = Some(Value::Specified(false));
         self
     }
 
@@ -131,6 +132,7 @@ impl TuiStyle {
         self.display = Some(Value::Specified(Display::Inline));
         self.flow = Some(Value::Specified(Flow::Grid));
         self.list_item = Some(Value::Specified(false));
+        self.webkit_box = Some(Value::Specified(false));
         self
     }
 

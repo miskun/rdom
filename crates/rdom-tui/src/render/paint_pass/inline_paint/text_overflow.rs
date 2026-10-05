@@ -43,7 +43,11 @@ impl Marking {
         let c = ext.computed.as_deref()?;
         let block = block_line(dom, owner, anon)
             .and_then(|line| Some((line, c.block_ellipsis.marker()?.to_string())));
-        let overflows = c.overflow_x.clips() && !c.text_overflow.is_clip();
+        // §3: the property applies to a block container's line boxes; a
+        // flex or grid container's text is an anonymous item's, whose box
+        // has the initial `clip`.
+        let overflows =
+            c.flow.is_block_flow() && c.overflow_x.clips() && !c.text_overflow.is_clip();
         if block.is_none() && !overflows {
             return None;
         }

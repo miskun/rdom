@@ -231,6 +231,10 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         display,
         flow,
         list_item,
+        // `-webkit-box` with PERTURB's vertical `-webkit-box-orient` and
+        // `max-lines` is the legacy clamp, which would undo its `flow`:
+        // covered by `display_tests` and `css_phase8::line_clamp`.
+        webkit_box: _,
         // Derived at finalization from display / position / overflow.
         establishes_new_bfc: _,
         line_clamp_container: _,

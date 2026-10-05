@@ -255,6 +255,12 @@ pub struct TuiStyle {
     /// whether the element is a list item. Written by the `display`
     /// parser with the two fields above.
     pub list_item: Option<Value<bool>>,
+    /// Whether `display` was a legacy flexbox keyword, `-webkit-box` /
+    /// `-webkit-inline-box` (Compat Standard §5): laid out as `flex` /
+    /// `inline-flex` along its `-webkit-box-orient`, the condition of
+    /// the legacy line clamp, and serialized as written. Written by the
+    /// `display` parser with the three fields above.
+    pub webkit_box: Option<Value<bool>>,
     pub white_space: Option<Value<WhiteSpace>>,
     pub user_select: Option<Value<UserSelect>>,
     /// CSS `pointer-events` (`auto` | `none`). Inherited.

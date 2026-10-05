@@ -52,6 +52,29 @@ impl ClipEdges {
         }
     }
 
+    /// [`of`](Self::of) for the element `id`, its line clamp included: a
+    /// line-clamp container's content ends at its clamp point on the
+    /// block axis, whatever its `overflow` (CSS Overflow 4 §4.4), for
+    /// paint, hit-testing and the scrollable overflow alike.
+    pub(crate) fn of_element(
+        dom: &rdom_core::Dom<TuiExt>,
+        id: rdom_core::NodeId,
+        ext: &TuiExt,
+        c: &ComputedStyle,
+    ) -> Self {
+        let edges = Self::of(ext, c);
+        if !c.line_clamp_container {
+            return edges;
+        }
+        match super::line_clamp::clamp_point(dom, id) {
+            Some(point) => edges.narrow(Self {
+                x: None,
+                y: Some((i32::MIN / 2, point.bottom)),
+            }),
+            None => edges,
+        }
+    }
+
     /// The edges of both: each axis the narrower.
     pub(crate) fn narrow(self, other: Self) -> Self {
         let both = |a: Option<(i32, i32)>, b: Option<(i32, i32)>| match (a, b) {

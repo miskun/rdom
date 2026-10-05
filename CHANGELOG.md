@@ -34,6 +34,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 19. **Overflowing text paints past its box**: a fixed-height or narrow box's extra lines and columns show unless the box has `overflow: hidden` / `clip` (CSS Overflow 3 §3.1); add one to keep them cut. (C8-OVERFLOW-TEXT)
 20. **A padded scroller's bar sits at its padding edge, and its end is reachable** (CSS Overflow 3 §2.2, §5.2): the bar moved from beside the content box to the column inside the border; `scrollHeight` / `scrollWidth` count the padding and are never less than the scrollport; content is clipped out of the gutters. (C8G-SCROLLPORT)
 21. **`display: block` on `::before` / `::after` makes a line of its own**: such a pseudo-element was inline text in its host's line; it is now a block box above (below) the host's content, and `display: none` hides one that used to show. (C8G-PSEUDO-BOXES)
+22. **A vertical `display: -webkit-box` is a column, and a flex container draws no `text-overflow` marker** (Compat Standard §5, CSS Overflow 4 §3): its children stacked where they sat in a row; a `display: flex; text-overflow: ellipsis` box's text is clipped without `…`. (C8G-WEBKIT-CLAMP)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -218,6 +219,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- `TuiStyle::webkit_box` / `ComputedStyle::webkit_box`: whether `display` was the Compat Standard's `-webkit-box` / `-webkit-inline-box` (written by the `display` parser with its other fields; serialized as written), and `parse::values::is_legacy_box`. (C8G-WEBKIT-CLAMP)
 - **`scroll-snap-type`, `scroll-snap-align`, `scroll-snap-stop`** (CSS Scroll Snap 1 §5–§6): `ScrollSnapType` (`None`, `Snap(ScrollSnapAxis, ScrollSnapStrictness)`), `ScrollSnapAxis` (`physical()`), `ScrollSnapStrictness`, `ScrollSnapAlign { block, inline }` of `SnapAlign`, `ScrollSnapStop`, the `TuiStyle` / `ComputedStyle` fields and builders, `parse_scroll_snap_type` / `_align` / `_stop`. (C8-SNAP)
 - **`scroll-padding` and `scroll-margin`** (CSS Scroll Snap 1 §4): the shorthands, the `-top` / `-right` / `-bottom` / `-left` longhands and the flow-relative longhands and shorthands — `ScrollPadding` (`Auto`, `Length(PaddingValue)`, `resolve`), `TuiStyle::scroll_padding_*` / `scroll_margin_*` with their builders, `ComputedStyle::scroll_padding_*` / `scroll_margin_*` (`i16` cells), `parse_scroll_padding(_shorthand)` / `parse_scroll_margin(_shorthand)`. (C8-SCROLL-PADDING)
 - **`overscroll-behavior`** (CSS Overscroll Behavior 1 §3): the shorthand (one or two values), `-x` / `-y`, and `-block` / `-inline` as their `horizontal-tb` aliases — `OverscrollBehavior` (`keyword`, `chains`), `TuiStyle::overscroll_behavior_x` / `_y` with their builders, `ComputedStyle::overscroll_behavior_x` / `_y`, `parse_overscroll_behavior` / `parse_overscroll_behavior_shorthand`. (C8-OVERSCROLL)
@@ -465,6 +467,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - `SetPropertyError::source()` returns the `DispatchError` / `DomError` it wraps, and its `Display` uses theirs. (C8-PARSE-ERROR)
 
 ### Fixed — `rdom-tui`
+
+- **The prefixed-plus-standard line clamp clamps**: `display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3` is clamped to three lines (the later `line-clamp` no longer switches the legacy form off); a vertical `-webkit-box` stacks its children; a flex container draws no `text-overflow` ellipsis; a clamped box's hidden lines and a block's bottom padding no longer count as content. (C8G-WEBKIT-CLAMP)
 
 - **`::before` / `::after` honour their `display`** (CSS 2.1 §12.1, CSS Pseudo 4 §2): `block` / `flow-root` / `flex` / `grid` make a block box of the host's flow (`content: ""` an empty one, `clear` applies, so the clearfix contains its float); `none` generates nothing; the initial value is `inline`. (C8G-PSEUDO-BOXES)
 

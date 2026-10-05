@@ -149,7 +149,7 @@ fn containing_scroller(dom: &Dom<TuiExt>, id: NodeId) -> Option<(NodeId, ClipEdg
         if c.is_scroll_container() {
             return Some((p, clip));
         }
-        clip = clip.narrow(ClipEdges::of(ext, c));
+        clip = clip.narrow(ClipEdges::of_element(dom, p, ext, c));
         cur = parent_id(dom, p);
     }
     None

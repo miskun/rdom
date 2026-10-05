@@ -198,21 +198,16 @@ pub(crate) fn children_clip(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle, cl
     let Some(ext) = dom.node(id).ext() else {
         return clip;
     };
-    let mut edges = crate::render::layout_pass::ClipEdges::of(ext, c);
     // A line-clamp container hides what follows its clamp point (CSS
     // Overflow 4 §4.4), whatever its `overflow`.
-    if let Some(point) = crate::render::layout_pass::line_clamp::clamp_point(dom, id) {
-        edges = edges.narrow(crate::render::layout_pass::ClipEdges {
-            x: None,
-            y: Some((i32::from(clip.y), point.bottom)),
-        });
-    }
+    let edges = crate::render::layout_pass::ClipEdges::of_element(dom, id, ext, c);
     if edges == crate::render::layout_pass::ClipEdges::NONE {
         return clip;
     }
-    // An axis that does not clip keeps the clip's own span.
+    // An edge narrows the clip; an axis that does not clip keeps it.
     let span = |edge: Option<(i32, i32)>, start: u16, len: u16| {
-        let (s, e) = edge.unwrap_or((i32::from(start), i32::from(start) + i32::from(len)));
+        let (lo, hi) = (i32::from(start), i32::from(start) + i32::from(len));
+        let (s, e) = edge.map_or((lo, hi), |(s, e)| (s.max(lo), e.min(hi)));
         (s, (e - s).clamp(0, i32::from(u16::MAX)) as u16)
     };
     let (x, width) = span(edges.x, clip.x, clip.width);

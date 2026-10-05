@@ -157,3 +157,19 @@ fn grid_is_an_inner_display_type() {
     assert!(Flow::Grid.is_flex_or_grid() && Flow::Flex.is_flex_or_grid());
     assert!(!Flow::Grid.is_block_flow() && !Flow::FlowRoot.is_flex_or_grid());
 }
+
+/// C8G-WEBKIT-CLAMP (API N9): the Compat Standard's legacy keywords read
+/// back as written, as browsers serialize them (`getComputedStyle` gives
+/// `-webkit-box`), and a later `display` clears the legacy flag.
+#[test]
+fn the_legacy_webkit_box_keywords_read_back() {
+    for kw in ["-webkit-box", "-webkit-inline-box"] {
+        let mut style = TuiStyle::new();
+        set("display", kw, &mut style).unwrap();
+        assert_eq!(serialize("display", &style).as_deref(), Some(kw));
+    }
+    let mut style = TuiStyle::new();
+    set("display", "-webkit-box", &mut style).unwrap();
+    set("display", "flex", &mut style).unwrap();
+    assert_eq!(serialize("display", &style).as_deref(), Some("flex"));
+}

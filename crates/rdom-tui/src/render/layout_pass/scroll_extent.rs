@@ -307,7 +307,7 @@ pub(super) fn extend_box_overflow(
             if c.is_scroll_container() {
                 return;
             }
-            inner = clip.narrow(ClipEdges::of(ext, c));
+            inner = clip.narrow(ClipEdges::of_element(dom, id, ext, c));
         }
     }
     // Its line boxes, which may reach past its box (a `nowrap` line, lines

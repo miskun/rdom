@@ -135,6 +135,8 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
                 style.display = Some(Value::Specified(display));
                 style.flow = Some(Value::Specified(flow));
                 style.list_item = Some(Value::Specified(list_item));
+                style.webkit_box =
+                    Some(Value::Specified(crate::parse::values::is_legacy_box(value)));
             })
         }
         // CSS Flexbox §5.1: the axis, and whether its start and end swap.

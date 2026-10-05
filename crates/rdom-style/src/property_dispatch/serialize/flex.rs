@@ -9,6 +9,16 @@ use crate::TuiStyle;
 pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> {
     let out = match name {
         "display" => style.display.as_ref().and_then(specified).map(|d| {
+            // Compat Standard §5: the legacy keywords read back as written.
+            if style.webkit_box.as_ref().and_then(specified) == Some(&true) {
+                let inline = *d == crate::layout::Display::Inline;
+                return if inline {
+                    "-webkit-inline-box"
+                } else {
+                    "-webkit-box"
+                }
+                .to_string();
+            }
             let flow = style.flow.as_ref().and_then(specified).copied();
             let list_item = style.list_item.as_ref().and_then(specified).copied();
             crate::parse::values::serialize_display(

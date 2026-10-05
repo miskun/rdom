@@ -5033,3 +5033,30 @@ row comes from.
   mutation: no intrinsic hook → 2 × 1). CSS-COVERAGE: the `::before` / `::after` row Supported → Partial
   (it had claimed what `display` never did), §3.16 3 / 2 / 5 / 6, total 157 / 24 / 80 / 46. No existing
   test expectation or snapshot changed.
+- 2026-10-10 — C8G-WEBKIT-CLAMP (API B2, API N8 / N9, architect N5). Found: (1) `display: -webkit-box;
+  -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3` — what autoprefixers and Tailwind
+  emit — was not clamped: the later `line-clamp` set `continue: collapse`, the legacy test needed
+  `-webkit-legacy`, and the box stayed a flex row; (2) `-webkit-box` parsed as plain `flex`, so a vertical
+  one without a clamp was a row and `display` read back `flex`; (3) a flex container with `text-overflow:
+  ellipsis` marked its anonymous items' lines; (4) the clamp clipped only in `stacking::children_clip`, so
+  a clamped paragraph's hidden lines counted in its scroller's overflow (`scrollHeight` 10 in a 3-row
+  box); (5) `clamp_point` took a nested block's border-box bottom as content after the Nth line, so
+  bottom padding drew an ellipsis. Decisions: rdom-style keeps the legacy keyword
+  (`TuiStyle::webkit_box` / `ComputedStyle::webkit_box`, a `display`-owned field beside `list_item`,
+  `parse::values::is_legacy_box`), and `display` serializes it as written (`-webkit-box` /
+  `-webkit-inline-box`, as browsers' `getComputedStyle` does). The cascade rule
+  (`style/cascade/line_clamp.rs`): a `-webkit-box` with a vertical orient and `max-lines` is the legacy
+  clamp whatever `continue` says (a `flex` box with the orient no longer is — the DIVERGENCES caveat is
+  gone); a `-webkit-box` without a clamp is a flex container whose direction is its orient (Chromium's
+  legacy flexbox ignores `flex-direction`). `text-overflow` marks only a block container's lines (§3:
+  "applies to block containers"). The clamp joins the clip edges: `ClipEdges::of_element` adds a
+  line-clamp container's clamp point on the block axis and serves paint / hit-testing
+  (`children_clip`, whose spans now narrow the incoming clip), the scrollable-overflow walk and
+  `positioned_overflow`. `clamp_point` reads a recursed descendant's content box. Red:
+  `display_tests::the_legacy_webkit_box_keywords_read_back` (`flex` for `-webkit-box`);
+  `css_phase8/line_clamp.rs` — the pair 3 rows for 2, the vertical box `abcd` for a column, the
+  scroller `scrollHeight` 10 for 3, `b…` for `b`; `text_overflow.rs::a_flex_container_draws_no_ellipsis`
+  `abcde…` for `abcdef`. Green after. Changed expectations: `apply_tests`'s exhaustive initial test skips
+  `webkit_box` (PERTURB's vertical orient and `max-lines` would make it the legacy clamp and undo its
+  `flow`; covered by the tests above), and `property_dispatch::tests`' `display` mask gains
+  `WEBKIT_BOX`. No snapshot changed.

@@ -175,6 +175,7 @@ impl TuiStyle {
         self.display = Some(Value::Specified(v));
         // No `Display` is a list item; `list_item` is the flag beside it.
         self.list_item = Some(Value::Specified(false));
+        self.webkit_box = Some(Value::Specified(false));
         match v {
             Display::Block | Display::InlineBlock => {
                 self.flow = Some(Value::Specified(crate::layout::Flow::Block));
@@ -185,7 +186,8 @@ impl TuiStyle {
     }
     pub fn display_important(mut self, v: Display) -> Self {
         self = self.display(v);
-        self.important |= ImportantMask::DISPLAY | ImportantMask::LIST_ITEM;
+        self.important |=
+            ImportantMask::DISPLAY | ImportantMask::LIST_ITEM | ImportantMask::WEBKIT_BOX;
         self
     }
     /// Set the inner display type — the second half of `display`

@@ -122,3 +122,15 @@ fn copying_an_ellipsed_line_copies_the_whole_text() {
     );
     assert_eq!(serialize_selection(&dom, &range), "abcdefghij");
 }
+
+/// C8G-WEBKIT-CLAMP (API N8): `text-overflow` applies to a block
+/// container's line boxes (§3); a flex container has none — its text is
+/// an anonymous flex item, whose box takes the initial `clip` — so no
+/// ellipsis is drawn, as in every engine.
+#[test]
+fn a_flex_container_draws_no_ellipsis() {
+    assert_eq!(
+        line("display: flex; text-overflow: ellipsis", "abcdefghij"),
+        "abcdef    "
+    );
+}

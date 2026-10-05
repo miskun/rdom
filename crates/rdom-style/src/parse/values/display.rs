@@ -84,6 +84,14 @@ pub fn parse_display(value: &[Token]) -> Option<(Display, Flow, bool)> {
     Some((pair.0, pair.1, list_item))
 }
 
+/// Whether a `display` value is one of the Compat Standard's legacy
+/// flexbox keywords (§5), `-webkit-box` / `-webkit-inline-box`, which
+/// [`parse_display`] maps to `flex` / `inline-flex`.
+pub fn is_legacy_box(value: &[Token]) -> bool {
+    matches!(value, [Token::Ident(s)] if s.eq_ignore_ascii_case("-webkit-box")
+        || s.eq_ignore_ascii_case("-webkit-inline-box"))
+}
+
 /// The shortest text of a `display` value (CSSOM §6.7.2): a legacy
 /// keyword where one exists, else the keywords that are not the
 /// default (`inline list-item`, `flow-root list-item`).

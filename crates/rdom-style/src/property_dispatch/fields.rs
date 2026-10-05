@@ -26,7 +26,7 @@ fn all_fields() -> &'static [Field] {
 /// Shorthands own several (`overflow` → X + Y, `inset` → the four
 /// sides, `margin` → its four longhands); a per-side longhand owns its
 /// side's field. `display` owns the derived
-/// `flow` and `list_item` too, so removing or `inherit`ing `display`
+/// `flow`, `list_item` and `webkit_box` too, so removing or `inherit`ing `display`
 /// cannot leave a stale inner type behind. `None` for unknown names.
 pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
     use Field::*;
@@ -61,7 +61,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "font-style" => &[Italic],
         "text-decoration" => &[TextDecoration],
         "opacity" => &[Opacity],
-        "display" => &[Display, Flow, ListItem],
+        "display" => &[Display, Flow, ListItem, WebkitBox],
         "flex-direction" => &[Direction, FlexReverse],
         "flex-wrap" => &[FlexWrap],
         // CSS Flexbox §5.3: the shorthand sets both longhands.
