@@ -14,7 +14,8 @@ use crate::layout::Display;
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::is_ifc_block;
 use crate::render::stacking::{
-    LayerEntry, Layers, collect_layers, creates_stacking_context, is_positioned,
+    LayerEntry, Layers, collect_layers, creates_stacking_context, for_each_atom_shadow,
+    is_positioned, paints_atomically,
 };
 use crate::render::{Buffer, Rect};
 
@@ -98,11 +99,34 @@ fn paint_layers(
 }
 
 /// Paint an in-flow element as a plain box: its own box, then its
-/// in-flow content.
-fn paint_plain(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect, viewport: Rect) {
-    let Some(frame) = paint_box(dom, id, buf, clip, Shadows::UnderText) else {
+/// in-flow content. An atomic box (`parent`'s flex item, an inline
+/// block) is a paint unit of its own: its shadows paint whole, then its
+/// in-flow boxes' shadows (its background phase), then its content.
+fn paint_plain(
+    dom: &Dom<TuiExt>,
+    parent: NodeId,
+    id: NodeId,
+    buf: &mut Buffer,
+    clip: Rect,
+    viewport: Rect,
+) {
+    let atomic = dom
+        .node(id)
+        .computed()
+        .is_some_and(|c| paints_atomically(dom, parent, c));
+    let shadows = if atomic {
+        Shadows::Whole
+    } else {
+        Shadows::UnderText
+    };
+    let Some(frame) = paint_box(dom, id, buf, clip, shadows) else {
         return;
     };
+    if atomic {
+        for_each_atom_shadow(dom, id, frame.children_clip, &mut |e| {
+            shadow::paint_backdrop_shadow(dom, &e, buf);
+        });
+    }
     paint_content(dom, id, buf, clip, viewport, &frame);
 }
 
@@ -144,7 +168,7 @@ pub(super) fn recurse_children(
                     Some(c) if creates_stacking_context(c) => {
                         paint_stacking_context(dom, cid, buf, clip, viewport);
                     }
-                    _ => paint_plain(dom, cid, buf, clip, viewport),
+                    _ => paint_plain(dom, id, cid, buf, clip, viewport),
                 }
             }
             NodeType::Fragment => recurse_children(dom, cid, buf, clip, viewport),

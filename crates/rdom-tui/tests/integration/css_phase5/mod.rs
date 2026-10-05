@@ -6,6 +6,7 @@
 use rdom_tui::render::{Buffer, Rect};
 use rdom_tui::{CascadeExt, LayoutExt, LayoutRect, NodeId, PaintExt, TuiDom, TuiNodeExt};
 
+mod atom_shadows;
 mod bare_pseudo;
 mod box_sizing;
 mod contain;

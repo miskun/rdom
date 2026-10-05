@@ -1599,3 +1599,22 @@ row comes from.
   `.a ::before` painted `>AB` (the `div`'s own `::before`) instead of `A>B`; green after. Changed
   expectations: the four `extract_rejects_bare_*` assertions (the old rejection) became the new
   test. DIVERGENCES §3's line removed; the C5-BOX-SIZING migration hint names the bare reset again.
+- 2026-10-07 — C5G-FLEX-SHADOW (gate fix, blocking): flex items paint exactly as inline blocks
+  (CSS Flexbox §5.4), i.e. atomically, as if they created a stacking context whose positioned
+  descendants still belong to the parent (CSS 2.1 Appendix E, 7.2.1.4.1.1). C4G-SHADOW-ORDER had
+  queued a flex item's shadow as a step-4 block shadow, so it painted under an earlier item's text.
+  New `stacking::paints_atomically` (an inline block, an inline flex container, or a child of a flex
+  container — through a fragment, the element above it): `collect_layers` no longer queues an atomic
+  box's shadow or its in-flow descendants' (`unit: Option<usize>`, `None` below an atom; positioned
+  descendants still join the context's layers, and a `z-index: auto` one starts its own unit as
+  before); `paint_plain` paints an atomic box with `Shadows::Whole`, then its own background phase —
+  `stacking::for_each_atom_shadow`, a walk of its in-flow boxes that stops at positioned boxes,
+  contexts and nested atoms (each box visited by one unit; no allocation) — then its content.
+  Decided: the document root's children (laid out as flex items, DIVERGENCES §1) stay block boxes for
+  paint, as a browser's `<body>` children are — `an_outer_shadow_paints_under_earlier_siblings_text`
+  pins that. No grid items yet (Phase 7). Inline-block atoms inside an inline formatting context paint
+  through `paint_ifc`, which paints no box shadow and no block descendants — their own shadow is
+  C5G-INLINE-BLOCK-SHADOW. Red: `css_phase5/atom_shadows.rs` — the flex item's shadow and the shadow
+  of a block inside a flex item both left `aaaab` (glyphs kept under a tinted shade) where the
+  browser's `aa  b` is expected; green after. A third test (a later block's shadow inside one flex
+  item stays under that item's earlier text) passed before and after. No expectation changed.

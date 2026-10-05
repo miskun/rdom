@@ -18,7 +18,12 @@
 //! whose outer `box-shadow`s belong to the background phase of 3 (CSS
 //! 2.1 Appendix E step 4 paints block backgrounds — and box shadows,
 //! Backgrounds 3 §7.2 — before any inline content; see
-//! `paint_pass::shadow`). Each entry carries the clip that
+//! `paint_pass::shadow`). An atomic box — an inline block, an inline
+//! flex container, a flex item (which paints exactly as an inline
+//! block, Flexbox §5.4) — paints as if it created a stacking context
+//! whose positioned descendants still belong to this one (Appendix E,
+//! step 7.2.1.4.1.1): its in-flow boxes' shadows are its own background
+//! phase ([`for_each_atom_shadow`]), not this context's. Each entry carries the clip that
 //! applies to it: CSS 2.1 §11.1.1 — an overflow ancestor clips a
 //! positioned descendant only when the descendant's containing block is
 //! that ancestor or lies inside it, so an `absolute` box takes the clip
@@ -30,7 +35,7 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::{Display, Overflow, Position, ZIndex};
+use crate::layout::{Display, Flow, Overflow, Position, ZIndex};
 use crate::node::TuiNodeExt;
 use crate::render::Rect;
 use crate::render::paint_pass::layout_rect_to_grid;
@@ -99,6 +104,31 @@ pub(crate) fn is_positioned(c: &ComputedStyle) -> bool {
     c.position != Position::Static
 }
 
+/// Does the in-flow element `c` (a child of `parent`) paint
+/// atomically — as an inline block does, as if it created a stacking
+/// context (CSS 2.1 Appendix E)? Inline blocks and inline flex
+/// containers do, and so do flex items (CSS Flexbox §5.4: they paint
+/// exactly as inline blocks). The children of the document root are
+/// block boxes for paint (rdom lays them out as flex items, a
+/// documented divergence; a browser's `<body>` children are blocks).
+pub(crate) fn paints_atomically(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bool {
+    if c.display == Display::InlineBlock || (c.display == Display::Inline && c.flow == Flow::Flex) {
+        return true;
+    }
+    // A fragment child is laid out in the element above the fragment.
+    let mut p = dom.node(parent);
+    while p.node_type() == NodeType::Fragment {
+        match p.parent_node() {
+            Some(up) => p = up,
+            None => return false,
+        }
+    }
+    p.node_type() == NodeType::Element
+        && p.ext()
+            .and_then(|e| e.computed.as_ref())
+            .is_some_and(|pc| pc.flow == Flow::Flex)
+}
+
 /// Does an element with this style establish a stacking context?
 /// (The document root always does.)
 pub(crate) fn creates_stacking_context(c: &ComputedStyle) -> bool {
@@ -160,7 +190,7 @@ pub(crate) fn collect_layers(
         layers: &mut layers,
         order: 0,
     };
-    walk.children(root, root, 0);
+    walk.children(root, root, Some(0));
     layers.negative.sort_by_key(|e| (e.z, e.order));
     layers.positive.sort_by_key(|e| (e.z, e.order));
     // Stable: tree order within each unit.
@@ -180,8 +210,10 @@ struct Walk<'a> {
 impl Walk<'_> {
     /// Walk the children of `id`; `box_parent` is the element whose
     /// content paint reaches them (`id`, or the element above a
-    /// fragment), `unit` the paint unit they belong to.
-    fn children(&mut self, id: NodeId, box_parent: NodeId, unit: usize) {
+    /// fragment), `unit` the paint unit they belong to — `None` inside
+    /// an atomic box, whose own paint gathers its in-flow shadows
+    /// ([`for_each_atom_shadow`]).
+    fn children(&mut self, id: NodeId, box_parent: NodeId, unit: Option<usize>) {
         let dom = self.dom;
         let viewport = self.viewport;
         for child in dom.node(id).child_nodes() {
@@ -251,15 +283,20 @@ impl Walk<'_> {
                         positioned: true,
                         content_clip: children_clip(dom, cid, c, clip),
                     });
-                    self.children(cid, cid, entry.unit());
+                    self.children(cid, cid, Some(entry.unit()));
                     self.chain.pop();
                 }
             } else if creates_stacking_context(c) {
                 // `opacity < 1` on an in-flow box: painted atomically in
                 // place; nothing inside it belongs to this context.
             } else {
-                if c.box_shadow.iter().any(|s| !s.inset)
-                    && crate::render::paint_pass::paints_child_box(dom, box_parent, cid)
+                // An atomic box paints its own shadow whole at its turn,
+                // and its in-flow boxes' in its own background phase;
+                // only its positioned descendants are this context's.
+                let atomic = paints_atomically(dom, box_parent, c);
+                if let Some(unit) = unit
+                    && !atomic
+                    && casts_backdrop_shadow(dom, box_parent, cid, c)
                 {
                     self.layers.shadows.push(ShadowEntry {
                         id: cid,
@@ -271,9 +308,78 @@ impl Walk<'_> {
                     positioned: false,
                     content_clip: children_clip(dom, cid, c, current.content_clip),
                 });
-                self.children(cid, cid, unit);
+                self.children(cid, cid, if atomic { None } else { unit });
                 self.chain.pop();
             }
         }
+    }
+}
+
+/// Does the in-flow, non-atomic element `id` (style `c`, reached
+/// through `box_parent`'s content paint) have an outer shadow that
+/// paints in its unit's background phase?
+fn casts_backdrop_shadow(
+    dom: &Dom<TuiExt>,
+    box_parent: NodeId,
+    id: NodeId,
+    c: &ComputedStyle,
+) -> bool {
+    c.box_shadow.iter().any(|s| !s.inset)
+        && crate::render::paint_pass::paints_child_box(dom, box_parent, id)
+}
+
+/// The background phase of the atomic box `atom`
+/// ([`paints_atomically`]): call `f` with each of its in-flow,
+/// non-atomic boxes that casts an outer shadow, in tree order.
+/// `content_clip` is the clip `atom`'s content paints into. The walk
+/// stops at positioned boxes and stacking contexts (they belong to the
+/// enclosing context's layers) and at nested atomic boxes (their own
+/// units), so each box is visited by one unit only; it allocates
+/// nothing.
+pub(crate) fn for_each_atom_shadow(
+    dom: &Dom<TuiExt>,
+    atom: NodeId,
+    content_clip: Rect,
+    f: &mut impl FnMut(ShadowEntry),
+) {
+    atom_shadows_in(dom, atom, atom, content_clip, f);
+}
+
+fn atom_shadows_in(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    box_parent: NodeId,
+    clip: Rect,
+    f: &mut impl FnMut(ShadowEntry),
+) {
+    for child in dom.node(id).child_nodes() {
+        let cid = child.id();
+        match child.node_type() {
+            NodeType::Fragment => {
+                atom_shadows_in(dom, cid, box_parent, clip, f);
+                continue;
+            }
+            NodeType::Element => {}
+            _ => continue,
+        }
+        let Some(c) = child.ext().and_then(|e| e.computed.as_ref()) else {
+            atom_shadows_in(dom, cid, cid, clip, f);
+            continue;
+        };
+        if c.display == Display::None
+            || is_positioned(c)
+            || creates_stacking_context(c)
+            || paints_atomically(dom, box_parent, c)
+        {
+            continue;
+        }
+        if casts_backdrop_shadow(dom, box_parent, cid, c) {
+            f(ShadowEntry {
+                id: cid,
+                clip,
+                unit: 0,
+            });
+        }
+        atom_shadows_in(dom, cid, cid, children_clip(dom, cid, c, clip), f);
     }
 }

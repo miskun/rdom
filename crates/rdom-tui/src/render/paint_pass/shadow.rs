@@ -17,7 +17,10 @@
 //! [`paint_backdrop_shadows`] in the unit's background phase, before
 //! its content, and again at the box's turn in tree order, under the
 //! glyphs already painted. A translucent shadow composites once, at
-//! the box's turn: it keeps the glyphs beneath anyway.
+//! the box's turn: it keeps the glyphs beneath anyway. An atomic box
+//! (an inline block, a flex item — `stacking::paints_atomically`) is a
+//! paint unit of its own: its shadows paint whole at its turn, its
+//! in-flow boxes' in its background phase.
 
 use rdom_core::{Dom, NodeType};
 
@@ -65,16 +68,21 @@ pub(super) fn paint_outer_shadows(
 /// in-flow boxes (`stacking::collect_layers`), in tree order.
 pub(super) fn paint_backdrop_shadows(dom: &Dom<TuiExt>, boxes: &[ShadowEntry], buf: &mut Buffer) {
     for e in boxes {
-        let node = dom.node(e.id);
-        if node.node_type() != NodeType::Element {
-            continue;
-        }
-        let Some(computed) = node.computed() else {
-            continue;
-        };
-        let outer = node.layout_rect().unwrap_or_default();
-        paint_outer_shadows(buf, computed, outer, e.clip, Shadows::Backdrop);
+        paint_backdrop_shadow(dom, e, buf);
     }
+}
+
+/// One box's outer shadows in its unit's background phase.
+pub(super) fn paint_backdrop_shadow(dom: &Dom<TuiExt>, e: &ShadowEntry, buf: &mut Buffer) {
+    let node = dom.node(e.id);
+    if node.node_type() != NodeType::Element {
+        return;
+    }
+    let Some(computed) = node.computed() else {
+        return;
+    };
+    let outer = node.layout_rect().unwrap_or_default();
+    paint_outer_shadows(buf, computed, outer, e.clip, Shadows::Backdrop);
 }
 
 /// Paint `computed`'s inset shadows inside the padding box of the
