@@ -36,7 +36,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 4 | Backgrounds and borders | done 2026-10-06 (both gates; 19 gate fixes `C4G-*`; their re-review rides with the Phase 5 gate; C4-SPACING layout with C13-TFC) |
 | 5 | Box model and sizing (incl. logical properties) | done 2026-10-07 (both gates; 19 gate fixes `C5G-*`; their re-review rides with the Phase 6 gate; C5-CONTAIN-SIZE use with C14-CONTAIN) |
 | 6 | Display, visibility, flexbox, box alignment | done 2026-10-08 (both gates; 28 gate fixes `C6G-*`; their re-review rides with the Phase 7 gate) |
-| 7 | Grid | |
+| 7 | Grid | gates run 2026-10-09; `C7G-*` fixes in progress |
 | 8 | Positioning, floats, overflow, scrolling | |
 | 9 | Inline text and decoration | |
 | 10 | Lists, counters, generated content, pseudo-elements | |
@@ -179,6 +179,7 @@ row comes from.
 | C8-SCROLL-PADDING | `scroll-padding*` / `scroll-margin*` | |
 | C8-SNAP | `scroll-snap-type` / `-align` / `-stop` | |
 | C8-OVERFLOW-TEXT | A non-clipping descendant's overflowing line boxes count toward the ancestor's scrollable overflow | |
+| C8-CB-COMPLETE | Containing block for positioned boxes, completing C7-ABSPOS-PADDING-EDGE: `sticky` ancestors in the ancestor walks, the scrollbar gutter excluded, scroll offsets applied inside a positioned scroller, one shared ancestor walk (elements and pseudo-elements, incl. the §9.1 grid area for pseudos) | |
 | C8-POS-MINMAX | Positioned boxes (elements and pseudo-elements) honour `min-*` / `max-*` (CSS 2.1 §10.4 / §10.7 with §10.3.7 / §10.6.4); a `position: relative` pseudo with both insets takes its declared width | done (C5-POS-MINMAX + C5G-REL-PSEUDO-INSETS) |
 
 (Scroll-driven animations land in phase 12.)
@@ -4030,3 +4031,29 @@ row comes from.
   gates are next. CSS-COVERAGE §3.9: 9 of 10 rows *Supported* (`masonry` / `grid-lanes` the decided
   exclusion). ACID.md: grid is now usable for a tile — proposed as a new tile 18 (Grid layout), not an
   extension of tile 7 (the reasons are in its coverage note).
+- 2026-10-09 — Phase 7 gates (with the C6G re-review: all 28 at the root). Architect: 1 blocking —
+  grid line edges are stored absolute and not moved by `shift_subtree`, so an `align-content` shift
+  leaves positioned grid children on the old edges. API: 2 blocking — no grid example in the doctested
+  READMEs and two docs still say grid does not exist; DESIGN classifies none of the 17 new public types
+  (and `GridTemplate` alone is `#[non_exhaustive]` while read through accessors, so a future value would
+  lay out as `none`). Non-blocking: `ComputedStyle::initial()` allocates two `Vec`s for every element;
+  public track lists can panic layout (no validity check on read, `TrackList::default()`); grid
+  `content_size` reads pass-written line state (memo purity), subgrid shims measured then discarded;
+  subgrid memo key a `format!`, `flatten` unmemoized (quadratic), name strings per run; padding-edge
+  containing block incomplete (sticky, gutter, scroll offsets, duplicated walks — scheduled as
+  C8-CB-COMPLETE); focus fixup only after a cascade (a visibility transition ending hidden keeps
+  focus); inline max-content ignores atom boxes; two stacking-context predicates; minor
+  (`clear_box_state` misses `grid_lines`, contents-restyle recascades whole subtree, blockify vs
+  `is_item_of` on fragments, span loop cost, `minmax(max<min)` in the auto-repeat count); SIZE-1
+  drifted; grid builder checks panic where DESIGN's rule says clamp (`span(0)`, `Count(0)`), negative /
+  NaN `fr` and `%` reach layout, empty track `Vec` panics; node setters undocumented panics, no
+  `set_grid_area` / grid `display` node setter / `place_*` builders, four `GridLine`s for an area;
+  upgrade guide misses `focus()` refusal before the next cascade, #16 (padding edge) under-ranked and
+  without a `top: -1` hint, ~7 table rows describe never-shipped APIs, `TuiNodeExt::direction()`
+  returns `Row` for `row-reverse`, over-length bullets; stale DIVERGENCES / COVERAGE / `Display::Block`
+  docs; missing integration tests (`1fr` vs `minmax(0,1fr)`, `place-items: center`, the page
+  layout); no public read of used track sizes. Accepted: re-resolve detecting aspect-ratio only
+  (record the `column wrap` flex exception), the debug-panic / release-drop builder rule, CSSOM
+  restriction model, `is_focusable_in_opened`, subgrid gap halving, z-index on items. Full reports:
+  `target/claude-logs/c7_gate_{architect,api}.md`. Fix as `C7G-*`, two batches (A correctness and cost,
+  B API and docs).
