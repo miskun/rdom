@@ -3062,3 +3062,19 @@ row comes from.
   container built only through node setters: `b` at (6, 4), `a` ordered after it at x 4). Mutation
   check (restored and touched): `set_order` writing nothing → `(0, Hidden)` for `(1, Hidden)`. No
   snapshot changed.
+- 2026-10-08 — C6G-FRONTEND-API (PN11). `property_dispatch::set_from_source(name, value, text)` had
+  no importance: rdom-css called `set_important` after it, a call-order protocol a second front end
+  would have to rediscover (an inline-axis declaration's importance rides on its kept declaration,
+  C5G-LOGICAL-IMPORTANT, so the order matters), while `set_custom_source` takes `important`.
+  Decision: the same shape — `set_from_source(name, value, text: Option<&str>, important, style)`;
+  the one body (`set_with_text`) takes the priority, routes a custom property to
+  `set_custom_source` with it, and marks any other after declaring it (`set_important`: the
+  fields' bits, or the kept declaration's flag). rdom-css's `apply_declaration` makes one call.
+  `parse::token::SpannedTokens` was a 3-tuple of parallel `Vec`s; it is a struct (`tokens`,
+  `positions`, `spans`; closed, a parse result whose every field is meaningful, DESIGN), built in
+  place by `tokenize_spans`. Red: the lib tests failed to compile (five arguments to a
+  four-argument `set_from_source`; no `tokens` / `positions` / `spans` fields). Green after:
+  `set_from_source_takes_important` (a plain property, a custom one, a `var()` value, an inline-axis
+  one, and a normal one left normal) and `tokenize_spans_names_its_parallel_lists`. Mutation check
+  (restored and touched): the importance dropped for non-custom properties → `color` not important.
+  No snapshot changed.

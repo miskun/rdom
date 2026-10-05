@@ -7,7 +7,9 @@
 //! `!important` → delegate one declaration at a time).
 
 use rdom_style::TuiStyle;
-use rdom_style::parse::token::{Token, TokenPos, TokenizerErrorKind, tokenize_spans};
+use rdom_style::parse::token::{
+    SpannedTokens, Token, TokenPos, TokenizerErrorKind, tokenize_spans,
+};
 use rdom_style::parse::values::render_value;
 use rdom_style::property_dispatch::{self, DispatchError};
 
@@ -55,7 +57,11 @@ impl DeclarationRun {
     /// collect its declarations; a malformed one warns now.
     pub(crate) fn push(&mut self, body: &str, line: u32, col: u32, warnings: &mut Vec<Warning>) {
         self.first_warning.get_or_insert(warnings.len());
-        let (tokens, positions, spans) = match tokenize_spans(body, line, col) {
+        let SpannedTokens {
+            tokens,
+            positions,
+            spans,
+        } = match tokenize_spans(body, line, col) {
             Ok(t) => t,
             Err(e) => {
                 let kind = match e.kind {
@@ -282,12 +288,8 @@ fn apply_declaration(decl: RawDeclaration, style: &mut TuiStyle, warnings: &mut 
     // Single source of truth: rdom_style::property_dispatch owns
     // the name→setter table. The block parser is now a thin
     // tokenizer + per-declaration loop on top of that.
-    match property_dispatch::set_from_source(name, value, decl.text, style) {
-        Ok(()) => {
-            if decl.important {
-                property_dispatch::set_important(name, true, style);
-            }
-        }
+    match property_dispatch::set_from_source(name, value, Some(decl.text), decl.important, style) {
+        Ok(()) => {}
         Err(DispatchError::UnknownProperty) => {
             warnings.push(Warning {
                 kind: WarningKind::UnknownProperty(name.to_string()),

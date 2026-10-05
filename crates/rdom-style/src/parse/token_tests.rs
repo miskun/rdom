@@ -229,3 +229,13 @@ fn dim(value: f64, integer: bool, unit: &str) -> Token {
         unit: unit.to_string(),
     }
 }
+
+/// C6G-FRONTEND-API: `tokenize_spans` returns a struct of the three
+/// parallel lists — the tokens, their positions and their byte ranges.
+#[test]
+fn tokenize_spans_names_its_parallel_lists() {
+    let spanned = tokenize_spans("a  b", 3, 7).unwrap();
+    assert_eq!(spanned.tokens.len(), 2);
+    assert_eq!(spanned.positions, vec![(3, 7), (3, 10)]);
+    assert_eq!(spanned.spans, vec![0..1, 3..4]);
+}

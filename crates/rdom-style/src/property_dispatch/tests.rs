@@ -1057,3 +1057,44 @@ fn specified_sides<T>(
 ) -> crate::layout::Sides<Option<Value<T>>> {
     sides.into().map(|v| Some(Value::Specified(v)))
 }
+
+// ─── set_from_source's importance (C6G-FRONTEND-API) ────────────────
+
+/// `set_from_source` takes the declaration's `!important` as
+/// `set_custom_source` does (CSS Cascade 4 §6.4: importance is per
+/// declaration) — for a plain property, a custom one, a `var()` value
+/// and an inline-axis flow-relative one alike — so a front end does not
+/// follow it with `set_important` in the right order.
+#[test]
+fn set_from_source_takes_important() {
+    use crate::parse::token::tokenize;
+    let mut s = TuiStyle::new();
+    let v = tokenize("red").unwrap();
+    set_from_source("color", &v, Some("red"), true, &mut s).unwrap();
+    assert!(is_important("color", &s));
+    let v = tokenize("1").unwrap();
+    set_from_source("--x", &v, None, true, &mut s).unwrap();
+    assert!(
+        s.custom_properties
+            .iter()
+            .any(|d| d.name == "x" && d.important)
+    );
+    let v = tokenize("var(--x)").unwrap();
+    set_from_source("margin-top", &v, Some("var(--x)"), true, &mut s).unwrap();
+    assert!(
+        s.pending
+            .iter()
+            .any(|d| d.name == "margin-top" && d.important)
+    );
+    set_from_source(
+        "margin-inline-start",
+        &tokenize("2").unwrap(),
+        None,
+        true,
+        &mut s,
+    )
+    .unwrap();
+    assert!(is_important("margin-inline-start", &s));
+    set_from_source("padding-top", &tokenize("2").unwrap(), None, false, &mut s).unwrap();
+    assert!(!is_important("padding-top", &s));
+}

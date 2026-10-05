@@ -111,15 +111,25 @@ pub fn tokenize_at(
     line: u32,
     col: u32,
 ) -> Result<(Vec<Token>, Vec<TokenPos>), TokenizerError> {
-    tokenize_spans(source, line, col).map(|(tokens, positions, _)| (tokens, positions))
+    tokenize_spans(source, line, col).map(|s| (s.tokens, s.positions))
 }
 
 /// A token's byte range in its source.
 pub type TokenSpan = std::ops::Range<usize>;
 
 /// [`tokenize_spans`]' result: the tokens, and parallel to them their
-/// positions and byte ranges.
-pub type SpannedTokens = (Vec<Token>, Vec<TokenPos>, Vec<TokenSpan>);
+/// positions and byte ranges — one entry per token in each list, so
+/// property parsers keep taking a plain `&[Token]` slice and a caller
+/// indexes the others alongside.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct SpannedTokens {
+    /// The tokens, whitespace and comments dropped.
+    pub tokens: Vec<Token>,
+    /// Each token's `(line, column)` in the enclosing document.
+    pub positions: Vec<TokenPos>,
+    /// Each token's byte range in the source.
+    pub spans: Vec<TokenSpan>,
+}
 
 /// [`tokenize_at`] with each token's byte range in `source` too, so a
 /// caller can cut a value's text out as written — the whitespace and
@@ -127,20 +137,18 @@ pub type SpannedTokens = (Vec<Token>, Vec<TokenPos>, Vec<TokenSpan>);
 /// property's value is the token sequence as written).
 pub fn tokenize_spans(source: &str, line: u32, col: u32) -> Result<SpannedTokens, TokenizerError> {
     let mut cursor = Cursor::at(source, line, col);
-    let mut tokens = Vec::new();
-    let mut positions = Vec::new();
-    let mut spans = Vec::new();
+    let mut out = SpannedTokens::default();
     loop {
         skip_ws_and_comments(&mut cursor)?;
         match cursor.peek() {
-            None => return Ok((tokens, positions, spans)),
+            None => return Ok(out),
             Some(c) => {
                 let pos = (cursor.line(), cursor.col());
                 let start = cursor.offset();
                 let tok = read_one(&mut cursor, c)?;
-                tokens.push(tok);
-                positions.push(pos);
-                spans.push(start..cursor.offset());
+                out.tokens.push(tok);
+                out.positions.push(pos);
+                out.spans.push(start..cursor.offset());
             }
         }
     }

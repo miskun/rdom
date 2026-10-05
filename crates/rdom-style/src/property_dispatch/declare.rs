@@ -19,21 +19,27 @@ use crate::parse::token::{Token, tokenize};
 /// reads back as written.
 pub fn set(name: &str, value: &str, style: &mut TuiStyle) -> Result<(), DispatchError> {
     let tokens = tokenize(value).map_err(|_| DispatchError::InvalidValue)?;
-    set_with_text(name, &tokens, Some(value.trim()), style)
+    set_with_text(name, &tokens, Some(value.trim()), false, style)
 }
 
 /// [`set_from_tokens`] with the value's `text` as written (its source,
-/// trimmed): a custom property keeps it as its value (CSS Variables 1
-/// §2), and a declaration holding `var()` / `attr()` keeps it until the
-/// cascade substitutes it (§3), so CSSOM reads both back as written
-/// rather than re-serialized from tokens (`--x: 1 - 2`, not `1 -2`).
+/// trimmed), when the caller has it, and the declaration's
+/// `!important` — the shape of [`set_custom_source`]: a front end
+/// declares one parsed declaration in one call. A custom property keeps
+/// the text as its value (CSS Variables 1 §2), and a declaration holding
+/// `var()` / `attr()` keeps it until the cascade substitutes it (§3), so
+/// CSSOM reads both back as written rather than re-serialized from
+/// tokens (`--x: 1 - 2`, not `1 -2`). `important` marks the declaration
+/// `!important` (CSS Cascade 4 §6.4): the property's fields, a kept
+/// declaration's own flag, or the custom property's.
 pub fn set_from_source(
     name: &str,
     value: &[Token],
-    text: &str,
+    text: Option<&str>,
+    important: bool,
     style: &mut TuiStyle,
 ) -> Result<(), DispatchError> {
-    set_with_text(name, value, Some(text), style)
+    set_with_text(name, value, text, important, style)
 }
 
 /// Pre-tokenized variant of [`set`]. The block parser in
@@ -50,23 +56,39 @@ pub fn set_from_tokens(
     value: &[Token],
     style: &mut TuiStyle,
 ) -> Result<(), DispatchError> {
-    set_with_text(name, value, None, style)
+    set_with_text(name, value, None, false, style)
 }
 
 /// The one body of [`set`], [`set_from_tokens`] and [`set_from_source`]:
-/// `text` is the value as written, when the caller has it.
+/// `text` is the value as written, when the caller has it, and
+/// `important` the declaration's priority.
 fn set_with_text(
     name: &str,
     value: &[Token],
     text: Option<&str>,
+    important: bool,
     style: &mut TuiStyle,
 ) -> Result<(), DispatchError> {
     if let Some(custom) = name.strip_prefix("--") {
         if custom.is_empty() {
             return Err(DispatchError::UnknownProperty);
         }
-        return set_custom_source(custom, value, text, false, style);
+        return set_custom_source(custom, value, text, important, style);
     }
+    declare(name, value, text, style)?;
+    if important {
+        super::set_important(name, true, style);
+    }
+    Ok(())
+}
+
+/// Declare the non-custom property `name` (normal priority).
+fn declare(
+    name: &str,
+    value: &[Token],
+    text: Option<&str>,
+    style: &mut TuiStyle,
+) -> Result<(), DispatchError> {
     let name = &*canonical_property_name(name);
     if crate::var::contains_substitution(value) {
         if super::table::fields_of(name).is_none() {
