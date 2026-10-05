@@ -82,6 +82,7 @@ mod border;
 mod contain;
 mod css_wide;
 mod declare;
+mod fields;
 mod grid;
 mod importance;
 mod logical;

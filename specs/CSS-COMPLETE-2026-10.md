@@ -162,7 +162,7 @@ row comes from.
 | C7-SUBGRID | `subgrid` | done |
 | C7-GRID-RERESOLVE | CSS Grid 2 §11.1 steps 3–4: the columns, then the rows, sized again once when the rows changed an item's column contribution (part 1 follow-up) | done |
 | C7-ABSPOS-PADDING-EDGE | An absolutely positioned box's containing block is its positioned ancestor's padding box (CSS 2.1 §10.1, Grid §9.1) (part 1 follow-up) | done |
-| C7-SPLIT | File-size pass on `layout_pass/grid/*` and the files Phase 7 touched (TECH_DEBT `SIZE-1`) | |
+| C7-SPLIT | File-size pass on `layout_pass/grid/*` and the files Phase 7 touched (TECH_DEBT `SIZE-1`) | done |
 
 ### Phase 8 — Positioning, floats, overflow, scrolling (audit §3.10, §3.11)
 
@@ -4015,3 +4015,18 @@ row comes from.
   design is kept with `top: 5; left: 5`, the snapshot unchanged (with the old offsets the card moved one
   cell down and right, against the outer card's right border — the spec's result for that CSS). No
   test expectation changed. Consumer-visible: listed among the CHANGELOG's silent behaviour changes.
+- 2026-10-08 — C7-SPLIT (no behaviour change, no test changed): the file-size pass over
+  `layout_pass/grid/*` and every production file Phase 7 touched. The grid directory was kept under
+  500 lines a file as it grew (`size.rs` out of `mod.rs` for C7-GRID-RERESOLVE, `places.rs` and
+  `subgrid.rs` for C7-SUBGRID, `tracks_of` into `track.rs`); largest now `subgrid.rs` 484,
+  `placement.rs` 471. Two touched files were past the bar: `property_dispatch/table.rs` 566 (the grid
+  fields and shorthands) → `table.rs` 337 + `fields.rs` 237 (`fields_of` and `all_fields`, the
+  property → field map; `table` re-exports `fields_of`, so its callers are unchanged), and
+  `layout_pass/mod.rs` 533 → 482 + `flow.rs` 63 (`flow_axis` / `resolve_gap` / `gap_along`, the cut
+  `SIZE-1` named; re-exported). Moves only. TECH_DEBT `SIZE-1` drops both and lists what is left (none
+  of it touched by Phase 7).
+- 2026-10-08 — Phase 7 items complete (C7-GRID-CORE, -AUTO, -PLACE, -AREAS, -ALIGN, C7-SUBGRID and the
+  part 1 follow-ups C7-GRID-RERESOLVE, C7-ABSPOS-PADDING-EDGE, C7-SPLIT); the phase's architect and API
+  gates are next. CSS-COVERAGE §3.9: 9 of 10 rows *Supported* (`masonry` / `grid-lanes` the decided
+  exclusion). ACID.md: grid is now usable for a tile — proposed as a new tile 18 (Grid layout), not an
+  extension of tile 7 (the reasons are in its coverage note).

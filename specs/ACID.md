@@ -56,6 +56,7 @@ Each tile: what it combines → what the spec says the cells must show.
 | 15 | **Form controls** | text input and textarea UA chrome (padding, field background); `::placeholder` styled; checkbox / radio glyphs with `checked`; button labels including a value-less submit; closed `<select>`; `<progress>` / `<meter>` / range; `<fieldset disabled>` → `:disabled`; author `:invalid` styling on a `required` empty field | Each control's UA rendering exactly; disabled and invalid controls in their author colours. |
 | 16 | **Display & visibility** | `display: none` (takes no space); inline vs block vs inline-block vs flex vs inline-flex; `display: contents` (no box, children joining the parent); `flow-root` (no margin collapse through it); the multi-keyword syntax; `visibility: hidden` (space kept, nothing drawn) and `collapse` (a flex item's strut, a table row's removal); flex items blockified; `<details>` closed and open; the `hidden` attribute; `:empty` boxes | Exact presence and absence of boxes and the space they take. |
 | 17 | **Selection & `user-select`** | a pre-set selection range crossing `user-select: none`, `contain` and `all` regions; `::selection` styled; generated content never highlighted | Highlighted cells exactly where the used `user-select` value allows (CSS UI 4 §6.1). |
+| 18 | **Grid layout** (proposed with Phase 7, C7-*) | `grid-template` with named areas, row sizes and line names; `fr` / `minmax()` / `fit-content()` / `repeat(auto-fill)` tracks and `auto-fit` collapse; line-based and area placement beside `dense` auto-placement into implicit tracks; spanning items in intrinsic tracks; `justify-self` / `align-self` (a baseline row group, an `aspect-ratio` item), `auto` margins, `justify-content: space-between` widening a spanned area; a `subgrid` with padding whose items size the parent's columns; an absolutely positioned child in a named area of a bordered grid | Track sizes equal to the CSS Grid 2 §11 algorithm in whole cells (DIVERGENCES §1), every item at its §8 area and §10 alignment, the subgrid's items on the parent's lines (§9), the abspos box inside the padding edge (§9.1, CSS 2.1 §10.1). |
 
 ## Stage 2 — interactive script
 
@@ -87,6 +88,11 @@ mostly does not mention. The acid page can only use what is supported, so these 
 - ~~**Flex:** `flex-wrap`; the `flex-grow` / `flex-basis` longhands (only the `flex` shorthand and
   `flex-shrink` parse).~~ Shipped: C6-FLEX-LONGHANDS (the longhands), C6-WRAP (`flex-wrap`,
   `flex-flow`).
+- ~~**Grid:** not usable for a tile before Phase 7.~~ Shipped: C7-GRID-CORE, -AUTO, -PLACE, -AREAS,
+  -ALIGN, -RERESOLVE, C7-SUBGRID. Proposed as tile 18 of its own rather than an extension of tile 7:
+  grid is a second layout algorithm (§11 track sizing, §8 placement) whose interactions — areas
+  with placement, alignment with spanned tracks, a subgrid sizing its parent — would double tile 7's
+  cell budget and blur which algorithm a failing cell points at.
 - **Text:** `line-height`, `text-overflow`, `white-space: pre-line`.
 - **Overflow:** a non-clipping descendant's text lines that overflow its box do not count toward
   the ancestor's scrollable overflow (found while fixing `SCROLL-OVERFLOW-NESTED-ANON-1`).
@@ -95,6 +101,6 @@ mostly does not mention. The acid page can only use what is supported, so these 
 
 1. Decide the gaps above (ship, or move to DIVERGENCES §3).
 2. The reference format and the colour-aware comparator, with the per-tile failure report.
-3. Tiles 1–17, each reference reviewed against its spec section before it is committed.
+3. Tiles 1–18, each reference reviewed against its spec section before it is committed.
 4. The coverage test.
 5. Stage 2.
