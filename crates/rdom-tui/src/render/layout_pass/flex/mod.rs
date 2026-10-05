@@ -166,10 +166,8 @@ pub(super) fn layout_children(
     // inline_layout is computed even when its lines list is empty
     // or a single empty line. Paint reads it back to position the
     // REVERSED caret cell.
-    let has_text_child = dom
-        .node(id)
-        .child_nodes()
-        .any(|c| c.node_type() == rdom_core::NodeType::Text);
+    // Text in a box-less child is this box's text (CSS Display 3 §2.5).
+    let has_text_child = crate::render::box_tree::holds_loose_text(dom, id, &|_| true);
     // Only *in-flow* element children disqualify the pure-text-leaf path:
     // out-of-flow children (`position: absolute|fixed`) don't participate in the
     // block/inline mix, so a "text + an absolutely-positioned child" element

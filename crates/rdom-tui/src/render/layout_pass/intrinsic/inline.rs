@@ -97,21 +97,15 @@ pub(super) fn own_line_pseudo_rows(dom: &Dom<TuiExt>, id: NodeId, content_width:
     total
 }
 
-/// True iff `id` has at least one direct text child whose contents
+/// True iff `id` has at least one text child (or, through a box-less
+/// child, loose inline content) whose contents
 /// contain a non-whitespace character. Pure-whitespace text between
 /// element siblings is treated as ignorable in intrinsic measurement
 /// (matches CSS anonymous-block-around-inline collapse for empty
 /// inline runs).
 pub(super) fn has_non_whitespace_text(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    for child in dom.node(id).child_nodes() {
-        if child.node_type() == NodeType::Text
-            && let Some(text) = child.node_value()
-            && !text.chars().all(char::is_whitespace)
-        {
-            return true;
-        }
-    }
-    false
+    // Through box-less children, whose text is `id`'s (CSS Display 3 §2.5).
+    crate::render::box_tree::holds_loose_text(dom, id, &|t| !t.chars().all(char::is_whitespace))
 }
 
 pub(super) fn border_main_cost(computed: &ComputedStyle, direction: Direction) -> u16 {

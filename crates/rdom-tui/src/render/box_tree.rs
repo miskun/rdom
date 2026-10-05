@@ -21,6 +21,16 @@ use crate::ext::{PseudoSlot, StyleSlot, TuiExt};
 use crate::layout::Display;
 use crate::node::TuiNodeExt;
 
+#[cfg(test)]
+#[path = "box_tree_tests.rs"]
+mod tests;
+
+/// Count a child node a box-tree walk looks at (tests only).
+fn visit() {
+    #[cfg(test)]
+    tests::VISITS.with(|c| c.set(c.get() + 1));
+}
+
 /// `id` is an element whose computed `display` is `contents`.
 pub(crate) fn is_contents(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     let node = dom.node(id);
@@ -73,22 +83,47 @@ pub(crate) fn box_sequence(dom: &Dom<TuiExt>, id: NodeId) -> Vec<BoxItem> {
     out
 }
 
-fn push_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) {
+/// Push `id`'s box-tree children onto `out`; whether they include a
+/// block-level box. One walk decides and collects: a box-less child's
+/// items are collected in place and kept when they hold a block box,
+/// else replaced by the child itself — so each node is visited once,
+/// however deeply box-less elements nest.
+fn push_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) -> bool {
+    let mut holds = false;
     for child in dom.node(id).child_nodes() {
         let child = child.id();
-        if is_contents(dom, child) && holds_block_box(dom, child) {
+        visit();
+        if is_contents(dom, child) {
+            let mark = out.len();
             let pseudos = crate::render::inline::generated::visible_inline_pseudos(dom, child);
             if pseudos.before {
                 out.push(BoxItem::Generated(child, PseudoSlot::Before));
             }
-            push_sequence(dom, child, out);
-            if pseudos.after {
-                out.push(BoxItem::Generated(child, PseudoSlot::After));
+            if push_sequence(dom, child, out) {
+                if pseudos.after {
+                    out.push(BoxItem::Generated(child, PseudoSlot::After));
+                }
+                holds = true;
+            } else {
+                out.truncate(mark);
+                out.push(BoxItem::Node(child));
             }
         } else {
+            holds |= is_block_level_in_flow(dom, child);
             out.push(BoxItem::Node(child));
         }
     }
+    holds
+}
+
+/// `id` is an in-flow `display: block` element.
+fn is_block_level_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    dom.node(id).node_type() == NodeType::Element
+        && crate::render::layout_pass::is_in_flow(dom, id)
+        && dom
+            .node(id)
+            .computed()
+            .is_none_or(|s| s.display == Display::Block)
 }
 
 /// Whether `id`'s box-tree children include a block-level box: an
@@ -97,17 +132,32 @@ fn push_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) {
 pub(crate) fn holds_block_box(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     dom.node(id).child_nodes().any(|c| {
         let c = c.id();
-        if c == id || dom.node(c).node_type() != NodeType::Element {
-            return false;
-        }
+        visit();
         if is_contents(dom, c) {
-            return holds_block_box(dom, c);
+            holds_block_box(dom, c)
+        } else {
+            is_block_level_in_flow(dom, c)
         }
-        crate::render::layout_pass::is_in_flow(dom, c)
-            && dom
-                .node(c)
-                .computed()
-                .is_none_or(|s| s.display == Display::Block)
+    })
+}
+
+/// Whether `id`'s box-tree children include inline content outside any
+/// element box: a text child whose data satisfies `text`, or — through
+/// a box-less child — such a text, or a visible static `::before` /
+/// `::after` (CSS Display 3 §2.5). A flex container whose only content
+/// this is lays it out as one anonymous item (CSS Flexbox §4).
+pub(crate) fn holds_loose_text(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    text: &impl Fn(&str) -> bool,
+) -> bool {
+    dom.node(id).child_nodes().any(|c| match c.node_type() {
+        NodeType::Text => c.node_value().is_some_and(text),
+        NodeType::Element if is_contents(dom, c.id()) => {
+            let p = crate::render::inline::generated::visible_inline_pseudos(dom, c.id());
+            p.before || p.after || holds_loose_text(dom, c.id(), text)
+        }
+        _ => false,
     })
 }
 

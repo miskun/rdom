@@ -9,6 +9,7 @@ pub(crate) use super::css_phase5::{el, lay_out, paint, rect, rows, size};
 
 mod align;
 mod align_content;
+mod contents;
 mod direction_reverse;
 mod display;
 mod flex_direction_initial;

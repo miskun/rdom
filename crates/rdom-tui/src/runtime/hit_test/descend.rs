@@ -282,6 +282,7 @@ fn descend_children_reverse(
     let child_ids: Vec<NodeId> = crate::render::box_tree::paint_order_children(dom, id);
     for &child in child_ids.iter().rev() {
         let node = dom.node(child);
+        let mark = path.len();
         let hit = match node.node_type() {
             NodeType::Fragment => descend_children_reverse(dom, child, x, y, clip, viewport, path),
             // A box-less element (CSS Display 3 §2.5) is never hit
@@ -305,10 +306,35 @@ fn descend_children_reverse(
             _ => false,
         };
         if hit {
+            // A flex item reordered by `order` comes through its
+            // box-less ancestors (`paint_order_children` unwraps them):
+            // they stay on its path, outermost first.
+            insert_box_less_ancestors(dom, id, child, mark, path);
             return true;
         }
     }
     false
+}
+
+/// Insert at `mark` the element ancestors of `child` below `id` — the
+/// `display: contents` elements a box-tree walk unwrapped — outermost
+/// first. None for a direct child.
+fn insert_box_less_ancestors(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    child: NodeId,
+    mark: usize,
+    path: &mut Vec<NodeId>,
+) {
+    let mut cur = dom.node(child).parent_node();
+    while let Some(p) = cur
+        && p.id() != id
+    {
+        if p.node_type() == NodeType::Element {
+            path.insert(mark, p.id());
+        }
+        cur = p.parent_node();
+    }
 }
 
 /// Look up the inline fragment under `(x, y)` inside an IFC block's

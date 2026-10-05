@@ -103,21 +103,18 @@ pub(in crate::render::layout_pass) fn static_position_in_ifc(
     origin: LayoutRect,
 ) -> (i32, i32) {
     // Fragments are owned by the (possibly nested) node that carries
-    // their text; attribute each to the direct child of `parent` it
-    // sits under so it can be ordered against `child`.
-    let sibling_index: HashMap<NodeId, usize> = dom
-        .node(parent)
-        .child_nodes()
-        .enumerate()
-        .map(|(i, c)| (c.id(), i))
-        .collect();
-    let Some(&child_index) = sibling_index.get(&child) else {
+    // their text; attribute each to the item of `parent`'s box-tree
+    // children it sits under — a child node, or one inside a box-less
+    // child (CSS Display 3 §2.5), which spans its children — so it can
+    // be ordered against `child`.
+    let order = BoxOrder::of(dom, parent);
+    let Some(child_index) = order.span(child).map(|(start, _)| start) else {
         return (origin.x, origin.y);
     };
-    let top_level_index = |mut node: NodeId| -> Option<usize> {
+    let item_of = |mut node: NodeId| -> Option<(usize, usize)> {
         loop {
-            if let Some(&i) = sibling_index.get(&node) {
-                return Some(i);
+            if let Some(span) = order.span(node) {
+                return Some(span);
             }
             node = dom.node(node).parent_node()?.id();
         }
@@ -129,12 +126,16 @@ pub(in crate::render::layout_pass) fn static_position_in_ifc(
     for (line_idx, line) in layout.lines.iter().enumerate() {
         // Generated content hosted by a child's subtree is ordered with
         // that child (an inline element's pseudos sit at its start /
-        // end); otherwise it is the parent's own (or a list marker
-        // riding this first line): its `::before` is ahead of every
-        // child, its `::after` after them all.
+        // end, a box-less one's around its children); otherwise it is
+        // the parent's own (or a list marker riding this first line):
+        // its `::before` is ahead of every child, its `::after` after
+        // them all.
         for g in &line.generated {
-            let ahead = match top_level_index(g.host) {
-                Some(i) => i < child_index,
+            let ahead = match item_of(g.host) {
+                Some((start, end)) => match g.slot {
+                    PseudoSlot::Before => start < child_index,
+                    PseudoSlot::After => end < child_index,
+                },
                 None => g.slot == PseudoSlot::Before,
             };
             if ahead {
@@ -142,8 +143,8 @@ pub(in crate::render::layout_pass) fn static_position_in_ifc(
             }
         }
         for f in &line.fragments {
-            let owner = top_level_index(f.text_node).or_else(|| top_level_index(f.node));
-            if owner.is_some_and(|i| i < child_index) {
+            let owner = item_of(f.text_node).or_else(|| item_of(f.node));
+            if owner.is_some_and(|(start, _)| start < child_index) {
                 last = last.max(Some((line_idx, i32::from(f.x) + i32::from(f.width))));
             }
         }
@@ -161,6 +162,34 @@ pub(in crate::render::layout_pass) fn static_position_in_ifc(
         ),
         Some((line, _)) => (origin.x, origin.y + i32::from(layout.lines[line].bottom())),
         None => (origin.x, origin.y),
+    }
+}
+
+/// `parent`'s box-tree children in document order, each with its span
+/// of positions: a node one position, a box-less child (CSS Display 3
+/// §2.5) one before its children and one after them.
+struct BoxOrder(HashMap<NodeId, (usize, usize)>);
+
+impl BoxOrder {
+    fn of(dom: &Dom<TuiExt>, parent: NodeId) -> Self {
+        fn walk(dom: &Dom<TuiExt>, id: NodeId, next: &mut usize, out: &mut BoxOrder) {
+            for c in dom.node(id).child_nodes().map(|c| c.id()) {
+                let start = *next;
+                *next += 1;
+                if crate::render::box_tree::is_contents(dom, c) {
+                    walk(dom, c, next, out);
+                    *next += 1;
+                }
+                out.0.insert(c, (start, *next - 1));
+            }
+        }
+        let mut out = BoxOrder(HashMap::new());
+        walk(dom, parent, &mut 0, &mut out);
+        out
+    }
+
+    fn span(&self, id: NodeId) -> Option<(usize, usize)> {
+        self.0.get(&id).copied()
     }
 }
 

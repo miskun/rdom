@@ -2495,3 +2495,38 @@ row comes from.
   gap); `a_root_child_turned_none_reads_zero` — `(0, 0, 10, 1)` for the zero rect. Green after.
   Mutation checks (each alone, reverted and touched): line boxes kept → the `Ifc` assertion; scroll
   height kept → the Tab-stop assertion; no root-fragment collapse → both tests. No snapshot changed.
+- 2026-10-08 — C6G-CONTENTS-BOXTREE (AN2–AN5, AN19's box-tree part): the walks that pair a box with
+  its children now read a box-less element (CSS Display 3 §2.5) as its children. Hit-testing (AN2):
+  with an `order` sibling, `paint_order_children` hands back the items with box-less wrappers
+  unwrapped, so the wrapper arm never ran and `<span contents><b>x</b></span>` beside `<i
+  style="order:-1">` hit `b` with no `span` on the path (`:hover` missed); a hit now inserts the
+  unwrapped element ancestors below the container, outermost first (`insert_box_less_ancestors`).
+  A flex container's text (AN3, CSS Flexbox §4): the text-leaf predicate read direct text only, so
+  `<div flex><span contents>hello</span></div>` had no element item and no text and painted
+  nothing; it and the intrinsic sizer's twin (`has_non_whitespace_text`) now share
+  `box_tree::holds_loose_text` — text, or a box-less child's text or visible static pseudo — and the
+  container lays it out as its one anonymous item. Decision: the general case — text runs and the
+  container's own `::before` / `::after` *beside* element items, which are dropped today with or
+  without `contents` (checked: `<div flex>ab<span>hello</span></div>` paints `hello`) — is an
+  anonymous-flex-item feature the flex algorithm (`NodeId` items throughout) does not model; recorded
+  in DIVERGENCES §3, not yet scheduled, and a box-less child's pseudos joining the one item rather
+  than being items of their own is noted there. Scroll extent (AN4, CSS Overflow 3 §3.1):
+  `extend_scrollable_overflow` took a box-less element's `overflow` as a clip and stopped, so its
+  children were lost to the ancestor scroller's extent; it now neither counts the element's (zero)
+  rect nor clips at it. `is_scroll_container` needed no guard: C6G-CONTENTS-STATE zeroes a box-less
+  element's scroll extent. Static position (AN5): `static_position_in_ifc` ordered fragments by the
+  parent's direct child index, which an out-of-flow child of a box-less element does not have, so
+  it sat at the line's origin; `BoxOrder` numbers the box-tree children with a span per box-less
+  child (one position before its children, one after), which also orders its `::before` / `::after`
+  around them. Cost (AN19): `push_sequence` asked `holds_block_box` of every box-less child and then
+  recursed into it, re-walking each level once per enclosing level; one walk now collects a child's
+  items and keeps them only when they hold a block box (else truncates back to the child), and
+  `box_index` no longer asks `holds_block_box` per child before building the sequence. Red:
+  `css_phase6/contents.rs` — the hit path `[f, b]` without the wrapper; the flex row `"        "`
+  for `"<hello> "`; the scroll extent 1 for 4 (rewritten first: a box-less element directly in the
+  scroller is unwrapped by `element_children_of` and passed before the fix, so the test puts it
+  under an in-flow box); the static position `(0, 0)` for `(5, 0)` (re-checked against the reverted
+  file); `box_sequence_visits_each_node_once` — 15 visits at 4 levels for at most 5. Green after.
+  Mutation checks (each alone, reverted and touched): no ancestor insertion → the hit-path test; the
+  `contents` clip kept → the extent test; direct-text-only leaf predicate → the flex test.
+  No snapshot changed.

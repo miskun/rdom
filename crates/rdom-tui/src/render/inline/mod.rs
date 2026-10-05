@@ -178,13 +178,17 @@ pub fn inline_flow_for_text(dom: &Dom<TuiExt>, text_node: NodeId) -> Option<Inli
 
 /// The index in `container`'s box sequence (`box_tree::box_sequence`)
 /// of the item holding `node`, `child` being `node`'s ancestor-or-self
-/// among `container`'s child nodes. Without a box-less child that holds
-/// a block box the sequence is the child nodes, so the index is
-/// `child`'s.
+/// among `container`'s child nodes. Without a box-less child the
+/// sequence is the child nodes, so the index is `child`'s; with one it
+/// is built once per lookup, in one walk (`box_sequence`).
 fn box_index(dom: &Dom<TuiExt>, container: NodeId, node: NodeId, child: NodeId) -> Option<usize> {
-    use crate::render::box_tree::{box_sequence, holds_block_box, is_contents};
-    let expands = |c: NodeId| is_contents(dom, c) && holds_block_box(dom, c);
-    if !dom.node(container).child_nodes().any(|c| expands(c.id())) {
+    use crate::render::box_tree::{box_sequence, is_contents};
+    // With no box-less child the sequence is the child nodes.
+    if !dom
+        .node(container)
+        .child_nodes()
+        .any(|c| is_contents(dom, c.id()))
+    {
         return dom
             .node(container)
             .child_nodes()

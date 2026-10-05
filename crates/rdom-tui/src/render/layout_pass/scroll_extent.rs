@@ -270,10 +270,17 @@ fn extend_scrollable_overflow(dom: &Dom<TuiExt>, id: NodeId, extend: &mut impl F
     let Some(ext) = dom.node(id).ext() else {
         return;
     };
-    extend(ext.layout);
-    let clips = ext.computed.as_ref().is_some_and(|c| {
-        !matches!(c.overflow_x, Overflow::Visible) || !matches!(c.overflow_y, Overflow::Visible)
-    });
+    // A box-less element (CSS Display 3 §2.5) has no box to count and
+    // none to clip with (`overflow` applies to containers, CSS Overflow
+    // 3 §3.1): its children count as its parent's.
+    let box_less = crate::render::box_tree::is_contents(dom, id);
+    if !box_less {
+        extend(ext.layout);
+    }
+    let clips = !box_less
+        && ext.computed.as_ref().is_some_and(|c| {
+            !matches!(c.overflow_x, Overflow::Visible) || !matches!(c.overflow_y, Overflow::Visible)
+        });
     if clips {
         return;
     }
