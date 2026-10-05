@@ -16,6 +16,7 @@ use super::placement::Placed;
 use super::places::{PlacedGrid, place_grid};
 use super::sizing::{self, Frame};
 use super::subgrid::{self, Inherit};
+use super::subgrid_memo::KeyRef;
 use super::template::{Bounds, Explicit};
 use super::track::{Extent, TrackGrid, tracks_of};
 use super::{AxisContext, Dimension, Grid, baseline, content_bounds, contribution, margins};
@@ -23,6 +24,7 @@ use crate::ext::TuiExt;
 use crate::layout::Sides;
 use crate::render::layout_pass::box_sizing::Sizer;
 use crate::render::layout_pass::intrinsic::Measure;
+use crate::render::layout_pass::intrinsic::with_subgrids;
 use crate::style::ComputedStyle;
 
 /// Size the grid of `id` (styled `computed`), which takes the axes
@@ -30,7 +32,8 @@ use crate::style::ComputedStyle;
 /// sized under `columns` (§11.3), then — with `rows` — its rows at the
 /// columns' widths (§11.1 steps 1–2), and the columns and rows once more
 /// each when the rows changed what an item contributes to the columns
-/// (steps 3–4).
+/// (steps 3–4). `with_lines`: also its lines, for its layout
+/// (`arrange`) — its line names copied, which a measurement leaves.
 pub(super) fn size_grid(
     dom: &Dom<TuiExt>,
     id: NodeId,
@@ -38,6 +41,7 @@ pub(super) fn size_grid(
     columns: AxisContext,
     rows: Option<AxisContext>,
     inherit: &Inherit,
+    with_lines: bool,
 ) -> Grid {
     #[cfg(test)]
     RUNS.with(|r| r.borrow_mut().push(None));
@@ -181,12 +185,12 @@ pub(super) fn size_grid(
         before,
         edges: Vec::new(),
     };
-    let lines = GridLines {
+    let lines = with_lines.then(|| GridLines {
         columns: axis(&grid.columns, grid.placement.columns_before),
         rows: axis(&grid.rows, grid.placement.rows_before),
         rtl: false,
         subgrids: Vec::new(),
-    };
+    });
     let inherited = |dimension: Dimension| inherit.on(dimension).and_then(|i| i.extents.clone());
     Grid {
         columns: column_grid,
@@ -261,7 +265,7 @@ fn run_items(
 /// tracks on `dimension` sized as its content size is (§5.2) with the
 /// other axis its parent's, plus its padding and border. `area` is its
 /// grid area's width.
-fn measure_subgrid(
+pub(super) fn measure_subgrid(
     dom: &Dom<TuiExt>,
     p: &Placed,
     dimension: Dimension,
@@ -274,8 +278,13 @@ fn measure_subgrid(
     // Once a pass for each subgrid, axis, area and inherited axis (its
     // own measurement nests the measurements of its subgrids): a chain of
     // nested subgrids costs its length, not its square.
-    let key = (id, format!("{dimension:?} {area} {inherit:?}"));
-    if let Some(size) = crate::render::layout_pass::intrinsic::get_subgrid(dom, &key) {
+    let key = KeyRef {
+        id,
+        dimension,
+        area,
+        inherit,
+    };
+    if let Some(Some(size)) = with_subgrids(dom, |m| m.size(key)) {
         return size;
     }
     let c = p.item.computed(dom);
@@ -303,7 +312,7 @@ fn measure_subgrid(
             (h, h)
         }
     };
-    crate::render::layout_pass::intrinsic::put_subgrid(dom, key, sizes);
+    with_subgrids(dom, |m| m.put_size(key, sizes));
     sizes
 }
 

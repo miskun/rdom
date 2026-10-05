@@ -29,16 +29,14 @@ use crate::ext::TuiExt;
 /// the containing block's width.
 pub(super) type Key = (NodeId, bool, bool, u16, u16);
 
-/// Document data while a layout pass runs: its measurements, and the
-/// sizes of subgrids measured with their parent's tracks (CSS Grid 2
-/// §9.5), each keyed by the element and a description of everything
-/// else the size depends on (its axis, constraint, area and inherited
-/// tracks) — `grid::size`'s, so nested subgrids are measured once a
-/// pass whatever their depth.
+/// Document data while a layout pass runs: its measurements, and its
+/// subgrid work (`grid::SubgridMemo`, keyed by what each subgrid
+/// inherits), so nested subgrids are measured and flattened once a pass
+/// whatever their depth.
 #[derive(Debug, Default)]
 struct PassMemo(
     RefCell<HashMap<Key, u16>>,
-    RefCell<HashMap<(NodeId, String), (u16, u16)>>,
+    RefCell<crate::render::layout_pass::grid::SubgridMemo>,
 );
 
 /// Open a layout pass: an empty table.
@@ -64,23 +62,13 @@ pub(super) fn put(dom: &Dom<TuiExt>, key: Key, value: u16) {
     }
 }
 
-/// A subgrid size memoized under `key` in the open pass.
-pub(in crate::render::layout_pass) fn get_subgrid(
+/// `f` on the open pass's subgrid memo; `None` outside a pass. The memo
+/// is borrowed only while `f` runs: `f` must not measure.
+pub(in crate::render::layout_pass) fn with_subgrids<R>(
     dom: &Dom<TuiExt>,
-    key: &(NodeId, String),
-) -> Option<(u16, u16)> {
-    table(dom)?.1.borrow().get(key).copied()
-}
-
-/// Record a subgrid size in the open pass (a no-op outside one).
-pub(in crate::render::layout_pass) fn put_subgrid(
-    dom: &Dom<TuiExt>,
-    key: (NodeId, String),
-    value: (u16, u16),
-) {
-    if let Some(t) = table(dom) {
-        t.1.borrow_mut().insert(key, value);
-    }
+    f: impl FnOnce(&mut crate::render::layout_pass::grid::SubgridMemo) -> R,
+) -> Option<R> {
+    Some(f(&mut table(dom)?.1.borrow_mut()))
 }
 
 fn table(dom: &Dom<TuiExt>) -> Option<&PassMemo> {

@@ -4131,3 +4131,30 @@ row comes from.
   (the memo no longer keeps the shim's size); without (2) the memo test fails and the first-frame test
   passes (no early measurement). `nested_subgrids_are_sized_a_bounded_number_of_times` still pins 2 +
   2 × depth. No snapshot changed.
+- 2026-10-09 — C7G-SUBGRID-COST (architect N4). (1) The subgrid size memo's key was
+  `format!("{dimension:?} {area} {inherit:?}")`, a Debug string of every inherited name and extent per
+  lookup; it is now structural (`grid::subgrid_memo`: `Inherit` / `Inherited` derive `Hash` / `Eq`, a
+  lookup hashes the borrowed key and compares on a hit, so a hit copies nothing; the table is the
+  pass's document data as before, `memo::with_subgrids`). (2) "Memoize `flatten` / `place_grid`":
+  measured first. Chains subgridding one axis throughout (columns, rows, both) were already linear
+  (4–7 placements a level: an inner level's subgridded axis is fixed, so only the outermost run
+  flattens the chain). The superlinear shape is a chain alternating the axis — 7, 14, 39, 61, 161,
+  228, 598 sizing calls at depths 1–7 — and its root was not a missing memo: `flatten` pushed a nested
+  subgrid on the *other* axis as a plain item, measured through `intrinsic_size` as a grid with no
+  inherited tracks (its parent's lines not laid out yet), which C7G-MEMO-PURITY rightly keeps out of
+  the memo, so it was sized again for every run above it — and sized wrong: as `run_items` does for
+  a grid's own items, it must be measured with the axis it inherits. `flatten`'s per-item work is
+  now `own_items`, which gives such an item `size::measure_subgrid`'s size (memoized, keyed by the
+  inheritance). With that, a `flatten` memo was tried and made no difference to any count (mutation:
+  disabled, the tests stay green), so it was not kept. (3) `size_grid` takes `with_lines`: only a
+  layout builds `GridLines` (copying each line name to a `String`); a measurement builds none, and
+  `arrange` debug-asserts it got them. `Explicit::with_areas`' per-area `format!` is unchanged (its
+  names are needed by placement). Red, in `grid::cost_tests`:
+  `nested_subgrids_are_placed_a_bounded_number_of_times` — the alternating chain's counts above (and
+  the column chain's placements pinned linear, green before and after);
+  `measuring_a_grid_copies_no_line_names` — 93 allocations for named lines against 81 unnamed, now 84
+  (the three per-line lists placement reads, names borrowed); `subgrid_memo::tests::
+  a_lookup_allocates_nothing` pins the hit at 0. Found on the way and fixed with (2):
+  `css_phase7/subgrid.rs::a_nested_subgrid_on_the_other_axis_sizes_its_ancestors_rows` — a columns
+  subgrid inside a rows subgrid, the outer row 2 tall for 1 on the first frame (mutation: the plain-item
+  path back → 2; restored and touched). No snapshot changed.

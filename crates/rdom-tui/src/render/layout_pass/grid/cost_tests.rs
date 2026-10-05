@@ -140,15 +140,28 @@ fn re_resolution_is_bounded_to_once_an_axis() {
 /// chain of `depth` column subgrids, each the next's parent, the
 /// innermost holding two text items; `.g` styled `g` as well.
 fn nested_subgrid_calls(depth: usize, g_css: &str) -> usize {
+    chain_calls(
+        depth,
+        &format!(
+            ".g {{ display: grid; grid-template-columns: auto auto; {g_css} }} \
+             .s {{ grid-column: 1 / 3; display: grid; grid-template-columns: subgrid }}"
+        ),
+    )
+}
+
+/// [`nested_subgrid_calls`] with the sheet `css` for `.g` and the `.s`
+/// chain, every second `.s` of which is a `.t` too.
+fn chain_calls(depth: usize, css: &str) -> usize {
     let mut dom = TuiDom::new();
     let root = dom.root();
     let g = dom.create_element("div");
     dom.set_attribute(g, "class", "g").unwrap();
     dom.append_child(root, g).unwrap();
     let mut parent = g;
-    for _ in 0..depth {
+    for k in 0..depth {
         let s = dom.create_element("div");
-        dom.set_attribute(s, "class", "s").unwrap();
+        dom.set_attribute(s, "class", if k % 2 == 0 { "s" } else { "s t" })
+            .unwrap();
         dom.append_child(parent, s).unwrap();
         parent = s;
     }
@@ -158,15 +171,19 @@ fn nested_subgrid_calls(depth: usize, g_css: &str) -> usize {
         let t = dom.create_text_node(text);
         dom.append_child(e, t).unwrap();
     }
-    let sheet = rdom_css::from_css_strict(&format!(
-        ".g {{ display: grid; grid-template-columns: auto auto; {g_css} }} \
-         .s {{ grid-column: 1 / 3; display: grid; grid-template-columns: subgrid }}"
-    ))
-    .expect("sheet parses");
+    let sheet = rdom_css::from_css_strict(css).expect("sheet parses");
     dom.cascade(&sheet);
     RUNS.with(|r| r.borrow_mut().clear());
+    super::places::PLACES.with(|n| n.set(0));
     dom.layout_dom(Rect::new(0, 0, 40, 20));
     RUNS.with(|r| r.borrow().iter().filter(|run| run.is_none()).count())
+}
+
+/// The `place_grid` calls of [`nested_subgrid_calls`]`(depth, g_css)`'s
+/// pass.
+fn nested_subgrid_places(depth: usize, g_css: &str) -> usize {
+    nested_subgrid_calls(depth, g_css);
+    super::places::PLACES.with(std::cell::Cell::get)
 }
 
 /// CSS Grid 2 §9.5: a subgrid's items size its parent's tracks, and a
@@ -200,4 +217,78 @@ fn a_baseline_grid_measures_no_shim_for_its_subgrid() {
         nested_subgrid_calls(1, "align-items: baseline"),
         nested_subgrid_calls(1, "align-items: start")
     );
+}
+
+/// C7G-SUBGRID-COST — CSS Grid 2 §9.5: each subgrid of a chain is placed
+/// and sized a bounded number of times a pass, so both counts grow by a
+/// constant with each level. The chain alternates the axis it subgrids —
+/// a rows subgrid whose child subgrids its own columns, whose child
+/// subgrids its rows, … — so a flattened level's items include a subgrid
+/// on the other axis, measured with that axis inherited (`size::
+/// measure_subgrid`, memoized for the pass). Measured as a plain grid
+/// instead, outside the memo since C7G-MEMO-PURITY, each such level was
+/// sized again for every sizing run above it (7, 14, 39, 61, 161, 228,
+/// 598 sizing calls at depths 1 to 7).
+#[test]
+fn nested_subgrids_are_placed_a_bounded_number_of_times() {
+    let linear = |counts: &[usize]| {
+        let steps: Vec<usize> = counts.windows(2).map(|w| w[1] - w[0]).collect();
+        steps.windows(2).all(|w| w[0] == w[1])
+    };
+    let places: Vec<usize> = (0..8).map(|d| nested_subgrid_places(d, "")).collect();
+    assert!(linear(&places), "column subgrids: {places:?} placements");
+    let css = ".g { display: grid; grid-template-columns: auto auto; \
+               grid-template-rows: auto auto } \
+               .s { grid-area: 1 / 1 / 3 / 3; display: grid; \
+               grid-template-rows: subgrid; grid-template-columns: auto auto } \
+               .t { grid-template-rows: auto auto; grid-template-columns: subgrid }";
+    let (mut sizes, mut places) = (Vec::new(), Vec::new());
+    for depth in 1..8 {
+        sizes.push(chain_calls(depth, css));
+        places.push(super::places::PLACES.with(std::cell::Cell::get));
+    }
+    // From depth 1 the levels alternate, each pair adding the same work.
+    let pairs = |v: &[usize]| v.iter().step_by(2).copied().collect::<Vec<_>>();
+    assert!(
+        linear(&pairs(&sizes)),
+        "alternating: {sizes:?} sizing calls"
+    );
+    assert!(
+        linear(&pairs(&places)),
+        "alternating: {places:?} placements"
+    );
+}
+
+/// C7G-SUBGRID-COST — a grid's line names (CSS Grid 2 §7.2) are copied
+/// into its kept lines (`TuiExt::grid_lines`, §9.1) only when it is laid
+/// out: measuring it (§5.2) allocates, for three named lines holding six
+/// names, only the three lists placement (§8.3) reads them from — each
+/// name borrowed from the style, none copied.
+#[test]
+fn measuring_a_grid_copies_no_line_names() {
+    use crate::layout::Direction;
+    use crate::render::layout_pass::intrinsic::intrinsic_size;
+    use crate::test_alloc::allocations_in;
+    let cost = |columns: &str| {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let g = dom.create_element("div");
+        dom.set_attribute(g, "class", "g").unwrap();
+        dom.append_child(root, g).unwrap();
+        for text in ["aa", "bbb"] {
+            let e = dom.create_element("div");
+            dom.append_child(g, e).unwrap();
+            let t = dom.create_text_node(text);
+            dom.append_child(e, t).unwrap();
+        }
+        let css = format!(".g {{ display: grid; grid-template-columns: {columns} }}");
+        let sheet = rdom_css::from_css_strict(&css).expect("sheet parses");
+        dom.cascade(&sheet);
+        // Outside a pass nothing is memoized: each call measures.
+        intrinsic_size(&dom, g, Direction::Column, 20, 20);
+        allocations_in(|| {
+            intrinsic_size(&dom, g, Direction::Column, 20, 20);
+        })
+    };
+    assert_eq!(cost("[a b] 2 [c] 3 [d e f]"), cost("2 3") + 3);
 }

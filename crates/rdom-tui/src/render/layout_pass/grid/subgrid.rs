@@ -87,7 +87,7 @@ pub(super) fn styled_axes(c: &ComputedStyle) -> SubAxes {
 }
 
 /// One axis a subgrid takes from its parent (§9).
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub(super) struct Inherited {
     /// The parent's tracks its grid area spans: its explicit grid there.
     pub(super) tracks: usize,
@@ -100,7 +100,7 @@ pub(super) struct Inherited {
 
 /// The axes a grid takes from its parent; neither for a grid that is no
 /// subgrid.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub(super) struct Inherit {
     pub(super) columns: Option<Inherited>,
     pub(super) rows: Option<Inherited>,
@@ -344,59 +344,14 @@ pub(super) fn flatten(
     let Item::Element(id) = p.item else {
         return Vec::new();
     };
-    let c = p.item.computed(dom);
-    let grid: PlacedGrid<'_> =
-        place_grid(dom, id, &c, Bounds::default(), Bounds::default(), inherit);
     let Some(axis) = inherit.on(dimension) else {
         return Vec::new();
     };
     let count = axis.tracks;
-    // On the rows, its items wrap to its columns: its parent's, or — a
-    // rows-only subgrid — its own, sized at its content width.
-    let own_columns: Option<Vec<(u32, u32)>> = match (dimension, &inherit.columns) {
-        (Dimension::Columns, _) => None,
-        (Dimension::Rows, Some(i)) => i.extents.as_ref().map(|e| {
-            e.iter()
-                .map(|&(a, b)| (a.max(0) as u32, b.max(0) as u32))
-                .collect()
-        }),
-        (Dimension::Rows, None) => content_width.map(|width| {
-            let columns = laid_out_axis(&c, Dimension::Columns, Some(width));
-            size_grid(dom, id, &c, columns, None, inherit)
-                .columns
-                .extents()
-        }),
-    };
+    let c = p.item.computed(dom);
+    let mut items = own_items(dom, id, &c, dimension, inherit, parent_gap, content_width);
     let rtl = c.text_direction == TextDirection::Rtl;
     let gap = own_gap(&c, dimension);
-    let mut items: Vec<Placed> = Vec::new();
-    for (k, q) in grid.placement.items.iter().enumerate() {
-        let sub = grid.subgrids[k];
-        let mut q = q.clone();
-        q.width = own_columns
-            .as_ref()
-            .map(|e| super::size::span_size(e, q.columns.start, q.columns.end));
-        if sub.on(dimension) {
-            // A subgrid of the subgrid: its items, in this subgrid's
-            // tracks.
-            let area = q.width.unwrap_or(0);
-            let child = grid.inherit_for(dom, &q, &c, (own_columns.as_deref(), None), area);
-            let e = edges(&q.item.computed(dom), area);
-            let content = (i32::from(area) - e.left - e.right).clamp(0, i32::from(u16::MAX));
-            let nested = flatten(
-                dom,
-                &q,
-                dimension,
-                &child,
-                rtl,
-                gap.unwrap_or(parent_gap),
-                Some(content as u16),
-            );
-            items.extend(nested);
-        } else {
-            items.push(q);
-        }
-    }
     // §9.5: an edge no item touches holds the subgrid's margin, border
     // and padding there as a hypothetical empty item.
     let touches = |edge: usize| {
@@ -480,6 +435,81 @@ pub(super) fn flatten(
             q
         })
         .collect()
+}
+
+/// The items of the subgrid `id` (styled `c`) that size its parent's
+/// tracks on `dimension`, in its own tracks: its items — each child
+/// subgridding the axis flattened in its place — with their widths in
+/// its columns when it sizes the rows. `parent_gap` is the parent's gap,
+/// which a `normal` gap of its own takes; `content_width` its content
+/// width, which a rows-only subgrid's own columns are sized into.
+fn own_items(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    c: &ComputedStyle,
+    dimension: Dimension,
+    inherit: &Inherit,
+    parent_gap: u16,
+    content_width: Option<u16>,
+) -> Vec<Placed> {
+    let grid: PlacedGrid<'_> =
+        place_grid(dom, id, c, Bounds::default(), Bounds::default(), inherit);
+    // On the rows, its items wrap to its columns: its parent's, or — a
+    // rows-only subgrid — its own, sized at its content width.
+    let own_columns: Option<Vec<(u32, u32)>> = match (dimension, &inherit.columns) {
+        (Dimension::Columns, _) => None,
+        (Dimension::Rows, Some(i)) => i.extents.as_ref().map(|e| {
+            e.iter()
+                .map(|&(a, b)| (a.max(0) as u32, b.max(0) as u32))
+                .collect()
+        }),
+        (Dimension::Rows, None) => content_width.map(|width| {
+            let columns = laid_out_axis(c, Dimension::Columns, Some(width));
+            size_grid(dom, id, c, columns, None, inherit, false)
+                .columns
+                .extents()
+        }),
+    };
+    let rtl = c.text_direction == TextDirection::Rtl;
+    let gap = own_gap(c, dimension);
+    let mut items: Vec<Placed> = Vec::new();
+    for (k, q) in grid.placement.items.iter().enumerate() {
+        let sub = grid.subgrids[k];
+        let mut q = q.clone();
+        q.width = own_columns
+            .as_ref()
+            .map(|e| super::size::span_size(e, q.columns.start, q.columns.end));
+        let area = q.width.unwrap_or(0);
+        if sub.any() && !sub.on(dimension) {
+            // A subgrid of the subgrid on the other axis: measured with
+            // that axis inherited, as the parent's own such items are
+            // (`size::run_items`).
+            let child = grid.inherit_for(dom, &q, c, (own_columns.as_deref(), None), area);
+            q.size = Some(super::size::measure_subgrid(
+                dom, &q, dimension, &child, area,
+            ));
+            items.push(q);
+        } else if sub.on(dimension) {
+            // A subgrid of the subgrid: its items, in this subgrid's
+            // tracks.
+            let child = grid.inherit_for(dom, &q, c, (own_columns.as_deref(), None), area);
+            let e = edges(&q.item.computed(dom), area);
+            let content = (i32::from(area) - e.left - e.right).clamp(0, i32::from(u16::MAX));
+            let nested = flatten(
+                dom,
+                &q,
+                dimension,
+                &child,
+                rtl,
+                gap.unwrap_or(parent_gap),
+                Some(content as u16),
+            );
+            items.extend(nested);
+        } else {
+            items.push(q);
+        }
+    }
+    items
 }
 
 /// `p`'s spans recorded in a parent's lines, for its [`from_parent`].

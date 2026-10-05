@@ -73,6 +73,8 @@ pub(super) fn place_grid<'a>(
     row_bounds: Bounds,
     inherit: &Inherit,
 ) -> PlacedGrid<'a> {
+    #[cfg(test)]
+    PLACES.with(|n| n.set(n.get() + 1));
     let mut children = items::items_of(dom, id);
     // §8.5: placement takes the items in order-modified document order
     // (CSS Display 3 §3).
@@ -243,4 +245,10 @@ fn trim(container: &ComputedStyle, p: &Placed, columns: usize, rows: usize) -> S
         bottom: t.block_end && p.rows.end == rows,
         left,
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The `place_grid` calls made (tests only).
+    pub(super) static PLACES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }

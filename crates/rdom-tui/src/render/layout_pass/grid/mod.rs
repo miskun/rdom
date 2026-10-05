@@ -49,6 +49,7 @@ mod places;
 mod size;
 mod sizing;
 mod subgrid;
+mod subgrid_memo;
 mod template;
 mod track;
 
@@ -64,11 +65,12 @@ pub(crate) use lines::{GridLines, abspos_area};
 use placement::Placed;
 use size::size_grid;
 use sizing::Space;
+pub(in crate::render::layout_pass) use subgrid_memo::SubgridMemo;
 use template::Bounds;
 use track::{Span, TrackGrid};
 
 /// One of a grid's two sets of tracks.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Dimension {
     /// The columns, sized on the inline (horizontal) axis.
     Columns,
@@ -124,8 +126,9 @@ struct Grid {
     inherited_rows: Option<Vec<(i32, i32)>>,
     /// The explicit grid's size, its line names, and the implicit tracks
     /// before it, on each axis — the lines an absolutely positioned box
-    /// is placed by (§9.1), their edges filled in by `arrange`.
-    lines: GridLines,
+    /// is placed by (§9.1), their edges filled in by `arrange`; `None`
+    /// when the grid was only measured.
+    lines: Option<GridLines>,
 }
 
 /// `p`'s margins, their percentages against `cb` (its grid area's
@@ -216,7 +219,7 @@ pub(super) fn layout_grid_children(
         rows_definite.then_some(container.height),
     );
     let inherit = subgrid::from_parent(dom, id, computed);
-    let grid = size_grid(dom, id, computed, columns, Some(rows), &inherit);
+    let grid = size_grid(dom, id, computed, columns, Some(rows), &inherit, true);
     arrange::arrange(dom, id, computed, grid, container)
 }
 

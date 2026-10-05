@@ -79,7 +79,7 @@ pub(super) fn content_size_with(
                 },
                 stretch: stretches(computed, Dimension::Columns),
             };
-            size_grid(dom, id, computed, columns, None, inherit)
+            size_grid(dom, id, computed, columns, None, inherit, false)
                 .columns
                 .total()
         }
@@ -92,7 +92,7 @@ pub(super) fn content_size_with(
                 .saturating_sub(u16::from(gutter_column));
             let columns = laid_out_axis(computed, Dimension::Columns, Some(width));
             let rows = laid_out_axis(computed, Dimension::Rows, None);
-            size_grid(dom, id, computed, columns, Some(rows), inherit)
+            size_grid(dom, id, computed, columns, Some(rows), inherit, false)
                 .rows
                 .map_or(0, |r| r.total())
         }

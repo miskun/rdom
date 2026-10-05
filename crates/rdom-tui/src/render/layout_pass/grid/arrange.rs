@@ -70,15 +70,20 @@ pub(super) fn arrange(
     // The tracks' edges, for §9.1 and the subgrids (§9): offsets from
     // the content box's inline-start (an `rtl` grid's right) and top
     // edges, which `distribute` already gives.
-    let mut lines = grid.lines;
-    lines.columns.edges.clone_from(&columns);
-    lines.rows.edges.clone_from(&rows);
-    lines.rtl = rtl;
-    for (p, &sub) in grid.placed.iter().zip(&grid.subgrids) {
-        super::subgrid::record(&mut lines, p, sub);
-    }
-    if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.grid_lines = Some(Box::new(lines));
+    debug_assert!(
+        grid.lines.is_some(),
+        "a laid-out grid was sized with its lines"
+    );
+    if let Some(mut lines) = grid.lines {
+        lines.columns.edges.clone_from(&columns);
+        lines.rows.edges.clone_from(&rows);
+        lines.rtl = rtl;
+        for (p, &sub) in grid.placed.iter().zip(&grid.subgrids) {
+            super::subgrid::record(&mut lines, p, sub);
+        }
+        if let Some(ext) = dom.node_mut(id).ext_mut() {
+            ext.grid_lines = Some(Box::new(lines));
+        }
     }
     let right = container.x + i32::from(container.width);
     let scroll_x = scroll_offset(dom, id, Direction::Row);

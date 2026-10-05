@@ -271,3 +271,27 @@ fn a_baseline_grids_subgrid_is_right_on_the_first_frame() {
     assert_eq!(at[1], (0, 0, 6, 1), "the subgrid");
     assert_eq!((at[2], at[3]), ((0, 0, 3, 1), (3, 0, 3, 1)), "its items");
 }
+
+/// C7G-SUBGRID-COST — §9.5: a subgrid's items size its parent's rows,
+/// among them a subgrid of its own on the other axis, measured with the
+/// columns it takes from it: `ab` and `cd` side by side in the outer
+/// grid's two columns, so the shared row is one tall from the first
+/// frame (measured without them, as one column, it was two).
+#[test]
+fn a_nested_subgrid_on_the_other_axis_sizes_its_ancestors_rows() {
+    let at = lay(
+        ".g { display: grid; grid-template-columns: 3 3 } \
+         .s { display: grid; grid-column: 1 / 3; grid-template-rows: subgrid; \
+         grid-template-columns: 3 3 } \
+         .t { display: grid; grid-column: 1 / 3; grid-template-columns: subgrid }",
+        &[
+            ("g", ROOT, ""),
+            ("s", 0, ""),
+            ("t", 1, ""),
+            ("", 2, "ab"),
+            ("", 2, "cd"),
+        ],
+    );
+    assert_eq!(at[0].3, 1, "the outer grid's row");
+    assert_eq!((at[3], at[4]), ((0, 0, 3, 1), (3, 0, 3, 1)), "the items");
+}
