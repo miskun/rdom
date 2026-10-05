@@ -50,3 +50,29 @@ fn box_sequence_visits_each_node_once() {
         assert!(n <= depth + 1, "{depth} levels: {n} visits");
     }
 }
+
+/// CSS Display 3 §2.4: every inline-level box whose inner display is
+/// not `flow` is atomic; `inline flow` is not.
+#[test]
+fn atomic_inlines_are_the_non_flow_inline_level_boxes() {
+    use crate::layout::{Display, Flow};
+    let style = |display, flow| {
+        let mut c = crate::style::ComputedStyle::initial();
+        c.display = display;
+        c.flow = flow;
+        c
+    };
+    for (display, flow, atomic) in [
+        (Display::InlineBlock, Flow::Block, true),
+        (Display::Inline, Flow::Flex, true),
+        (Display::Inline, Flow::FlowRoot, true),
+        (Display::Inline, Flow::Block, false),
+        (Display::Block, Flow::Flex, false),
+    ] {
+        assert_eq!(
+            super::is_atomic_inline(&style(display, flow)),
+            atomic,
+            "{display:?} {flow:?}"
+        );
+    }
+}

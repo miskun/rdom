@@ -57,6 +57,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::{PseudoSlot, StyleSlot, TuiExt};
 use crate::layout::WhiteSpace;
+use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
 
 pub use boxes::{GeneratedFragment, InlineFragment, InlineLayout, LineBox};
@@ -240,7 +241,6 @@ pub fn scrolled_content_rect(
     dom: &Dom<TuiExt>,
     block: NodeId,
 ) -> Option<crate::layout::LayoutRect> {
-    use crate::node::TuiNodeExt;
     let mut content = dom.node(block).content_layout_rect()?;
     let ext = dom.node(block).ext()?;
     content.x -= ext.scroll_x;
@@ -375,7 +375,6 @@ pub(crate) fn pack_run(
         .map(|c| c.white_space)
         .unwrap_or(WhiteSpace::Normal);
 
-    use crate::layout::Display;
     let mut packer = LinePacker::new(content_width, ws);
     if pseudos.before {
         push_pseudo(dom, parent, PseudoSlot::Before, &mut packer);
@@ -407,14 +406,12 @@ pub(crate) fn pack_run(
                     packer.push_hard_break(child_id);
                     continue;
                 }
-                // Inline-block participates as an atomic box — see
+                // An atomic inline participates as one box — see
                 // `walk_subtree` for the rationale.
-                let display = child
-                    .ext()
-                    .and_then(|e| e.computed.as_ref())
-                    .map(|c| c.display)
-                    .unwrap_or(Display::Block);
-                if matches!(display, Display::InlineBlock) {
+                if child
+                    .computed()
+                    .is_some_and(crate::render::box_tree::is_atomic_inline)
+                {
                     push_atom(dom, child_id, &mut packer);
                     continue;
                 }
@@ -482,13 +479,17 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
                     packer.push_hard_break(child.id());
                     continue;
                 }
-                // CSS 2.1 §10.8: a `Display::InlineBlock` element
+                // CSS 2.1 §10.8: an atomic inline (`inline-block`,
+                // `inline-flex`, `box_tree::is_atomic_inline`)
                 // participates in IFC as a single atomic inline-
                 // level box. Don't recurse into it — the packer
                 // emits one fragment of its width and rows, the layout
                 // pass lays the element out at that rect and paint
                 // paints it there as a box, at its turn in the line.
-                if matches!(display, Display::InlineBlock) {
+                if child
+                    .computed()
+                    .is_some_and(crate::render::box_tree::is_atomic_inline)
+                {
                     push_atom(dom, child.id(), packer);
                     continue;
                 }

@@ -2530,3 +2530,25 @@ row comes from.
   Mutation checks (each alone, reverted and touched): no ancestor insertion → the hit-path test; the
   `contents` clip kept → the extent test; direct-text-only leaf predicate → the flex test.
   No snapshot changed.
+- 2026-10-08 — C6G-INLINE-FLEX-ATOM (PB1): every inline-level box whose inner display type is not
+  `flow` is an atomic inline (CSS Display 3 §2.4, CSS 2.1 §9.2.2 / §10.8), decided in one place,
+  `box_tree::is_atomic_inline` — `inline-block` (`inline flow-root`, which the parser maps to
+  `Display::InlineBlock`), `inline-flex` (`Display::Inline` + `Flow::Flex`) and `Display::Inline` +
+  `Flow::FlowRoot` (reachable through the builder, serialized `inline flow-root`). `inline-table`
+  does not apply: there is no `display: table` (C13-TFC). The packer (`compute_inline_layout`'s
+  direct children and `walk_subtree`) atomized only `Display::InlineBlock`, so `<div>x <span
+  style="display:inline-flex;gap:1;border:solid">…</span></div>` packed its items' text as inline
+  text with no flex layout and no box, while paint (`paints_atomically`) took it for an atom; now
+  the packer, `is_ifc_block` (an atom neither establishes nor prevents an IFC), paint's `in_a_line`
+  and `paints_atomically` all ask the one predicate. CSS-COVERAGE's `display` row claimed
+  `inline-flex` Supported on the inline-block sentence; rewritten to say what holds now. Red:
+  `an_inline_flex_container_is_an_atom_in_its_line` — the span at `(0, 0, 0)` (x, width, height) for
+  `(2, 5, 3)`; green after. `an_inline_flex_container_paints_once_in_its_line` was added with the fix
+  (bare text and inside an inline formatting context). Mutation checks (each alone, reverted and
+  touched): the packer back on `InlineBlock` → the first test; paint's `in_a_line` back on
+  `InlineBlock` → the paints-once test (beside bare text the atom painted twice: `rgb(192, 0, 63)`
+  for `rgb(128, 0, 127)`), which the first test alone did not catch. `is_ifc_block` treating the atom
+  as inline content is an equivalent mutation for both tests (the IFC path and the anonymous-box
+  path pack the atom alike) and survives; the predicate is shared for consistency. Noted, not
+  changed: the max-content width of an IFC (`intrinsic::inline::inline_content_width`) sums an
+  atom's text rather than its border box, for inline blocks as before. No snapshot changed.

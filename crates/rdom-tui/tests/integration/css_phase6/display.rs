@@ -267,6 +267,70 @@ fn a_root_child_turned_none_reads_zero() {
     assert_eq!(rect(&dom, n), rdom_tui::LayoutRect::default());
 }
 
+/// CSS Display 3 §2.4: an inline-level box whose inner display type is
+/// not `flow` — `inline-flex`, `inline flow-root` — is an atomic inline:
+/// it lays out its contents in its own formatting context (here a flex
+/// row with a gap) and sits in its line as one box (CSS 2.1 §10.8: the
+/// line box grows to its margin box, the text on its baseline — the
+/// last content row, DIVERGENCES §1).
+#[test]
+fn an_inline_flex_container_is_an_atom_in_its_line() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = el(&mut dom, root, "div", "");
+    let t = dom.create_text_node("x ");
+    dom.append_child(d, t).unwrap();
+    let f = el(&mut dom, d, "span", "f");
+    for word in ["a", "b"] {
+        let i = el(&mut dom, f, "i", "");
+        let t = dom.create_text_node(word);
+        dom.append_child(i, t).unwrap();
+    }
+    let buf = paint(
+        &mut dom,
+        ".f { display: inline-flex; gap: 1; border: solid }",
+        10,
+        3,
+    );
+    assert_eq!(
+        (rect(&dom, f).x, rect(&dom, f).width, rect(&dom, f).height),
+        (2, 5, 3)
+    );
+    assert_eq!(rows(&buf, 7, 3), ["  ┌───┐", "x │a b│", "  └───┘"]);
+}
+
+/// The atomic inline flex container paints once, at its turn in the
+/// line — inside an inline formatting context and beside bare text
+/// alike: a translucent background composites one time (CSS Color 4
+/// §4.2), as an inline block's does (C5G-ATOM-BOX).
+#[test]
+fn an_inline_flex_container_paints_once_in_its_line() {
+    for bare in [false, true] {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let p = el(&mut dom, root, "p", "");
+        let host = if bare { p } else { el(&mut dom, p, "i", "") };
+        let t = dom.create_text_node("aa");
+        dom.append_child(host, t).unwrap();
+        let f = el(&mut dom, p, "span", "f");
+        let t = dom.create_text_node("b");
+        dom.append_child(f, t).unwrap();
+        let buf = paint(
+            &mut dom,
+            "p { background-color: rgb(0 0 255) } \
+             .f { display: inline-flex; background-color: rgb(255 0 0 / 50%) }",
+            7,
+            1,
+        );
+        assert_eq!(rows(&buf, 7, 1), ["aab    "], "bare: {bare}");
+        assert_eq!(
+            buf.cell(2, 0).unwrap().bg,
+            rdom_tui::Color::Rgb(128, 0, 127),
+            "bare: {bare}"
+        );
+    }
+}
+
 fn t_of(dom: &TuiDom, id: rdom_tui::NodeId) -> rdom_tui::NodeId {
     dom.node(id).first_child().unwrap().id()
 }

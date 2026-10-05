@@ -114,7 +114,7 @@ pub(crate) fn is_positioned(c: &ComputedStyle) -> bool {
 /// block boxes for paint (rdom lays them out as flex items, a
 /// documented divergence; a browser's `<body>` children are blocks).
 pub(crate) fn paints_atomically(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bool {
-    if c.display == Display::InlineBlock || (c.display == Display::Inline && c.flow == Flow::Flex) {
+    if crate::render::box_tree::is_atomic_inline(c) {
         return true;
     }
     // A fragment or box-less child is laid out in the element above it.

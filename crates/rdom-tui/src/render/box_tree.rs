@@ -166,6 +166,16 @@ pub(crate) fn generated_text(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) 
     crate::render::inline::generated::static_pseudo_text(dom, host, StyleSlot::from(slot))
 }
 
+/// `c` is an atomic inline (CSS Display 3 §2.4): an inline-level box
+/// whose inner display type is not `flow` — `inline-block` (`inline
+/// flow-root`), `inline-flex`. It lays out its contents in a formatting
+/// context of its own and takes part in its line as one opaque box
+/// (CSS 2.1 §9.2.2, §10.8), never as inline text.
+pub(crate) fn is_atomic_inline(c: &crate::style::ComputedStyle) -> bool {
+    use crate::layout::Flow;
+    c.display == Display::InlineBlock || (c.display == Display::Inline && c.flow != Flow::Block)
+}
+
 /// `id` is an element flex container (`display: flex` / `inline-flex`).
 /// The document root's children are flex items of rdom's viewport
 /// column only as a layout device, so the root is not one.

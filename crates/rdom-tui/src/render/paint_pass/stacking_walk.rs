@@ -240,11 +240,12 @@ pub(super) fn paint_line_atom(
 }
 
 /// True when the element child `child` of `parent` is an atom of one of
-/// `parent`'s lines — an inline block in a block container, packed into
-/// an inline formatting context (`parent`'s own or an anonymous block
-/// box's) — so the line paints it ([`paint_line_atom`]), not
-/// [`recurse_children`]. A flex container's inline-block children are
-/// flex items (blockified, CSS Flexbox §4) and paint as boxes.
+/// `parent`'s lines — an atomic inline (`inline-block`, `inline-flex`)
+/// in a block container, packed into an inline formatting context
+/// (`parent`'s own or an anonymous block box's) — so the line paints it
+/// ([`paint_line_atom`]), not [`recurse_children`]. A flex container's
+/// atomic-inline children are flex items (blockified, CSS Flexbox §4)
+/// and paint as boxes.
 fn in_a_line(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool {
     let p = dom.node(parent);
     p.node_type() == NodeType::Element
@@ -252,7 +253,7 @@ fn in_a_line(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool {
         && dom
             .node(child)
             .computed()
-            .is_some_and(|c| c.display == Display::InlineBlock)
+            .is_some_and(crate::render::box_tree::is_atomic_inline)
 }
 
 /// An inline element with no inline layout: outside an inline

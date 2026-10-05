@@ -1,8 +1,9 @@
 //! IFC detection — is an element an inline formatting context?
 //!
 //! An element establishes an **IFC** when at least one of its
-//! element children participates as inline-level (Display::Inline
-//! OR Display::InlineBlock per CSS 2.1 §9.2.1) AND no children are
+//! element children is an `inline flow` box (Display::Inline with
+//! the `flow` inner type) — atomic inlines (`inline-block`,
+//! `inline-flex`) neither establish nor prevent one — AND no children are
 //! block-level. Mixed block + inline is a cascade error here — the
 //! block-layout pass handles it via anonymous block boxes (CSS
 //! 2.1 §9.2.1.1, see `render/layout_pass/block.rs`).
@@ -58,22 +59,22 @@ pub(crate) fn is_ifc_block(dom: &Dom<TuiExt>, id: NodeId) -> bool {
         if child.node_type() != NodeType::Element {
             continue;
         }
-        let display = child
-            .ext()
-            .and_then(|e| e.computed.as_ref())
-            .map(|c| c.display)
-            .unwrap_or(Display::Block);
+        let computed = child.ext().and_then(|e| e.computed.as_ref());
+        // An atomic inline (`inline-block`, `inline-flex`, CSS Display 3
+        // §2.4) is one opaque box in the line, never inline text.
+        if computed.is_some_and(|c| crate::render::box_tree::is_atomic_inline(c)) {
+            continue;
+        }
+        let display = computed.map(|c| c.display).unwrap_or(Display::Block);
         match display {
-            // `Inline` triggers IFC: its text packs into the
-            // parent's inline flow.
+            // `Inline` (an `inline flow` box) triggers IFC: its text
+            // packs into the parent's inline flow.
             Display::Inline => has_inline = true,
-            // `InlineBlock` neither triggers nor disqualifies. When
-            // it appears alongside an `Inline` sibling (mixed text +
-            // inline + inline-block), the IFC packer treats it
-            // atomically (BFC-1 phase 3.5b). When it appears alone
-            // or only with text, the parent stays a flex container
-            // (the inline-block is a flex item with intrinsic
-            // sizing).
+            // An atomic inline (handled above) neither triggers nor
+            // disqualifies. Alongside an `Inline` sibling (mixed text +
+            // inline + atom) the IFC packer treats it atomically (BFC-1
+            // phase 3.5b); alone or only with text, the block pass
+            // packs it in an anonymous block box's line.
             Display::InlineBlock => continue,
             // Display::None children are invisible and don't
             // participate in layout — they don't count as inline
