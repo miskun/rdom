@@ -164,7 +164,8 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
 
     // Recursively shift the sticky's subtree by the delta. CSS:
     // sticky's children move with it (matches `position: relative`
-    // behavior).
+    // behavior), and so do the absolutely positioned boxes it contains
+    // (CSS Position 3 §2.1); a `fixed` descendant stays on the viewport.
     let dx = placed.x - natural.x;
     let dy = placed.y - natural.y;
     let _ = scrollport_id; // reserved for future debug logging

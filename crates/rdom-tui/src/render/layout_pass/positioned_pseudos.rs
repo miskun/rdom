@@ -31,7 +31,7 @@ use crate::render::layout_pass::box_sizing::Sizer;
 use crate::style::ComputedStyle;
 
 use super::positioning::{
-    axis_position_anchored, computed_position, padding_box, parent_id, relative_offset,
+    absolute_containing_block, axis_position_anchored, parent_id, relative_offset,
     resolve_size_axis,
 };
 use crate::layout::Length;
@@ -172,17 +172,12 @@ enum PseudoEnd {
     After,
 }
 
-/// Resolve the containing block for a positioned pseudo. The ancestor
-/// walk starts at the host element per the spec § "Containing block
-/// resolution":
-///
-/// - `Position::Fixed` → viewport.
-/// - `Position::Absolute` → nearest positioned ancestor starting from
-///   the host; if the host itself is positioned, the host is the CB.
-///   Otherwise walk up.
-/// - `Position::Relative` → the host's own layout rect (the pseudo
-///   shifts from its natural inline position, which sits inside the
-///   host's content area).
+/// Resolve the containing block for a positioned pseudo. A pseudo-
+/// element is its host's child (CSS Pseudo-Elements 4 §4), so an
+/// absolute or fixed one shares the elements' walk
+/// ([`absolute_containing_block`]), starting at the host. A relative
+/// (or sticky) one is rooted at the host's own layout rect: it shifts
+/// from its natural position, which sits in the host's content area.
 fn resolve_containing_block(
     dom: &Dom<TuiExt>,
     host: NodeId,
@@ -191,38 +186,9 @@ fn resolve_containing_block(
     host_rect: LayoutRect,
 ) -> LayoutRect {
     match pseudo.position {
-        Position::Fixed => viewport,
-        Position::Absolute => {
-            // Ancestor walk STARTS at the host element. If the host
-            // is positioned, host is the CB.
-            let host_position = dom
-                .node(host)
-                .ext()
-                .and_then(|e| e.computed.as_ref())
-                .map(|c| c.position)
-                .unwrap_or_default();
-            // CSS 2.1 §10.1: the padding edge of the positioned box.
-            if matches!(
-                host_position,
-                Position::Relative | Position::Absolute | Position::Fixed
-            ) {
-                return padding_box(dom, host).unwrap_or(host_rect);
-            }
-            let mut cur = parent_id(dom, host);
-            while let Some(p) = cur {
-                let pp = computed_position(dom, p);
-                if matches!(
-                    pp,
-                    Position::Relative | Position::Absolute | Position::Fixed
-                ) {
-                    return padding_box(dom, p).unwrap_or(viewport);
-                }
-                cur = parent_id(dom, p);
-            }
-            viewport
+        Position::Fixed | Position::Absolute => {
+            absolute_containing_block(dom, Some(host), pseudo, viewport)
         }
-        // Sticky behaves as Relative for the pseudo's containing block
-        // rule — its placed rect is still rooted at the host.
         Position::Relative | Position::Static | Position::Sticky => host_rect,
     }
 }

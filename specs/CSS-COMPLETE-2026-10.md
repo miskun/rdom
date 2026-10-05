@@ -180,7 +180,7 @@ row comes from.
 | C8-SCROLL-PADDING | `scroll-padding*` / `scroll-margin*` | |
 | C8-SNAP | `scroll-snap-type` / `-align` / `-stop` | |
 | C8-OVERFLOW-TEXT | A non-clipping descendant's overflowing line boxes count toward the ancestor's scrollable overflow | |
-| C8-CB-COMPLETE | Containing block for positioned boxes, completing C7-ABSPOS-PADDING-EDGE: `sticky` ancestors in the ancestor walks, the scrollbar gutter excluded, scroll offsets applied inside a positioned scroller, one shared ancestor walk (elements and pseudo-elements, incl. the §9.1 grid area for pseudos) | |
+| C8-CB-COMPLETE | Containing block for positioned boxes, completing C7-ABSPOS-PADDING-EDGE: `sticky` ancestors in the ancestor walks, the scrollbar gutter excluded, scroll offsets applied inside a positioned scroller, one shared ancestor walk (elements and pseudo-elements, incl. the §9.1 grid area for pseudos) | done |
 | C8-POS-MINMAX | Positioned boxes (elements and pseudo-elements) honour `min-*` / `max-*` (CSS 2.1 §10.4 / §10.7 with §10.3.7 / §10.6.4); a `position: relative` pseudo with both insets takes its declared width | done (C5-POS-MINMAX + C5G-REL-PSEUDO-INSETS) |
 
 (Scroll-driven animations land in phase 12.)
@@ -4405,3 +4405,34 @@ row comes from.
   a_tokenizer_error_is_a_std_error`, `property_dispatch::tests::a_dispatch_error_is_a_std_error` and
   `declaration::tests::write::set_property_error_sources_its_inner_error` did not compile (no
   `Display` / `Error`); green after. No test expectation or snapshot changed.
+- 2026-10-05 — C8-CB-COMPLETE (completing C7-ABSPOS-PADDING-EDGE; CSS 2.1 §10.1, CSS Position 3
+  §2.1, CSS Overflow 3 §2.2 / §3, CSS Grid 2 §9.1). One walk: `positioning/containing.rs::
+  absolute_containing_block(dom, from, style, viewport)` — `fixed` the viewport; `absolute` the
+  nearest ancestor whose `position` is not `static`, from the box parent for an element and from
+  the host for a `::before` / `::after` (a pseudo-element is its host's child), the viewport on a
+  miss. `positioned_pseudos::resolve_containing_block`'s copy of the walk is gone. The ancestor
+  gives (1) its padding box less its scrollbar gutters — the column on the bar's side, the bottom
+  row — reserved under the rule scrollbar paint uses (`gutter_axes` with an `auto` axis forced when
+  it overflows its scrollport); (2) within it, for a grid container, the grid area the box's own
+  placement properties name (`grid::abspos_area` now takes the box's `ComputedStyle`, not a
+  `NodeId`, so a pseudo-element's `grid-row` / `grid-column` place it); (3) for a scroll container,
+  that rect moved by its `scroll_x` / `scroll_y`, so a contained box scrolls with the content as in
+  every browser. `sticky` now establishes the containing block (the predicate was `relative |
+  absolute | fixed` in both walks). Found while testing `fixed`: `sticky::place_one` shifted the
+  stuck box's whole subtree after phase 2 had placed its positioned descendants, so a `fixed`
+  descendant moved with it; `tree::shift_subtree` (only `sticky` uses it) now keeps a `fixed`
+  subtree in place, while `shift_content` (`align-content`, phase 1) still moves everything (phase
+  2 places `fixed` boxes again from the moved static positions). Red: `css_phase8/
+  containing_block.rs` (new) — a sticky ancestor's `top: 0; left: 0` child at `(0, 0)` for `(3,
+  2)`, the same for a sticky host's and a sticky ancestor's `::after`; `inset: 0` in an
+  `overflow-y: scroll` box 10 wide for 9; `top: 4` in a positioned scroller scrolled by 2 at row 4
+  for 2; a `fixed` box inside a stuck sticky at row 9 for 6; a positioned grid's `::after` with
+  `grid-column: 2 / 4; grid-row: 2` the whole padding box `(0, 0, 20, 3)` for `(2, 1, 7, 2)`. The
+  pin that a scroller below the containing block does not move the box was green before and after.
+  Mutation (each restored and touched): `sticky` excluded from the predicate → the two sticky
+  tests; no scroll offset and no gutter → the scroll and gutter tests. Decided, not changed:
+  `scrollbar-gutter: stable` under `overflow: auto` reserves the horizontal row too (CSS Overflow 3
+  limits the property to the inline-axis bar) — C8-SCROLLBAR's; the test reads `overflow-y`.
+  Found, scheduled with C8-OVERFLOW-TEXT: an absolutely positioned box does not count in its
+  containing scroll container's scrollable overflow (§2.2), so it cannot be scrolled to past the
+  in-flow content. No other test expectation and no snapshot changed.

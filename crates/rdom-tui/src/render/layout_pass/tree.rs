@@ -142,12 +142,36 @@ fn clear_box_state(ext: &mut TuiExt, rect: LayoutRect) {
 /// its anonymous block boxes, its positioned pseudo-elements and its
 /// recorded static position — what a layout at the moved origin would
 /// have written, since layout is translation-invariant. Used where a
-/// box moves after its subtree was laid out (`position: sticky`) and
-/// where content is aligned after it was measured (`align-content`).
+/// box moves after its subtree and its positioned descendants were laid
+/// out (`position: sticky`): a `fixed` descendant's subtree stays where
+/// it is — its containing block is the viewport (CSS Position 3 §2.1),
+/// which the move does not touch. [`shift_content`] moves a block's
+/// content after it was measured (`align-content`), `fixed` boxes too
+/// (phase 2 places them again, from the static positions moved here).
 /// Every other position layout keeps is relative to one of these — line
 /// boxes and fragments to their content box, a grid's lines to its
 /// `content_layout` (C7G-LINES-SHIFT) — so moving these moves it all.
 pub(super) fn shift_subtree(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32) {
+    shift(dom, id, dx, dy, Keep::Fixed);
+}
+
+/// What a subtree shift leaves in place.
+#[derive(Clone, Copy, PartialEq)]
+enum Keep {
+    None,
+    Fixed,
+}
+
+fn shift(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32, keep: Keep) {
+    if keep == Keep::Fixed
+        && dom
+            .node(id)
+            .ext()
+            .and_then(|e| e.computed.as_ref())
+            .is_some_and(|c| c.position == crate::layout::Position::Fixed)
+    {
+        return;
+    }
     let shift = |r: LayoutRect| LayoutRect::new(r.x + dx, r.y + dy, r.width, r.height);
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.layout = shift(ext.layout);
@@ -169,7 +193,7 @@ pub(super) fn shift_subtree(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32)
             p.y += dy;
         }
     }
-    shift_children(dom, id, dx, dy);
+    shift_children(dom, id, dx, dy, keep);
 }
 
 /// Move the laid-out content of `id` — its anonymous block boxes and
@@ -183,7 +207,7 @@ pub(super) fn shift_content(dom: &mut Dom<TuiExt>, id: NodeId, dy: i32) {
             }
         }
     }
-    shift_children(dom, id, 0, dy);
+    shift_children(dom, id, 0, dy, Keep::None);
 }
 
 /// Move the lines of `id`'s inline formatting context down by `dy`
@@ -207,10 +231,10 @@ pub(super) fn shift_lines(dom: &mut Dom<TuiExt>, id: NodeId, dy: i32) {
     }
 }
 
-fn shift_children(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32) {
+fn shift_children(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32, keep: Keep) {
     let mut child = dom.node(id).first_child().map(|c| c.id());
     while let Some(c) = child {
-        shift_subtree(dom, c, dx, dy);
+        shift(dom, c, dx, dy, keep);
         child = dom.node(c).next_sibling().map(|n| n.id());
     }
 }

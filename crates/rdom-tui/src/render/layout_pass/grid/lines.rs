@@ -128,13 +128,14 @@ impl AxisLines {
     }
 }
 
-/// The containing block an absolutely positioned `id` gets from the grid
-/// container `grid` (§9.1), whose box rdom takes as a containing block
-/// is `cb`: its grid area, an `auto` or missing line at `cb`'s edge.
-/// `None` when `grid` is not a laid-out grid container.
+/// The containing block an absolutely positioned box styled `c` — an
+/// element or a `::before` / `::after` — gets from the grid container
+/// `grid` (§9.1), whose box rdom takes as a containing block is `cb`: its
+/// grid area, an `auto` or missing line at `cb`'s edge. `None` when
+/// `grid` is not a laid-out grid container.
 pub(crate) fn abspos_area(
     dom: &Dom<TuiExt>,
-    id: NodeId,
+    c: &ComputedStyle,
     grid: NodeId,
     cb: LayoutRect,
 ) -> Option<LayoutRect> {
@@ -143,11 +144,6 @@ pub(crate) fn abspos_area(
     // The lines count from the content box the grid has now — moved
     // with it, if it moved after its layout.
     let content = ext.content_layout;
-    let c = dom
-        .node(id)
-        .ext()
-        .and_then(|e| e.computed.clone())
-        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
     let rtl = lines.rtl;
     let (right, bottom) = (cb.x + i32::from(cb.width), cb.y + i32::from(cb.height));
     let x_cb = if rtl { (right, cb.x) } else { (cb.x, right) };

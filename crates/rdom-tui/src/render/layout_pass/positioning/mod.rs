@@ -6,8 +6,8 @@
 //! - `position: fixed` → always the initial containing block (the
 //!   root viewport).
 //! - `position: absolute` → the nearest ancestor whose
-//!   `position` is `relative | absolute | fixed`, or the viewport
-//!   if none.
+//!   `position` is not `static`, or the viewport if none
+//!   (`containing`, shared with positioned pseudo-elements).
 //! - `position: relative` / `static` → returns the parent's
 //!   layout rect; used for the §5 static-position fallback.
 //!
@@ -30,8 +30,11 @@
 //! - `place` — phase-2 placement of absolute / fixed elements.
 //! - `axis` — one-axis size and offset resolvers, shared with
 //!   positioned pseudo-elements.
+//! - `containing` — the containing block of an absolutely positioned
+//!   box, element or pseudo-element.
 
 mod axis;
+mod containing;
 mod place;
 mod relative;
 mod static_pos;
@@ -42,6 +45,7 @@ use crate::ext::TuiExt;
 use crate::layout::{LayoutRect, Position};
 
 pub(super) use axis::axis_position_anchored;
+pub(super) use containing::absolute_containing_block;
 pub(super) use place::{place_positioned, resolve_size_axis};
 pub(super) use relative::{apply_relative_shift, relative_offset};
 pub(super) use static_pos::{
@@ -52,10 +56,8 @@ pub(super) use static_pos::{
 /// Resolve the containing block rect for `id`, given the root
 /// viewport. The element's own `position` decides:
 ///
-/// - `Fixed` → viewport.
-/// - `Absolute` → ancestor walk; the first positioned (relative,
-///   absolute, fixed) ancestor's padding box (CSS 2.1 §10.1: "formed by
-///   the padding edge of the ancestor"); viewport on miss.
+/// - `Fixed` / `Absolute` → [`absolute_containing_block`], the walk
+///   positioned pseudo-elements share.
 /// - `Relative` / `Static` → returns the parent's content area
 ///   (or viewport if no parent), matching the in-flow position.
 ///   (Used by phase-2 callers that ask "where would this be in
@@ -63,25 +65,13 @@ pub(super) use static_pos::{
 pub(crate) fn containing_block(dom: &Dom<TuiExt>, id: NodeId, viewport: LayoutRect) -> LayoutRect {
     let position = computed_position(dom, id);
 
-    if position == Position::Fixed {
-        return viewport;
-    }
-
-    if position == Position::Absolute {
-        let mut cur = parent_id(dom, id);
-        while let Some(p) = cur {
-            let pp = computed_position(dom, p);
-            if matches!(
-                pp,
-                Position::Relative | Position::Absolute | Position::Fixed
-            ) {
-                let cb = padding_box(dom, p).unwrap_or(viewport);
-                // CSS Grid 2 §9.1: a grid container's grid area.
-                return crate::render::layout_pass::grid::abspos_area(dom, id, p, cb).unwrap_or(cb);
-            }
-            cur = parent_id(dom, p);
-        }
-        return viewport;
+    if matches!(position, Position::Absolute | Position::Fixed) {
+        let c = dom
+            .node(id)
+            .ext()
+            .and_then(|e| e.computed.clone())
+            .unwrap_or_else(|| std::rc::Rc::new(crate::style::ComputedStyle::initial()));
+        return absolute_containing_block(dom, parent_id(dom, id), &c, viewport);
     }
 
     // Static / Relative: containing block = parent's layout rect
@@ -99,20 +89,6 @@ pub(in crate::render::layout_pass) fn computed_position(dom: &Dom<TuiExt>, id: N
         .filter(|c| c.display != crate::layout::Display::Contents)
         .map(|c| c.position)
         .unwrap_or_default()
-}
-
-/// `id`'s padding box — its border box less its border (CSS 2.1 §10.1:
-/// the containing block an absolutely positioned descendant gets from a
-/// positioned box is "formed by the padding edge of the ancestor").
-pub(in crate::render::layout_pass) fn padding_box(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-) -> Option<LayoutRect> {
-    let ext = dom.node(id).ext()?;
-    Some(match ext.computed.as_deref() {
-        Some(c) => crate::render::layout_pass::geometry::compute_padding_box(ext.layout, c.border),
-        None => ext.layout,
-    })
 }
 
 pub(in crate::render::layout_pass) fn layout_rect(
