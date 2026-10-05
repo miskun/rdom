@@ -291,8 +291,7 @@ fn descend_children_reverse(
 ) -> bool {
     // Reverse paint order: a flex container's items in order-modified
     // document order (CSS Flexbox §5.4).
-    let child_ids: Vec<NodeId> = crate::render::box_tree::paint_order_children(dom, id);
-    for &child in child_ids.iter().rev() {
+    for child in crate::render::box_tree::paint_order_children(dom, id).rev() {
         let node = dom.node(child);
         let mark = path.len();
         let hit = match node.node_type() {

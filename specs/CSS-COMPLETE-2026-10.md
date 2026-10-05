@@ -2605,3 +2605,17 @@ row comes from.
   its own in its line and the containing block's, where the enclosing box's intrinsic block-flow
   estimate stacks an inline run's atom as a block child (an existing approximation of mixed-content
   intrinsic sizing, not changed here). No test expectation and no snapshot changed.
+- 2026-10-08 — C6G-ORDER-ALLOC (AN1): `box_tree::paint_order_children` (CSS Flexbox §5.4: `order`
+  reorders painting and hit-testing) returned a `Vec` for every node it was asked about — a flex
+  container whose items are all `order: 0` built two, its items and then its child list — and its
+  callers' other branch (the children of a box-less child or fragment) collected the child list too;
+  it runs per node per paint (`stacking_walk`, `stacking` units and atom shadows) and per hit-test.
+  It now returns `PaintOrder`, a double-ended iterator that walks the child list in place
+  (`first_child` / `next_sibling` from the front, `last_child` / `previous_sibling` from the back,
+  for hit-testing's reverse order) and collects and sorts only when an item's `order` is not 0
+  (`any_reordered`, through fragments and box-less children, allocation-free); `PaintOrder::tree`
+  replaces the callers' collected child lists. The stale "allocates nothing" doc of
+  `for_each_atom_shadow` now says when it does. Red: `paint_order_allocates_only_for_reordered_items`
+  (`test_alloc`) — 4 allocations for two walks of an all-`order: 0` flex container, for 0 (first
+  observed as 5 with a test buffer that reallocated, fixed in the test); green after, both
+  directions, the reordered case still in order-modified document order. No snapshot changed.

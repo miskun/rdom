@@ -210,13 +210,88 @@ pub(crate) fn sort_by_order(dom: &Dom<TuiExt>, items: &mut [NodeId]) {
 /// flex container's are its items (through fragments and box-less
 /// children) in order-modified document order — CSS Flexbox §5.4:
 /// `order` affects painting, and so hit-testing, as it does layout.
-pub(crate) fn paint_order_children(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {
-    if is_flex_container(dom, id) {
+/// Walks the child list in place, both ways; only a flex container with
+/// an item whose `order` is not 0 collects (and sorts) its items.
+pub(crate) fn paint_order_children(dom: &Dom<TuiExt>, id: NodeId) -> PaintOrder<'_> {
+    if is_flex_container(dom, id) && any_reordered(dom, id) {
         let mut items = crate::render::layout_pass::element_children_of(dom, id);
-        if items.iter().any(|&c| order_of(dom, c) != 0) {
-            sort_by_order(dom, &mut items);
-            return items;
+        sort_by_order(dom, &mut items);
+        return PaintOrder::Sorted(items.into_iter());
+    }
+    PaintOrder::tree(dom, id)
+}
+
+/// Whether one of the flex container `id`'s items (through fragments
+/// and box-less children) has an `order` other than 0. Allocates
+/// nothing.
+fn any_reordered(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    dom.node(id).child_nodes().any(|c| match c.node_type() {
+        NodeType::Element if is_contents(dom, c.id()) => any_reordered(dom, c.id()),
+        NodeType::Element => order_of(dom, c.id()) != 0,
+        NodeType::Fragment => any_reordered(dom, c.id()),
+        _ => false,
+    })
+}
+
+/// [`paint_order_children`]: a node's children, walked in place from
+/// either end, or a flex container's reordered items.
+pub(crate) enum PaintOrder<'a> {
+    /// The child list between `front` and `back`, inclusive.
+    Tree {
+        dom: &'a Dom<TuiExt>,
+        front: Option<NodeId>,
+        back: Option<NodeId>,
+    },
+    /// Items in order-modified document order.
+    Sorted(std::vec::IntoIter<NodeId>),
+}
+
+impl<'a> PaintOrder<'a> {
+    /// `id`'s child nodes in tree order.
+    pub(crate) fn tree(dom: &'a Dom<TuiExt>, id: NodeId) -> Self {
+        let node = dom.node(id);
+        PaintOrder::Tree {
+            dom,
+            front: node.first_child().map(|c| c.id()),
+            back: node.last_child().map(|c| c.id()),
         }
     }
-    dom.node(id).child_nodes().map(|c| c.id()).collect()
+}
+
+impl Iterator for PaintOrder<'_> {
+    type Item = NodeId;
+
+    fn next(&mut self) -> Option<NodeId> {
+        match self {
+            PaintOrder::Tree { dom, front, back } => {
+                let cur = (*front)?;
+                if Some(cur) == *back {
+                    *front = None;
+                    *back = None;
+                } else {
+                    *front = dom.node(cur).next_sibling().map(|n| n.id());
+                }
+                Some(cur)
+            }
+            PaintOrder::Sorted(items) => items.next(),
+        }
+    }
+}
+
+impl DoubleEndedIterator for PaintOrder<'_> {
+    fn next_back(&mut self) -> Option<NodeId> {
+        match self {
+            PaintOrder::Tree { dom, front, back } => {
+                let cur = (*back)?;
+                if Some(cur) == *front {
+                    *front = None;
+                    *back = None;
+                } else {
+                    *back = dom.node(cur).previous_sibling().map(|n| n.id());
+                }
+                Some(cur)
+            }
+            PaintOrder::Sorted(items) => items.next_back(),
+        }
+    }
 }

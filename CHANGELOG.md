@@ -322,6 +322,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hit-testing descends into an inline block in an inline formatting context** (CSS 2.1 §9.2.2): a point on the atom's content hits that content (it hit the atom), and a hidden atom's visible child is a target while the atom's own cells fall through to what is beneath. (C6G-ATOM-HIT)
 - **A single-line flex row's `auto` height holds its baseline-aligned items** (CSS Flexbox §9.4 step 8): its height was the tallest item's, so `align-items: baseline` pushed an item out of it; its one line is now sized as a multi-line container's lines are, with each item measured at its used width (text that wraps in a `flex: 1` item is no longer clipped). (C6G-BASELINE-ROW)
 - **Nested inline blocks and baseline-aligned flex rows lay out in linear time.** Their block-axis measurements were not memoized, so each level re-measured every level below it — quadratic for inline blocks, exponential for nested `align-items: baseline` rows (11469 measurements at 8 levels, now 9). (C6G-ATOM-COST)
+- **Paint and hit-testing walk a box's children without allocating** unless a flex item's `order` is not 0: the paint-order walk collected every node's children into a `Vec` per frame (a flex container's twice). (C6G-ORDER-ALLOC)
 
 ### Changed — `rdom-showcase`
 

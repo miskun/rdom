@@ -161,7 +161,7 @@ fn children_of(
     let kids = if node == id {
         crate::render::box_tree::paint_order_children(dom, id)
     } else {
-        dom.node(node).child_nodes().map(|c| c.id()).collect()
+        crate::render::box_tree::PaintOrder::tree(dom, node)
     };
     for cid in kids {
         let child = dom.node(cid);

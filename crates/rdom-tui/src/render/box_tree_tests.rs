@@ -76,3 +76,51 @@ fn atomic_inlines_are_the_non_flow_inline_level_boxes() {
         );
     }
 }
+
+/// C6G-ORDER-ALLOC: walking a box's children in paint order (CSS
+/// Flexbox §5.4) allocates nothing unless an item's `order` is not 0 —
+/// the walk runs per node per paint and hit-test, both ways.
+#[test]
+fn paint_order_allocates_only_for_reordered_items() {
+    use crate::test_alloc::allocations_in;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let flex = dom.create_element("div");
+    dom.set_attribute(flex, "class", "f").unwrap();
+    dom.append_child(root, flex).unwrap();
+    let mut items = Vec::new();
+    for _ in 0..3 {
+        let item = dom.create_element("div");
+        dom.append_child(flex, item).unwrap();
+        items.push(item);
+    }
+    let sheet = rdom_style::Stylesheet::new()
+        .rule(
+            ".f",
+            rdom_style::TuiStyle::new()
+                .display(crate::layout::Display::Block)
+                .flow(crate::layout::Flow::Flex),
+        )
+        .unwrap()
+        .rule(".o", rdom_style::TuiStyle::new().order(-1))
+        .unwrap();
+    dom.cascade(&sheet);
+    for id in [flex, items[0]] {
+        let mut seen = Vec::with_capacity(8);
+        let n = allocations_in(|| {
+            seen.extend(super::paint_order_children(&dom, id));
+            seen.extend(super::paint_order_children(&dom, id).rev());
+        });
+        assert_eq!(n, 0, "{id:?}");
+        if id == flex {
+            assert_eq!(seen.len(), 6);
+            assert_eq!(seen[..3], items[..]);
+        }
+    }
+    dom.set_attribute(items[2], "class", "o").unwrap();
+    dom.cascade(&sheet);
+    let order: Vec<_> = super::paint_order_children(&dom, flex).collect();
+    assert_eq!(order, [items[2], items[0], items[1]]);
+    let back: Vec<_> = super::paint_order_children(&dom, flex).rev().collect();
+    assert_eq!(back, [items[1], items[0], items[2]]);
+}

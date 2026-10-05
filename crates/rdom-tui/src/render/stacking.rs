@@ -225,7 +225,7 @@ impl Walk<'_> {
         let kids = if id == box_parent {
             crate::render::box_tree::paint_order_children(dom, id)
         } else {
-            dom.node(id).child_nodes().map(|c| c.id()).collect()
+            crate::render::box_tree::PaintOrder::tree(dom, id)
         };
         for cid in kids {
             let child = dom.node(cid);
@@ -349,12 +349,13 @@ fn casts_backdrop_shadow(
 
 /// The background phase of the atomic box `atom`
 /// ([`paints_atomically`]): call `f` with each of its in-flow,
-/// non-atomic boxes that casts an outer shadow, in tree order.
+/// non-atomic boxes that casts an outer shadow, in paint order (a flex
+/// container's items in order-modified document order).
 /// `content_clip` is the clip `atom`'s content paints into. The walk
 /// stops at positioned boxes and stacking contexts (they belong to the
 /// enclosing context's layers) and at nested atomic boxes (their own
 /// units), so each box is visited by one unit only; it allocates
-/// nothing.
+/// nothing unless a flex item is reordered (`paint_order_children`).
 pub(crate) fn for_each_atom_shadow(
     dom: &Dom<TuiExt>,
     atom: NodeId,
@@ -374,7 +375,7 @@ fn atom_shadows_in(
     let kids = if id == box_parent {
         crate::render::box_tree::paint_order_children(dom, id)
     } else {
-        dom.node(id).child_nodes().map(|c| c.id()).collect()
+        crate::render::box_tree::PaintOrder::tree(dom, id)
     };
     for cid in kids {
         let child = dom.node(cid);
