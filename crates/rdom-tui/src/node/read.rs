@@ -4,8 +4,8 @@ use rdom_core::NodeRef;
 
 use crate::ext::TuiExt;
 use crate::layout::{
-    Border, BorderRadius, BoxSizing, Corners, Direction, LayoutRect, MarginTrim, Overflow, Padding,
-    Size, TextDirection, WritingMode,
+    Border, BorderRadius, BoxSizing, Corners, Direction, FlexDirection, LayoutRect, MarginTrim,
+    Overflow, Padding, Size, TextDirection, WritingMode,
 };
 use crate::style::{ComputedStyle, TuiStyle};
 
@@ -61,11 +61,28 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
             .and_then(|s| s.margin_trim.as_ref())
             .and_then(|v| v.as_specified().copied())
     }
-    /// The inline style's `flex-direction`, when set.
+    /// The axis of the inline style's `flex-direction`, when set — `Row`
+    /// for `row` and `row-reverse` alike: the half
+    /// [`set_direction`](crate::TuiNodeMutExt::set_direction) writes.
+    /// [`flex_direction`](Self::flex_direction) is the whole value.
     fn direction(&self) -> Option<Direction> {
         self.inline_style()
             .and_then(|s| s.direction.as_ref())
             .and_then(|v| v.as_specified().copied())
+    }
+    /// The inline style's `flex-direction` (CSS Flexbox §5.1), when set:
+    /// its axis and whether it is reversed, as
+    /// [`set_flex_direction`](crate::TuiNodeMutExt::set_flex_direction)
+    /// writes it.
+    fn flex_direction(&self) -> Option<FlexDirection> {
+        let style = self.inline_style()?;
+        let axis = style.direction.as_ref()?.as_specified().copied()?;
+        let reverse = style
+            .flex_reverse
+            .as_ref()
+            .and_then(|v| v.as_specified().copied())
+            .unwrap_or(false);
+        Some(FlexDirection::new(axis, reverse))
     }
     /// The inline style's four `padding-*`s, when every one is set.
     fn padding(&self) -> Option<Padding> {

@@ -112,3 +112,76 @@ fn a_visibility_transition_that_ends_hidden_blurs() {
     assert_eq!(app.dom().focused(), None, "hidden once it ends");
     assert_eq!(blurs.get(), 1);
 }
+
+/// C7G-UPGRADE-GUIDE — the upgrade guide's "open panel, focus input"
+/// entry, checked. HTML `focus()` refuses an element that is not a
+/// focusable area, and rdom reads that from the last cascade's styles
+/// (DIVERGENCES §2, TECH_DEBT `FOCUS-FLUSH-1`): a handler that shows a
+/// `display: none` panel and focuses its input in the same call is
+/// refused, and so is a `requestAnimationFrame` callback it requests —
+/// a frame runs its animation frame callbacks before it updates style
+/// (HTML "update the rendering"). A callback requested from that
+/// callback runs in the frame after, once the panel's style is computed,
+/// and takes the focus: the workaround the guide gives.
+#[test]
+fn focusing_a_just_shown_input_waits_for_the_next_frame() {
+    use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+    use rdom_tui::runtime::timers::TuiTimers;
+
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    enum When {
+        Handler,
+        OneAnimationFrame,
+        TwoAnimationFrames,
+    }
+    for when in [
+        When::Handler,
+        When::OneAnimationFrame,
+        When::TwoAnimationFrames,
+    ] {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let open = el(&mut dom, root, "button", "");
+        let panel = el(&mut dom, root, "div", "closed");
+        let input = el(&mut dom, panel, "input", "");
+        dom.add_event_listener(open, "click", ListenerOptions::default(), move |ctx| {
+            ctx.dom.set_attribute(panel, "class", "").unwrap();
+            match when {
+                When::Handler => {
+                    ctx.dom.node_mut(input).focus();
+                }
+                When::OneAnimationFrame => {
+                    ctx.request_animation_frame(move |t, _| t.dom.node_mut(input).focus());
+                }
+                When::TwoAnimationFrames => {
+                    ctx.request_animation_frame(move |t, _| {
+                        t.request_animation_frame(move |t, _| t.dom.node_mut(input).focus());
+                    });
+                }
+            }
+        })
+        .unwrap();
+        let sheet = rdom_css::from_css_strict(".closed { display: none }").expect("sheet parses");
+        let terminal = Terminal::new(TestBackend::new(20, 5)).unwrap();
+        let mut app = App::with_backend(dom, sheet, terminal).unwrap();
+        app.draw_if_dirty().unwrap();
+        app.dom_mut().node_mut(open).focus();
+        // Enter activates the focused button (HTML §4.10.6): its `click`
+        // listener runs inside `handle_event`, and each `advance` is one
+        // turn of the event loop — timers and animation frame callbacks,
+        // then the frame.
+        app.handle_event(Event::Key(KeyEvent::new(
+            KeyCode::Enter,
+            KeyModifiers::NONE,
+        )));
+        for _ in 0..4 {
+            app.advance(20).unwrap();
+        }
+        let expected = if when == When::TwoAnimationFrames {
+            input
+        } else {
+            open
+        };
+        assert_eq!(app.dom().focused(), Some(expected), "{when:?}");
+    }
+}

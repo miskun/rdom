@@ -171,3 +171,29 @@ fn phase5_node_setters_round_trip() {
         Some(Corners::all(BorderRadius::cells(1.0)))
     );
 }
+
+/// C7G-UPGRADE-GUIDE — CSS Flexbox §5.1: `flex-direction` is an axis and
+/// a direction on it. `flex_direction()` reads back the whole value
+/// `set_flex_direction` wrote — `row-reverse` included — and
+/// `direction()` its axis, the half `set_direction` writes (it was the
+/// whole value before the reversed forms existed).
+#[test]
+fn flex_direction_reads_back_the_reversed_forms() {
+    use crate::layout::FlexDirection;
+    let mut dom: TuiDom = TuiDom::new();
+    let div = dom.create_element("div");
+    for d in [
+        FlexDirection::Row,
+        FlexDirection::RowReverse,
+        FlexDirection::Column,
+        FlexDirection::ColumnReverse,
+    ] {
+        dom.node_mut(div).set_flex_direction(d);
+        let n = dom.node(div);
+        assert_eq!(n.flex_direction(), Some(d));
+        assert_eq!(n.direction(), Some(d.axis()));
+    }
+    dom.node_mut(div).set_direction(Direction::Column);
+    assert_eq!(dom.node(div).flex_direction(), Some(FlexDirection::Column));
+    assert_eq!(dom.node(dom.root()).flex_direction(), None);
+}

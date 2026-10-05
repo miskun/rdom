@@ -141,3 +141,39 @@ fn a_shifted_grids_lines_move_with_it() {
     let r = rect(&dom, abs);
     assert_eq!((r.x, r.y, r.width, r.height), (2, 9, 3, 1));
 }
+
+/// C7G-UPGRADE-GUIDE — the guide's migration for the title-on-the-border
+/// idiom, checked. Before C7-ABSPOS-PADDING-EDGE an inset counted from
+/// the positioned ancestor's border box, so `top: 0; left: 2` put a
+/// title on a bordered panel's top border; under CSS 2.1 §10.1 it counts
+/// from the padding edge, one cell in, and the same title is drawn one
+/// row lower, inside the panel. Subtracting the border width from each
+/// inset — `top: -1; left: 1` — puts it back on the border, painted over
+/// the border's glyphs (a positioned box paints after its in-flow
+/// ancestor, CSS 2.1 Appendix E).
+#[test]
+fn a_title_on_the_border_moves_by_the_border_width() {
+    use super::{paint, rows};
+    let panel = ".p { position: relative; border: solid; width: 8; height: 1 } \
+                 .t { position: absolute }";
+    let draw = |insets: &str| {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let p = el(&mut dom, root, "div", "p");
+        let t = el(&mut dom, p, "span", "t");
+        let text = dom.create_text_node("Hi");
+        dom.append_child(t, text).unwrap();
+        let buf = paint(&mut dom, &format!("{panel} .t {{ {insets} }}"), 10, 3);
+        rows(&buf, 10, 3)
+    };
+    assert_eq!(
+        draw("top: 0; left: 2"),
+        ["┌────────┐", "│  Hi    │", "└────────┘"],
+        "the 0.5 insets now land inside the panel"
+    );
+    assert_eq!(
+        draw("top: -1; left: 1"),
+        ["┌─Hi─────┐", "│        │", "└────────┘"],
+        "less the border width, the title is on the border again"
+    );
+}

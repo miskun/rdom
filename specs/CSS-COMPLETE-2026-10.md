@@ -4305,3 +4305,33 @@ row comes from.
   1 / 3 / 1 and columns 6 / 13 of §11.7) and `display_grid_node_setters_compute_their_display`
   (`inline-grid` blockified to `grid` as a grid item, CSS Display 3 §2.7). No test expectation or
   snapshot changed.
+- 2026-10-09 — C7G-UPGRADE-GUIDE (API N3). The CHANGELOG's "Upgrading from 0.5": (a) a silent-change
+  entry for `focus()` refusing a hidden element (C6G-VISIBILITY-ONE-ANSWER), with the "open panel,
+  focus input" case and a workaround that was checked, not assumed: the obvious one,
+  `request_animation_frame`, does not work — the event loop runs a handler's animation frame
+  callbacks in the same turn, before the frame cascades (`pump_scheduler` then `draw_if_dirty`) — so
+  the guide gives an animation frame callback requested from inside one, which runs after the
+  cascade. `css_phase6/visibility_answers.rs::focusing_a_just_shown_input_waits_for_the_next_frame`
+  pins all three through `handle_event` (Enter on the opening button) and `advance`: in the handler
+  and in one frame callback the focus stays on the button, in two it moves to the input. (A first
+  draft drove the click through `AppHandle::inject`, which runs after the turn's timers, and one frame
+  callback then took the focus — not what a key or mouse handler sees; the test uses the input path.)
+  The `tab_index` doc lists the rendering condition, and DIVERGENCES' "Focusability reads the last
+  cascade's styles" the frame-callback detail. (b) The padding-edge containing block moves from #16
+  to #4 by impact, naming the title-on-the-border idiom and its migration — less the border width
+  from each inset, `top: 0; left: 2` → `top: -1; left: 1`; `css_phase7/abspos.rs::
+  a_title_on_the_border_moves_by_the_border_width` paints both (inside the panel, then on its top
+  border over the glyphs). (d) The API table's rows for items that never shipped in 0.5 — checked
+  with `git grep` at `v0.5.0`: `lookup_in` / `substitute` / `resolve_custom_properties` (its
+  `ContentContext for HashMap<String, String>` half did ship and stays), `PropertyRegistration` /
+  `PropertySyntax`, `parse_max_size`, `.justify_content(…into())` (no alignment builder existed),
+  `set_from_source`, `SpannedTokens`, `App::register_property`, and `add_rule_in_layer`, which the
+  gate did not list — move to a "Changes to APIs added after 0.5" table for git `main` consumers;
+  the compile-break list drops them. (e) `TuiNodeExt::direction()` returned `Row` for `row-reverse`
+  while documented as `flex-direction`. Decision: keep it, documented as the axis — the half
+  `set_direction(Direction)` writes, so the setter / reader pairs stay symmetric and no 0.5 caller
+  breaks — and add `flex_direction() -> Option<FlexDirection>`, the whole value, beside
+  `set_flex_direction`. Red: `node::tests::flex_direction_reads_back_the_reversed_forms` did not
+  compile (no `flex_direction`); green after, all four values and the axis for each. (f) The eight
+  Phase 7 bullets past ~340 characters are trimmed (the gate's six and two more at 347 / 414). No
+  test expectation or snapshot changed.

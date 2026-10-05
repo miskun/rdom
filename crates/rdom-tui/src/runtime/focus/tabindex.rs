@@ -30,11 +30,17 @@ use crate::node::TuiNodeExt;
 /// "focusable area" rules — not just the literal `tabindex`
 /// attribute:
 ///
-/// 1. Actually disabled controls (`Dom::is_actually_disabled`: own
+/// 1. An element that is not rendered and visible
+///    ([`is_rendered_and_visible`]: it or an ancestor `display: none`, or
+///    its used `visibility` not `visible`) is not a focusable area (HTML
+///    §6.6.2) and returns `None`. This reads the last cascade's styles:
+///    an element shown since then is still refused until the next frame
+///    has cascaded (DIVERGENCES §2, TECH_DEBT `FOCUS-FLUSH-1`).
+/// 2. Actually disabled controls (`Dom::is_actually_disabled`: own
 ///    `disabled`, or inside a `<fieldset disabled>`) are NEVER focusable
 ///    (returns `None`).
-/// 2. Explicit `tabindex` attribute wins when present.
-/// 3. **Implicit focusability**: certain tags are tab-reachable
+/// 3. Explicit `tabindex` attribute wins when present.
+/// 4. **Implicit focusability**: certain tags are tab-reachable
 ///    without needing `tabindex="0"` — `<button>`, `<input>`
 ///    (except `type="hidden"`), `<textarea>`, `<details>`,
 ///    `<select>`, and `<a[href]>` / `<area[href]>`. Matches
