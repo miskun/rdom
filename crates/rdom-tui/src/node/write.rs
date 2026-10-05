@@ -6,8 +6,8 @@ use rdom_core::NodeMut;
 use crate::ext::TuiExt;
 use crate::layout::{
     Alignment, Border, BorderRadius, BoxSizing, Corners, Direction, FlexDirection, FlexWrap,
-    GridTemplate, Margin, MarginTrim, Overflow, Padding, Size, TextDirection, TrackSize,
-    Visibility, WritingMode,
+    GridAutoFlow, GridLine, GridTemplate, Margin, MarginTrim, Overflow, Padding, Size,
+    TextDirection, TrackSize, Visibility, WritingMode,
 };
 use crate::style::{TuiStyle, Value};
 
@@ -154,6 +154,22 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     /// Declare `grid-auto-rows` inline (CSS Grid 2 §7.6).
     fn set_grid_auto_rows(&mut self, sizes: impl IntoIterator<Item = TrackSize>) -> &mut Self {
         self.write_inline_style(|s| *s = std::mem::take(s).grid_auto_rows(sizes));
+        self
+    }
+    /// Declare `grid-auto-flow` inline (CSS Grid 2 §7.7).
+    fn set_grid_auto_flow(&mut self, flow: GridAutoFlow) -> &mut Self {
+        self.write_inline_style(|s| s.grid_auto_flow = Some(Value::Specified(flow)));
+        self
+    }
+    /// Declare `grid-row` inline (CSS Grid 2 §8.4): its start and end
+    /// lines, each checked as [`TuiStyle::grid_row_start`] checks it.
+    fn set_grid_row(&mut self, start: GridLine, end: GridLine) -> &mut Self {
+        self.write_inline_style(|s| *s = std::mem::take(s).grid_row(start, end));
+        self
+    }
+    /// Declare `grid-column` inline (CSS Grid 2 §8.4).
+    fn set_grid_column(&mut self, start: GridLine, end: GridLine) -> &mut Self {
+        self.write_inline_style(|s| *s = std::mem::take(s).grid_column(start, end));
         self
     }
     /// Declare `visibility` inline (CSS Display 3 §4).

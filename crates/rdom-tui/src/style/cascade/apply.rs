@@ -227,6 +227,11 @@ pub(super) fn apply_style(
         grid_template_rows: GRID_TEMPLATE_ROWS,
         grid_auto_columns: GRID_AUTO_COLUMNS,
         grid_auto_rows: GRID_AUTO_ROWS,
+        grid_auto_flow: GRID_AUTO_FLOW,
+        grid_row_start: GRID_ROW_START,
+        grid_row_end: GRID_ROW_END,
+        grid_column_start: GRID_COLUMN_START,
+        grid_column_end: GRID_COLUMN_END,
     );
     apply_border_collapse(
         &mut working.border_collapse,

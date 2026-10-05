@@ -155,7 +155,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C7-GRID-CORE | `display: grid` / `inline-grid`, `grid-template-columns` / `-rows` with cells / `%` / `fr` / `auto` / `minmax()` / `repeat()` | done |
-| C7-GRID-PLACE | `grid-row` / `grid-column` (+ start / end), `grid-area`, auto-placement, `grid-auto-flow` (`dense`) | |
+| C7-GRID-PLACE | `grid-row` / `grid-column` (+ start / end), `grid-area`, auto-placement, `grid-auto-flow` (`dense`) | partial — the placement algorithm |
 | C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | |
 | C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | done |
 | C7-GRID-ALIGN | Box Alignment in grid (`justify-*` / `align-*` / `place-*`) | |
@@ -3705,3 +3705,22 @@ row comes from.
   track `auto` → three of the four (the flexible-rows test survives: three stretched `auto` rows share
   the height alike). Changed expectations: the canonical-values table, the important-setter coverage and
   the C1 `initial` perturbation gain the two properties. No snapshot changed.
+- 2026-10-08 — C7-GRID-PLACE, part 1 of 3 (the properties; the placement algorithm is part 2,
+  absolutely positioned grid children and item paint order part 3): `grid-row-start` / `-end`,
+  `grid-column-start` / `-end` (CSS Grid 2 §8.3: `<grid-line> = auto | <custom-ident> | [ <integer>
+  && <custom-ident>? ] | [ span && [ <integer [1,∞]> || <custom-ident> ] ]` — line 0, a span below one
+  and the names `span` / `auto` invalid, the integer a math function too and clamped to `i32`), the
+  shorthands `grid-row` / `grid-column` / `grid-area` (§8.4: an omitted end copies a lone
+  `<custom-ident>`, else `auto`; `grid-area` row-start / column-start / row-end / column-end) and
+  `grid-auto-flow` (§7.7: `[ row | column ] || dense`, initial `row`) parse, cascade, compute and
+  serialize in the shortest form (`span 2 a`, `-2 a`, `span a` for a span of one, a shorthand's end
+  dropped when the start gives it back, `dense` for `row dense`). Model: `layout/grid_placement.rs` —
+  `GridLine { Auto, Name, Line { index, name }, Span { count, name } }` (closed data, `is_valid`) and
+  `GridAutoFlow { direction: Direction, dense }` (`ROW`, `COLUMN`, `.dense()`); parsers in
+  `parse/values/grid_placement.rs`, dispatch in `property_dispatch/grid.rs`; builders that refuse an
+  invalid line as the other grid builders do (`grid_row`, `grid_column`, `grid_area` over the four
+  checked longhands); node setters `set_grid_row` / `set_grid_column` / `set_grid_auto_flow`; root and
+  prelude re-exports. Red: the dispatch tests (5) failed to compile before the model; with the model,
+  stubbed `parse_grid_line` / `parse_grid_auto_flow` failed the three parse tests; green after.
+  Changed expectations: the canonical-values table, the important-setter coverage and the C1
+  `initial` perturbation gain the eight names. Inert until part 2.

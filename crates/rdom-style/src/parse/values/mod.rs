@@ -20,7 +20,9 @@
 //! - `border.rs` — `border` shorthand and per-side styles.
 //! - `shadow.rs` — `box-shadow`.
 //! - `content.rs` — `content` and counter operations.
-//! - `grid.rs` — grid track lists (`grid-template-*`).
+//! - `grid.rs` — grid track lists (`grid-template-*`, `grid-auto-*`).
+//! - `grid_placement.rs` — grid placement (`grid-row` / `-column` /
+//!   `-area` and their longhands, `grid-auto-flow`).
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
 //! - `calc.rs` — the `calc()` expression parser.
 //! - `numeric.rs` — the shared `<length-percentage>` leaf and the
@@ -38,6 +40,7 @@ mod content;
 mod display;
 mod flex;
 mod grid;
+mod grid_placement;
 mod keyword;
 mod length;
 mod number;
@@ -79,9 +82,14 @@ pub use flex::{
     parse_flex_direction, parse_flex_flow, parse_flex_wrap, serialize_flex_direction,
     serialize_flex_flow, serialize_flex_wrap,
 };
+pub(crate) use grid::is_line_name;
 pub use grid::{
     parse_grid_template, parse_track_size, parse_track_sizes, serialize_grid_template,
     serialize_track_size, serialize_track_sizes,
+};
+pub use grid_placement::{
+    parse_grid_area, parse_grid_auto_flow, parse_grid_line, parse_grid_line_pair,
+    serialize_grid_area, serialize_grid_auto_flow, serialize_grid_line, serialize_grid_line_pair,
 };
 pub use keyword::{
     parse_keyword, parse_overflow, parse_position, parse_scroll_behavior, parse_scrollbar_gutter,

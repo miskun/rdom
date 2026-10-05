@@ -127,6 +127,15 @@ pub struct TuiStyle {
     pub grid_auto_columns: Option<Value<Vec<crate::layout::TrackSize>>>,
     /// `grid-auto-rows` (§7.6): the implicit rows' sizes.
     pub grid_auto_rows: Option<Value<Vec<crate::layout::TrackSize>>>,
+    /// `grid-auto-flow` (§7.7): how auto-placement fills the grid.
+    pub grid_auto_flow: Option<Value<crate::layout::GridAutoFlow>>,
+    /// `grid-row-start` / `-end`, `grid-column-start` / `-end` (§8.3):
+    /// the item's grid area; set together by `grid-row`, `grid-column`
+    /// and `grid-area` (§8.4).
+    pub grid_row_start: Option<Value<crate::layout::GridLine>>,
+    pub grid_row_end: Option<Value<crate::layout::GridLine>>,
+    pub grid_column_start: Option<Value<crate::layout::GridLine>>,
+    pub grid_column_end: Option<Value<crate::layout::GridLine>>,
     /// `border-top-style` … `border-left-style` (CSS Backgrounds 3
     /// §4.2), one longhand per side; initial `none`.
     pub border_style: Sides<Option<Value<crate::layout::BorderStyle>>>,

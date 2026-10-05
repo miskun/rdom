@@ -101,6 +101,8 @@ pub use crate::{
     FlexWrap,
     Flow,
     GapValue,
+    GridAutoFlow,
+    GridLine,
     GridTemplate,
     HitTestExt,
     ImportantMask,

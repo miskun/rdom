@@ -752,3 +752,54 @@ fn grid_auto_hints() {
             .is_some_and(|s| s.grid_auto_rows.is_some() && s.grid_auto_columns.is_some())
     );
 }
+
+/// C7-GRID-PLACE: the placement fields (`GridLine`), `grid_auto_flow`
+/// (`GridAutoFlow`), their builders, bits, parsers and node setters.
+#[test]
+fn grid_placement_hints() {
+    let s = TuiStyle::new()
+        .grid_row(GridLine::line(1), GridLine::span(2))
+        .grid_column(GridLine::named("a"), GridLine::Auto)
+        .grid_area(
+            GridLine::nth_named(2, "x"),
+            GridLine::line(-1),
+            GridLine::span_named(1, "y"),
+            GridLine::Auto,
+        )
+        .grid_auto_flow(GridAutoFlow::COLUMN.dense());
+    assert!(s.grid_row_start.is_some() && s.grid_column_end.is_some());
+    let ComputedStyle {
+        grid_row_start,
+        grid_auto_flow,
+        ..
+    } = ComputedStyle::initial();
+    assert_eq!(
+        (grid_row_start, grid_auto_flow),
+        (GridLine::Auto, GridAutoFlow::ROW)
+    );
+    let tokens = style::parse::tokenize("a / span 2 b").unwrap();
+    let (start, end) = style::parse::values::parse_grid_line_pair(&tokens).unwrap();
+    assert_eq!(
+        style::parse::values::serialize_grid_line_pair(&start, &end),
+        "a / span 2 b"
+    );
+    assert!(
+        (ImportantMask::GRID_ROW_START
+            | ImportantMask::GRID_ROW_END
+            | ImportantMask::GRID_COLUMN_START
+            | ImportantMask::GRID_COLUMN_END
+            | ImportantMask::GRID_AUTO_FLOW)
+            .intersects(ImportantMask::all())
+    );
+    let mut dom = TuiDom::new();
+    let div = dom.create_element("div");
+    dom.node_mut(div)
+        .set_grid_row(GridLine::line(2), GridLine::Auto)
+        .set_grid_column(GridLine::span(2), GridLine::Auto)
+        .set_grid_auto_flow(GridAutoFlow::ROW.dense());
+    assert!(
+        dom.node(div)
+            .inline_style()
+            .is_some_and(|s| s.grid_row_start.is_some() && s.grid_auto_flow.is_some())
+    );
+}

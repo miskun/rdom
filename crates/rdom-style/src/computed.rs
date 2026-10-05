@@ -102,6 +102,17 @@ pub struct ComputedStyle {
     pub grid_auto_columns: Vec<crate::layout::TrackSize>,
     /// `grid-auto-rows` (§7.6): the implicit rows' sizes. Initial `auto`.
     pub grid_auto_rows: Vec<crate::layout::TrackSize>,
+    /// `grid-auto-flow` (CSS Grid 2 §7.7). Initial `row`.
+    pub grid_auto_flow: crate::layout::GridAutoFlow,
+    /// `grid-row-start` (CSS Grid 2 §8.3): where the item's grid area
+    /// starts among the rows. Initial `auto`, as are the next three.
+    pub grid_row_start: crate::layout::GridLine,
+    /// `grid-row-end` (§8.3).
+    pub grid_row_end: crate::layout::GridLine,
+    /// `grid-column-start` (§8.3).
+    pub grid_column_start: crate::layout::GridLine,
+    /// `grid-column-end` (§8.3).
+    pub grid_column_end: crate::layout::GridLine,
     /// The used border: [`border_style`](Self::border_style) with every
     /// zero-width side `none` (CSS Backgrounds 3 §4.3) — what layout
     /// reserves cells for and paint draws.
@@ -328,6 +339,11 @@ impl ComputedStyle {
             grid_template_rows: crate::layout::GridTemplate::None,
             grid_auto_columns: vec![crate::layout::TrackSize::AUTO],
             grid_auto_rows: vec![crate::layout::TrackSize::AUTO],
+            grid_auto_flow: crate::layout::GridAutoFlow::ROW,
+            grid_row_start: crate::layout::GridLine::Auto,
+            grid_row_end: crate::layout::GridLine::Auto,
+            grid_column_start: crate::layout::GridLine::Auto,
+            grid_column_end: crate::layout::GridLine::Auto,
             border: Border::none(),
             border_style: Border::none(),
             border_width: crate::layout::Sides::default(),

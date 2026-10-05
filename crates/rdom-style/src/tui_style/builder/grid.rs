@@ -1,10 +1,10 @@
 //! The grid setters of the `TuiStyle` builder (CSS Grid Layout 2): the
-//! grid container conveniences, the explicit track lists and the
-//! implicit track sizes.
+//! grid container conveniences, the explicit track lists, the implicit
+//! track sizes, `grid-auto-flow`, and the items' placement.
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
-use crate::layout::{Display, Flow, GridTemplate, TrackSize};
+use crate::layout::{Display, Flow, GridLine, GridTemplate, TrackSize};
 
 /// A track-list setter and its `!important` twin:
 /// `template_setter!("css-name", field, setter, important_setter, MASK)`.
@@ -78,6 +78,41 @@ fn checked_sizes(sizes: Vec<TrackSize>, property: &str) -> Option<Vec<TrackSize>
     ok.then_some(sizes)
 }
 
+/// A placement-longhand setter and its `!important` twin:
+/// `line_setter!("css-name", field, setter, important_setter, MASK)`.
+/// A line outside `<grid-line>` ([`GridLine::is_valid`]) is refused.
+macro_rules! line_setter {
+    ($css:literal, $field:ident, $setter:ident, $important_setter:ident, $mask:ident) => {
+        #[doc = concat!("Set `", $css, "` (CSS Grid 2 §8.3) to `line`. Chainable. A line outside the grammar (line `0`, a span below one, a name `span` / `auto`) is refused: a debug build panics, a release build leaves the declaration unset.")]
+        pub fn $setter(mut self, line: GridLine) -> Self {
+            if let Some(v) = checked_line(line, $css) {
+                self.$field = Some(Value::Specified(v));
+            }
+            self
+        }
+
+        #[doc = concat!("Like `", stringify!($setter), "` but also marks the `", $css, "` declaration `!important`.")]
+        pub fn $important_setter(mut self, line: GridLine) -> Self {
+            if let Some(v) = checked_line(line, $css) {
+                self.$field = Some(Value::Specified(v));
+                self.important |= ImportantMask::$mask;
+            }
+            self
+        }
+    };
+}
+
+/// `line` when it is a `<grid-line>`; refused as [`checked`] refuses.
+fn checked_line(line: GridLine, property: &str) -> Option<GridLine> {
+    let ok = line.is_valid();
+    debug_assert!(
+        ok,
+        "`{}` is not a value of `{property}` (CSS Grid 2 §8.3)",
+        crate::parse::values::serialize_grid_line(&line),
+    );
+    ok.then_some(line)
+}
+
 impl TuiStyle {
     /// `display: grid` — outer [`Display::Block`] + inner [`Flow::Grid`]
     /// (CSS Display 3 §2.7, CSS Grid 2 §5.1): a block-level grid
@@ -126,4 +161,65 @@ impl TuiStyle {
         grid_auto_rows_important,
         GRID_AUTO_ROWS
     );
+    setter!(
+        "grid-auto-flow",
+        grid_auto_flow,
+        grid_auto_flow,
+        grid_auto_flow_important,
+        GRID_AUTO_FLOW,
+        crate::layout::GridAutoFlow
+    );
+    line_setter!(
+        "grid-row-start",
+        grid_row_start,
+        grid_row_start,
+        grid_row_start_important,
+        GRID_ROW_START
+    );
+    line_setter!(
+        "grid-row-end",
+        grid_row_end,
+        grid_row_end,
+        grid_row_end_important,
+        GRID_ROW_END
+    );
+    line_setter!(
+        "grid-column-start",
+        grid_column_start,
+        grid_column_start,
+        grid_column_start_important,
+        GRID_COLUMN_START
+    );
+    line_setter!(
+        "grid-column-end",
+        grid_column_end,
+        grid_column_end,
+        grid_column_end_important,
+        GRID_COLUMN_END
+    );
+
+    /// Set `grid-row` (CSS Grid 2 §8.4): `grid-row-start` and
+    /// `grid-row-end`. Chainable; each line checked as its longhand's.
+    pub fn grid_row(self, start: GridLine, end: GridLine) -> Self {
+        self.grid_row_start(start).grid_row_end(end)
+    }
+
+    /// Set `grid-column` (§8.4): `grid-column-start` and
+    /// `grid-column-end`. Chainable.
+    pub fn grid_column(self, start: GridLine, end: GridLine) -> Self {
+        self.grid_column_start(start).grid_column_end(end)
+    }
+
+    /// Set `grid-area` (§8.4): row-start, column-start, row-end,
+    /// column-end, in the shorthand's order. Chainable.
+    pub fn grid_area(
+        self,
+        row_start: GridLine,
+        column_start: GridLine,
+        row_end: GridLine,
+        column_end: GridLine,
+    ) -> Self {
+        self.grid_row(row_start, row_end)
+            .grid_column(column_start, column_end)
+    }
 }
