@@ -5,5 +5,7 @@
 mod bfc;
 mod clear;
 mod computed;
+mod interactions;
+mod intrinsic;
 mod paint;
 mod place;

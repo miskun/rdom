@@ -159,6 +159,14 @@ pub(super) fn shift_subtree(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32)
     shift(dom, id, dx, dy, Keep::Fixed);
 }
 
+/// Move `id`'s box and its laid-out subtree by `(dx, dy)`, `fixed`
+/// descendants included — phase 2 places them again from the static
+/// positions moved here: the relative offset (CSS 2.1 §9.4.3) applied
+/// after `id` was laid out in flow.
+pub(super) fn shift_box(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32) {
+    shift(dom, id, dx, dy, Keep::None);
+}
+
 /// What a subtree shift leaves in place.
 #[derive(Clone, Copy, PartialEq)]
 enum Keep {

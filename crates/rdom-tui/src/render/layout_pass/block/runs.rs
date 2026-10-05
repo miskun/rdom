@@ -9,12 +9,12 @@ use crate::render::box_tree::BoxItem;
 /// One run of consecutive children sharing a level (block-level or
 /// inline-level). Block runs get per-child block layout; inline
 /// runs fold into one anonymous block per CSS 2.1 §9.2.1.1.
-pub(super) struct Run {
-    pub(super) kind: RunKind,
+pub(in crate::render::layout_pass) struct Run {
+    pub(in crate::render::layout_pass) kind: RunKind,
     /// The parent's box items in document order (its child nodes, and
     /// the generated items of a box-less child that holds a block,
     /// `box_tree::box_sequence`).
-    pub(super) children: Vec<BoxItem>,
+    pub(in crate::render::layout_pass) children: Vec<BoxItem>,
     /// Indices into the parent's box sequence, as `[start, end)`.
     /// Stored on the resulting `AnonymousIfc` so paint / hit-test can
     /// map back to surrounding context.
@@ -41,7 +41,10 @@ impl Run {
 /// adjacency). A float (CSS 2.1 §9.5) joins an open inline run — the
 /// packer places it beside the run's lines — and otherwise stands in a
 /// float run of its own, placed at the flow's cursor (`RunKind::Float`).
-pub(super) fn partition(dom: &Dom<TuiExt>, in_flow: &[(usize, BoxItem)]) -> Vec<Run> {
+pub(in crate::render::layout_pass) fn partition(
+    dom: &Dom<TuiExt>,
+    in_flow: &[(usize, BoxItem)],
+) -> Vec<Run> {
     let mut runs: Vec<Run> = Vec::new();
     for (orig_idx, child_id) in in_flow {
         let floated = child_id.node().is_some_and(|n| is_float(dom, n));
@@ -67,7 +70,7 @@ pub(super) fn partition(dom: &Dom<TuiExt>, in_flow: &[(usize, BoxItem)]) -> Vec<
 
 /// Whether the child `id` floats (CSS 2.1 §9.5): out of flow, but laid
 /// out by this pass where it occurs.
-pub(super) fn is_float(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+pub(in crate::render::layout_pass) fn is_float(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     crate::render::layout_pass::float::float_side(dom, id).is_some()
 }
 
@@ -80,6 +83,21 @@ pub(super) fn first_flow_run(runs: &[Run]) -> Option<&Run> {
 /// The last run that is not a float run.
 pub(super) fn last_flow_run(runs: &[Run]) -> Option<&Run> {
     runs.iter().rev().find(|r| r.kind != RunKind::Float)
+}
+
+/// `id`'s in-flow box items and floats partitioned into runs, as
+/// `layout_block_children` partitions them (before it drops the runs that
+/// hold no line) — for intrinsic sizing to measure what layout lays out.
+pub(in crate::render::layout_pass) fn flow_runs(dom: &Dom<TuiExt>, id: NodeId) -> Vec<Run> {
+    let items: Vec<(usize, BoxItem)> = crate::render::box_tree::box_sequence(dom, id)
+        .into_iter()
+        .enumerate()
+        .filter(|(_, c)| {
+            c.node()
+                .is_none_or(|c| is_in_flow(dom, c) || is_float(dom, c))
+        })
+        .collect();
+    partition(dom, &items)
 }
 
 /// CSS 2.1 §9.2.1.1 / §16.6.1: white space that the `white-space`
@@ -151,7 +169,7 @@ pub(super) fn drop_lineless_runs(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum RunKind {
+pub(in crate::render::layout_pass) enum RunKind {
     Block,
     Inline,
     /// Floats with no inline run to join (CSS 2.1 §9.5): placed at the

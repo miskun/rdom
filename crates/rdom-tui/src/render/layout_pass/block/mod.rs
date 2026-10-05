@@ -70,8 +70,8 @@ use margin_collapse::{
     store_margin_chain_memo,
 };
 use place::{BlockPlace, lay_out_block_child};
-use runs::{Run, RunKind, drop_lineless_runs, first_flow_run, is_float, last_flow_run, partition};
-pub(super) use runs::{inline_runs, is_block_level};
+pub(super) use runs::{Run, RunKind, flow_runs, inline_runs, is_block_level};
+use runs::{drop_lineless_runs, first_flow_run, is_float, last_flow_run, partition};
 use width::resolve_block_width;
 
 /// Returned by [`layout_block_children`] so the caller (`layout_node`)
@@ -316,9 +316,12 @@ pub(super) fn layout_block_children(
                     let placed = super::float::place_in_block_flow(
                         dom,
                         f,
-                        y,
-                        content_x,
-                        containing_block_width,
+                        super::float::Placement {
+                            y,
+                            x0: content_x,
+                            cb_width: containing_block_width,
+                            content_top: container.y - scroll_y,
+                        },
                     );
                     layout_node(dom, f, placed, containing_block_width);
                     super::float::settle_height(dom, f, placed);
@@ -426,7 +429,12 @@ pub(super) fn layout_block_children(
                 // its own floats placed there (CSS 2.1 §9.5).
                 let lines_at = LayoutRect::new(content_x, anon_y, containing_block_width, 0);
                 let (inline_layout, floats) = super::float::with_area(dom, |dom, area| {
-                    let mut ex = super::float::lines::InlineFloats::new(dom, area, lines_at);
+                    let mut ex = super::float::lines::InlineFloats::new(
+                        dom,
+                        area,
+                        lines_at,
+                        container.y - scroll_y,
+                    );
                     let layout = pack_run(
                         dom,
                         id,

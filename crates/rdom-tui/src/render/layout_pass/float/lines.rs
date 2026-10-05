@@ -30,7 +30,8 @@ pub(crate) trait LineExclusions {
 
 /// [`LineExclusions`] over a block formatting context's area, for an
 /// inline formatting context whose content box starts at `(x, y)` and is
-/// `width` cells wide. Collects the floats it places, with their border
+/// `width` cells wide, in a block container whose content box's top is
+/// row `content_top`. Collects the floats it places, with their border
 /// boxes, for the layout pass to lay out ([`InlineFloats::into_placed`]).
 pub(crate) struct InlineFloats<'a> {
     dom: &'a Dom<TuiExt>,
@@ -38,6 +39,7 @@ pub(crate) struct InlineFloats<'a> {
     x: i32,
     y: i32,
     width: u16,
+    content_top: i32,
     placed: Vec<(NodeId, LayoutRect)>,
 }
 
@@ -46,6 +48,7 @@ impl<'a> InlineFloats<'a> {
         dom: &'a Dom<TuiExt>,
         area: &'a mut ExclusionArea,
         content: LayoutRect,
+        content_top: i32,
     ) -> Self {
         Self {
             dom,
@@ -53,6 +56,7 @@ impl<'a> InlineFloats<'a> {
             x: content.x,
             y: content.y,
             width: content.width,
+            content_top,
             placed: Vec::new(),
         }
     }
@@ -94,7 +98,13 @@ impl LineExclusions for InlineFloats<'_> {
                 return false;
             }
         }
-        let rect = super::place_box(self.dom, self.area, id, &fb, y, self.x, self.width);
+        let at = super::Placement {
+            y,
+            x0: self.x,
+            cb_width: self.width,
+            content_top: self.content_top,
+        };
+        let rect = super::place_box(self.dom, self.area, id, &fb, at);
         self.placed.push((id, rect));
         true
     }

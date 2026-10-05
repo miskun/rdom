@@ -122,7 +122,19 @@ pub(super) fn cut_line<'m>(
         return cut;
     };
     let (start, end) = (first.0, last);
-    let (window_left, window_right) = marking.window;
+    // The edges are the line box's (§3: its end line box edge): the
+    // block's content box, narrowed by the floats beside the line (CSS
+    // 2.1 §9.5).
+    let (window_left, window_right) = match line.band {
+        Some((band_start, band_width)) => (
+            marking.window.0.max(origin_x + band_start),
+            marking
+                .window
+                .1
+                .min(origin_x + band_start + i32::from(band_width)),
+        ),
+        None => marking.window,
+    };
     if let Some((_, marker)) = marking.block.as_ref().filter(|(i, _)| *i == index) {
         // §4.3: after the line's content, which gives up whole pieces
         // when the marker does not fit beside it.

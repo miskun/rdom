@@ -10,7 +10,6 @@ use super::Measure;
 use crate::ext::TuiExt;
 use crate::layout::{Direction, Size};
 use crate::node::TuiNodeExt;
-use crate::render::inline::compute_inline_layout;
 use crate::render::layout_pass::box_sizing::Sizer;
 use crate::style::ComputedStyle;
 
@@ -37,13 +36,16 @@ pub(super) fn wrapped_rows(
         _ => cross_budget,
     };
     let content_width = outer_width.saturating_sub(sizer.chrome());
-    let il = compute_inline_layout(dom, id, content_width);
+    // Its lines beside its own floats, and the floats' rows (CSS 2.1
+    // §10.6.7: a root sized from its content reaches its lowest float).
+    let (il, floats) =
+        crate::render::layout_pass::float::measure::inline_rows(dom, id, content_width);
     // A line-clamp container's lines end at its Nth (CSS Overflow 4 §4).
     let height = match computed.max_lines {
         Some(n) if computed.line_clamp_container => {
             crate::render::layout_pass::line_clamp::clamped_lines_height(&il, n)
         }
-        _ => il.height(),
+        _ => il.height().max(floats),
     };
     height.max(1)
 }

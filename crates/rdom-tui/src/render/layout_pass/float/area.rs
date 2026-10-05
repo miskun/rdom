@@ -142,14 +142,33 @@ impl ExclusionArea {
         }
     }
 
-    /// Place a float whose margin box is `width` × `rows` on `side` of
-    /// the containing block `[x0, x1)`, its top not above `y` (CSS 2.1
-    /// §9.5.1): not above an earlier float's top (rule 5), as high as it
-    /// fits beside the earlier floats (rules 2, 3, 7, 8 — below them when
-    /// it does not), and as far left (right) as it can (rules 1, 9).
-    /// Returns its margin box.
+    /// Place a float — [`position`](Self::position), then
+    /// [`push`](Self::push) — and return its margin box. Layout calls the
+    /// two itself, to try a `margin-trim`med box first; the unit tests
+    /// place in one step.
+    #[cfg(test)]
     pub(crate) fn place(
         &mut self,
+        side: FloatSide,
+        width: u16,
+        rows: u16,
+        y: i32,
+        x0: i32,
+        x1: i32,
+    ) -> Exclusion {
+        let placed = self.position(side, width, rows, y, x0, x1);
+        self.floats.push(placed);
+        placed
+    }
+
+    /// Where a float whose margin box is `width` × `rows` goes on `side`
+    /// of the containing block `[x0, x1)`, its top not above `y` (CSS 2.1
+    /// §9.5.1): not above an earlier float's top (rule 5), as high as it
+    /// fits beside the earlier floats (rules 2, 3, 7, 8 — below them when
+    /// it does not), and as far left (right) as it can (rules 1, 9). Its
+    /// margin box; nothing is placed until [`push`](Self::push).
+    pub(crate) fn position(
+        &self,
         side: FloatSide,
         width: u16,
         rows: u16,
@@ -164,15 +183,18 @@ impl ExclusionArea {
             FloatSide::Left => band.start,
             FloatSide::Right => band.end - w,
         };
-        let placed = Exclusion {
+        Exclusion {
             side,
             left,
             top,
             right: left + w,
             bottom: top + i32::from(rows),
-        };
-        self.floats.push(placed);
-        placed
+        }
+    }
+
+    /// Place a float at `margin_box` ([`position`](Self::position)).
+    pub(crate) fn push(&mut self, margin_box: Exclusion) {
+        self.floats.push(margin_box);
     }
 }
 

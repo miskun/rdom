@@ -73,7 +73,7 @@ These are intrinsic to terminals. They will not change.
 - **A line box holds its inline blocks in whole rows.** A line grows to the margin box of its tallest inline block (CSS 2.1 §10.8), which sits on the line's baseline — the row its text is on — and paints at its turn in the line as a box (C5G-ATOM-BOX). An inline block's baseline (§10.8.1) is taken as the last row of its content — its last line box whenever the content ends in one; a block child with a bottom margin or padding below its last line moves it lower than a browser would — or its bottom margin edge when it has no content or clips its overflow. A negative vertical margin on an inline block counts as zero in its line: rows are whole, and an atom pulled above its line box would cover the line before it.
 - **No `masonry` / `grid-lanes`, by decision.** CSS Grid 3's masonry layout is a Working Draft whose syntax is still moving (`display: masonry` against `display: grid-lanes`), so rdom does not implement it until the spec settles. Grid Level 1 / 2 is implemented (C7-*): its own departures are the whole-cell tracks of §1 and the entries above.
 
-- **Floats follow CSS 2.1 §9.5 with three simplifications.** A line box's band beside the floats is read on its first row, so a line made taller by an inline block keeps the width of that row; a float met in inline content is placed at its measured height (its content's at its width) before it is laid out; and a float does not float where rdom lays its parent out as a flex container — the document root's children are items of rdom's viewport column, so wrap a float in a block (a browser's `<body>` is one). `float` on `::before` / `::after` does not float them: static generated content is inline text of its host's lines (C8-FLOAT).
+- **Floats follow CSS 2.1 §9.5 with four simplifications.** A line box's band beside the floats is read on its first row, so a line made taller by an inline block keeps the width of that row; a float met in inline content is placed at its measured height (its content's at its width) before it is laid out; an intrinsic size (a flex or grid item, an inline block or an absolutely positioned box sized from its content) measures the box's floats as a formatting context of its own — the floats of an enclosing context are not seen, and a float's max-content width adds to the in-flow content right after it only; and a float does not float where rdom lays its parent out as a flex container — the document root's children are items of rdom's viewport column, so wrap a float in a block (a browser's `<body>` is one). `float` on `::before` / `::after` does not float them: static generated content is inline text of its host's lines (C8-FLOAT).
 - **`margin-trim` drops one margin of a collapsed-through edge child.** When the first (last) in-flow block child of a block container is empty and its margins collapse through it (CSS 2.1 §8.3.1), CSS Box 4 §3 trims every margin adjoining the trimmed edge; rdom trims that child's start (end) margin and keeps its other one, which still separates the next sibling.
 
 ### Positioning
@@ -284,7 +284,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Logical properties and writing modes
 
-- Logical keywords (`text-align: start / end`, `float: inline-start`, `resize: block / inline`) — with C9-TEXT-ALIGN, C8-FLOAT, C12-CONTROLS
+- Logical keywords (`text-align: start / end`, `resize: block / inline`) — with C9-TEXT-ALIGN, C12-CONTROLS
 
 ### Display and visibility
 
@@ -294,7 +294,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Positioned layout
 
-- Floats in intrinsic sizes (a block's min- / max-content width and its content height when a flex or grid container, an inline block or an absolutely positioned box sizes it from its content), and floats with `margin-trim`, line clamping and `text-overflow` — the rest of C8-FLOAT
 - Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) — C15-ANCHOR
 
 ### Overflow and scrolling

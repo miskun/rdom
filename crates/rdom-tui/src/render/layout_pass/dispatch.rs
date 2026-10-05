@@ -229,7 +229,7 @@ fn pack_around_floats(
 ) {
     let content = LayoutRect::new(lines_at.x, lines_at.y, width, lines_at.height);
     super::float::with_area(dom, |dom, area| {
-        let mut ex = super::float::lines::InlineFloats::new(dom, area, content);
+        let mut ex = super::float::lines::InlineFloats::new(dom, area, content, content.y);
         let layout =
             crate::render::inline::compute_inline_layout_around(dom, id, width, Some(&mut ex));
         (layout, ex.into_placed())

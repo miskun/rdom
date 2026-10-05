@@ -171,7 +171,7 @@ row comes from.
 | C8-INSETS | `top` / `right` / `bottom` / `left` / `inset`: `%` and `calc()` | done (with C2-PERCENT) |
 | C8-PARSE-ERROR | Every public error type implements `Display` and `std::error::Error` (found by C7G-README-GRID) | done |
 | C8-Z-INDEX | `z-index` full integer range | done |
-| C8-FLOAT | `float` / `clear` (line-box exclusion, clearance) | partial — values, layout, paint, hit-testing done; intrinsic sizes and the margin-trim / line-clamp / text-overflow interactions next |
+| C8-FLOAT | `float` / `clear` (line-box exclusion, clearance) | done |
 | C8-OVERFLOW-CLIP | `overflow: clip`, two-value `overflow`, `overflow-clip-margin`, logical `overflow-block` / `-inline` | done |
 | C8-TEXT-OVERFLOW | `text-overflow: clip / ellipsis / <string>` | done |
 | C8-LINE-CLAMP | `line-clamp` / `max-lines` / `block-ellipsis` / `continue` | done |
@@ -4720,3 +4720,37 @@ row comes from.
   `rewind` → the re-layout test (`x` 8 for 0); no float paint layer → eleven; no float hit layer
   → the hit test. Split: the run partition moved to `block/runs.rs` (`partition`, with the float
   rule; `block/mod.rs` 607 → 565). No existing test expectation or snapshot changed.
+- 2026-10-05 — C8-FLOAT parts 3–4 (CSS Sizing 3 §5.1 / §5.2, CSS 2.1 §10.6.7 / §9.4.3, CSS Box 4 §3,
+  CSS Overflow 4 §3 / §4): intrinsic sizes and the interactions; the planned parts 3 (intrinsic) and
+  4 (interactions) landed together. Intrinsic — `float/measure.rs`, the layout's rules on a
+  scratch area, the measured box a formatting context of its own: `inline_rows` (an IFC block's or
+  text leaf's lines beside its own floats, and the floats' rows, for `wrapped_rows`);
+  `block_height` (a block container whose flow holds a float: its runs in order — a float placed
+  at the cursor, an inline run packed beside the floats, a block child below the floats it clears
+  and, a BFC root, where they leave it room, a non-root block child laid out in the same area so
+  its lines go beside the parent's floats — to the lowest float); `block_width` (max-content: a
+  float run's floats side by side and beside the in-flow content right after them, an inline run
+  packing its own floats as boxes in its line through the measuring packer's `push_float`;
+  min-content: the widest piece, a float whole). Interactions: `margin-trim` (CSS Box 4 §3) drops
+  a float's inline-start (inline-end) margin when its margin box would abut that content edge —
+  `float::place_box` tries the trimmed box and keeps it only flush (`area::position` then `push`)
+  — and its block-start margin at the content top (`Placement::content_top`); line clamping
+  needed nothing (the clamp container's content clip already cuts the float layer, and its height
+  ends at the clamp point after the §10.6.7 extension) — pinned; `text-overflow` marks the end line
+  box edge: a line shortened by floats keeps its band (`LineBox::band`, crate-private, only when a
+  float shortened it) and `cut_line` narrows the block's window to it. Found and fixed at the root
+  (CSS 2.1 §9.4.3): a relatively positioned box laid its subtree out in the shifted box, so a
+  float in it excluded at the shifted position — `layout_node` now lays the box out in flow and
+  moves it with its subtree afterwards (`tree::shift_box`, layout being translation-invariant;
+  `fixed` descendants too, phase 2 placing them again). Red: `float/intrinsic.rs` — 4 of 4 (`1`
+  for 3, `2` for 3 twice, `4` for 7; the first draft measured root children, which resolve their
+  height from layout, so they passed — the tests now size a row flex container's item);
+  `float/interactions.rs` — 2 of 3 (`[(2,1),(7,1)]` for the trimmed `[(0,1),(5,1)]`, `ab cdefRRR`
+  for `ab cde…RRR`; the line-clamp pin passed before and after; a first draft of the
+  `text-overflow` test expected a `nowrap` word wider than the band beside the float, which §9.5
+  moves below it — corrected); `float/bfc.rs::a_relative_offset_does_not_move_a_floats_exclusion`
+  (`      aa  ` for `  aa bb   `). Green after. Added after: the grid-item case. Mutation (each
+  restored and touched): no float rows → the taller-float test; no block measurement → the
+  block-child test; no float width → the width test; trimming off → the trim test; the band
+  window off → the `text-overflow` test. Changed expectation: none. No
+  snapshot changed.

@@ -78,7 +78,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.7 Display and visibility (Display 3) | 7 | 1 | 1 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 17 | 0 | 0 | 0 | 17 |
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
-| 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 5 | 1 | 0 | 1 | 7 |
+| 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 6 | 0 | 0 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 7 | 1 | 6 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 0 | 1 | 14 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **151** | **25** | **85** | **46** | **307** |
+| **Total** | **152** | **24** | **85** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 110 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 109 rows Partial / Missing.
 
 Headline: rdom parses **183 property names** (`property_names()`, after C7-GRID-AREAS). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and `@media`.
 
@@ -148,7 +148,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 38 | `row-gap` / `column-gap` / two-value `gap` | Shipped (C6-GAP; §3.8): per-axis gaps, `normal`, the two-value shorthand. | S | No |
 | 39 | Color syntax completeness: `rgb()` space syntax / `%` channels / `/ alpha`; `color-mix()`; relative color syntax; system colors (`Canvas`, `CanvasText`, …); `light-dark()` + `color-scheme` | Shipped (C3-RGB, C3-MIX, C3-RELATIVE, C3-SYSTEM, C3-SCHEME; §3.4) — system colors map onto the terminal's default fg / bg and the UA palette; `light-dark()` picks by the terminal's reported background and follows its theme changes (mode 2031). | S–M | No |
 | 40 | `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default`, `:user-valid` / `:user-invalid`, `:modal`, `:link` / `:any-link`, `:lang()`, `:scope`, `:popover-open` | Form / link / context state rdom already tracks (or can) for every one. | S each | Partial — `:read-*`, `:user-*`, `:modal` Yes; rest No |
-| 41 | `float` / `clear` | Line-box exclusion beside a floated box; sidebars and drop-caps. Deliberately out of scope today. | L | Yes |
+| 41 | `float` / `clear` | Line-box exclusion beside a floated box; sidebars and drop-caps. Deliberately out of scope today. | L | Yes | *Shipped: C8-FLOAT.*
 | 42 | `cursor` | OSC 22 pointer-shape request (`pointer`, `text`, `default`, `move`, resize shapes) on terminals that honor it (kitty, foot, ghostty, WezTerm); ignored elsewhere. | S | No |
 | 43 | `accent-color` | Color of checkbox / radio / range / progress glyphs in the UA chrome. | S | No |
 | 44 | `appearance` | `none` drops the UA control chrome (brackets, glyphs) so authors can restyle controls; `auto` restores it. | M | No |
@@ -398,7 +398,7 @@ dropped. The audit's six, with where each stands:
 | `inset` | Supported | 1–4 values of `auto` / signed cells / `%` / `calc()` (C2-PERCENT / C8-INSETS). | — | `V/length.rs::parse_inset_shorthand` |
 | `inset-block` / `inset-inline` (+ `-start` / `-end`) | Supported | Block axis → `top` / `bottom`, inline axis → `left` / `right` by `direction` (C5-LOGICAL). | — | `DISP` (`logical.rs`) |
 | `z-index` | Supported | `auto` / any `<integer>`, a value past `i32` clamped (CSS Values 4 §5.1; C8-Z-INDEX); a numeric value stacks a positioned box, and a static flex or grid item too (CSS Flexbox §5.4, CSS Grid 2 §6.5, C7-GRID-PLACE). | Yes | `V/number.rs::parse_z_index` |
-| `float` / `clear` | Partial | `float: none \| left \| right \| inline-start \| inline-end`, `clear: none \| left \| right \| both \| inline-start \| inline-end` (CSS 2.1 §9.5–§9.5.2, CSS Logical 1 §2.3; C8-FLOAT): placement by §9.5.1's rules, line boxes shortened beside floats (a line with no room moves below them), floats in inline content on the current line or the next, clearance, block formatting context roots containing their floats (§10.6.7) and avoiding the parent context's, `display: contents`, blockification (§9.7); floats paint after the in-flow content (Appendix E step 5) and are hit-tested above it. Remaining: intrinsic sizes with floats and the `margin-trim` / line-clamp / `text-overflow` interactions (rest of C8-FLOAT). | Yes | `V/float.rs`, `layout_pass/float/`, `BLOCK`, `IFC` |
+| `float` / `clear` | Supported | `float: none \| left \| right \| inline-start \| inline-end`, `clear: none \| left \| right \| both \| inline-start \| inline-end` (CSS 2.1 §9.5–§9.5.2, §9.7, §10.6.7, Appendix E step 5; CSS Logical 1 §2.3; C8-FLOAT): §9.5.1's placement, line boxes shortened beside floats (a line with no room moves below them), floats in inline content on the current line or the next, clearance, block formatting context roots containing their floats and avoiding the parent context's, `display: contents`, blockification, relative offsets that move a float without moving its exclusion; floats paint after the in-flow content and are hit-tested above it; intrinsic sizes measure them (as a formatting context of the measured box's own); `margin-trim` trims the floats at the edges, line clamping hides what passes the clamp point, `text-overflow` marks the line box's edge beside a float. Flex and grid items do not float (nor the root's children, rdom's viewport-column items); simplifications in DIVERGENCES. | Yes | `V/float.rs`, `layout_pass/float/` |
 | `clip` (CSS 2.1, deprecated) | N/A | Superseded by `clip-path`; no new content uses it. | — | — |
 
 ### 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1)
@@ -613,7 +613,7 @@ dropped. The audit's six, with where each stands:
 | `border-inline` / `border-block` (+ `-start` / `-end`, `-color` / `-style` / `-width`) | Supported | As the margins; one or two values for the axis longhands (C5-LOGICAL). | — | `DISP` |
 | `border-start-start-radius` / … (4 corners) | Supported | Block side first, the inline side by `direction` (C5-LOGICAL). | — | `DISP` |
 | `inset-inline` / `inset-block` | Supported | See §3.10 (C5-LOGICAL). | — | `DISP` |
-| `text-align: start / end`, `float: inline-start`, `resize: block / inline` | Missing | Logical keywords (follow their properties). | No | — |
+| `text-align: start / end`, `float: inline-start`, `resize: block / inline` | Missing | Logical keywords (follow their properties). *`float` / `clear: inline-start / inline-end` shipped: C8-FLOAT.* | No | — |
 | `writing-mode` | Partial | All five values parse, inherit and compute (C5-WRITING); every box lays out as `horizontal-tb` — vertical flow could be emulated, but glyphs cannot be rotated in a cell (DIVERGENCES §1). | Yes | `KW`, `CASC` |
 | `direction` / `unicode-bidi` | Partial | `direction: ltr \| rtl` (C5-WRITING; the `dir` attribute through the UA sheet): inline-start is the right edge — line starts (a line wider than its box overflows the left edge, C8-RTL-LINE-OVERFLOW), block over-constraint, flex rows / column cross axis, positioned insets, `margin-trim`, the vertical scrollbar side, the scroll origin (`scrollLeft` ≤ 0, C5G-RTL-SCROLL). `unicode-bidi` and bidi reordering N/A: terminals differ (DIVERGENCES §1). | Yes | `KW`, `IFC`, `BLOCK`, `FLEX`, `POS` |
 | `text-orientation` / `text-combine-upright` | N/A | Glyph rotation / compression in a cell. | — | — |
@@ -631,7 +631,7 @@ dropped. The audit's six, with where each stands:
 | `isolation` | Missing | Stacking-context trigger. | Yes | `POS` |
 | `background-blend-mode` | N/A | One background layer (a color); nothing to blend. | — | — |
 | `clip-path` | Missing | `inset()` rectangles only; shapes N/A. | No | `PAINT` |
-| `mask*` / `mask-border*` / `shape-outside` / `shape-margin` / `shape-image-threshold` | N/A | Image / shape geometry; no floats to wrap around. | — | — |
+| `mask*` / `mask-border*` / `shape-outside` / `shape-margin` / `shape-image-threshold` | N/A | Image / shape geometry: a float excludes its margin box in whole cells, a shape would need sub-cell edges. | — | — |
 
 ### 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation)
 
@@ -862,7 +862,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `padding-inline` / `padding-block` (+ `-start` / `-end`) — Missing: Aliases of physical padding. *Shipped: C5-LOGICAL.*
 - `border-inline` / `border-block` (+ `-start` / `-end`, `-color` / `-style` / `-width`) — Missing: Aliases of physical borders. *Shipped: C5-LOGICAL.*
 - `border-start-start-radius` / … (4 corners) — Missing: Aliases of `border-*-radius`. *Shipped: C5-LOGICAL.*
-- `text-align: start / end`, `float: inline-start`, `resize: block / inline` — Missing: Logical keywords (follow their properties).
+- `text-align: start / end`, `float: inline-start`, `resize: block / inline` — Missing: Logical keywords (follow their properties). *`float` / `clear` part shipped: C8-FLOAT.*
 
 **3.23 Transforms, filters, masking, compositing**
 

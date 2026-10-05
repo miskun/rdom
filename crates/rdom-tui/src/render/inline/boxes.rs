@@ -191,6 +191,11 @@ pub struct LineBox {
     /// The row of this line its text and generated content sit on,
     /// counted from [`top`](Self::top): its baseline (CSS 2.1 §10.8).
     pub baseline: u16,
+    /// The columns the floats beside the line left it (CSS 2.1 §9.5): the
+    /// start, from the content box's left edge, and the width of its line
+    /// box — `None` when no float shortens it, its line box the content
+    /// box's width.
+    pub(crate) band: Option<(i32, u16)>,
 }
 
 impl Default for LineBox {
@@ -203,6 +208,7 @@ impl Default for LineBox {
             top: 0,
             height: 1,
             baseline: 0,
+            band: None,
         }
     }
 }
@@ -277,6 +283,7 @@ mod tests {
             top,
             height,
             baseline: 0,
+            band: None,
         }
     }
 

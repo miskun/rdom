@@ -30,6 +30,7 @@
 pub(crate) mod area;
 mod flow;
 pub(crate) mod lines;
+pub(in crate::render::layout_pass) mod measure;
 pub(crate) mod size;
 
 use rdom_core::{Dom, NodeId, NodeType};
@@ -157,53 +158,99 @@ pub(in crate::render::layout_pass) fn with_area<R>(
 
 /// Place the float `id` met in block flow — between block-level boxes,
 /// where its hypothetical box would have its top at `y` — in the
-/// containing block `[x0, x1)` whose width is `cb_width` (CSS 2.1
-/// §9.5.1, its own `clear` too, §9.5.2): its border box.
+/// containing block `[x0, x0 + cb_width)` whose content box starts at
+/// row `content_top` (CSS 2.1 §9.5.1, its own `clear` too, §9.5.2): its
+/// border box.
 pub(in crate::render::layout_pass) fn place_in_block_flow(
     dom: &mut Dom<TuiExt>,
     id: NodeId,
-    y: i32,
-    x0: i32,
-    cb_width: u16,
+    at: Placement,
 ) -> LayoutRect {
-    with_area(dom, |dom, area| place(dom, area, id, y, x0, cb_width))
+    with_area(dom, |dom, area| place(dom, area, id, at))
 }
 
-/// Place float `id` in `area` with its top not above `y` (and below the
-/// floats its `clear` names), in `[x0, x0 + cb_width)`: its border box.
+/// Where a float may go: its top not above row `y`, in the containing
+/// block `[x0, x0 + cb_width)` whose content box's top is row
+/// `content_top` (the edge `margin-trim: block-start` trims at).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::render::layout_pass) struct Placement {
+    pub(in crate::render::layout_pass) y: i32,
+    pub(in crate::render::layout_pass) x0: i32,
+    pub(in crate::render::layout_pass) cb_width: u16,
+    pub(in crate::render::layout_pass) content_top: i32,
+}
+
+/// Place float `id` in `area` (and below the floats its `clear` names):
+/// its border box.
 pub(in crate::render::layout_pass) fn place(
     dom: &Dom<TuiExt>,
     area: &mut ExclusionArea,
     id: NodeId,
-    y: i32,
-    x0: i32,
-    cb_width: u16,
+    at: Placement,
 ) -> LayoutRect {
-    let fb = size::FloatBox::of(dom, id, cb_width);
-    place_box(dom, area, id, &fb, y, x0, cb_width)
+    let fb = size::FloatBox::of(dom, id, at.cb_width);
+    place_box(dom, area, id, &fb, at)
 }
 
-/// [`place`] with the float's box already measured.
+/// [`place`] with the float's box already measured. CSS Box 4 §3: the
+/// containing block's `margin-trim` drops the float's inline-start
+/// (inline-end) margin when its margin box would abut that content edge,
+/// and its block-start margin when its top is at the block-start one.
 pub(in crate::render::layout_pass) fn place_box(
     dom: &Dom<TuiExt>,
     area: &mut ExclusionArea,
     id: NodeId,
     fb: &size::FloatBox,
-    y: i32,
-    x0: i32,
-    cb_width: u16,
+    at: Placement,
 ) -> LayoutRect {
     let side = float_side(dom, id).unwrap_or(FloatSide::Left);
-    let y = clearance_floor(dom, area, id, y);
-    let m = area.place(
-        side,
-        fb.outer_width(),
-        fb.outer_height(),
-        y,
-        x0,
-        x0 + i32::from(cb_width),
-    );
+    let y = clearance_floor(dom, area, id, at.y);
+    let (x0, x1) = (at.x0, at.x0 + i32::from(at.cb_width));
+    let trim = trim_of(dom, id);
+    let mut fb = *fb;
+    if trim.top && y == at.content_top {
+        fb.margin_top = 0;
+    }
+    let position =
+        |fb: &size::FloatBox| area.position(side, fb.outer_width(), fb.outer_height(), y, x0, x1);
+    let trimmed = match side {
+        FloatSide::Left if trim.left => Some(size::FloatBox {
+            margin_left: 0,
+            ..fb
+        }),
+        FloatSide::Right if trim.right => Some(size::FloatBox {
+            margin_right: 0,
+            ..fb
+        }),
+        _ => None,
+    };
+    let flush = trimmed
+        .map(|t| (t, position(&t)))
+        .filter(|(_, m)| match side {
+            FloatSide::Left => m.left == x0,
+            FloatSide::Right => m.right == x1,
+        });
+    let (fb, m) = flush.unwrap_or_else(|| (fb, position(&fb)));
+    area.push(m);
     fb.border_box(m.left, m.top)
+}
+
+/// The edges of `id`'s containing block whose adjoining float margins
+/// `margin-trim` drops (CSS Box 4 §3): block-start, and inline-start /
+/// -end mapped to left and right by its `direction`.
+fn trim_of(dom: &Dom<TuiExt>, id: NodeId) -> crate::layout::Sides<bool> {
+    let Some(c) = crate::render::box_tree::box_parent(dom, id)
+        .and_then(|p| dom.node(p).ext()?.computed.clone())
+    else {
+        return crate::layout::Sides::new(false, false, false, false);
+    };
+    let t = c.margin_trim;
+    let (left, right) = if c.text_direction == TextDirection::Rtl {
+        (t.inline_end, t.inline_start)
+    } else {
+        (t.inline_start, t.inline_end)
+    };
+    crate::layout::Sides::new(t.block_start, right, false, left)
 }
 
 /// `y`, or the bottom of the floats `id`'s `clear` names when lower

@@ -236,12 +236,13 @@ pub(super) fn layout_node(
         .computed_rc()
         .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
 
-    // Apply the `position: relative` shift before everything else
-    // so children flow inside the *shifted* content area. Siblings
-    // already had their rects written by the parent's layout_children
-    // loop (which advances its cursor by the in-flow `size`, not the
-    // shifted rect), so they don't see the shift — matching CSS.
-    // Pass the parent's content_layout for percentage basis on
+    // The `position: relative` shift (CSS 2.1 §9.4.3: "without affecting
+    // the layout of surrounding boxes"): the box and its subtree are laid
+    // out where they are in flow — so the floats in it exclude there, in
+    // the formatting context it shares with its siblings — and moved by
+    // the offset afterwards (layout is translation-invariant). Siblings
+    // never see it: the parent's loop advances its cursor by the in-flow
+    // size. Pass the parent's content_layout for percentage basis on
     // `top`/`bottom` (parent height) and `left`/`right` (parent width).
     // The box parent's: a `display: contents` parent has no box.
     let parent_rect = crate::render::box_tree::box_parent(dom, id)
@@ -255,12 +256,13 @@ pub(super) fn layout_node(
     // `auto` parent height, still an estimate at this point, is never
     // a basis.
     let parent_height_definite = block::nearest_block_ancestor_height_is_definite(dom, id);
-    let outer_rect = positioning::apply_relative_shift(
+    let shifted = positioning::apply_relative_shift(
         &computed,
         outer_rect,
         parent_rect,
         parent_height_definite,
     );
+    let relative = (shifted.x - outer_rect.x, shifted.y - outer_rect.y);
 
     // Inset by this element's own padding + border. Under
     // `border-collapse: collapse`, an element with a border has its
@@ -430,6 +432,9 @@ pub(super) fn layout_node(
     // The offsets the children were just placed with.
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         crate::runtime::scrollbar::state::note_laid_out(ext);
+    }
+    if relative != (0, 0) {
+        tree::shift_box(dom, id, relative.0, relative.1);
     }
 }
 

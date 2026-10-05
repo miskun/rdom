@@ -249,6 +249,9 @@ impl LinePacker<'_> {
         }
         let top = self.cur_top;
         self.cur_top = top.saturating_add(height);
+        // Kept only when floats shortened the line box: otherwise its
+        // edges are the content box's.
+        let band = (self.band != (0, self.content_width())).then_some(self.band);
         self.lines.push(LineBox {
             fragments,
             generated,
@@ -256,6 +259,7 @@ impl LinePacker<'_> {
             top,
             height,
             baseline,
+            band,
         });
         self.open_line();
     }

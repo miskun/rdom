@@ -122,7 +122,7 @@ fn a_float_in_display_contents_floats_in_the_parent_flow() {
 
 /// CSS Flexbox §4 ("float and clear do not create floating or clearance
 /// of flex item, and do not take it out-of-flow") — and CSS Grid 2 §6.1
-/// the same: a flex item with `float` is laid out as an item.
+/// the same: a flex or grid item with `float` is laid out as an item.
 #[test]
 fn a_flex_item_does_not_float() {
     let mut dom = TuiDom::new();
@@ -137,6 +137,19 @@ fn a_flex_item_does_not_float() {
         2,
     );
     assert_eq!((rect(&dom, a).x, rect(&dom, f).x), (0, 2));
+
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let c = el(&mut dom, root, "div", "c");
+    let a = boxed(&mut dom, c, "a", "A");
+    let f = boxed(&mut dom, c, "f", "F");
+    lay_out(
+        &mut dom,
+        ".c { display: grid; grid-template-columns: 2 3; width: 10 } .f { float: right }",
+        10,
+        2,
+    );
+    assert_eq!((rect(&dom, a).x, rect(&dom, f).x), (0, 2), "a grid item");
 }
 
 /// A float beside a block child's text in mixed content: the text run's
@@ -194,4 +207,25 @@ fn laying_a_block_out_again_places_its_floats_once() {
     dom.node_mut(p).ext_mut().unwrap().scroll_x = -5;
     dom.layout_dom(rdom_tui::render::Rect::new(0, 0, 12, 2));
     assert_eq!((rect(&dom, f).x, dom.node(p).scroll_left()), (0, Some(0)));
+}
+
+/// CSS 2.1 §9.4.3: relative positioning moves a box "without affecting
+/// the layout of surrounding boxes" — a float inside a relatively
+/// positioned block excludes where it is in flow, so the next paragraph's
+/// lines are shortened by its unshifted width (the float itself paints
+/// shifted, with its block).
+#[test]
+fn a_relative_offset_does_not_move_a_floats_exclusion() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let c = el(&mut dom, root, "div", "c");
+    let r = el(&mut dom, c, "div", "r");
+    let f = boxed(&mut dom, r, "f", "FF");
+    text(&mut dom, r, "x");
+    boxed(&mut dom, c, "p", "aa bb");
+    let css = ".c { width: 10 } .r { position: relative; left: 4 } \
+               .f { float: left; width: 2; height: 2 }";
+    let buf = paint(&mut dom, css, 10, 2);
+    assert_eq!(rect(&dom, f).x, 4, "the float moves with its block");
+    assert_eq!(rows(&buf, 10, 2)[1], "  aa bb   ");
 }

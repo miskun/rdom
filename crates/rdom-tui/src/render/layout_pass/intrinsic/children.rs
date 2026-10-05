@@ -140,6 +140,14 @@ pub(super) fn children_size(
         Item::Element(e) => crate::render::layout_pass::block::is_block_level(dom, *e),
         Item::Anonymous(_) => false,
     };
+    // A child's outer size, by node, for the float-aware measurements
+    // (`float::measure`).
+    let outer_of = |id: rdom_core::NodeId| {
+        children
+            .iter()
+            .position(|c| matches!(c, Item::Element(e) if *e == id))
+            .map_or(0, |i| outer(i, &children[i]))
+    };
     let wrapping = flex && crate::render::layout_pass::flex::is_multi_line(computed);
     let row_line = flex && !along && direction == Direction::Column;
     let intrinsic_children: u16 = if along && wrapping && measure == Measure::MinContent {
@@ -182,7 +190,20 @@ pub(super) fn children_size(
         let gap_total = crate::render::layout_pass::gap_along(computed, direction)
             .resolve(0)
             .saturating_mul((spaced as u16).saturating_sub(1));
-        let children_main: u16 = if !flex && direction == Direction::Column {
+        let floated = (!flex && direction == Direction::Column)
+            .then(|| {
+                crate::render::layout_pass::float::measure::block_height(
+                    dom,
+                    id,
+                    child_cross_budget,
+                    &outer_of,
+                )
+            })
+            .flatten();
+        let children_main: u16 = if let Some(h) = floated {
+            // Its floats beside its lines and blocks (CSS 2.1 §9.5).
+            h
+        } else if !flex && direction == Direction::Column {
             // A block container's height: its block-level children's, and
             // each anonymous block box's (CSS 2.1 §9.2.1.1) — its run of
             // inline-level content packed into the content width as layout
@@ -209,6 +230,17 @@ pub(super) fn children_size(
                 .fold(0u16, |acc, n| acc.saturating_add(n))
         };
         children_main.saturating_add(gap_total)
+    } else if !flex
+        && direction == Direction::Row
+        && let Some(w) = crate::render::layout_pass::float::measure::block_width(
+            dom,
+            id,
+            measure == Measure::MaxContent,
+            &|c, _| outer_of(c),
+        )
+    {
+        // Its floats beside the content that follows them (CSS 2.1 §9.5).
+        w
     } else if !flex && direction == Direction::Row {
         // A block container's width: its block-level children's, and each
         // anonymous block box's (CSS 2.1 §9.2.1.1) — a run of inline-level
