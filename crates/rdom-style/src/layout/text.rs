@@ -319,6 +319,45 @@ impl TextTransform {
     }
 }
 
+/// `text-indent` (CSS Text 3 §8.1): `<length-percentage> && hanging? &&
+/// each-line?`. Inherited; initial `0`. The length is a margin at the
+/// start edge of the affected line boxes — a percentage of the block
+/// container's own inline size — and either sign.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TextIndent {
+    /// The indent: cells, or a `calc()` / percentage resolved against
+    /// the block's content width. `Length::Auto` is not in the grammar
+    /// and indents nothing.
+    pub length: crate::layout::Length,
+    /// Every line but the ones `text-indent` would otherwise affect.
+    pub hanging: bool,
+    /// The lines after a forced line break too.
+    pub each_line: bool,
+}
+
+impl Default for TextIndent {
+    fn default() -> Self {
+        TextIndent::cells(0)
+    }
+}
+
+impl TextIndent {
+    /// An indent of `n` cells, no keyword.
+    pub fn cells(n: i32) -> Self {
+        TextIndent {
+            length: crate::layout::Length::Cells(n),
+            hanging: false,
+            each_line: false,
+        }
+    }
+
+    /// The indent in cells, a percentage of `width` (the block's content
+    /// width).
+    pub fn resolve(&self, width: u16) -> i32 {
+        self.length.cells(i32::from(width)).unwrap_or(0)
+    }
+}
+
 /// The computed CSS Text properties of an element
 /// ([`ComputedStyle::text`](crate::ComputedStyle::text)). All of them
 /// inherit, so the cascade copies the group from the parent whole.
@@ -340,6 +379,8 @@ pub struct TextStyle {
     pub tab_size: TabSize,
     /// `text-transform` (CSS Text 3 §2.1).
     pub text_transform: TextTransform,
+    /// `text-indent` (CSS Text 3 §8.1).
+    pub text_indent: TextIndent,
 }
 
 impl TextStyle {

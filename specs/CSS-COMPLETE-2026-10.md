@@ -194,7 +194,7 @@ row comes from.
 | C9-WHITE-SPACE | `white-space: pre-line / break-spaces`; `white-space-collapse` / `text-wrap-mode` longhands | done |
 | C9-TEXT-WRAP | `text-wrap` / `text-wrap-style` (`balance` / `pretty` / `stable`) | |
 | C9-TEXT-ALIGN | `text-align` (incl. `start` / `end` / `justify`), `text-align-last`, `text-justify` | |
-| C9-TEXT-INDENT | `text-indent` | |
+| C9-TEXT-INDENT | `text-indent` | done |
 | C9-TEXT-TRANSFORM | `text-transform` (case mapping, `full-width`) | done |
 | C9-TAB-SIZE | `tab-size` and real tab stops in `pre` | done |
 | C9-BREAKING | `word-break`, `overflow-wrap` / `word-wrap`, `line-break`, `hyphens` (soft hyphens) | done |
@@ -5409,3 +5409,25 @@ row comes from.
   leading-apostrophe case added after a surviving mutation. Mutation (restored, touched): Final_Sigma off,
   the titlecase table entry gone, U+3000 off, an apostrophe always word-internal — each fails its test. No
   existing test expectation or snapshot changed.
+- 2026-10-11 — C9-TEXT-INDENT (CSS Text 3 §8.1, §4.2; CSS Sizing 3 §5.1 / §5.2.1; CSS Values 4 §6.1.2). rdom-style:
+  `text-indent: <length-percentage> && hanging? && each-line?` as `TextIndent { length: Length, hanging,
+  each_line }` (initial `Cells(0)`; `Length::Auto` is outside the grammar and indents nothing, documented on the
+  field), inherited; its viewport units resolve at computed-value time with the insets' (`absolute.rs` — found
+  by C2G-VIEWPORT-FIELDS' table-driven gate test, which caught `text-indent: 10vw` left unresolved). rdom-tui:
+  `render/inline/indent.rs::LineIndent` decides which lines: the first formatted line, the lines after a
+  forced break with `each-line`, inverted by `hanging`; the packer holds the current line's indent
+  (`indented()`, then per `break_line` from its `LineEnd`) and treats it as a margin at the line box's start
+  edge — `line_width()` less it (a negative one lengthens the line), the line placed past it (`start + indent`,
+  or under `rtl` `band end - indent - width`), `line_origin()` past it for tab stops ("from the starting
+  content edge", so a tab after an indent still lands on a stop counted from the edge). "Only lines that are
+  the first formatted line of an element": an IFC block's first line; of a block container's anonymous block
+  boxes, the one holding its first line-bearing content (`pack_run` reads the run's `pseudos.before`, which
+  `generated::run_pseudos` computes from that same child — the block pass already computes it per run, so no
+  extra walk); a block child's own lines take its own inherited indent. Intrinsic sizes add each line's
+  indent (`LineBox::indent`, crate-private; `measure::widest`), a percentage against 0 (the size measured is
+  its basis); `widest_run_line` takes whether the run holds the first formatted line, computed for the first
+  run only. Not done (DIVERGENCES §2): anonymous flex / grid items are packed unindented. Red:
+  `css_phase9/text_indent.rs` — 7 of 7 failed (no indent anywhere; `     aaa` for `   aaa  ` under `rtl`;
+  intrinsic 3 for 6); green after. Mutation (restored, touched): no `each-line` after a forced break → one;
+  the `rtl` indent dropped → one; every run first-formatted → one; no indent in intrinsic sizes → one; tab
+  origin without the indent → one. No existing test expectation or snapshot changed.

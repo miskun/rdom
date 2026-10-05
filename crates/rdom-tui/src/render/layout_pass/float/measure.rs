@@ -64,6 +64,7 @@ pub(in crate::render::layout_pass) fn block_width(
     let available = if max { u16::MAX } else { 0 };
     let mut floats: u16 = 0;
     let mut widest: u16 = 0;
+    let mut first_inline = true;
     for run in &runs {
         match run.kind {
             RunKind::Float => {
@@ -74,7 +75,17 @@ pub(in crate::render::layout_pass) fn block_width(
                 }
             }
             RunKind::Inline => {
-                let w = crate::render::inline::widest_run_line(dom, id, &run.children, available);
+                // CSS Text 3 §8.1: the indent of the run holding the first
+                // formatted line.
+                let first = std::mem::take(&mut first_inline)
+                    && crate::render::inline::generated::run_pseudos(dom, id, &run.children).before;
+                let w = crate::render::inline::widest_run_line(
+                    dom,
+                    id,
+                    &run.children,
+                    available,
+                    first,
+                );
                 widest = widest.max(if max { floats.saturating_add(w) } else { w });
                 floats = 0;
             }

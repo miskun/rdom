@@ -267,6 +267,9 @@ pub struct LineBox {
     /// (CSS Text 3 §4.1.2), part of `width`: not measured when the line
     /// is placed or measured for an intrinsic size.
     pub(crate) hang: u16,
+    /// The line's `text-indent` in cells (CSS Text 3 §8.1), already in
+    /// its fragments' `x`: what an intrinsic size adds to `width`.
+    pub(crate) indent: i32,
 }
 
 impl Default for LineBox {
@@ -281,6 +284,7 @@ impl Default for LineBox {
             baseline: 0,
             band: None,
             hang: 0,
+            indent: 0,
         }
     }
 }
@@ -357,6 +361,7 @@ mod tests {
             baseline: 0,
             band: None,
             hang: 0,
+            indent: 0,
         }
     }
 

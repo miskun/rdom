@@ -1,6 +1,6 @@
 //! The CSS Text setters of the `TuiStyle` builder (CSS Text 3 / 4):
 //! `white-space` and its longhands, `word-break`, `overflow-wrap`,
-//! `line-break`, `hyphens`, `tab-size`, `text-transform`.
+//! `line-break`, `hyphens`, `tab-size`, `text-transform`, `text-indent`.
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
@@ -74,6 +74,13 @@ impl TuiStyle {
         line_break_important,
         LINE_BREAK,
         crate::layout::LineBreak
+    );
+    text_setter!(
+        "text-indent",
+        text_indent,
+        text_indent_important,
+        TEXT_INDENT,
+        crate::layout::TextIndent
     );
     text_setter!(
         "text-transform",

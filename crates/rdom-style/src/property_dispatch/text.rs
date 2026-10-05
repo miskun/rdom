@@ -1,16 +1,16 @@
 //! The CSS Text properties (CSS Text 3 / 4): `white-space` and its
 //! longhands `white-space-collapse` / `text-wrap-mode`, `word-break`,
 //! `overflow-wrap` (and its legacy name `word-wrap`), `line-break`,
-//! `hyphens`, `tab-size`, `text-transform` — their `set` and `serialize`
-//! arms.
+//! `hyphens`, `tab-size`, `text-transform`, `text-indent` — their `set`
+//! and `serialize` arms.
 
-use super::value_serializers::specified;
+use super::value_serializers::{serialize_length, specified};
 use crate::layout::{TextWrapMode, WhiteSpace, WhiteSpaceCollapse};
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_hyphens, parse_line_break, parse_overflow_wrap, parse_tab_size, parse_text_transform,
-    parse_text_wrap_mode, parse_white_space, parse_white_space_collapse, parse_word_break,
-    serialize_text_transform,
+    parse_hyphens, parse_line_break, parse_overflow_wrap, parse_tab_size, parse_text_indent,
+    parse_text_transform, parse_text_wrap_mode, parse_white_space, parse_white_space_collapse,
+    parse_word_break, serialize_text_transform,
 };
 use crate::{TuiStyle, Value};
 
@@ -47,6 +47,9 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "text-transform" => parse_text_transform(value).map(|t| {
             text.text_transform = Some(Value::Specified(t));
         }),
+        "text-indent" => parse_text_indent(value).map(|t| {
+            text.text_indent = Some(Value::Specified(t));
+        }),
         _ => return None,
     })
 }
@@ -63,6 +66,16 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         "overflow-wrap" | "word-wrap" => keyword(&text.overflow_wrap, |w| w.keyword()),
         "line-break" => keyword(&text.line_break, |l| l.keyword()),
         "hyphens" => keyword(&text.hyphens, |h| h.keyword()),
+        "text-indent" => text.text_indent.as_ref().and_then(specified).map(|t| {
+            let mut out = serialize_length(&t.length);
+            if t.hanging {
+                out.push_str(" hanging");
+            }
+            if t.each_line {
+                out.push_str(" each-line");
+            }
+            out
+        }),
         "text-transform" => text
             .text_transform
             .as_ref()

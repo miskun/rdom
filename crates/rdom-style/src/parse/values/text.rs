@@ -3,7 +3,7 @@
 use super::numeric::{LengthPercentage, Range, length_percentage, number};
 use super::parse_keyword;
 use crate::layout::{
-    Hyphens, LineBreak, OverflowWrap, TabSize, TextCase, TextTransform, TextWrapMode,
+    Hyphens, LineBreak, OverflowWrap, TabSize, TextCase, TextIndent, TextTransform, TextWrapMode,
     WhiteSpaceCollapse, WordBreak,
 };
 use crate::parse::token::Token;
@@ -212,4 +212,35 @@ pub fn serialize_text_transform(t: TextTransform) -> String {
     } else {
         words.join(" ")
     }
+}
+
+/// `text-indent: <length-percentage> && hanging? && each-line?` (CSS Text
+/// 3 §8.1): the keywords anywhere, at most once each, and one length of
+/// either sign.
+pub fn parse_text_indent(value: &[Token]) -> Option<TextIndent> {
+    let (mut hanging, mut each_line) = (false, false);
+    let mut rest: Vec<Token> = Vec::with_capacity(value.len());
+    for token in value {
+        let flag = match token {
+            Token::Ident(s) if s.eq_ignore_ascii_case("hanging") => &mut hanging,
+            Token::Ident(s) if s.eq_ignore_ascii_case("each-line") => &mut each_line,
+            _ => {
+                rest.push(token.clone());
+                continue;
+            }
+        };
+        if std::mem::replace(flag, true) {
+            return None;
+        }
+    }
+    let length = match length_percentage(&rest, Range::Any)? {
+        LengthPercentage::Integer(n) => crate::layout::Length::Cells(n),
+        LengthPercentage::Cells(v) => crate::layout::Length::Cells(crate::calc::to_cells(v)),
+        LengthPercentage::Expr(e) => crate::layout::Length::Calc(Box::new(e)),
+    };
+    Some(TextIndent {
+        length,
+        hanging,
+        each_line,
+    })
 }

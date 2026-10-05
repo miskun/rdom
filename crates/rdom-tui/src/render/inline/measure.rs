@@ -21,21 +21,23 @@ use crate::render::box_tree::BoxItem;
 /// The widest line of the block container `block`'s inline content, its
 /// own `::before` / `::after` included, packed `available` wide.
 pub(crate) fn widest_line(dom: &Dom<TuiExt>, block: NodeId, available: u16) -> u16 {
-    let mut packer = LinePacker::measuring(available);
+    let mut packer = LinePacker::measuring(available).indented(indent_of(dom, block, true));
     fill_block(dom, block, &mut packer);
     widest(packer)
 }
 
 /// The widest line of the inline run `items` of `parent` (one
 /// anonymous block box's content, CSS 2.1 §9.2.1.1), without `parent`'s
-/// pseudo-elements, packed `available` wide.
+/// pseudo-elements, packed `available` wide; `first` when the run holds
+/// `parent`'s first formatted line (its `text-indent` applies).
 pub(crate) fn widest_run_line(
     dom: &Dom<TuiExt>,
     parent: NodeId,
     items: &[BoxItem],
     available: u16,
+    first: bool,
 ) -> u16 {
-    let mut packer = LinePacker::measuring(available);
+    let mut packer = LinePacker::measuring(available).indented(indent_of(dom, parent, first));
     fill_run(dom, parent, items, RunPseudos::default(), &mut packer);
     widest(packer)
 }
@@ -45,7 +47,21 @@ fn widest(mut packer: LinePacker<'_>) -> u16 {
     packer
         .take_lines()
         .iter()
-        .map(|line| line.width - line.hang)
+        .map(|line| {
+            let width = i32::from(line.width - line.hang) + line.indent;
+            width.clamp(0, i32::from(u16::MAX)) as u16
+        })
         .max()
         .unwrap_or(0)
+}
+
+/// `block`'s `text-indent` for an intrinsic measurement: a percentage of
+/// the size being measured is cyclic, so against 0 (CSS Sizing 3 §5.2.1).
+fn indent_of(dom: &Dom<TuiExt>, block: NodeId, first: bool) -> super::indent::LineIndent {
+    dom.node(block)
+        .ext()
+        .and_then(|e| e.computed.as_ref())
+        .map_or_else(super::indent::LineIndent::default, |c| {
+            super::indent::LineIndent::of(&c.text.text_indent, 0, first)
+        })
 }

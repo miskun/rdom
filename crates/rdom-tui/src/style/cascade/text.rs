@@ -33,5 +33,6 @@ pub(super) fn apply_text(
         hyphens: HYPHENS,
         tab_size: TAB_SIZE,
         text_transform: TEXT_TRANSFORM,
+        text_indent: TEXT_INDENT,
     );
 }

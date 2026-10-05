@@ -52,6 +52,7 @@ mod breaking;
 mod caret;
 mod feed;
 pub(crate) mod generated;
+mod indent;
 mod measure;
 mod packer;
 mod run_style;
@@ -320,7 +321,7 @@ pub(crate) fn compute_inline_layout_around<'a>(
     content_width: u16,
     exclusions: Option<&'a mut dyn LineExclusions>,
 ) -> InlineLayout {
-    let mut packer = packer_for(dom, block, content_width, exclusions);
+    let mut packer = packer_for(dom, block, content_width, true, exclusions);
     fill_block(dom, block, &mut packer);
     packer.finish();
     InlineLayout {
@@ -332,19 +333,24 @@ pub(crate) fn compute_inline_layout_around<'a>(
 /// A packer for the inline formatting context of the block container
 /// `block`: its lines starting at its inline-start edge
 /// — the right one under `direction: rtl` (CSS Writing Modes 4 §2.1) —
-/// beside the floats `exclusions` describes.
+/// indented by its `text-indent` (CSS Text 3 §8.1; `first_formatted` when
+/// the flow's first line is the block's first formatted line), beside
+/// the floats `exclusions` describes.
 fn packer_for<'a>(
     dom: &'a Dom<TuiExt>,
     block: NodeId,
     content_width: u16,
+    first_formatted: bool,
     exclusions: Option<&'a mut dyn LineExclusions>,
 ) -> LinePacker<'a> {
-    let rtl = dom
-        .node(block)
-        .ext()
-        .and_then(|e| e.computed.as_ref())
-        .is_some_and(|c| c.text_direction == crate::layout::TextDirection::Rtl);
-    let packer = LinePacker::new(content_width).starting_right(rtl);
+    let computed = dom.node(block).ext().and_then(|e| e.computed.as_ref());
+    let rtl = computed.is_some_and(|c| c.text_direction == crate::layout::TextDirection::Rtl);
+    let indent = computed.map_or_else(indent::LineIndent::default, |c| {
+        indent::LineIndent::of(&c.text.text_indent, content_width, first_formatted)
+    });
+    let packer = LinePacker::new(content_width)
+        .starting_right(rtl)
+        .indented(indent);
     match exclusions {
         Some(ex) => packer.around(ex),
         None => packer,
@@ -391,7 +397,8 @@ pub(crate) fn pack_generated(
     width: u16,
 ) -> InlineLayout {
     let rtl = style.text_direction == crate::layout::TextDirection::Rtl;
-    let mut packer = LinePacker::new(width).starting_right(rtl);
+    let indent = indent::LineIndent::of(&style.text.text_indent, width, true);
+    let mut packer = LinePacker::new(width).starting_right(rtl).indented(indent);
     if let Some(text) = generated::static_pseudo_text(dom, host, slot.into()) {
         packer.push_generated(host, slot, text, run_style::RunStyle::of(style));
     }
@@ -424,7 +431,10 @@ pub(crate) fn pack_run<'a>(
     content_width: u16,
     exclusions: Option<&'a mut dyn LineExclusions>,
 ) -> InlineLayout {
-    let mut packer = packer_for(dom, parent, content_width, exclusions);
+    // The run holds the parent's first line-bearing content when it holds
+    // its `::before` edge (`generated::run_pseudos`): its first line is the
+    // parent's first formatted line (CSS Text 3 §8.1).
+    let mut packer = packer_for(dom, parent, content_width, pseudos.before, exclusions);
     fill_run(dom, parent, direct_children, pseudos, &mut packer);
     packer.finish();
     InlineLayout {

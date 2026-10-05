@@ -277,3 +277,62 @@ fn text_transform_takes_its_combinations() {
     }
     assert!(inherits("text-transform"));
 }
+
+/// CSS Text 3 §8.1: `text-indent: <length-percentage> && hanging? &&
+/// each-line?` — the keywords in any order, a length of either sign, a
+/// percentage, `calc()`; serialized length first; inherited.
+#[test]
+fn text_indent_takes_a_length_and_its_keywords() {
+    use crate::layout::{Length, TextIndent};
+    for (text, value, out) in [
+        ("2", TextIndent::cells(2), "2"),
+        ("-3", TextIndent::cells(-3), "-3"),
+        (
+            "hanging 1 each-line",
+            TextIndent {
+                hanging: true,
+                each_line: true,
+                ..TextIndent::cells(1)
+            },
+            "1 hanging each-line",
+        ),
+        (
+            "each-line 4",
+            TextIndent {
+                each_line: true,
+                ..TextIndent::cells(4)
+            },
+            "4 each-line",
+        ),
+    ] {
+        let mut style = TuiStyle::new();
+        set("text-indent", text, &mut style).unwrap_or_else(|e| panic!("{text}: {e:?}"));
+        assert_eq!(
+            style.text.text_indent,
+            Some(Value::Specified(value)),
+            "{text}"
+        );
+        assert_eq!(
+            serialize("text-indent", &style).as_deref(),
+            Some(out),
+            "{text}"
+        );
+    }
+    let mut style = TuiStyle::new();
+    set("text-indent", "10%", &mut style).unwrap();
+    let Some(Value::Specified(TextIndent {
+        length: Length::Calc(_),
+        ..
+    })) = &style.text.text_indent
+    else {
+        panic!("a percentage resolves at layout")
+    };
+    for bad in ["hanging", "1 2", "1 hanging hanging", "auto", "1 first"] {
+        assert_eq!(
+            set("text-indent", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+    assert!(inherits("text-indent"));
+}

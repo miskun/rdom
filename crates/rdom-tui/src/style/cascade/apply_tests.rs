@@ -58,6 +58,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("hyphens", "none"),
     ("tab-size", "4"),
     ("text-transform", "uppercase"),
+    ("text-indent", "2"),
     ("user-select", "none"),
     ("pointer-events", "none"),
     ("visibility", "hidden"),
@@ -381,6 +382,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         hyphens,
         tab_size,
         text_transform,
+        text_indent,
     } = text;
     macro_rules! check_text {
         ($($field:ident),* $(,)?) => {$(
@@ -397,6 +399,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         hyphens,
         tab_size,
         text_transform,
+        text_indent,
     );
     // CSS Box Alignment 3 §6.2: `justify-items: initial` is `legacy`,
     // which computes to `normal` under a parent without a `legacy` value.

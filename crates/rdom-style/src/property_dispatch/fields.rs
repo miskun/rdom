@@ -88,6 +88,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "hyphens" => &[Hyphens],
         "tab-size" => &[TabSize],
         "text-transform" => &[TextTransform],
+        "text-indent" => &[TextIndent],
         "user-select" => &[UserSelect],
         "pointer-events" => &[PointerEvents],
         "visibility" => &[Visibility],

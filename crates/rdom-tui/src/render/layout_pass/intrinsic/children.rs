@@ -228,9 +228,24 @@ pub(super) fn children_size(
             .map(|(i, c)| outer(i, c))
             .max()
             .unwrap_or(0);
-        let runs = crate::render::layout_pass::block::inline_runs(dom, id)
+        let runs = crate::render::layout_pass::block::inline_runs(dom, id);
+        // CSS Text 3 §8.1: the first run's indent applies when it holds the
+        // first formatted line.
+        let first = |i: usize, run: &[crate::render::box_tree::BoxItem]| {
+            i == 0 && crate::render::inline::generated::run_pseudos(dom, id, run).before
+        };
+        let runs = runs
             .iter()
-            .map(|run| crate::render::inline::widest_run_line(dom, id, run, measure.available()))
+            .enumerate()
+            .map(|(i, run)| {
+                crate::render::inline::widest_run_line(
+                    dom,
+                    id,
+                    run,
+                    measure.available(),
+                    first(i, run),
+                )
+            })
             .max()
             .unwrap_or(0);
         blocks.max(runs)

@@ -50,6 +50,7 @@ use std::borrow::Cow;
 use rdom_core::NodeId;
 
 use super::breaking::BreakClass;
+use super::indent::LineIndent;
 use super::run_style::RunStyle;
 use super::transform::CaseContext;
 use super::vertical::{AtomAt, AtomRows};
@@ -229,6 +230,11 @@ pub(super) struct LinePacker<'a> {
     pending_floats: Vec<BoxItem>,
     /// Lines start at the right (inline-start) edge (`direction: rtl`).
     rtl: bool,
+    /// `text-indent` (CSS Text 3 §8.1): which lines are indented, by how
+    /// much.
+    indent: LineIndent,
+    /// The current line's indent, in cells.
+    cur_indent: i32,
 }
 
 impl<'a> LinePacker<'a> {
@@ -261,6 +267,8 @@ impl<'a> LinePacker<'a> {
             band: (0, content_width),
             pending_floats: Vec::new(),
             rtl: false,
+            indent: LineIndent::default(),
+            cur_indent: 0,
         }
     }
     /// Start each line at the right edge of its band — the inline-start
@@ -268,6 +276,13 @@ impl<'a> LinePacker<'a> {
     /// §7.1's `start`) — a line wider than it overflowing the left edge.
     pub(super) fn starting_right(mut self, rtl: bool) -> Self {
         self.rtl = rtl;
+        self
+    }
+
+    /// Indent the lines by `indent` (CSS Text 3 §8.1), from the first.
+    pub(super) fn indented(mut self, indent: LineIndent) -> Self {
+        self.indent = indent;
+        self.cur_indent = indent.of_line(true, false);
         self
     }
 
@@ -279,14 +294,15 @@ impl<'a> LinePacker<'a> {
         self
     }
 
-    /// The current line's width: its band's.
+    /// The current line's width: its band's, less its indent (CSS Text 3
+    /// §8.1: a margin at the line box's start edge, either sign).
     pub(super) fn line_width(&self) -> u16 {
-        self.band.1
+        (i32::from(self.band.1) - self.cur_indent).clamp(0, i32::from(u16::MAX)) as u16
     }
 
     /// Cells from the block's starting content edge — the left one, the
     /// right one under `rtl` — to the current line's start: the floats'
-    /// share of that side.
+    /// share of that side and the line's indent.
     pub(super) fn line_origin(&self) -> u16 {
         let (start, width) = self.band;
         let from_start = if self.rtl {
@@ -294,7 +310,7 @@ impl<'a> LinePacker<'a> {
         } else {
             start
         };
-        from_start.clamp(0, i32::from(u16::MAX)) as u16
+        (from_start + self.cur_indent).clamp(0, i32::from(u16::MAX)) as u16
     }
 
     /// A new line starts at row `cur_top`: the floats waiting for it are
@@ -333,7 +349,7 @@ impl<'a> LinePacker<'a> {
         if self.line_has_content() {
             return;
         }
-        while width > self.band.1 && self.band.1 < self.content_width {
+        while width > self.line_width() && self.band.1 < self.content_width {
             let Some(ex) = self.exclusions.as_deref_mut() else {
                 return;
             };

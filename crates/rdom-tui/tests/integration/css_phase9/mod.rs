@@ -8,6 +8,7 @@ pub(crate) use super::css_phase5::{el, lay_out, paint, rect, rows, size};
 
 mod breaking;
 mod tab_size;
+mod text_indent;
 mod text_transform;
 mod white_space;
 

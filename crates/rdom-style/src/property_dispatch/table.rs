@@ -141,6 +141,7 @@ define_fields! {
     Hyphens => text.hyphens : HYPHENS,
     TabSize => text.tab_size : TAB_SIZE,
     TextTransform => text.text_transform : TEXT_TRANSFORM,
+    TextIndent => text.text_indent : TEXT_INDENT,
     UserSelect => user_select : USER_SELECT,
     PointerEvents => pointer_events : POINTER_EVENTS,
     Visibility => visibility : VISIBILITY,
@@ -365,6 +366,7 @@ pub fn inherits(name: &str) -> bool {
             | "hyphens"
             | "tab-size"
             | "text-transform"
+            | "text-indent"
             | "pointer-events"
             | "visibility"
             | "caret-color"

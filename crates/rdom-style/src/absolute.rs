@@ -156,6 +156,10 @@ impl ComputedStyle {
         ] {
             absolutize(inset, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
         }
+        // CSS Text 3 §8.1: `text-indent` is a length-percentage.
+        absolutize(&mut self.text.text_indent.length, vp, Length::Calc, |v| {
+            Length::Cells(cells_i32(v))
+        });
     }
 }
 

@@ -2384,6 +2384,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.text.hyphens = rdom_style::layout::Hyphens::None;
     parent.text.tab_size = rdom_style::layout::TabSize::Number(2.0);
     parent.text.text_transform.case = rdom_style::layout::TextCase::Uppercase;
+    parent.text.text_indent = rdom_style::layout::TextIndent::cells(3);
     parent.user_select = UserSelect::None;
     parent.pointer_events = PointerEvents::None;
     parent.visibility = rdom_style::layout::Visibility::Hidden;
@@ -2533,6 +2534,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         (
             "text-transform",
             child.text.text_transform == parent.text.text_transform,
+        ),
+        (
+            "text-indent",
+            child.text.text_indent == parent.text.text_indent,
         ),
         ("user-select", child.user_select == parent.user_select),
         (

@@ -335,10 +335,12 @@ impl LinePacker<'_> {
         // yet, C9-TEXT-ALIGN): flush with the band's left edge, or under
         // `rtl` its right one — a line wider than the band starting left
         // of it and overflowing its left (end) edge.
+        // `text-indent` (CSS Text 3 §8.1) is a margin at the start edge.
+        let indent = self.cur_indent;
         let shift = if self.rtl {
-            start + i32::from(band_width) - i32::from(width - hang)
+            start + i32::from(band_width) - indent - i32::from(width - hang)
         } else {
-            start
+            start + indent
         };
         if shift != 0 {
             for f in &mut fragments {
@@ -362,7 +364,9 @@ impl LinePacker<'_> {
             baseline,
             band,
             hang,
+            indent,
         });
+        self.cur_indent = self.indent.of_line(false, end == LineEnd::Forced);
         self.open_line();
     }
 
