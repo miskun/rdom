@@ -2929,3 +2929,30 @@ row comes from.
   TECH_DEBT `SIZE-1`: `cascade/ladder.rs` 544, `block/mod.rs` 529, `layout/border.rs` 528,
   `inline_paint/mod.rs` 520, and from this batch `inline/mod.rs` 560, `property_dispatch/table.rs`
   531, `flex/mod.rs` 516.
+- 2026-10-08 — C6G-BLOCKIFY (C6G-FLEX-SPEC's DIVERGENCES §3 finding): a flex item's computed
+  `display` is blockified (CSS Display 3 §2.7, CSS Flexbox §4) at computed-value time, so every
+  reader of `ComputedStyle` and every layout path see one answer. `cascade::apply::blockify` maps an
+  inline-level outer type to `block` and keeps the inner one — `inline` → `block`, `inline-flex` →
+  `flex`, `inline flow-root` → `flow-root` — and `inline-block` (rdom's `inline flow-root`) to
+  `block flow-root`; `block`, `contents`, `none` and the `list-item` flag are kept. It runs after
+  Appendix B's `contents` → `none` and before the BFC predicate, for an element whose parent box is
+  a flex container (`children_are_flex_items`: the parent, or past a `display: contents` parent its
+  nearest boxed ancestor, §2.5) and for a flex container's `::before` / `::after` (child boxes, CSS
+  Pseudo-Elements 4 §4) — a box-less host's pseudos ask its parent box. A restyle (`Mode::Restyle`)
+  no longer keeps a `contents` element's subtree when its own style is unchanged: its children
+  read their parent box from above it. Decision on the document root's children: not blockified.
+  rdom lays them out in its viewport column only as a layout device standing in for a browser's
+  `<body>`, whose children are blocks and inlines in normal flow, not flex items (a non-element
+  parent is no flex container); so they keep their computed `display`, and an atomic inline among
+  them hugs its content. Batch B's special case (`hugs_as_inline_level` asking whether the item's
+  box parent is a flex container) is now a read of the computed style alone — an atomic inline
+  there can only be a root child — and covers `inline-flex` like `inline-block`. Red
+  (`css_phase6/blockify.rs`): `(Inline, Block)` for `(Block, Block)` (a `span` item; the
+  `inline-block` / `inline-flex` / `inline flow-root` rows behind it), the `contents` child's `span`
+  likewise, `(InlineBlock, Block)` for `(Block, FlowRoot)` on `::before`, `Inline` for `Block` before a
+  toggle; `the_document_roots_children_are_not_blockified` passed before and after. Green after;
+  `apply_tests::a_restyle_unblockifies_the_children_of_a_contents_item` added with the restyle guard.
+  Mutation check (restored and touched): the guard off → `Block` for `Inline`. DIVERGENCES §3's
+  entry removed. The two functions are `cascade/blockify.rs` (55 lines; `apply.rs` stays 464);
+  `walk.rs` 564 → 575, recorded in TECH_DEBT `SIZE-1`. No other test expectation and no snapshot
+  changed.

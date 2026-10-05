@@ -332,17 +332,15 @@ pub(super) fn aspect_cross_from_main(
     Some(cross.saturating_add(cross_edges))
 }
 
-/// An inline-level child of the document root: the root's children are
-/// laid out in rdom's viewport column only as a layout device, standing
-/// in for a browser's `<body>` (DIVERGENCES), where an inline block sits
-/// in a line at its content width — not blockified, so not stretched.
-/// Every child of a real flex container is a flex item, blockified (CSS
-/// Display 3 §2.7).
-fn hugs_as_inline_level(dom: &Dom<TuiExt>, item: &FlexItem, computed: &ComputedStyle) -> bool {
-    computed.display == crate::layout::Display::InlineBlock
-        && !item
-            .box_parent(dom)
-            .is_some_and(|p| crate::render::box_tree::is_flex_container(dom, p))
+/// An inline-level child of the document root. A flex item's `display`
+/// is blockified at computed-value time (CSS Display 3 §2.7, the
+/// cascade's `blockify`), so an atomic inline here is a child of the
+/// document root, which rdom lays out in its viewport column only as a
+/// layout device standing in for a browser's `<body>` — whose children
+/// are not flex items: an inline block sits in a line at its content
+/// width, so it is not stretched.
+fn hugs_as_inline_level(computed: &ComputedStyle) -> bool {
+    crate::render::box_tree::is_atomic_inline(computed)
 }
 
 /// What the cross-axis resolver needs to know about the main axis and
@@ -370,8 +368,8 @@ struct MainAxisFacts {
 ///     §3.2). Half-to-even rounding to integer cells.
 ///   - Else, stretched → fill the line; not stretched → its content
 ///     size at its used main size. A flex item is blockified (CSS
-///     Display 3 §2.7), so an `inline-block` one is no different — but
-///     an inline block in the document root's viewport column hugs its
+///     Display 3 §2.7, at computed-value time); an inline block among
+///     the document root's children, which are not flex items, hugs its
 ///     content, as in a browser's `<body>`.
 ///
 /// Then clamps by `min` / `max`.
@@ -460,9 +458,9 @@ fn resolve_cross_size(
                 })
             {
                 cross
-            } else if stretch && !hugs_as_inline_level(dom, item, computed) {
-                // A flex item is blockified (CSS Display 3 §2.7): an
-                // `inline-block` one stretches as a block does.
+            } else if stretch && !hugs_as_inline_level(computed) {
+                // A flex item is blockified (CSS Display 3 §2.7), so it
+                // stretches as a block does.
                 line
             } else {
                 // Not stretched (an `auto` cross margin, or the

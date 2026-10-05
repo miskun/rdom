@@ -308,3 +308,46 @@ fn display_inherit_takes_the_parents_inner_display_too() {
     let c = computed_of(&dom, child);
     assert_eq!((c.display, c.flow), (Display::Block, Flow::Flex));
 }
+
+// ─── Blockification (C6G-BLOCKIFY) ──────────────────────────────────
+
+/// CSS Display 3 §2.7 through a `contents` child (§2.5): a restyle that
+/// turns the flex container back into a block must un-blockify the
+/// `contents` element's children, though the `contents` element's own
+/// computed style does not change — its subtree is not kept.
+#[test]
+fn a_restyle_unblockifies_the_children_of_a_contents_item() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let f = dom.create_element("div");
+    let c = dom.create_element("span");
+    let s = dom.create_element("span");
+    dom.append_child(root, f).unwrap();
+    dom.append_child(f, c).unwrap();
+    dom.append_child(c, s).unwrap();
+    dom.node_mut(c)
+        .ext_mut()
+        .unwrap()
+        .set_inline_style(TuiStyle::new().display(Display::Contents));
+    dom.node_mut(s)
+        .ext_mut()
+        .unwrap()
+        .set_inline_style(TuiStyle::new().display(Display::Inline));
+    dom.node_mut(f)
+        .ext_mut()
+        .unwrap()
+        .set_inline_style(TuiStyle::new().flow(Flow::Flex));
+    let sheet = Stylesheet::bare();
+    dom.cascade(&sheet);
+    assert_eq!(computed_of(&dom, s).display, Display::Block);
+
+    dom.node_mut(f)
+        .ext_mut()
+        .unwrap()
+        .set_inline_style(TuiStyle::new());
+    let sheets = [&sheet];
+    let registry = Rc::new(PropertyRegistry::new(&sheets));
+    restyle_vars(&mut dom, &sheets, registry, &[f]);
+    assert_eq!(computed_of(&dom, f).flow, Flow::Block);
+    assert_eq!(computed_of(&dom, s).display, Display::Inline);
+}

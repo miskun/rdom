@@ -10,6 +10,7 @@ pub(crate) use super::css_phase5::{el, lay_out, paint, rect, rows, size};
 mod align;
 mod align_content;
 mod anon_items;
+mod blockify;
 mod collapse;
 mod contents;
 mod direction_reverse;

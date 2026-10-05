@@ -65,6 +65,7 @@
 //! property against the table so the two cannot drift.
 
 mod apply;
+mod blockify;
 mod content;
 mod counters;
 mod custom;

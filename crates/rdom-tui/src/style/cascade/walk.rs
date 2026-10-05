@@ -236,7 +236,15 @@ pub(super) fn cascade_subtree<'a>(
     // they must be recomputed even when the element's style is unchanged.
     let reads_moved_counters =
         counters.is_changed() && dom.node(id).ext().is_some_and(|e| e.reads_counters);
-    if mode == Mode::Restyle && previous.as_deref() == Some(&computed) && !reads_moved_counters {
+    // A box-less element's children take their parent box — so whether
+    // they are flex items, blockified — from above it: its own style
+    // staying the same does not keep theirs.
+    let keeps_subtree = computed.display != crate::layout::Display::Contents;
+    if mode == Mode::Restyle
+        && previous.as_deref() == Some(&computed)
+        && !reads_moved_counters
+        && keeps_subtree
+    {
         // Nothing this element passes down changed: its boxes and its
         // subtree keep their styles.
         if let Some(ext) = dom.node_mut(id).ext_mut() {
@@ -517,6 +525,9 @@ fn compute_element_style(
     // margin-collapse pass — landing here in phase 1 so phase 5 has
     // it ready to consume.
     super::apply::finalize_unusual_contents(&mut working, dom.node(id).tag_name());
+    if super::blockify::children_are_flex_items(dom, parent_id, parent) {
+        super::blockify::blockify(&mut working);
+    }
     super::apply::finalize_justify_items(&mut working, parent);
     finalize_bfc_formation(&mut working);
     // Viewport-percentage lengths are absolute at computed-value time

@@ -124,6 +124,16 @@ pub(super) fn compute_pseudo_style(
     let decls = decls.with(substituted.as_ref(), working.text_direction);
     colors.finalize(&mut working, host_computed.fg, preferred);
 
+    // `::before` / `::after` are child boxes of the host (CSS
+    // Pseudo-Elements 4 §4): flex items, blockified, when it is a flex
+    // container (CSS Flexbox §4).
+    if matches!(
+        target,
+        PseudoElementTarget::Before | PseudoElementTarget::After
+    ) && super::blockify::children_are_flex_items(dom, Some(id), host_computed)
+    {
+        super::blockify::blockify(&mut working);
+    }
     super::apply::finalize_justify_items(&mut working, host_computed);
     finalize_bfc_formation(&mut working);
     working.resolve_viewport_units(cx.sheets.viewport());
