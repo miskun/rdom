@@ -121,7 +121,7 @@ pub(super) fn compute_element_style(
     // margin-collapse pass — landing here in phase 1 so phase 5 has
     // it ready to consume.
     super::apply::finalize_unusual_contents(&mut working, dom.node(id).tag_name());
-    if super::blockify::children_are_flex_items(dom, parent_id, parent) {
+    if super::blockify::children_are_items(dom, parent_id, parent) {
         super::blockify::blockify(&mut working);
     }
     super::apply::finalize_justify_items(&mut working, parent);

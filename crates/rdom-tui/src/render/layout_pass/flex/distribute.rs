@@ -9,9 +9,9 @@ use rdom_core::Dom;
 
 use super::main_axis::ChildMain;
 use crate::ext::TuiExt;
-use crate::layout::{Direction, Overflow, Size, clamp_size};
-use crate::node::TuiNodeExt;
+use crate::layout::{Direction, clamp_size};
 use crate::render::layout_pass::items::Item;
+use crate::render::layout_pass::shares::{Rolling, sums_below_one};
 
 /// Budget figures the §9.7 loop distributes against.
 pub(super) struct MainAxisBudget {
@@ -166,21 +166,12 @@ fn distribute(items: &[ChildMain], frozen: &[bool], target: &mut [u16], free: f6
     } else {
         (-free).max(0.0)
     };
-    let mut accumulated_weight = 0.0;
-    let mut accumulated: u32 = 0;
+    let mut shares = Rolling::new(amount, total);
     for (i, ci) in items.iter().enumerate() {
         if frozen[i] {
             continue;
         }
-        let share = if total > 0.0 {
-            accumulated_weight += weight(ci);
-            let to = floor_cells(amount * accumulated_weight / total);
-            let share = to.saturating_sub(accumulated).min(u32::from(u16::MAX)) as u16;
-            accumulated = to;
-            share
-        } else {
-            0
-        };
+        let share = shares.share(weight(ci)).min(u32::from(u16::MAX)) as u16;
         target[i] = if growing {
             ci.base.saturating_add(share)
         } else {
@@ -189,43 +180,13 @@ fn distribute(items: &[ChildMain], frozen: &[bool], target: &mut [u16], free: f6
     }
 }
 
-/// Relative tolerance for arithmetic on flex factors.
-///
-/// Factors are CSS `<number>`s parsed into `f32` (24-bit mantissa), so
-/// a decimal factor carries a relative error of up to 2⁻²⁴ and a sum or
-/// product of them a few times that: `0.1 + 0.2 + 0.7` is
-/// 0.99999999255 once widened to `f64`, and `80 × (0.2 + 0.7)` is
-/// 71.9999999. Comparisons against one and the floors that turn shares
-/// into cells treat values within this tolerance as equal.
-///
-/// Why a tolerance and not an `f32` sum: summing in `f32` only moves
-/// the rounding (it happens to give exactly 1.0 for `0.1 + 0.2 + 0.7`,
-/// but `10 × 0.1` gives 1.0000001), and the floors still see products
-/// a hair below an integer. The tolerance cannot misfire on a real
-/// fraction: four `f32` epsilons (≈ 4.8e-7) of the largest main size
-/// (`u16::MAX` cells) is 0.03 of a cell, and a factor sum within it of
-/// one is one at the precision an `f32` factor holds.
-const FACTOR_TOLERANCE: f64 = 4.0 * f32::EPSILON as f64;
-
-/// §9.7 step 4.b's "sum of the flex factors is less than one", with
-/// the factors' `f32` rounding forgiven ([`FACTOR_TOLERANCE`]).
-fn sums_below_one(sum: f64) -> bool {
-    sum < 1.0 - FACTOR_TOLERANCE
-}
-
-/// Floor a rolling share target to whole cells, forgiving the factors'
-/// `f32` rounding ([`FACTOR_TOLERANCE`]) so `71.9999999` is 72.
-fn floor_cells(x: f64) -> u32 {
-    (x + x.abs() * FACTOR_TOLERANCE + 1e-9)
-        .floor()
-        .clamp(0.0, f64::from(u32::MAX)) as u32
-}
-
 /// Compute the auto-min floor for `id` along `direction`, per CSS
-/// Flexbox §4.5. Called from the shrink branch when an item with
-/// implicit/auto min is about to be shrunk — eager resolution
-/// during the natural-size pass would walk every flex item's
-/// subtree every layout (the +47% regression observed in the
+/// Flexbox §4.5: the item's content-based minimum size
+/// (`items::content_based_minimum`), its specified size suggestion
+/// resolved against the container's main size. Called from the shrink
+/// branch when an item with implicit/auto min is about to be shrunk —
+/// eager resolution during the natural-size pass would walk every flex
+/// item's subtree every layout (the +47% regression observed in the
 /// full-frame benchmark), so we defer until we know the item is
 /// actually shrinking.
 pub(super) fn resolve_auto_min(
@@ -237,53 +198,19 @@ pub(super) fn resolve_auto_min(
 ) -> u16 {
     #[cfg(test)]
     super::cost_tests::AUTO_MINS.with(|c| c.set(c.get() + 1));
-    // An element without a computed style has no box to size.
-    if let Item::Element(id) = item
-        && dom.node(*id).computed().is_none()
-    {
-        return 0;
-    }
-    let computed = item.computed(dom);
-    let main_size = match direction {
-        Direction::Row => &computed.width,
-        Direction::Column => &computed.height,
-    };
-    let overflow_on_axis = match direction {
-        Direction::Row => computed.overflow_x,
-        Direction::Column => computed.overflow_y,
-    };
     let cb_width = match direction {
         Direction::Row => main_budget,
         Direction::Column => cross_budget,
     };
-    // Whatever the suggestion, the content box is never negative: the
-    // floor is at least the item's padding and border on the axis (CSS
-    // Flexbox §9.7 clamps the target main size to the content box's 0).
-    let kw = item.keywords(dom, &computed, direction, cross_budget, cb_width);
-    let sizer = kw.sizer();
-    // CSS §4.5 exception: non-visible overflow drops the floor to 0
-    // — items inside a scroll container are allowed to be sized
-    // below their content.
-    if overflow_on_axis != Overflow::Visible {
-        return sizer.chrome();
-    }
-    // Specified size suggestion per spec: the declared main size, as
-    // the border box `box-sizing` makes of it (CSS UI 3 §3.1).
-    let specified_cap: Option<u16> = match main_size {
-        Size::Flex(_) => Some(0),
-        // A keyword height is the automatic size: no cap (CSS Sizing 3
-        // §3.1); a keyword width is its content size.
-        Size::Intrinsic(_) if direction == Direction::Column => None,
-        definite => kw.size(definite, Some(main_budget), main_budget),
-    };
-    // `flex: N` (basis 0%) trivially has specified=0, so auto-min
-    // = min(content, 0) = 0. Skip the content walk.
-    if matches!(specified_cap, Some(0)) {
-        return sizer.chrome();
-    }
-    let content = item.content_extreme(dom, direction, cross_budget, cb_width, false);
-    sizer.floor(match specified_cap {
-        Some(cap) => content.min(cap),
-        None => content,
-    })
+    crate::render::layout_pass::items::content_based_minimum(
+        dom,
+        item,
+        direction,
+        crate::render::layout_pass::items::Suggestion {
+            basis: Some(main_budget),
+            available: main_budget,
+            cross_budget,
+            cb_width,
+        },
+    )
 }

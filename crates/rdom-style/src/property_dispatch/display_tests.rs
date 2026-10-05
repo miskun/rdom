@@ -61,7 +61,7 @@ fn display_keywords_map_onto_outer_and_inner() {
 
 /// CSS Display 3 §2: each component at most once, `list-item` only
 /// with `flow` / `flow-root`, the box and legacy keywords alone; rdom
-/// has no `run-in`, `grid`, `table` or `ruby` layout yet, so those are
+/// has no `run-in`, `table` or `ruby` layout yet, so those are
 /// invalid here (the declaration is dropped).
 #[test]
 fn invalid_display_combinations_are_rejected() {
@@ -75,8 +75,10 @@ fn invalid_display_combinations_are_rejected() {
         "inline-block flow",
         "inline flex flow",
         "run-in",
-        "grid",
-        "inline grid",
+        "grid list-item",
+        "grid flex",
+        "inline-grid flow",
+        "grid grid",
         "table",
         "ruby",
         "",
@@ -103,6 +105,8 @@ fn display_serializes_in_the_shortest_form() {
         ("inline flow-root", "inline-block"),
         ("block flex", "flex"),
         ("inline flex", "inline-flex"),
+        ("block grid", "grid"),
+        ("inline grid", "inline-grid"),
         ("block flow list-item", "list-item"),
         ("inline list-item", "inline list-item"),
         ("flow-root list-item", "flow-root list-item"),
@@ -132,4 +136,24 @@ fn display_owns_inner_type_and_list_item() {
         (style.display, style.flow, style.list_item),
         (None, None, None)
     );
+}
+
+/// CSS Display 3 §2.2 / §2.7, CSS Grid 2 §5.1: `grid` is an inner
+/// display type — a block-level grid container alone or with `block`,
+/// an inline-level one with `inline` or as the legacy `inline-grid`.
+#[test]
+fn grid_is_an_inner_display_type() {
+    use Display::{Block, Inline};
+    for (css, want) in [
+        ("grid", (Block, Flow::Grid, false)),
+        ("block grid", (Block, Flow::Grid, false)),
+        ("grid block", (Block, Flow::Grid, false)),
+        ("inline-grid", (Inline, Flow::Grid, false)),
+        ("inline grid", (Inline, Flow::Grid, false)),
+        ("GRID INLINE", (Inline, Flow::Grid, false)),
+    ] {
+        assert_eq!(declared(css), want, "{css}");
+    }
+    assert!(Flow::Grid.is_flex_or_grid() && Flow::Flex.is_flex_or_grid());
+    assert!(!Flow::Grid.is_block_flow() && !Flow::FlowRoot.is_flex_or_grid());
 }

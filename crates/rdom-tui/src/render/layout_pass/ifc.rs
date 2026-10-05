@@ -43,14 +43,15 @@ use crate::layout::{Display, Flow};
 /// for would never run. Bug surfaced by the showcase status bar's
 /// two-slot pattern (hints left + mouse position right).
 pub(crate) fn is_ifc_block(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    // Flex parent → never an IFC. Inline children blockify.
+    // Flex or grid container → never an IFC. Its inline children
+    // blockify.
     let parent_flow = dom
         .node(id)
         .ext()
         .and_then(|e| e.computed.as_ref())
         .map(|c| c.flow)
         .unwrap_or(Flow::Block);
-    if parent_flow == Flow::Flex {
+    if parent_flow.is_flex_or_grid() {
         return false;
     }
 

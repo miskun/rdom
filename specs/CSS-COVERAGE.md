@@ -75,9 +75,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
-| 3.7 Display and visibility (Display 3) | 6 | 1 | 2 | 2 | 11 |
+| 3.7 Display and visibility (Display 3) | 7 | 1 | 1 | 2 | 11 |
 | 3.8 Flexbox and box alignment (Flexbox 1, Align 3) | 17 | 0 | 0 | 0 | 17 |
-| 3.9 Grid (Grid 1/2) | 0 | 1 | 9 | 0 | 10 |
+| 3.9 Grid (Grid 1/2) | 1 | 0 | 9 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 4 | 1 | 1 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 1 | 3 | 10 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 0 | 1 | 14 | 6 | 21 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **133** | **29** | **99** | **46** | **307** |
+| **Total** | **135** | **28** | **98** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 128 rows Partial / Missing.
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 126 rows Partial / Missing.
 
-Headline: rdom parses **170 property names** (`property_names()`, after C7-GRID-CORE). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and grid.
+Headline: rdom parses **170 property names** (`property_names()`, after C7-GRID-CORE). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and grid placement.
 
 ---
 
@@ -328,7 +328,7 @@ dropped. The audit's six, with where each stands:
 |---|---|---|---|---|
 | `margin` / `margin-*` | Supported | Signed cells, `auto`, `%`, `calc()` (C2-PERCENT); four independent longhands, each with its own `!important`, set by the shorthand (C6-MARGIN-SIDES). | — | `V/spacing.rs` |
 | `padding` / `padding-*` | Supported | Cells, `%`, `calc()` (C2-PERCENT); four independent longhands, each with its own `!important` (C6-MARGIN-SIDES). | — | `V/spacing.rs` |
-| `margin-trim` | Supported | `none | [block || inline] | [block-start || inline-start || block-end || inline-end]`; block containers trim their edge children's block-axis margins (no collapse out), flex containers the first / last item's main-axis and every item's cross-axis margins, intrinsic sizes included (C5-MARGIN-TRIM). Grid with C7. | Yes | `V/spacing.rs`, layout `margin_trim.rs` |
+| `margin-trim` | Supported | `none | [block || inline] | [block-start || inline-start || block-end || inline-end]`; block containers trim their edge children's block-axis margins (no collapse out), flex containers the first / last item's main-axis and every item's cross-axis margins, intrinsic sizes included (C5-MARGIN-TRIM); grid containers the margins of the items in their first / last row and column, track sizes included (C7-GRID-CORE). | Yes | `V/spacing.rs`, layout `margin_trim.rs` |
 | `width` / `height` | Partial | `auto`, cells, `%`, `calc()`, rdom `fr`, `min-content` / `max-content` / `fit-content` / `fit-content(<l>)` (C5-INTRINSIC; on the block axis the content height, CSS Sizing 3 §3.1); missing `stretch` (CSS Sizing 4). | Yes | `V/length.rs::parse_size`, `BOX::Size`, `layout_pass/intrinsic/keywords.rs` |
 | `min-width` / `min-height` | Supported | `auto`, cells, `%`, `calc()` (C2-PERCENT), the intrinsic keywords (C5-INTRINSIC); they clamp intrinsic contributions too — an inline block's width, a shrink-to-fit container's (CSS Sizing 3 §5.2, C5G-SIZING-SITES). | — | `V/length.rs::parse_min_size` |
 | `max-width` / `max-height` | Supported | Cells, `%`, `calc()` (C2-PERCENT), `none` (the initial value; C2G-MAX-NONE completes C5-MINMAX-SIZE), the intrinsic keywords (C5-INTRINSIC); they clamp intrinsic contributions too (C5G-SIZING-SITES). | — | `V/length.rs::parse_max_size` |
@@ -344,13 +344,13 @@ dropped. The audit's six, with where each stands:
 | `display: contents` | Supported | No box: its children and `::before` / `::after` take part in the parent's formatting context (block flow — a box-less child holding a block box gives its children in its place, `render/box_tree.rs` — flex items — its text joins the container's runs of text, each an anonymous item, and its `::before` / `::after` are items of their own (C6G-ANON-FLEX-ITEMS) — inline content; static positions of its out-of-flow children; its own `overflow` ignored) (C6G-CONTENTS-BOXTREE); inherited properties flow through; hit-testing reaches its children with it on the path (under `order` too); it stays focusable (HTML "being rendered"; Chromium); on replaced elements and form controls it behaves as `none` (CSS Display 3 Appendix B) (C6-DISPLAY-KEYWORDS). | — | `KW::Display`, `render/box_tree.rs` |
 | `display: flow-root` | Supported | `Flow::FlowRoot`: block flow in a new BFC — no margin collapses through its edges (C6-DISPLAY-KEYWORDS). Floats (C8-FLOAT) will be contained by the same BFC. | — | `KW::Flow`, `BLOCK/margin_collapse.rs` |
 | `display: list-item` | Partial | `list-item`, `inline list-item`, with `flow` / `flow-root` (CSS Display 3 §2.3) parse into `list_item` and lay out as their outer / inner types (C6-DISPLAY-KEYWORDS); the marker box is C10-LIST-ITEM. | Yes | `KW`, `CASC/counters.rs` |
-| `display: grid` / `inline-grid` | Missing | Grid formatting context. | Yes | new `layout_pass/grid` |
+| `display: grid` / `inline-grid` | Supported | `grid`, `inline-grid`, `block grid`, `inline grid` (`Flow::Grid`): a grid formatting context (CSS Grid 2) — items built as flex items (elements, pseudo-elements, anonymous items for text runs), blockified, ordered by `order`, painted atomically; `inline-grid` an atomic inline; the track sizing algorithm (§11) in whole cells; the container's min- / max-content sizes its tracks' (§5.2); scrolling, `rtl` columns, `margin-trim` at the grid's edges (C7-GRID-CORE). Placement properties, implicit-track sizes, areas and box alignment: C7-GRID-PLACE / -AUTO / -AREAS / -ALIGN. | Yes | `rdom-tui/src/render/layout_pass/grid/` |
 | `display: table` family | Missing | Real TFC (tables are tag-driven flex rows today). | Yes | `rdom-tui/src/runtime/builtins/table` |
 | Multi-keyword `display` (`block flex`, `inline flow-root`) | Supported | `<display-outside> || <display-inside>` in either order, defaults `block` / `flow`, the legacy keywords as their pairs, serialized shortest (CSS Display 3 §2; `V/display.rs`) (C6-DISPLAY-KEYWORDS). `grid` / `table` / `ruby` / `run-in` with their phases. | — | `V/display.rs` |
 | `display: run-in` | N/A | Unimplemented by browsers; no TUI use. | — | — |
 | `display: ruby*` | N/A | Ruby annotations need half-height text above a base. | — | — |
 | `visibility` | Supported | `visible` / `hidden` / `collapse`, inherited (CSS Display 3 §4): a hidden box keeps its place and draws nothing (no shadow, background, border, text, canvas or scrollbar), a `visible` descendant draws; it is no hit target (a visible descendant is, with it on the path), not focusable — Tab, `is_focusable` / `is_tab_focusable` and `focus()` share one answer, and a focused element that becomes hidden or `display: none` is blurred by the frame's focus fixup — and its text is not copied, by the used value mid-transition (C6G-VISIBILITY-ONE-ANSWER). `collapse` on a flex item is a strut (Flexbox §4.4, §9.4 step 10: no main size or main margins, the cross size of its line laid out uncollapsed — its items at their hypothetical main sizes — and otherwise ignored: no gap beside it, no `justify-content` share, no baseline; C6G-COLLAPSE); on a `<tr>` it removes the row while its cells still size the columns (CSS 2.1 §17.5.5); elsewhere it is `hidden`. Transitions: `visible` for the whole run with a `visible` end. Column collapse (`<col>`) with C13-TFC. | Yes | `KW::Visibility`, `render/visibility.rs`, `FLEX/strut.rs` |
-| `order` | Supported | `<integer>` (math rounded, clamped to `i32`), not inherited (CSS Flexbox §5.4): flex items are laid out (margin-trim's first / last item included), painted and hit-tested in order-modified document order (`render/box_tree.rs::paint_order_children`); sequential focus, selection, copy and the DOM keep document order (§5.4.1). Grid items with C7. | — | `FLEX`, `render/box_tree.rs` |
+| `order` | Supported | `<integer>` (math rounded, clamped to `i32`), not inherited (CSS Flexbox §5.4): flex items are laid out (margin-trim's first / last item included), painted and hit-tested in order-modified document order (`render/box_tree.rs::paint_order_children`); sequential focus, selection, copy and the DOM keep document order (§5.4.1); grid items are auto-placed, painted and hit-tested in that order too (CSS Grid 2 §6.3, C7-GRID-CORE). | — | `FLEX`, `render/box_tree.rs` |
 
 ### 3.8 Flexbox and box alignment (Flexbox 1, Align 3)
 
@@ -378,7 +378,7 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `grid-template-columns` / `grid-template-rows` | Partial | `none` and track lists — cells, `%`, `calc()`, `fr`, `auto`, `min-content`, `max-content`, `minmax()`, `fit-content()`, `repeat(<n> / auto-fill / auto-fit)`, line names — parsed, computed and serialized as written (C7-GRID-CORE); laid out once `display: grid` lands. | Yes | `V/grid.rs`, `DISP/grid.rs` |
+| `grid-template-columns` / `grid-template-rows` | Supported | `none` and track lists — cells, `%`, `calc()`, `fr`, `auto`, `min-content`, `max-content`, `minmax()`, `fit-content()`, `repeat(<n> / auto-fill / auto-fit)` (§7.2.3.2, `auto-fit` collapsing empty repetitions), line names — parsed, computed and serialized as written; sized by the track sizing algorithm (§11.3–§11.8: intrinsic sizes by increasing span, spanning items into flexible tracks by flex factor, the `fr` size, `auto` tracks stretched) in whole cells (DIVERGENCES §1); `row-gap` / `column-gap` as fixed gutters, `normal` 0 (C7-GRID-CORE). | Yes | `V/grid.rs`, `DISP/grid.rs`, `rdom-tui/src/render/layout_pass/grid/` |
 | `grid-template-areas` | Missing | Named areas. | Yes | grid |
 | `grid-template` | Missing | Shorthand. | Yes | grid |
 | `grid-auto-columns` / `grid-auto-rows` | Missing | Implicit tracks. | Yes | grid |

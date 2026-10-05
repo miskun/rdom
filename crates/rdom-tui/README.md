@@ -2,7 +2,7 @@
 
 Terminal rendering + runtime for [`rdom-core`](../rdom-core/). The
 "how should this render to a terminal, and how do events reach my
-handlers" half of the DOM — flexbox layout, CSS-faithful cascade
+handlers" half of the DOM — flexbox and grid layout, CSS-faithful cascade
 (specificity, `!important`, `:hover` / `:focus`, `::before` /
 `::after`, `var(--…)`, `::selection`), an event loop, hit testing,
 mouse + keyboard routing, focus navigation, pointer capture, text

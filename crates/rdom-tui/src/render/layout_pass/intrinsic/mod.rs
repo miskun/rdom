@@ -113,6 +113,35 @@ pub(crate) fn content_max_size(
     )
 }
 
+/// `id`'s intrinsic size contribution along `direction` as a border box
+/// (CSS Sizing 3 §5.2): its min-content contribution, or with
+/// `max_content` its max-content one — its declared size when definite,
+/// else its content, either way clamped by its `min-*` / `max-*`. What a
+/// container's content size sums or takes the largest of
+/// (`children::children_size`), and what a grid track sizes to.
+pub(in crate::render::layout_pass) fn contribution(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    direction: Direction,
+    cross_budget: u16,
+    containing_block_width: u16,
+    max_content: bool,
+) -> u16 {
+    intrinsic_size_inner(
+        dom,
+        id,
+        direction,
+        cross_budget,
+        containing_block_width,
+        IntrinsicMode::BoxSize,
+        if max_content {
+            Measure::MaxContent
+        } else {
+            Measure::MinContent
+        },
+    )
+}
+
 /// Which intrinsic size text contributes (CSS Sizing 3 §4.1 / §4.2).
 /// Threaded through the recursion: a min-content measurement asks
 /// every descendant for its min-content contribution.
@@ -398,6 +427,20 @@ fn measure_content(
                 measure,
             )
         };
+        return content.saturating_add(pad_main).saturating_add(border_main);
+    }
+    // A grid container's content size is its grid's (CSS Grid 2 §5.2):
+    // its tracks sized under the measurement's constraint.
+    if computed.flow == crate::layout::Flow::Grid {
+        let content = super::grid::content_size(
+            dom,
+            id,
+            computed,
+            direction,
+            cross_budget,
+            containing_block_width,
+            measure,
+        );
         return content.saturating_add(pad_main).saturating_add(border_main);
     }
     let children: Vec<NodeId> = super::element_children_of(dom, id)

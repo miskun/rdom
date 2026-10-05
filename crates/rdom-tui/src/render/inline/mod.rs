@@ -181,15 +181,18 @@ pub fn inline_flow_for_text(dom: &Dom<TuiExt>, text_node: NodeId) -> Option<Inli
 /// of the item holding `node`, `child` being `node`'s ancestor-or-self
 /// among `container`'s child nodes. Without a box-less child the
 /// sequence is the child nodes, so the index is `child`'s; with one — or
-/// for a flex container (`box_tree::flex_sequence`) — it is built once
-/// per lookup, in one walk.
+/// for a flex or grid container (`box_tree::item_sequence`) — it is
+/// built once per lookup, in one walk.
 fn box_index(dom: &Dom<TuiExt>, container: NodeId, node: NodeId, child: NodeId) -> Option<usize> {
-    use crate::render::box_tree::{box_sequence, flex_sequence, is_contents, is_flex_container};
-    // A flex container's anonymous items index its flex sequence, which
-    // holds its pseudo-elements and its box-less children's contents.
-    let flex = is_flex_container(dom, container);
+    use crate::render::box_tree::{
+        box_sequence, is_contents, is_flex_or_grid_container, item_sequence,
+    };
+    // A flex or grid container's anonymous items index its item
+    // sequence, which holds its pseudo-elements and its box-less
+    // children's contents.
+    let items_of = is_flex_or_grid_container(dom, container);
     // With no box-less child the sequence is the child nodes.
-    if !flex
+    if !items_of
         && !dom
             .node(container)
             .child_nodes()
@@ -201,8 +204,8 @@ fn box_index(dom: &Dom<TuiExt>, container: NodeId, node: NodeId, child: NodeId) 
             .position(|c| c.id() == child);
     }
     // The item is `node` or its nearest ancestor in the sequence.
-    let items = if flex {
-        flex_sequence(dom, container)
+    let items = if items_of {
+        item_sequence(dom, container)
     } else {
         box_sequence(dom, container)
     };

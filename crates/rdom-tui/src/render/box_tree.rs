@@ -15,11 +15,12 @@
 //! block-level box, its children in its place ([`box_sequence`]), with
 //! its static `::before` / `::after` as inline items around them.
 //!
-//! Inside a flex container every box-less child is its children in its
-//! place, with its `::before` / `::after` around them, and the
+//! Inside a flex or grid container every box-less child is its children
+//! in its place, with its `::before` / `::after` around them, and the
 //! container's own `::before` / `::after` first and last
-//! ([`flex_sequence`]): each element and pseudo-element there is a flex
-//! item, and each run of text an anonymous one (CSS Flexbox §4).
+//! ([`item_sequence`]): each element and pseudo-element there is an item,
+//! and each run of text an anonymous one (CSS Flexbox §4, CSS Grid 2
+//! §6.1).
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -122,20 +123,20 @@ fn push_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) -> bool 
     holds
 }
 
-/// The flex container `id`'s box-tree children (CSS Display 3 §2.5, CSS
-/// Flexbox §4): its visible static `::before`, its child nodes — every
-/// box-less child (and fragment) replaced by its own, between its
-/// visible static `::before` / `::after` — and its visible static
-/// `::after`. Every element in it is a flex item, and every pseudo-
-/// element that generates a box (a child box, so blockified — `content:
-/// ""` included); its text nodes form the anonymous items' runs.
-/// Anonymous items' `child_range`s index it.
-pub(crate) fn flex_sequence(dom: &Dom<TuiExt>, id: NodeId) -> Vec<BoxItem> {
+/// The flex or grid container `id`'s box-tree children (CSS Display 3
+/// §2.5, CSS Flexbox §4, CSS Grid 2 §6.1): its visible static `::before`,
+/// its child nodes — every box-less child (and fragment) replaced by its
+/// own, between its visible static `::before` / `::after` — and its
+/// visible static `::after`. Every element in it is an item, and every
+/// pseudo-element that generates a box (a child box, so blockified —
+/// `content: ""` included); its text nodes form the anonymous items'
+/// runs. Anonymous items' `child_range`s index it.
+pub(crate) fn item_sequence(dom: &Dom<TuiExt>, id: NodeId) -> Vec<BoxItem> {
     let mut out = Vec::new();
     if generates_static_pseudo(dom, id, PseudoSlot::Before) {
         out.push(BoxItem::Generated(id, PseudoSlot::Before));
     }
-    push_flex_sequence(dom, id, &mut out);
+    push_item_sequence(dom, id, &mut out);
     if generates_static_pseudo(dom, id, PseudoSlot::After) {
         out.push(BoxItem::Generated(id, PseudoSlot::After));
     }
@@ -155,7 +156,7 @@ fn generates_static_pseudo(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) ->
         && generated_text(dom, host, slot).is_some()
 }
 
-fn push_flex_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) {
+fn push_item_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) {
     for child in dom.node(id).child_nodes() {
         let child = child.id();
         visit();
@@ -164,12 +165,12 @@ fn push_flex_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) {
                 if generates_static_pseudo(dom, child, PseudoSlot::Before) {
                     out.push(BoxItem::Generated(child, PseudoSlot::Before));
                 }
-                push_flex_sequence(dom, child, out);
+                push_item_sequence(dom, child, out);
                 if generates_static_pseudo(dom, child, PseudoSlot::After) {
                     out.push(BoxItem::Generated(child, PseudoSlot::After));
                 }
             }
-            NodeType::Fragment => push_flex_sequence(dom, child, out),
+            NodeType::Fragment => push_item_sequence(dom, child, out),
             _ => out.push(BoxItem::Node(child)),
         }
     }
@@ -204,8 +205,8 @@ pub(crate) fn holds_block_box(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 /// element box: a text child whose data satisfies `text`, or — through
 /// a box-less child — such a text, or a visible static `::before` /
 /// `::after` (CSS Display 3 §2.5). A block container whose only content
-/// this is packs it as a pure-text leaf; a flex container's text is its
-/// anonymous items' (CSS Flexbox §4, `layout_pass::items`).
+/// this is packs it as a pure-text leaf; a flex or grid container's text
+/// is its anonymous items' (CSS Flexbox §4, `layout_pass::items`).
 pub(crate) fn holds_loose_text(
     dom: &Dom<TuiExt>,
     id: NodeId,
@@ -247,6 +248,15 @@ pub(crate) fn is_flex_container(dom: &Dom<TuiExt>, id: NodeId) -> bool {
             .is_some_and(|c| c.flow == crate::layout::Flow::Flex)
 }
 
+/// `id` is an element flex or grid container: its in-flow children are
+/// items (`Flow::is_flex_or_grid`) — reordered by `order`, painted
+/// atomically, its text runs anonymous items.
+pub(crate) fn is_flex_or_grid_container(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    let node = dom.node(id);
+    node.node_type() == NodeType::Element
+        && node.computed().is_some_and(|c| c.flow.is_flex_or_grid())
+}
+
 /// A flex item's `order` (CSS Flexbox §5.4); 0 for a child that is not
 /// a flex item (out of flow: absolutely positioned or `display: none`).
 pub(crate) fn order_of(dom: &Dom<TuiExt>, id: NodeId) -> i32 {
@@ -267,13 +277,15 @@ pub(crate) fn sort_by_order(dom: &Dom<TuiExt>, items: &mut [NodeId]) {
 }
 
 /// The children of `id` in paint order: its child nodes, except that a
-/// flex container's are its items (through fragments and box-less
-/// children) in order-modified document order — CSS Flexbox §5.4:
+/// flex or grid container's are its items (through fragments and
+/// box-less children) in order-modified document order — CSS Flexbox
+/// §5.4, CSS Grid 2 §6.3 / §6.5:
 /// `order` affects painting, and so hit-testing, as it does layout.
-/// Walks the child list in place, both ways; only a flex container with
-/// an item whose `order` is not 0 collects (and sorts) its items.
+/// Walks the child list in place, both ways; only a flex or grid
+/// container with an item whose `order` is not 0 collects (and sorts)
+/// its items.
 pub(crate) fn paint_order_children(dom: &Dom<TuiExt>, id: NodeId) -> PaintOrder<'_> {
-    if is_flex_container(dom, id) && any_reordered(dom, id) {
+    if is_flex_or_grid_container(dom, id) && any_reordered(dom, id) {
         let mut items = crate::render::layout_pass::element_children_of(dom, id);
         sort_by_order(dom, &mut items);
         return PaintOrder::Sorted(items.into_iter());
@@ -281,7 +293,7 @@ pub(crate) fn paint_order_children(dom: &Dom<TuiExt>, id: NodeId) -> PaintOrder<
     PaintOrder::tree(dom, id)
 }
 
-/// Whether one of the flex container `id`'s items (through fragments
+/// Whether one of the flex or grid container `id`'s items (through fragments
 /// and box-less children) has an `order` other than 0. Allocates
 /// nothing.
 fn any_reordered(dom: &Dom<TuiExt>, id: NodeId) -> bool {

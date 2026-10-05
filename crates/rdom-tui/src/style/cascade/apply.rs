@@ -60,8 +60,9 @@ impl<'a> Keywords<'a> {
 /// are at their final values. Per CSS 2.1 §9.4.1 + Flexbox §3:
 ///
 /// An element establishes a new block formatting context when:
-/// - It's a flex container (`flow: Flex`) — flex containers form
-///   independent BFCs for their items.
+/// - It's a flex or grid container (`flow: Flex` / `Grid`) — they form
+///   independent formatting contexts for their items (CSS Flexbox §3,
+///   CSS Grid 2 §5.1).
 /// - It's an inline-block — establishes a new BFC for its content
 ///   (which then lays out as block).
 /// - Its overflow on either axis is non-visible (Hidden/Scroll/
@@ -76,7 +77,7 @@ impl<'a> Keywords<'a> {
 /// BFC.
 pub(super) fn finalize_bfc_formation(working: &mut ComputedStyle) {
     use crate::layout::{Flow, Overflow, Position};
-    working.establishes_new_bfc = matches!(working.flow, Flow::Flex | Flow::FlowRoot)
+    working.establishes_new_bfc = matches!(working.flow, Flow::Flex | Flow::Grid | Flow::FlowRoot)
         || matches!(working.display, Display::InlineBlock)
         || !matches!(working.overflow_x, Overflow::Visible)
         || !matches!(working.overflow_y, Overflow::Visible)

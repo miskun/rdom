@@ -154,7 +154,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C7-GRID-CORE | `display: grid` / `inline-grid`, `grid-template-columns` / `-rows` with cells / `%` / `fr` / `auto` / `minmax()` / `repeat()` | partial — `display: grid` and the grid layout |
+| C7-GRID-CORE | `display: grid` / `inline-grid`, `grid-template-columns` / `-rows` with cells / `%` / `fr` / `auto` / `minmax()` / `repeat()` | done |
 | C7-GRID-PLACE | `grid-row` / `grid-column` (+ start / end), `grid-area`, auto-placement, `grid-auto-flow` (`dense`) | |
 | C7-GRID-AREAS | `grid-template-areas`, `grid-template`, `grid` shorthands | |
 | C7-GRID-AUTO | `grid-auto-columns` / `grid-auto-rows` | |
@@ -3620,3 +3620,73 @@ row comes from.
   `viewport_units_in_a_track_list_compute_to_cells` and the debug-panic test added with the model.
   Changed expectations: the canonical-values table, the important-setter coverage and the C1
   `initial` perturbation gain the two properties. No layout yet: a track list is inert until part 2.
+- 2026-10-08 — C7-GRID-CORE, part 2 of 2: the grid container (CSS Grid 2; sections are Grid 1's
+  numbers, which Level 2 keeps through §8 and shifts by one after its §9 "Subgrids"). Style:
+  `Flow::Grid` (Breaking — rdom-style) with `Flow::is_flex_or_grid`; `display: grid | inline-grid |
+  block grid | inline grid` (`grid list-item` invalid), serialized `grid` / `inline-grid`;
+  `TuiStyle::grid()` / `inline_grid()`. Box tree — decided, one model for "a container whose children
+  are items": the flex predicates become flex-or-grid where the concept is the same —
+  `box_tree::item_sequence` (was `flex_sequence`) and `is_flex_or_grid_container` (paint order,
+  `box_index`), `blockify::children_are_items` (CSS Display 3 §2.7 blockifies grid items:
+  `inline-grid` → `grid`), `is_ifc_block`, `paints_atomically` (§6.5), the margin-collapse
+  independent-formatting-context walk (§6.1), the text-leaf exclusion and `establishes_new_bfc`; a
+  grid item's percentage heights resolve against its area (§6.2, `height_is_definite_below`). Which
+  formatting context lays out an element's children moved out of `flex/mod.rs` into
+  `layout_pass/dispatch.rs` (`flex/mod.rs` 520 → 359, out of TECH_DEBT `SIZE-1`); the flex arm is
+  `flex::layout_flex_container`. Layout — `layout_pass/grid/`: `template.rs` (the explicit grid:
+  `repeat()` written out, `auto-fill` / `auto-fit` counted per §7.2.3.2 — a track's max sizing
+  function when definite else its min, gaps included, the container's definite size or max, else its
+  min, else once — line names per line for C7-GRID-PLACE / -AREAS, the grid clamped at 10 000 tracks
+  an axis per §8's note), `placement.rs` (until C7-GRID-PLACE every item auto-placed, span 1, row by
+  row, in order-modified document order — §8.5's sparse `row` flow; at least one column; implicit
+  rows `auto` until C7-GRID-AUTO), `track.rs` (§11.1 min / max sizing functions resolved — a
+  percentage against an indefinite basis `auto`, `fit-content()` the max-content maximum capped —
+  §11.4 initialization, gutters as fixed tracks, an `auto-fit` empty repetition collapsed with its
+  gutters), `sizing/` (§11.3: §11.5 single-span tracks, spanning items by increasing span, items
+  crossing flexible tracks together by flex factor, §11.5.1's distribution with limits, beyond-limit
+  rules and infinitely growable limits; §11.6 maximize, redone against a definite max; §11.7 the `fr`
+  size, definite and indefinite, against the container's min / max; §11.8 stretching `auto` tracks
+  under `normal` / `stretch` content distribution), `contribution.rs` (each item's min-content,
+  max-content and §6.6 minimum contribution — the content-based minimum shared with flex,
+  `items::content_based_minimum`, moved out of `flex/distribute.rs`; capped by the area's fixed
+  maxima — margins included, measured once per run), `arrange.rs` (the grid area from the track
+  extents, `rtl` mirroring the columns, scroll offsets; until C7-GRID-ALIGN an `auto`-sized item
+  stretches where its self-alignment is `normal` / `stretch`, else takes its fit-content width or
+  content height at the area's start), `intrinsic.rs` (§5.2: the container's min- / max-content
+  width its columns under that constraint, its content height its rows at the columns a width
+  gives — `intrinsic::measure_content` asks it). Decided: an indefinite block size sizes the rows as
+  under a max-content constraint (§5.2: an `auto` height is the max-content height), so `minmax(1,
+  5)` rows of an `auto`-height grid are 5, as in browsers; the rows of a container whose height is a
+  length, a percentage of a definite height or the size its flex / grid container gave it are
+  definite; §11.1 steps 3–4 (re-sizing the columns after the rows) are not run (DIVERGENCES §2).
+  `margin-trim` on a grid container trims the items in its first / last row and column (CSS Box 4
+  §3), sizing included. Shared with flex: the item model (`layout_pass::items`), `Item::contribution`
+  (the intrinsic children sum now calls it), and whole-cell shares — `layout_pass/shares.rs`
+  (`FACTOR_TOLERANCE`, `floor_cells`, `Rolling`, moved out of `flex/distribute.rs`, which uses it).
+  Rounding — decided, consistent with DIVERGENCES §1's alignment entry: equal shares give the
+  remainder cell to each of the first tracks that can take one, `fr` and by-factor shares roll
+  (`2 1fr 2fr` in 13 cells: 2 + 3 + 8). Red: `css_phase7/{container,tracks}.rs` — all 23 failed
+  against `Flow::Grid` laid out as block flow (`["ABC       ", …]` for three items in two columns,
+  widths 0 for every track test, `inline-grid` 2 wide for 3); green after, with the track sizing unit
+  tests (`grid/sizing/tests.rs`) added with the algorithm. Added green, then mutation-checked: the
+  fit-content container, the grid flex item, the caret into anonymous items, percentages and margins
+  inside an item, `margin-trim`, paint and hit order, atomic paint, and the sizing tests for step 3.3,
+  limited contributions and infinitely growable limits. Mutation checks (each alone, restored and
+  touched; `target/claude-logs/mut/`): maximize off → minmax, fit-content and the measurement test;
+  stretch off → the auto-track test; §11.7 off → ten track tests; the remainder to the last track →
+  the fit-content container; no `auto-fit` collapse → its test; one repetition → the three repeat
+  tests; no `rtl` mirror → its test; the intrinsic hook off → seven tests; blockification flex-only →
+  its test; step 3.3 off → its unit test (the integration measure test survives: the indefinite flex
+  fraction compensates); growable marking off, step 4 shared equally, the limited cap off → their unit
+  tests; the run cache off → the cost test; `box_index`, the definiteness, margin-collapse, text-leaf,
+  definite-rows, paint-order, atomic-paint and `margin-trim` sites → their tests. One equivalent
+  survivor, kept for consistency with flex: `is_ifc_block`'s grid arm (blockification already makes
+  every grid item block-level). Cost (`grid/cost_tests.rs`): a pass sizes a grid twice (its parent's
+  measurement, its layout), each run measuring an item's contributions once each — 10 an item a pass
+  for `auto` columns and rows, the same with `1fr` rows read twice a run — and the content walks
+  behind them are the pass memo's (at most 2 Row and 2 Column an item). Changed expectations:
+  rdom-style's invalid-`display` list loses `grid` / `inline grid` (gaining `grid list-item`, `grid
+  flex`, `inline-grid flow`, `grid grid`) and its serialization table gains the two grid forms. No
+  snapshot changed. DIVERGENCES: §1 "Grid tracks are whole cells"; §2 the columns not re-sized after
+  the rows, and `border-collapse` scoped to flex and block containers; §3's grid list loses the core
+  and says what holds until each remaining item.

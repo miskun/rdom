@@ -658,9 +658,23 @@ fn anonymous_box_hints() {
 }
 
 /// C7-GRID-CORE: the `grid_template_columns` / `grid_template_rows`
-/// fields, their value types, builders, bits, parser and node setter.
+/// fields, their value types, builders, bits, parser and node setter;
+/// `Flow::Grid` and the `display: grid` builders.
 #[test]
 fn grid_template_hints() {
+    for f in [Flow::Grid, Flow::Flex] {
+        let _items = f.is_flex_or_grid();
+    }
+    assert_eq!(
+        (
+            TuiStyle::new().grid().flow,
+            TuiStyle::new().inline_grid().display
+        ),
+        (
+            Some(Value::Specified(Flow::Grid)),
+            Some(Value::Specified(Display::Inline))
+        )
+    );
     let s = TuiStyle::new()
         .grid_template_columns(TrackList::new([TrackSize::cells(2)]).repeat(
             RepeatCount::AutoFill,

@@ -130,7 +130,7 @@ pub(super) fn compute_pseudo_style(
     if matches!(
         target,
         PseudoElementTarget::Before | PseudoElementTarget::After
-    ) && super::blockify::children_are_flex_items(dom, Some(id), host_computed)
+    ) && super::blockify::children_are_items(dom, Some(id), host_computed)
     {
         super::blockify::blockify(&mut working);
     }

@@ -1,6 +1,6 @@
 # DESIGN — rdom architectural overview
 
-rdom is a DOM for terminal applications, in Rust. It brings the architecture of the browser DOM — arena-backed nodes, CSS-style cascade, flexbox layout, capture/bubble events, mutation observers, selection ranges — to text-mode UIs.
+rdom is a DOM for terminal applications, in Rust. It brings the architecture of the browser DOM — arena-backed nodes, CSS-style cascade, flexbox and grid layout, capture/bubble events, mutation observers, selection ranges — to text-mode UIs.
 
 This document is the durable architectural reference. For where rdom departs from the web platform, see [`DIVERGENCES.md`](DIVERGENCES.md). For the operational guide humans and AI agents follow when working on the code, see [`../CLAUDE.md`](../CLAUDE.md) (a.k.a. `AGENTS.md`).
 
@@ -68,7 +68,7 @@ Special-case patches that only satisfy the current fixture, silent fallbacks tha
 
 ## Layout passes
 
-`rdom-tui` runs three formatting contexts off the same `layout_pass::layout_node` entry point. Selection happens in `flex::layout_children`:
+`rdom-tui` runs its formatting contexts off the same `layout_pass::layout_node` entry point. Selection happens in `dispatch::layout_children`:
 
 1. **Inline Formatting Context (IFC)** — fires when the node has at least one `Display::Inline` child. The `LinePacker` greedily packs every descendant grapheme (plus atomic `Display::InlineBlock` fragments per CSS 2.1 §10.8) into `LineBox`es at the container's content width. Children get zero-sized layout rects; paint reads the parent's `inline_layout`. Single-fragment containers (just one inline element) still go through this path. Lives in `render/inline/`.
 
@@ -76,7 +76,8 @@ Special-case patches that only satisfy the current fixture, silent fallbacks tha
 
 3. **Flow dispatch** — for elements with element children that aren't an IFC. The cascaded `Flow` (Phase 1 of BFC-1) picks between:
    - `Flow::Block` → `block::layout_block_children`: CSS 2.1 §10 normal flow. Children stack vertically in document order; mixed inline+block content folds inline runs into **anonymous block boxes** (CSS 2.1 §9.2.1.1) that establish their own IFC. Margin collapse per §8.3.1 (adjacent siblings, parent-first/last-child, empty-block collapse-through, full upward propagation). Height: `Auto` resolves from the actual measured content extent; `Percent` resolves only against a *definite* containing block, walking the ancestor chain (§10.5). `row-gap` from CSS3 Box Alignment applies between adjacent block-level element children.
-   - `Flow::Flex` → `flex::layout_flex_children`: CSS Flexible Box L1 distribution along `direction` (`flex-direction`, read by flex containers only — every other box's children lay out along its block axis, `layout_pass::flow_axis`). Main-axis flex base size from `flex-basis` (§9.2), the items collected into lines (§9.3, `flex/lines.rs`; one line under `nowrap`), then per line grow / shrink with min / max freezing (§9.7, `flex/distribute.rs`) and leftover free space to `auto` margins; line cross sizes (§9.4; `align-content: normal` stretches a multi-line container's lines); cross-axis stretch; the gaps between items and between lines; auto-min content floor per §4.5 (`M5-MIN-CONTENT-1`). Establishes a new BFC.
+   - `Flow::Flex` → `flex::layout_flex_container` / `layout_flex_children`: CSS Flexible Box L1 distribution along `direction` (`flex-direction`, read by flex containers only — every other box's children lay out along its block axis, `layout_pass::flow_axis`). Main-axis flex base size from `flex-basis` (§9.2), the items collected into lines (§9.3, `flex/lines.rs`; one line under `nowrap`), then per line grow / shrink with min / max freezing (§9.7, `flex/distribute.rs`) and leftover free space to `auto` margins; line cross sizes (§9.4; `align-content: normal` stretches a multi-line container's lines); cross-axis stretch; the gaps between items and between lines; auto-min content floor per §4.5 (`M5-MIN-CONTENT-1`). Establishes a new BFC.
+   - `Flow::Grid` → `grid::layout_grid_children`: CSS Grid Layout 2. The explicit grid from `grid-template-*` (§7.2; `repeat()`, `auto-fill` / `auto-fit`, line names; `grid/template.rs`), the items placed (§8.5; `grid/placement.rs`) and the implicit tracks that adds, the columns then the rows sized by the track sizing algorithm (§11.3–§11.8, `grid/sizing/`) over the items' contributions (`grid/contribution.rs`, measured once a run, the pass memo serving the content walks), and each item laid out in its grid area (`grid/arrange.rs`). Flex and grid share the item model (`layout_pass::items`: elements, pseudo-elements, anonymous items for text runs) and whole-cell shares (`layout_pass::shares`). A grid container's content size is its tracks sized under the measurement's constraint (`grid::content_size`, §5.2). Establishes an independent formatting context.
 
 CSS3 Display Module two-value mapping is the source of truth: `display: block` → outer `Block` + inner `Block`; `display: flex` → outer `Block` + inner `Flex`. The parser writes both fields atomically (`tui_style::display()` setter).
 
@@ -88,7 +89,7 @@ CSS3 Display Module two-value mapping is the source of truth: `display: block` �
 
 **Classic scrollbars take two passes.** CSS Overflow 3 §3 lets `scrollbar-gutter: auto` follow the platform's scrollbar kind; terminal cells cannot be overlay-composited, so rdom takes the classic path: a scrollbar consumes a row or column. `overflow: scroll` and `scrollbar-gutter: stable` reserve the gutter up front; `overflow: auto` lays out once without it, and when the content overflows an axis, `layout_node` reserves the gutter, lays the children out again in the smaller area and re-resolves the element's `auto` height (the gutter row is part of the box). A smaller area can only increase overflow, so the second pass converges.
 
-**`establishes_new_bfc`** (Phase 1 cascade field): true for `display: flex` / `flow-root`, `display: inline-block`, `overflow != visible`, `position: absolute|fixed`, and a block container whose `align-content` is not `normal` (CSS Box Alignment 3 §5.1). Used by margin-collapse to gate parent-child collapse + by parent-bottom/last-child trapping (a BFC traps its children's margins inside its content height instead of letting them escape upward).
+**`establishes_new_bfc`** (Phase 1 cascade field): true for `display: flex` / `grid` / `flow-root`, `display: inline-block`, `overflow != visible`, `position: absolute|fixed`, and a block container whose `align-content` is not `normal` (CSS Box Alignment 3 §5.1). Used by margin-collapse to gate parent-child collapse + by parent-bottom/last-child trapping (a BFC traps its children's margins inside its content height instead of letting them escape upward).
 
 ## Roadmap
 

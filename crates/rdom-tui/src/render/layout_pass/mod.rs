@@ -40,11 +40,15 @@
 //! - `mod.rs` — public `LayoutExt` trait + `layout_node` dispatch +
 //!   shared helpers (element_children_of) +
 //!   fragment handling.
-//! - `flex` — flex distribution: `layout_children`,
+//! - `dispatch` — `layout_children`: which formatting context lays out
+//!   an element's children.
+//! - `flex` — flex distribution: `layout_flex_container`,
 //!   `layout_flex_children`, `resolve_cross_size`.
 //! - `intrinsic` — `Size::Auto` resolution via content
 //!   measurement. Text / element / IFC paths.
-//! - `items` — the items a flex container lays out (elements,
+//! - `grid` — grid layout: `layout_grid_children`, the track sizing
+//!   algorithm, a grid container's content size.
+//! - `items` — the items a flex or grid container lays out (elements,
 //!   pseudo-elements, anonymous items for runs of text).
 //! - `ifc` — IFC detection.
 //! - `tree` — element children, the in-flow predicate,
@@ -73,8 +77,10 @@ mod block;
 mod block_tests;
 mod border_collapse;
 pub(crate) mod box_sizing;
+mod dispatch;
 mod flex;
 pub(crate) mod geometry;
+mod grid;
 pub(crate) mod gutter;
 mod ifc;
 pub(crate) mod intrinsic;
@@ -83,6 +89,7 @@ mod margin_trim;
 mod positioned_pseudos;
 mod positioning;
 mod scroll_extent;
+mod shares;
 mod sticky;
 mod tree;
 
@@ -97,7 +104,8 @@ use crate::node::TuiNodeExt;
 use crate::render::Rect;
 use crate::style::ComputedStyle;
 
-use flex::{layout_children, layout_flex_children};
+use dispatch::layout_children;
+use flex::layout_flex_children;
 
 use auto_height::resolve_auto_height;
 pub(super) use gutter::{gutter_axes, reserve_scrollbar_gutter, reserve_scrollbar_gutter_forced};
@@ -473,7 +481,12 @@ fn layout_fragment_children(dom: &mut Dom<TuiExt>, id: NodeId, container: Layout
 pub(super) fn flow_axis(computed: &ComputedStyle) -> Direction {
     match computed.flow {
         crate::layout::Flow::Flex => computed.direction,
-        crate::layout::Flow::Block | crate::layout::Flow::FlowRoot => Direction::Column,
+        // A grid container's items lay out on both axes; its block axis
+        // stands for it (it takes no `border-collapse` insets, and its
+        // content size is the grid's, `grid::content_size`).
+        crate::layout::Flow::Block | crate::layout::Flow::FlowRoot | crate::layout::Flow::Grid => {
+            Direction::Column
+        }
     }
 }
 

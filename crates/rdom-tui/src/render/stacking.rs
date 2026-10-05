@@ -35,7 +35,7 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::{Display, Flow, Overflow, Position, ZIndex};
+use crate::layout::{Display, Overflow, Position, ZIndex};
 use crate::node::TuiNodeExt;
 use crate::render::Rect;
 use crate::render::paint_pass::layout_rect_to_grid;
@@ -108,9 +108,10 @@ pub(crate) fn is_positioned(c: &ComputedStyle) -> bool {
 
 /// Does the in-flow element `c` (a child of `parent`) paint
 /// atomically — as an inline block does, as if it created a stacking
-/// context (CSS 2.1 Appendix E)? Inline blocks and inline flex
+/// context (CSS 2.1 Appendix E)? Inline blocks and inline flex and grid
 /// containers do, and so do flex items (CSS Flexbox §5.4: they paint
-/// exactly as inline blocks). The children of the document root are
+/// exactly as inline blocks) and grid items (CSS Grid 2 §6.5, the same
+/// words). The children of the document root are
 /// block boxes for paint (rdom lays them out as flex items, a
 /// documented divergence; a browser's `<body>` children are blocks).
 pub(crate) fn paints_atomically(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bool {
@@ -128,7 +129,7 @@ pub(crate) fn paints_atomically(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedS
     p.node_type() == NodeType::Element
         && p.ext()
             .and_then(|e| e.computed.as_ref())
-            .is_some_and(|pc| pc.flow == Flow::Flex)
+            .is_some_and(|pc| pc.flow.is_flex_or_grid())
 }
 
 /// Does an element with this style establish a stacking context?

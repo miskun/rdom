@@ -19,14 +19,15 @@ enum Inner {
     Flow,
     FlowRoot,
     Flex,
+    Grid,
 }
 
 /// Parse a `display` value: `[ <display-outside> || <display-inside> ]
 /// | <display-listitem> | <display-box> | <display-legacy>` (§2),
 /// ASCII case-insensitive, as `(outer, inner, list_item)`. An omitted
 /// outer type is `block`, an omitted inner type `flow`; `list-item`
-/// takes only `flow` / `flow-root`. `run-in`, `grid`, `table` and
-/// `ruby` have no layout in rdom yet and are invalid.
+/// takes only `flow` / `flow-root`. `run-in`, `table` and `ruby` have
+/// no layout in rdom yet and are invalid.
 pub fn parse_display(value: &[Token]) -> Option<(Display, Flow, bool)> {
     let words = value
         .iter()
@@ -42,6 +43,7 @@ pub fn parse_display(value: &[Token]) -> Option<(Display, Flow, bool)> {
             "contents" => Some((Display::Contents, Flow::Block, false)),
             "inline-block" => Some((Display::InlineBlock, Flow::Block, false)),
             "inline-flex" => Some((Display::Inline, Flow::Flex, false)),
+            "inline-grid" => Some((Display::Inline, Flow::Grid, false)),
             _ => None,
         };
         if single.is_some() {
@@ -56,11 +58,12 @@ pub fn parse_display(value: &[Token]) -> Option<(Display, Flow, bool)> {
             "flow" if inner.is_none() => inner = Some(Inner::Flow),
             "flow-root" if inner.is_none() => inner = Some(Inner::FlowRoot),
             "flex" if inner.is_none() => inner = Some(Inner::Flex),
+            "grid" if inner.is_none() => inner = Some(Inner::Grid),
             "list-item" if !list_item => list_item = true,
             _ => return None,
         }
     }
-    if words.is_empty() || (list_item && inner == Some(Inner::Flex)) {
+    if words.is_empty() || (list_item && matches!(inner, Some(Inner::Flex | Inner::Grid))) {
         return None;
     }
     let pair = match (outer.unwrap_or(Outer::Block), inner.unwrap_or(Inner::Flow)) {
@@ -71,6 +74,8 @@ pub fn parse_display(value: &[Token]) -> Option<(Display, Flow, bool)> {
         (Outer::Inline, Inner::FlowRoot) => (Display::InlineBlock, Flow::Block),
         (Outer::Block, Inner::Flex) => (Display::Block, Flow::Flex),
         (Outer::Inline, Inner::Flex) => (Display::Inline, Flow::Flex),
+        (Outer::Block, Inner::Grid) => (Display::Block, Flow::Grid),
+        (Outer::Inline, Inner::Grid) => (Display::Inline, Flow::Grid),
     };
     Some((pair.0, pair.1, list_item))
 }
@@ -90,6 +95,8 @@ pub fn serialize_display(display: Display, flow: Flow, list_item: bool) -> Strin
         // `inline flow-root` is the inline block above.
         (Display::Inline, Flow::FlowRoot) => ("inline", "flow-root"),
         (Display::Inline, Flow::Flex) => ("inline", "flex"),
+        (Display::Block, Flow::Grid) => ("block", "grid"),
+        (Display::Inline, Flow::Grid) => ("inline", "grid"),
     };
     if list_item {
         let mut parts = Vec::with_capacity(3);
@@ -108,6 +115,8 @@ pub fn serialize_display(display: Display, flow: Flow, list_item: bool) -> Strin
         ("block", "flex") => "flex",
         ("inline", "flow") => "inline",
         ("inline", "flow-root") => "inline-block",
+        ("block", "grid") => "grid",
+        ("inline", "grid") => "inline-grid",
         _ => "inline-flex",
     }
     .to_string()

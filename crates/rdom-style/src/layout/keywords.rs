@@ -240,6 +240,8 @@ pub enum Display {
 /// | `inline-block` = `inline flow-root`       | `InlineBlock`   | `Block`      |
 /// | `flex` = `block flex`                     | `Block`         | `Flex`       |
 /// | `inline-flex` = `inline flex`             | `Inline`        | `Flex`       |
+/// | `grid` = `block grid`                     | `Block`         | `Grid`       |
+/// | `inline-grid` = `inline grid`             | `Inline`        | `Grid`       |
 /// | `contents`                                | `Contents`      | `Block`      |
 /// | `none`                                    | `None`          | `Block`      |
 ///
@@ -252,7 +254,8 @@ pub enum Display {
 /// Default is `Block` — rdom's block layout pass walks children
 /// in document order, stacking at natural heights per CSS 2.1 §10.
 /// Authors opt into flex distribution via `display: flex` (or
-/// `display: inline-flex` for inline-level flex containers).
+/// `display: inline-flex` for inline-level flex containers), and into
+/// grid layout via `display: grid` / `inline-grid`.
 ///
 /// Does not inherit. Computed at cascade time alongside `Display`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -273,6 +276,10 @@ pub enum Flow {
     /// new block formatting context (CSS 2.1 §9.4.1) — no margin
     /// collapses through its edges.
     FlowRoot,
+    /// `grid` (CSS Display 3 §2.2, CSS Grid 2 §5.1): the children are
+    /// grid items, placed in the container's grid and sized by its
+    /// tracks. Establishes an independent formatting context.
+    Grid,
 }
 
 impl Flow {
@@ -280,6 +287,14 @@ impl Flow {
     /// children stack in normal flow (CSS 2.1 §9.4.1).
     pub const fn is_block_flow(self) -> bool {
         matches!(self, Flow::Block | Flow::FlowRoot)
+    }
+
+    /// A flex or grid container (CSS Display 3 §2.2): its in-flow
+    /// children are items — blockified (§2.7), reordered by `order`,
+    /// painted atomically — and each run of its child text is an
+    /// anonymous item (CSS Flexbox §4, CSS Grid 2 §6.1).
+    pub const fn is_flex_or_grid(self) -> bool {
+        matches!(self, Flow::Flex | Flow::Grid)
     }
 }
 

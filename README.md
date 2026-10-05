@@ -2,7 +2,7 @@
 
 A DOM for terminal applications, in Rust.
 
-`rdom` brings the architecture of the browser DOM — arena-backed nodes, CSS-style cascade, flexbox layout, capture/bubble events, mutation observers, selection ranges — to text-mode UIs. It targets terminals (via `crossterm`) but the core tree is renderer-agnostic and can drive headless or alternate backends.
+`rdom` brings the architecture of the browser DOM — arena-backed nodes, CSS-style cascade, flexbox and grid layout, capture/bubble events, mutation observers, selection ranges — to text-mode UIs. It targets terminals (via `crossterm`) but the core tree is renderer-agnostic and can drive headless or alternate backends.
 
 The browser DOM is the reference model: native HTML elements, CSS-faithful cascade, web-platform event semantics. Higher-level component libraries live in downstream projects, not in this repo.
 
@@ -54,7 +54,7 @@ See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for three self-cont
 | [`rdom-core`](crates/rdom-core) | Pure DOM. Arena, `NodeId`, attributes, classes, tree mutation, CSS selectors, 3-phase event dispatch, `MutationObserver`, `AbortSignal`, `Selection`/`Range`/`Position`. Zero rendering deps. |
 | [`rdom-style`](crates/rdom-style) | CSS data model + property dispatch + value parsers. Leaf crate; consumed by `rdom-css` (the parser) and `rdom-tui` (the renderer). |
 | [`rdom-css`](crates/rdom-css) | CSS parser. Tokenizer + block parser + `<style>`-tag extraction + inline-style seeding. Produces `Stylesheet` / `TuiStyle` via `rdom-style`'s property dispatch. |
-| [`rdom-tui`](crates/rdom-tui) | Terminal backend. CSS cascade, flexbox layout, paint pass, ANSI emission, inline formatting (word wrap, CJK breaks, `<br>`, `white-space`), runtime (event loop, hit test, keyboard/mouse routing, focus, text selection + clipboard), native HTML element behaviors (`<button>`, `<input>` family, `<select>`, `<form>`, `<details>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family, `<canvas>`). |
+| [`rdom-tui`](crates/rdom-tui) | Terminal backend. CSS cascade, flexbox and grid layout, paint pass, ANSI emission, inline formatting (word wrap, CJK breaks, `<br>`, `white-space`), runtime (event loop, hit test, keyboard/mouse routing, focus, text selection + clipboard), native HTML element behaviors (`<button>`, `<input>` family, `<select>`, `<form>`, `<details>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family, `<canvas>`). |
 | [`rdom-parser`](crates/rdom-parser) | HTML-ish template parser → `Dom<Ext>`. `parseFromString` equivalent. Hand-rolled, no external parser deps. |
 
 ## Unreleased (0.6.0, in progress)
@@ -63,6 +63,7 @@ CSS completeness ([`specs/CSS-COMPLETE-2026-10.md`](specs/CSS-COMPLETE-2026-10.m
 
 - **Math functions.** `calc()`, `min()`, `max()`, `clamp()`, `round()`, `mod()`, `rem()`, `abs()`, `sign()`, the trigonometric and exponential functions and the constants `e` / `pi` / `infinity` / `NaN` on `width` / `height` / `top` / `right` / `bottom` / `left` and the other length axes — CSS precedence, parentheses, nesting, percentages resolved at layout, banker's rounding onto the cell grid.
 - **CSS Color 4 / 5.** The whole `<color>` grammar: modern `rgb()` / `hsl()` with `/ alpha`, `hwb()`, `lab()` / `lch()` / `oklab()` / `oklch()` and `color()` gamut-mapped to sRGB, `color-mix()`, relative colors (`rgb(from var(--accent) r g b / 50%)`), `currentColor`, `transparent`, the system colors (`Canvas`, `CanvasText`, …); color alpha composited over what lies beneath; `color-scheme` and `light-dark()` following the terminal's light or dark theme (read at startup with OSC 11, followed through DEC mode 2031 reports on Unix); color transitions interpolated in Oklab.
+- **Grid layout.** `display: grid` / `inline-grid` with `grid-template-columns` / `-rows` — cells, `%`, `fr`, `auto`, `min-content` / `max-content`, `minmax()`, `fit-content()`, `repeat()` with `auto-fill` / `auto-fit` — sized by the CSS Grid track sizing algorithm in whole cells; placement properties and areas are next.
 
 ## What's in 0.5.0
 

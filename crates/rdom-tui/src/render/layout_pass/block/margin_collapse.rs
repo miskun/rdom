@@ -8,7 +8,7 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::{MarginChainMemo, TuiExt};
-use crate::layout::{Flow, MarginValue, Size};
+use crate::layout::{MarginValue, Size};
 use crate::render::inline::generated::{inline_content_at_edge, own_line_pseudos};
 use crate::render::layout_pass::margin_trim::trimmed_edges;
 use crate::style::ComputedStyle;
@@ -130,14 +130,15 @@ pub(super) fn parent_collapses_bottom_with_last_child(
 
 /// Does `id` establish an independent formatting context for its
 /// children, so their margins never collapse with its own? Either its
-/// own style makes it one (`establishes_new_bfc`: flex container,
+/// own style makes it one (`establishes_new_bfc`: flex or grid container,
 /// inline-block, non-visible overflow, absolute / fixed — CSS 2.1
 /// §9.4.1), or its place in the tree does:
 ///
 /// - the root (CSS 2.1 §8.3.1: "margins of the root element's box do
 ///   not collapse"; §9.4.1: the root element establishes a BFC);
-/// - a flex item (Flexbox §4: "A flex item establishes an independent
-///   formatting context for its contents") — including every element
+/// - a flex or grid item (Flexbox §4: "A flex item establishes an
+///   independent formatting context for its contents", Grid 2 §6.1 the
+///   same of a grid item) — including every element
 ///   child of a Fragment root, which lays its children out as the items
 ///   of an invisible column (`layout_fragment_children`), the way the
 ///   viewport holds `<html>`.
@@ -160,7 +161,7 @@ fn establishes_independent_formatting_context(
             return p.node_type() == NodeType::Fragment
                 || p.ext()
                     .and_then(|e| e.computed.as_ref())
-                    .is_some_and(|c| c.flow == Flow::Flex);
+                    .is_some_and(|c| c.flow.is_flex_or_grid());
         }
         match p.node_type() {
             NodeType::Fragment => parent = p.parent_node(),
@@ -172,7 +173,7 @@ fn establishes_independent_formatting_context(
                 return p
                     .ext()
                     .and_then(|e| e.computed.as_ref())
-                    .is_some_and(|c| c.flow == Flow::Flex);
+                    .is_some_and(|c| c.flow.is_flex_or_grid());
             }
         }
     }

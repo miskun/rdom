@@ -10,7 +10,7 @@ use crate::{CascadeExt, LayoutExt, TuiDom};
 
 thread_local! {
     /// Row-axis content measurements computed (not served from the memo).
-    pub(super) static ROW_WALKS: Cell<usize> = const { Cell::new(0) };
+    pub(in crate::render::layout_pass) static ROW_WALKS: Cell<usize> = const { Cell::new(0) };
     /// Column-axis content measurements computed (not served from the memo).
     pub(in crate::render::layout_pass) static COLUMN_WALKS: Cell<usize> = const { Cell::new(0) };
 }

@@ -1,9 +1,9 @@
 //! The grid setters of the `TuiStyle` builder (CSS Grid Layout 2): the
-//! explicit track lists.
+//! grid container conveniences and the explicit track lists.
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
-use crate::layout::GridTemplate;
+use crate::layout::{Display, Flow, GridTemplate};
 
 /// A track-list setter and its `!important` twin:
 /// `template_setter!("css-name", field, setter, important_setter, MASK)`.
@@ -42,6 +42,25 @@ fn checked(v: GridTemplate, property: &str) -> Option<GridTemplate> {
 }
 
 impl TuiStyle {
+    /// `display: grid` — outer [`Display::Block`] + inner [`Flow::Grid`]
+    /// (CSS Display 3 §2.7, CSS Grid 2 §5.1): a block-level grid
+    /// container. Sets both halves, as `.flex()` does.
+    pub fn grid(mut self) -> Self {
+        self.display = Some(Value::Specified(Display::Block));
+        self.flow = Some(Value::Specified(Flow::Grid));
+        self.list_item = Some(Value::Specified(false));
+        self
+    }
+
+    /// `display: inline-grid` — outer [`Display::Inline`] + inner
+    /// [`Flow::Grid`]: an inline-level grid container, an atomic inline.
+    pub fn inline_grid(mut self) -> Self {
+        self.display = Some(Value::Specified(Display::Inline));
+        self.flow = Some(Value::Specified(Flow::Grid));
+        self.list_item = Some(Value::Specified(false));
+        self
+    }
+
     template_setter!(
         "grid-template-columns",
         grid_template_columns,

@@ -1,4 +1,5 @@
-//! An anonymous or generated flex item's box (CSS Flexbox §4): a run of
+//! An anonymous or generated flex or grid item's box (CSS Flexbox §4,
+//! CSS Grid 2 §6.1): a run of
 //! its container's box sequence with no node of its own — a text run in
 //! an anonymous box, or one `::before` / `::after` in a box styled by its
 //! computed style — measured and laid out by packing its content inside
@@ -16,14 +17,14 @@ use crate::render::layout_pass::box_sizing::Sizer;
 use crate::render::layout_pass::intrinsic::Keywords;
 use crate::style::ComputedStyle;
 
-/// An anonymous flex item: a run of its container's box sequence.
+/// An anonymous flex or grid item: a run of its container's box sequence.
 #[derive(Debug)]
 pub(in crate::render::layout_pass) struct AnonymousItem {
     /// The flex container.
     container: NodeId,
     /// The run: text nodes, or one generated item.
     content: Vec<BoxItem>,
-    /// `[start, end)` in the container's `flex_sequence`.
+    /// `[start, end)` in the container's `item_sequence`.
     child_range: (usize, usize),
     /// The box's computed style: the anonymous box style for a text
     /// run, the pseudo-element's own for a generated item.
@@ -43,7 +44,7 @@ struct Edges {
 
 impl AnonymousItem {
     /// A box over `content` (`[start, end)` of the container's
-    /// `flex_sequence`), styled `style`; `generated` names the
+    /// `item_sequence`), styled `style`; `generated` names the
     /// pseudo-element it is.
     pub(super) fn new(
         container: NodeId,

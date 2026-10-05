@@ -11,7 +11,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 use crate::render::layout_pass::items::Item;
 
 use super::inline::{border_main_cost, own_line_pseudo_rows};
-use super::{IntrinsicMode, Measure, intrinsic_size_inner, intrinsic_text, wrap};
+use super::{Measure, intrinsic_text, wrap};
 use crate::ext::TuiExt;
 use crate::layout::Direction;
 use crate::style::ComputedStyle;
@@ -100,26 +100,15 @@ pub(super) fn children_size(
         }
         let keep_start = !(trim_start && (!along || i == 0));
         let keep_end = !(trim_end && (!along || i == last));
-        let inner = match item {
-            Item::Element(c) => intrinsic_size_inner(
-                dom,
-                *c,
-                direction,
-                child_cross_budget,
-                child_cb_width,
-                IntrinsicMode::BoxSize,
-                measure,
-            ),
-            // An anonymous item's box (a text run's has no declared size,
-            // margins, padding or border; a pseudo-element's is its own).
-            Item::Anonymous(anon) => anon.box_size(
-                dom,
-                direction,
-                child_cross_budget,
-                child_cb_width,
-                measure == Measure::MaxContent,
-            ),
-        };
+        // An anonymous item's box: a text run's has no declared size,
+        // margins, padding or border; a pseudo-element's is its own.
+        let inner = item.contribution(
+            dom,
+            direction,
+            child_cross_budget,
+            child_cb_width,
+            measure == Measure::MaxContent,
+        );
         let cs = item.computed(dom);
         let (a, b) = match direction {
             Direction::Row if reversed => (&cs.margin.right, &cs.margin.left),

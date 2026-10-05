@@ -1,18 +1,20 @@
-//! The items a flex container lays out — CSS Flexible Box §4.
+//! The items a flex or grid container lays out — CSS Flexible Box §4,
+//! CSS Grid 2 §6.1.
 //!
 //! "Each in-flow child of a flex container becomes a flex item, and
 //! each contiguous sequence of child text runs is wrapped in an
 //! anonymous block container flex item. However, if the entire sequence
 //! of child text runs contains only white space […] it is instead not
-//! rendered." The children are the box tree's
-//! (`box_tree::flex_sequence`): a box-less child's children and
+//! rendered." Grid §6.1 says the same of grid items. The children are
+//! the box tree's
+//! (`box_tree::item_sequence`): a box-less child's children and
 //! pseudo-elements are the container's, and the container's own
 //! `::before` / `::after` are child boxes — blockified, so items too.
 //!
 //! An element item is its element. An [`AnonymousItem`] is a run of the
 //! sequence with no node of its own: a run of text nodes, with the style
 //! of an anonymous box (inherited properties from the container, every
-//! other one initial: `order: 0`, `flex: 0 1 auto`, `auto` sizes, no
+//! other one initial: `order: 0`, `flex: 0 1 auto`, `auto` placement, `auto` sizes, no
 //! margins, padding or border), or one pseudo-element, a box with its
 //! own computed style — its sizes, `flex`, `order`, margins, padding,
 //! border and alignment apply as an element item's do. Its content is
@@ -34,10 +36,12 @@ use crate::render::layout_pass::intrinsic::Keywords;
 use crate::style::ComputedStyle;
 
 mod anonymous;
+mod minimum;
 
 pub(in crate::render::layout_pass) use anonymous::AnonymousItem;
+pub(in crate::render::layout_pass) use minimum::{Suggestion, content_based_minimum};
 
-/// One flex item of a container.
+/// One flex or grid item of a container.
 #[derive(Debug, Clone)]
 pub(in crate::render::layout_pass) enum Item {
     /// An in-flow element child (through box-less children).
@@ -66,7 +70,7 @@ impl Item {
         }
     }
 
-    /// The box the item is laid out in: its flex container.
+    /// The box the item is laid out in: its flex or grid container.
     pub(in crate::render::layout_pass) fn box_parent(&self, dom: &Dom<TuiExt>) -> Option<NodeId> {
         match self {
             Item::Element(id) => crate::render::box_tree::box_parent(dom, *id),
@@ -160,6 +164,31 @@ impl Item {
         }
     }
 
+    /// The item's intrinsic size contribution along `direction`, a
+    /// border box (CSS Sizing 3 §5.2): its min-content contribution, or
+    /// with `max_content` its max-content one — its declared size when
+    /// definite, else its content size, clamped by its `min-*` / `max-*`.
+    pub(in crate::render::layout_pass) fn contribution(
+        &self,
+        dom: &Dom<TuiExt>,
+        direction: Direction,
+        cross_budget: u16,
+        cb_width: u16,
+        max_content: bool,
+    ) -> u16 {
+        match self {
+            Item::Element(id) => crate::render::layout_pass::intrinsic::contribution(
+                dom,
+                *id,
+                direction,
+                cross_budget,
+                cb_width,
+                max_content,
+            ),
+            Item::Anonymous(a) => a.box_size(dom, direction, cross_budget, cb_width, max_content),
+        }
+    }
+
     /// `visibility: collapse` on the item (Flexbox §4.4) — an anonymous
     /// item inherits its container's `visibility`.
     pub(in crate::render::layout_pass) fn is_collapsed(&self, dom: &Dom<TuiExt>) -> bool {
@@ -177,13 +206,13 @@ fn is_document_white_space(c: char) -> bool {
     matches!(c, ' ' | '\t' | '\n' | '\r' | '\u{c}')
 }
 
-/// The flex container `id`'s flex items, in document order (CSS Flexbox
+/// The flex or grid container `id`'s items, in document order (CSS Flexbox
 /// §4): its in-flow elements (through box-less children and fragments),
 /// each pseudo-element that generates a box, and an anonymous item per
 /// contiguous run of text that is not all white space. Out-of-flow and
 /// `display: none` children are no items and do not split a run.
 pub(in crate::render::layout_pass) fn items_of(dom: &Dom<TuiExt>, id: NodeId) -> Vec<Item> {
-    let sequence = crate::render::box_tree::flex_sequence(dom, id);
+    let sequence = crate::render::box_tree::item_sequence(dom, id);
     let mut b = ItemsBuilder {
         dom,
         container: id,
@@ -266,9 +295,9 @@ impl ItemsBuilder<'_> {
             PseudoSlot::After => e.computed_after.clone(),
         });
         let Some(style) = style else {
-            // `box_tree::flex_sequence` lists a pseudo-element only when it
+            // `box_tree::item_sequence` lists a pseudo-element only when it
             // has a computed style.
-            debug_assert!(false, "a generated flex item has a computed style");
+            debug_assert!(false, "a generated item has a computed style");
             self.push_anonymous(vec![entry], child_range);
             return;
         };
@@ -303,7 +332,7 @@ impl ItemsBuilder<'_> {
     }
 }
 
-/// Sort `items` — flex items in document order — into order-modified
+/// Sort `items` — flex or grid items in document order — into order-modified
 /// document order (CSS Flexbox §5.4): ascending `order`, document order
 /// among equals (a stable sort). No-op when every `order` is 0.
 pub(in crate::render::layout_pass) fn sort_by_order(dom: &Dom<TuiExt>, items: &mut [Item]) {

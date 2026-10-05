@@ -169,6 +169,18 @@ pub(crate) fn height_is_definite_below(dom: &Dom<TuiExt>, parent: Option<NodeId>
                     Some(gp) if crate::render::box_tree::is_flex_container(dom, gp) => {
                         next = crate::render::box_tree::box_parent(dom, parent_id);
                     }
+                    // A grid item is laid out in its grid area (CSS Grid 2
+                    // §6.2), whose size the track sizing algorithm has
+                    // made definite (§11.1) — stretched to it, or not.
+                    Some(gp)
+                        if dom
+                            .node(gp)
+                            .ext()
+                            .and_then(|e| e.computed.as_ref())
+                            .is_some_and(|c| c.flow == crate::layout::Flow::Grid) =>
+                    {
+                        return true;
+                    }
                     Some(gp)
                         if dom.node(gp).node_type() == rdom_core::NodeType::Fragment
                             && parent_computed.flex_grow > 0.0 =>
@@ -206,6 +218,9 @@ pub(crate) fn height_is_definite_below(dom: &Dom<TuiExt>, parent: Option<NodeId>
                         // was used outside a flex container) → treated
                         // as `auto` → indefinite.
                         Some(Flow::Block | Flow::FlowRoot) => return false,
+                        // A grid item's containing block is its grid
+                        // area, definite once the tracks are sized.
+                        Some(Flow::Grid) => return true,
                     },
                 }
             }

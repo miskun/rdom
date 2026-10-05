@@ -2,7 +2,7 @@
 
 This file defines how AI agents should work in this repository.
 
-`rdom` is a DOM for terminal applications, in Rust. It brings the architecture of the browser DOM — arena-backed nodes, CSS-style cascade, flexbox layout, capture/bubble events, mutation observers, selection ranges — to text-mode UIs. The project needs to stay boring, correct, testable, and explicit.
+`rdom` is a DOM for terminal applications, in Rust. It brings the architecture of the browser DOM — arena-backed nodes, CSS-style cascade, flexbox and grid layout, capture/bubble events, mutation observers, selection ranges — to text-mode UIs. The project needs to stay boring, correct, testable, and explicit.
 
 Keep this file current. If the project makes a durable process, architecture, or quality decision, update `CLAUDE.md` in the same change.
 
@@ -33,7 +33,7 @@ Every other crate is a **consumer** of that substrate:
 
 - **`rdom-style`** — CSS data model + property dispatch + value parsers. Leaf crate; consumed by `rdom-css` (the parser) and `rdom-tui` (the renderer).
 - **`rdom-css`** — CSS parser. Tokenizer + block parser + `<style>`-tag extraction + inline-style seeding. Produces `Stylesheet` / `TuiStyle` via `rdom-style`'s property dispatch.
-- **`rdom-tui`** — the terminal backend. Owns CSS cascade (specificity, custom properties), layout (flexbox, inline formatting), paint (canvas + ANSI emission), and the runtime (event loop, hit test, keyboard/mouse routing, focus, text selection + clipboard), plus the native HTML element behaviors (`<button>`, `<input>` family incl. `type="range"`, `<select>`, `<form>`, `<details>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family, `<canvas>`). Defines `TuiExt` and operates on `Dom<TuiExt>`.
+- **`rdom-tui`** — the terminal backend. Owns CSS cascade (specificity, custom properties), layout (flexbox, grid, inline formatting), paint (canvas + ANSI emission), and the runtime (event loop, hit test, keyboard/mouse routing, focus, text selection + clipboard), plus the native HTML element behaviors (`<button>`, `<input>` family incl. `type="range"`, `<select>`, `<form>`, `<details>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family, `<canvas>`). Defines `TuiExt` and operates on `Dom<TuiExt>`.
 - **`rdom-parser`** — HTML-ish template strings → `Dom<Ext>`. Hand-rolled, no external parser deps. Equivalent in role to `parseFromString`.
 
 Durable rules:

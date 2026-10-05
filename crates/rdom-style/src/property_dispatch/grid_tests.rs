@@ -95,3 +95,13 @@ fn an_invalid_track_list_panics_in_a_debug_build() {
         crate::layout::TrackBreadth::Auto,
     )]);
 }
+
+/// `.grid()` / `.inline_grid()` write `display: grid` / `inline-grid`
+/// (CSS Display 3 §2.7: the block-level and inline-level grid container).
+#[test]
+fn grid_display_builders() {
+    let style = TuiStyle::new().grid();
+    assert_eq!(serialize("display", &style).as_deref(), Some("grid"));
+    let style = TuiStyle::new().inline_grid();
+    assert_eq!(serialize("display", &style).as_deref(), Some("inline-grid"));
+}
