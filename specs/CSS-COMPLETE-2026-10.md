@@ -211,7 +211,7 @@ row comes from.
 | C10-QUOTES | `quotes` | |
 | C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | |
 | C10-COUNTER-STYLE | `@counter-style` and `symbols()` | |
-| C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence) | |
+| C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | |
 | C10-FIRST | `::first-line` / `::first-letter` | |
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | |
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | |
@@ -5886,3 +5886,22 @@ row comes from.
   `focus_in_a_handler_scrolls_against_the_next_layout`. Changed expectation: the frame pin's 5 runs → 4
   with a focus scroll added (`a_frame_runs_layout_at_most_twice_the_round_cap`). DIVERGENCES §2's focus entry
   says the deferral is per document. No snapshot changed.
+- 2026-10-12 — C9G-PSEUDO-CLAMP (batch B; a probe of batch A's: a pseudo-element's `line-clamp: 2` showed
+  all five lines). Found: a `::before` / `::after` box packs its generated text through its box-tree item
+  (`items::AnonymousItem`), which never read the clamp; an element's clamp is a walk keyed by `NodeId`
+  (`line_clamp::clamp_point`) that a pseudo-element has none of. Decision: the clamp at the generated
+  box's root — `AnonymousItem::pack_clamped` (new `line_clamp::clamp_lines`) keeps the first N line boxes of
+  a pseudo-element that is a line-clamp container and marks the last (`LineBox::ends_clamp`), for its
+  block size, its baselines and its laid-out lines alike (block-level, inline-block, float and flex-item
+  pseudos all lay out through it); its inline sizes read the whole content (min- / max-content are not
+  clamped). The cut lines are not kept — generated content has no DOM position for a caret or a copy to
+  reach, so nothing reads them — and a host's own clamp counts only the lines kept. Paint takes the
+  pseudo-element's own marking (`Marking::of_generated`): the `block-ellipsis` of the marked line, or of
+  the line its host's clamp ends at, and — a fix riding with it — its own `text-overflow` (a block
+  pseudo's lines were marked by its host's, which does not apply to them, §3). Red:
+  `css_phase8/line_clamp.rs` — `a_block_pseudo_element_clamps_its_lines` and
+  `an_atomic_or_floated_pseudo_element_clamps_its_lines` failed (`["one two ", "three   ", "four    ", "X
+  …"]`); green after (the float case first expected `X` below the float — it wraps beside it, correctly,
+  and the test was corrected to assert that and the clamped box's clearance). Mutation (restored,
+  touched): an atom's or float's lines painted with no marking → the atomic test fails. List markers'
+  raw widths go to C10-LIST-ITEM (its row says so). No existing expectation or snapshot changed.

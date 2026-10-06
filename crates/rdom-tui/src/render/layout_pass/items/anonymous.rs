@@ -195,6 +195,16 @@ impl AnonymousItem {
         )
     }
 
+    /// [`pack`](Self::pack), cut by the box's own `line-clamp` (a
+    /// generated block container's, CSS Overflow 4 §4;
+    /// `line_clamp::clamp_lines`): what it lays out and its block size
+    /// and baselines read. Its inline size reads the whole content.
+    fn pack_clamped(&self, dom: &Dom<TuiExt>, width: u16) -> InlineLayout {
+        let mut il = self.pack(dom, width);
+        crate::render::layout_pass::line_clamp::clamp_lines(&mut il, &self.style);
+        il
+    }
+
     /// The widest line of the content packed `width` cells wide.
     fn widest_line(&self, dom: &Dom<TuiExt>, width: u16) -> u16 {
         self.pack(dom, width)
@@ -250,7 +260,7 @@ impl AnonymousItem {
             Direction::Row => self.widest_line(dom, 0),
             Direction::Column => {
                 let width = self.inner_width(self.own_width(cb_width).unwrap_or(width), cb_width);
-                self.pack(dom, width).height()
+                self.pack_clamped(dom, width).height()
             }
         };
         content.saturating_add(chrome)
@@ -306,7 +316,7 @@ impl AnonymousItem {
         let top = self.edges(cb_width).top;
         if self.style.flow != crate::layout::Flow::Grid {
             let width = self.inner_width(self.own_width(cb_width).unwrap_or(width), cb_width);
-            let (first, last) = self.pack(dom, width).baselines()?;
+            let (first, last) = self.pack_clamped(dom, width).baselines()?;
             return Some((top + first, top + last));
         }
         let chrome = Sizer::vertical(&self.style, cb_width).chrome();
@@ -346,7 +356,7 @@ impl AnonymousItem {
         content: LayoutRect,
     ) -> (LayoutRect, InlineLayout) {
         let Some(item) = self.content_item() else {
-            return (content, self.pack(dom, content.width));
+            return (content, self.pack_clamped(dom, content.width));
         };
         let boxes = match self.style.flow {
             crate::layout::Flow::Grid => crate::render::layout_pass::grid::layout_generated_grid(

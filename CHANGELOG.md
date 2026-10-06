@@ -532,6 +532,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A `::before` / `::after` box clamps its own lines** (CSS Overflow 4 §4, CSS Pseudo 4 §2): a block-level, inline-block or floated pseudo-element with `line-clamp: N` is its first N lines tall, the Nth ending with its `block-ellipsis` (it showed every line); its own `text-overflow` marks its lines. (C9G-PSEUDO-CLAMP)
 - **`rlh` follows a restyled root line height everywhere** (CSS Values 4 §6.1.1): a restyle that moves the root element's line height keeps no subtree, so `rlh` under an element whose own style stayed is recomputed (it kept the old row count). (C9G-MISC-CORRECTNESS)
 - **Focus scrolling defers only on the `App`'s own document, and a frame relays out once for it**: another document focused from a handler scrolls at once (it never scrolled); the re-snap, the focus scroll and the caret reveal share one relayout (a frame ran up to six layouts). (C9G-MISC-CORRECTNESS)
 - **Generated text and lone text nodes are measured as they are laid out** (CSS Sizing 3 §5.1): an inline block holding only `::before` text is as wide as that text transformed, collapsed, at its tab stops and letter-spaced (`straße` uppercased: 7, was 6). (C9G-MISC-CORRECTNESS)

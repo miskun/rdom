@@ -220,6 +220,32 @@ pub(super) fn clamped(
     })
 }
 
+/// Clamp the lines of a `::before` / `::after` box (CSS Pseudo 4 §2) —
+/// one inline formatting context whose content is generated, with no DOM
+/// position to keep — styled `c`: a line-clamp container keeps its first
+/// `max-lines` line boxes and drops the rest (§4.4 `collapse`: its
+/// automatic height ends at its clamp point, what follows is not
+/// rendered), its last kept line marked to take the `block-ellipsis`
+/// (`LineBox::ends_clamp`). A box whose content ends by its Nth line is
+/// untouched.
+pub(in crate::render::layout_pass) fn clamp_lines(
+    il: &mut crate::render::inline::InlineLayout,
+    c: &crate::style::ComputedStyle,
+) {
+    let Some(n) = c
+        .max_lines
+        .filter(|_| c.line_clamp_container)
+        .and_then(|n| usize::try_from(n).ok())
+        .filter(|&n| n > 0 && il.lines.len() > n)
+    else {
+        return;
+    };
+    il.lines.truncate(n);
+    if let Some(last) = il.lines.last_mut() {
+        last.ends_clamp = true;
+    }
+}
+
 /// The height of an inline layout clamped to `max_lines` line boxes —
 /// the intrinsic block size of a line-clamp container whose lines are
 /// its own (`intrinsic::wrapped_rows`).

@@ -284,7 +284,12 @@ pub(super) fn paint_anonymous_blocks(
     for (k, anon) in ext.anonymous_blocks.iter().enumerate() {
         // An anonymous block box's lines are its container's (CSS Overflow
         // 4 §3 applies to the block container's line boxes).
-        let marking = Marking::of(dom, container_id, Some(k));
+        let marking = match anon.generated {
+            // A `::before` / `::after` box's lines are its own block
+            // container's.
+            Some(g) => Marking::of_generated(dom, g, anon.rect, &anon.inline_layout, Some(k)),
+            None => Marking::of(dom, container_id, Some(k)),
+        };
         let at = FlowPlacement {
             inner: anon.rect,
             bg_dedup_owner: container_id,

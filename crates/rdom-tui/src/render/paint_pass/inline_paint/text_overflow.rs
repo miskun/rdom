@@ -41,8 +41,42 @@ impl Marking {
     pub(super) fn of(dom: &Dom<TuiExt>, owner: NodeId, anon: Option<usize>) -> Option<Self> {
         let ext = dom.node(owner).ext()?;
         let c = ext.computed.as_deref()?;
-        let block = block_line(dom, owner, anon)
-            .and_then(|line| Some((line, c.block_ellipsis.marker()?.to_string())));
+        Self::of_box(c, ext.content_layout, block_line(dom, owner, anon))
+    }
+
+    /// The marking of a `::before` / `::after` box `g` (CSS Pseudo 4
+    /// §2) whose lines `lines` sit at `content`, its content box: its own
+    /// `text-overflow`, and the `block-ellipsis` of the line its own
+    /// `line-clamp` ends at (layout marked it, `LineBox::ends_clamp`) or —
+    /// a block-level box in its host's flow (`anon`: its index among the
+    /// host's anonymous boxes) — of the line its host's line-clamp
+    /// container ends at.
+    pub(super) fn of_generated(
+        dom: &Dom<TuiExt>,
+        g: crate::ext::GeneratedBox,
+        content: crate::layout::LayoutRect,
+        lines: &crate::render::inline::InlineLayout,
+        anon: Option<usize>,
+    ) -> Option<Self> {
+        let ext = dom.node(g.host).ext()?;
+        let c = match g.slot {
+            crate::ext::PseudoSlot::Before => ext.computed_before.as_deref(),
+            crate::ext::PseudoSlot::After => ext.computed_after.as_deref(),
+        }?;
+        let own = lines.lines.iter().position(|l| l.ends_clamp);
+        let block = own.or_else(|| anon.and_then(|k| block_line(dom, g.host, Some(k))));
+        Self::of_box(c, content, block)
+    }
+
+    /// The marking of a block container styled `c` whose content box is
+    /// `content`, `block` the index of its line that ends a line-clamp
+    /// container's lines.
+    fn of_box(
+        c: &crate::style::ComputedStyle,
+        content: crate::layout::LayoutRect,
+        block: Option<usize>,
+    ) -> Option<Self> {
+        let block = block.and_then(|line| Some((line, c.block_ellipsis.marker()?.to_string())));
         // §3: the property applies to a block container's line boxes; a
         // flex or grid container's text is an anonymous item's, whose box
         // has the initial `clip`.
@@ -59,7 +93,6 @@ impl Marking {
         } else {
             (TextOverflowSide::Clip, TextOverflowSide::Clip)
         };
-        let content = ext.content_layout;
         Some(Self {
             window: (content.x, content.x + i32::from(content.width)),
             left,

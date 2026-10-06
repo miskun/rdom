@@ -287,6 +287,11 @@ pub struct LineBox {
     /// The line's `text-indent` in cells (CSS Text 3 §8.1), already in
     /// its fragments' `x`: what an intrinsic size adds to `width`.
     pub(crate) indent: i32,
+    /// Whether the line is the last a generated box's own `line-clamp`
+    /// kept, with lines cut after it (CSS Overflow 4 §4): it takes the
+    /// pseudo-element's `block-ellipsis` at paint
+    /// (`layout_pass::line_clamp::clamp_lines`).
+    pub(crate) ends_clamp: bool,
 }
 
 impl Default for LineBox {
@@ -302,6 +307,7 @@ impl Default for LineBox {
             band: None,
             hang: 0,
             indent: 0,
+            ends_clamp: false,
         }
     }
 }
@@ -379,6 +385,7 @@ mod tests {
             band: None,
             hang: 0,
             indent: 0,
+            ends_clamp: false,
         }
     }
 

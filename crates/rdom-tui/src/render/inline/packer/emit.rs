@@ -396,6 +396,7 @@ impl LinePacker<'_> {
             band,
             hang,
             indent,
+            ends_clamp: false,
         });
         self.line_groups.push(self.cur_group);
         if end == LineEnd::Forced {

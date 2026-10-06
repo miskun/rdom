@@ -97,7 +97,8 @@ fn paint_generated_box(
         inner: lines_at,
         bg_dedup_owner: g.host,
     };
-    paint_inline_layout(dom, lines, at, None, buf, clip, viewport);
+    let marking = super::Marking::of_generated(dom, g, lines_at, lines, None);
+    paint_inline_layout(dom, lines, at, marking.as_ref(), buf, clip, viewport);
 }
 
 /// Paint the `k`-th floated `::before` / `::after` `owner`'s formatting

@@ -220,3 +220,71 @@ fn a_shifted_clamped_box_keeps_its_clamp_point() {
     assert_eq!(&rows[1..3], ["one two ", "three…  "]);
     assert_eq!(rows[3], "        ", "the third line hidden");
 }
+
+// ---- C9G-PSEUDO-CLAMP: a pseudo-element's own `line-clamp` ----
+
+/// A `.h` whose only content is its `::before` (styled `before`), then a
+/// `.x` line `X`; painted 8 × 5.
+fn pseudo(before: &str) -> Vec<String> {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let w = el(&mut dom, root, "div", "w");
+    el(&mut dom, w, "div", "h");
+    let x = el(&mut dom, w, "div", "x");
+    let t = dom.create_text_node("X");
+    dom.append_child(x, t).unwrap();
+    let buf = paint(
+        &mut dom,
+        &format!(".h::before {{ content: \"one two three four\"; width: 7; {before} }}"),
+        8,
+        5,
+    );
+    rows(&buf, 8, 5)
+}
+
+/// CSS Overflow 4 §4 (`line-clamp` applies to block containers — a
+/// `::before` / `::after` box is one, CSS Pseudo 4 §2): a block-level
+/// pseudo-element clamps its own lines — two lines tall, the second
+/// ending with its `block-ellipsis`, the rest hidden and the next box
+/// right after.
+#[test]
+fn a_block_pseudo_element_clamps_its_lines() {
+    assert_eq!(
+        pseudo("display: block; line-clamp: 2"),
+        ["one two ", "three…  ", "X       ", "        ", "        "]
+    );
+    assert_eq!(
+        pseudo("display: block; line-clamp: 2 no-ellipsis"),
+        ["one two ", "three   ", "X       ", "        ", "        "]
+    );
+}
+
+/// The same for an atomic inline and a float: the box is as tall as its
+/// first N lines (§4.4 `collapse`), and the Nth takes the ellipsis.
+#[test]
+fn an_atomic_or_floated_pseudo_element_clamps_its_lines() {
+    assert_eq!(
+        pseudo("display: inline-block; line-clamp: 2"),
+        ["one two ", "three…  ", "X       ", "        ", "        "]
+    );
+    // `X` wraps beside the float, whose box is its two kept lines.
+    assert_eq!(
+        pseudo("float: left; line-clamp: 2")[..3],
+        ["one twoX", "three…  ", "        "]
+    );
+    // The float's exclusion is its clamped box: `X` clears it at row 2.
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let w = el(&mut dom, root, "div", "w");
+    el(&mut dom, w, "div", "h");
+    let x = el(&mut dom, w, "div", "x");
+    let t = dom.create_text_node("X");
+    dom.append_child(x, t).unwrap();
+    paint(
+        &mut dom,
+        ".h::before { content: \"one two three four\"; width: 7; float: left; line-clamp: 2 } .x { clear: both }",
+        8,
+        5,
+    );
+    assert_eq!(rect(&dom, x).y, 2);
+}
