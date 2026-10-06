@@ -2,7 +2,7 @@
 //! §2.1; MathML Core §4.2 for `math-auto`): a rendering transform — the
 //! caret, selection and copy work in the source text.
 
-use super::{el, lay_out, paint, paint_text, rows, text_block};
+use super::{el, lay_out, paint, paint_text, rows, size, text_block};
 use rdom_tui::prelude::*;
 use rdom_tui::render::inline::cell_of_position;
 use rdom_tui::runtime::selection::clipboard::serialize_selection;
@@ -106,4 +106,55 @@ fn the_source_text_is_what_the_caret_and_copy_see() {
     assert_eq!(dom.position_at(5, 0), Some(Position::new(t, 4)));
     let range = rdom_tui::Range::ordered_unchecked(Position::new(t, 0), Position::new(t, 7));
     assert_eq!(serialize_selection(&dom, &range), "Straße");
+}
+
+/// The min-content width of a `.b` block holding `text`, styled `decl`.
+fn min_content(decl: &str, text: &str) -> u16 {
+    let (mut dom, b, _) = text_block(text);
+    lay_out(
+        &mut dom,
+        &format!(".b {{ width: min-content; {decl} }}"),
+        30,
+        4,
+    );
+    size(&dom, b).0
+}
+
+/// C9G-TRANSFORM-BREAK. §2.1: the transform applies "before line breaking",
+/// and UAX #14 classes the *characters* of the rendered text (LB9: a
+/// grapheme takes its first character's class): `ß` uppercased is `SS`, two
+/// letters (AL), not one two-cell ideograph (ID) — so `STRASSE` keeps no
+/// break opportunity inside, overflows its 5-cell line whole (as browsers
+/// do), and its min-content is the whole word.
+#[test]
+fn a_lengthened_letter_stays_a_letter_for_line_breaking() {
+    assert_eq!(
+        paint_text("width: 5; text-transform: uppercase", "straße", 8, 2),
+        ["STRASSE ", "        "]
+    );
+    assert_eq!(min_content("text-transform: uppercase", "straße"), 7);
+    // `capitalize` titlecases a digraph (`ǆ` → `ǅ`, one cell) and a lowered
+    // final sigma is `ς`: neither opens a break inside the word.
+    assert_eq!(
+        paint_text("width: 3; text-transform: capitalize", "ǆungla", 8, 2),
+        ["ǅungla  ", "        "]
+    );
+    assert_eq!(
+        paint_text("width: 4; text-transform: lowercase", "ΟΔΟΣ ΣΑ", 6, 2),
+        ["οδος  ", "σα    "]
+    );
+    assert_eq!(min_content("text-transform: capitalize", "ǆungla"), 6);
+}
+
+/// C9G-TRANSFORM-BREAK. §2.1 `full-width` makes letters full-width forms,
+/// UAX #14 class ID, so they break on either side — also when one source
+/// letter renders as several (`ß` → `ＳＳ` under `uppercase full-width`): the
+/// rendered text's own characters decide, not its total width.
+#[test]
+fn full_width_text_breaks_like_ideographs_whatever_its_length() {
+    assert_eq!(
+        paint_text("width: 4; text-transform: uppercase full-width", "aß", 6, 2),
+        ["Ａ    ", "ＳＳ  "]
+    );
+    assert_eq!(min_content("text-transform: uppercase full-width", "aß"), 4);
 }

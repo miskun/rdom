@@ -27,6 +27,9 @@
 //! or Japanese" is read off the characters). Southeast Asian scripts
 //! (SA) do not break between words, as without a dictionary.
 
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
+
 use crate::layout::{Hyphens, LineBreak, WordBreak};
 
 /// The line breaking class of a grapheme, by its first character (a
@@ -132,6 +135,17 @@ pub(crate) fn class_of(c: char, wide: bool) -> BreakClass {
         _ if wide => B::Ideographic,
         _ => B::Alphabetic,
     }
+}
+
+/// The class of a source grapheme a transform rendered as `text`, maybe
+/// several graphemes (`ß` → `SS`, `ß` → `ＳＳ`): its first grapheme's, by
+/// that grapheme's own width (UAX #14 LB9) — not the whole rendering's.
+pub(crate) fn class_of_rendered(text: &str) -> BreakClass {
+    let g = text.graphemes(true).next().unwrap_or(" ");
+    class_of(
+        g.chars().next().unwrap_or(' '),
+        UnicodeWidthStr::width(g) == 2,
+    )
 }
 
 impl BreakClass {

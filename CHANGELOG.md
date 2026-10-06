@@ -524,6 +524,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A letter a transform lengthens stays a letter for line breaking** (CSS Text 3 §2.1, §5): `ß` uppercased is `SS`, two letters — it was classed as one two-cell ideograph, so `straße` under `uppercase` broke inside the word and its min-content was 4, not 7. Full-width text still breaks like ideographs. (C9G-TRANSFORM-BREAK)
 - **A caret off the screen's left or top is on no cell**: `cell_of_position` returns `None` for it (it clamped to column / row 0, so an `rtl` caret left of the screen painted in column 0), and caret reveal and line movement read the signed cell, so a caret scrolled above the screen is revealed by its whole distance. (C8G-CARET-RTL)
 
 - **The prefixed-plus-standard line clamp clamps**: `display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3` is clamped to three lines (the later `line-clamp` no longer switches the legacy form off); a vertical `-webkit-box` stacks its children; a flex container draws no `text-overflow` ellipsis; a clamped box's hidden lines and a block's bottom padding no longer count as content. (C8G-WEBKIT-CLAMP)

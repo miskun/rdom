@@ -5674,3 +5674,20 @@ row comes from.
   carries the font's line gap), so `1.5` is one row, `2.5` two — DIVERGENCES §1; `letter-spacing` is
   implemented in whole cells. Full reports: `target/claude-logs/c9_gate_{architect,api}.md`. Fix as
   `C9G-*`, two batches (A correctness and cost, B API and docs).
+- 2026-10-12 — C9G-TRANSFORM-BREAK (architect B1). Found: `push_text_grapheme` classed a grapheme for
+  line breaking by its rendered text's first character and *total* width (`class_of(first, w == 2)`), so a
+  transform that renders one source grapheme as several — `ß` → `SS` under `uppercase` — read as a two-cell
+  ideograph (ID) and opened a break on both sides: `<p style="width:5;text-transform:uppercase">straße</p>`
+  painted `STRA` / `SSE`, min-content 4. Decision: the transform applies before line breaking (§2.1, the
+  module's documented order, so full-width letters keep breaking as ID), and UAX #14 classes the rendered
+  text's own graphemes (LB9) — a rendered piece takes its first grapheme's class by that grapheme's width
+  (`breaking::class_of_rendered`); an untransformed grapheme is classed as before. Not classed by the source
+  grapheme, which would stop full-width text breaking (`full_width_uses_the_fullwidth_forms` pins that).
+  Red: `css_phase9/text_transform.rs::a_lengthened_letter_stays_a_letter_for_line_breaking` — failed
+  (`["STRA    ", "SSE     "]` for `["STRASSE ", "        "]`); its Final_Sigma (`ΟΔΟΣ ΣΑ` lowercased
+  breaks only at the space), `capitalize` digraph (`ǆungla` → `ǅungla`, min-content 6) and min-content 7
+  assertions ride with it. `full_width_text_breaks_like_ideographs_whatever_its_length` (`aß` under
+  `uppercase full-width` → `Ａ` / `ＳＳ`, min-content 4) passed on HEAD — an ID neighbour breaks either way —
+  and is kept as the pin for the multi-grapheme full-width piece. Green after. Mutation (restored,
+  touched): `class_of_rendered` reading the whole rendering's width → the red test fails again. No
+  existing expectation or snapshot changed.

@@ -227,7 +227,14 @@ impl<'a> LinePacker<'a> {
         let text = rendered.unwrap_or(Cow::Borrowed(g));
         let w = UnicodeWidthStr::width(text.as_ref()) as u16;
         let first = text.chars().next().unwrap_or(' ');
-        let class = breaking::class_of(first, w == 2);
+        // UAX #14 classes the rendered text's own graphemes (LB9): a
+        // transform may render one source grapheme as several (`ß` →
+        // `SS`, two letters — not one two-cell ideograph). A case mapping
+        // or full-width form keeps one class across what it renders.
+        let class = match &text {
+            Cow::Borrowed(_) => breaking::class_of(first, w == 2),
+            Cow::Owned(rendered) => breaking::class_of_rendered(rendered),
+        };
         if w == 0 {
             match class {
                 BreakClass::ZeroWidthSpace | BreakClass::Glue => {
