@@ -1,8 +1,15 @@
-//! The applicator of the CSS Text properties (CSS Text 3 / 4): each one
-//! computes to its declared value, into the `ComputedStyle::text` group.
+//! The applicator of the CSS Text properties (CSS Text 3 / 4) and
+//! `line-height` (CSS Inline 3): each one computes to its declared value,
+//! into the `ComputedStyle::text` group — `line-height` and the
+//! `match-parent` alignments fixed up once the ladder has run.
+
+use rdom_core::Dom;
+use rdom_style::calc::{UnitContext, Viewport};
 
 use super::apply::{Keywords, apply_value};
+use crate::ext::TuiExt;
 use crate::layout::{TextAlign, TextAlignLast, TextDirection};
+use crate::node::TuiNodeExt;
 use crate::style::{ComputedStyle, ImportantMask, TuiStyle};
 
 /// Apply `style`'s CSS Text declarations to `working`, for one ladder
@@ -39,7 +46,37 @@ pub(super) fn apply_text(
         text_align_last: TEXT_ALIGN_LAST,
         text_justify: TEXT_JUSTIFY,
         text_wrap_style: TEXT_WRAP_STYLE,
+        line_height: LINE_HEIGHT,
     );
+}
+
+/// `line-height`'s computed value (CSS Inline 3 §5.1: a percentage of
+/// the font size — one row — or a length, in rows; CSS Values 4 §6.1.1:
+/// `lh` in it is the parent's line height, `rlh` the root's, or on the
+/// root the initial one row), and the context the element's other
+/// lengths resolve their units in: the viewport, its own line height for
+/// `lh`, the root's for `rlh` (its own on the root). `root_rows` is the
+/// root element's used line height, `None` on the root itself.
+pub(super) fn finalize_line_height(
+    working: &mut ComputedStyle,
+    parent: &ComputedStyle,
+    root_rows: Option<u16>,
+    viewport: Viewport,
+) -> UnitContext {
+    let parent_rows = f64::from(parent.text.line_height.rows());
+    let rlh = root_rows.map_or(1.0, f64::from);
+    let parent_cx = UnitContext::new(viewport).with_line_heights(parent_rows, rlh);
+    working.text.line_height = working.text.line_height.computed(&parent_cx);
+    let own = f64::from(working.text.line_height.rows());
+    UnitContext::new(viewport).with_line_heights(own, root_rows.map_or(own, f64::from))
+}
+
+/// The used line height of the document's root element, the basis of
+/// `rlh` for every other element.
+pub(super) fn root_line_height(dom: &Dom<TuiExt>) -> u16 {
+    dom.document_element()
+        .computed()
+        .map_or(1, |c| c.text.line_height.rows())
 }
 
 /// `text-align-all` / `text-align-last: match-parent`'s computed value

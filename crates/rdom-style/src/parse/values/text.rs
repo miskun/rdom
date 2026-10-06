@@ -127,8 +127,8 @@ pub fn parse_hyphens(value: &[Token]) -> Option<Hyphens> {
 }
 
 /// `tab-size: <number [0,∞]> | <length [0,∞]>` (CSS Text 3 §4.2): a
-/// number of spaces, or a length known at parse time (a percentage or a
-/// viewport unit has no basis here and is invalid).
+/// number of spaces, or a length known at parse time (a percentage, a
+/// viewport unit or a line-height unit has no basis here and is invalid).
 pub fn parse_tab_size(value: &[Token]) -> Option<TabSize> {
     if let Some(n) = number(value, Range::NonNegative) {
         return Some(TabSize::Number(n as f32));

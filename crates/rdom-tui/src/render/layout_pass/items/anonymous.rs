@@ -295,8 +295,8 @@ impl AnonymousItem {
     }
 
     /// Its first and last content rows (baselines, CSS Box Alignment 3
-    /// §9.1) in its border box `width` cells wide: its first and last
-    /// lines, below its top padding and border.
+    /// §9.1) in its border box `width` cells wide: the glyph rows of its
+    /// first and last lines, below its top padding and border.
     pub(in crate::render::layout_pass) fn content_rows(
         &self,
         dom: &Dom<TuiExt>,
@@ -304,6 +304,11 @@ impl AnonymousItem {
         cb_width: u16,
     ) -> Option<(u16, u16)> {
         let top = self.edges(cb_width).top;
+        if self.style.flow != crate::layout::Flow::Grid {
+            let width = self.inner_width(self.own_width(cb_width).unwrap_or(width), cb_width);
+            let (first, last) = self.pack(dom, width).baselines()?;
+            return Some((top + first, top + last));
+        }
         let chrome = Sizer::vertical(&self.style, cb_width).chrome();
         let rows = self
             .content_size(dom, Direction::Column, width, true, cb_width)

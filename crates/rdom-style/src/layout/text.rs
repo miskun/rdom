@@ -527,8 +527,9 @@ impl TextJustify {
 }
 
 /// The computed CSS Text properties of an element
-/// ([`ComputedStyle::text`](crate::ComputedStyle::text)). All of them
-/// inherit, so the cascade copies the group from the parent whole.
+/// ([`ComputedStyle::text`](crate::ComputedStyle::text)), with
+/// `line-height`. All of them inherit, so the cascade copies the group
+/// from the parent whole.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct TextStyle {
     /// `white-space-collapse` (CSS Text 4 §4.1).
@@ -559,6 +560,10 @@ pub struct TextStyle {
     /// `text-wrap-style` (CSS Text 4), the `text-wrap` shorthand's second
     /// longhand.
     pub text_wrap_style: TextWrapStyle,
+    /// `line-height` (CSS Inline 3 §5.1), computed: a percentage or a
+    /// context length resolved to rows. Inherited, as the CSS Text
+    /// properties are.
+    pub line_height: super::LineHeight,
 }
 
 impl TextStyle {

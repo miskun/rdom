@@ -37,7 +37,7 @@ mod units;
 use functions::eval_function;
 pub use functions::{MathFunction, RoundingStrategy};
 pub use types::CalcKind;
-pub use units::{CalcUnit, Viewport, ViewportAxis, ViewportSize, ViewportUnit};
+pub use units::{CalcUnit, UnitContext, Viewport, ViewportAxis, ViewportSize, ViewportUnit};
 
 /// One operator in a calc() expression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -31,7 +31,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 |---|---|---|
 | 0 | Docs truthful: DIVERGENCES contradictions fixed, every undocumented gap listed, roadmap moved | done |
 | 1 | Syntax, cascade, custom properties | done 2026-10-05 (both gates; 20 gate fixes `C1G-*`; their re-review rides with the Phase 2 gate) |
-| 2 | Values, units, math functions | done 2026-10-05 (both gates; 20 gate fixes `C2G-*`; their re-review rides with the Phase 3 gate; C2-LH partial until C9-LINE-HEIGHT) |
+| 2 | Values, units, math functions | done 2026-10-05 (both gates; 20 gate fixes `C2G-*`; their re-review rides with the Phase 3 gate; C2-LH closed with C9-LINE-HEIGHT) |
 | 3 | Color | done 2026-10-06 (both gates; 16 gate fixes `C3G-*` incl. rdom's own terminal input reader; re-review rides with the Phase 4 gate) |
 | 4 | Backgrounds and borders | done 2026-10-06 (both gates; 19 gate fixes `C4G-*`; their re-review rides with the Phase 5 gate; C4-SPACING layout with C13-TFC) |
 | 5 | Box model and sizing (incl. logical properties) | done 2026-10-07 (both gates; 19 gate fixes `C5G-*`; their re-review rides with the Phase 6 gate; C5-CONTAIN-SIZE use with C14-CONTAIN) |
@@ -83,7 +83,7 @@ row comes from.
 | C2-STEPPED | `round()` / `mod()` / `rem()` / `abs()` / `sign()` | done |
 | C2-TRIG | `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` | done |
 | C2-CH | `ch` (one column) | done |
-| C2-LH | `lh` / `rlh` (one row × `line-height`; lands with C9-LINE-HEIGHT) | partial — revisit with C9-LINE-HEIGHT (one row each until `line-height` exists) |
+| C2-LH | `lh` / `rlh` (one row × `line-height`; lands with C9-LINE-HEIGHT) | done (with C9-LINE-HEIGHT) |
 | C2-VIEWPORT | `vw` / `vh` / `vmin` / `vmax` and the `sv*` / `lv*` / `dv*` / `vi` / `vb` variants (terminal size) | done |
 | C2-ANGLE | `<angle>` (`deg` / `grad` / `rad` / `turn`) | done |
 | C2-RATIO | Full `<ratio>` (bare numbers, decimals, `auto && <ratio>`) | done |
@@ -198,7 +198,7 @@ row comes from.
 | C9-TEXT-TRANSFORM | `text-transform` (case mapping, `full-width`) | done |
 | C9-TAB-SIZE | `tab-size` and real tab stops in `pre` | done |
 | C9-BREAKING | `word-break`, `overflow-wrap` / `word-wrap`, `line-break`, `hyphens` (soft hyphens) | done |
-| C9-LINE-HEIGHT | `line-height` (whole-row line boxes) | |
+| C9-LINE-HEIGHT | `line-height` (whole-row line boxes) | done |
 | C9-VERTICAL-ALIGN | `vertical-align` for inline-blocks and inline content | |
 | C9-DECORATION | `text-decoration` full shorthand; `-line` (incl. `overline`), `-color` (SGR 58), `-style` (SGR 4:x) | |
 | C9-FONT | `font-weight` numeric / `bolder` / `lighter`, `font-style: oblique`, `font` shorthand (weight / style honored, size / family inert) | |
@@ -5494,3 +5494,47 @@ row comes from.
   source map every rendering that is not its source goes through (`source_map.rs`); `packer/` split into
   `intake.rs`, `emit.rs`, `fragments.rs`, `replay.rs`. Part 2 (C9-LINE-HEIGHT, C9-VERTICAL-ALIGN,
   C9-DECORATION, C9-FONT) is next; the Phase 9 gates run after it.
+- 2026-10-12 — C9-LINE-HEIGHT (CSS Inline 3 §5.1; CSS 2.1 §10.8, §10.8.1; CSS Values 4 §6.1.1), closing C2-LH.
+  rdom-style: `line-height: normal | <number [0,∞]> | <length-percentage [0,∞]>` as `LineHeight` (`Normal`,
+  `Number`, `Rows` — a length known at parse time, serialized in `ch` — and `Calc`, a percentage or a length in
+  a context unit, which computes to `Rows`), in the CSS Text group (`TextStyle::line_height`, inherited whole —
+  a number as the number, a length as its rows), `parse/values/inline.rs`. Decided mapping: the font is one row,
+  so `normal` and `1` are one row, a number that many rows, a percentage that share of one; `rows()` rounds
+  ties to even (every fractional length's rule, DIVERGENCES §1) and is at least one — the glyph's own row, where
+  a browser lets lines overlap (DIVERGENCES §2). Half-leading (§10.8.1): `half_leading()` puts `floor((L − 1) /
+  2)` rows above the glyph row and the rest below — the odd row below. C2-LH at the root: `lh` / `rlh` are
+  context units like the viewport units (`CalcUnit::needs_context`), so `length_percentage` keeps them and the
+  cascade makes them absolute; `UnitContext` (viewport, `lh`, `rlh`) generalizes the viewport resolution
+  (`CalcExpr::absolutize_in`, `ComputedStyle::resolve_context_units`; the old entry points keep their meaning
+  with one-row line heights). The cascade computes `line-height` first (`cascade/text.rs::finalize_line_height`:
+  its `lh` the parent's, its `rlh` the root's — the initial one row on the root), then resolves every other
+  length with the element's own `lh` and the root's `rlh` (`root_line_height`, the document element's). A
+  registered custom property's `lh`, computed before `line-height`, is one row (documented). `tab-size`, which
+  takes only parse-time lengths, no longer takes `lh` (as it takes no viewport unit). rdom-tui — decided at the
+  root: the packer tracks the inline boxes (`packer/frames.rs`): an arena of frames for the formatting context,
+  each an inline box's rows above and below its baseline row (`BoxRows::of(line_height)`), the strut frame 0
+  (`with_strut`, the block's line height, `packer_for` / `pack_generated`); the feed enters a frame per inline
+  element (`walk_inline_box`), per `::before` / `::after` text and per anonymous inline box of a `display:
+  contents` element's text (`Op::Enter` / `Op::Leave`, so `text-wrap-style` replays them); every grapheme's
+  `Origin` names its frame, and placing content on a line marks the frame and its ancestors; `settle_line`
+  takes the marked frames' extent beside the atoms', and the next line starts with the strut. Baselines:
+  `inline/baselines.rs` — an inline block's (and a flex / grid item's) first / last baseline is its first /
+  last line's glyph row: the content rows less the leading around them (`insets`: from the inline layout of
+  inline content, through the first / last in-flow block child's padding and border in a block container;
+  skipped where no line can be taller than a row, `has_tall_lines`, so default content costs one subtree walk
+  more, no pack); an anonymous flex item takes its packed lines' (`InlineLayout::baselines`). Consumers already
+  read the line geometry (C5G-ATOM-BOX): intrinsic heights, `line-clamp`, scroll extents, the caret's row. Hit
+  testing: a click on a leading row resolves to that line's text at its column (`fragment_at_layout`: a text
+  fragment covers its line's rows, an atom its own), but targets the block — an inline element's box is its
+  glyph row (`descend::hit_fragment` unchanged), as browsers. Not done: vertical-align (next item). Red:
+  `css_phase9/line_height.rs` — 8 of 8 failed on HEAD (`line-height` an unknown property, the strict sheet
+  rejected); with the cascade in and `settle_line` ignoring the line heights (the old layout) 8 of 9 failed
+  (one-row lines everywhere; the inline block's `y` on its content's last row, `["   ", " y ", "x z"]`; the caret
+  at row 1), the `lh` / `rlh` test passing (cascade only). Green after; then the flex-item and scroll-extent
+  tests. Found while testing: a click on a leading row fell to the clamp's "between fragments" fallback (the
+  line's end) — fixed in `fragment_at_layout` as above. Mutation (each alone, restored, touched): `settle_line`
+  ignoring line heights → 8; no ancestor marking → 1; the odd row above → 2; no baseline insets → 1; `lh` in
+  `line-height` not the parent's → 1; `rlh` the element's own → 1; leading rows not hitting text → 1; no frame
+  for pseudo text → 1; none for `display: contents` text → 1; anonymous items' baselines from content rows → 1.
+  Changed expectation: `numeric_tests::lh_units_parse_as_one_row` became `lh_units_wait_for_the_line_height`
+  (`2lh` is an expression until the cascade). No snapshot changed.

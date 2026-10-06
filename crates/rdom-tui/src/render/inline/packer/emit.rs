@@ -296,11 +296,13 @@ impl LinePacker<'_> {
         } else if separator > 0 {
             let (sep_origin, sep_offset) = self
                 .pending_space_source
-                .unwrap_or((Origin::text(owner, owner), 0));
+                .unwrap_or((Origin::text(owner, owner, self.frames.current()), 0));
             self.append_fragment(sep_origin, sep_offset, " ", 1, None);
             self.clear_pending_space();
         }
         self.fit_empty_line(width);
+        // The atom is on this line, and so is the inline box it is in.
+        self.frames.mark(self.frames.current());
         i32::from(self.cur_line_width)
     }
 
@@ -328,8 +330,9 @@ impl LinePacker<'_> {
         self.cur_ends_in_shy = false;
         let mut fragments = std::mem::take(&mut self.cur_fragments);
         let mut generated = std::mem::take(&mut self.cur_generated);
+        let text = self.frames.settle();
         let (baseline, height) =
-            vertical::settle_line(&mut fragments, &mut generated, &self.cur_atoms);
+            vertical::settle_line(&mut fragments, &mut generated, &self.cur_atoms, text);
         self.cur_atoms.clear();
         let width = self.cur_line_width;
         let hang = match end {

@@ -62,6 +62,7 @@ use crate::render::box_tree::BoxItem;
 use crate::render::layout_pass::float::lines::LineExclusions;
 
 mod emit;
+mod frames;
 
 #[cfg(test)]
 thread_local! {
@@ -70,6 +71,8 @@ thread_local! {
     pub(in crate::render::inline) static GRAPHEMES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
 }
+pub(in crate::render::inline) use frames::BoxRows;
+use frames::{FrameId, Frames};
 pub(in crate::render::inline) use replay::{Op, WidthCaps};
 mod fragments;
 mod intake;
@@ -135,14 +138,17 @@ struct Origin {
     /// [`InlineFragment`]s: they take part in line packing but have no
     /// DOM position.
     generated: Option<PseudoSlot>,
+    /// The inline box the content is in (`frames`).
+    frame: FrameId,
 }
 
 impl Origin {
-    fn text(owner: NodeId, text_node: NodeId) -> Self {
+    fn text(owner: NodeId, text_node: NodeId, frame: FrameId) -> Self {
         Origin {
             owner,
             text_node,
             generated: None,
+            frame,
         }
     }
 }
@@ -261,6 +267,8 @@ pub(super) struct LinePacker<'a> {
     line_groups: Vec<usize>,
     /// A float was met in the content.
     met_float: bool,
+    /// The inline boxes, for the line heights (`frames`).
+    frames: Frames,
 }
 
 impl<'a> LinePacker<'a> {
@@ -302,6 +310,7 @@ impl<'a> LinePacker<'a> {
             cur_group: 0,
             line_groups: Vec::new(),
             met_float: false,
+            frames: Frames::new(BoxRows::default()),
         }
     }
     /// Start each line at the right edge of its band — the inline-start
@@ -316,6 +325,27 @@ impl<'a> LinePacker<'a> {
     pub(super) fn aligned(mut self, align: TextAlignment) -> Self {
         self.align = align;
         self
+    }
+
+    /// Give every line the strut `strut` (CSS 2.1 §10.8.1): the block's
+    /// own line height.
+    pub(super) fn with_strut(mut self, strut: BoxRows) -> Self {
+        self.frames = Frames::new(strut);
+        self
+    }
+
+    /// The content taken in next is in a new inline box `rows` tall
+    /// (CSS 2.1 §10.8.1), inside the current one, until
+    /// [`Self::leave_box`].
+    pub(in crate::render::inline) fn enter_box(&mut self, rows: BoxRows) {
+        self.log(Op::Enter(rows));
+        self.frames.enter(rows);
+    }
+
+    /// The inline box [`Self::enter_box`] opened ends.
+    pub(in crate::render::inline) fn leave_box(&mut self) {
+        self.log(Op::Leave);
+        self.frames.leave();
     }
 
     /// Indent the lines by `indent` (CSS Text 3 §8.1), from the first.

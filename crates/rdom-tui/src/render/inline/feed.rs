@@ -6,7 +6,7 @@
 
 use rdom_core::{Dom, NodeId, NodeType};
 
-use super::packer::LinePacker;
+use super::packer::{BoxRows, LinePacker};
 use super::run_style::RunStyle;
 use super::{RunPseudos, generated, vertical};
 use crate::ext::{PseudoSlot, StyleSlot, TuiExt};
@@ -21,6 +21,39 @@ pub(super) fn run_of(dom: &Dom<TuiExt>, owner: NodeId) -> RunStyle {
         .and_then(|e| e.computed.as_ref())
         .map(|c| RunStyle::of(c))
         .unwrap_or_default()
+}
+
+/// The rows of `id`'s inline box (CSS 2.1 §10.8.1): its line height.
+pub(super) fn box_rows(dom: &Dom<TuiExt>, id: NodeId) -> BoxRows {
+    dom.node(id)
+        .computed()
+        .map(|c| BoxRows::of(&c.text.line_height))
+        .unwrap_or_default()
+}
+
+/// The rows of `host`'s `slot` pseudo-element's inline box.
+fn pseudo_box_rows(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> BoxRows {
+    let node = dom.node(host);
+    match slot {
+        PseudoSlot::Before => node.computed_before(),
+        PseudoSlot::After => node.computed_after(),
+    }
+    .map(|c| BoxRows::of(&c.text.line_height))
+    .unwrap_or_default()
+}
+
+/// Feed `host`'s `slot` pseudo-element's `text` as the inline box it is
+/// (CSS 2.1 §12.1), styled by the pseudo-element.
+fn push_pseudo_text<'a>(
+    dom: &'a Dom<TuiExt>,
+    host: NodeId,
+    slot: PseudoSlot,
+    text: &'a str,
+    packer: &mut LinePacker<'a>,
+) {
+    packer.enter_box(pseudo_box_rows(dom, host, slot));
+    packer.push_generated(host, slot, text, pseudo_run(dom, host, slot));
+    packer.leave_box();
 }
 
 /// The CSS Text values of `host`'s `slot` pseudo-element's text.
@@ -57,8 +90,7 @@ fn push_pseudo<'a>(
     if slot == PseudoSlot::Before {
         for item in generated::deferred_markers(dom, host) {
             if let Some(text) = generated::static_pseudo_text(dom, item, StyleSlot::Before) {
-                let run = pseudo_run(dom, item, PseudoSlot::Before);
-                packer.push_generated(item, PseudoSlot::Before, text, run);
+                push_pseudo_text(dom, item, PseudoSlot::Before, text, packer);
             }
         }
     }
@@ -79,9 +111,7 @@ fn push_pseudo_box<'a>(
     floats: bool,
 ) {
     match kind {
-        generated::InlinePseudo::Text(text) => {
-            packer.push_generated(host, slot, text, pseudo_run(dom, host, slot));
-        }
+        generated::InlinePseudo::Text(text) => push_pseudo_text(dom, host, slot, text, packer),
         generated::InlinePseudo::Atom => push_generated_atom(dom, host, slot, packer),
         generated::InlinePseudo::Float if floats => {
             push_float(dom, BoxItem::Generated(host, slot), packer);
@@ -133,7 +163,16 @@ pub(super) fn fill_run<'a>(
         match child.node_type() {
             NodeType::Text => {
                 if let Some(data) = child.node_value() {
+                    // Its anonymous inline box inherits from that child
+                    // (CSS Display 3 §2.5), line height included.
+                    let anonymous = owner != parent;
+                    if anonymous {
+                        packer.enter_box(box_rows(dom, owner));
+                    }
                     packer.push_text(owner, child_id, data, run_of(dom, owner));
+                    if anonymous {
+                        packer.leave_box();
+                    }
                 }
             }
             NodeType::Element => {
@@ -252,9 +291,11 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
 /// start / end, in its line flow (they wrap, and the text beside them
 /// shifts). They land in [`LineBox::generated`], hosted by the element.
 fn walk_inline_box<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a>) {
+    packer.enter_box(box_rows(dom, id));
     push_met_pseudo(dom, id, PseudoSlot::Before, packer);
     walk_subtree(dom, id, packer);
     push_met_pseudo(dom, id, PseudoSlot::After, packer);
+    packer.leave_box();
 }
 
 /// Push the float `item` met in the inline content (CSS 2.1 §9.5). An

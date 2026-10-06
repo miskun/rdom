@@ -35,7 +35,8 @@ impl<'a> LinePacker<'a> {
             run,
         });
         self.run = run;
-        self.push_str(Origin::text(owner, text_node), text);
+        let origin = Origin::text(owner, text_node, self.frames.current());
+        self.push_str(origin, text);
     }
 
     /// Feed a host's static `::before` / `::after` content (CSS 2.1
@@ -59,6 +60,7 @@ impl<'a> LinePacker<'a> {
             owner: host,
             text_node: host,
             generated: Some(slot),
+            frame: self.frames.current(),
         };
         self.run = run;
         self.push_str(origin, text);

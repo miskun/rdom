@@ -42,6 +42,10 @@ pub(in crate::render::inline) enum Op<'a> {
         rows: AtomRows,
     },
     Float(BoxItem),
+    /// An inline box opens (`frames`).
+    Enter(super::BoxRows),
+    /// The inline box last opened ends.
+    Leave,
 }
 
 /// Caps on the width of lines, below their line box's: per group of lines
@@ -100,6 +104,7 @@ impl<'a> LinePacker<'a> {
     /// alignment, no floats beside its lines — with `caps` on its lines.
     pub(in crate::render::inline) fn replica(&self, caps: WidthCaps) -> LinePacker<'a> {
         let mut packer = LinePacker::new(self.content_width)
+            .with_strut(self.frames.strut())
             .starting_right(self.rtl)
             .indented(self.indent)
             .aligned(self.align);
@@ -133,6 +138,8 @@ impl<'a> LinePacker<'a> {
                     rows,
                 } => self.push_generated_atom(host, slot, width, rows),
                 Op::Float(item) => self.push_float(item),
+                Op::Enter(rows) => self.enter_box(rows),
+                Op::Leave => self.leave_box(),
             }
         }
     }

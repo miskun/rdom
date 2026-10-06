@@ -23,8 +23,10 @@
 //!    If it doesn't fit at the current cursor + pending space, wrap
 //!    to a new line.
 //!
-//! 5. When a line is done, settle its height (`vertical`): one row,
-//!    or as many as its tallest atomic inline block needs, its text on
+//! 5. When a line is done, settle its height (`vertical`): the line
+//!    heights of the inline boxes on it and the block's strut (whole
+//!    rows, half the leading above the glyph row and half below), or as
+//!    many rows as its tallest atomic inline block needs, its text on
 //!    the baseline row (CSS 2.1 §10.8). The data model is `boxes`.
 //!
 //! Words longer than the content width overflow their line — CSS's
@@ -48,6 +50,7 @@
 //! hyphenation.
 
 mod align;
+mod baselines;
 mod boxes;
 mod breaking;
 mod caret;
@@ -354,7 +357,11 @@ fn packer_for<'a>(
     let align = computed.map_or_else(align::TextAlignment::default, |c| {
         align::TextAlignment::of(&c.text)
     });
+    let strut = computed.map_or_else(packer::BoxRows::default, |c| {
+        packer::BoxRows::of(&c.text.line_height)
+    });
     let packer = LinePacker::new(content_width)
+        .with_strut(strut)
         .starting_right(rtl)
         .indented(indent)
         .aligned(align);
@@ -406,6 +413,7 @@ pub(crate) fn pack_generated(
     let rtl = style.text_direction == crate::layout::TextDirection::Rtl;
     let indent = indent::LineIndent::of(&style.text.text_indent, width, true);
     let packer = LinePacker::new(width)
+        .with_strut(packer::BoxRows::of(&style.text.line_height))
         .starting_right(rtl)
         .indented(indent)
         .aligned(align::TextAlignment::of(&style.text));

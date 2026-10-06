@@ -25,6 +25,7 @@
 //! - `grid_placement.rs` — grid placement (`grid-row` / `-column` /
 //!   `-area` and their longhands, `grid-auto-flow`).
 //! - `grid_shorthand.rs` — the `grid-template` and `grid` shorthands.
+//! - `inline.rs` — CSS Inline 3: `line-height`.
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
 //! - `calc.rs` — the `calc()` expression parser.
 //! - `numeric.rs` — the shared `<length-percentage>` leaf and the
@@ -46,6 +47,7 @@ mod grid;
 mod grid_areas;
 mod grid_placement;
 mod grid_shorthand;
+mod inline;
 mod keyword;
 mod length;
 mod line_clamp;
@@ -106,6 +108,7 @@ pub use grid_shorthand::{
     GridShorthand, GridTemplateShorthand, parse_grid_shorthand, parse_grid_template_shorthand,
     serialize_grid_shorthand, serialize_grid_template_shorthand,
 };
+pub use inline::{parse_line_height, serialize_line_height};
 pub use keyword::{
     parse_keyword, parse_overflow, parse_overflow_clip_margin, parse_overflow_shorthand,
     parse_position, parse_scroll_behavior, parse_text_decoration, parse_text_overflow,

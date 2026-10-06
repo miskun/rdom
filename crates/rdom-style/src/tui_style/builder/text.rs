@@ -149,6 +149,13 @@ impl TuiStyle {
         crate::layout::TabSize
     );
     text_setter!(
+        "line-height",
+        line_height,
+        line_height_important,
+        LINE_HEIGHT,
+        crate::layout::LineHeight
+    );
+    text_setter!(
         "hyphens",
         hyphens,
         hyphens_important,

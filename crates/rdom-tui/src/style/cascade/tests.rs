@@ -2383,6 +2383,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.text.line_break = rdom_style::layout::LineBreak::Strict;
     parent.text.hyphens = rdom_style::layout::Hyphens::None;
     parent.text.tab_size = rdom_style::layout::TabSize::Number(2.0);
+    parent.text.line_height = rdom_style::layout::LineHeight::Number(3.0);
     parent.text.text_transform.case = rdom_style::layout::TextCase::Uppercase;
     parent.text.text_indent = rdom_style::layout::TextIndent::cells(3);
     parent.text.text_align_all = rdom_style::layout::TextAlign::Center;
@@ -2535,6 +2536,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ),
         ("hyphens", child.text.hyphens == parent.text.hyphens),
         ("tab-size", child.text.tab_size == parent.text.tab_size),
+        (
+            "line-height",
+            child.text.line_height == parent.text.line_height,
+        ),
         (
             "text-transform",
             child.text.text_transform == parent.text.text_transform,

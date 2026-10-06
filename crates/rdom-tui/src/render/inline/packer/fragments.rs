@@ -78,6 +78,7 @@ impl LinePacker<'_> {
         width: u16,
         map: Option<SourceMap>,
     ) {
+        self.frames.mark(origin.frame);
         let x = i32::from(self.cur_line_width);
         self.cur_line_width = self.cur_line_width.saturating_add(width);
         if let Some(slot) = origin.generated {

@@ -3,12 +3,13 @@
 
 use crate::Value;
 use crate::layout::{
-    Hyphens, LineBreak, OverflowWrap, TabSize, TextAlign, TextAlignLast, TextIndent, TextJustify,
-    TextTransform, TextWrapMode, TextWrapStyle, WhiteSpaceCollapse, WordBreak,
+    Hyphens, LineBreak, LineHeight, OverflowWrap, TabSize, TextAlign, TextAlignLast, TextIndent,
+    TextJustify, TextTransform, TextWrapMode, TextWrapStyle, WhiteSpaceCollapse, WordBreak,
 };
 
 /// The CSS Text properties a [`TuiStyle`](crate::TuiStyle) declares
-/// ([`TuiStyle::text`](crate::TuiStyle::text)), one field per longhand,
+/// ([`TuiStyle::text`](crate::TuiStyle::text)), and `line-height`, one
+/// field per longhand,
 /// `None` where the block does not declare it. The `white-space`
 /// shorthand writes `white_space_collapse` and `text_wrap_mode`.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -41,4 +42,6 @@ pub struct TextDeclarations {
     /// `text-wrap-style` (CSS Text 4); the `text-wrap` shorthand writes it
     /// and `text_wrap_mode`.
     pub text_wrap_style: Option<Value<TextWrapStyle>>,
+    /// `line-height` (CSS Inline 3 §5.1).
+    pub line_height: Option<Value<LineHeight>>,
 }

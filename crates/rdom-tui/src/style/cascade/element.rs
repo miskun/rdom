@@ -132,9 +132,13 @@ pub(super) fn compute_element_style(
     working.normalize_overflow();
     super::line_clamp::finalize_line_clamp(&mut working);
     finalize_bfc_formation(&mut working);
-    // Viewport-percentage lengths are absolute at computed-value time
-    // (CSS Values 4 §6.1.2).
-    working.resolve_viewport_units(sheets.viewport());
+    // Viewport-percentage and line-height lengths are absolute at
+    // computed-value time (CSS Values 4 §6.1), `line-height` first: `lh`
+    // reads it.
+    let root_rows = (!root).then(|| super::text::root_line_height(dom));
+    let units =
+        super::text::finalize_line_height(&mut working, parent, root_rows, sheets.viewport());
+    working.resolve_context_units(&units);
     finalize_used_border(&mut working);
 
     working

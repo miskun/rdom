@@ -63,6 +63,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("text-align-last", "right"),
     ("text-justify", "none"),
     ("text-wrap-style", "balance"),
+    ("line-height", "2"),
     ("user-select", "none"),
     ("pointer-events", "none"),
     ("visibility", "hidden"),
@@ -391,6 +392,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         text_align_last,
         text_justify,
         text_wrap_style,
+        line_height,
     } = text;
     macro_rules! check_text {
         ($($field:ident),* $(,)?) => {$(
@@ -412,6 +414,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         text_align_last,
         text_justify,
         text_wrap_style,
+        line_height,
     );
     // CSS Box Alignment 3 §6.2: `justify-items: initial` is `legacy`,
     // which computes to `normal` under a parent without a `legacy` value.

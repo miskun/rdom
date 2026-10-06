@@ -71,7 +71,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 |---|---:|---:|---:|---:|---:|
 | 3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6) | 18 | 1 | 0 | 2 | 21 |
 | 3.2 Custom properties (CSS Variables 1) | 6 | 0 | 0 | 1 | 7 |
-| 3.3 Values and units (Values 4) | 16 | 1 | 1 | 4 | 22 |
+| 3.3 Values and units (Values 4) | 17 | 0 | 1 | 4 | 22 |
 | 3.4 Color (Color 4 / 5) | 15 | 1 | 0 | 1 | 17 |
 | 3.5 Backgrounds and borders (Backgrounds 3, Borders 4) | 13 | 1 | 0 | 2 | 16 |
 | 3.6 Box model and sizing (Box 3, Sizing 3/4) | 7 | 2 | 0 | 0 | 9 |
@@ -80,7 +80,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 6 | 0 | 0 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 13 | 0 | 1 | 0 | 14 |
-| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 13 | 0 | 2 | 6 | 21 |
+| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 14 | 0 | 1 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **171** | **22** | **68** | **46** | **307** |
+| **Total** | **173** | **21** | **67** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 90 rows Partial / Missing (Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 88 rows Partial / Missing (C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
-Headline: rdom parses **227 property names** (`property_names()`: 159 in the table and 68 flow-relative ones, after Phase 8). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height` and `@media`.
+Headline: rdom parses **227 property names** (`property_names()`: 159 in the table and 68 flow-relative ones, after Phase 8). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gap a web developer hits first is `@media`.
 
 ---
 
@@ -113,7 +113,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 3 | `flex-wrap` / `flex-flow` / `align-content` | Shipped (C6-WRAP, C6-ALIGN-CONTENT; §3.8): multi-line flex containers, their lines placed by `align-content`. | L | No |
 | 4 | `flex-grow` / `flex-basis` longhands | Shipped (C6-FLEX-LONGHANDS; §3.8): both longhands, and the `flex-basis` the flex base size of Flexbox §9.2; §9.7 resolves the flexible lengths from it. | M | Wrong |
 | 5 | `display: grid` + `grid-template-*`, `grid-auto-*`, `grid-row/column*`, `grid-area`, `grid` | A cell-quantized grid formatting context: track sizing in cells / `fr` / `%` / `auto` / `minmax()` / `repeat()`, line- and area-based placement. The most-used modern layout after flex. | L | Yes |
-| 6 | `line-height` | Rows per line box in whole rows: `normal` / `1` = one row; `2` = text on the first row of each two-row line box (blank row below, or half-leading split rounded); `<cells>`. | M | No |
+| 6 | `line-height` | Shipped (C9-LINE-HEIGHT; §3.12): whole-row line boxes, half-leading with the odd row below. | M | No |
 | 7 | `text-align` (+ `text-align-last`, `text-justify`) | Shipped (C9-TEXT-ALIGN; §3.12): every value, the shorthand of `text-align-all` / `text-align-last`, justification in whole cells (the remainder to the first opportunities). | M | Yes |
 | 8 | `visibility` | Shipped (C6-VISIBILITY; §3.7): `hidden` keeps the space and draws nothing, is not hit or focused, a `visible` descendant shows; `collapse` leaves a strut on flex items and removes table rows. | S | No |
 | 9 | `box-sizing` | Shipped (C5-BOX-SIZING; §3.6): `content-box` is the initial value, `border-box` sizes the border box and floors it at padding + border; the CHANGELOG gives the `*, *::before, *::after { box-sizing: border-box }` migration. | M | No |
@@ -266,7 +266,7 @@ dropped. The audit's six, with where each stands:
 | `px`, `cm`, `mm`, `Q`, `in`, `pt`, `pc` | N/A | No pixel / physical length on a cell grid (documented). | — | — |
 | `em`, `rem`, `ex`, `cap`, `ic` | N/A | No font size or font metrics to scale against (documented). | — | — |
 | `ch` | Supported | Exactly one column on a monospaced grid, in every length property and math function; fractions round where the value becomes a length (C2-CH). | — | `CALC/units.rs`, `V/numeric.rs` |
-| `lh`, `rlh` | Partial | One row each, in every length property and math function (C2-LH); they follow `line-height` when it lands (C9-LINE-HEIGHT). | Yes | `CALC/units.rs` |
+| `lh`, `rlh` | Supported | The element's and the root's used `line-height` in rows, in every length property and math function, absolute at computed-value time; in `line-height` itself `lh` is the parent's (C2-LH, C9-LINE-HEIGHT). | — | `CALC/units.rs`, `rdom-style/src/absolute.rs`, `CASC/text.rs` |
 | `vw` / `vh` / `vmin` / `vmax` (+ `sv*` / `lv*` / `dv*`, `vi` / `vb`) | Supported | 1% of the terminal's columns / rows, absolute at computed-value time (the cascade resolves them; a resize cascades again) (C2-VIEWPORT). | — | `CALC/units.rs`, `rdom-style/src/absolute.rs`, `CASC` |
 | `cqw` / `cqh` / `cqi` / `cqb` / `cqmin` / `cqmax` | Missing | Need `@container`. | No | `CALC` |
 | `fr` | Supported | Grid's `<flex>` in every track list and track size (`1fr`, `minmax(0, 1fr)`, CSS Grid 2 §7.2.4, C7-GRID-CORE), sized by §11.7; also accepted on `width` / `height` as an rdom flex weight (§4). | Yes | `V/grid.rs`, `V/length.rs::parse_size` |
@@ -439,7 +439,7 @@ dropped. The audit's six, with where each stands:
 | `hyphens` | Supported | `none` / `manual` / `auto` (= `manual`, no dictionary): a line broken at a soft hyphen shows `-` (C9-BREAKING). | — | `DISP/text.rs`, `IFC` (`packer/fragments.rs::show_hyphen`) |
 | `letter-spacing` / `word-spacing` | N/A | Sub-cell by nature; whole-cell spacing is conceivable but documented as out of scope. | — | — |
 | `hanging-punctuation` | N/A | Hanging a glyph into the margin is a typographic nicety without a TUI use. | — | — |
-| `line-height` | Missing | Whole-row line boxes. | No | `IFC`, `BLOCK` |
+| `line-height` | Supported | `normal` / `<number>` / `<length-percentage>` in whole rows (ties to even, at least one); half-leading around the glyph row, the odd row below; each inline box, `::before` / `::after` text and the block's strut; inline-block baselines, intrinsic heights, `line-clamp`, scroll extents, caret and hit-testing follow (C9-LINE-HEIGHT; DIVERGENCES §2). | — | `DISP/text.rs`, `V/inline.rs`, `IFC` (`packer/frames.rs`, `vertical.rs`, `baselines.rs`) |
 | `vertical-align` | Missing | Inline-block `top` / `middle` / `bottom`; table-cell alignment (documented); `sub` / `super` / lengths N/A. | Yes | `IFC`, table builtin |
 | `dominant-baseline` / `alignment-baseline` / `baseline-shift` / `baseline-source` | N/A | One text baseline per row. | — | — |
 | `initial-letter` | N/A | Multi-row drop caps need scaled glyphs. | — | — |
@@ -691,7 +691,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `<percentage>` — Partial *(DIVERGENCES says otherwise)*: `width` / `height` / `gap` / inside `calc()`; rejected bare on `padding` / `margin` (documented), `top` / `right` / `bottom` / `left` / `inset` (doc says accepted), `min-*` / `max-*` / `flex-basis`.
 - `round()` / `mod()` / `rem()` / `abs()` / `sign()` — Missing: Stepped-value / sign functions — natural on an integer grid.
 - `sin()` … `atan2()`, `pow()` / `sqrt()` / `hypot()` / `log()` / `exp()` — Missing: Numeric functions; low value, cheap once the evaluator is general.
-- `lh`, `rlh` — Missing: One row (× `line-height` once that exists).
+- `lh`, `rlh` — Missing: One row (× `line-height` once that exists). *Shipped: C2-LH with C9-LINE-HEIGHT.*
 - `cqw` / `cqh` / `cqi` / `cqb` / `cqmin` / `cqmax` — Missing: Need `@container`.
 - `<angle>` (`deg`, `grad`, `rad`, `turn`) — Missing: Only needed for color hues (`hsl()`, `oklch()`); no rotation exists.
 - *(shipped: C2-ATTR)* `attr()` — Partial: In `content` only, no fallback, no type (`attr(x type(<length>))`, Values 5).
@@ -785,7 +785,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `word-break` — Missing: `break-all` / `keep-all`. *Shipped: C9-BREAKING.*
 - `overflow-wrap` / `word-wrap` — Missing: `anywhere` / `break-word`. *Shipped: C9-BREAKING.*
 - `line-break` — Missing: CJK break strictness; low priority. *Shipped: C9-BREAKING.*
-- `line-height` — Missing: Whole-row line boxes.
+- `line-height` — Missing: Whole-row line boxes. *Shipped: C9-LINE-HEIGHT.*
 
 **3.13 Text decoration (Text Decoration 3/4)**
 

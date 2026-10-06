@@ -145,7 +145,14 @@ pub(super) fn compute_pseudo_style(
     working.normalize_overflow();
     super::line_clamp::finalize_line_clamp(&mut working);
     finalize_bfc_formation(&mut working);
-    working.resolve_viewport_units(cx.sheets.viewport());
+    let root_rows = Some(super::text::root_line_height(dom));
+    let units = super::text::finalize_line_height(
+        &mut working,
+        host_computed,
+        root_rows,
+        cx.sheets.viewport(),
+    );
+    working.resolve_context_units(&units);
     finalize_used_border(&mut working);
 
     // Resolve content:

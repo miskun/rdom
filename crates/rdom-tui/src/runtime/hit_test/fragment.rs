@@ -147,12 +147,15 @@ fn fragment_at_layout(
     // Negative left of the content box (an overflowing `rtl` line).
     let x_local = x as i32 - content.x;
 
+    // A text fragment's inline box spans its line's rows — the leading
+    // above and below its glyph row (CSS 2.1 §10.8.1) — so a cell on any
+    // of them hits it; an atom only on its own rows.
     line.fragments
         .iter()
         .find(|&fragment| {
             x_local >= fragment.x
                 && x_local < fragment.x + i32::from(fragment.width)
-                && line.covers(fragment, row)
+                && (!fragment.atomic || line.covers(fragment, row))
         })
         .map(|v| v as _)
 }

@@ -117,6 +117,8 @@ mod grid_shorthand_tests;
 #[cfg(test)]
 mod grid_tests;
 #[cfg(test)]
+mod inline_tests;
+#[cfg(test)]
 mod line_clamp_tests;
 #[cfg(test)]
 mod logical_tests;

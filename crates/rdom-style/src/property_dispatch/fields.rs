@@ -97,6 +97,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         // CSS Text 4: the shorthand sets both longhands.
         "text-wrap" => &[TextWrapMode, TextWrapStyle],
         "text-wrap-style" => &[TextWrapStyle],
+        "line-height" => &[LineHeight],
         "user-select" => &[UserSelect],
         "pointer-events" => &[PointerEvents],
         "visibility" => &[Visibility],

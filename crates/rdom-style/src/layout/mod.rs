@@ -35,6 +35,7 @@ mod grid_areas;
 mod grid_placement;
 mod keywords;
 mod line_clamp;
+mod line_height;
 mod overflow;
 mod rect;
 mod scroll;
@@ -65,6 +66,7 @@ pub use keywords::{
     WritingMode, ZIndex,
 };
 pub use line_clamp::{BlockEllipsis, BoxOrient, Continue};
+pub use line_height::LineHeight;
 pub use overflow::{Overflow, OverflowClipMargin, TextOverflow, TextOverflowSide};
 pub use rect::LayoutRect;
 pub use scroll::{

@@ -285,21 +285,29 @@ fn registered_length_syntax_takes_ch() {
 
 // ── C2-LH ────────────────────────────────────────────────────────────
 
-/// CSS Values 4 §6.1.1: `lh` / `rlh` are lengths — one row each while
-/// the line height is fixed at one row — and serialize as written in a
-/// percent-bearing expression.
+/// CSS Values 4 §6.1.1: `lh` / `rlh` are lengths relative to the line
+/// heights, which the cascade knows (C9-LINE-HEIGHT): kept as written
+/// until the computed value, and serialized as written.
 #[test]
-fn lh_units_parse_as_one_row() {
+fn lh_units_wait_for_the_line_height() {
     use crate::TuiStyle;
+    use crate::calc::{CalcUnit, UnitContext, Viewport};
     use crate::property_dispatch::{serialize, set};
+    let two_lh = CalcExpr::Dimension {
+        value: 2.0,
+        unit: CalcUnit::Lh,
+    };
     assert_eq!(
         length_percentage(&t("2lh"), Range::NonNegative),
-        Some(LengthPercentage::Cells(2.0))
+        Some(LengthPercentage::Expr(two_lh.clone()))
     );
-    assert_eq!(
-        length_percentage(&t("calc(1rlh * 3)"), Range::NonNegative),
-        Some(LengthPercentage::Cells(3.0))
-    );
+    let cx = UnitContext::new(Viewport::new(80, 20)).with_line_heights(3.0, 2.0);
+    let three_rlh = match length_percentage(&t("calc(1rlh * 3)"), Range::NonNegative) {
+        Some(LengthPercentage::Expr(e)) => e,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(three_rlh.absolutize_in(&cx).resolve(&ResolveCtx::new(0)), 6);
+    assert_eq!(two_lh.absolutize_in(&cx).resolve(&ResolveCtx::new(0)), 6);
     let mut s = TuiStyle::default();
     set("height", "calc(50% - 1lh + 2rlh)", &mut s).unwrap();
     assert_eq!(

@@ -11,10 +11,13 @@ pub enum CalcUnit {
     /// `ch` — the advance of "0": one column on a monospaced grid
     /// (Values 4 §6.1.1).
     Ch,
-    /// `lh` — the element's line height: one row, as rdom's line is
-    /// until `line-height` lands (C9-LINE-HEIGHT) (Values 4 §6.1.1).
+    /// `lh` — the element's computed `line-height` in rows (Values 4
+    /// §6.1.1); in `line-height` itself, its parent's. Resolved at
+    /// computed-value time ([`UnitContext`]); one row where no context
+    /// gives it.
     Lh,
-    /// `rlh` — the root's line height: one row (Values 4 §6.1.1).
+    /// `rlh` — the root element's computed `line-height` in rows (Values 4
+    /// §6.1.1); in the root's own `line-height`, the initial one row.
     Rlh,
     /// A viewport-percentage unit (`vw`, `svh`, `dvmax`, …): 1% of the
     /// terminal on an axis (Values 4 §6.1.2).
@@ -48,6 +51,39 @@ pub struct Viewport {
 impl Viewport {
     pub fn new(cols: u16, rows: u16) -> Self {
         Self { cols, rows }
+    }
+}
+
+/// What the units resolved at computed-value time are relative to (CSS
+/// Values 4 §6.1): the viewport (the viewport-percentage units) and the
+/// line heights (`lh`, `rlh`), in rows.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UnitContext {
+    /// The viewport the viewport-percentage units are percentages of.
+    pub viewport: Viewport,
+    /// Rows one `lh` is: the element's used line height (its parent's
+    /// in `line-height` itself).
+    pub lh: f64,
+    /// Rows one `rlh` is: the root element's used line height.
+    pub rlh: f64,
+}
+
+impl UnitContext {
+    /// `viewport`, with the line heights one row each (`line-height:
+    /// normal`).
+    pub fn new(viewport: Viewport) -> Self {
+        Self {
+            viewport,
+            lh: 1.0,
+            rlh: 1.0,
+        }
+    }
+
+    /// This context with `lh` and `rlh` rows for the line-height units.
+    pub fn with_line_heights(mut self, lh: f64, rlh: f64) -> Self {
+        self.lh = lh;
+        self.rlh = rlh;
+        self
     }
 }
 
@@ -195,19 +231,18 @@ impl CalcUnit {
     }
 
     /// `true` when the value depends on something only known after
-    /// parsing (the viewport); such a value stays symbolic until the
-    /// cascade makes it absolute ([`CalcExpr::absolutize`]).
+    /// parsing (the viewport, the line heights); such a value stays
+    /// symbolic until the cascade makes it absolute
+    /// ([`CalcExpr::absolutize_in`]).
     pub fn needs_context(self) -> bool {
         match self {
             CalcUnit::Ch
-            | CalcUnit::Lh
-            | CalcUnit::Rlh
             | CalcUnit::Deg
             | CalcUnit::Grad
             | CalcUnit::Rad
             | CalcUnit::Turn
             | CalcUnit::Px => false,
-            CalcUnit::Viewport(_) => true,
+            CalcUnit::Viewport(_) | CalcUnit::Lh | CalcUnit::Rlh => true,
         }
     }
 
@@ -225,8 +260,9 @@ impl CalcUnit {
                 );
                 value * v.percent_of(cx.viewport.unwrap_or_default())
             }
-            // One column; one row (the fixed line height) — a cell
-            // either way.
+            // One column. A line-height unit the cascade did not make
+            // absolute (a registered custom property's, which is computed
+            // before `line-height` is) is one row, `line-height: normal`.
             CalcUnit::Ch | CalcUnit::Lh | CalcUnit::Rlh => value,
             // Angles are radians inside the evaluator.
             CalcUnit::Deg => value.to_radians(),
@@ -239,7 +275,7 @@ impl CalcUnit {
 }
 
 impl CalcExpr {
-    /// `true` iff a unit needs the viewport ([`CalcUnit::needs_context`])
+    /// `true` iff a unit needs a context ([`CalcUnit::needs_context`])
     /// anywhere in the expression.
     pub fn needs_context(&self) -> bool {
         match self {
@@ -251,20 +287,35 @@ impl CalcExpr {
     }
 
     /// The expression with every viewport-percentage length replaced by
-    /// its cells in `viewport` — the computed value (CSS Values 4
-    /// §6.1.2: viewport units are absolute lengths once computed).
-    /// Percentages stay for layout.
+    /// its cells in `viewport`, and the line-height units by one row
+    /// each ([`Self::absolutize_in`] with [`UnitContext::new`]).
     pub fn absolutize(&self, viewport: Viewport) -> CalcExpr {
+        self.absolutize_in(&UnitContext::new(viewport))
+    }
+
+    /// The expression with every unit that needs a context replaced by
+    /// its cells in `cx` — the computed value (CSS Values 4 §6.1: the
+    /// viewport-percentage and font-relative lengths are absolute once
+    /// computed). Percentages stay for layout.
+    pub fn absolutize_in(&self, cx: &UnitContext) -> CalcExpr {
         match self {
             CalcExpr::Dimension {
                 value,
                 unit: CalcUnit::Viewport(v),
-            } => CalcExpr::Number(value * v.percent_of(viewport)),
+            } => CalcExpr::Number(value * v.percent_of(cx.viewport)),
+            CalcExpr::Dimension {
+                value,
+                unit: CalcUnit::Lh,
+            } => CalcExpr::Number(value * cx.lh),
+            CalcExpr::Dimension {
+                value,
+                unit: CalcUnit::Rlh,
+            } => CalcExpr::Number(value * cx.rlh),
             CalcExpr::Binary { op, lhs, rhs } => {
-                CalcExpr::binary(*op, lhs.absolutize(viewport), rhs.absolutize(viewport))
+                CalcExpr::binary(*op, lhs.absolutize_in(cx), rhs.absolutize_in(cx))
             }
             CalcExpr::Function { func, args } => {
-                CalcExpr::function(*func, args.iter().map(|a| a.absolutize(viewport)).collect())
+                CalcExpr::function(*func, args.iter().map(|a| a.absolutize_in(cx)).collect())
             }
             other => other.clone(),
         }
