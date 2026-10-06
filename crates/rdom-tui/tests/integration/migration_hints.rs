@@ -986,3 +986,33 @@ fn white_space_hints() {
     let both = ImportantMask::WHITE_SPACE_COLLAPSE | ImportantMask::TEXT_WRAP_MODE;
     assert!(both.intersects(ImportantMask::all()));
 }
+
+/// C9-DECORATION: `text-decoration` is a group of four longhands — the
+/// builder's one-line form unchanged, the line read off the group — and
+/// the decorations on an element's text are `applied_decorations`;
+/// `render::Style` / `SgrState` carry the underline color.
+#[test]
+fn text_decoration_hints() {
+    let s = TuiStyle::new().text_decoration(TextDecoration::Underline);
+    assert_eq!(
+        s.text_decoration.line,
+        Some(Value::Specified(TextDecorationLine::UNDERLINE))
+    );
+    let _: &TextDecorationDeclarations = &s.text_decoration;
+    assert!(ImportantMask::TEXT_DECORATION.contains(ImportantMask::TEXT_DECORATION_LINE));
+    let computed = ComputedStyle::initial();
+    assert_eq!(computed.applied_decorations, AppliedDecorations::NONE);
+    let _: &TextDecorations = &computed.text_decoration;
+    let tokens = style::parse::tokenize("underline").unwrap();
+    let shorthand: Option<style::parse::values::TextDecorationShorthand> =
+        style::parse::values::parse_text_decoration(&tokens);
+    assert_eq!(
+        shorthand.map(|s| s.line),
+        Some(TextDecorationLine::UNDERLINE)
+    );
+    let _ = render::Style::new().underline_color(Color::Rgb(255, 0, 0));
+    let _ = render::SgrState {
+        underline_color: Color::Reset,
+        ..render::SgrState::RESET
+    };
+}

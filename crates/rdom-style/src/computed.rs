@@ -282,6 +282,13 @@ pub struct ComputedStyle {
     /// `vertical-align` (CSS 2.1 §10.8.1), a percentage resolved against
     /// the line height. Not inherited; initial `baseline`.
     pub vertical_align: crate::layout::VerticalAlign,
+    /// The `text-decoration` longhands (CSS Text Decoration 4 §2), the
+    /// color resolved. Not inherited.
+    pub text_decoration: crate::layout::TextDecorations,
+    /// The decorations drawn on the element's text: its own and those its
+    /// ancestors propagate to it (§2.1) — what paint reads. Derived by
+    /// the cascade; not a property.
+    pub applied_decorations: crate::layout::AppliedDecorations,
     /// Whether text inside this element is selectable by the user.
     /// Inherits. Default `Auto`.
     pub user_select: UserSelect,
@@ -487,6 +494,13 @@ impl ComputedStyle {
             establishes_new_bfc: false,
             text: crate::layout::TextStyle::default(),
             vertical_align: crate::layout::VerticalAlign::Baseline,
+            text_decoration: crate::layout::TextDecorations {
+                line: crate::layout::TextDecorationLine::NONE,
+                style: crate::layout::TextDecorationStyle::Solid,
+                color: Color::Reset,
+                thickness: crate::layout::TextDecorationThickness::Auto,
+            },
+            applied_decorations: crate::layout::AppliedDecorations::NONE,
             user_select: UserSelect::Auto,
             pointer_events: crate::layout::PointerEvents::Auto,
             visibility: crate::layout::Visibility::Visible,

@@ -95,6 +95,7 @@ mod scope;
 mod sheets;
 mod subtrees;
 mod text;
+mod text_decoration;
 mod viewport;
 mod walk;
 

@@ -20,13 +20,12 @@ use crate::Color;
 #[cfg(test)]
 use crate::layout::Border;
 use crate::layout::{
-    CaretColor, CaretTextColor, Direction, Display, Overflow, Sides, Size, TextDecoration,
-    UserSelect,
+    CaretColor, CaretTextColor, Direction, Display, Overflow, Sides, Size, UserSelect,
 };
 use crate::{Content, TuiColor, Value};
 
 pub use important::ImportantMask;
-pub use text::TextDeclarations;
+pub use text::{TextDeclarations, TextDecorationDeclarations};
 
 /// Author-written style block. Build with the fluent setters; feed
 /// into a `Stylesheet` via `rule(...)` or assign to
@@ -271,10 +270,11 @@ pub struct TuiStyle {
     /// cell. `Auto` (default) uses the underlying cell's bg. Pairs
     /// with `caret-color`. Inherits.
     pub caret_text_color: Option<Value<CaretTextColor>>,
-    /// CSS `text-decoration` (line subset). Maps to the
-    /// `UNDERLINED` / `CROSSED_OUT` modifier bits at cascade time.
-    /// `None` clears both. Non-inheriting per CSS spec.
-    pub text_decoration: Option<Value<TextDecoration>>,
+    /// The `text-decoration` longhands (CSS Text Decoration 4 §2):
+    /// `text-decoration-line`, `-style`, `-color`, `-thickness`. Not
+    /// inherited; decorations propagate to descendants' text instead
+    /// (`ComputedStyle::applied_decorations`).
+    pub text_decoration: TextDecorationDeclarations,
 
     // ── Pseudo-element content ───────────────────────────────────────
     pub content: Option<Value<Content>>,
@@ -388,7 +388,7 @@ impl TuiStyle {
             bg: self.bg.clone(),
             bold: self.bold,
             italic: self.italic,
-            text_decoration: self.text_decoration,
+            text_decoration: self.text_decoration.clone(),
             opacity: self.opacity,
             custom_properties: self.custom_properties.clone(),
             important: self.important & keep,

@@ -46,8 +46,8 @@ pub use rdom_style::{
     CounterOp, CounterStyle, CustomDeclaration, CustomValue, ImportantMask, LayerId, Modifier,
     PropertyRegistration, PropertySyntax, PropertySyntaxError, PseudoElementTarget,
     RegisterPropertyError, Rule, RuleContext, RuleOrigin, Specificity, StyleError, StyleSelector,
-    Stylesheet, TextDeclarations, TimingFunction, TransitionProperty, TransitionRule, TuiColor,
-    TuiStyle, Value, VarMap, parse_color, resolve_tui_color,
+    Stylesheet, TextDeclarations, TextDecorationDeclarations, TimingFunction, TransitionProperty,
+    TransitionRule, TuiColor, TuiStyle, Value, VarMap, parse_color, resolve_tui_color,
 };
 /// The declaration-level CSS parsing primitives (`parse::tokenize`,
 /// `parse::Token`, `parse::values::*`), the property dispatch table

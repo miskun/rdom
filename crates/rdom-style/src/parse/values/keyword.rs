@@ -1,5 +1,5 @@
 //! Keyword-valued properties: the generic keyword-table matcher plus
-//! the single-keyword enums (`text-decoration`, `overflow`,
+//! the single-keyword enums (`overflow`,
 //! `scroll-behavior`, `position`).
 
 use crate::layout::{Overflow, Position};
@@ -19,19 +19,6 @@ pub fn parse_keyword<T: Clone>(value: &[Token], table: &[(&str, T)]) -> Option<T
         }
     }
     None
-}
-
-/// `text-decoration`: one keyword, `underline | line-through | none`
-/// (ASCII case-insensitive, CSS Values 4 §2.1).
-pub fn parse_text_decoration(value: &[Token]) -> Option<(bool, bool)> {
-    parse_keyword(
-        value,
-        &[
-            ("underline", (true, false)),
-            ("line-through", (false, true)),
-            ("none", (false, false)),
-        ],
-    )
 }
 
 pub fn parse_overflow(value: &[Token]) -> Option<Overflow> {

@@ -76,20 +76,23 @@ pub use tui_event::{TuiDispatchExt, TuiEvent};
 
 pub use ext::{PseudoLayout, StaticPosition, TuiExt};
 pub use layout::{
-    Align, AlignProperty, Alignment, AspectRatio, BackgroundAttachment, BackgroundRepeat,
-    BlockEllipsis, Border, BorderRadius, BorderSpacing, BorderStyle, BorderWeight, BorderWidth,
-    BoxOrient, BoxShadow, BoxSizing, Clear, ContainIntrinsicSize, Continue, CornerStyle, Corners,
-    Direction, Display, FlexBasis, FlexDirection, FlexWrap, Float, FloatSide, Flow, GapValue,
-    GridAutoFlow, GridLine, GridTemplate, GridTemplateAreas, Hyphens, IntrinsicSize, LayoutRect,
-    LineBreak, LineHeight, LineNameItem, LineNameList, Margin, MarginTrim, MarginValue, MaxSize,
-    MinSize, NamedArea, Overflow, OverflowAlign, OverflowClipMargin, OverflowWrap,
-    OverscrollBehavior, Padding, PaddingValue, PaintLength, RepeatCount, RepeatStyle,
-    ScrollPadding, ScrollSnapAlign, ScrollSnapAxis, ScrollSnapStop, ScrollSnapStrictness,
-    ScrollSnapType, ScrollbarColor, ScrollbarGutter, ScrollbarWidth, Sides, Size, SnapAlign,
-    TabSize, TextAlign, TextAlignLast, TextCase, TextDirection, TextIndent, TextJustify,
-    TextOverflow, TextOverflowSide, TextStyle, TextTransform, TextWrapMode, TextWrapStyle,
-    TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize, UserSelect, Visibility,
-    VisualBox, WhiteSpace, WhiteSpaceCollapse, WordBreak, WritingMode, ZIndex,
+    Align, AlignProperty, Alignment, AppliedDecorations, AppliedLine, AspectRatio,
+    BackgroundAttachment, BackgroundRepeat, BlockEllipsis, Border, BorderRadius, BorderSpacing,
+    BorderStyle, BorderWeight, BorderWidth, BoxOrient, BoxShadow, BoxSizing, Clear,
+    ContainIntrinsicSize, Continue, CornerStyle, Corners, Direction, Display, FlexBasis,
+    FlexDirection, FlexWrap, Float, FloatSide, Flow, GapValue, GridAutoFlow, GridLine,
+    GridTemplate, GridTemplateAreas, Hyphens, IntrinsicSize, LayoutRect, LineBreak, LineHeight,
+    LineNameItem, LineNameList, Margin, MarginTrim, MarginValue, MaxSize, MinSize, NamedArea,
+    Overflow, OverflowAlign, OverflowClipMargin, OverflowWrap, OverscrollBehavior, Padding,
+    PaddingValue, PaintLength, RepeatCount, RepeatStyle, ScrollPadding, ScrollSnapAlign,
+    ScrollSnapAxis, ScrollSnapStop, ScrollSnapStrictness, ScrollSnapType, ScrollbarColor,
+    ScrollbarGutter, ScrollbarWidth, Sides, Size, SnapAlign, TabSize, TextAlign, TextAlignLast,
+    TextCase, TextDecoration, TextDecorationLine, TextDecorationSkipInk, TextDecorationStyle,
+    TextDecorationThickness, TextDecorations, TextDirection, TextIndent, TextJustify, TextOverflow,
+    TextOverflowSide, TextStyle, TextTransform, TextUnderlineOffset, TextUnderlinePosition,
+    TextWrapMode, TextWrapStyle, TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize,
+    UserSelect, VerticalAlign, Visibility, VisualBox, WhiteSpace, WhiteSpaceCollapse, WordBreak,
+    WritingMode, ZIndex,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets
@@ -127,8 +130,8 @@ pub use style::{
     Content, ContentContext, CustomValue, DirtyTracker, ImportantMask, LayerId, Modifier,
     PropertyRegistration, PropertySyntax, PropertySyntaxError, PseudoElementTarget,
     RegisterPropertyError, Rule, RuleContext, RuleOrigin, Specificity, StyleError, StyleSelector,
-    Stylesheet, SystemColor, TextDeclarations, TuiColor, TuiStyle, Value, VarMap, parse_color,
-    resolve_tui_color,
+    Stylesheet, SystemColor, TextDeclarations, TextDecorationDeclarations, TuiColor, TuiStyle,
+    Value, VarMap, parse_color, resolve_tui_color,
 };
 
 /// `Dom<TuiExt>` — the full TUI document.

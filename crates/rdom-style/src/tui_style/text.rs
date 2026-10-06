@@ -8,8 +8,8 @@ use crate::layout::{
 };
 
 /// The CSS Text properties a [`TuiStyle`](crate::TuiStyle) declares
-/// ([`TuiStyle::text`](crate::TuiStyle::text)), and `line-height`, one
-/// field per longhand,
+/// ([`TuiStyle::text`](crate::TuiStyle::text)), `line-height` and the
+/// inherited text decoration properties, one field per longhand,
 /// `None` where the block does not declare it. The `white-space`
 /// shorthand writes `white_space_collapse` and `text_wrap_mode`.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -44,4 +44,26 @@ pub struct TextDeclarations {
     pub text_wrap_style: Option<Value<TextWrapStyle>>,
     /// `line-height` (CSS Inline 3 §5.1).
     pub line_height: Option<Value<LineHeight>>,
+    /// `text-underline-offset` (CSS Text Decoration 4 §4.2).
+    pub text_underline_offset: Option<Value<crate::layout::TextUnderlineOffset>>,
+    /// `text-underline-position` (§4.1).
+    pub text_underline_position: Option<Value<crate::layout::TextUnderlinePosition>>,
+    /// `text-decoration-skip-ink` (§3.2).
+    pub text_decoration_skip_ink: Option<Value<crate::layout::TextDecorationSkipInk>>,
+}
+
+/// The line decoration properties a [`TuiStyle`](crate::TuiStyle) declares
+/// ([`TuiStyle::text_decoration`](crate::TuiStyle::text_decoration)), the
+/// `text-decoration` shorthand's longhands (CSS Text Decoration 4 §2.6),
+/// `None` where the block does not declare one.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TextDecorationDeclarations {
+    /// `text-decoration-line`.
+    pub line: Option<Value<crate::layout::TextDecorationLine>>,
+    /// `text-decoration-style`.
+    pub style: Option<Value<crate::layout::TextDecorationStyle>>,
+    /// `text-decoration-color`.
+    pub color: Option<Value<crate::TuiColor>>,
+    /// `text-decoration-thickness`.
+    pub thickness: Option<Value<crate::layout::TextDecorationThickness>>,
 }

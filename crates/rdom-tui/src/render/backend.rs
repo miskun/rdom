@@ -27,7 +27,7 @@
 
 use std::io;
 
-use super::sgr::{SgrState, emit_cup, emit_sgr_transition};
+use super::sgr::{SgrCapabilities, SgrState, emit_cup, emit_sgr_transition_for};
 use super::{Cell, Rect};
 
 /// The minimum a Backend must do.
@@ -90,6 +90,7 @@ pub(crate) struct BackendState {
 pub(crate) fn draw_iter<'a, W, I>(
     writer: &mut W,
     state: &mut BackendState,
+    caps: SgrCapabilities,
     iter: I,
 ) -> io::Result<()>
 where
@@ -111,8 +112,9 @@ where
             fg: cell.fg,
             bg: cell.bg,
             modifier: cell.modifier,
+            underline_color: cell.underline_color,
         };
-        state.sgr = emit_sgr_transition(writer, state.sgr, new_sgr)?;
+        state.sgr = emit_sgr_transition_for(writer, state.sgr, new_sgr, caps)?;
 
         // OSC 8 hyperlink transition (Polish #9). Emit close when
         // leaving a link, open when entering one, close+open when
@@ -170,6 +172,7 @@ pub struct TestBackend {
     buffer: Vec<u8>,
     state: BackendState,
     cursor_visible: bool,
+    caps: SgrCapabilities,
 }
 
 impl TestBackend {
@@ -179,7 +182,15 @@ impl TestBackend {
             buffer: Vec::new(),
             state: BackendState::default(),
             cursor_visible: true,
+            caps: SgrCapabilities::BASIC,
         }
+    }
+
+    /// Emit the SGR extensions `caps` lists (initially
+    /// [`SgrCapabilities::BASIC`]), as to a terminal that has them.
+    pub fn with_sgr_capabilities(mut self, caps: SgrCapabilities) -> Self {
+        self.caps = caps;
+        self
     }
 
     /// Borrow the accumulated ANSI bytes.
@@ -260,8 +271,13 @@ impl Backend for TestBackend {
     {
         // Split the borrow: draw_iter needs &mut state and the writer.
         // We wrap `self.buffer` as a short-lived writer.
-        let Self { buffer, state, .. } = self;
-        draw_iter(buffer, state, content)
+        let Self {
+            buffer,
+            state,
+            caps,
+            ..
+        } = self;
+        draw_iter(buffer, state, *caps, content)
     }
 
     fn reset_style_cache(&mut self) {

@@ -1,6 +1,6 @@
 //! `Modifier` — text-decoration bitflags.
 //!
-//! Eight SGR-backed effects. Each is an independent bit — a cell can
+//! The SGR-backed effects. Each is an independent bit — a cell can
 //! be bold + underlined + italic at the same time. Composition via
 //! `|` / `|=`, intersection via `&`, negation via `remove()`.
 //!
@@ -16,6 +16,10 @@ bitflags_like! {
     /// - Bold, Underlined, Reversed, Hidden, Crossed — widely supported.
     /// - Italic — most modern terminals; iTerm2, WezTerm, Alacritty yes; some old emulators no.
     /// - Slow/RapidBlink — rare, distracting; users often disable.
+    /// - Overlined and the underline styles (double, curly, dotted,
+    ///   dashed) — kitty, WezTerm, foot, Ghostty, VTE; the backend emits
+    ///   them only to a terminal that understands them
+    ///   (`SgrCapabilities` in rdom-tui), else a plain underline.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
     pub struct Modifier(u16) {
         BOLD         = 1 << 0;
@@ -30,6 +34,14 @@ bitflags_like! {
         RAPID_BLINK  = 1 << 5;
         HIDDEN       = 1 << 7;
         CROSSED_OUT  = 1 << 8;
+        // A line over the text (SGR 53, CSS `overline`).
+        OVERLINED    = 1 << 9;
+        // The underline's style (SGR 4:2–4:5) — set beside UNDERLINED;
+        // none of them is a single solid underline.
+        UNDERLINE_DOUBLE = 1 << 10;
+        UNDERLINE_CURLY  = 1 << 11;
+        UNDERLINE_DOTTED = 1 << 12;
+        UNDERLINE_DASHED = 1 << 13;
     }
 }
 

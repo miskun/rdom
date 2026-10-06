@@ -1,5 +1,6 @@
 //! The color properties' applicators: `color`, `background-color`,
-//! the four `border-*-color`s and `box-shadow`'s colors, resolved at
+//! the four `border-*-color`s, `text-decoration-color` and
+//! `box-shadow`'s colors, resolved at
 //! computed-value time (CSS Color 4 §14).
 //!
 //! A color resolves against a [`ColorContext`]: the element's color
@@ -31,6 +32,9 @@ pub(in crate::style::cascade) struct ElementColors {
     /// The winning `box-shadow` list as declared, when its colors wait
     /// for the element's final `color`.
     box_shadow: Option<Vec<BoxShadow>>,
+    /// `text-decoration-color`, as `border_color`'s sides.
+    decoration_color: Option<TuiColor>,
+    decoration_declared: bool,
 }
 
 /// The computed `border-*-color` of each side, for the CSS-wide
@@ -54,6 +58,10 @@ const BORDER_COLOR_MASKS: Sides<ImportantMask> = Sides::new(
 /// place it is defined, for an element without a declaration and for
 /// `border-color: initial`.
 const BORDER_COLOR_INITIAL: TuiColor = TuiColor::CurrentColor;
+
+/// `text-decoration-color`'s initial value (CSS Text Decoration 4 §2.4):
+/// `currentcolor`.
+const DECORATION_COLOR_INITIAL: TuiColor = TuiColor::CurrentColor;
 
 impl ElementColors {
     /// Resolve the waiting colors once the ladder has run: `color`
@@ -89,6 +97,12 @@ impl ElementColors {
             };
             resolve(color, current, target);
         }
+        let decoration = if self.decoration_declared {
+            self.decoration_color
+        } else {
+            Some(DECORATION_COLOR_INITIAL)
+        };
+        resolve(decoration, current, &mut working.text_decoration.color);
         if let Some(shadows) = self.box_shadow {
             let cx = ColorContext::new(current).with_scheme(scheme);
             working.box_shadow = compute_shadows(shadows, &vars, &cx);
@@ -172,6 +186,25 @@ pub(in crate::style::cascade) fn apply_colors(
             }
         }
     }
+    colors.decoration_declared |= style.text_decoration.color.is_some();
+    apply_color(
+        ColorSlot {
+            target: &mut working.text_decoration.color,
+            waiting: &mut colors.decoration_color,
+            field: |c| c.text_decoration.color,
+            initial: Some(DECORATION_COLOR_INITIAL),
+        },
+        &style.text_decoration.color,
+        matches_pass(
+            style
+                .important
+                .contains(ImportantMask::TEXT_DECORATION_COLOR),
+            important_pass,
+        ),
+        kw,
+        &vars,
+        &cx,
+    );
     let sides = working
         .border_color
         .each_mut()

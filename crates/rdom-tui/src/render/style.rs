@@ -25,6 +25,9 @@ pub struct Style {
     pub bg: Option<Color>,
     pub add_modifier: Modifier,
     pub sub_modifier: Modifier,
+    /// The underline's color (SGR 58); `None` leaves the cell's, and
+    /// `Some(Color::Reset)` is the glyph's color.
+    pub underline_color: Option<Color>,
 }
 
 impl Style {
@@ -42,6 +45,7 @@ impl Style {
             bg: Some(Color::Reset),
             add_modifier: Modifier::empty(),
             sub_modifier: Modifier::all(),
+            underline_color: Some(Color::Reset),
         }
     }
 
@@ -71,6 +75,12 @@ impl Style {
         self
     }
 
+    /// Set the underline's color (SGR 58).
+    pub fn underline_color(mut self, c: Color) -> Self {
+        self.underline_color = Some(c);
+        self
+    }
+
     /// Add modifier bits. Also clears them from `sub_modifier` so the
     /// net effect is "turn these on."
     pub fn add_modifier(mut self, m: Modifier) -> Self {
@@ -97,6 +107,7 @@ impl Style {
             bg: other.bg.or(self.bg),
             add_modifier: self.add_modifier.difference(other.sub_modifier) | other.add_modifier,
             sub_modifier: self.sub_modifier.difference(other.add_modifier) | other.sub_modifier,
+            underline_color: other.underline_color.or(self.underline_color),
         }
     }
 }

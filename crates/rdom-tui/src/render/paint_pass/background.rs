@@ -146,10 +146,12 @@ fn clear_cell_for_opaque_fill(buf: &mut Buffer, x: u16, y: u16) {
         partner.set_symbol(" ");
         partner.fg = Color::Reset;
         partner.modifier = Modifier::empty();
+        partner.underline_color = Color::Reset;
     }
     if let Some(cell) = buf.cell_mut(x, y) {
         cell.set_symbol(" ");
         cell.fg = Color::Reset;
         cell.modifier = Modifier::empty();
+        cell.underline_color = Color::Reset;
     }
 }

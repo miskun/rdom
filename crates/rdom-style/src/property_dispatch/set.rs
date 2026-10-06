@@ -14,10 +14,9 @@ use crate::parse::values::{
     parse_flex_shorthand, parse_gap, parse_inset_shorthand, parse_keyword, parse_length,
     parse_margin_longhand, parse_margin_shorthand, parse_max_size, parse_min_size, parse_opacity,
     parse_overflow, parse_overflow_clip_margin, parse_overflow_shorthand, parse_padding_shorthand,
-    parse_padding_value, parse_position, parse_scroll_behavior, parse_size, parse_text_decoration,
-    parse_text_overflow, parse_time_list, parse_timing_function_list,
-    parse_transition_property_list, parse_transition_shorthand, parse_z_index,
-    unzip_transition_rules,
+    parse_padding_value, parse_position, parse_scroll_behavior, parse_size, parse_text_overflow,
+    parse_time_list, parse_timing_function_list, parse_transition_property_list,
+    parse_transition_shorthand, parse_z_index, unzip_transition_rules,
 };
 use crate::{TuiStyle, Value};
 
@@ -89,6 +88,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         .or_else(|| super::grid::set(name, value, style))
         .or_else(|| super::text::set(name, value, style))
         .or_else(|| super::inline::set(name, value, style))
+        .or_else(|| super::text_decoration::set(name, value, style))
     {
         return outcome.ok_or(DispatchError::InvalidValue);
     }
@@ -105,22 +105,6 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         }),
         "font-style" => parse_keyword(value, &[("italic", true), ("normal", false)]).map(|v| {
             style.italic = Some(Value::Specified(v));
-        }),
-        "text-decoration" => parse_text_decoration(value).map(|(under, strike)| {
-            // Map the boolean pair to the `TextDecoration` enum.
-            // `(false, false)` → None; `(true, _)` → Underline;
-            // `(false, true)` → LineThrough. Mutually exclusive in
-            // 0.1.0 (single-axis representation); future CSS-shorthand
-            // `text-decoration: underline line-through` would need
-            // both bits, deferred to 0.2.x.
-            let td = if strike {
-                crate::layout::TextDecoration::LineThrough
-            } else if under {
-                crate::layout::TextDecoration::Underline
-            } else {
-                crate::layout::TextDecoration::None
-            };
-            style.text_decoration = Some(Value::Specified(td));
         }),
         "opacity" => parse_opacity(value).map(|v| {
             style.opacity = Some(Value::Specified(v));

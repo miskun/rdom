@@ -56,6 +56,9 @@ pub struct Cell {
     pub fg: Color,
     pub bg: Color,
     pub modifier: Modifier,
+    /// The underline's color (SGR 58) where it differs from the glyph's;
+    /// `Color::Reset`: the glyph's color, the terminal default.
+    pub underline_color: Color,
     pub diff: CellDiff,
     /// OSC 8 hyperlink target. When `Some(url)`, the backend
     /// wraps this cell's symbol with `ESC ] 8 ;; <url> ESC \\ …
@@ -76,6 +79,7 @@ impl Cell {
         fg: Color::Reset,
         bg: Color::Reset,
         modifier: Modifier::empty(),
+        underline_color: Color::Reset,
         diff: CellDiff::Normal,
         link: None,
     };
@@ -198,7 +202,8 @@ impl Cell {
 
     /// Apply a `Style` (paint-layer): paints fg/bg when set (through
     /// [`Self::set_fg`] / [`Self::set_bg`], so a transparent one
-    /// changes nothing), adds `add_modifier`, removes `sub_modifier`.
+    /// changes nothing), adds `add_modifier`, removes `sub_modifier`,
+    /// sets the underline color when the style has one.
     pub fn apply_style(&mut self, style: super::Style) -> &mut Self {
         if let Some(fg) = style.fg {
             self.set_fg(fg);
@@ -208,6 +213,9 @@ impl Cell {
         }
         self.modifier |= style.add_modifier;
         self.modifier.remove(style.sub_modifier);
+        if let Some(color) = style.underline_color {
+            self.underline_color = color;
+        }
         self
     }
 

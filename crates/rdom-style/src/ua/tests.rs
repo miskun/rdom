@@ -218,8 +218,10 @@ fn ua_rules_cover_tier_1_semantics() {
     for t in ["del", "s"] {
         let r = ua[t];
         assert_eq!(
-            r.style.text_decoration,
-            Some(Value::Specified(crate::layout::TextDecoration::LineThrough)),
+            r.style.text_decoration.line,
+            Some(Value::Specified(
+                crate::layout::TextDecorationLine::LINE_THROUGH
+            )),
             "<{t}> must use text-decoration: line-through"
         );
     }

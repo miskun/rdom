@@ -4,13 +4,13 @@
 //! (`width` / `height`, `min-*` / `max-*`, `aspect-ratio`) in `sizing`,
 //! the margin and padding ones in `spacing`, the flex and box-alignment
 //! ones in `flex`, the scrolling and scrollbar ones in `scroll`, the CSS Text ones in
-//! `text`.
+//! `text`, the text decoration ones in `text_decoration`.
 
 use super::{ImportantMask, TuiStyle};
 #[allow(unused_imports)]
 use crate::layout::{
     Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Sides, Size,
-    TextDecoration, UserSelect,
+    UserSelect,
 };
 use crate::{Content, TuiColor, Value};
 
@@ -81,6 +81,7 @@ mod scroll;
 mod sizing;
 mod spacing;
 mod text;
+mod text_decoration;
 
 impl TuiStyle {
     pub fn fg(mut self, color: impl Into<TuiColor>) -> Self {
@@ -399,14 +400,6 @@ impl TuiStyle {
         caret_text_color_important,
         CARET_TEXT_COLOR,
         CaretTextColor
-    );
-    setter!(
-        "text-decoration",
-        text_decoration,
-        text_decoration,
-        text_decoration_important,
-        TEXT_DECORATION,
-        TextDecoration
     );
 
     // Content setter.

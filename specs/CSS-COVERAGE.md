@@ -81,7 +81,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 6 | 0 | 0 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 13 | 0 | 1 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 15 | 0 | 0 | 6 | 21 |
-| 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
+| 3.13 Text decoration (Text Decoration 3/4) | 4 | 0 | 0 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
 | 3.16 Pseudo-elements (Pseudo-Elements 4, Selectors 4) | 4 | 1 | 5 | 6 | 16 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **174** | **21** | **66** | **46** | **307** |
+| **Total** | **178** | **20** | **63** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 87 rows Partial / Missing (C9-VERTICAL-ALIGN shipped `vertical-align` on inline content; C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 83 rows Partial / Missing (C9-DECORATION shipped the four text decoration rows; C9-VERTICAL-ALIGN shipped `vertical-align` on inline content; C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
 Headline: rdom parses **227 property names** (`property_names()`: 159 in the table and 68 flow-relative ones, after Phase 8). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gap a web developer hits first is `@media`.
 
@@ -158,7 +158,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 48 | `scroll-padding*` / `scroll-margin*` / `scroll-snap-type` / `scroll-snap-align` / `scroll-snap-stop` | Insets for `scrollIntoView` / keyboard scrolling; snap scroll offsets to item edges (row-snapped lists). | S / M | Partial — padding / margin Yes; snap No | *Shipped: C8-SCROLL-PADDING, C8-SNAP.*
 | 49 | Table properties: `border-spacing`, `vertical-align` (cells), `table-layout`, `caption-side`, `empty-cells` | Cell gaps in cells; `middle` / `bottom` cell alignment; `fixed` = first-row widths only; caption above / below; hide empty cells' borders. | S each (`vertical-align` M) | Partial — `vertical-align` Yes; rest No |
 | 50 | `vertical-align` (inline) | Shipped (C9-VERTICAL-ALIGN; §3.12): every value in whole rows, `sub` / `super` one row. | M | Yes |
-| 51 | `text-decoration-line` / `-color` / `-style`, multi-line `text-decoration`, `overline` | Underline color via SGR 58; style via SGR 4:1–4:5 (`solid` / `double` / `wavy` / `dotted` / `dashed` on kitty, WezTerm, foot, ghostty); `overline` via SGR 53; `underline line-through` together. | S | No |
+| 51 | `text-decoration-line` / `-color` / `-style`, multi-line `text-decoration`, `overline` | Shipped (C9-DECORATION; §3.13): SGR 4:x / 58 / 53 by the terminal's capabilities. | S | No |
 | 52 | `font-weight` numeric / `bolder` / `lighter`, `font-style: oblique`, `font` shorthand | `≥ 600` / `bold` / `bolder` → SGR 1; `≤ 300` / `lighter` → SGR 2 (faint) is optional; `oblique` → italic; `font` shorthand reads weight / style and ignores family / size. | S | No |
 | 53 | `quotes` + `open-quote` / `close-quote` in `content` | Quote marks for `<q>` and nested quotations, from the `quotes` pairs. | S | No |
 | 54 | `counters()`, `counter-set`, `reversed()` in `counter-reset`, more counter styles, `@counter-style`, `symbols()` | Nested "1.2.3" numbering; set without reset; `<ol reversed>`; `disc` / `circle` / `square` / `decimal-leading-zero` / `lower-greek` / author-defined styles. | S / M | Partial — `counters()`, `counter-set` Yes; rest No |
@@ -201,9 +201,9 @@ dropped. The audit's six, with where each stands:
    intrinsic sizes are computed (`layout_pass/intrinsic.rs`). **Open: C5-INTRINSIC.**
 7. **`font-weight` is `normal | bold` only** — `font-weight: 700` / `600` / `bolder` are dropped.
    **Doc'd: No.**
-8. **`text-decoration` is one keyword**, matched case-sensitively; no `overline`, no
-   combinations, no color / style components. **Doc'd: Wrong** (says `line-through` is missing;
-   it ships).
+8. ~~**`text-decoration` is one keyword**, matched case-sensitively; no `overline`, no
+   combinations, no color / style components.~~ *Shipped: C9-DECORATION* — the full shorthand and
+   its longhands.
 9. **`overflow` lacks `clip` and the two-value form** (`overflow: hidden auto`). **Doc'd: No.**
 10. ~~**`rgb()` takes the legacy comma form with integer channels only** — `rgb(0 0 0 / 50%)`,
     `rgb(10%, 20%, 30%)` and `rgb(12.5, 0, 0)` are dropped.~~ *Shipped: C3-RGB* — the modern
@@ -450,12 +450,12 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `text-decoration` | Partial | One keyword: `none` / `underline` / `line-through` (SGR 4 / 9); `overline`, combinations, color and style components rejected; case-sensitive. | Wrong | `V/keyword.rs::parse_text_decoration`, `CASC/apply.rs` |
-| `text-decoration-line` | Missing | Longhand; `overline` via SGR 53. | No | `DISP`, `SGR` |
-| `text-decoration-color` | Missing | SGR 58 underline color. | No | `DISP`, `SGR` |
-| `text-decoration-style` | Missing | SGR 4:1–4:5 (`solid` / `double` / `curly` = `wavy` / `dotted` / `dashed`). | No | `DISP`, `SGR` |
-| `text-decoration-thickness` / `text-underline-offset` / `text-underline-position` | N/A | The terminal draws decorations; position and thickness are not addressable. | — | — |
-| `text-decoration-skip-ink` / `-skip` | N/A | Font-outline dependent. | — | — |
+| `text-decoration` | Supported | The Text Decoration 4 shorthand of line, thickness, style and color, any order, serialized shortest; propagated to in-flow descendants' text in the decorating box's color and style (§2.1), not into atomic inlines or out-of-flow boxes (C9-DECORATION; DIVERGENCES §2). | — | `V/text_decoration.rs`, `DISP/text_decoration.rs`, `CASC/text_decoration.rs`, `PAINT/text.rs` |
+| `text-decoration-line` | Supported | `none` / `underline` / `overline` / `line-through` / `blink` combined: SGR 4, 53, 9, 5 — 53 only to a terminal that has it (C9-DECORATION). `spelling-error` / `grammar-error` not parsed. | — | `DISP`, `SGR` |
+| `text-decoration-color` | Supported | The underline's color, SGR 58, to a terminal that has it; the overline and line-through take the text's color (no SGR) (C9-DECORATION). | — | `DISP`, `CASC/colors.rs`, `SGR` |
+| `text-decoration-style` | Supported | The underline's `4:1`–`4:5` (`solid` / `double` / `wavy` = curly / `dotted` / `dashed`) to a terminal that has them, else a plain underline (C9-DECORATION). | — | `DISP`, `SGR` |
+| `text-decoration-thickness` / `text-underline-offset` / `text-underline-position` | N/A | The terminal draws decorations; position and thickness are not addressable. Parsed and cascaded, inert (C9-DECORATION). | — | `DISP/text_decoration.rs` |
+| `text-decoration-skip-ink` / `-skip` | N/A | Font-outline dependent. `-skip-ink` parsed and inert (C9-DECORATION); `-skip` not parsed. | — | `DISP/text_decoration.rs` |
 
 ### 3.14 Fonts (Fonts 4)
 
@@ -789,10 +789,10 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 **3.13 Text decoration (Text Decoration 3/4)**
 
-- `text-decoration` — Partial *(DIVERGENCES says otherwise)*: One keyword: `none` / `underline` / `line-through` (SGR 4 / 9); `overline`, combinations, color and style components rejected; case-sensitive.
-- `text-decoration-line` — Missing: Longhand; `overline` via SGR 53.
-- `text-decoration-color` — Missing: SGR 58 underline color.
-- `text-decoration-style` — Missing: SGR 4:1–4:5 (`solid` / `double` / `curly` = `wavy` / `dotted` / `dashed`).
+- `text-decoration` — Partial *(DIVERGENCES says otherwise)*: One keyword: `none` / `underline` / `line-through` (SGR 4 / 9); `overline`, combinations, color and style components rejected; case-sensitive. *Shipped: C9-DECORATION.*
+- `text-decoration-line` — Missing: Longhand; `overline` via SGR 53. *Shipped: C9-DECORATION.*
+- `text-decoration-color` — Missing: SGR 58 underline color. *Shipped: C9-DECORATION.*
+- `text-decoration-style` — Missing: SGR 4:1–4:5 (`solid` / `double` / `curly` = `wavy` / `dotted` / `dashed`). *Shipped: C9-DECORATION.*
 
 **3.14 Fonts (Fonts 4)**
 

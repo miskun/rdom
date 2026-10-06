@@ -116,7 +116,10 @@ define_fields! {
     BackgroundClip => background_clip : BACKGROUND_CLIP,
     Bold => bold : BOLD,
     Italic => italic : ITALIC,
-    TextDecoration => text_decoration : TEXT_DECORATION,
+    TextDecorationLine => text_decoration.line : TEXT_DECORATION_LINE,
+    TextDecorationStyle => text_decoration.style : TEXT_DECORATION_STYLE,
+    TextDecorationColor => text_decoration.color : TEXT_DECORATION_COLOR,
+    TextDecorationThickness => text_decoration.thickness : TEXT_DECORATION_THICKNESS,
     Opacity => opacity : OPACITY,
     Display => display : DISPLAY,
     Flow => flow : FLOW,
@@ -148,6 +151,9 @@ define_fields! {
     TextWrapStyle => text.text_wrap_style : TEXT_WRAP_STYLE,
     LineHeight => text.line_height : LINE_HEIGHT,
     VerticalAlign => vertical_align : VERTICAL_ALIGN,
+    TextUnderlineOffset => text.text_underline_offset : TEXT_UNDERLINE_OFFSET,
+    TextUnderlinePosition => text.text_underline_position : TEXT_UNDERLINE_POSITION,
+    TextDecorationSkipInk => text.text_decoration_skip_ink : TEXT_DECORATION_SKIP_INK,
     UserSelect => user_select : USER_SELECT,
     PointerEvents => pointer_events : POINTER_EVENTS,
     Visibility => visibility : VISIBILITY,
@@ -380,6 +386,9 @@ pub fn inherits(name: &str) -> bool {
             | "text-wrap"
             | "text-wrap-style"
             | "line-height"
+            | "text-underline-offset"
+            | "text-underline-position"
+            | "text-decoration-skip-ink"
             | "pointer-events"
             | "visibility"
             | "caret-color"

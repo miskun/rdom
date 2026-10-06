@@ -167,6 +167,22 @@ impl ComputedStyle {
         ] {
             absolutize(inset, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
         }
+        // CSS Text Decoration 4 §2.5 / §4.2: the decoration lengths
+        // (parsed and kept, not drawn).
+        if let crate::layout::TextDecorationThickness::Length(length) =
+            &mut self.text_decoration.thickness
+        {
+            absolutize(length, vp, PaintLength::Calc, |v| {
+                PaintLength::Cells(v as f32)
+            });
+        }
+        if let crate::layout::TextUnderlineOffset::Length(length) =
+            &mut self.text.text_underline_offset
+        {
+            absolutize(length, vp, PaintLength::Calc, |v| {
+                PaintLength::Cells(v as f32)
+            });
+        }
         // CSS Text 3 §8.1: `text-indent` is a length-percentage.
         absolutize(&mut self.text.text_indent.length, vp, Length::Calc, |v| {
             Length::Cells(cells_i32(v))

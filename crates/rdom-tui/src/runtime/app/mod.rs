@@ -223,7 +223,10 @@ impl App<CrosstermBackend<Stdout>> {
         let mut stdout = io::stdout();
         enter_tui_mode(&mut stdout)?;
         let guard = TerminalGuard::new();
-        let backend = CrosstermBackend::new(io::stdout());
+        // The decorations past ECMA-48's subset go only to a terminal
+        // known to read them (CSS Text Decoration's underline styles).
+        let backend = CrosstermBackend::new(io::stdout())
+            .with_sgr_capabilities(crate::render::SgrCapabilities::from_env());
         let terminal = Terminal::new(backend)?;
         let mut app = Self::build(dom, stylesheet, terminal)?;
         app.guard = Some(guard);

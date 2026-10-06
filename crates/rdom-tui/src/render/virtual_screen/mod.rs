@@ -22,6 +22,9 @@
 //!     `5`/`6` blink, `7` reversed, `8` hidden, `9` crossed-out
 //!   - Off codes: `0` full reset, `22` bold+dim off, `23`, `24`, `25`,
 //!     `27`, `28`, `29`
+//!   - Decorations: `4:0`–`4:5` (underline off / styles), `53` / `55`
+//!     overline, `58:2::R:G:B` / `58:5:N` (and their `;` forms) / `59`
+//!     underline color
 //! - **Cursor hide/show** `\x1b[?25l` / `\x1b[?25h` — tracked as a bool
 //! - **Synchronized output** `\x1b[?2026h/l` — silently ignored
 //!   (no visible effect in the grid)
@@ -180,6 +183,7 @@ impl VirtualScreen {
         cell.fg = self.sgr.fg;
         cell.bg = self.sgr.bg;
         cell.modifier = self.sgr.modifier;
+        cell.underline_color = self.sgr.underline_color;
         let i = y as usize * self.width as usize + x as usize;
         self.cells[i] = cell;
 
@@ -189,6 +193,7 @@ impl VirtualScreen {
             spacer.fg = self.sgr.fg;
             spacer.bg = self.sgr.bg;
             spacer.modifier = self.sgr.modifier;
+            spacer.underline_color = self.sgr.underline_color;
             spacer.set_spacer();
             self.cells[spacer_i] = spacer;
         }

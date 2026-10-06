@@ -27,6 +27,7 @@ pub mod layout_pass;
 pub mod paint_pass;
 pub mod rect;
 pub mod sgr;
+mod sgr_capabilities;
 pub(crate) mod stacking;
 pub mod style;
 pub mod terminal;
@@ -49,7 +50,9 @@ pub use layout_pass::LayoutExt;
 pub use paint_pass::PaintExt;
 pub use rdom_style::{Color, Modifier};
 pub use rect::Rect;
-pub use sgr::{SgrState, emit_cup, emit_reset, emit_sgr_transition};
+pub use sgr::{
+    SgrCapabilities, SgrState, emit_cup, emit_reset, emit_sgr_transition, emit_sgr_transition_for,
+};
 pub use style::Style;
 pub use terminal::{CompletedFrame, Terminal, TerminalGuard};
 #[cfg(any(test, feature = "test-util"))]

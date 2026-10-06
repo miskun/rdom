@@ -71,9 +71,9 @@ fn font_style_italic() {
 fn text_decoration_underline() {
     let s = first_style("a { text-decoration: underline; }");
     assert_eq!(
-        s.text_decoration,
+        s.text_decoration.line,
         Some(Value::Specified(
-            rdom_style::layout::TextDecoration::Underline
+            rdom_style::layout::TextDecorationLine::UNDERLINE
         ))
     );
 }
@@ -82,9 +82,9 @@ fn text_decoration_underline() {
 fn text_decoration_line_through() {
     let s = first_style("a { text-decoration: line-through; }");
     assert_eq!(
-        s.text_decoration,
+        s.text_decoration.line,
         Some(Value::Specified(
-            rdom_style::layout::TextDecoration::LineThrough
+            rdom_style::layout::TextDecorationLine::LINE_THROUGH
         ))
     );
 }
@@ -93,8 +93,10 @@ fn text_decoration_line_through() {
 fn text_decoration_none() {
     let s = first_style("a { text-decoration: none; }");
     assert_eq!(
-        s.text_decoration,
-        Some(Value::Specified(rdom_style::layout::TextDecoration::None))
+        s.text_decoration.line,
+        Some(Value::Specified(
+            rdom_style::layout::TextDecorationLine::NONE
+        ))
     );
 }
 
@@ -329,7 +331,7 @@ fn unknown_property_emits_warning_and_skips() {
 /// is `color: red`.
 #[test]
 fn property_names_and_keywords_are_case_insensitive() {
-    use rdom_tui::layout::{Flow, TextDecoration};
+    use rdom_tui::layout::{Flow, TextDecorationLine};
     let s = first_style(
         "a { COLOR: RED; Display: FLEX; Text-Decoration: UNDERLINE; \
          Transition-Duration: 2S, 300MS; Position: ABSOLUTE }",
@@ -340,8 +342,8 @@ fn property_names_and_keywords_are_case_insensitive() {
     );
     assert_eq!(s.flow, Some(Value::Specified(Flow::Flex)));
     assert_eq!(
-        s.text_decoration,
-        Some(Value::Specified(TextDecoration::Underline))
+        s.text_decoration.line,
+        Some(Value::Specified(TextDecorationLine::UNDERLINE))
     );
     assert_eq!(
         s.transition_duration,

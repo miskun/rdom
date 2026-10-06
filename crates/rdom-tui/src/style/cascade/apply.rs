@@ -171,18 +171,9 @@ pub(super) fn apply_style(
         important_pass,
         kw,
     );
-    // `text-decoration` writes the UNDERLINED / CROSSED_OUT bits.
-    // T10 made this the sole entry point — there's no longer a
-    // separate `.underline()` modifier setter that could conflict.
-    // CSS-faithful: text-decoration is a single property that owns
-    // both line axes.
-    apply_text_decoration(
-        working,
-        &style.text_decoration,
-        style.important.contains(ImportantMask::TEXT_DECORATION),
-        important_pass,
-        kw,
-    );
+    // The `text-decoration` longhands (`text_decoration.rs`; the color
+    // with the other colors).
+    super::text_decoration::apply_text_decoration(working, style, important_pass, kw);
     apply_opacity(
         working,
         &style.opacity,
@@ -496,52 +487,6 @@ fn apply_opacity(
             Resolved::Specified(v) => v.clamp(0.0, 1.0),
             Resolved::From(source) => source.opacity,
         };
-    }
-}
-
-/// The `text-decoration` a set of modifier bits spells.
-fn decoration_of(modifiers: Modifier) -> crate::layout::TextDecoration {
-    use crate::layout::TextDecoration;
-    if modifiers.contains(Modifier::UNDERLINED) {
-        TextDecoration::Underline
-    } else if modifiers.contains(Modifier::CROSSED_OUT) {
-        TextDecoration::LineThrough
-    } else {
-        TextDecoration::None
-    }
-}
-
-/// Apply CSS `text-decoration` to the working `ComputedStyle`. Maps
-/// the enum value onto the `UNDERLINED` / `CROSSED_OUT` modifier
-/// bits. `text-decoration: none` clears both. CSS-spec: the property
-/// does NOT inherit by default (each element sets its own decoration),
-/// but an explicit `text-decoration: inherit` copies the parent's
-/// decoration bits; `initial` is `none`.
-fn apply_text_decoration(
-    working: &mut ComputedStyle,
-    value: &Option<Value<crate::layout::TextDecoration>>,
-    important_prop: bool,
-    important_pass: bool,
-    kw: &Keywords<'_>,
-) {
-    use crate::layout::TextDecoration;
-    let Some(v) = value else { return };
-    if !matches_pass(important_prop, important_pass) {
-        return;
-    }
-    let resolved = match kw.resolve(v) {
-        Resolved::Specified(v) => *v,
-        Resolved::From(source) => decoration_of(source.modifiers),
-    };
-    // Wipe both decoration bits, then set the one this property
-    // selected (if any).
-    working
-        .modifiers
-        .remove(Modifier::UNDERLINED | Modifier::CROSSED_OUT);
-    match resolved {
-        TextDecoration::None => {}
-        TextDecoration::Underline => working.modifiers.insert(Modifier::UNDERLINED),
-        TextDecoration::LineThrough => working.modifiers.insert(Modifier::CROSSED_OUT),
     }
 }
 

@@ -1198,14 +1198,14 @@ fn ua_del_is_inline_and_strikethrough() {
     assert_eq!(c.display, Display::Inline);
     // `<del>` / `<s>` are styled via `text-decoration: line-through`
     // (proper strikethrough via SGR-9).
-    assert!(c.modifiers.contains(Modifier::CROSSED_OUT));
+    assert!(c.applied_decorations.line_through.is_some());
 }
 
 #[test]
 fn ua_ins_is_inline_and_underlined() {
     let c = ua_computed_for("ins");
     assert_eq!(c.display, Display::Inline);
-    assert!(c.modifiers.contains(Modifier::UNDERLINED));
+    assert!(c.applied_decorations.underline.is_some());
 }
 
 #[test]
@@ -1650,7 +1650,7 @@ fn ua_bare_a_is_inline_with_no_link_styling() {
     let c = computed_of(&dom, a);
     assert_eq!(c.display, Display::Inline);
     assert_eq!(c.fg, Color::Reset, "bare <a> should inherit, not colorize");
-    assert!(!c.modifiers.contains(Modifier::UNDERLINED));
+    assert!(c.applied_decorations.underline.is_none());
 }
 
 #[test]
@@ -1666,7 +1666,7 @@ fn ua_a_with_href_is_link_styled() {
     assert_eq!(c.display, Display::Inline);
     // Accent: dodgerblue = #1E90FF.
     assert_eq!(c.fg, Color::Rgb(30, 144, 255));
-    assert!(c.modifiers.contains(Modifier::UNDERLINED));
+    assert!(c.applied_decorations.underline.is_some());
 }
 
 #[test]
@@ -1687,7 +1687,7 @@ fn ua_a_href_hover_bolds() {
     // Hover doesn't remove the base link styling. Accent =
     // dodgerblue (#1E90FF).
     assert_eq!(c.fg, Color::Rgb(30, 144, 255));
-    assert!(c.modifiers.contains(Modifier::UNDERLINED));
+    assert!(c.applied_decorations.underline.is_some());
 }
 
 #[test]
@@ -1903,35 +1903,29 @@ fn tree_flag_clears_on_full_recascade() {
     assert!(!dom.node(div).ext().unwrap().tree_has_positioned_pseudo);
 }
 
-// ── text-decoration property (T3) ───────────────────────────────
+// ── text-decoration property (T3, C9-DECORATION) ─────────────────────
 
-/// `text-decoration: underline` sets the UNDERLINED modifier bit.
+/// `text-decoration: underline` sets the line, and the element's text
+/// is underlined (CSS Text Decoration 4 §2.1), not struck through.
 #[test]
-fn text_decoration_underline_sets_underlined_bit() {
-    use crate::layout::TextDecoration;
+fn text_decoration_underline_sets_the_line() {
+    use crate::layout::{TextDecoration, TextDecorationLine};
     let (mut dom, div) = dom_with_div();
     let sheet = Stylesheet::bare().rule_unchecked(
         "div",
         TuiStyle::new().text_decoration(TextDecoration::Underline),
     );
     dom.cascade(&sheet);
-    assert!(
-        computed_of(&dom, div)
-            .modifiers
-            .contains(Modifier::UNDERLINED)
-    );
-    assert!(
-        !computed_of(&dom, div)
-            .modifiers
-            .contains(Modifier::CROSSED_OUT)
-    );
+    let c = computed_of(&dom, div);
+    assert_eq!(c.text_decoration.line, TextDecorationLine::UNDERLINE);
+    assert!(c.applied_decorations.underline.is_some());
+    assert!(c.applied_decorations.line_through.is_none());
 }
 
-/// `text-decoration: line-through` sets the CROSSED_OUT modifier
-/// bit (SGR-9). The paint pass's existing SGR emitter handles
-/// the codepoint.
+/// `text-decoration: line-through` strikes the element's text through
+/// (SGR-9 at paint).
 #[test]
-fn text_decoration_line_through_sets_crossed_out_bit() {
+fn text_decoration_line_through_sets_the_line() {
     use crate::layout::TextDecoration;
     let (mut dom, div) = dom_with_div();
     let sheet = Stylesheet::bare().rule_unchecked(
@@ -1939,25 +1933,16 @@ fn text_decoration_line_through_sets_crossed_out_bit() {
         TuiStyle::new().text_decoration(TextDecoration::LineThrough),
     );
     dom.cascade(&sheet);
-    assert!(
-        computed_of(&dom, div)
-            .modifiers
-            .contains(Modifier::CROSSED_OUT)
-    );
-    assert!(
-        !computed_of(&dom, div)
-            .modifiers
-            .contains(Modifier::UNDERLINED)
-    );
+    let c = computed_of(&dom, div);
+    assert!(c.applied_decorations.line_through.is_some());
+    assert!(c.applied_decorations.underline.is_none());
 }
 
-/// `text-decoration: none` clears both UNDERLINED and CROSSED_OUT
-/// bits when an earlier rule set `text-decoration: underline` — a
-/// straight "later same-specificity rule wins" conflict resolution
-/// between two `text-decoration` declarations.
+/// `text-decoration: none` in a later rule of the same specificity wins
+/// over an earlier `underline`: no line.
 #[test]
-fn text_decoration_none_clears_decoration_bits() {
-    use crate::layout::TextDecoration;
+fn text_decoration_none_clears_the_line() {
+    use crate::layout::{AppliedDecorations, TextDecoration};
     let (mut dom, div) = dom_with_div();
     let sheet = Stylesheet::bare()
         .rule_unchecked(
@@ -1967,17 +1952,16 @@ fn text_decoration_none_clears_decoration_bits() {
         .rule_unchecked("div", TuiStyle::new().text_decoration(TextDecoration::None));
     dom.cascade(&sheet);
     let c = computed_of(&dom, div);
-    assert!(!c.modifiers.contains(Modifier::UNDERLINED));
-    assert!(!c.modifiers.contains(Modifier::CROSSED_OUT));
+    assert_eq!(c.applied_decorations, AppliedDecorations::NONE);
 }
 
-/// `text-decoration` is non-inheriting per CSS spec — a child of
-/// an element with `text-decoration: underline` should render
-/// *without* the underline. UNDERLINED is intentionally not in the
-/// inheritable modifier mask.
+/// `text-decoration` does not inherit (CSS Text Decoration 4 §2.1), but
+/// a decoration propagates: the child's own line stays `none` while its
+/// text is drawn with the parent's underline. (Before C9-DECORATION the
+/// child's text had no underline at all.)
 #[test]
-fn text_decoration_does_not_inherit_to_children() {
-    use crate::layout::TextDecoration;
+fn text_decoration_does_not_inherit_but_propagates() {
+    use crate::layout::{TextDecoration, TextDecorationLine};
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let parent = dom.create_element("div");
@@ -1990,18 +1974,15 @@ fn text_decoration_does_not_inherit_to_children() {
         TuiStyle::new().text_decoration(TextDecoration::Underline),
     );
     dom.cascade(&sheet);
-    // Parent gets the underline directly.
     assert!(
         computed_of(&dom, parent)
-            .modifiers
-            .contains(Modifier::UNDERLINED)
+            .applied_decorations
+            .underline
+            .is_some()
     );
-    // Child does NOT inherit UNDERLINED — CSS-faithful.
-    assert!(
-        !computed_of(&dom, child)
-            .modifiers
-            .contains(Modifier::UNDERLINED)
-    );
+    let c = computed_of(&dom, child);
+    assert_eq!(c.text_decoration.line, TextDecorationLine::NONE);
+    assert!(c.applied_decorations.underline.is_some());
 }
 
 // ── opacity property ────────────────────────────────────────────────
@@ -2200,29 +2181,26 @@ fn opacity_inherit_takes_parent_value_and_initial_resets() {
     assert_eq!(computed_of(&dom, child).opacity, 1.0, "initial → 1");
 }
 
-/// `text-decoration: inherit` copies the parent's decoration bits even
-/// though the property does not inherit by default.
+/// `text-decoration-line: inherit` copies the parent's line even though
+/// the property does not inherit by default.
 #[test]
-fn text_decoration_inherit_copies_parents_bits() {
-    use crate::layout::TextDecoration;
+fn text_decoration_inherit_copies_parents_line() {
+    use crate::layout::TextDecorationLine;
     let (mut dom, parent, child) = parent_child();
     let mut inherit = TuiStyle::new();
-    inherit.text_decoration = Some(Value::Inherit);
-    let mut underline = TuiStyle::new();
-    underline.text_decoration = Some(Value::Specified(TextDecoration::Underline));
+    inherit.text_decoration.line = Some(Value::Inherit);
+    let underline = TuiStyle::new().text_decoration_line(TextDecorationLine::UNDERLINE);
     let sheet = Stylesheet::bare()
         .rule_unchecked("div", underline)
         .rule_unchecked("span", inherit);
     dom.cascade(&sheet);
-    assert!(
-        computed_of(&dom, parent)
-            .modifiers
-            .contains(Modifier::UNDERLINED)
+    assert_eq!(
+        computed_of(&dom, parent).text_decoration.line,
+        TextDecorationLine::UNDERLINE
     );
-    assert!(
-        computed_of(&dom, child)
-            .modifiers
-            .contains(Modifier::UNDERLINED),
+    assert_eq!(
+        computed_of(&dom, child).text_decoration.line,
+        TextDecorationLine::UNDERLINE,
         "explicit inherit copies the parent's underline"
     );
 }
@@ -2319,7 +2297,11 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.fg = Color::Rgb(1, 2, 3);
     parent.bg = Color::Rgb(4, 5, 6);
     parent.border_color = rdom_style::layout::Sides::all(Color::Rgb(7, 8, 9));
-    parent.modifiers = Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED;
+    parent.modifiers = Modifier::BOLD | Modifier::ITALIC;
+    parent.text_decoration.line = rdom_style::layout::TextDecorationLine::UNDERLINE;
+    parent.text_decoration.style = rdom_style::layout::TextDecorationStyle::Wavy;
+    parent.text_decoration.color = Color::Rgb(9, 9, 9);
+    parent.text_decoration.thickness = rdom_style::layout::TextDecorationThickness::FromFont;
     parent.opacity = 0.5;
     parent.background_clip = rdom_style::layout::VisualBox::ContentBox;
     parent.border_spacing.vertical = rdom_style::layout::GapValue::Cells(2);
@@ -2384,6 +2366,14 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.text.hyphens = rdom_style::layout::Hyphens::None;
     parent.text.tab_size = rdom_style::layout::TabSize::Number(2.0);
     parent.text.line_height = rdom_style::layout::LineHeight::Number(3.0);
+    parent.text.text_underline_offset = rdom_style::layout::TextUnderlineOffset::Length(
+        rdom_style::layout::PaintLength::Cells(1.0),
+    );
+    parent.text.text_underline_position = rdom_style::layout::TextUnderlinePosition {
+        under: true,
+        ..rdom_style::layout::TextUnderlinePosition::AUTO
+    };
+    parent.text.text_decoration_skip_ink = rdom_style::layout::TextDecorationSkipInk::None;
     parent.text.text_transform.case = rdom_style::layout::TextCase::Uppercase;
     parent.text.text_indent = rdom_style::layout::TextIndent::cells(3);
     parent.text.text_align_all = rdom_style::layout::TextAlign::Center;
@@ -2426,7 +2416,35 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ("font-style", child.modifiers.contains(Modifier::ITALIC)),
         (
             "text-decoration",
-            child.modifiers.contains(Modifier::UNDERLINED),
+            child.text_decoration == parent.text_decoration,
+        ),
+        (
+            "text-decoration-line",
+            child.text_decoration.line == parent.text_decoration.line,
+        ),
+        (
+            "text-decoration-style",
+            child.text_decoration.style == parent.text_decoration.style,
+        ),
+        (
+            "text-decoration-color",
+            child.text_decoration.color == parent.text_decoration.color,
+        ),
+        (
+            "text-decoration-thickness",
+            child.text_decoration.thickness == parent.text_decoration.thickness,
+        ),
+        (
+            "text-underline-offset",
+            child.text.text_underline_offset == parent.text.text_underline_offset,
+        ),
+        (
+            "text-underline-position",
+            child.text.text_underline_position == parent.text.text_underline_position,
+        ),
+        (
+            "text-decoration-skip-ink",
+            child.text.text_decoration_skip_ink == parent.text.text_decoration_skip_ink,
         ),
         ("opacity", child.opacity == parent.opacity),
         ("width", child.width == parent.width),

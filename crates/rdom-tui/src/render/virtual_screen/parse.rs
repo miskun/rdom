@@ -118,6 +118,13 @@ impl VirtualScreen {
             return;
         }
         while i < tokens.len() {
+            // A code with colon sub-parameters (ITU T.416 form): `4:3`,
+            // `58:2::255:0:0`.
+            if let Some((code, sub)) = tokens[i].split_once(':') {
+                self.apply_sub_parameters(code, sub);
+                i += 1;
+                continue;
+            }
             let n: u32 = tokens[i].parse().unwrap_or(0);
             match n {
                 0 => self.sgr = SgrState::default(),
@@ -138,7 +145,7 @@ impl VirtualScreen {
                 9 => self.sgr.modifier |= Modifier::CROSSED_OUT,
                 22 => self.sgr.modifier.remove(Modifier::BOLD),
                 23 => self.sgr.modifier.remove(Modifier::ITALIC),
-                24 => self.sgr.modifier.remove(Modifier::UNDERLINED),
+                24 => self.sgr.modifier.remove(UNDERLINE_BITS),
                 25 => self
                     .sgr
                     .modifier
@@ -201,6 +208,18 @@ impl VirtualScreen {
                     }
                 }
                 49 => self.sgr.bg = Color::Reset,
+                53 => self.sgr.modifier |= Modifier::OVERLINED,
+                55 => self.sgr.modifier.remove(Modifier::OVERLINED),
+                58 => {
+                    // Underline color, `;` form: "58;5;N" / "58;2;R;G;B".
+                    let rest: Vec<&str> = tokens[i + 1..].iter().take(4).copied().collect();
+                    let (color, used) = extended_color(&rest);
+                    if let Some(color) = color {
+                        self.sgr.underline_color = color;
+                    }
+                    i += used;
+                }
+                59 => self.sgr.underline_color = Color::Reset,
                 90..=97 => self.sgr.fg = ansi16_color((n - 90) as u8, true),
                 100..=107 => self.sgr.bg = ansi16_color((n - 100) as u8, true),
                 _ => { /* unknown SGR — ignore */ }
@@ -210,7 +229,62 @@ impl VirtualScreen {
     }
 }
 
+impl VirtualScreen {
+    /// Apply an SGR code given with colon sub-parameters: `4:n` (the
+    /// underline off or its style) and `58:…` (the underline color).
+    fn apply_sub_parameters(&mut self, code: &str, sub: &str) {
+        match code {
+            "4" => {
+                self.sgr.modifier.remove(UNDERLINE_BITS);
+                let style = match sub.parse::<u32>().unwrap_or(1) {
+                    0 => return,
+                    2 => Modifier::UNDERLINE_DOUBLE,
+                    3 => Modifier::UNDERLINE_CURLY,
+                    4 => Modifier::UNDERLINE_DOTTED,
+                    5 => Modifier::UNDERLINE_DASHED,
+                    _ => Modifier::empty(),
+                };
+                self.sgr.modifier |= Modifier::UNDERLINED | style;
+            }
+            "58" => {
+                // `2::R:G:B` (an empty color space id) or `2:R:G:B`, `5:N`.
+                let mut parts: Vec<&str> = sub.split(':').collect();
+                if parts.first() == Some(&"2") && parts.len() == 5 {
+                    parts.remove(1);
+                }
+                if let (Some(color), _) = extended_color(&parts) {
+                    self.sgr.underline_color = color;
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 // ─── helpers ────────────────────────────────────────────────────────
+
+/// Every underline bit: SGR 24 / `4:0` clear them all.
+const UNDERLINE_BITS: Modifier = Modifier::from_bits_truncate(
+    Modifier::UNDERLINED.bits()
+        | Modifier::UNDERLINE_DOUBLE.bits()
+        | Modifier::UNDERLINE_CURLY.bits()
+        | Modifier::UNDERLINE_DOTTED.bits()
+        | Modifier::UNDERLINE_DASHED.bits(),
+);
+
+/// An extended color's parameters after its code: `5, N` (indexed) or
+/// `2, R, G, B` (truecolor) — the color, and how many parameters it took.
+fn extended_color(params: &[&str]) -> (Option<Color>, usize) {
+    let num = |i: usize| params.get(i).and_then(|t| t.parse::<u8>().ok());
+    match params.first().and_then(|m| m.parse::<u32>().ok()) {
+        Some(5) => (num(1).map(Color::Indexed), 2),
+        Some(2) => match (num(1), num(2), num(3)) {
+            (Some(r), Some(g), Some(b)) => (Some(Color::Rgb(r, g, b)), 4),
+            _ => (None, 4),
+        },
+        _ => (None, 0),
+    }
+}
 
 fn parse_pair(s: &str) -> (u32, u32) {
     let mut parts = s.split(';');

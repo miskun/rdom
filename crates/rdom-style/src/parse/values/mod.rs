@@ -26,6 +26,8 @@
 //!   `-area` and their longhands, `grid-auto-flow`).
 //! - `grid_shorthand.rs` — the `grid-template` and `grid` shorthands.
 //! - `inline.rs` — CSS Inline 3: `line-height`, `vertical-align`.
+//! - `text_decoration.rs` — `text-decoration` and its longhands, the
+//!   underline placement properties.
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
 //! - `calc.rs` — the `calc()` expression parser.
 //! - `numeric.rs` — the shared `<length-percentage>` leaf and the
@@ -63,6 +65,7 @@ pub use numeric::{MAX_ANGLE_DEGREES, parse_angle};
 mod shadow;
 mod spacing;
 mod text;
+mod text_decoration;
 mod transition;
 
 pub use align::{
@@ -113,7 +116,7 @@ pub use inline::{
 };
 pub use keyword::{
     parse_keyword, parse_overflow, parse_overflow_clip_margin, parse_overflow_shorthand,
-    parse_position, parse_scroll_behavior, parse_text_decoration, parse_text_overflow,
+    parse_position, parse_scroll_behavior, parse_text_overflow,
 };
 pub use length::{
     FlexShorthand, parse_contain_intrinsic, parse_flex_basis, parse_flex_factor,
@@ -141,6 +144,12 @@ pub use text::{
     parse_text_align_all, parse_text_align_last, parse_text_indent, parse_text_justify,
     parse_text_transform, parse_text_wrap, parse_text_wrap_mode, parse_text_wrap_style,
     parse_white_space, parse_white_space_collapse, parse_word_break, serialize_text_transform,
+};
+pub use text_decoration::{
+    TextDecorationShorthand, parse_text_decoration, parse_text_decoration_line,
+    parse_text_decoration_skip_ink, parse_text_decoration_style, parse_text_decoration_thickness,
+    parse_text_underline_offset, parse_text_underline_position, serialize_decoration_length,
+    serialize_text_decoration_thickness,
 };
 pub use transition::{
     TransitionShorthandRule, parse_animatable_property, parse_time_list, parse_time_ms,

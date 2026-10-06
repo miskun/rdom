@@ -45,6 +45,7 @@ mod sizing;
 #[cfg(test)]
 mod sizing_tests;
 mod text;
+mod text_decoration;
 mod vertical_align;
 
 pub use alignment::{Align, AlignProperty, Alignment, OverflowAlign};
@@ -86,5 +87,10 @@ pub use text::{
     Hyphens, LineBreak, OverflowWrap, TabSize, TextAlign, TextAlignLast, TextCase, TextIndent,
     TextJustify, TextStyle, TextTransform, TextWrapMode, TextWrapStyle, WhiteSpace,
     WhiteSpaceCollapse, WordBreak,
+};
+pub use text_decoration::{
+    AppliedDecorations, AppliedLine, TextDecorationLine, TextDecorationSkipInk,
+    TextDecorationStyle, TextDecorationThickness, TextDecorations, TextUnderlineOffset,
+    TextUnderlinePosition,
 };
 pub use vertical_align::VerticalAlign;

@@ -22,6 +22,13 @@ const PROPERTY_NAMES: &[&str] = &[
     "font-weight",
     "font-style",
     "text-decoration",
+    "text-decoration-line",
+    "text-decoration-style",
+    "text-decoration-color",
+    "text-decoration-thickness",
+    "text-underline-offset",
+    "text-underline-position",
+    "text-decoration-skip-ink",
     "opacity",
     // Layout — keywords
     "display",

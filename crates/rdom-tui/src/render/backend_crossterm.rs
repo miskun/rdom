@@ -21,20 +21,32 @@ use crossterm::terminal;
 use crossterm::{cursor, execute, queue};
 
 use super::backend::{Backend, BackendState, draw_iter};
-use super::sgr::emit_cup;
+use super::sgr::{SgrCapabilities, emit_cup};
 use super::{Cell, Rect};
 
 pub struct CrosstermBackend<W: Write> {
     writer: W,
     state: BackendState,
+    caps: SgrCapabilities,
 }
 
 impl<W: Write> CrosstermBackend<W> {
+    /// A backend writing to `writer`, for a terminal of
+    /// [`SgrCapabilities::BASIC`] ([`Self::with_sgr_capabilities`]).
     pub fn new(writer: W) -> Self {
         Self {
             writer,
             state: BackendState::default(),
+            caps: SgrCapabilities::BASIC,
         }
+    }
+
+    /// Emit the SGR extensions `caps` lists — the underline styles and
+    /// color, the overline — as to a terminal that has them
+    /// ([`SgrCapabilities::from_env`] guesses the running terminal's).
+    pub fn with_sgr_capabilities(mut self, caps: SgrCapabilities) -> Self {
+        self.caps = caps;
+        self
     }
 
     /// Borrow the underlying writer.
@@ -94,7 +106,7 @@ impl<W: Write> Backend for CrosstermBackend<W> {
     where
         I: Iterator<Item = (u16, u16, &'a Cell)>,
     {
-        draw_iter(&mut self.writer, &mut self.state, content)
+        draw_iter(&mut self.writer, &mut self.state, self.caps, content)
     }
 
     fn reset_style_cache(&mut self) {

@@ -90,23 +90,7 @@ pub(super) fn style_from_computed(c: &ComputedStyle) -> Style {
     if super::fills(c.bg) {
         style = style.bg(c.bg);
     }
-    // CSS-author-visible cell modifiers. Each maps to a SGR
-    // code in `sgr::emit_sgr_transition`:
-    // - BOLD       → SGR-1
-    // - ITALIC     → SGR-3
-    // - UNDERLINED → SGR-4
-    // - CROSSED_OUT → SGR-9  (`text-decoration: line-through`)
-    //
-    // Other Modifier bits (DIM, REVERSED, etc.) are runtime/
-    // selection chrome — they're written explicitly at paint
-    // sites (caret, selection highlight) and must not piggyback
-    // off `text_decoration` cascade values.
-    let mods = c.modifiers
-        & (Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED | Modifier::CROSSED_OUT);
-    if !mods.is_empty() {
-        style = style.add_modifier(mods);
-    }
-    style
+    text_modifiers(style, c)
 }
 
 /// Same as `style_from_computed` but **omits `bg`** — for glyph
@@ -118,23 +102,56 @@ pub(super) fn glyph_style_from_computed(c: &ComputedStyle) -> Style {
     if c.fg != Color::Reset {
         style = style.fg(c.fg);
     }
-    // CSS-author-visible cell modifiers. Each maps to a SGR
-    // code in `sgr::emit_sgr_transition`:
-    // - BOLD       → SGR-1
-    // - ITALIC     → SGR-3
-    // - UNDERLINED → SGR-4
-    // - CROSSED_OUT → SGR-9  (`text-decoration: line-through`)
-    //
-    // Other Modifier bits (DIM, REVERSED, etc.) are runtime/
-    // selection chrome — they're written explicitly at paint
-    // sites (caret, selection highlight) and must not piggyback
-    // off `text_decoration` cascade values.
-    let mods = c.modifiers
-        & (Modifier::BOLD | Modifier::ITALIC | Modifier::UNDERLINED | Modifier::CROSSED_OUT);
+    text_modifiers(style, c)
+}
+
+/// `style` with the CSS-author-visible cell modifiers of text styled
+/// `c`, each an SGR code (`sgr::emit_sgr_transition`): the font's bold and
+/// italic, and the decorations drawn on the text (CSS Text Decoration 4
+/// §2.1, `ComputedStyle::applied_decorations`) — an underline in its
+/// style and, where it is not the text's, its color; an overline; a
+/// line-through; blink. A terminal draws the overline and line-through in
+/// the text's color: their own color has no SGR (DIVERGENCES §2). Other
+/// modifier bits (hidden, the caret's and the selection's) are written at
+/// their paint sites.
+fn text_modifiers(mut style: Style, c: &ComputedStyle) -> Style {
+    let d = &c.applied_decorations;
+    let mut mods = c.modifiers & (Modifier::BOLD | Modifier::ITALIC);
+    // The glyph's color unless the decorating box's differs.
+    let mut underline_color = Color::Reset;
+    if let Some(underline) = d.underline {
+        mods |= Modifier::UNDERLINED | underline_style(underline.style);
+        if underline.color != c.fg {
+            underline_color = underline.color;
+        }
+    }
+    style = style.underline_color(underline_color);
+    if d.overline.is_some() {
+        mods |= Modifier::OVERLINED;
+    }
+    if d.line_through.is_some() {
+        mods |= Modifier::CROSSED_OUT;
+    }
+    if d.blink {
+        mods |= Modifier::SLOW_BLINK;
+    }
     if !mods.is_empty() {
         style = style.add_modifier(mods);
     }
     style
+}
+
+/// The modifier bit of an underline's style (SGR 4:2–4:5); none for
+/// `solid`, a plain underline.
+fn underline_style(style: crate::layout::TextDecorationStyle) -> Modifier {
+    use crate::layout::TextDecorationStyle as S;
+    match style {
+        S::Solid => Modifier::empty(),
+        S::Double => Modifier::UNDERLINE_DOUBLE,
+        S::Wavy => Modifier::UNDERLINE_CURLY,
+        S::Dotted => Modifier::UNDERLINE_DOTTED,
+        S::Dashed => Modifier::UNDERLINE_DASHED,
+    }
 }
 
 pub(super) fn advance_text_by_cells(text: &str, cells: u16) -> &str {

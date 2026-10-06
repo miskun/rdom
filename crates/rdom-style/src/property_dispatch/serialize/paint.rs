@@ -1,5 +1,5 @@
 //! `serialize` for the paint and text properties: `color`, `background-color`,
-//! the font keywords, `text-decoration`, `opacity`,
+//! the font keywords, `opacity`,
 //! `user-select`, `pointer-events`, `visibility`, the caret colors,
 //! `color-scheme` and `content`.
 
@@ -28,18 +28,6 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
                 "normal".to_string()
             }
         }),
-        "text-decoration" => style
-            .text_decoration
-            .as_ref()
-            .and_then(specified)
-            .map(|td| {
-                match td {
-                    crate::layout::TextDecoration::None => "none",
-                    crate::layout::TextDecoration::Underline => "underline",
-                    crate::layout::TextDecoration::LineThrough => "line-through",
-                }
-                .to_string()
-            }),
         "opacity" => style.opacity.as_ref().and_then(specified).map(|v| {
             // Drop trailing zeros for the common cases — `1.0` →
             // `"1"`, `0.5` → `"0.5"`, `0.0` → `"0"`. Matches

@@ -65,6 +65,12 @@ const PERTURB: &[(&str, &str)] = &[
     ("text-wrap-style", "balance"),
     ("line-height", "2"),
     ("vertical-align", "super"),
+    ("text-decoration-style", "wavy"),
+    ("text-decoration-color", "red"),
+    ("text-decoration-thickness", "2"),
+    ("text-underline-offset", "1"),
+    ("text-underline-position", "under"),
+    ("text-decoration-skip-ink", "none"),
     ("user-select", "none"),
     ("pointer-events", "none"),
     ("visibility", "hidden"),
@@ -247,6 +253,9 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         line_clamp_container: _,
         text,
         vertical_align,
+        text_decoration,
+        // Derived from `text_decoration` and the parent's (§2.1).
+        applied_decorations: _,
         user_select,
         pointer_events,
         visibility,
@@ -359,6 +368,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         list_item,
         text,
         vertical_align,
+        text_decoration,
         user_select,
         pointer_events,
         visibility,
@@ -396,6 +406,9 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         text_justify,
         text_wrap_style,
         line_height,
+        text_underline_offset,
+        text_underline_position,
+        text_decoration_skip_ink,
     } = text;
     macro_rules! check_text {
         ($($field:ident),* $(,)?) => {$(
@@ -418,6 +431,9 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         text_justify,
         text_wrap_style,
         line_height,
+        text_underline_offset,
+        text_underline_position,
+        text_decoration_skip_ink,
     );
     // CSS Box Alignment 3 §6.2: `justify-items: initial` is `legacy`,
     // which computes to `normal` under a parent without a `legacy` value.

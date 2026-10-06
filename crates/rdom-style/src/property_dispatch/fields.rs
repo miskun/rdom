@@ -59,7 +59,21 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         ],
         "font-weight" => &[Bold],
         "font-style" => &[Italic],
-        "text-decoration" => &[TextDecoration],
+        // CSS Text Decoration 4 §2.6: the shorthand sets its four
+        // longhands.
+        "text-decoration" => &[
+            TextDecorationLine,
+            TextDecorationStyle,
+            TextDecorationColor,
+            TextDecorationThickness,
+        ],
+        "text-decoration-line" => &[TextDecorationLine],
+        "text-decoration-style" => &[TextDecorationStyle],
+        "text-decoration-color" => &[TextDecorationColor],
+        "text-decoration-thickness" => &[TextDecorationThickness],
+        "text-underline-offset" => &[TextUnderlineOffset],
+        "text-underline-position" => &[TextUnderlinePosition],
+        "text-decoration-skip-ink" => &[TextDecorationSkipInk],
         "opacity" => &[Opacity],
         "display" => &[Display, Flow, ListItem, WebkitBox],
         "flex-direction" => &[Direction, FlexReverse],

@@ -10,6 +10,7 @@ mod breaking;
 mod line_height;
 mod tab_size;
 mod text_align;
+mod text_decoration;
 mod text_indent;
 mod text_transform;
 mod text_wrap;

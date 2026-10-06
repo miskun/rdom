@@ -17,6 +17,12 @@
 //!   `9` crossed-out. Turn-off codes: `22` bold, `23` italic,
 //!   `24` underline, `25` blink, `27` reversed, `28` hidden,
 //!   `29` crossed-out.
+//! - The decorations beyond ECMA-48's common subset, only to a terminal
+//!   whose [`SgrCapabilities`] say it understands them: the underline
+//!   styles `4:1`–`4:5` (colon sub-parameters, which an older terminal
+//!   would misread as separate codes — without them every style is a
+//!   plain `4`), the underline color `58:2::r:g:b` / `58:5:n` / `59`,
+//!   and the overline `53` / `55`.
 //!
 //! ## Style cache across frames
 //!
@@ -27,15 +33,18 @@
 
 use std::io::{self, Write};
 
+pub use super::sgr_capabilities::SgrCapabilities;
 use super::{Color, Modifier};
 
-/// The SGR state we need to track across cells: fg, bg, and the
-/// modifier bitmask.
+/// The SGR state we need to track across cells: fg, bg, the modifier
+/// bitmask and the underline color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SgrState {
     pub fg: Color,
     pub bg: Color,
     pub modifier: Modifier,
+    /// The underline color (SGR 58); `Color::Reset`, the default (SGR 59).
+    pub underline_color: Color,
 }
 
 impl SgrState {
@@ -43,29 +52,72 @@ impl SgrState {
         fg: Color::Reset,
         bg: Color::Reset,
         modifier: Modifier::empty(),
+        underline_color: Color::Reset,
     };
 }
 
-/// Emit the minimal SGR sequence transitioning `w` from `prev` to `new`.
+/// Emit the minimal SGR sequence transitioning `w` from `prev` to `new`
+/// for a terminal of [`SgrCapabilities::BASIC`].
 /// Returns the new state (equal to `new`; returned for chaining).
 pub fn emit_sgr_transition<W: Write>(
     w: &mut W,
     prev: SgrState,
     new: SgrState,
 ) -> io::Result<SgrState> {
+    emit_sgr_transition_for(w, prev, new, SgrCapabilities::BASIC)
+}
+
+/// Emit the minimal SGR sequence transitioning `w` from `prev` to `new`
+/// for a terminal that understands `caps`: a decoration it does not is
+/// left out (an underline style degrades to a plain underline).
+/// Returns the new state (equal to `new`; returned for chaining).
+pub fn emit_sgr_transition_for<W: Write>(
+    w: &mut W,
+    prev: SgrState,
+    new: SgrState,
+    caps: SgrCapabilities,
+) -> io::Result<SgrState> {
     if prev == new {
         return Ok(new);
     }
 
-    // Modifier diff.
+    // Modifier diff — the underline and the overline apart.
     let mod_to_remove = prev.modifier.difference(new.modifier);
     let mod_to_add = new.modifier.difference(prev.modifier);
 
-    for code in modifier_off_codes(mod_to_remove) {
+    // In code order: the underline (`4` / `24`) between italic and blink.
+    let (head, tail) = MODIFIER_CODES.split_at(2);
+    let (was, is) = (
+        underline_of(prev.modifier, caps),
+        underline_of(new.modifier, caps),
+    );
+    for code in modifier_off_codes(head, mod_to_remove) {
         write_sgr(w, code)?;
     }
-    for code in modifier_on_codes(mod_to_add) {
+    if was.is_some() && is.is_none() {
+        write_sgr(w, 24)?;
+    }
+    for code in modifier_off_codes(tail, mod_to_remove) {
         write_sgr(w, code)?;
+    }
+    if caps.overline && mod_to_remove.contains(Modifier::OVERLINED) {
+        write_sgr(w, 55)?;
+    }
+    for code in modifier_on_codes(head, mod_to_add) {
+        write_sgr(w, code)?;
+    }
+    match is {
+        Some(style) if was != is => match style {
+            0 => write_sgr(w, 4)?,
+            n => write!(w, "\x1b[4:{n}m")?,
+        },
+        _ => {}
+    }
+    for code in modifier_on_codes(tail, mod_to_add) {
+        write_sgr(w, code)?;
+    }
+    if caps.overline && mod_to_add.contains(Modifier::OVERLINED) {
+        write_sgr(w, 53)?;
     }
 
     // fg diff.
@@ -76,8 +128,47 @@ pub fn emit_sgr_transition<W: Write>(
     if prev.bg != new.bg {
         emit_bg(w, new.bg)?;
     }
+    // Underline color diff.
+    if caps.underline_color && prev.underline_color != new.underline_color {
+        emit_underline_color(w, new.underline_color)?;
+    }
 
     Ok(new)
+}
+
+/// The underline `modifier` asks a terminal of `caps` for: `None` for
+/// none, `Some(0)` for a plain one (SGR 4), `Some(n)` for the style `n`
+/// of SGR `4:n` (2 double, 3 curly, 4 dotted, 5 dashed) — only where the
+/// terminal takes colon sub-parameters.
+fn underline_of(modifier: Modifier, caps: SgrCapabilities) -> Option<u8> {
+    if !modifier.contains(Modifier::UNDERLINED) {
+        return None;
+    }
+    if !caps.styled_underline {
+        return Some(0);
+    }
+    const STYLES: [(Modifier, u8); 4] = [
+        (Modifier::UNDERLINE_DOUBLE, 2),
+        (Modifier::UNDERLINE_CURLY, 3),
+        (Modifier::UNDERLINE_DOTTED, 4),
+        (Modifier::UNDERLINE_DASHED, 5),
+    ];
+    Some(
+        STYLES
+            .iter()
+            .find(|(bit, _)| modifier.contains(*bit))
+            .map_or(0, |&(_, n)| n),
+    )
+}
+
+/// Emit SGR 58 (the underline color, kitty's colon form, the color space
+/// id empty) or 59 (the default).
+fn emit_underline_color<W: Write>(w: &mut W, color: Color) -> io::Result<()> {
+    match color {
+        Color::Reset => write!(w, "\x1b[59m"),
+        Color::Indexed(n) => write!(w, "\x1b[58:5:{n}m"),
+        Color::Rgb(r, g, b) | Color::Rgba(r, g, b, _) => write!(w, "\x1b[58:2::{r}:{g}:{b}m"),
+    }
 }
 
 /// Emit a sequence that fully resets SGR state to defaults
@@ -94,11 +185,11 @@ fn write_sgr<W: Write>(w: &mut W, code: u16) -> io::Result<()> {
 
 /// Modifier bits with their SGR turn-on and turn-off codes. Both blink
 /// bits share the `25` turn-off code, emitted once (see
-/// [`modifier_off_codes`]).
-const MODIFIER_CODES: [(Modifier, u16, u16); 7] = [
+/// [`modifier_off_codes`]). The underline (with its styles) and the
+/// overline depend on the terminal (`emit_sgr_transition_for`).
+const MODIFIER_CODES: [(Modifier, u16, u16); 6] = [
     (Modifier::BOLD, 1, 22),
     (Modifier::ITALIC, 3, 23),
-    (Modifier::UNDERLINED, 4, 24),
     (Modifier::SLOW_BLINK, 5, 25),
     (Modifier::RAPID_BLINK, 6, 25),
     (Modifier::HIDDEN, 8, 28),
@@ -107,8 +198,11 @@ const MODIFIER_CODES: [(Modifier, u16, u16); 7] = [
 
 /// Turn-on codes for the set bits, in table order. Allocation-free:
 /// filters the const table.
-fn modifier_on_codes(bits: Modifier) -> impl Iterator<Item = u16> {
-    MODIFIER_CODES
+fn modifier_on_codes(
+    table: &'static [(Modifier, u16, u16)],
+    bits: Modifier,
+) -> impl Iterator<Item = u16> {
+    table
         .iter()
         .filter(move |(bit, _, _)| bits.contains(*bit))
         .map(|(_, on, _)| *on)
@@ -116,9 +210,12 @@ fn modifier_on_codes(bits: Modifier) -> impl Iterator<Item = u16> {
 
 /// Turn-off codes for the set bits, in table order, each code once
 /// (both blink bits map to `25`).
-fn modifier_off_codes(bits: Modifier) -> impl Iterator<Item = u16> {
+fn modifier_off_codes(
+    table: &'static [(Modifier, u16, u16)],
+    bits: Modifier,
+) -> impl Iterator<Item = u16> {
     let mut last: Option<u16> = None;
-    MODIFIER_CODES
+    table
         .iter()
         .filter(move |(bit, _, _)| bits.contains(*bit))
         .filter_map(move |(_, _, off)| {
@@ -342,6 +439,7 @@ mod tests {
             fg: Color::Rgb(255, 0, 0),
             bg: Color::Rgb(0, 0, 0),
             modifier: Modifier::BOLD,
+            underline_color: Color::Reset,
         };
         assert_eq!(emit_diff(state, state), b"");
     }
@@ -352,6 +450,7 @@ mod tests {
             fg: Color::Rgb(255, 0, 0),
             bg: Color::Rgb(0, 0, 0),
             modifier: Modifier::BOLD,
+            underline_color: Color::Reset,
         };
         let new = SgrState {
             fg: Color::Rgb(0, 128, 0),
@@ -369,6 +468,7 @@ mod tests {
             fg: Color::Rgb(255, 0, 0),
             bg: Color::Rgb(0, 0, 0),
             modifier: Modifier::BOLD,
+            underline_color: Color::Reset,
         };
         let buf = emit_diff(prev, new);
         // Modifiers first (add bold), then fg, then bg — all truecolor.

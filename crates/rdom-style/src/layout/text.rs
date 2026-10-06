@@ -528,8 +528,8 @@ impl TextJustify {
 
 /// The computed CSS Text properties of an element
 /// ([`ComputedStyle::text`](crate::ComputedStyle::text)), with
-/// `line-height`. All of them inherit, so the cascade copies the group
-/// from the parent whole.
+/// `line-height` and the inherited text decoration properties. All of
+/// them inherit, so the cascade copies the group from the parent whole.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct TextStyle {
     /// `white-space-collapse` (CSS Text 4 §4.1).
@@ -564,6 +564,13 @@ pub struct TextStyle {
     /// context length resolved to rows. Inherited, as the CSS Text
     /// properties are.
     pub line_height: super::LineHeight,
+    /// `text-underline-offset` (CSS Text Decoration 4 §4.2): parsed, not
+    /// drawn.
+    pub text_underline_offset: super::TextUnderlineOffset,
+    /// `text-underline-position` (§4.1): parsed, not drawn.
+    pub text_underline_position: super::TextUnderlinePosition,
+    /// `text-decoration-skip-ink` (§3.2): parsed, not drawn.
+    pub text_decoration_skip_ink: super::TextDecorationSkipInk,
 }
 
 impl TextStyle {

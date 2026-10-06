@@ -27,6 +27,13 @@ pub struct ImportantMask {
 }
 
 impl ImportantMask {
+    /// The `text-decoration` shorthand's bits: its four longhands' (CSS
+    /// Text Decoration 4 §2.6).
+    pub const TEXT_DECORATION: Self = Self::TEXT_DECORATION_LINE
+        .union(Self::TEXT_DECORATION_STYLE)
+        .union(Self::TEXT_DECORATION_COLOR)
+        .union(Self::TEXT_DECORATION_THICKNESS);
+
     /// No bit set.
     #[inline]
     pub const fn empty() -> Self {

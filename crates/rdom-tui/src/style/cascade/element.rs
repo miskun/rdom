@@ -125,6 +125,7 @@ pub(super) fn compute_element_style(
         super::blockify::blockify(&mut working);
     }
     super::blockify::finalize_float(&mut working);
+    super::text_decoration::finalize_applied_decorations(&mut working, parent.applied_decorations);
     super::apply::finalize_justify_items(&mut working, parent);
     let root = parent_id.is_none_or(|p| dom.node(p).node_type() != rdom_core::NodeType::Element);
     super::text::finalize_text_align(&mut working, parent, root);

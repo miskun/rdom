@@ -468,3 +468,57 @@ fn simultaneous_width_and_height_resize() {
         );
     }
 }
+
+// ── Text decorations (C9-DECORATION) ─────────────────────────────
+
+/// CSS Text Decoration 4 through the wire: to a terminal with the SGR
+/// extensions, a red wavy underline is `4:3` + `58:2::255:0:0` and an
+/// overline `53`, which the emulator reads back; to a basic one the same
+/// cell is a plain `4` — no colon sub-parameter, no underline color, no
+/// overline.
+#[test]
+fn decorations_emit_by_the_terminals_capabilities() {
+    use crate::render::{Buffer, Modifier, SgrCapabilities, Style, Terminal, TestBackend};
+
+    let style = Style::new()
+        .add_modifier(Modifier::UNDERLINED | Modifier::UNDERLINE_CURLY | Modifier::OVERLINED)
+        .underline_color(Color::Rgb(255, 0, 0));
+    let draw = |caps| {
+        let tb = TestBackend::new(4, 1).with_sgr_capabilities(caps);
+        let mut term = Terminal::new(tb).unwrap();
+        term.draw(|buf: &mut Buffer| {
+            buf.set_string(0, 0, "ab", style);
+            Ok(())
+        })
+        .unwrap();
+        term.backend().bytes().to_vec()
+    };
+
+    let extended = draw(SgrCapabilities::EXTENDED);
+    let text = String::from_utf8_lossy(&extended);
+    for seq in ["\x1b[4:3m", "\x1b[53m", "\x1b[58:2::255:0:0m"] {
+        assert!(text.contains(seq), "{seq:?} in {text:?}");
+    }
+    let mut screen = VirtualScreen::new(4, 1);
+    screen.apply(&extended);
+    let cell = screen.cell(1, 0).unwrap();
+    assert!(
+        cell.modifier
+            .contains(Modifier::UNDERLINED | Modifier::UNDERLINE_CURLY | Modifier::OVERLINED),
+        "{cell:?}"
+    );
+    assert_eq!(cell.underline_color, Color::Rgb(255, 0, 0));
+
+    let basic = draw(SgrCapabilities::BASIC);
+    let text = String::from_utf8_lossy(&basic);
+    assert!(text.contains("\x1b[4m"), "{text:?}");
+    for absent in ["4:", "58", "53"] {
+        assert!(!text.contains(absent), "{absent:?} in {text:?}");
+    }
+    let mut screen = VirtualScreen::new(4, 1);
+    screen.apply(&basic);
+    let cell = screen.cell(0, 0).unwrap();
+    assert!(cell.modifier.contains(Modifier::UNDERLINED));
+    assert!(!cell.modifier.contains(Modifier::UNDERLINE_CURLY));
+    assert_eq!(cell.underline_color, Color::Reset);
+}

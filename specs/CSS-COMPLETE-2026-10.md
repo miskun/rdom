@@ -200,7 +200,7 @@ row comes from.
 | C9-BREAKING | `word-break`, `overflow-wrap` / `word-wrap`, `line-break`, `hyphens` (soft hyphens) | done |
 | C9-LINE-HEIGHT | `line-height` (whole-row line boxes) | done |
 | C9-VERTICAL-ALIGN | `vertical-align` for inline-blocks and inline content | done |
-| C9-DECORATION | `text-decoration` full shorthand; `-line` (incl. `overline`), `-color` (SGR 58), `-style` (SGR 4:x) | |
+| C9-DECORATION | `text-decoration` full shorthand; `-line` (incl. `overline`), `-color` (SGR 58), `-style` (SGR 4:x) | done |
 | C9-FONT | `font-weight` numeric / `bolder` / `lighter`, `font-style: oblique`, `font` shorthand (weight / style honored, size / family inert) | |
 
 ### Phase 10 — Lists, counters, generated content, pseudo-elements (audit §3.15, §3.16)
@@ -5568,3 +5568,49 @@ row comes from.
   it → 1; generated text unplaced → 1; atoms ignoring their alignment → 2; the UA `sup` rule gone → 1. Changed
   expectation: `vertical.rs`'s unit test now places fragments from frame rows (the line arithmetic moved to
   `frames.rs`'s tests). No snapshot changed.
+- 2026-10-12 — C9-DECORATION (CSS Text Decoration 4 §2.1–§2.6, §3.2, §4.1, §4.2; Text Decoration 3 §2; ECMA-48 /
+  ITU T.416 SGR; kitty's underline extensions). rdom-style: `text-decoration` is the Level 4 shorthand of
+  `text-decoration-line` (`TextDecorationLine`: `underline || overline || line-through || blink`),
+  `-style` (`TextDecorationStyle`), `-color` (a `TuiColor`, initial `currentcolor`) and `-thickness`
+  (`TextDecorationThickness`, a `PaintLength` so `2px` / `0.1em` parse as the decorating properties' pixel
+  lengths do), any order, serialized shortest; `TuiStyle::text_decoration` is their group
+  (`TextDecorationDeclarations`), not inherited; `text-underline-offset`, `text-underline-position` and
+  `text-decoration-skip-ink` are inherited, in the CSS Text group — all four placement properties parse,
+  cascade, resolve their viewport units and change nothing drawn (DIVERGENCES §1). Breaking — the old
+  single-keyword field and `parse_text_decoration`'s pair (CHANGELOG, API table, `text_decoration_hints`). The
+  `TextDecoration` enum stays as the builder's one-line form. rdom-tui — decided at the root: the computed
+  decoration is a `TextDecorations` group (the color resolved with the other colors, `cascade/colors.rs`, an
+  undeclared one `currentcolor`), and propagation (§2.1: "propagated to all in-flow children", "not ... to
+  the contents of atomic inline-level descendants", "nor to out-of-flow descendants", drawn "with the
+  decorating box's color and style") is a derived used value, `ComputedStyle::applied_decorations`, computed
+  once per element and pseudo-element in the cascade (`cascade/text_decoration.rs::finalize_applied_
+  decorations`, after `display` / `float` / `position` are final) from the parent's — so paint reads one field
+  per fragment and the old `UNDERLINED` / `CROSSED_OUT` modifier bits on the computed style are gone (they made
+  `text-decoration` reach only the element's own text, the opposite of §2.1). A cell holds one line of each
+  kind: the innermost decorating box's wins (DIVERGENCES §2). Paint (`paint_pass/text.rs::text_modifiers`): the
+  underline's `Modifier::UNDERLINED` plus its style bit (`UNDERLINE_DOUBLE` / `_CURLY` / `_DOTTED` / `_DASHED`,
+  new) and, where it is not the text's color, `Cell::underline_color` (new; `Style::underline_color`, the
+  translucent composite and the background fill carry it); `OVERLINED` (new), `CROSSED_OUT`, `SLOW_BLINK`.
+  Emission stays in the backend layer: `render/sgr_capabilities.rs::SgrCapabilities` (`styled_underline`,
+  `underline_color`, `overline`; `BASIC`, `EXTENDED`, `from_env` / `detect` over `TERM`, `TERM_PROGRAM`,
+  `VTE_VERSION`, `KITTY_WINDOW_ID`) — rdom had no capability model (Phase 3 queries the background, OSC 11,
+  and the theme, mode 2031, but nothing about SGR); `sgr::emit_sgr_transition_for` writes `4:n`, `58:2::r:g:b`
+  / `58:5:n` / `59` and `53` / `55` only where the capabilities allow, else a plain `4` (the colon forms are
+  what an older terminal misreads); the backends hold their capabilities (`with_sgr_capabilities`, `BASIC`
+  by default; `App` detects), `BackendState` stays plain. `VirtualScreen` reads the colon and semicolon forms.
+  The UA rules keep their `.text_decoration(…)` builder calls. Red: `css_phase9/text_decoration.rs` — 3 of 3
+  failed with the properties cascaded and paint not reading them (`modifier: Modifier(0)` on every cell); the
+  `VirtualScreen` test (`virtual_screen/tests/terminal.rs::decorations_emit_by_the_terminals_capabilities`)
+  written with the emitter. Green after. Found by the C2G viewport gate test: `text-decoration-thickness:
+  10vw` (and the offset) kept its viewport unit — now resolved in `absolute.rs`. Mutation (each alone,
+  restored, touched): nothing propagated → 1; atoms or out-of-flow boxes receiving decorations → 1 each; no
+  underline color → 2; `wavy` as `double` → 1; the styled underline, the underline color or the overline
+  ungated, or the basic underline not emitted → 1 each (the `VirtualScreen` test); the outermost line winning
+  → 1 (the `AppliedDecorations` unit test, extended after this mutation survived); `text-decoration-color`'s
+  initial value not `currentcolor` → 1 (the propagation test now declares the line alone, after this mutation
+  survived). Changed expectations: the cascade tests that read `UNDERLINED` / `CROSSED_OUT` on the computed
+  style read `applied_decorations`; `text_decoration_does_not_inherit_to_children` became
+  `text_decoration_does_not_inherit_but_propagates` (the child's own line stays `none`, its text is
+  underlined — CSS §2.1, where the old test pinned the opposite); `text_decoration_inherit_copies_parents_
+  bits` reads the line; rdom-css's property tests read `text_decoration.line`; the inherited-set probe covers
+  the eight names. No snapshot changed.

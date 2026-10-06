@@ -97,6 +97,7 @@ pub(crate) mod set;
 mod shadow;
 mod table;
 mod text;
+mod text_decoration;
 mod value_serializers;
 
 #[cfg(test)]
@@ -135,6 +136,8 @@ mod sizing_tests;
 mod spacing_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod text_decoration_tests;
 #[cfg(test)]
 mod text_tests;
 #[cfg(test)]

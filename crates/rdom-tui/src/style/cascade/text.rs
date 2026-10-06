@@ -47,6 +47,9 @@ pub(super) fn apply_text(
         text_justify: TEXT_JUSTIFY,
         text_wrap_style: TEXT_WRAP_STYLE,
         line_height: LINE_HEIGHT,
+        text_underline_offset: TEXT_UNDERLINE_OFFSET,
+        text_underline_position: TEXT_UNDERLINE_POSITION,
+        text_decoration_skip_ink: TEXT_DECORATION_SKIP_INK,
     );
     // CSS 2.1 §10.8.1: `vertical-align` (not inherited).
     apply_value(

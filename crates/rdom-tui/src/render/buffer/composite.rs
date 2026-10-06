@@ -169,12 +169,14 @@ impl Buffer {
                     None => out.set_blank(),
                 };
                 out.modifier = after.modifier;
+                out.underline_color = after.underline_color;
                 out.diff = after.diff;
                 out.link = after.link.clone();
                 out.fg = alpha_blend(canvas_fg(after.fg, scheme), alpha, backdrop_bg);
             }
             LayerGlyph::Same => {
                 out.modifier = after.modifier;
+                out.underline_color = after.underline_color;
                 out.diff = after.diff;
                 out.link = after.link.clone();
                 if after.fg != before.fg {
