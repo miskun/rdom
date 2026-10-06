@@ -38,7 +38,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 6 | Display, visibility, flexbox, box alignment | done 2026-10-08 (both gates; 28 gate fixes `C6G-*`; their re-review rides with the Phase 7 gate) |
 | 7 | Grid | done 2026-10-09 (both gates; 15 gate fixes `C7G-*`; their re-review rides with the Phase 8 gate) |
 | 8 | Positioning, floats, overflow, scrolling | done 2026-10-10 (both gates; 15 gate fixes `C8G-*`; their re-review rides with the Phase 9 gate) |
-| 9 | Inline text and decoration | |
+| 9 | Inline text and decoration | gates run 2026-10-11; `C9G-*` fixes in progress |
 | 10 | Lists, counters, generated content, pseudo-elements | |
 | 11 | Selectors | |
 | 12 | Transitions, animations, user interface | |
@@ -5649,3 +5649,28 @@ row comes from.
   and capability-gated SGR in the backend (`render/sgr_capabilities.rs`); the font is a cascade group
   (`cascade/font.rs`). CSS-COVERAGE §3.12–§3.14 have no Partial or Missing row left; ACID tile 8 covers the
   Phase 9 text features. The Phase 9 gates (architect + API, with the C8G re-review) are next.
+- 2026-10-11 — Phase 9 gates (with the C8G re-review: 14 of 15 at the root; C8G-SNAP-TALL incomplete).
+  Architect: 3 blocking — length-changing transforms classify the rendered grapheme (`ß`→`SS` taken as
+  an ideograph, so uppercase words break mid-word and min-content shrinks); a covering snap range's end
+  is never offered (25-row cards in a 10-row list skip rows 20–24); two baseline models (`content_rows`
+  + `insets`, gated on line-height only, missing `vertical-align` and leading anonymous text). API: 2
+  blocking — UA form controls do not reset `line-height`, so a page-level `line-height` breaks one-row
+  inputs and textareas (inferred); the 575 split rule broken in range (`layout/text.rs` 586,
+  `builder/mod.rs` unlisted). Non-blocking: allocation in hot paths (`FontFamily` Vec cloned per
+  element, per-word `units`, per-line Vecs, boxed `SourceMap::units`, per-grapheme `map_chars`,
+  quadratic `source_len` on merge, quadratic `balance` count); `first_child_has_clearance` builds a
+  `box_sequence` per block and misses floated `::before`; floated pseudos never settle; `SgrCapabilities`
+  (KITTY_WINDOW_ID overrides a `screen` TERM, no builder, no `App` override, undocumented);
+  VirtualScreen plain `4` keeps style bits; stale `rlh` under var restyle; focus deferral keyed on a
+  thread-local, layout-run pin misses the focus relayout (6); intrinsic widths of pseudo text and bare
+  text ignore transform / collapsing / tabs; `line-height: 1.5` rounds to 2 rows (preflight
+  double-spaces an app); upgrade guide not ranked, three silent changes missing (0.5-dropped text
+  properties now apply, `computed.modifiers` no longer carries UNDERLINED / CROSSED_OUT, `InlineFragment::text`
+  is rendered text); `<sup>` doubling a line deserves a README note; DESIGN misses the Phase 9 part 2
+  types, `FontVariant` open vocabulary, `FontStretch::Keyword(&'static str)`; `ImportantMask::WHITE_SPACE`
+  removed needlessly; no `justify-all` builder, prelude lacks the new types; stale docs; `letter-spacing`
+  not parsed; cascade depends on render code (`cascade/text_decoration.rs`). Decided: a fractional
+  `line-height` floors to whole rows (leading under one row cannot be drawn; a terminal row already
+  carries the font's line gap), so `1.5` is one row, `2.5` two — DIVERGENCES §1; `letter-spacing` is
+  implemented in whole cells. Full reports: `target/claude-logs/c9_gate_{architect,api}.md`. Fix as
+  `C9G-*`, two batches (A correctness and cost, B API and docs).
