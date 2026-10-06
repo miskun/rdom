@@ -73,7 +73,7 @@ mod value;
 
 pub use color::Color;
 pub use computed::{ComputedStyle, VarMap};
-pub use content::{Content, ContentContext};
+pub use content::{Content, ContentContext, QuoteKind};
 pub use counters::{CounterOp, CounterStyle};
 pub use custom_value::CustomValue;
 pub use modifier::Modifier;

@@ -5,7 +5,7 @@
 use rdom_core::{Dom, NodeId};
 
 use super::apply::finalize_bfc_formation;
-use super::content::resolve_content_on;
+use super::content::{declared_content, resolve_onto};
 use super::decoration::finalize_used_border;
 use super::inherit::inherit_inheritable_from;
 use super::ladder::{Declarations, apply_cascade_ladder, prepare};
@@ -161,27 +161,24 @@ pub(super) fn compute_pseudo_style(
     finalize_used_border(&mut working);
 
     // Resolve content:
-    //   - None  = no `content:` declaration at all → use legacy fallback
-    //   - Some(None) = `content: none;` declared → suppress (NO fallback)
-    //   - Some(Some(s)) = content resolved to string
+    //   - no `content:` declaration at all → the legacy fallback text
+    //   - `content: none;` declared → suppress (NO fallback)
+    //   - a `<content-list>` → its text, alt text and quote items
     // (An `attr()` read the HOST element's attribute when `prepare`
     // substituted it: `optgroup::before { content: attr(label) }`.)
     // The pseudo-element's own `counter-reset` / `counter-increment`
     // (the `h2::before { counter-increment: sec }` idiom). It is a child
     // of the host, so its instances are scoped to the host's subtree.
     counters.enter(Some(id), &working.counter_reset, &working.counter_increment);
-    let counter_lookup = |name: &str| counters.value(name);
-    let declared = resolve_content_on(&working, plan, decls, &counter_lookup);
-    let final_content = match declared {
-        Some(explicit) => explicit, // declared (even as None) → use as-is
-        None => fallback,           // undeclared → legacy fallback
-    };
+    match declared_content(plan, decls) {
+        Some(declared) => resolve_onto(&mut working, &declared, counters, true),
+        None => working.content = fallback,
+    }
 
     // Skip entirely if the pseudo-element has nothing to contribute.
-    if sorted.is_empty() && final_content.is_none() {
+    if sorted.is_empty() && working.content.is_none() {
         return None;
     }
-    working.content = final_content;
     Some(working)
 }
 

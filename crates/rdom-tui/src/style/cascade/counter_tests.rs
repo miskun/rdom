@@ -268,3 +268,33 @@ fn inline_counter_ops_take_part_in_partial_cascades() {
     dom.cascade_subtrees(&sheet, &[items[1]]);
     assert_eq!(content(&dom, items[1]).as_deref(), Some("7"));
 }
+
+/// CSS Generated Content 3 §2.2: the quote depth runs in tree order like
+/// a counter, so a partial cascade must replay the `<quote>` items of the
+/// generated boxes before its root. The third `div` re-cascaded alone
+/// still opens at the third level's (here the last pair's) mark, and the
+/// fourth, after a class change on the first that drops its quote, moves
+/// up a level.
+#[test]
+fn partial_cascades_replay_the_quote_depth() {
+    let mut dom = TuiDom::new();
+    let root = main_el(&mut dom);
+    let ids: Vec<NodeId> = (0..4)
+        .map(|_| {
+            let id = dom.create_element("div");
+            dom.append_child(root, id).unwrap();
+            id
+        })
+        .collect();
+    let sheet = sheet("div::before { content: open-quote } div.x::before { content: none }");
+    dom.cascade(&sheet);
+    assert_eq!(before(&dom, ids[0]).as_deref(), Some("\u{201c}"));
+    assert_eq!(before(&dom, ids[1]).as_deref(), Some("\u{2018}"));
+    dom.set_attribute(ids[2], "data-x", "1").unwrap();
+    dom.cascade_subtrees(&sheet, &[ids[2]]);
+    assert_eq!(before(&dom, ids[2]).as_deref(), Some("\u{2018}"));
+    dom.set_attribute(ids[0], "class", "x").unwrap();
+    dom.cascade_subtrees(&sheet, &[ids[0]]);
+    assert_eq!(before(&dom, ids[1]).as_deref(), Some("\u{201c}"));
+    assert_eq!(before(&dom, ids[3]).as_deref(), Some("\u{2018}"));
+}

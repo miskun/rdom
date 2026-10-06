@@ -130,9 +130,9 @@ pub use style::{
     CascadeExt, Color, ColorContext, ColorFunction, ColorScheme, ColorSchemeList, ComputedStyle,
     Content, ContentContext, CustomValue, DirtyTracker, FontDeclarations, ImportantMask, LayerId,
     Modifier, PropertyRegistration, PropertySyntax, PropertySyntaxError, PseudoElementTarget,
-    RegisterPropertyError, Rule, RuleContext, RuleOrigin, Specificity, StyleError, StyleSelector,
-    Stylesheet, SystemColor, TextDeclarations, TextDecorationDeclarations, TuiColor, TuiStyle,
-    Value, VarMap, parse_color, resolve_tui_color,
+    QuoteKind, RegisterPropertyError, Rule, RuleContext, RuleOrigin, Specificity, StyleError,
+    StyleSelector, Stylesheet, SystemColor, TextDeclarations, TextDecorationDeclarations, TuiColor,
+    TuiStyle, Value, VarMap, parse_color, resolve_tui_color,
 };
 
 /// `Dom<TuiExt>` — the full TUI document.

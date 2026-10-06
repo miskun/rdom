@@ -207,7 +207,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C10-CONTENT | `content` full grammar (quotes, `var()`, `counters()`, alt text) | |
+| C10-CONTENT | `content` full grammar (quotes, `var()`, `counters()`, alt text) | done |
 | C10-QUOTES | `quotes` | |
 | C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | |
 | C10-COUNTER-STYLE | `@counter-style` and `symbols()` | |
@@ -6012,3 +6012,27 @@ row comes from.
   passed before (a guard); `css_phase10/legacy_colon.rs` — both failed (the strict sheet warned). Green after.
   CSS-COVERAGE: the legacy row Missing → Supported, §3.16 5 / 1 / 4 / 6, total 183 / 18 / 61 / 45. No
   existing expectation changed (`extract_rejects_unsupported_pseudo_element` now uses `::grammar-error`).
+- 2026-10-13 — C10-CONTENT. Found: `content` took strings, `counter()` and (substituted) `attr()` only;
+  `counters()`, the `<quote>` keywords and alt text dropped the declaration; `var()` already worked (the
+  general substitution runs first — the coverage row was stale; pinned now). Checked the engines for
+  `content` on an element: none implements §2's `<content-list>` replacement (Chromium, Gecko and WebKit
+  replace an element only with an image; MDN: "you can't use it to replace a string in an element with
+  another string"), so the task's premise that Chromium paints strings there does not hold — rdom follows
+  the engines (computed, nothing generated; DIVERGENCES §2). Decisions: `Content` gains `Counters`,
+  `Quote(QuoteKind)` and `WithAlt { content, alt }` and becomes `#[non_exhaustive]` (Breaking);
+  `ContentContext` gets provided `counters()` / `quote()`. The quote depth is document-wide tree-order
+  state, so it lives in the counter walk (`CounterState::quote`, a `Cell`): a generated box's `<quote>`
+  items are kept on its computed style (`content_quotes`), count as counter ops (`has_ops`, `note_ops`, so
+  a moved depth recomputes its readers) and are replayed for kept subtrees (`replay_element`) — one
+  mechanism for both. An element's own `content` resolves with `generates: false` (no marks, no depth).
+  Marks are the English `quotes: auto` pair until C10-QUOTES. The alt text resolves to
+  `ComputedStyle::content_alt`, not painted (copy excludes generated content, as browsers do; rdom has
+  no accessibility tree to hand it to — consumers read the computed style). The UA sheet gains HTML's
+  `q::before` / `q::after`; a `content` string now serializes escaped. Red: rdom-style
+  `property_dispatch::content_tests` (3, new API — compile-red); `css_phase10/content.rs` — 6 of 8
+  failed (`["a b c"]` for `["“a ‘b’ c”"]`; `1 c` / `II d` for `2.1 c` / `II-II d`; no `‘3`; no depth
+  across elements; `content_alt` `None`), `var_substitutes_inside_content` and the element case passed
+  before (guards); `counter_tests::partial_cascades_replay_the_quote_depth` added. Green after. Mutations
+  (restored, touched): no quote replay → the replay test; quotes left out of `note_ops` → the replay test.
+  Changed expectation: `ua_total_rule_count` 168 → 170. CSS-COVERAGE: `content` Partial → Supported,
+  `counters()` Missing → Supported, §3.15 3 / 2 / 5 / 2, total 185 / 17 / 60 / 45.

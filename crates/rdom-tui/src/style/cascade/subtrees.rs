@@ -29,7 +29,7 @@ use super::walk::{
 };
 use super::{PropertyRegistry, document_color_scheme, document_viewport};
 use crate::ext::TuiExt;
-use crate::style::{ComputedStyle, Content, Stylesheet, TuiStyle, VarMap};
+use crate::style::{ComputedStyle, Stylesheet, TuiStyle, VarMap};
 
 /// Cascade (or, per `mode`, restyle) the subtrees at `roots`. Returns
 /// the roots of every subtree it recomputed, in the order it did: the
@@ -329,7 +329,9 @@ fn inline_uses_counters(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     false
 }
 
-/// Does `style` create, increment or read a counter? A `var()`
+/// Does `style` create, increment or read a counter, or hold a `<quote>`
+/// item (the quote depth runs in tree order like a counter, CSS
+/// Generated Content 3 §2.2)? A `var()`
 /// declaration counts when it is one of those properties (or `all`):
 /// only its substitution can tell.
 fn style_uses_counters(style: &TuiStyle) -> bool {
@@ -346,7 +348,7 @@ fn style_uses_counters(style: &TuiStyle) -> bool {
             .content
             .as_ref()
             .and_then(|c| c.as_specified())
-            .is_some_and(Content::uses_counters)
+            .is_some_and(|c| c.uses_counters() || c.uses_quotes())
 }
 
 /// Tree order (DOM §4.2.1) for two live nodes; equal only for the same node.

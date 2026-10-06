@@ -42,7 +42,8 @@ fn ua_total_rule_count() {
     // 167: the form controls' inherited-text reset, a 4-selector rule
     // (C9G-UA-LINE-HEIGHT, +4).
     // 168: HTML's `abbr[title]` dotted underline (C9G-DOCS, +1).
-    assert_eq!(ua.len(), 168);
+    // 170: HTML's `q::before` / `q::after` quotation marks (C10-CONTENT, +2).
+    assert_eq!(ua.len(), 170);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")

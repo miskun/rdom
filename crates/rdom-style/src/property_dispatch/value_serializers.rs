@@ -313,22 +313,41 @@ pub(super) fn serialize_css_string(s: &str) -> String {
 }
 
 pub(super) fn serialize_content(c: &Content) -> Option<String> {
-    match c {
-        Content::Str(s) => Some(format!("\"{s}\"")),
-        Content::Counter { name, style } => Some(match style {
-            crate::counters::CounterStyle::Decimal => format!("counter({name})"),
-            other => format!("counter({name}, {})", other.as_str()),
-        }),
+    fn style_arg(style: crate::counters::CounterStyle) -> String {
+        match style {
+            crate::counters::CounterStyle::Decimal => String::new(),
+            other => format!(", {}", other.as_str()),
+        }
+    }
+    Some(match c {
+        Content::Str(s) => serialize_css_string(s),
+        Content::Counter { name, style } => format!("counter({name}{})", style_arg(*style)),
+        Content::Counters {
+            name,
+            separator,
+            style,
+        } => format!(
+            "counters({name}, {}{})",
+            serialize_css_string(separator),
+            style_arg(*style)
+        ),
+        Content::Quote(kind) => kind.as_str().to_string(),
         Content::Concat(parts) => {
             let mut out = Vec::with_capacity(parts.len());
             for p in parts {
                 out.push(serialize_content(p)?);
             }
-            Some(out.join(" "))
+            out.join(" ")
         }
-        Content::None => Some("none".to_string()),
-        Content::Var(_) => None,
-    }
+        Content::WithAlt { content, alt } => format!(
+            "{} / {}",
+            serialize_content(content)?,
+            serialize_content(alt)?
+        ),
+        Content::None => "none".to_string(),
+        // `Content` is `#[non_exhaustive]`; `Var` has no specified form.
+        _ => return None,
+    })
 }
 
 pub(super) fn serialize_timing_function(f: &TimingFunction) -> String {

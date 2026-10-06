@@ -108,6 +108,8 @@ mod background_tests;
 #[cfg(test)]
 mod border_tests;
 #[cfg(test)]
+mod content_tests;
+#[cfg(test)]
 mod display_tests;
 #[cfg(test)]
 mod flex_tests;

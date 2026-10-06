@@ -1,4 +1,6 @@
-//! Counter state for the cascade walk (CSS Lists 3 §3.1).
+//! Counter state for the cascade walk (CSS Lists 3 §4), and the
+//! document's quote depth (CSS Generated Content 3 §2.2) — the two
+//! values generated content reads that run in tree order.
 //!
 //! A counter instance is created by `counter-reset` (or implicitly by
 //! an increment / read of a counter not in scope) on an element `E`
@@ -12,7 +14,7 @@ use std::rc::Rc;
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
-use crate::style::{ComputedStyle, CounterOp};
+use crate::style::{ComputedStyle, CounterOp, QuoteKind};
 
 #[derive(Debug, Clone)]
 struct Instance {
@@ -67,10 +69,17 @@ pub(super) fn takes_part(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     }
 }
 
-/// Does `style` create or increment a counter?
+/// Does `style` create or increment a counter, or move the quote depth
+/// (a `<quote>` item of generated content)?
 pub(super) fn has_ops(style: &ComputedStyle) -> bool {
-    !style.counter_reset.is_empty() || !style.counter_increment.is_empty()
+    !style.counter_reset.is_empty()
+        || !style.counter_increment.is_empty()
+        || !style.content_quotes.is_empty()
 }
+
+/// The quotation marks of each nesting level, outermost first: the
+/// English marks of `quotes: auto` (CSS Generated Content 3 §2.1).
+const QUOTES: [(&str, &str); 2] = [("\u{201c}", "\u{201d}"), ("\u{2018}", "\u{2019}")];
 
 /// Counter instances in creation order (later = innermost).
 #[derive(Debug, Default, Clone)]
@@ -84,8 +93,12 @@ pub(super) struct CounterState {
     /// cascade's: every counter value after it in tree order may differ,
     /// so the walk recomputes the elements after it that read one.
     changed: bool,
-    /// A counter was read since the last [`take_read`](Self::take_read).
+    /// A counter or the quote depth was read since the last
+    /// [`take_read`](Self::take_read).
     read: std::cell::Cell<bool>,
+    /// The quote depth (CSS Generated Content 3 §2.2): document-wide, in
+    /// tree order, moved by the `<quote>` items of generated content.
+    quote_depth: std::cell::Cell<u32>,
 }
 
 impl CounterState {
@@ -116,8 +129,10 @@ impl CounterState {
         if !self.exact || self.changed {
             return;
         }
-        fn ops(c: Option<&ComputedStyle>) -> (&[CounterOp], &[CounterOp]) {
-            c.map_or((&[], &[]), |c| (&c.counter_reset, &c.counter_increment))
+        fn ops(c: Option<&ComputedStyle>) -> (&[CounterOp], &[CounterOp], &[QuoteKind]) {
+            c.map_or((&[], &[], &[]), |c| {
+                (&c.counter_reset, &c.counter_increment, &c.content_quotes)
+            })
         }
         if ops(old) != ops(new) {
             self.changed = true;
@@ -168,10 +183,12 @@ impl CounterState {
         }
         if let Some(c) = &ops.before {
             self.enter(Some(id), &c.counter_reset, &c.counter_increment);
+            self.replay_quotes(&c.content_quotes);
         }
         children(self);
         if let Some(c) = &ops.after {
             self.enter(Some(id), &c.counter_reset, &c.counter_increment);
+            self.replay_quotes(&c.content_quotes);
         }
         self.exit(id);
     }
@@ -210,6 +227,45 @@ impl CounterState {
     /// scope.
     pub(super) fn exit(&mut self, element: NodeId) {
         self.instances.retain(|i| i.scope_parent != Some(element));
+    }
+
+    /// A kept box's `<quote>` items: their moves of the quote depth.
+    fn replay_quotes(&mut self, quotes: &[QuoteKind]) {
+        let depth = self.quote_depth.get_mut();
+        for q in quotes {
+            *depth = q.next_depth(*depth);
+        }
+    }
+
+    /// The text of a `<quote>` item at this point of the walk, moving
+    /// the quote depth (CSS Generated Content 3 §2.2): `open-quote` the
+    /// opening mark of the current level, `close-quote` the closing mark
+    /// of the level it returns to — nothing at depth 0, which it leaves —
+    /// and the `no-*` forms no mark. A level past the last pair uses the
+    /// last pair.
+    pub(super) fn quote(&self, kind: QuoteKind) -> &'static str {
+        self.read.set(true);
+        let depth = self.quote_depth.get();
+        self.quote_depth.set(kind.next_depth(depth));
+        let level = |d: u32| QUOTES[(d as usize).min(QUOTES.len() - 1)];
+        match kind {
+            QuoteKind::Open => level(depth).0,
+            QuoteKind::Close if depth > 0 => level(depth - 1).1,
+            _ => "",
+        }
+    }
+
+    /// Every instance of `name` in scope, outermost first — `counters()`
+    /// (CSS Lists 3 §4.3); a counter not in scope reads as one 0.
+    pub(super) fn values(&self, name: &str) -> Vec<i32> {
+        self.read.set(true);
+        let all: Vec<i32> = self
+            .instances
+            .iter()
+            .filter(|i| i.name == name)
+            .map(|i| i.value)
+            .collect();
+        if all.is_empty() { vec![0] } else { all }
     }
 
     /// The innermost instance of `name` in scope, or 0 (CSS Lists 3

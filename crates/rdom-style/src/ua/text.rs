@@ -155,6 +155,17 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         ),
         // Pure-inline (no specific style, just the Display hint).
         ("q", TuiStyle::new().display(Display::Inline)),
+        // HTML §15.3.6: `q::before { content: open-quote }
+        // q::after { content: close-quote }` — the marks come from
+        // `quotes` (CSS Generated Content 3 §2.2).
+        (
+            "q::before",
+            TuiStyle::new().content(crate::Content::Quote(crate::QuoteKind::Open)),
+        ),
+        (
+            "q::after",
+            TuiStyle::new().content(crate::Content::Quote(crate::QuoteKind::Close)),
+        ),
         ("output", TuiStyle::new().display(Display::Inline)),
         ("time", TuiStyle::new().display(Display::Inline)),
         ("data", TuiStyle::new().display(Display::Inline)),

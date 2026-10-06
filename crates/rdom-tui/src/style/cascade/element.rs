@@ -9,7 +9,7 @@ use crate::layout::TextDirection;
 use crate::style::{ComputedStyle, PseudoElementTarget};
 
 use super::apply::finalize_bfc_formation;
-use super::content::resolve_content_on;
+use super::content::{declared_content, resolve_onto};
 use super::decoration::finalize_used_border;
 use super::inherit::inherit_inheritable_from;
 use super::ladder::{Declarations, apply_cascade_ladder, prepare};
@@ -109,11 +109,13 @@ pub(super) fn compute_element_style(
         &working.counter_increment,
     );
 
-    // Host element's own `content` property. Normally `None`; authors
-    // don't typically set `content` on a real element (CSS restricts it
-    // to pseudo-elements) but we allow it for flexibility.
-    let counter_lookup = |name: &str| counters.value(name);
-    working.content = resolve_content_on(&working, plan, decls, &counter_lookup).unwrap_or(None);
+    // The element's own `content` (CSS Generated Content 3 §2): computed
+    // and kept, but it generates nothing — no engine replaces an
+    // element's children with a `<content-list>` (DIVERGENCES §2) — so
+    // its `<quote>` items move no quote depth.
+    if let Some(declared) = declared_content(plan, decls) {
+        resolve_onto(&mut working, &declared, counters, false);
+    }
 
     // BFC formation predicate (CSS 2.1 §9.4.1). Computed AFTER the
     // cascade ladder so it reads the final values of `flow`,

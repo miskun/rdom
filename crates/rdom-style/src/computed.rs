@@ -313,6 +313,15 @@ pub struct ComputedStyle {
     /// Resolved `content:` value for this element or pseudo-element.
     /// `None` when `content: none;` or no content was specified.
     pub content: Option<String>,
+    /// The resolved alt text of `content` (CSS Generated Content 3 §2:
+    /// `content: "★" / "star"`) — the content's alternative for speech
+    /// and other non-visual media. Never painted. `None` without one.
+    pub content_alt: Option<String>,
+    /// The `<quote>` items of a pseudo-element's `content`, in order
+    /// (§2.2) — what its box does to the document's quote depth, kept so
+    /// a partial cascade can replay it. Empty for an element, whose own
+    /// `content` generates nothing.
+    pub content_quotes: Vec<crate::QuoteKind>,
 
     // ── Positioning (M2) ─────────────────────────────────────────────
     /// `position` keyword. Default `Static`. Non-inheriting.
@@ -526,6 +535,8 @@ impl ComputedStyle {
             caret_color: CaretColor::Auto,
             caret_text_color: CaretTextColor::Auto,
             content: None,
+            content_alt: None,
+            content_quotes: Vec::new(),
             position: crate::layout::Position::Static,
             top: crate::layout::Length::Auto,
             right: crate::layout::Length::Auto,

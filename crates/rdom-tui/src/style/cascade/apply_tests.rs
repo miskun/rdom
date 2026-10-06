@@ -270,6 +270,8 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         caret_text_color,
         // Generated content only; an element's own is always `None`.
         content: _,
+        content_alt: _,
+        content_quotes: _,
         position,
         top,
         right,
