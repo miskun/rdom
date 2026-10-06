@@ -81,8 +81,10 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 - **Block model** — `display` (the CSS Display 3 keywords: `contents`,
   `flow-root`, the two-keyword forms, `list-item`), `visibility`, `flex-direction` (+ `-reverse`), `flex-wrap`, `flex-flow`, `justify-content`, `align-content`, `align-items`, `align-self`, `justify-items`, `justify-self`, the `place-*` shorthands, `flex`, `flex-grow`,
   `flex-shrink`, `flex-basis`, `order`,
-  `white-space` (with `white-space-collapse` / `text-wrap-mode`), `line-height`,
-  `letter-spacing`, `word-spacing`,
+  `white-space` (with `white-space-collapse` / `text-wrap-mode`), `text-wrap`
+  (with `text-wrap-style`), `text-align` (with `text-align-all` /
+  `text-align-last`), `text-justify`, `text-indent`, `text-transform`,
+  `tab-size`, `line-height`, `letter-spacing`, `word-spacing`,
   `vertical-align`, `word-break`,
   `overflow-wrap` / `word-wrap`, `line-break`, `hyphens`, `overflow` (one or two values, `clip` included), `overflow-x`, `overflow-y`,
   `overflow-block`, `overflow-inline`, `overflow-clip-margin`, `text-overflow`, `line-clamp`

@@ -94,8 +94,10 @@ pub struct InlineFragment {
 
 impl InlineFragment {
     /// A text fragment: `text` from byte `source_byte_offset` of
-    /// `text_node`, owned by `node`, at `x` on its line's baseline row —
-    /// one row tall and as wide as `text`'s visible cells.
+    /// `text_node`, owned by `node`, at `x` on its line's top row (`y`
+    /// 0, the baseline of a one-row line; set `y` to its inline box's
+    /// baseline row in a taller line) — one row tall and as wide as
+    /// `text`'s visible cells.
     pub fn text(
         node: NodeId,
         text_node: NodeId,

@@ -116,15 +116,20 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .bg(named::YELLOW)
                 .fg(named::BLACK),
         ),
-        // Abbreviation — browser default is dotted underline + tooltip
-        // on hover. TUI: solid underline (closest fidelity) + muted fg
-        // so the abbreviation reads as secondary text.
+        // Abbreviation — muted fg (rdom's) so it reads as secondary
+        // text; HTML §15.3.4's `abbr[title] { text-decoration: dotted
+        // underline }` marks one with an expansion (SGR `4:4`, a solid
+        // underline on a terminal without styled underlines). Browsers
+        // show the title on hover; rdom has no tooltip.
         (
             "abbr",
+            TuiStyle::new().display(Display::Inline).fg(TEXT_MUTED),
+        ),
+        (
+            "abbr[title]",
             TuiStyle::new()
-                .display(Display::Inline)
-                .text_decoration(TextDecoration::Underline)
-                .fg(TEXT_MUTED),
+                .text_decoration_line(crate::layout::TextDecorationLine::UNDERLINE)
+                .text_decoration_style(crate::layout::TextDecorationStyle::Dotted),
         ),
         // Small text — browser renders at reduced font size; the TUI
         // doesn't shrink, so we substitute muted fg.

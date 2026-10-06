@@ -17,14 +17,12 @@ use crate::style::{ComputedStyle, Modifier};
 /// property against that table (`STYLE-INHERITS-TWO-SOURCES-1`).
 pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &ComputedStyle) {
     working.fg = parent.fg;
-    // Modifiers: copy only the inheriting bits (bold / italic).
-    // Pre-T8 also inherited DIM (gone, replaced by `color: gray`).
-    // Pre-T10 also inherited UNDERLINED via the modifier mask, which
-    // diverged from CSS spec (`text-decoration` is non-inheriting).
-    // T10 dropped the public `.underline()` setter and lifted
-    // UNDERLINED out of this mask — children of an element with
-    // `text-decoration: underline` now render without an underline,
-    // matching the web platform.
+    // Modifiers: copy only the font's bits (bold / italic), which
+    // `finalize_font` derives again from the inherited font. The
+    // decorations are not modifiers: `text-decoration` does not inherit,
+    // it propagates (CSS Text Decoration 4 §2.1) — an underlined
+    // element's descendants' text is underlined through
+    // `applied_decorations` (`cascade/text_decoration.rs`), not here.
     let inherit_mods = Modifier::BOLD | Modifier::ITALIC;
     working.modifiers = parent.modifiers & inherit_mods;
     // The CSS Text properties all inherit (CSS Text 3 / 4); display

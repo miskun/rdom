@@ -415,6 +415,21 @@ What's supported:
   that take up room and wrap; `nowrap` collapses but never soft-wraps.
   Inherits.
 - **`<br>`** — hard break.
+- **`text-align`** (CSS Text 3 §6; with `text-align-all` / `-last` and
+  `text-justify`): `start` / `end` / `left` / `right` / `center`,
+  `justify` (spaces widened in whole cells), `justify-all`,
+  `match-parent`.
+- **`text-indent`** (CSS Text 3 §8.1): the first line (`each-line`: also
+  each after a forced break) starts that many cells in, `hanging`
+  inverts it; `2ch` / `2` work, `em` does not.
+- **`text-transform`** (CSS Text 3 §2.1): `uppercase` / `lowercase` /
+  `capitalize`, `full-width`, `full-size-kana`; the caret, selection and
+  copy work in the DOM's text.
+- **`tab-size`** (CSS Text 3 §4.2): a preserved tab advances to the next
+  stop (initial 8 cells).
+- **`text-wrap`** (CSS Text 4 §6.1; with `text-wrap-mode` /
+  `text-wrap-style`): `wrap` / `nowrap`, `balance` (lines of even
+  length), `pretty`, `stable`.
 - **`line-height`** in whole rows, a fraction floored (`1.5` is one row,
   `2.5` two; CSS Inline 3 §5.1): every inline box and the block's strut
   add their half-leading around the glyph row; `lh` / `rlh` follow it.

@@ -351,6 +351,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-style`
 
+- **`abbr[title]` is underlined dotted, as HTML's UA sheet has it** (HTML §15.3.4): an `<abbr>` with a title takes `text-decoration: dotted underline` (SGR `4:4`, solid where the terminal has no styled underlines); one without a title is no longer underlined. Both keep the muted color. (C9G-DOCS)
 - **Form controls reset the inherited text properties** (HTML §15.5, Chromium's and Gecko's UA sheets): `input, textarea, select, button` get `line-height: normal`, `text-transform: none`, `text-indent: 0`, `text-align: start` and a normal weight and style, so a page's `line-height: 2` no longer gives an input a scrollable second row or a 4-row textarea two lines. (C9G-UA-LINE-HEIGHT)
 - **A shorthand's `unset` is each longhand's** (CSS Cascade 4 §7.3.3): `line-clamp: unset` (and `all: unset`) inherits `block-ellipsis` and resets the others. (C8-LINE-CLAMP)
 - **`TuiStyle::declared_count` counts every declaration**, derived from the property table (it skipped `z-index`, `opacity`, `position`, the insets, `box-shadow`, transitions, counters and flow-relative declarations). (C6G-DECLARED-COUNT)

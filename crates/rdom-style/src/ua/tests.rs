@@ -41,7 +41,8 @@ fn ua_total_rule_count() {
     // 163: the `dir` attribute's `direction` rules (C5-WRITING, +2).
     // 167: the form controls' inherited-text reset, a 4-selector rule
     // (C9G-UA-LINE-HEIGHT, +4).
-    assert_eq!(ua.len(), 167);
+    // 168: HTML's `abbr[title]` dotted underline (C9G-DOCS, +1).
+    assert_eq!(ua.len(), 168);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")
@@ -315,4 +316,31 @@ fn system_colors_match_the_ua_chrome() {
     assert_eq!(bg("option[selected]"), lit(SystemColor::SelectedItem));
     assert_eq!(fg("option[selected]"), lit(SystemColor::SelectedItemText));
     assert_eq!(fg(":disabled"), lit(SystemColor::GrayText));
+}
+
+/// HTML §15.3.4: `abbr[title], acronym[title] { text-decoration: dotted
+/// underline }` — an abbreviation with an expansion is underlined dotted
+/// (a terminal without styled underlines draws it solid, the backend's
+/// fallback); one without a title is not underlined. rdom's `abbr` keeps
+/// its muted color.
+#[test]
+fn an_abbreviation_with_a_title_is_underlined_dotted() {
+    use crate::layout::{TextDecorationLine, TextDecorationStyle};
+    let s = Stylesheet::new();
+    let ua: std::collections::HashMap<String, &Rule> = s
+        .rules()
+        .iter()
+        .filter(|r| r.origin == RuleOrigin::UserAgent)
+        .map(|r| (r.source_text.clone(), r))
+        .collect();
+    let titled = ua.get("abbr[title]").expect("an `abbr[title]` rule");
+    assert_eq!(
+        titled.style.text_decoration.line,
+        Some(Value::Specified(TextDecorationLine::UNDERLINE))
+    );
+    assert_eq!(
+        titled.style.text_decoration.style,
+        Some(Value::Specified(TextDecorationStyle::Dotted))
+    );
+    assert_eq!(ua["abbr"].style.text_decoration.line, None);
 }

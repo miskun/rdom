@@ -38,7 +38,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 6 | Display, visibility, flexbox, box alignment | done 2026-10-08 (both gates; 28 gate fixes `C6G-*`; their re-review rides with the Phase 7 gate) |
 | 7 | Grid | done 2026-10-09 (both gates; 15 gate fixes `C7G-*`; their re-review rides with the Phase 8 gate) |
 | 8 | Positioning, floats, overflow, scrolling | done 2026-10-10 (both gates; 15 gate fixes `C8G-*`; their re-review rides with the Phase 9 gate) |
-| 9 | Inline text and decoration | gates run 2026-10-11; `C9G-*` fixes in progress |
+| 9 | Inline text and decoration | done 2026-10-12 (both gates; 14 gate fixes `C9G-*`; their re-review rides with the Phase 10 gate) |
 | 10 | Lists, counters, generated content, pseudo-elements | |
 | 11 | Selectors | |
 | 12 | Transitions, animations, user interface | |
@@ -5973,4 +5973,28 @@ row comes from.
   `ImportantMask::WHITE_SPACE`. Red: `css_phase9/api_types.rs` (the prelude-only module, `justify-all`
   through the builder, the typed keywords, the mask) did not compile (21 errors: the prelude names, the
   new types, the mask); green after. No existing expectation or snapshot changed.
+- 2026-10-12 — C9G-DOCS (API N7, B2's `SIZE-1` refresh; architect N12, N13's comment). CSS-COVERAGE: priority
+  rows 23 (`text-transform`) and 24 (`text-indent`) marked Shipped, row 23's "copy keeps the DOM text, as
+  browsers do" corrected (§2.1 and Gecko keep it; Blink and WebKit copy the transformed text — DIVERGENCES
+  §1); the "Inherited-property set" row lists the whole `inherits()` table (it named 7 and called that
+  complete). READMEs: rdom-tui's "Inline formatting" lists `text-align` (with `-all` / `-last`,
+  `text-justify`), `text-indent`, `text-transform`, `tab-size`, `text-wrap`; rdom-style's property list gains
+  the same; the root README's layout line gains `text-wrap` and the spacing properties.
+  `InlineFragment::text`'s doc says the line's top row (`y` 0), not its baseline row. The stale comments:
+  `inherit.rs` (children of an underlined element "render without an underline" — they are underlined by
+  propagation) and the UA `abbr` comment ("solid underline, closest fidelity"), which was a stale rule too —
+  decided to follow HTML §15.3.4: `abbr[title] { text-decoration: dotted underline }` (a new UA rule; `abbr`
+  keeps rdom's muted color and loses the underline when it has no title). Red: rdom-style
+  `ua::tests::an_abbreviation_with_a_title_is_underlined_dotted` (no `abbr[title]` rule); green after;
+  `ua_total_rule_count` 167 → 168. `SIZE-1` recounted by the gate test's own rule over every production
+  file: 21 between 500 and 575 (`tui_style/builder/mod.rs` 511 and `render/virtual_screen/tests/terminal.rs`
+  524 added, `apply.rs` gone at 472, every figure current), none past 575, so no split. No snapshot changed
+  (no demo has an `<abbr>`).
+- 2026-10-12 — Phase 9 closed. The 14 gate fixes landed in two batches — A (correctness and cost):
+  C9G-TRANSFORM-BREAK, -SNAP-COVER, -ONE-BASELINE, -UA-LINE-HEIGHT, -LINE-HEIGHT-FLOOR, -LETTER-SPACING,
+  -PACKER-ALLOC, -CLEARANCE-COST, -MISC-CORRECTNESS; B (API and docs): C9G-PSEUDO-CLAMP, -SGR-CAPS,
+  -UPGRADE-RANK, -TYPES, -DOCS. Open for the Phase 10 gate's re-review: list markers riding a descendant's
+  line are measured by raw width (C10-LIST-ITEM's row); a `calc()` `text-indent` still clones per inheriting
+  element; Windows Terminal is not detected (no version in its environment), so its SGR extensions need
+  `App::with_sgr_capabilities`.
 
