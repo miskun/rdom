@@ -73,7 +73,7 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new().content(Content::Concat(vec![
                 Content::Counter {
                     name: "list-item".into(),
-                    style: CounterStyle::Decimal,
+                    style: CounterStyle::decimal(),
                 },
                 Content::Str(". ".into()),
             ])),

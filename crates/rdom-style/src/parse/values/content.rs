@@ -98,7 +98,7 @@ fn parse_counters(args: &[Token]) -> Option<(Content, usize)> {
 /// the tokens used, the `)` included.
 fn trailing_style(rest: &[Token]) -> Option<(CounterStyle, usize)> {
     match rest.first()? {
-        Token::RParen => Some((CounterStyle::Decimal, 1)),
+        Token::RParen => Some((CounterStyle::decimal(), 1)),
         Token::Comma => {
             let Token::Ident(style) = rest.get(1)? else {
                 return None;

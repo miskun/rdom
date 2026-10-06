@@ -2885,7 +2885,7 @@ fn counters_reset_increment_and_read_in_tree_order() {
             TuiStyle::new().content(Content::Concat(vec![
                 Content::Counter {
                     name: "sec".into(),
-                    style: CounterStyle::UpperRoman,
+                    style: CounterStyle::named("upper-roman"),
                 },
                 Content::Str(". ".into()),
             ])),
@@ -2894,7 +2894,7 @@ fn counters_reset_increment_and_read_in_tree_order() {
             "doc::after",
             TuiStyle::new().content(Content::Counter {
                 name: "sec".into(),
-                style: CounterStyle::Decimal,
+                style: CounterStyle::decimal(),
             }),
         );
     dom.cascade(&sheet);
@@ -3033,7 +3033,7 @@ fn pseudo_element_counter_ops_apply() {
                 }])
                 .content(Content::Counter {
                     name: "sec".into(),
-                    style: CounterStyle::Decimal,
+                    style: CounterStyle::decimal(),
                 }),
         );
     dom.cascade(&sheet);

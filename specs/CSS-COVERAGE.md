@@ -83,7 +83,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 16 | 0 | 0 | 5 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 4 | 0 | 0 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 3 | 0 | 0 | 2 | 5 |
-| 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 4 | 2 | 4 | 2 | 12 |
+| 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 5 | 1 | 4 | 2 | 12 |
 | 3.16 Pseudo-elements (Pseudo-Elements 4, Selectors 4) | 5 | 1 | 4 | 6 | 16 |
 | 3.17 Selectors (Selectors 4) | 16 | 2 | 16 | 4 | 38 |
 | 3.18 Transitions and animations (Transitions 1/2, Animations 1/2, Easing 1/2) | 3 | 3 | 4 | 0 | 10 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **186** | **17** | **59** | **45** | **307** |
+| **Total** | **187** | **16** | **59** | **45** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 76 rows Partial / Missing (C10-LEGACY-COLON shipped the single-colon pseudo-elements, C10-CONTENT `content` and `counters()`, C10-QUOTES `quotes`; C9-FONT shipped `font-weight`, `font-style` and `font`; C9-DECORATION shipped the four text decoration rows; C9-VERTICAL-ALIGN shipped `vertical-align` on inline content; C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 75 rows Partial / Missing (C10-LEGACY-COLON shipped the single-colon pseudo-elements, C10-CONTENT `content` and `counters()`, C10-QUOTES `quotes`, C10-COUNTERS the counter styles; C9-FONT shipped `font-weight`, `font-style` and `font`; C9-DECORATION shipped the four text decoration rows; C9-VERTICAL-ALIGN shipped `vertical-align` on inline content; C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
 Headline: rdom parses **260 property names** (`property_names()`: 192 in the table and 68 flow-relative ones, after Phase 9 and C9G-LETTER-SPACING). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gap a web developer hits first is `@media`.
 
@@ -476,7 +476,7 @@ dropped. The audit's six, with where each stands:
 | `counter-reset` | Partial | `none` / `<ident> <integer>?` list; `reversed(<ident>)` rejected. | No | `V/content.rs::parse_counter_ops` |
 | `counter-increment` | Supported | `none` / `<ident> <integer>?` list. | — | `V/content.rs::parse_counter_ops` |
 | `counter-set` | Missing | Set without a new scope. | Yes | `DISP`, `CASC/counters.rs` |
-| `counter()` styles | Partial | `decimal`, `lower-alpha` / `lower-latin`, `upper-alpha` / `upper-latin`, `lower-roman`, `upper-roman`; missing `disc` / `circle` / `square` / `disclosure-*`, `decimal-leading-zero`, `lower-greek`, `none`, the other predefined styles. | No | `rdom-style/src/counters.rs::CounterStyle` |
+| `counter()` styles | Supported | Every simple predefined style of CSS Counter Styles 3 §6 (numeric in every script, alphabetic, additive, symbolic, fixed), `none`, any name (undefined: `decimal`); one table-driven generator with range, fallback, `negative`, `pad`, a 60-code-point cap. The complex styles of §7 format as `decimal` (DIVERGENCES §2) (C10-COUNTERS). | — | `rdom-style/src/counters/` |
 | `counters()` | Supported | `counters(<name>, <string>[, <counter-style>])`: every counter of the name in scope, outermost first, joined (C10-CONTENT). | — | `V/content.rs`, `CASC/counters.rs` |
 | `@counter-style` / `symbols()` | Missing | Author counter styles. | Blanket | `AT`, `rdom-style/src/counters.rs` |
 | `list-style-type` / `list-style-position` / `list-style` | Missing | Marker type / position. | Yes | `DISP`, `CASC` |

@@ -313,15 +313,16 @@ pub(super) fn serialize_css_string(s: &str) -> String {
 }
 
 pub(super) fn serialize_content(c: &Content) -> Option<String> {
-    fn style_arg(style: crate::counters::CounterStyle) -> String {
-        match style {
-            crate::counters::CounterStyle::Decimal => String::new(),
-            other => format!(", {}", other.as_str()),
+    fn style_arg(style: &crate::counters::CounterStyle) -> String {
+        if style.is_decimal() {
+            String::new()
+        } else {
+            format!(", {}", style.name())
         }
     }
     Some(match c {
         Content::Str(s) => serialize_css_string(s),
-        Content::Counter { name, style } => format!("counter({name}{})", style_arg(*style)),
+        Content::Counter { name, style } => format!("counter({name}{})", style_arg(style)),
         Content::Counters {
             name,
             separator,
@@ -329,7 +330,7 @@ pub(super) fn serialize_content(c: &Content) -> Option<String> {
         } => format!(
             "counters({name}, {}{})",
             serialize_css_string(separator),
-            style_arg(*style)
+            style_arg(style)
         ),
         Content::Quote(kind) => kind.as_str().to_string(),
         Content::Concat(parts) => {

@@ -125,6 +125,12 @@ pub trait ContentContext {
         let _ = kind;
         String::new()
     }
+    /// `value` in counter style `style` (CSS Counter Styles 3 §3.1). By
+    /// default among the predefined styles; the cascade resolves the
+    /// author's `@counter-style` rules too.
+    fn format_counter(&self, value: i32, style: &crate::counters::CounterStyle) -> String {
+        style.format(value)
+    }
 }
 
 impl ContentContext for std::collections::HashMap<String, crate::CustomValue> {
@@ -171,7 +177,9 @@ impl Content {
             Content::None => {}
             Content::Str(s) => out.push_str(s),
             Content::Var(name) => out.push_str(&ctx.var(name).unwrap_or_default()),
-            Content::Counter { name, style } => out.push_str(&style.format(ctx.counter(name))),
+            Content::Counter { name, style } => {
+                out.push_str(&ctx.format_counter(ctx.counter(name), style))
+            }
             Content::Counters {
                 name,
                 separator,
@@ -181,7 +189,7 @@ impl Content {
                     if i > 0 {
                         out.push_str(separator);
                     }
-                    out.push_str(&style.format(v));
+                    out.push_str(&ctx.format_counter(v, style));
                 }
             }
             Content::Quote(kind) => out.push_str(&ctx.quote(*kind)),

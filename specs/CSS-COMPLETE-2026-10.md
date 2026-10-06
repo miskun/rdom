@@ -209,7 +209,7 @@ row comes from.
 |---|---|---|
 | C10-CONTENT | `content` full grammar (quotes, `var()`, `counters()`, alt text) | done |
 | C10-QUOTES | `quotes` | done |
-| C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | |
+| C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | partial — the predefined styles landed; `reversed()`, `counter-set`, the scoping rules and the HTML list-item counter are the next commit |
 | C10-COUNTER-STYLE | `@counter-style` and `symbols()` | |
 | C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | |
 | C10-FIRST | `::first-line` / `::first-letter` | |
@@ -6051,3 +6051,25 @@ row comes from.
   Mutations (restored, touched): no `match-parent` computation → the match-parent test; no language →
   the language test. Changed expectations: `canonical_values` and `every_property_has_important_setter`
   gain `quotes`. CSS-COVERAGE: `quotes` Missing → Supported, §3.15 4 / 2 / 4 / 2, total 186 / 17 / 59 / 45.
+- 2026-10-13 — C10-COUNTERS, part 1 of 2 (the counter styles). Found: `CounterStyle` was a closed enum of
+  five styles formatted by hand-written arms; any other name dropped the declaration. Decision, table-driven
+  and shared with C10-COUNTER-STYLE: every style is a `CounterStyleRule` — the descriptors of an
+  `@counter-style` rule (`System`, symbols, additive symbols, `negative`, `prefix`, `suffix`, `range`, `pad`,
+  `fallback`, `speak-as`) — and the 44 simple predefined styles of §6 are a table of such rules
+  (`counters/predefined.rs`, built once behind a `OnceLock`); one generator (`counters/generate.rs`, §3.1)
+  resolves `extends` chains (a cycle or a missing base: `decimal`), checks the range (the system's `auto`
+  range by default), runs the system's algorithm in `i64` (so `i32::MIN` has a magnitude), pads (the
+  negative sign counting, §3.6), signs, and falls back (§3.7; a cycle or `MAX_FALLBACK_DEPTH` = 8 ends at
+  `decimal`). Bound: `MAX_REPRESENTATION_CHARS` = 60 (§3.1's floor for what a UA must support) — `symbolic`
+  and `additive` check the length before building anything, `pad` never pads past it, and a longer result
+  goes to the fallback, so no value allocates more than the cap. `CounterStyle` is now a name
+  (`Name(Arc<str>)`, `#[non_exhaustive]`; Breaking): predefined names lowercase on parse (§3), others keep
+  their case, the CSS-wide keywords and `default` are rejected, an undefined name formats as `decimal`, `none`
+  as nothing. Lookup goes through `CounterStyleLookup` (`Predefined` here; the cascade's author rules next
+  item) and `ContentContext::format_counter`, which the cascade overrides with the box's direction
+  (`disclosure-closed` is `◂` under `rtl`). §7's complex styles stay undefined (DIVERGENCES §2). Red:
+  `css_phase10/counters.rs` — both failed on HEAD (the strict sheet rejected `lower-greek`,
+  `disclosure-closed`, …); rdom-style `counters::tests` (7, new API — compile-red). Green after. Mutation
+  (restored, touched): `pad` not counting the negative sign → `numeric_styles_write_positional_digits`
+  (`-07`). No existing expectation changed (two cascade tests build `CounterStyle::named("upper-roman")` /
+  `decimal()` for the old variants).

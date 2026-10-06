@@ -24,6 +24,9 @@ pub(super) struct ElementContext<'a> {
     /// `quotes: auto` reads (§2.1).
     pub quotes: &'a rdom_style::Quotes,
     pub lang: Option<&'a str>,
+    /// The box's `direction` is `rtl` (`disclosure-closed` points along
+    /// it, CSS Counter Styles 3 §6.3).
+    pub rtl: bool,
     /// The box generates its content — a `::before` / `::after` — so its
     /// `<quote>` items take part in the quote depth (CSS Generated
     /// Content 3 §2.2). An element's own `content` generates nothing
@@ -41,6 +44,9 @@ impl ContentContext for ElementContext<'_> {
     }
     fn counters(&self, name: &str) -> Vec<i32> {
         self.counters.values(name)
+    }
+    fn format_counter(&self, value: i32, style: &rdom_style::CounterStyle) -> String {
+        style.format_in(value, self.rtl)
     }
     fn quote(&self, kind: QuoteKind) -> String {
         if !self.generates {
@@ -84,6 +90,7 @@ pub(super) fn resolve_onto(
         counters,
         quotes: &working.quotes,
         lang,
+        rtl: working.text_direction == crate::layout::TextDirection::Rtl,
         generates,
     };
     let content = declared.resolve(&ctx);
