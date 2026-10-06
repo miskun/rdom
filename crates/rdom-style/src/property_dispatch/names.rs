@@ -189,6 +189,10 @@ const PROPERTY_NAMES: &[&str] = &[
     "tab-size",
     "text-transform",
     "text-indent",
+    "text-align",
+    "text-align-all",
+    "text-align-last",
+    "text-justify",
     // Writing modes (CSS Writing Modes 4)
     "direction",
     "writing-mode",

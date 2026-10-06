@@ -80,6 +80,6 @@ pub use sizing::{
     MinSize, Size, valid_flex_factor,
 };
 pub use text::{
-    Hyphens, LineBreak, OverflowWrap, TabSize, TextCase, TextIndent, TextStyle, TextTransform,
-    TextWrapMode, WhiteSpace, WhiteSpaceCollapse, WordBreak,
+    Hyphens, LineBreak, OverflowWrap, TabSize, TextAlign, TextAlignLast, TextCase, TextIndent,
+    TextJustify, TextStyle, TextTransform, TextWrapMode, WhiteSpace, WhiteSpaceCollapse, WordBreak,
 };

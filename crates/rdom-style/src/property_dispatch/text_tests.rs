@@ -336,3 +336,100 @@ fn text_indent_takes_a_length_and_its_keywords() {
     }
     assert!(inherits("text-indent"));
 }
+
+/// CSS Text 3 §6.1–§6.4: `text-align` is the shorthand of
+/// `text-align-all` and `text-align-last` — a value other than
+/// `justify-all` / `match-parent` sets `text-align-all` and resets
+/// `text-align-last` to `auto`; `text-justify` takes `distribute` as a
+/// legacy alias of `inter-character`; all inherit.
+#[test]
+fn text_align_is_the_shorthand_of_all_and_last() {
+    use crate::layout::{TextAlign, TextAlignLast, TextJustify};
+    let longhands = |style: &TuiStyle| {
+        let all = match &style.text.text_align_all {
+            Some(Value::Specified(a)) => Some(*a),
+            _ => None,
+        };
+        let last = match &style.text.text_align_last {
+            Some(Value::Specified(l)) => Some(*l),
+            _ => None,
+        };
+        (all, last)
+    };
+    for (text, all, last, out) in [
+        ("start", TextAlign::Start, TextAlignLast::Auto, "start"),
+        ("CENTER", TextAlign::Center, TextAlignLast::Auto, "center"),
+        (
+            "justify",
+            TextAlign::Justify,
+            TextAlignLast::Auto,
+            "justify",
+        ),
+        (
+            "justify-all",
+            TextAlign::Justify,
+            TextAlignLast::Justify,
+            "justify-all",
+        ),
+        (
+            "match-parent",
+            TextAlign::MatchParent,
+            TextAlignLast::MatchParent,
+            "match-parent",
+        ),
+    ] {
+        let mut style = TuiStyle::new();
+        set("text-align", text, &mut style).unwrap_or_else(|e| panic!("{text}: {e:?}"));
+        assert_eq!(longhands(&style), (Some(all), Some(last)), "{text}");
+        assert_eq!(
+            serialize("text-align", &style).as_deref(),
+            Some(out),
+            "{text}"
+        );
+    }
+    let mut style = TuiStyle::new();
+    set("text-align", "left", &mut style).unwrap();
+    set("text-align-last", "right", &mut style).unwrap();
+    assert_eq!(serialize("text-align", &style), None);
+    assert_eq!(serialize("text-align-all", &style).as_deref(), Some("left"));
+    assert_eq!(
+        serialize("text-align-last", &style).as_deref(),
+        Some("right")
+    );
+    for (text, value) in [
+        ("auto", TextJustify::Auto),
+        ("none", TextJustify::None),
+        ("inter-word", TextJustify::InterWord),
+        ("inter-character", TextJustify::InterCharacter),
+        ("distribute", TextJustify::InterCharacter),
+    ] {
+        let mut style = TuiStyle::new();
+        set("text-justify", text, &mut style).unwrap();
+        assert_eq!(
+            style.text.text_justify,
+            Some(Value::Specified(value)),
+            "{text}"
+        );
+    }
+    for (name, bad) in [
+        ("text-align", "auto"),
+        ("text-align", "left right"),
+        ("text-align-all", "justify-all"),
+        ("text-align-last", "justify-all"),
+        ("text-justify", "inter-ideograph"),
+    ] {
+        assert_eq!(
+            set(name, bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{name}: {bad}"
+        );
+    }
+    for name in [
+        "text-align",
+        "text-align-all",
+        "text-align-last",
+        "text-justify",
+    ] {
+        assert!(inherits(name), "{name}");
+    }
+}

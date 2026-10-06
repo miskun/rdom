@@ -1,6 +1,7 @@
 //! The CSS Text setters of the `TuiStyle` builder (CSS Text 3 / 4):
 //! `white-space` and its longhands, `word-break`, `overflow-wrap`,
-//! `line-break`, `hyphens`, `tab-size`, `text-transform`, `text-indent`.
+//! `line-break`, `hyphens`, `tab-size`, `text-transform`, `text-indent`, `text-align` and its longhands,
+//! `text-justify`.
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
@@ -74,6 +75,50 @@ impl TuiStyle {
         line_break_important,
         LINE_BREAK,
         crate::layout::LineBreak
+    );
+    /// Set the `text-align` shorthand to `v` (CSS Text 3 §6.1):
+    /// `text-align-all`, and `text-align-last` reset to `auto` — both
+    /// `match-parent` for `MatchParent`. Chainable.
+    pub fn text_align(self, v: crate::layout::TextAlign) -> Self {
+        let last = if v == crate::layout::TextAlign::MatchParent {
+            crate::layout::TextAlignLast::MatchParent
+        } else {
+            crate::layout::TextAlignLast::Auto
+        };
+        self.text_align_all(v).text_align_last(last)
+    }
+
+    /// Like `text_align` but also marks the declaration `!important`.
+    pub fn text_align_important(self, v: crate::layout::TextAlign) -> Self {
+        let last = if v == crate::layout::TextAlign::MatchParent {
+            crate::layout::TextAlignLast::MatchParent
+        } else {
+            crate::layout::TextAlignLast::Auto
+        };
+        self.text_align_all_important(v)
+            .text_align_last_important(last)
+    }
+
+    text_setter!(
+        "text-align-all",
+        text_align_all,
+        text_align_all_important,
+        TEXT_ALIGN_ALL,
+        crate::layout::TextAlign
+    );
+    text_setter!(
+        "text-align-last",
+        text_align_last,
+        text_align_last_important,
+        TEXT_ALIGN_LAST,
+        crate::layout::TextAlignLast
+    );
+    text_setter!(
+        "text-justify",
+        text_justify,
+        text_justify_important,
+        TEXT_JUSTIFY,
+        crate::layout::TextJustify
     );
     text_setter!(
         "text-indent",

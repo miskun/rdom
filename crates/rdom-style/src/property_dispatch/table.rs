@@ -142,6 +142,9 @@ define_fields! {
     TabSize => text.tab_size : TAB_SIZE,
     TextTransform => text.text_transform : TEXT_TRANSFORM,
     TextIndent => text.text_indent : TEXT_INDENT,
+    TextAlignAll => text.text_align_all : TEXT_ALIGN_ALL,
+    TextAlignLast => text.text_align_last : TEXT_ALIGN_LAST,
+    TextJustify => text.text_justify : TEXT_JUSTIFY,
     UserSelect => user_select : USER_SELECT,
     PointerEvents => pointer_events : POINTER_EVENTS,
     Visibility => visibility : VISIBILITY,
@@ -367,6 +370,10 @@ pub fn inherits(name: &str) -> bool {
             | "tab-size"
             | "text-transform"
             | "text-indent"
+            | "text-align"
+            | "text-align-all"
+            | "text-align-last"
+            | "text-justify"
             | "pointer-events"
             | "visibility"
             | "caret-color"

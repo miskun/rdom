@@ -3,8 +3,8 @@
 
 use crate::Value;
 use crate::layout::{
-    Hyphens, LineBreak, OverflowWrap, TabSize, TextIndent, TextTransform, TextWrapMode,
-    WhiteSpaceCollapse, WordBreak,
+    Hyphens, LineBreak, OverflowWrap, TabSize, TextAlign, TextAlignLast, TextIndent, TextJustify,
+    TextTransform, TextWrapMode, WhiteSpaceCollapse, WordBreak,
 };
 
 /// The CSS Text properties a [`TuiStyle`](crate::TuiStyle) declares
@@ -31,4 +31,11 @@ pub struct TextDeclarations {
     pub text_transform: Option<Value<TextTransform>>,
     /// `text-indent` (CSS Text 3 §8.1).
     pub text_indent: Option<Value<TextIndent>>,
+    /// `text-align-all` (CSS Text 3 §6.2); the `text-align` shorthand
+    /// writes it and `text_align_last`.
+    pub text_align_all: Option<Value<TextAlign>>,
+    /// `text-align-last` (CSS Text 3 §6.3).
+    pub text_align_last: Option<Value<TextAlignLast>>,
+    /// `text-justify` (CSS Text 3 §6.4).
+    pub text_justify: Option<Value<TextJustify>>,
 }

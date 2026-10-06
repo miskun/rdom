@@ -4,6 +4,7 @@
 
 use rdom_core::NodeId;
 
+use super::super::align::{self, LineGeometry, TextAlignment};
 use super::super::boxes::GeneratedAtom;
 use super::super::vertical::{self, AtomAt, AtomRows};
 use super::super::{GeneratedFragment, InlineFragment, LineBox};
@@ -324,32 +325,32 @@ impl LinePacker<'_> {
             vertical::settle_line(&mut fragments, &mut generated, &self.cur_atoms);
         self.cur_atoms.clear();
         let width = self.cur_line_width;
-        let (start, band_width) = self.band;
         let hang = match end {
             LineEnd::Soft => self.cur_hang,
-            LineEnd::Forced => self.cur_hang.min(width.saturating_sub(band_width)),
+            LineEnd::Forced => self.cur_hang.min(width.saturating_sub(self.line_width())),
         };
         self.cur_line_width = 0;
         self.cur_hang = 0;
-        // `text-align: start` (CSS Text 3 §7.1; rdom has no `text-align`
-        // yet, C9-TEXT-ALIGN): flush with the band's left edge, or under
-        // `rtl` its right one — a line wider than the band starting left
-        // of it and overflowing its left (end) edge.
-        // `text-indent` (CSS Text 3 §8.1) is a margin at the start edge.
+        // CSS Text 3 §6: the content placed in its line box — the band,
+        // past the `text-indent` — by `text-align`, justified by
+        // `text-justify` (`align`). An intrinsic measurement reads widths
+        // only: its lines stay at their start.
         let indent = self.cur_indent;
-        let shift = if self.rtl {
-            start + i32::from(band_width) - indent - i32::from(width - hang)
-        } else {
-            start + indent
+        let geometry = LineGeometry {
+            band: self.band,
+            indent,
+            rtl: self.rtl,
+            width,
+            hang,
+            last: end == LineEnd::Forced,
+            has_tab: std::mem::take(&mut self.cur_has_tab),
         };
-        if shift != 0 {
-            for f in &mut fragments {
-                f.x += shift;
-            }
-            for g in &mut generated {
-                g.x += shift;
-            }
-        }
+        let alignment = if self.measuring {
+            TextAlignment::default()
+        } else {
+            self.align
+        };
+        let width = align::place_line(&mut fragments, &mut generated, geometry, alignment);
         let top = self.cur_top;
         self.cur_top = top.saturating_add(height);
         // Kept only when floats shortened the line box: otherwise its

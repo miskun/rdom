@@ -126,6 +126,8 @@ pub(super) fn compute_element_style(
     }
     super::blockify::finalize_float(&mut working);
     super::apply::finalize_justify_items(&mut working, parent);
+    let root = parent_id.is_none_or(|p| dom.node(p).node_type() != rdom_core::NodeType::Element);
+    super::text::finalize_text_align(&mut working, parent, root);
     // CSS Overflow 3 §3.1's computed value, which the BFC rule reads.
     working.normalize_overflow();
     super::line_clamp::finalize_line_clamp(&mut working);

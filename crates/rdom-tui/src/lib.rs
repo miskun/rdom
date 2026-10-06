@@ -85,10 +85,11 @@ pub use layout::{
     NamedArea, Overflow, OverflowAlign, OverflowClipMargin, OverflowWrap, OverscrollBehavior,
     Padding, PaddingValue, PaintLength, RepeatCount, RepeatStyle, ScrollPadding, ScrollSnapAlign,
     ScrollSnapAxis, ScrollSnapStop, ScrollSnapStrictness, ScrollSnapType, ScrollbarColor,
-    ScrollbarGutter, ScrollbarWidth, Sides, Size, SnapAlign, TabSize, TextCase, TextDirection,
-    TextIndent, TextOverflow, TextOverflowSide, TextStyle, TextTransform, TextWrapMode,
-    TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize, UserSelect, Visibility,
-    VisualBox, WhiteSpace, WhiteSpaceCollapse, WordBreak, WritingMode, ZIndex,
+    ScrollbarGutter, ScrollbarWidth, Sides, Size, SnapAlign, TabSize, TextAlign, TextAlignLast,
+    TextCase, TextDirection, TextIndent, TextJustify, TextOverflow, TextOverflowSide, TextStyle,
+    TextTransform, TextWrapMode, TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize,
+    UserSelect, Visibility, VisualBox, WhiteSpace, WhiteSpaceCollapse, WordBreak, WritingMode,
+    ZIndex,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets

@@ -80,7 +80,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 6 | 0 | 0 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 13 | 0 | 1 | 0 | 14 |
-| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 9 | 0 | 6 | 6 | 21 |
+| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 12 | 0 | 3 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **167** | **22** | **72** | **46** | **307** |
+| **Total** | **170** | **22** | **69** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 94 rows Partial / Missing (C9-WHITE-SPACE shipped two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM and C9-TEXT-INDENT one each; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 91 rows Partial / Missing (C9-WHITE-SPACE shipped two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM and C9-TEXT-INDENT one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
-Headline: rdom parses **227 property names** (`property_names()`: 159 in the table and 68 flow-relative ones, after Phase 8). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height`, `text-align`, and `@media`.
+Headline: rdom parses **227 property names** (`property_names()`: 159 in the table and 68 flow-relative ones, after Phase 8). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height` and `@media`.
 
 ---
 
@@ -114,7 +114,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 4 | `flex-grow` / `flex-basis` longhands | Shipped (C6-FLEX-LONGHANDS; §3.8): both longhands, and the `flex-basis` the flex base size of Flexbox §9.2; §9.7 resolves the flexible lengths from it. | M | Wrong |
 | 5 | `display: grid` + `grid-template-*`, `grid-auto-*`, `grid-row/column*`, `grid-area`, `grid` | A cell-quantized grid formatting context: track sizing in cells / `fr` / `%` / `auto` / `minmax()` / `repeat()`, line- and area-based placement. The most-used modern layout after flex. | L | Yes |
 | 6 | `line-height` | Rows per line box in whole rows: `normal` / `1` = one row; `2` = text on the first row of each two-row line box (blank row below, or half-leading split rounded); `<cells>`. | M | No |
-| 7 | `text-align` (+ `text-align-last`, `text-justify`) | Per-line horizontal placement of inline content in the line box: `start` / `end` / `left` / `right` / `center` / `justify` (spread whole spaces between words). | M | Yes |
+| 7 | `text-align` (+ `text-align-last`, `text-justify`) | Shipped (C9-TEXT-ALIGN; §3.12): every value, the shorthand of `text-align-all` / `text-align-last`, justification in whole cells (the remainder to the first opportunities). | M | Yes |
 | 8 | `visibility` | Shipped (C6-VISIBILITY; §3.7): `hidden` keeps the space and draws nothing, is not hit or focused, a `visible` descendant shows; `collapse` leaves a strut on flex items and removes table rows. | S | No |
 | 9 | `box-sizing` | Shipped (C5-BOX-SIZING; §3.6): `content-box` is the initial value, `border-box` sizes the border box and floors it at padding + border; the CHANGELOG gives the `*, *::before, *::after { box-sizing: border-box }` migration. | M | No |
 | 10 | `outline` (+ `-color`, `-style`, `-width`, `-offset`) | A border ring drawn one cell outside the border box, taking no layout space, painted over neighbors on the top layer; `outline-offset` in whole cells. The natural keyboard-focus ring a TUI otherwise lacks. | M | No |
@@ -427,9 +427,9 @@ dropped. The audit's six, with where each stands:
 | `white-space` | Supported | Every Text 4 §3 form (`normal` / `pre` / `pre-wrap` / `pre-line` / `nowrap` / `break-spaces`, the longhand pair), a shorthand of the two longhands, serialized shortest; per element (C9-WHITE-SPACE). `white-space-trim` not parsed (DIVERGENCES §2). | — | `DISP/text.rs`, `IFC` (`inline/white_space.rs`, `packer/intake.rs`) |
 | `white-space-collapse` / `text-wrap-mode` (Text 4) | Supported | Every value: §4.1 collapsing, preserved segment breaks, hanging (`pre-wrap`) and space-taking (`break-spaces`) trailing spaces (C9-WHITE-SPACE). | — | `DISP/text.rs`, `IFC` |
 | `text-wrap` / `text-wrap-style` (Text 4) | Missing | `balance` / `pretty` / `stable` line breaking. | No | `IFC` |
-| `text-align` | Missing | Line-box alignment. | Yes | `IFC` |
-| `text-align-last` | Missing | Last-line alignment. | No | `IFC` |
-| `text-justify` | Missing | Justification method (`inter-word` is the only sensible one). | No | `IFC` |
+| `text-align` | Supported | The Text 3 shorthand of `text-align-all` and `text-align-last`: `start` / `end` (by `direction`) / `left` / `right` / `center` / `justify` / `match-parent` / `justify-all`, within the line box beside floats and past the indent; an overflowing line start-aligned (C9-TEXT-ALIGN). | — | `DISP/text.rs`, `IFC` (`inline/align.rs`) |
+| `text-align-last` | Supported | Every value; the last line and the lines before a forced break (C9-TEXT-ALIGN). | — | `DISP/text.rs`, `IFC` |
+| `text-justify` | Supported | `auto` (word separators and CJK gaps) / `none` / `inter-word` / `inter-character` (`distribute` its alias), whole cells (C9-TEXT-ALIGN). | — | `DISP/text.rs`, `IFC` |
 | `text-indent` | Supported | `<length-percentage> && hanging? && each-line?`, either sign, whole cells; the first formatted line, lines after a forced break with `each-line`, inverted by `hanging`; counted in intrinsic sizes (C9-TEXT-INDENT; anonymous flex / grid items not indented, DIVERGENCES §2). | — | `DISP/text.rs`, `IFC` (`inline/indent.rs`) |
 | `text-transform` | Supported | Every value and combination: full Unicode case mapping (Final_Sigma, titlecase for `capitalize`), `full-width` (2 cells), `full-size-kana`, `math-auto`; rendering only — caret, selection, copy read the source (C9-TEXT-TRANSFORM). | — | `DISP/text.rs`, `IFC` (`inline/transform.rs`) |
 | `tab-size` | Supported | `<number>` / `<length>`, whole cells; a preserved tab advances to the next stop from the block's content edge, `0` hides tabs (C9-TAB-SIZE). | — | `DISP/text.rs`, `IFC` (`packer/emit.rs::layout_tabs`) |
@@ -613,7 +613,7 @@ dropped. The audit's six, with where each stands:
 | `border-inline` / `border-block` (+ `-start` / `-end`, `-color` / `-style` / `-width`) | Supported | As the margins; one or two values for the axis longhands (C5-LOGICAL). | — | `DISP` |
 | `border-start-start-radius` / … (4 corners) | Supported | Block side first, the inline side by `direction` (C5-LOGICAL). | — | `DISP` |
 | `inset-inline` / `inset-block` | Supported | See §3.10 (C5-LOGICAL). | — | `DISP` |
-| `text-align: start / end`, `float: inline-start`, `resize: block / inline` | Missing | Logical keywords (follow their properties). *`float` / `clear: inline-start / inline-end` shipped: C8-FLOAT.* | No | — |
+| `text-align: start / end`, `float: inline-start`, `resize: block / inline` | Missing | Logical keywords (follow their properties). *`float` / `clear: inline-start / inline-end` shipped: C8-FLOAT; `text-align: start / end`: C9-TEXT-ALIGN; `resize` remains (C12-CONTROLS).* | No | — |
 | `writing-mode` | Partial | All five values parse, inherit and compute (C5-WRITING); every box lays out as `horizontal-tb` — vertical flow could be emulated, but glyphs cannot be rotated in a cell (DIVERGENCES §1). | Yes | `KW`, `CASC` |
 | `direction` / `unicode-bidi` | Partial | `direction: ltr \| rtl` (C5-WRITING; the `dir` attribute through the UA sheet): inline-start is the right edge — line starts (a line wider than its box overflows the left edge, C8-RTL-LINE-OVERFLOW), block over-constraint, flex rows / column cross axis, positioned insets, `margin-trim`, the vertical scrollbar side, the scroll origin (`scrollLeft` ≤ 0, C5G-RTL-SCROLL). `unicode-bidi` and bidi reordering N/A: terminals differ (DIVERGENCES §1). | Yes | `KW`, `IFC`, `BLOCK`, `FLEX`, `POS` |
 | `text-orientation` / `text-combine-upright` | N/A | Glyph rotation / compression in a cell. | — | — |
@@ -778,8 +778,8 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `white-space` — Partial: `normal` / `pre` / `pre-wrap` / `nowrap`; `pre-line` and `break-spaces` rejected. *Shipped: C9-WHITE-SPACE.*
 - `white-space-collapse` / `text-wrap-mode` (Text 4) — Missing: Longhands of `white-space`. *Shipped: C9-WHITE-SPACE.*
 - `text-wrap` / `text-wrap-style` (Text 4) — Missing: `balance` / `pretty` / `stable` line breaking.
-- `text-align-last` — Missing: Last-line alignment.
-- `text-justify` — Missing: Justification method (`inter-word` is the only sensible one).
+- `text-align-last` — Missing: Last-line alignment. *Shipped: C9-TEXT-ALIGN.*
+- `text-justify` — Missing: Justification method (`inter-word` is the only sensible one). *Shipped: C9-TEXT-ALIGN.*
 - `text-indent` — Missing: First-line indent in cells. *Shipped: C9-TEXT-INDENT.*
 - `text-transform` — Missing: Case mapping, `full-width`. *Shipped: C9-TEXT-TRANSFORM.*
 - `word-break` — Missing: `break-all` / `keep-all`. *Shipped: C9-BREAKING.*
@@ -862,7 +862,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `padding-inline` / `padding-block` (+ `-start` / `-end`) — Missing: Aliases of physical padding. *Shipped: C5-LOGICAL.*
 - `border-inline` / `border-block` (+ `-start` / `-end`, `-color` / `-style` / `-width`) — Missing: Aliases of physical borders. *Shipped: C5-LOGICAL.*
 - `border-start-start-radius` / … (4 corners) — Missing: Aliases of `border-*-radius`. *Shipped: C5-LOGICAL.*
-- `text-align: start / end`, `float: inline-start`, `resize: block / inline` — Missing: Logical keywords (follow their properties). *`float` / `clear` part shipped: C8-FLOAT.*
+- `text-align: start / end`, `float: inline-start`, `resize: block / inline` — Missing: Logical keywords (follow their properties). *`float` / `clear` part shipped: C8-FLOAT; `text-align` part: C9-TEXT-ALIGN.*
 
 **3.23 Transforms, filters, masking, compositing**
 

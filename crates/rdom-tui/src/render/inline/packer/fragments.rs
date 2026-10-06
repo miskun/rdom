@@ -22,6 +22,10 @@ impl LinePacker<'_> {
             self.append_fragment(sep_origin, sep_source_offset, " ", 1, None);
         }
         let hang = self.word_hang();
+        self.cur_has_tab |= self
+            .word_buffer
+            .iter()
+            .any(|g| matches!(g.kind, GraphemeKind::Preserved { tab: Some(_), .. }));
         let ends_in_shy = matches!(
             self.word_buffer.last().map(|g| g.kind),
             Some(GraphemeKind::SoftHyphen { shows: true })

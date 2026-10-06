@@ -335,6 +335,8 @@ fn every_property_has_important_setter() {
         .tab_size_important(crate::layout::TabSize::Number(4.0))
         .text_transform_important(crate::layout::TextTransform::NONE)
         .text_indent_important(crate::layout::TextIndent::cells(1))
+        .text_align_important(crate::layout::TextAlign::Center)
+        .text_justify_important(crate::layout::TextJustify::None)
         .user_select_important(UserSelect::None)
         .caret_color_important(CaretColor::Transparent)
         .caret_text_color_important(CaretTextColor::Auto)

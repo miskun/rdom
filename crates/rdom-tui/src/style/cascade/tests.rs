@@ -2385,6 +2385,9 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.text.tab_size = rdom_style::layout::TabSize::Number(2.0);
     parent.text.text_transform.case = rdom_style::layout::TextCase::Uppercase;
     parent.text.text_indent = rdom_style::layout::TextIndent::cells(3);
+    parent.text.text_align_all = rdom_style::layout::TextAlign::Center;
+    parent.text.text_align_last = rdom_style::layout::TextAlignLast::Right;
+    parent.text.text_justify = rdom_style::layout::TextJustify::None;
     parent.user_select = UserSelect::None;
     parent.pointer_events = PointerEvents::None;
     parent.visibility = rdom_style::layout::Visibility::Hidden;
@@ -2538,6 +2541,23 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         (
             "text-indent",
             child.text.text_indent == parent.text.text_indent,
+        ),
+        (
+            "text-align",
+            child.text.text_align_all == parent.text.text_align_all
+                && child.text.text_align_last == parent.text.text_align_last,
+        ),
+        (
+            "text-align-all",
+            child.text.text_align_all == parent.text.text_align_all,
+        ),
+        (
+            "text-align-last",
+            child.text.text_align_last == parent.text.text_align_last,
+        ),
+        (
+            "text-justify",
+            child.text.text_justify == parent.text.text_justify,
         ),
         ("user-select", child.user_select == parent.user_select),
         (

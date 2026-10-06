@@ -49,6 +49,7 @@ use std::borrow::Cow;
 
 use rdom_core::NodeId;
 
+use super::align::TextAlignment;
 use super::breaking::BreakClass;
 use super::indent::LineIndent;
 use super::run_style::RunStyle;
@@ -235,6 +236,11 @@ pub(super) struct LinePacker<'a> {
     indent: LineIndent,
     /// The current line's indent, in cells.
     cur_indent: i32,
+    /// `text-align` / `text-justify` (CSS Text 3 §6), applied as each
+    /// line is settled (`align`).
+    align: TextAlignment,
+    /// The current line holds a preserved tab (not justified, §6.1).
+    cur_has_tab: bool,
 }
 
 impl<'a> LinePacker<'a> {
@@ -269,6 +275,8 @@ impl<'a> LinePacker<'a> {
             rtl: false,
             indent: LineIndent::default(),
             cur_indent: 0,
+            align: TextAlignment::default(),
+            cur_has_tab: false,
         }
     }
     /// Start each line at the right edge of its band — the inline-start
@@ -276,6 +284,12 @@ impl<'a> LinePacker<'a> {
     /// §7.1's `start`) — a line wider than it overflowing the left edge.
     pub(super) fn starting_right(mut self, rtl: bool) -> Self {
         self.rtl = rtl;
+        self
+    }
+
+    /// Align the lines by `align` (CSS Text 3 §6).
+    pub(super) fn aligned(mut self, align: TextAlignment) -> Self {
+        self.align = align;
         self
     }
 

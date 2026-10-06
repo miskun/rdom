@@ -1,14 +1,16 @@
 //! The CSS Text properties (CSS Text 3 / 4): `white-space` and its
 //! longhands `white-space-collapse` / `text-wrap-mode`, `word-break`,
 //! `overflow-wrap` (and its legacy name `word-wrap`), `line-break`,
-//! `hyphens`, `tab-size`, `text-transform`, `text-indent` — their `set`
-//! and `serialize` arms.
+//! `hyphens`, `tab-size`, `text-transform`, `text-indent`, `text-align`
+//! (and its longhands `text-align-all` / `text-align-last`),
+//! `text-justify` — their `set` and `serialize` arms.
 
 use super::value_serializers::{serialize_length, specified};
 use crate::layout::{TextWrapMode, WhiteSpace, WhiteSpaceCollapse};
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_hyphens, parse_line_break, parse_overflow_wrap, parse_tab_size, parse_text_indent,
+    parse_hyphens, parse_line_break, parse_overflow_wrap, parse_tab_size, parse_text_align,
+    parse_text_align_all, parse_text_align_last, parse_text_indent, parse_text_justify,
     parse_text_transform, parse_text_wrap_mode, parse_white_space, parse_white_space_collapse,
     parse_word_break, serialize_text_transform,
 };
@@ -50,6 +52,19 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "text-indent" => parse_text_indent(value).map(|t| {
             text.text_indent = Some(Value::Specified(t));
         }),
+        "text-align" => parse_text_align(value).map(|(all, last)| {
+            text.text_align_all = Some(Value::Specified(all));
+            text.text_align_last = Some(Value::Specified(last));
+        }),
+        "text-align-all" => parse_text_align_all(value).map(|a| {
+            text.text_align_all = Some(Value::Specified(a));
+        }),
+        "text-align-last" => parse_text_align_last(value).map(|l| {
+            text.text_align_last = Some(Value::Specified(l));
+        }),
+        "text-justify" => parse_text_justify(value).map(|j| {
+            text.text_justify = Some(Value::Specified(j));
+        }),
         _ => return None,
     })
 }
@@ -66,6 +81,26 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         "overflow-wrap" | "word-wrap" => keyword(&text.overflow_wrap, |w| w.keyword()),
         "line-break" => keyword(&text.line_break, |l| l.keyword()),
         "hyphens" => keyword(&text.hyphens, |h| h.keyword()),
+        "text-align-all" => keyword(&text.text_align_all, |a| a.keyword()),
+        "text-align-last" => keyword(&text.text_align_last, |l| l.keyword()),
+        "text-justify" => keyword(&text.text_justify, |j| j.keyword()),
+        "text-align" => {
+            use crate::layout::{TextAlign, TextAlignLast};
+            let all = text.text_align_all.as_ref().and_then(specified);
+            let last = text.text_align_last.as_ref().and_then(specified);
+            match (all, last) {
+                (Some(TextAlign::Justify), Some(TextAlignLast::Justify)) => {
+                    Some("justify-all".to_string())
+                }
+                (Some(TextAlign::MatchParent), Some(TextAlignLast::MatchParent)) => {
+                    Some("match-parent".to_string())
+                }
+                (Some(a), Some(TextAlignLast::Auto)) if *a != TextAlign::MatchParent => {
+                    Some(a.keyword().to_string())
+                }
+                _ => None,
+            }
+        }
         "text-indent" => text.text_indent.as_ref().and_then(specified).map(|t| {
             let mut out = serialize_length(&t.length);
             if t.hanging {

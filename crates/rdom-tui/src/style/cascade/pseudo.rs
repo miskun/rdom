@@ -140,6 +140,7 @@ pub(super) fn compute_pseudo_style(
         super::blockify::blockify(&mut working);
     }
     super::apply::finalize_justify_items(&mut working, host_computed);
+    super::text::finalize_text_align(&mut working, host_computed, false);
     // CSS Overflow 3 §3.1's computed value, which the BFC rule reads.
     working.normalize_overflow();
     super::line_clamp::finalize_line_clamp(&mut working);

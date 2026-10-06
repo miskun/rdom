@@ -193,7 +193,7 @@ row comes from.
 |---|---|---|
 | C9-WHITE-SPACE | `white-space: pre-line / break-spaces`; `white-space-collapse` / `text-wrap-mode` longhands | done |
 | C9-TEXT-WRAP | `text-wrap` / `text-wrap-style` (`balance` / `pretty` / `stable`) | |
-| C9-TEXT-ALIGN | `text-align` (incl. `start` / `end` / `justify`), `text-align-last`, `text-justify` | |
+| C9-TEXT-ALIGN | `text-align` (incl. `start` / `end` / `justify`), `text-align-last`, `text-justify` | done |
 | C9-TEXT-INDENT | `text-indent` | done |
 | C9-TEXT-TRANSFORM | `text-transform` (case mapping, `full-width`) | done |
 | C9-TAB-SIZE | `tab-size` and real tab stops in `pre` | done |
@@ -5431,3 +5431,31 @@ row comes from.
   intrinsic 3 for 6); green after. Mutation (restored, touched): no `each-line` after a forced break → one;
   the `rtl` indent dropped → one; every run first-formatted → one; no indent in intrinsic sizes → one; tab
   origin without the indent → one. No existing test expectation or snapshot changed.
+- 2026-10-11 — C9-TEXT-ALIGN (CSS Text 3 §6.1–§6.4, §8.1; CSS Writing Modes 4 §2.1; CSS 2.1 §9.5). rdom-style: CSS
+  Text 3 makes `text-align` a shorthand of `text-align-all` and `text-align-last` ("values other than
+  justify-all or match-parent are assigned to text-align-all and reset text-align-last to auto") — followed
+  as written, though engines keep `text-align` a longhand (DIVERGENCES §2): `TextAlign` (7 keywords,
+  `physical(rtl)`), `TextAlignLast` (`auto` + those), `TextJustify` (`distribute` a parse-time alias of
+  `inter-character`), the shorthand serialized when its longhands are one of its forms; all inherit;
+  `match-parent` computes in the cascade (`cascade/text.rs::finalize_text_align`: the parent's value with
+  `start` / `end` made physical by the parent's `direction`, `start` on the root — an element with no element
+  parent — for elements and `::before` / `::after`). rdom-tui — what rdom had: no `text-align`; lines started
+  at the start edge (the `rtl` shift in `break_line`, C8-RTL-LINE-OVERFLOW). At the root: that shift is
+  replaced by `render/inline/align.rs::place_line`, the one placement of a settled line — the line box is the
+  band floats leave it (C8-FLOAT's `LineExclusions`) less the `text-indent` at its start edge; the line's
+  alignment is `text-align-all`'s, or for its last line and a line before a forced break `text-align-last`'s
+  (`auto`: `start` for `justify`); `start` / `end` follow `direction` (closing C5-WRITING's note); an
+  overflowing line is start-aligned (§6.1), so the C8-RTL-LINE-OVERFLOW behaviour is the `start` case.
+  `center` rounds the leading space down; `justify` collects the line's opportunities in visual order across
+  fragments, generated runs and atoms (`Opportunities`), hands each `free / n` cells and the first `free % n`
+  one more, and widens the unit before each opportunity with trailing spaces — through C9-BREAKING's
+  `SourceMap`, so the caret and hit-testing map a justified cell to its separator
+  (`justified_cells_map_back_to_the_source`). `auto` = separators + gaps beside a two-cell character; a line
+  with a preserved tab is not justified (§6.1's allowance; tab stops stay aligned); an intrinsic measurement
+  skips placement. The conditional hang before a forced break now measures overflow against the line box
+  (band less indent). Red: `css_phase9/text_align.rs` — 7 of 8 failed (every line at the start edge;
+  `abc de` unjustified; `ab` left in the `match-parent` child); the overflow test passed before and after (the
+  old start placement); the source-map test added after (green; mutation-checked). Mutation (restored,
+  touched): `center` rounding up → two; no remainder → two; `text-align-last: auto` not falling back to
+  `start` → two; `auto` without CJK gaps → one; overflow not start-aligned → one; no justified source map →
+  one. No existing test expectation or snapshot changed.

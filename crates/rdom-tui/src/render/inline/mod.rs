@@ -47,6 +47,7 @@
 //! DIVERGENCES §2): no complex-script word breaking, no automatic
 //! hyphenation.
 
+mod align;
 mod boxes;
 mod breaking;
 mod caret;
@@ -348,9 +349,13 @@ fn packer_for<'a>(
     let indent = computed.map_or_else(indent::LineIndent::default, |c| {
         indent::LineIndent::of(&c.text.text_indent, content_width, first_formatted)
     });
+    let align = computed.map_or_else(align::TextAlignment::default, |c| {
+        align::TextAlignment::of(&c.text)
+    });
     let packer = LinePacker::new(content_width)
         .starting_right(rtl)
-        .indented(indent);
+        .indented(indent)
+        .aligned(align);
     match exclusions {
         Some(ex) => packer.around(ex),
         None => packer,
@@ -398,7 +403,10 @@ pub(crate) fn pack_generated(
 ) -> InlineLayout {
     let rtl = style.text_direction == crate::layout::TextDirection::Rtl;
     let indent = indent::LineIndent::of(&style.text.text_indent, width, true);
-    let mut packer = LinePacker::new(width).starting_right(rtl).indented(indent);
+    let mut packer = LinePacker::new(width)
+        .starting_right(rtl)
+        .indented(indent)
+        .aligned(align::TextAlignment::of(&style.text));
     if let Some(text) = generated::static_pseudo_text(dom, host, slot.into()) {
         packer.push_generated(host, slot, text, run_style::RunStyle::of(style));
     }

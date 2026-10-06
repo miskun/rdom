@@ -89,6 +89,11 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "tab-size" => &[TabSize],
         "text-transform" => &[TextTransform],
         "text-indent" => &[TextIndent],
+        // CSS Text 3 §6.1: the shorthand sets both longhands.
+        "text-align" => &[TextAlignAll, TextAlignLast],
+        "text-align-all" => &[TextAlignAll],
+        "text-align-last" => &[TextAlignLast],
+        "text-justify" => &[TextJustify],
         "user-select" => &[UserSelect],
         "pointer-events" => &[PointerEvents],
         "visibility" => &[Visibility],

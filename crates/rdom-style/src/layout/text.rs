@@ -358,6 +358,144 @@ impl TextIndent {
     }
 }
 
+/// `text-align-all` (CSS Text 3 §6.2), and the keywords `text-align`
+/// (§6.1) sets it to: the inline alignment of a block container's lines.
+/// Inherited; initial `start`. `MatchParent` computes to the parent's
+/// value with `start` / `end` resolved against the parent's `direction`
+/// (`left` or `right`); at the root, to `start`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextAlign {
+    /// The line box's start edge.
+    #[default]
+    Start,
+    /// The line box's end edge.
+    End,
+    /// The line-left edge.
+    Left,
+    /// The line-right edge.
+    Right,
+    /// Centered in the line box.
+    Center,
+    /// Justified per `text-justify` to fill the line box.
+    Justify,
+    /// The parent's alignment, `start` / `end` made physical.
+    MatchParent,
+}
+
+impl TextAlign {
+    /// The keyword's CSS spelling.
+    pub const fn keyword(self) -> &'static str {
+        match self {
+            Self::Start => "start",
+            Self::End => "end",
+            Self::Left => "left",
+            Self::Right => "right",
+            Self::Center => "center",
+            Self::Justify => "justify",
+            Self::MatchParent => "match-parent",
+        }
+    }
+
+    /// `start` / `end` as the physical side they are under `direction:
+    /// rtl` when `rtl` (CSS Writing Modes 4 §2.1); others as they are.
+    pub const fn physical(self, rtl: bool) -> Self {
+        match (self, rtl) {
+            (Self::Start, false) | (Self::End, true) => Self::Left,
+            (Self::Start, true) | (Self::End, false) => Self::Right,
+            (other, _) => other,
+        }
+    }
+}
+
+/// `text-align-last` (CSS Text 3 §6.3): the alignment of a block's last
+/// line and of each line before a forced break. Inherited; initial
+/// `auto` — `text-align-all`'s, `start` when that is `justify`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextAlignLast {
+    /// `text-align-all`'s alignment, `start` for `justify`.
+    #[default]
+    Auto,
+    /// As `text-align`'s `start`.
+    Start,
+    /// As `text-align`'s `end`.
+    End,
+    /// As `text-align`'s `left`.
+    Left,
+    /// As `text-align`'s `right`.
+    Right,
+    /// As `text-align`'s `center`.
+    Center,
+    /// As `text-align`'s `justify`.
+    Justify,
+    /// As `text-align`'s `match-parent`.
+    MatchParent,
+}
+
+impl TextAlignLast {
+    /// The keyword's CSS spelling.
+    pub const fn keyword(self) -> &'static str {
+        match self.align() {
+            None => "auto",
+            Some(a) => a.keyword(),
+        }
+    }
+
+    /// The alignment it names, `None` for `auto`.
+    pub const fn align(self) -> Option<TextAlign> {
+        Some(match self {
+            Self::Auto => return None,
+            Self::Start => TextAlign::Start,
+            Self::End => TextAlign::End,
+            Self::Left => TextAlign::Left,
+            Self::Right => TextAlign::Right,
+            Self::Center => TextAlign::Center,
+            Self::Justify => TextAlign::Justify,
+            Self::MatchParent => TextAlign::MatchParent,
+        })
+    }
+
+    /// The `text-align-last` value naming `align`.
+    pub const fn of(align: TextAlign) -> Self {
+        match align {
+            TextAlign::Start => Self::Start,
+            TextAlign::End => Self::End,
+            TextAlign::Left => Self::Left,
+            TextAlign::Right => Self::Right,
+            TextAlign::Center => Self::Center,
+            TextAlign::Justify => Self::Justify,
+            TextAlign::MatchParent => Self::MatchParent,
+        }
+    }
+}
+
+/// `text-justify` (CSS Text 3 §6.4): the justification method.
+/// Inherited; initial `auto`. `distribute` parses as `inter-character`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextJustify {
+    /// The UA's method: rdom expands word separators and the gaps beside
+    /// CJK characters.
+    #[default]
+    Auto,
+    /// No justification opportunities.
+    None,
+    /// Word separators only.
+    InterWord,
+    /// Between every pair of adjacent typographic character units.
+    InterCharacter,
+}
+
+impl TextJustify {
+    /// The keyword's CSS spelling.
+    pub const fn keyword(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::None => "none",
+            Self::InterWord => "inter-word",
+            Self::InterCharacter => "inter-character",
+        }
+    }
+}
+
 /// The computed CSS Text properties of an element
 /// ([`ComputedStyle::text`](crate::ComputedStyle::text)). All of them
 /// inherit, so the cascade copies the group from the parent whole.
@@ -381,6 +519,13 @@ pub struct TextStyle {
     pub text_transform: TextTransform,
     /// `text-indent` (CSS Text 3 §8.1).
     pub text_indent: TextIndent,
+    /// `text-align-all` (CSS Text 3 §6.2), the `text-align` shorthand's
+    /// first longhand.
+    pub text_align_all: TextAlign,
+    /// `text-align-last` (CSS Text 3 §6.3).
+    pub text_align_last: TextAlignLast,
+    /// `text-justify` (CSS Text 3 §6.4).
+    pub text_justify: TextJustify,
 }
 
 impl TextStyle {

@@ -3,8 +3,8 @@
 use super::numeric::{LengthPercentage, Range, length_percentage, number};
 use super::parse_keyword;
 use crate::layout::{
-    Hyphens, LineBreak, OverflowWrap, TabSize, TextCase, TextIndent, TextTransform, TextWrapMode,
-    WhiteSpaceCollapse, WordBreak,
+    Hyphens, LineBreak, OverflowWrap, TabSize, TextAlign, TextAlignLast, TextCase, TextIndent,
+    TextJustify, TextTransform, TextWrapMode, WhiteSpaceCollapse, WordBreak,
 };
 use crate::parse::token::Token;
 
@@ -243,4 +243,58 @@ pub fn parse_text_indent(value: &[Token]) -> Option<TextIndent> {
         hanging,
         each_line,
     })
+}
+
+/// `text-align-all: start | end | left | right | center | justify |
+/// match-parent` (CSS Text 3 §6.2).
+pub fn parse_text_align_all(value: &[Token]) -> Option<TextAlign> {
+    parse_keyword(
+        value,
+        &[
+            ("start", TextAlign::Start),
+            ("end", TextAlign::End),
+            ("left", TextAlign::Left),
+            ("right", TextAlign::Right),
+            ("center", TextAlign::Center),
+            ("justify", TextAlign::Justify),
+            ("match-parent", TextAlign::MatchParent),
+        ],
+    )
+}
+
+/// `text-align-last: auto | <text-align-all's keywords>` (CSS Text 3
+/// §6.3).
+pub fn parse_text_align_last(value: &[Token]) -> Option<TextAlignLast> {
+    if parse_keyword(value, &[("auto", ())]).is_some() {
+        return Some(TextAlignLast::Auto);
+    }
+    parse_text_align_all(value).map(TextAlignLast::of)
+}
+
+/// The `text-align` shorthand (CSS Text 3 §6.1): its two longhands —
+/// `justify-all` both `justify`, `match-parent` both `match-parent`, any
+/// other keyword `text-align-all`'s with `text-align-last: auto`.
+pub fn parse_text_align(value: &[Token]) -> Option<(TextAlign, TextAlignLast)> {
+    if parse_keyword(value, &[("justify-all", ())]).is_some() {
+        return Some((TextAlign::Justify, TextAlignLast::Justify));
+    }
+    Some(match parse_text_align_all(value)? {
+        TextAlign::MatchParent => (TextAlign::MatchParent, TextAlignLast::MatchParent),
+        all => (all, TextAlignLast::Auto),
+    })
+}
+
+/// `text-justify: auto | none | inter-word | inter-character`, with
+/// `distribute` a legacy alias of `inter-character` (CSS Text 3 §6.4).
+pub fn parse_text_justify(value: &[Token]) -> Option<TextJustify> {
+    parse_keyword(
+        value,
+        &[
+            ("auto", TextJustify::Auto),
+            ("none", TextJustify::None),
+            ("inter-word", TextJustify::InterWord),
+            ("inter-character", TextJustify::InterCharacter),
+            ("distribute", TextJustify::InterCharacter),
+        ],
+    )
 }
