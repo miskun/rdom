@@ -236,3 +236,37 @@ fn counter_reset_takes_reversed_and_counter_set_parses() {
     }
     assert!(!inherits("counter-set"));
 }
+
+// ── <counter-style>: names and symbols() (C10-COUNTER-STYLE) ─────────
+
+/// CSS Counter Styles 3 §5: `symbols( <symbols-type>? <string>+ )` is a
+/// `<counter-style>` — `symbolic` by default; `alphabetic` / `numeric`
+/// need two symbols; an author name is any `<custom-ident>`.
+#[test]
+fn counter_takes_symbols_and_author_names() {
+    for (css, out) in [
+        (r#"counter(c, symbols("*"))"#, r#"counter(c, symbols("*"))"#),
+        (
+            r#"counter(c, symbols(cyclic "a" "b"))"#,
+            r#"counter(c, symbols(cyclic "a" "b"))"#,
+        ),
+        (
+            r#"counters(c, ".", symbols(numeric "0" "1"))"#,
+            r#"counters(c, ".", symbols(numeric "0" "1"))"#,
+        ),
+        ("counter(c, thumbs)", "counter(c, thumbs)"),
+        ("counter(c, Thumbs)", "counter(c, Thumbs)"),
+    ] {
+        assert_eq!(round_trip(css).as_deref(), Ok(out), "{css}");
+    }
+    for css in [
+        r#"counter(c, symbols(alphabetic "a"))"#,
+        r#"counter(c, symbols(additive "a"))"#,
+        r#"counter(c, symbols(extends "a"))"#,
+        "counter(c, symbols())",
+        "counter(c, symbols(cyclic))",
+        "counter(c, inherit)",
+    ] {
+        assert!(round_trip(css).is_err(), "{css} must be rejected");
+    }
+}

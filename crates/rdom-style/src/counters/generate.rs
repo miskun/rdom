@@ -4,7 +4,7 @@
 //! the prefix and suffix.
 
 use super::rule::{CounterRange, CounterStyleRule, System};
-use super::style::CounterStyleLookup;
+use super::style::{CounterStyle, CounterStyleLookup};
 
 /// The longest representation generated, in Unicode code points (§3.1:
 /// UAs "must support representations at least 60 Unicode codepoints
@@ -44,13 +44,23 @@ struct Resolved<'a> {
 /// (§3.1.7: a missing base is `decimal`; a cycle extends `decimal`).
 /// `None` when nothing defines `name`.
 fn resolve<'a>(lookup: &'a impl CounterStyleLookup, name: &str) -> Option<Resolved<'a>> {
+    resolve_rule(lookup, lookup.rule(name)?, name)
+}
+
+/// [`resolve`] from `first`, the rule named `name` (`""` for an
+/// anonymous `symbols()` rule).
+fn resolve_rule<'a>(
+    lookup: &'a impl CounterStyleLookup,
+    first: &'a CounterStyleRule,
+    name: &str,
+) -> Option<Resolved<'a>> {
     let mut chain: Vec<(&str, &'a CounterStyleRule)> = Vec::new();
     let mut cur = name;
+    let mut next_rule = Some(first);
     let base = loop {
-        let rule = match lookup.rule(cur) {
+        let rule = match next_rule.take().or_else(|| lookup.rule(cur)) {
             Some(rule) => rule,
-            // An undefined base (or an undefined `name`) is `decimal`.
-            None if chain.is_empty() => return None,
+            // An undefined base is `decimal`.
             None => lookup.rule("decimal")?,
         };
         match rule.system.as_ref() {
@@ -101,24 +111,31 @@ fn resolve<'a>(lookup: &'a impl CounterStyleLookup, name: &str) -> Option<Resolv
     })
 }
 
-/// `value` in the style `name` (resolved through `lookup`; undefined is
-/// `decimal`, `none` nothing), as `what` asks: `counter()`'s text, or a
-/// marker's with the prefix and suffix. `rtl`: the text's direction,
-/// which `disclosure-closed` points along.
+/// `value` in `style` (a name resolved through `lookup` — undefined is
+/// `decimal`, `none` nothing — or a `symbols()` rule), as `what` asks:
+/// `counter()`'s text, or a marker's with the prefix and suffix. `rtl`:
+/// the text's direction, which `disclosure-closed` points along.
 pub(super) fn generate(
     lookup: &impl CounterStyleLookup,
-    name: &str,
+    style: &CounterStyle,
     value: i32,
     rtl: bool,
     what: Representation,
 ) -> String {
-    if name == "none" {
+    let (mut cur, mut anonymous) = match style {
+        CounterStyle::Name(name) => (&**name, None),
+        CounterStyle::Symbols(rule) => ("", Some(&**rule)),
+    };
+    if cur == "none" {
         return String::new();
     }
     let mut visited: Vec<&str> = Vec::new();
-    let mut cur = name;
     loop {
-        let Some(style) = resolve(lookup, cur) else {
+        let resolved = match anonymous.take() {
+            Some(rule) => resolve_rule(lookup, rule, ""),
+            None => resolve(lookup, cur),
+        };
+        let Some(style) = resolved else {
             // An undefined style is `decimal` (§3: "If … it does not
             // name a defined counter style, use decimal").
             if cur == "decimal" {

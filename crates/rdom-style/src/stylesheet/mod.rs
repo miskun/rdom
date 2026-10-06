@@ -43,6 +43,7 @@ use rdom_core::selectors::{ParseError, SelectorList};
 
 use crate::{Specificity, TuiStyle};
 
+mod counter_styles;
 mod imports;
 mod index;
 mod layers;
@@ -264,6 +265,8 @@ pub struct Stylesheet {
     layers: Vec<Layer>,
     /// Registered custom properties (`@property`), in source order.
     registrations: Vec<crate::PropertyRegistration>,
+    /// `@counter-style` definitions, in source order (`counter_styles.rs`).
+    counter_styles: Vec<crate::counters::CounterStyleDefinition>,
     /// The `@import`s that loaded (`imports.rs`).
     imports: Vec<Import>,
     /// Declared `@scope` rules, in source order (`scopes.rs`).

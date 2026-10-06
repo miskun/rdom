@@ -23,6 +23,9 @@ pub(super) struct ElementContext<'a> {
     /// The box's computed `quotes` and its content language, which
     /// `quotes: auto` reads (§2.1).
     pub quotes: &'a rdom_style::Quotes,
+    /// The counter styles names resolve to: the sheets' `@counter-style`
+    /// rules over the predefined ones.
+    pub styles: &'a rdom_style::counters::CounterStyleRegistry,
     pub lang: Option<&'a str>,
     /// The box's `direction` is `rtl` (`disclosure-closed` points along
     /// it, CSS Counter Styles 3 §6.3).
@@ -46,7 +49,7 @@ impl ContentContext for ElementContext<'_> {
         self.counters.values(name)
     }
     fn format_counter(&self, value: i32, style: &rdom_style::CounterStyle) -> String {
-        style.format_in(value, self.rtl)
+        style.format_with(value, self.rtl, self.styles)
     }
     fn quote(&self, kind: QuoteKind) -> String {
         if !self.generates {
@@ -84,11 +87,13 @@ pub(super) fn resolve_onto(
     counters: &CounterState,
     generates: bool,
     lang: Option<&str>,
+    styles: &rdom_style::counters::CounterStyleRegistry,
 ) {
     let ctx = ElementContext {
         vars: &working.vars,
         counters,
         quotes: &working.quotes,
+        styles,
         lang,
         rtl: working.text_direction == crate::layout::TextDirection::Rtl,
         generates,

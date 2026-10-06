@@ -189,7 +189,8 @@ pub(super) fn compute_pseudo_style(
                 .uses_quotes()
                 .then(|| super::quotes::content_language(dom, id))
                 .flatten();
-            resolve_onto(&mut working, &declared, counters, true, lang)
+            let styles = cx.sheets.counter_styles();
+            resolve_onto(&mut working, &declared, counters, true, lang, styles)
         }
         None => working.content = fallback,
     }

@@ -8,6 +8,7 @@
 pub(crate) use super::css_phase5::{el, lay_out, paint, rect, rows, size};
 
 mod content;
+mod counter_style;
 mod counters;
 mod legacy_colon;
 mod quotes;

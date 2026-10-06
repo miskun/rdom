@@ -119,7 +119,14 @@ pub(super) fn compute_element_style(
     // element's children with a `<content-list>` (DIVERGENCES §2) — so
     // its `<quote>` items move no quote depth.
     if let Some(declared) = declared_content(plan, decls) {
-        resolve_onto(&mut working, &declared, counters, false, None);
+        resolve_onto(
+            &mut working,
+            &declared,
+            counters,
+            false,
+            None,
+            sheets.counter_styles(),
+        );
     }
 
     // BFC formation predicate (CSS 2.1 §9.4.1). Computed AFTER the

@@ -100,13 +100,11 @@ fn trailing_style(rest: &[Token]) -> Option<(CounterStyle, usize)> {
     match rest.first()? {
         Token::RParen => Some((CounterStyle::decimal(), 1)),
         Token::Comma => {
-            let Token::Ident(style) = rest.get(1)? else {
-                return None;
-            };
-            if !matches!(rest.get(2), Some(Token::RParen)) {
+            let (style, used) = crate::counters::parse_counter_style(&rest[1..])?;
+            if !matches!(rest.get(1 + used), Some(Token::RParen)) {
                 return None;
             }
-            Some((CounterStyle::parse(style)?, 3))
+            Some((style, used + 2))
         }
         _ => None,
     }

@@ -300,20 +300,7 @@ pub(super) fn serialize_counter_ops(ops: &[crate::counters::CounterOp]) -> Strin
 /// CSSOM §2.1 "serialize a string": double-quoted, `"` and `\\`
 /// escaped, a control character as its code point.
 pub(super) fn serialize_css_string(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 2);
-    out.push('"');
-    for c in s.chars() {
-        match c {
-            '"' | '\\' => {
-                out.push('\\');
-                out.push(c);
-            }
-            c if c.is_control() => out.push_str(&format!("\\{:x} ", u32::from(c))),
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
+    crate::counters::css_string(s)
 }
 
 pub(super) fn serialize_content(c: &Content) -> Option<String> {
@@ -321,7 +308,7 @@ pub(super) fn serialize_content(c: &Content) -> Option<String> {
         if style.is_decimal() {
             String::new()
         } else {
-            format!(", {}", style.name())
+            format!(", {}", style.to_css())
         }
     }
     Some(match c {

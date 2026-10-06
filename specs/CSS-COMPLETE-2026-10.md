@@ -210,7 +210,7 @@ row comes from.
 | C10-CONTENT | `content` full grammar (quotes, `var()`, `counters()`, alt text) | done |
 | C10-QUOTES | `quotes` | done |
 | C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | done |
-| C10-COUNTER-STYLE | `@counter-style` and `symbols()` | |
+| C10-COUNTER-STYLE | `@counter-style` and `symbols()` | done |
 | C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | |
 | C10-FIRST | `::first-line` / `::first-letter` | |
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
@@ -6104,3 +6104,29 @@ row comes from.
   `ua_total_rule_count` 170 → 171; `nested_lists_scope_and_resume` now asserts the second list replaces
   the first's counter (`values == [0]`). CSS-COVERAGE: `counter-reset` Partial → Supported, `counter-set`
   Missing → Supported, §3.15 7 / 0 / 3 / 2, total 189 / 15 / 58 / 45. No snapshot changed.
+- 2026-10-13 — C10-COUNTER-STYLE. Found: `@counter-style` was an unsupported at-rule (consumed and warned),
+  and `symbols()` dropped the `content` declaration. Decisions: (1) Storage, as `@property`: the sheet keeps
+  its definitions in source order (`Stylesheet::counter_styles`, `CounterStyleDefinition { name, rule,
+  layer }`; `append` maps their layers), and the cascade orders all sheets' definitions once per run —
+  layer rank (unlayered last), then sheet, then source — into a `CounterStyleRegistry` (built lazily by
+  `Sheets::counter_styles`), so the last definition of a name wins (CSS Cascade 5 §6.4.3 for name-defining
+  at-rules; Counter Styles 3 §3). The registry is a `CounterStyleLookup` over the predefined table, so the
+  one generator of C10-COUNTERS serves author styles unchanged; `ContentContext::format_counter` resolves
+  through it. (2) The grammar lives in rdom-style (`counters::descriptors`: every descriptor of §3.1–§3.9,
+  `<symbol>` as string or identifier — images N/A, DIVERGENCES §2 — `additive-symbols` strictly
+  descending, `range` bounds ordered, `speak-as` kept inert); rdom-css only reads the prelude and block
+  (`counter_style.rs`, beside `property.rs`, whose `read_body` it shares). An invalid descriptor is dropped
+  and reported; a rule that defines nothing (a protected or reserved name, symbols that do not suit the
+  system, `extends` with symbols) is reported once (`WarningKind::InvalidCounterStyleRule`). (3)
+  `symbols()` is `CounterStyle::Symbols(Arc<CounterStyleRule>)`, an anonymous rule (suffix `" "`,
+  fallback `decimal`), which the generator starts from directly. Bounds (C10-COUNTERS', exercised here
+  with author styles): `symbolic` / `additive` refuse to build past 60 code points before allocating, the
+  final text is capped again, a fallback chain stops at a repeat or after 8 styles, an `extends` cycle
+  extends `decimal`. Red: rdom-css `counter_style.rs` (4, compile-red: no `counter_styles()` /
+  `InvalidCounterStyleRule`); `css_phase10/counter_style.rs` — all 5 failed (the strict sheets warned on
+  `@counter-style` / `symbols()`); rdom-style `counter_takes_symbols_and_author_names`. Green after (a
+  layer assertion added to the last-wins test). Mutations (restored, touched): definitions not ordered by
+  layer → the last-wins test; both representation caps removed → the bounds test (either cap alone keeps
+  it green — the early one bounds the allocation, the final one the text). No existing expectation
+  changed. CSS-COVERAGE: `@counter-style` / `symbols()` Missing → Supported, §3.15 8 / 0 / 2 / 2, total
+  190 / 15 / 57 / 45.

@@ -130,9 +130,12 @@ fn names_resolve_and_parse() {
     );
     assert_eq!(
         CounterStyle::parse("Upper-Roman").unwrap().name(),
-        "upper-roman"
+        Some("upper-roman")
     );
-    assert_eq!(CounterStyle::parse("MyStyle").unwrap().name(), "MyStyle");
+    assert_eq!(
+        CounterStyle::parse("MyStyle").unwrap().name(),
+        Some("MyStyle")
+    );
     for bad in [
         "inherit",
         "initial",

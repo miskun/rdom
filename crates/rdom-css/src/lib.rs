@@ -17,6 +17,7 @@
 use rdom_style::{Stylesheet, TuiStyle};
 
 mod block;
+mod counter_style;
 mod declarations;
 mod import;
 mod layer;
@@ -254,6 +255,9 @@ fn warning_to_error(w: &Warning) -> ParseError {
         WarningKind::InvalidAtRulePrelude { .. } | WarningKind::InvalidPropertyRule { .. } => {
             ParseErrorKind::ExpectedToken("at-rule prelude")
         }
+        WarningKind::InvalidCounterStyleRule { .. } => {
+            ParseErrorKind::ExpectedToken("valid counter style")
+        }
     };
     ParseError {
         kind,
@@ -364,6 +368,14 @@ pub enum WarningKind {
     /// value that does not match the syntax (CSS Properties and Values
     /// API 1 §3).
     InvalidPropertyRule {
+        name: String,
+        reason: String,
+    },
+    /// An `@counter-style` rule (its prelude, `name`) that defines
+    /// nothing — its name cannot name a counter style, or its symbols do
+    /// not suit its system — or one of its descriptors, dropped (`reason`
+    /// says which; CSS Counter Styles 3 §3).
+    InvalidCounterStyleRule {
         name: String,
         reason: String,
     },

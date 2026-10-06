@@ -13,6 +13,7 @@ use std::rc::Rc;
 use rdom_style::LayerOrder;
 use rdom_style::calc::Viewport;
 use rdom_style::color::ColorScheme;
+use rdom_style::counters::{CounterStyleDefinition, CounterStyleRegistry};
 
 use super::ladder::Plan;
 use super::registered::PropertyRegistry;
@@ -26,6 +27,9 @@ pub(super) struct Sheets<'a> {
     registry: Rc<PropertyRegistry>,
     viewport: Viewport,
     color_scheme: ColorScheme,
+    /// The counter styles the sheets define over the predefined ones,
+    /// built on first use.
+    counter_styles: std::cell::OnceCell<CounterStyleRegistry>,
 }
 
 impl<'a> Sheets<'a> {
@@ -44,7 +48,30 @@ impl<'a> Sheets<'a> {
             registry,
             viewport,
             color_scheme,
+            counter_styles: std::cell::OnceCell::new(),
         }
+    }
+
+    /// The counter styles names resolve to (CSS Counter Styles 3 §3):
+    /// the sheets' `@counter-style` definitions over the predefined
+    /// styles, a later definition of a name winning — by cascade layer
+    /// (unlayered last), then sheet, then source order (CSS Cascade 5
+    /// §6.4.3).
+    pub(super) fn counter_styles(&self) -> &CounterStyleRegistry {
+        self.counter_styles.get_or_init(|| {
+            let mut defs: Vec<(u32, usize, usize, &CounterStyleDefinition)> = Vec::new();
+            for (sheet, s) in self.list.iter().enumerate() {
+                for (i, def) in s.counter_styles().iter().enumerate() {
+                    defs.push((self.layers.rank(sheet, def.layer), sheet, i, def));
+                }
+            }
+            defs.sort_by_key(|&(rank, sheet, i, _)| (rank, sheet, i));
+            let mut registry = CounterStyleRegistry::new();
+            for (_, _, _, def) in defs {
+                registry.define(def.name.clone(), def.rule.clone());
+            }
+            registry
+        })
     }
 
     /// The document's preferred color scheme (CSS Color Adjust 1 §2.1).

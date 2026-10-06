@@ -1,14 +1,15 @@
-//! `<counter-style>` (CSS Counter Styles 3 §3, CSS Lists 3 §4.3): the
-//! style a `counter()`, `counters()` or list marker names, and where
+//! `<counter-style>` (CSS Counter Styles 3 §3, §5; CSS Lists 3 §4.3):
+//! the style a `counter()`, `counters()` or list marker names, and where
 //! names are looked up.
 
 use std::sync::Arc;
 
 use super::generate::{Representation, generate};
-use super::rule::CounterStyleRule;
+use super::rule::{CounterStyleRule, System};
 
 /// Where counter style names resolve: the predefined styles, and — in
-/// the cascade — the author's `@counter-style` rules over them.
+/// the cascade — the author's `@counter-style` rules over them
+/// ([`CounterStyleRegistry`](super::CounterStyleRegistry)).
 pub trait CounterStyleLookup {
     /// The rule defining `name` (a counter style name, compared
     /// case-sensitively; predefined names are lowercase), if any.
@@ -26,13 +27,17 @@ impl CounterStyleLookup for Predefined {
 }
 
 /// A `<counter-style>`: a counter style name (§3: `<counter-style-name>`,
-/// a `<custom-ident>`). A name no rule defines formats as `decimal`; the
-/// name `none` formats as nothing.
+/// a `<custom-ident>`) or `symbols()` (§5). A name no rule defines
+/// formats as `decimal`; the name `none` formats as nothing.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum CounterStyle {
     /// A `<counter-style-name>`. Predefined names are stored lowercase.
     Name(Arc<str>),
+    /// `symbols( <symbols-type>? <string>+ )` (§5): an anonymous style
+    /// of that system (`symbolic` by default) over the strings, with
+    /// the suffix `" "`.
+    Symbols(Arc<CounterStyleRule>),
 }
 
 impl Default for CounterStyle {
@@ -64,30 +69,58 @@ impl CounterStyle {
     /// Parse a `<counter-style-name>` identifier: any `<custom-ident>`
     /// but the CSS-wide keywords and `default` (CSS Values 4 §4.2).
     pub fn parse(ident: &str) -> Option<Self> {
-        let reserved = [
-            "inherit",
-            "initial",
-            "unset",
-            "revert",
-            "revert-layer",
-            "default",
-        ];
-        if ident.is_empty() || reserved.iter().any(|r| ident.eq_ignore_ascii_case(r)) {
-            return None;
-        }
-        Some(Self::named(ident))
+        is_counter_style_name(ident).then(|| Self::named(ident))
     }
 
-    /// The style's name.
-    pub fn name(&self) -> &str {
+    /// `symbols(system "s"…)` (§5): `system` is `cyclic`, `numeric`,
+    /// `alphabetic`, `symbolic` or `fixed` (first symbol value 1);
+    /// `None` for another system, or too few symbols for it (two for
+    /// alphabetic and numeric, one otherwise).
+    pub fn symbols(system: System, symbols: &[&str]) -> Option<Self> {
+        if matches!(system, System::Additive | System::Extends(_)) {
+            return None;
+        }
+        let rule = CounterStyleRule::new(system, symbols).with_suffix(" ");
+        rule.is_valid()
+            .then(|| CounterStyle::Symbols(Arc::new(rule)))
+    }
+
+    /// The style's name; `None` for `symbols()`.
+    pub fn name(&self) -> Option<&str> {
         match self {
-            CounterStyle::Name(name) => name,
+            CounterStyle::Name(name) => Some(name),
+            CounterStyle::Symbols(_) => None,
         }
     }
 
     /// Whether this is `decimal`.
     pub fn is_decimal(&self) -> bool {
-        self.name() == "decimal"
+        self.name() == Some("decimal")
+    }
+
+    /// The CSS text: the name, or `symbols(<system> "…" …)` — the system
+    /// left out when it is `symbolic`.
+    pub fn to_css(&self) -> String {
+        match self {
+            CounterStyle::Name(name) => name.to_string(),
+            CounterStyle::Symbols(rule) => {
+                let mut out = String::from("symbols(");
+                let system = match rule.system.as_ref() {
+                    Some(System::Cyclic) => Some("cyclic"),
+                    Some(System::Numeric) => Some("numeric"),
+                    Some(System::Alphabetic) => Some("alphabetic"),
+                    Some(System::Fixed(_)) => Some("fixed"),
+                    _ => None,
+                };
+                let mut parts: Vec<String> = system.into_iter().map(str::to_string).collect();
+                for s in rule.symbols.iter().flat_map(|s| s.iter()) {
+                    parts.push(css_string(s));
+                }
+                out.push_str(&parts.join(" "));
+                out.push(')');
+                out
+            }
+        }
     }
 
     /// `n` in this style, as `counter()` writes it (no prefix or
@@ -104,7 +137,7 @@ impl CounterStyle {
 
     /// `n` as `counter()` writes it, resolving names through `lookup`.
     pub fn format_with(&self, n: i32, rtl: bool, lookup: &impl CounterStyleLookup) -> String {
-        generate(lookup, self.name(), n, rtl, Representation::Counter)
+        generate(lookup, self, n, rtl, Representation::Counter)
     }
 
     /// A list marker's text for `n` (CSS Lists 3 §3.1): the
@@ -117,6 +150,38 @@ impl CounterStyle {
     /// [`marker_text`](Self::marker_text), resolving names through
     /// `lookup`.
     pub fn marker_text_with(&self, n: i32, rtl: bool, lookup: &impl CounterStyleLookup) -> String {
-        generate(lookup, self.name(), n, rtl, Representation::Marker)
+        generate(lookup, self, n, rtl, Representation::Marker)
     }
+}
+
+/// Whether `ident` may name a counter style: a `<custom-ident>` other
+/// than the CSS-wide keywords and `default` (CSS Values 4 §4.2).
+pub fn is_counter_style_name(ident: &str) -> bool {
+    let reserved = [
+        "inherit",
+        "initial",
+        "unset",
+        "revert",
+        "revert-layer",
+        "default",
+    ];
+    !ident.is_empty() && !reserved.iter().any(|r| ident.eq_ignore_ascii_case(r))
+}
+
+/// A CSS string (CSSOM §2.1 "serialize a string"): double-quoted, `"`
+/// and `\\` escaped, a control character as its code point.
+pub(crate) fn css_string(s: &str) -> String {
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' | '\\' => {
+                out.push('\\');
+                out.push(c);
+            }
+            c if c.is_control() => out.push_str(&format!("\\{:x} ", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }

@@ -130,6 +130,16 @@ fn consume_at_rule(
         crate::property::consume_property_rule(cursor, sheet, warnings, (line, column));
         return;
     }
+    if name.eq_ignore_ascii_case("counter-style") {
+        crate::counter_style::consume_counter_style_rule(
+            cursor,
+            sheet,
+            warnings,
+            layer,
+            (line, column),
+        );
+        return;
+    }
     if name.eq_ignore_ascii_case("scope") {
         let ctx = Context {
             rule: RuleContext::default().in_layer(layer),

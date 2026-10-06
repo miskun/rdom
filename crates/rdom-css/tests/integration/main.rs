@@ -6,6 +6,7 @@
 mod at_rules;
 mod calc_parsing;
 mod colors;
+mod counter_style;
 mod custom_properties;
 mod display_flow;
 mod import;

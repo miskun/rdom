@@ -83,6 +83,11 @@ impl Stylesheet {
         let scopes = self.append_scopes(other);
         self.registrations
             .extend(other.registrations.iter().cloned());
+        for def in &other.counter_styles {
+            let mut def = def.clone();
+            def.layer = def.layer.map(|l| map[l.index()]);
+            self.counter_styles.push(def);
+        }
         for import in &other.imports {
             let mut import = import.clone();
             import.layer = import.layer.map(|l| map[l.index()]);

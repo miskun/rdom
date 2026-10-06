@@ -85,7 +85,7 @@ fn registration(name: &str, body: &str) -> Result<PropertyRegistration, String> 
 
 /// From just inside `{`, the block's text through its matching `}`
 /// (consumed; EOF closes it).
-fn read_body(cursor: &mut Cursor) -> Option<String> {
+pub(crate) fn read_body(cursor: &mut Cursor) -> Option<String> {
     let mut out = String::new();
     let mut depth = 0usize;
     loop {

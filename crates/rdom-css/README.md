@@ -80,9 +80,9 @@ value       := token+
   (`:hover`, `:active`, `:focus`, `:not(...)`, `:first-child`, `:last-child`,
   `:only-child`, `:empty`, `:root`, `:checked`, `:indeterminate`,
   `:open`, `:is(...)`, `:where(...)`, …), pseudo-elements (`::before`, `::after`, `::selection`,
-  `::backdrop`), descendant / child / next-sibling / subsequent-sibling
+  `::backdrop`; the CSS 2.1 spellings `:before` / `:after`), descendant / child / next-sibling / subsequent-sibling
   combinators, comma-separated lists.
-- **Properties** — the `rdom-style::property_dispatch` table (`property_names()` lists them; incl. `counter-reset` / `counter-increment`; `transition-timing-function` takes `cubic-bezier()` and `steps()`):
+- **Properties** — the `rdom-style::property_dispatch` table (`property_names()` lists them; incl. `counter-reset` (with `reversed()`) / `counter-increment` / `counter-set`, `content` (`counter()`, `counters()`, `symbols()`, quotes, alt text) and `quotes`; `transition-timing-function` takes `cubic-bezier()` and `steps()`):
   color/text, block model, sizing, content, positioning, transitions.
   See [`rdom-style`](../rdom-style/#supported-properties) for the
   current list.
@@ -129,7 +129,7 @@ value       := token+
 These produce a `Warning` and the parse continues — matching browser
 behavior, so copy-pasting CSS from MDN doesn't blow up:
 
-- **At-rules other than `@import`, `@layer`, `@scope` and `@property`.**
+- **At-rules other than `@import`, `@layer`, `@scope`, `@property` and `@counter-style`.**
   Every other at-rule (`@charset`, `@media`, `@keyframes`, `@supports`, `@font-face`, …) is
   consumed whole per CSS Syntax 3 §5.4.2 and reported with
   `WarningKind::UnsupportedAtRule(name)`; the rules around it are
@@ -138,6 +138,9 @@ behavior, so copy-pasting CSS from MDN doesn't blow up:
   by the loader against the importing sheet — its conditions recorded but
   not yet evaluated;
   `@property` registers a custom property, `Stylesheet::registered_properties`;
+  `@counter-style` defines a counter style, `Stylesheet::counter_styles`
+  (`WarningKind::InvalidCounterStyleRule` for a rule that defines nothing
+  or a dropped descriptor);
   `@scope` is parsed into the sheet's scopes:
   `Stylesheet::scopes`, `Rule::scope`). The applicable ones (`@media`, `@supports`, `@keyframes`,
   …) are scheduled for 0.6.0. `@layer` (statement and block forms,

@@ -111,8 +111,11 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   `-start` / `-end` longhands each), `border-inline` / `-block` (+
   `-start` / `-end`, and `-color` / `-style` / `-width` of each), and
   `border-start-start-radius` and the other three corners.
-- **Generated content** — `content`, `counter-reset`,
-  `counter-increment`.
+- **Generated content** — `content` (strings, `attr()`, `counter()` /
+  `counters()` in every predefined counter style or `symbols()`, quotes,
+  alt text), `quotes`, `counter-reset` (with `reversed()`),
+  `counter-increment`, `counter-set`; `@counter-style` rules are
+  `counters::CounterStyleRule`s.
 - **Positioning** — `position` (incl. `sticky`), `top`, `right`,
   `bottom`, `left`, `inset`, `z-index`, `float`, `clear`.
 - **Transitions** — `transition` (+ `-property`, `-duration`,

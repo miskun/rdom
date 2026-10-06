@@ -10,17 +10,22 @@
 //! author's `@counter-style` — is a [`CounterStyleRule`], and one
 //! algorithm (`generate`) turns a rule and a value into text.
 
+mod descriptors;
 mod generate;
 mod predefined;
+mod registry;
 mod rule;
 mod style;
 #[cfg(test)]
 mod tests;
 
+pub use descriptors::{apply_descriptor, check_rule, parse_counter_style};
 pub use generate::{MAX_FALLBACK_DEPTH, MAX_REPRESENTATION_CHARS};
 pub use predefined::{predefined, predefined_names};
+pub use registry::{CounterStyleDefinition, CounterStyleRegistry};
 pub use rule::{CounterRange, CounterStyleRule, SpeakAs, System};
-pub use style::{CounterStyle, CounterStyleLookup, Predefined};
+pub(crate) use style::css_string;
+pub use style::{CounterStyle, CounterStyleLookup, Predefined, is_counter_style_name};
 
 /// One item of `counter-reset`, `counter-increment` or `counter-set`
 /// (CSS Lists 3 §4.2–§4.3): `<counter-name> <integer>?`, or — reset
