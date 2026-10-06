@@ -171,7 +171,85 @@ fn the_bare_pseudo_reset_list_parses() {
 
 #[test]
 fn extract_rejects_unsupported_pseudo_element() {
-    assert!(extract("p::first-line").is_err());
+    assert!(extract("p::grammar-error").is_err());
+}
+
+// ── Legacy single-colon pseudo-elements (C10-LEGACY-COLON) ─────────
+
+/// Selectors 4 §15 (CSS 2.1 compatibility): `:before`, `:after`,
+/// `:first-line` and `:first-letter` are the pseudo-elements of the same
+/// name written with one colon, in any ASCII case.
+#[test]
+fn legacy_single_colon_pseudo_elements_are_pseudo_elements() {
+    assert_eq!(
+        extract("p:before").unwrap(),
+        ("p".into(), PseudoElementTarget::Before)
+    );
+    assert_eq!(
+        extract("li.x:AFTER").unwrap(),
+        ("li.x".into(), PseudoElementTarget::After)
+    );
+    assert_eq!(
+        extract("a:hover:before").unwrap(),
+        ("a:hover".into(), PseudoElementTarget::Before)
+    );
+    assert_eq!(
+        extract("p:first-line").unwrap(),
+        ("p".into(), PseudoElementTarget::FirstLine)
+    );
+    assert_eq!(
+        extract("p:first-letter").unwrap(),
+        ("p".into(), PseudoElementTarget::FirstLetter)
+    );
+    assert_eq!(
+        extract(":before").unwrap(),
+        ("*".into(), PseudoElementTarget::Before),
+        "a bare legacy pseudo-element attaches to the implicit `*`"
+    );
+}
+
+/// The double-colon `::first-line` / `::first-letter` (CSS Pseudo 4 §2)
+/// parse as their pseudo-elements, and pseudo-element names are ASCII
+/// case-insensitive (Selectors 4 §4.1).
+#[test]
+fn first_line_and_first_letter_parse_and_names_ignore_case() {
+    assert_eq!(
+        extract("p::first-line").unwrap(),
+        ("p".into(), PseudoElementTarget::FirstLine)
+    );
+    assert_eq!(
+        extract("p::First-Letter").unwrap(),
+        ("p".into(), PseudoElementTarget::FirstLetter)
+    );
+    assert_eq!(
+        extract("p::BEFORE").unwrap(),
+        ("p".into(), PseudoElementTarget::Before)
+    );
+}
+
+/// An escaped colon is part of an identifier (CSS Syntax 3 §4.3.7):
+/// `.a\:before` is the class `a:before`, not a pseudo-element.
+#[test]
+fn an_escaped_colon_is_no_legacy_pseudo_element() {
+    assert_eq!(
+        extract(r".a\:before").unwrap(),
+        (r".a\:before".into(), PseudoElementTarget::None)
+    );
+}
+
+/// The legacy spelling carries a pseudo-element's specificity (0,0,1),
+/// the same rule as its double-colon twin.
+#[test]
+fn a_legacy_pseudo_element_has_pseudo_element_specificity() {
+    let legacy = StyleSelector::parse("p:before").unwrap();
+    let modern = StyleSelector::parse("p::before").unwrap();
+    let mut a = Stylesheet::bare();
+    a.add_style_rule(&legacy, TuiStyle::new(), RuleContext::default());
+    let mut b = Stylesheet::bare();
+    b.add_style_rule(&modern, TuiStyle::new(), RuleContext::default());
+    assert_eq!(a.rules()[0].specificity, b.rules()[0].specificity);
+    assert_eq!(a.rules()[0].selector, b.rules()[0].selector);
+    assert_eq!(a.rules()[0].pseudo, PseudoElementTarget::Before);
 }
 
 #[test]

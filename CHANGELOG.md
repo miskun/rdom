@@ -253,6 +253,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **The CSS 2.1 single-colon pseudo-elements** (Selectors 4 §15): `:before`, `:after`, `:first-line` and `:first-letter` are their pseudo-elements, with a pseudo-element's specificity; pseudo-element names match in any ASCII case (`::BEFORE`). `PseudoElementTarget::FirstLine` / `FirstLetter`: `::first-line` / `::first-letter` rules parse and are stored, and style nothing until C10-FIRST. (C10-LEGACY-COLON)
 - **`ComputedStyle::is_atomic_inline`** (CSS Display 3 §2.4): `inline-block`, `inline flow-root`, `inline-flex`, `inline-grid` — the predicate the cascade (decoration propagation) and layout share, moved out of rdom-tui's render code. (C9G-MISC-CORRECTNESS)
 - **`TextAlignKeyword`** (CSS Text 3 §6.1): the `text-align` shorthand's value — a `TextAlign` or `justify-all` — with `longhands()`; `TuiStyle::text_align` takes it, so `.text_align(TextAlignKeyword::JustifyAll)` justifies every line. **`FontStretchKeyword`**: `font-stretch`'s width keywords, typed. **`ImportantMask::WHITE_SPACE`** is kept, the shorthand's two longhands. (C9G-TYPES)
 - **`letter-spacing` and `word-spacing`** (CSS Text 3 §9.1, §9.2): `Spacing` (`Normal`, `Cells`, `Calc`; `cells()` the used whole cells, floored, never negative), `TextStyle` / `TextDeclarations::letter_spacing` / `word_spacing`, the builders, `ImportantMask::LETTER_SPACING` / `WORD_SPACING`; inherited. A pixel or font-relative length is invalid. (C9G-LETTER-SPACING)

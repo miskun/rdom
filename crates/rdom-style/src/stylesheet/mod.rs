@@ -111,6 +111,14 @@ pub enum PseudoElementTarget {
     /// placeholder. Only the `::first-line` property subset applies
     /// ([`TuiStyle::first_line_subset`]); a rule keeps nothing else.
     Placeholder,
+    /// `::first-line` (CSS Pseudo-Elements 4 §2.1), also spelled
+    /// `:first-line` (Selectors 4 §15). Its rules parse and are stored;
+    /// no box consumes them until C10-FIRST, so they style nothing yet.
+    FirstLine,
+    /// `::first-letter` (CSS Pseudo-Elements 4 §2.2), also spelled
+    /// `:first-letter` (Selectors 4 §15). Parsed and stored; it styles
+    /// nothing until C10-FIRST.
+    FirstLetter,
 }
 
 impl PseudoElementTarget {

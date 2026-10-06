@@ -12,12 +12,14 @@ use super::PseudoElementTarget;
 /// The supported pseudo-element suffixes. Longer suffixes go first:
 /// `::scrollbar` is a prefix of `::scrollbar-thumb`, which is a prefix
 /// of the axis forms.
-const SUFFIXES: [(&str, PseudoElementTarget); 9] = [
+const SUFFIXES: [(&str, PseudoElementTarget); 11] = [
     ("::before", PseudoElementTarget::Before),
     ("::after", PseudoElementTarget::After),
     ("::backdrop", PseudoElementTarget::Backdrop),
     ("::placeholder", PseudoElementTarget::Placeholder),
     ("::selection", PseudoElementTarget::Selection),
+    ("::first-line", PseudoElementTarget::FirstLine),
+    ("::first-letter", PseudoElementTarget::FirstLetter),
     (
         "::scrollbar-thumb:vertical",
         PseudoElementTarget::ScrollbarThumbVertical,
@@ -30,10 +32,20 @@ const SUFFIXES: [(&str, PseudoElementTarget); 9] = [
     ("::scrollbar", PseudoElementTarget::Scrollbar),
 ];
 
+/// The CSS 2.1 pseudo-elements Selectors 4 §15 still accepts with one
+/// colon (`:before`, `:after`, `:first-line`, `:first-letter`).
+const LEGACY_SUFFIXES: [(&str, PseudoElementTarget); 4] = [
+    (":before", PseudoElementTarget::Before),
+    (":after", PseudoElementTarget::After),
+    (":first-line", PseudoElementTarget::FirstLine),
+    (":first-letter", PseudoElementTarget::FirstLetter),
+];
+
 /// Strip a trailing pseudo-element (`::before`, `::scrollbar-thumb:vertical`,
-/// …) if present. Returns the core selector + pseudo target. Errors if
-/// more than one pseudo-element is present (not allowed in a single
-/// selector) or the pseudo-element is unsupported.
+/// the legacy `:before`, …) if present. Returns the core selector + pseudo
+/// target. Errors if more than one pseudo-element is present (not allowed
+/// in a single selector) or the pseudo-element is unsupported. Names are
+/// ASCII case-insensitive (Selectors 4 §4.1).
 ///
 /// The pseudo-element attaches to the last compound of the core. When
 /// there is none — the core is empty, or ends in whitespace or a
@@ -55,7 +67,7 @@ pub(super) fn extract_pseudo_suffix(
     }
 
     for (suffix, target) in SUFFIXES {
-        if let Some(core) = s.strip_suffix(suffix) {
+        if let Some(core) = strip_suffix_ignore_case(s, suffix) {
             return Ok((with_compound(core), target));
         }
     }
@@ -63,12 +75,29 @@ pub(super) fn extract_pseudo_suffix(
     // A bare `::other` anywhere is rejected (unsupported pseudo-element).
     if pseudo_count == 1 {
         return Err(
-            "unsupported pseudo-element; only ::before, ::after, ::backdrop, ::selection, ::placeholder, ::scrollbar, ::scrollbar-thumb (optionally :vertical / :horizontal) allowed"
+            "unsupported pseudo-element; only ::before, ::after, ::backdrop, ::selection, ::placeholder, ::first-line, ::first-letter, ::scrollbar, ::scrollbar-thumb (optionally :vertical / :horizontal) allowed"
                 .to_string(),
         );
     }
 
+    // Selectors 4 §15: the CSS 2.1 single-colon spellings. An escaped
+    // colon (`.a\:before`) belongs to an identifier and is no pseudo.
+    for (suffix, target) in LEGACY_SUFFIXES {
+        if let Some(core) = strip_suffix_ignore_case(s, suffix)
+            && core.chars().rev().take_while(|&c| c == '\\').count() % 2 == 0
+        {
+            return Ok((with_compound(core), target));
+        }
+    }
+
     Ok((Cow::Borrowed(s), PseudoElementTarget::None))
+}
+
+/// `s` without `suffix`, compared ASCII case-insensitively.
+fn strip_suffix_ignore_case<'a>(s: &'a str, suffix: &str) -> Option<&'a str> {
+    let split = s.len().checked_sub(suffix.len())?;
+    let tail = s.get(split..)?;
+    tail.eq_ignore_ascii_case(suffix).then(|| &s[..split])
 }
 
 /// `core` (the text before a pseudo-element) with a compound for the

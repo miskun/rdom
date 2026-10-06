@@ -213,7 +213,7 @@ row comes from.
 | C10-COUNTER-STYLE | `@counter-style` and `symbols()` | |
 | C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | |
 | C10-FIRST | `::first-line` / `::first-letter` | |
-| C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | |
+| C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | |
 | C10-DETAILS-CONTENT | `::details-content` | |
 | C10-PSEUDO-CHAINS | Pseudo-element followed by user-action pseudo-classes (`::before:hover`) and nested pseudo-elements where defined | |
@@ -5998,3 +5998,17 @@ row comes from.
   element; Windows Terminal is not detected (no version in its environment), so its SGR extensions need
   `App::with_sgr_capabilities`.
 
+- 2026-10-13 — C10-LEGACY-COLON. Found: `p:before` reached rdom-core's selector parser as an unknown
+  pseudo-class, so the rule was dropped with a warning; `::first-line` / `::first-letter` were rejected as
+  unsupported pseudo-elements; suffixes matched case-sensitively (`::BEFORE` dropped). Decision: the
+  stylesheet's suffix stripper (`selector_text::extract_pseudo_suffix`) owns the mapping — Selectors 4 §15's
+  four legacy spellings strip to their targets after the double-colon forms (an escaped colon, `.a\:before`,
+  stays an identifier), every name compares ASCII case-insensitively, and `PseudoElementTarget` gains
+  `FirstLine` / `FirstLetter`: their rules are stored and match nothing until C10-FIRST (DIVERGENCES §3).
+  rdom-core's `querySelector` still rejects every pseudo-element (unchanged). Red: rdom-style
+  `stylesheet::tests` — `legacy_single_colon_pseudo_elements_are_pseudo_elements` (`("p:before", None)`),
+  `first_line_and_first_letter_parse_and_names_ignore_case` (`Err`) and
+  `a_legacy_pseudo_element_has_pseudo_element_specificity` failed; `an_escaped_colon_is_no_legacy_pseudo_element`
+  passed before (a guard); `css_phase10/legacy_colon.rs` — both failed (the strict sheet warned). Green after.
+  CSS-COVERAGE: the legacy row Missing → Supported, §3.16 5 / 1 / 4 / 6, total 183 / 18 / 61 / 45. No
+  existing expectation changed (`extract_rejects_unsupported_pseudo_element` now uses `::grammar-error`).

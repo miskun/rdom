@@ -335,8 +335,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Pseudo-elements
 
-- `::first-line`, `::first-letter` — C10-FIRST
-- Legacy single-colon `:before` / `:after` / `:first-line` / `:first-letter` — C10-LEGACY-COLON
+- `::first-line`, `::first-letter` — C10-FIRST. Their selectors parse, in both spellings (`::first-line` and the legacy `:first-line`, Selectors 4 §15), and their rules are kept, but no box takes them yet: they style nothing.
 - `::highlight()` — C10-HIGHLIGHT
 - `::details-content` — C10-DETAILS-CONTENT
 - A pseudo-element followed by a pseudo-class (`::before:hover`), nested pseudo-elements — C10-PSEUDO-CHAINS

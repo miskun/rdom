@@ -84,7 +84,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.13 Text decoration (Text Decoration 3/4) | 4 | 0 | 0 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 3 | 0 | 0 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
-| 3.16 Pseudo-elements (Pseudo-Elements 4, Selectors 4) | 4 | 1 | 5 | 6 | 16 |
+| 3.16 Pseudo-elements (Pseudo-Elements 4, Selectors 4) | 5 | 1 | 4 | 6 | 16 |
 | 3.17 Selectors (Selectors 4) | 16 | 2 | 16 | 4 | 38 |
 | 3.18 Transitions and animations (Transitions 1/2, Animations 1/2, Easing 1/2) | 3 | 3 | 4 | 0 | 10 |
 | 3.19 User interface (UI 4) | 2 | 1 | 8 | 1 | 12 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **182** | **18** | **62** | **45** | **307** |
+| **Total** | **183** | **18** | **61** | **45** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 80 rows Partial / Missing (C9-FONT shipped `font-weight`, `font-style` and `font`; C9-DECORATION shipped the four text decoration rows; C9-VERTICAL-ALIGN shipped `vertical-align` on inline content; C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 79 rows Partial / Missing (C10-LEGACY-COLON shipped the single-colon pseudo-elements; C9-FONT shipped `font-weight`, `font-style` and `font`; C9-DECORATION shipped the four text decoration rows; C9-VERTICAL-ALIGN shipped `vertical-align` on inline content; C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
 Headline: rdom parses **260 property names** (`property_names()`: 192 in the table and 68 flow-relative ones, after Phase 9 and C9G-LETTER-SPACING). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gap a web developer hits first is `@media`.
 
@@ -493,8 +493,8 @@ dropped. The audit's six, with where each stands:
 | `::placeholder` | Supported | Layered on the host's `::before` box (documented); the `::first-line` properties, a `var()` value included (C6G-CSSOM-EDGES). | Yes | `PE` |
 | `::backdrop` | Supported | Modal dialogs (no top layer, documented). | Yes | `PE` |
 | `::marker` | Missing | Marker box styling. | Yes | `PE`, `CASC` |
-| `::first-line` / `::first-letter` | Missing | First line / letter styling. | Yes | `PE`, `IFC` |
-| Legacy single-colon `:before` / `:after` / `:first-line` / `:first-letter` | Missing | CSS 2.1 spellings, still valid; `:before` is an "unsupported pseudo-class" error. | No | `SEL`, `PE` |
+| `::first-line` / `::first-letter` | Missing | First line / letter styling. The selectors parse (both spellings, C10-LEGACY-COLON) and their rules are stored, matching nothing. | Yes | `PE`, `IFC` |
+| Legacy single-colon `:before` / `:after` / `:first-line` / `:first-letter` | Supported | Selectors 4 §15: each is its pseudo-element, in any ASCII case, with a pseudo-element's specificity; an escaped colon (`.a\:before`) stays part of an identifier. `:first-line` / `:first-letter` match nothing until `::first-line` / `::first-letter` do (C10-FIRST). Stylesheet selectors only: `querySelector` rejects every pseudo-element (C10-LEGACY-COLON). | — | `PE` |
 | `::highlight()` | Missing | Custom Highlight API ranges (search hits, diagnostics). | No | `PE`, `rdom-core` (highlight registry) |
 | `::details-content` | Missing | The collapsible part of `<details>`. | No | `PE` |
 | `::target-text` | N/A | No URL fragment navigation. | — | — |
