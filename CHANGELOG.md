@@ -524,6 +524,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A box's baselines are its packed lines' text rows** (CSS 2.1 §10.8.1, CSS Box Alignment 3 §9.1): an inline block or a flex item takes its first and last baselines from the lines layout packs, so `H<sub>2</sub>O` in an inline block stays on its line's row and a leading text line before a block child holds the first baseline. (C9G-ONE-BASELINE)
 - **A tall snap area's end is a snap position** (CSS Scroll Snap 1 §6.2.3): the end-aligned offset of an area longer than the snapport is offered, and a scroll leaving such an area rests there first, so PageDown through 25-row cards in a 10-row `mandatory` list shows rows 20–24 (it went 10 → 25). (C9G-SNAP-COVER)
 - **A letter a transform lengthens stays a letter for line breaking** (CSS Text 3 §2.1, §5): `ß` uppercased is `SS`, two letters — it was classed as one two-cell ideograph, so `straße` under `uppercase` broke inside the word and its min-content was 4, not 7. Full-width text still breaks like ideographs. (C9G-TRANSFORM-BREAK)
 - **A caret off the screen's left or top is on no cell**: `cell_of_position` returns `None` for it (it clamped to column / row 0, so an `rtl` caret left of the screen painted in column 0), and caret reveal and line movement read the signed cell, so a caret scrolled above the screen is revealed by its whole distance. (C8G-CARET-RTL)

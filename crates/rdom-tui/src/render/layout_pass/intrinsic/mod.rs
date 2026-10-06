@@ -36,7 +36,7 @@ mod wrap;
 
 use content::measure_content;
 pub(crate) use keywords::Keywords;
-pub(super) use memo::{begin_pass, end_pass, with_subgrids};
+pub(super) use memo::{baselines_memo, begin_pass, end_pass, put_baselines_memo, with_subgrids};
 
 /// Measure an element's intrinsic size along `direction`. Used to
 /// resolve `Size::Auto`. `cross_budget` is the container's

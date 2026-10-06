@@ -121,6 +121,27 @@ fn nested_baseline_rows_measure_each_subtree_once() {
     }
 }
 
+/// C9G-ONE-BASELINE: an inline block's baseline is its packed lines'
+/// (`baselines::content_rows`), measured through the block flow, which
+/// takes each nested box's baselines in turn — memoized for the pass, so
+/// nested inline blocks measure each subtree's baselines once per width
+/// asked about, linearly with the depth.
+#[test]
+fn nested_inline_blocks_measure_each_baseline_once() {
+    use crate::render::layout_pass::baselines::WALKS;
+    let style = || {
+        rdom_style::TuiStyle::new()
+            .display(crate::layout::Display::InlineBlock)
+            .padding(crate::layout::Padding::new(0, 1, 0, 1))
+    };
+    for depth in [4, 12] {
+        WALKS.with(|c| c.set(0));
+        column_walks(depth, style());
+        let n = WALKS.with(Cell::get);
+        assert!(n <= 2 * (depth + 1), "{depth} levels: {n} baseline walks");
+    }
+}
+
 /// C7G-MEMO-PURITY — the memo holds only what is pure within the pass.
 /// A subgrid's size takes its parent's laid-out tracks (CSS Grid 2 §9),
 /// which the parent writes during the pass, so it is measured each time,

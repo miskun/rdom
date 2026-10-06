@@ -11,8 +11,9 @@ use crate::style::ComputedStyle;
 
 /// An item's physical top and bottom margins, its (not stretched)
 /// border-box height, and its first and last baseline rows from its
-/// border-box top — its first and last content rows, or, with no content
-/// rows, a baseline synthesized at its border box's bottom row (§9.1).
+/// border-box top — the text rows of its first and last line boxes
+/// (`layout_pass::baselines`), or, with none, a baseline synthesized at
+/// its border box's bottom row (§9.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::render::layout_pass) struct BaselineBox {
     pub(in crate::render::layout_pass) margin_top: i32,
@@ -35,9 +36,9 @@ impl BaselineBox {
     ) -> Self {
         let synthesized = height.saturating_sub(1);
         let rows = match item {
-            Item::Element(id) => {
-                crate::render::inline::vertical::content_rows(dom, *id, computed, width, cb_width)
-            }
+            Item::Element(id) => crate::render::layout_pass::baselines::content_rows(
+                dom, *id, computed, width, cb_width,
+            ),
             Item::Anonymous(anon) => anon.content_rows(dom, width, cb_width),
         };
         let (first, last) = rows.unwrap_or((synthesized, synthesized));

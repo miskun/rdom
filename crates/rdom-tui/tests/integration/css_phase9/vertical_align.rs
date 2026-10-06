@@ -203,3 +203,54 @@ fn sub_and_sup_shift_by_default() {
     let buf = paint(&mut dom, "sup, sub { color: red }", 3, 3);
     assert_eq!(rows(&buf, 3, 3), [" 2 ", "x  ", "  i"]);
 }
+
+/// Append the text `s` to `parent`.
+fn text(dom: &mut TuiDom, parent: NodeId, s: &str) {
+    let t = dom.create_text_node(s);
+    dom.append_child(parent, t).unwrap();
+}
+
+/// C9G-ONE-BASELINE. CSS 2.1 §10.8.1: an inline-block's baseline is "the
+/// baseline of its last line box in the normal flow" — the row its text
+/// sits on, not its content's last row: `H<sub>2</sub>O` is one line two
+/// rows tall (the `2` lowered a row, HTML's `sub { vertical-align: sub }`),
+/// its baseline the `H O` row, which sits on the `a b` row.
+#[test]
+fn an_inline_blocks_baseline_is_its_last_lines_text_row() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let b = el(&mut dom, root, "div", "b");
+    text(&mut dom, b, "a ");
+    let ib = el(&mut dom, b, "span", "ib");
+    text(&mut dom, ib, "H");
+    let sub = el(&mut dom, ib, "sub", "");
+    text(&mut dom, sub, "2");
+    text(&mut dom, ib, "O");
+    text(&mut dom, b, " b");
+    let buf = paint(&mut dom, ".ib { display: inline-block }", 8, 3);
+    assert_eq!(rows(&buf, 8, 3), ["a H O b ", "   2    ", "        "]);
+}
+
+/// C9G-ONE-BASELINE. CSS Box Alignment 3 §9.1: a block container's first
+/// baseline is its first in-flow line box's — here the anonymous line `t`
+/// before a block child whose `line-height: 3` adds leading — so
+/// `align-items: baseline` puts the sibling's `z` on `t`'s row.
+#[test]
+fn a_leading_anonymous_line_holds_the_first_baseline() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let f = el(&mut dom, root, "div", "f");
+    let a = el(&mut dom, f, "div", "");
+    text(&mut dom, a, "t");
+    let u = el(&mut dom, a, "div", "u");
+    text(&mut dom, u, "u");
+    let z = el(&mut dom, f, "div", "");
+    text(&mut dom, z, "z");
+    let buf = paint(
+        &mut dom,
+        ".f { display: flex; align-items: baseline; width: 4 } .u { line-height: 3 }",
+        4,
+        4,
+    );
+    assert_eq!(rows(&buf, 4, 4), ["tz  ", "    ", "u   ", "    "]);
+}

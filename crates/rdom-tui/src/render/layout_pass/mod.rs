@@ -80,6 +80,7 @@
 //! intrinsic measurement.
 
 mod auto_height;
+pub(crate) mod baselines;
 mod block;
 #[cfg(test)]
 mod block_tests;

@@ -37,7 +37,12 @@ pub(super) type Key = (NodeId, bool, bool, u16, u16);
 struct PassMemo(
     RefCell<HashMap<Key, u16>>,
     RefCell<crate::render::layout_pass::grid::SubgridMemo>,
+    RefCell<HashMap<BaselineKey, Option<(u16, u16)>>>,
 );
+
+/// What a baseline measurement is for (`baselines::content_rows`): the
+/// element, its border-box width and its containing block's.
+pub(in crate::render::layout_pass) type BaselineKey = (NodeId, u16, u16);
 
 /// Open a layout pass: an empty table.
 pub(in crate::render::layout_pass) fn begin_pass(dom: &mut Dom<TuiExt>) {
@@ -59,6 +64,26 @@ pub(super) fn get(dom: &Dom<TuiExt>, key: Key) -> Option<u16> {
 pub(super) fn put(dom: &Dom<TuiExt>, key: Key, value: u16) {
     if let Some(t) = table(dom) {
         t.0.borrow_mut().insert(key, value);
+    }
+}
+
+/// The baselines memoized for `key` in the open pass (`Some(None)`: it
+/// has none); `None` outside a pass or when not yet measured.
+pub(in crate::render::layout_pass) fn baselines_memo(
+    dom: &Dom<TuiExt>,
+    key: BaselineKey,
+) -> Option<Option<(u16, u16)>> {
+    table(dom)?.2.borrow().get(&key).copied()
+}
+
+/// Record baselines in the open pass (a no-op outside one).
+pub(in crate::render::layout_pass) fn put_baselines_memo(
+    dom: &Dom<TuiExt>,
+    key: BaselineKey,
+    rows: Option<(u16, u16)>,
+) {
+    if let Some(t) = table(dom) {
+        t.2.borrow_mut().insert(key, rows);
     }
 }
 

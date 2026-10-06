@@ -45,11 +45,58 @@ pub(in crate::render::layout_pass) fn content_height(
     let mut area = ExclusionArea::default();
     let mut clamps = Vec::new();
     let content = LayoutRect::new(0, 0, width, 0);
-    let height = measure_children(dom, &mut area, &mut clamps, id, computed, content);
+    let height = measure_children(dom, &mut area, &mut clamps, None, id, computed, content);
     let floats = area
         .lowest()
         .map_or(0, |b| b.clamp(0, i32::from(u16::MAX)) as u16);
     height.max(floats)
+}
+
+/// The rows of the first and last in-flow line boxes' text in the block
+/// container `id` (styled `computed`), its content box `width` cells wide,
+/// counted from its content top: its flow measured as for
+/// [`content_height`], each line box recorded where it is packed — a
+/// block-level child's own (`baselines::content_rows`) where layout lays
+/// its lines out in its own context, else beside this flow's floats.
+/// `None` with no line box (CSS 2.1 §10.8.1, CSS Box Alignment 3 §9.1).
+pub(in crate::render::layout_pass) fn baselines(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    width: u16,
+) -> Option<(i32, i32)> {
+    let mut area = ExclusionArea::default();
+    let mut clamps = Vec::new();
+    let mut lines = LineRows::default();
+    let content = LayoutRect::new(0, 0, width, 0);
+    measure_children(
+        dom,
+        &mut area,
+        &mut clamps,
+        Some(&mut lines),
+        id,
+        computed,
+        content,
+    );
+    Some((lines.first?, lines.last?))
+}
+
+/// The text rows of the line boxes a measurement met, in block order: the
+/// first and the last.
+#[derive(Debug, Default, Clone, Copy)]
+struct LineRows {
+    first: Option<i32>,
+    last: Option<i32>,
+}
+
+impl LineRows {
+    /// Record a box whose first and last baselines are `rows`, from `top`.
+    fn rows(&mut self, rows: Option<(u16, u16)>, top: i32) {
+        if let Some((first, last)) = rows {
+            self.first.get_or_insert(top + i32::from(first));
+            self.last = Some(top + i32::from(last));
+        }
+    }
 }
 
 /// A line-clamp container's count of the line boxes in its formatting
@@ -94,6 +141,7 @@ fn measure_children(
     dom: &Dom<TuiExt>,
     area: &mut ExclusionArea,
     clamps: &mut Vec<Clamp>,
+    mut lines: Option<&mut LineRows>,
     id: NodeId,
     computed: &ComputedStyle,
     content: LayoutRect,
@@ -119,6 +167,9 @@ fn measure_children(
                 Some(&mut ex),
             );
             count_lines(clamps, &il, content.y);
+            if let Some(lines) = lines.as_deref_mut() {
+                lines.rows(il.baselines(), content.y);
+            }
             il.height()
         }
         ChildrenLayout::Block => match flow::prepare(dom, id, None) {
@@ -130,6 +181,7 @@ fn measure_children(
                     id,
                     area,
                     clamps,
+                    lines,
                 };
                 let at = flow::FlowAt {
                     container,
@@ -167,12 +219,14 @@ fn same_context(dom: &Dom<TuiExt>, child: NodeId, c: &ComputedStyle) -> bool {
         && !super::establishes_bfc(dom, child, c)
 }
 
-/// [`FlowSink`] for measurement: each piece measured against `area`.
+/// [`FlowSink`] for measurement: each piece measured against `area`, the
+/// line boxes recorded in `lines` when asked for ([`baselines`]).
 struct MeasureSink<'a> {
     dom: &'a Dom<TuiExt>,
     id: NodeId,
     area: &'a mut ExclusionArea,
     clamps: &'a mut Vec<Clamp>,
+    lines: Option<&'a mut LineRows>,
 }
 
 impl MeasureSink<'_> {
@@ -185,6 +239,16 @@ impl MeasureSink<'_> {
     fn height_of(&mut self, child: NodeId, placed: &ChildPlaced, cb: u16) -> u16 {
         let c = &placed.computed;
         if (self.area.is_empty() && self.clamps.is_empty()) || !same_context(self.dom, child, c) {
+            if let Some(lines) = self.lines.as_deref_mut() {
+                let rows = crate::render::layout_pass::baselines::content_rows(
+                    self.dom,
+                    child,
+                    c,
+                    placed.rect.width,
+                    cb,
+                );
+                lines.rows(rows, placed.rect.y);
+            }
             return placed.rect.height;
         }
         let (h, v) = (Sizer::horizontal(c, cb), Sizer::vertical(c, cb));
@@ -204,7 +268,15 @@ impl MeasureSink<'_> {
             placed.rect.width.saturating_sub(h.chrome()),
             0,
         );
-        let inner = measure_children(self.dom, self.area, self.clamps, child, c, content);
+        let inner = measure_children(
+            self.dom,
+            self.area,
+            self.clamps,
+            self.lines.as_deref_mut(),
+            child,
+            c,
+            content,
+        );
         crate::render::layout_pass::auto_height::used_content_height(self.dom, child, c, cb, inner)
             .saturating_add(v.chrome())
     }
@@ -222,20 +294,35 @@ impl FlowSink for MeasureSink<'_> {
     fn block(&mut self, child: NodeId, mut place: BlockPlace<'_>) -> i32 {
         let (y_cursor, cb) = (place.y_cursor, place.containing_block_width);
         let mut placed = place::place_block_child(self.dom, self.area, child, &mut place);
+        let before = self.lines.as_deref().copied();
         let mut height = self.height_of(child, &placed, cb);
         // §9.5: a formatting context root beside floats, taller than
-        // placed, is placed again at its height.
+        // placed, is placed again at its height (its lines recorded
+        // there instead).
         if let Some(rect) =
             place::replace_beside_floats(self.dom, self.area, child, &placed, height)
         {
             placed.rect = rect;
+            if let (Some(lines), Some(before)) = (self.lines.as_deref_mut(), before) {
+                *lines = before;
+            }
             height = self.height_of(child, &placed, cb).max(rect.height);
         }
         place::advance(&placed, placed.rect.y, height, y_cursor, place.margin_acc)
     }
 
     fn generated(&mut self, host: NodeId, slot: PseudoSlot, at: GeneratedPlace<'_>) -> Option<i32> {
+        let cb = at.cb_width;
         let placed = super::generated::place(self.dom, self.area, host, slot, at)?;
+        if let Some(lines) = self.lines.as_deref_mut()
+            && let Some(item) =
+                crate::render::layout_pass::items::AnonymousItem::pseudo(self.dom, host, slot)
+        {
+            lines.rows(
+                item.content_rows(self.dom, placed.rect.width, cb),
+                placed.rect.y,
+            );
+        }
         Some(placed.bottom)
     }
 
@@ -250,6 +337,9 @@ impl FlowSink for MeasureSink<'_> {
             Some(&mut ex),
         );
         count_lines(self.clamps, &il, place.at.y);
+        if let Some(lines) = self.lines.as_deref_mut() {
+            lines.rows(il.baselines(), place.at.y);
+        }
         il.height()
     }
 }

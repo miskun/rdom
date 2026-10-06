@@ -5709,3 +5709,31 @@ row comes from.
   wheel's pin. Green after. Mutation (each alone, restored, touched): no leaving-edge rest → the page test
   fails for 23-row cards (rows 20–22, 43–45, 66–68 unseen); no range ends among the positions → the
   `scrollTo` test fails (23). No existing expectation or snapshot changed.
+- 2026-10-12 — C9G-ONE-BASELINE (architect B3). Found: two baseline models — an atom's or a flex / grid
+  item's baselines were its content's first and last rows (`vertical::content_rows`, from the content
+  height) moved by `baselines::insets`, which re-packed the content only when `has_tall_lines` saw a
+  `line-height` above one row, and recursed through the first and last *element* children. A `sub` /
+  `super` also makes a two-row line, so `a <span style="display:inline-block">H<sub>2</sub>O</span> b`
+  took the atom's last row (the `2`'s) as its baseline and painted `H O` a row above `a b`; and a leading
+  anonymous line (`t<div style="line-height:3">u</div>`) was skipped, so `align-items: baseline` put a
+  sibling on the block child's glyph row. Decision: one model, the packed lines — new
+  `layout_pass::baselines::content_rows` (memoized for the pass beside the content sizes,
+  `intrinsic::memo`) measures a block container through `block::measure`'s flow (the C8G-FLOAT-MEASURE
+  model; new `block::measure::baselines`): each inline run's and inline formatting context's lines
+  recorded by their `text_row()`, each block-level child's baselines in turn at its placed row (or its
+  lines beside this flow's floats where the flow measures it in place), each block-level `::before` /
+  `::after` by its packed lines (`AnonymousItem::content_rows`, as C5G-ATOM-BOX's atomic pseudos already
+  were). The inline block's last baseline (`vertical::atom_rows`), C6-ALIGN's flex / grid
+  `BaselineBox` and the atomic pseudo read it; `vertical::content_rows`, `baselines::insets` and
+  `has_tall_lines` are deleted. A flex or grid container's baselines stay its first and last content rows.
+  DIVERGENCES §2: the inline-block entry lost its "margins and heights below the last line are not
+  counted" caveat (the flow places them now), and "a box's baselines are its first and last content
+  rows" is now a flex / grid container's only. Red: `css_phase9/vertical_align.rs` —
+  `an_inline_blocks_baseline_is_its_last_lines_text_row` (`["  H O   ", "a  2  b ", …]` for `["a H O b ",
+  "   2    ", …]`) and `a_leading_anonymous_line_holds_the_first_baseline` (`z` on row 1 for row 0) failed;
+  green after. Cost pin: `intrinsic/memo_tests.rs::nested_inline_blocks_measure_each_baseline_once`
+  (≤ 2 × (depth + 1) baseline walks at 4 and 12 levels). Mutation (each alone, restored, touched): no
+  line recorded in inline formatting contexts or runs → 3 fail (the two red tests and
+  `an_inline_block_aligns_by_each_keyword`); none in anonymous runs → the leading-line test; the
+  baseline memo bypassed → the cost pin (20 walks at 4 levels). No existing expectation or snapshot
+  changed.

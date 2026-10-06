@@ -4,10 +4,10 @@
 //! Text and generated content are one row tall and share the line's
 //! baseline row. An atomic inline block brings its margin box (CSS 2.1
 //! §10.8: "the height of the margin box" for an inline-block) and its
-//! baseline (§10.8.1): the row of its last line box — counted here as
-//! the last row of its content (`intrinsic` content height), so a
-//! `height` larger than the content leaves the baseline on the content's
-//! last line, as in a browser — or, with no in-flow line boxes or with
+//! baseline (§10.8.1): the text row of its last line box
+//! (`layout_pass::baselines`, the lines layout packs), so a `height`
+//! larger than the content leaves the baseline on the content's last
+//! line, as in a browser — or, with no in-flow line boxes or with
 //! `overflow` other than `visible`, its bottom margin edge (its last
 //! row). `vertical-align` is `baseline` (its initial value; the property
 //! is C9-VERTICAL-ALIGN): the line's baseline row is the largest number
@@ -75,7 +75,9 @@ pub(super) fn atom_rows(dom: &Dom<TuiExt>, id: NodeId, width: u16, cb_width: u16
         return AtomRows::UNMEASURED;
     };
     let height = intrinsic::intrinsic_size(dom, id, Direction::Column, width, cb_width);
-    let last = content_rows(dom, id, &computed, width, cb_width).map(|(_, last)| last);
+    let last =
+        crate::render::layout_pass::baselines::content_rows(dom, id, &computed, width, cb_width)
+            .map(|(_, last)| last);
     AtomRows::of(&computed, height, cb_width, last)
 }
 
@@ -116,42 +118,6 @@ impl AtomRows {
     pub(crate) fn height(self) -> u16 {
         self.height
     }
-}
-
-/// The rows of `id`'s content, laid out `width` cells wide, counted
-/// from its border-box top: its first and last baselines — the glyph
-/// rows of its first and last line boxes, as a cell grid has them (one
-/// baseline per row; `baselines::insets` for the leading around them) —
-/// or `None` when it has no content rows.
-pub(crate) fn content_rows(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-    computed: &crate::style::ComputedStyle,
-    width: u16,
-    cb_width: u16,
-) -> Option<(u16, u16)> {
-    let chrome_top = computed
-        .border
-        .top
-        .cells()
-        .saturating_add(computed.padding.top.resolve(cb_width));
-    let chrome = chrome_top
-        .saturating_add(computed.border.bottom.cells())
-        .saturating_add(computed.padding.bottom.resolve(cb_width));
-    let rows = intrinsic::content_max_size(dom, id, Direction::Column, width, cb_width)
-        .saturating_sub(chrome);
-    if rows == 0 {
-        return None;
-    }
-    let content_width = width.saturating_sub(
-        crate::render::layout_pass::box_sizing::Sizer::horizontal(computed, cb_width).chrome(),
-    );
-    let (lead, trail) = super::baselines::insets(dom, id, computed, content_width);
-    let last = rows - 1;
-    Some((
-        chrome_top + lead.min(last),
-        chrome_top + last.saturating_sub(trail),
-    ))
 }
 
 /// Where an atom of a line is: an element's fragment, or an atomic
