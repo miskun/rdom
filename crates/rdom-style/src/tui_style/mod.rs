@@ -283,6 +283,12 @@ pub struct TuiStyle {
     /// `quotes` (CSS Generated Content 3 §2.1). Inherited.
     pub quotes: Option<Value<crate::Quotes>>,
 
+    // ── Lists (CSS Lists 3 §3) ───────────────────────────────────────
+    pub list_style_type: Option<Value<crate::layout::ListStyleType>>,
+    pub list_style_position: Option<Value<crate::layout::ListStylePosition>>,
+    pub list_style_image: Option<Value<crate::layout::ListStyleImage>>,
+    pub marker_side: Option<Value<crate::layout::MarkerSide>>,
+
     // ── Positioning (M2) ─────────────────────────────────────────────
     pub position: Option<Value<crate::layout::Position>>,
     pub top: Option<Value<crate::layout::Length>>,
@@ -368,6 +374,56 @@ impl TuiStyle {
             | ImportantMask::FONT
             | ImportantMask::TEXT_DECORATION
             | ImportantMask::OPACITY;
+        Self {
+            fg: self.fg.clone(),
+            bg: self.bg.clone(),
+            font: self.font.clone(),
+            text_decoration: self.text_decoration.clone(),
+            opacity: self.opacity,
+            ..self.restricted_to(keep)
+        }
+    }
+
+    /// This block restricted to the properties that apply to `::marker`
+    /// (CSS Lists 3 §3.2, CSS Pseudo-Elements 4 §3.1.1) among those rdom
+    /// has: `color`, the font properties, `white-space` (its two
+    /// longhands), `content`, `direction`, the transition properties,
+    /// and custom properties. Everything else — sizes, margins, padding,
+    /// `display`, `position`, `text-transform` — is dropped with its
+    /// `!important` bit; a kept `var()` declaration is restricted the
+    /// same way.
+    pub fn marker_subset(&self) -> Self {
+        let keep = ImportantMask::FG
+            | ImportantMask::FONT
+            | ImportantMask::WHITE_SPACE
+            | ImportantMask::CONTENT
+            | ImportantMask::TEXT_DIRECTION
+            | ImportantMask::TRANSITION_PROPERTY
+            | ImportantMask::TRANSITION_DURATION
+            | ImportantMask::TRANSITION_TIMING_FUNCTION
+            | ImportantMask::TRANSITION_DELAY;
+        let mut text = TextDeclarations::default();
+        text.white_space_collapse = self.text.white_space_collapse;
+        text.text_wrap_mode = self.text.text_wrap_mode;
+        Self {
+            fg: self.fg.clone(),
+            font: self.font.clone(),
+            text,
+            content: self.content.clone(),
+            text_direction: self.text_direction,
+            transition_property: self.transition_property.clone(),
+            transition_duration: self.transition_duration.clone(),
+            transition_timing_function: self.transition_timing_function.clone(),
+            transition_delay: self.transition_delay.clone(),
+            ..self.restricted_to(keep)
+        }
+    }
+
+    /// An empty block with this one's custom properties, the `keep` bits
+    /// of its `!important` mask, and its kept declarations (CSS Variables
+    /// 1 §3) that set a `keep` property — restricted to `keep` — while
+    /// one waits for substitution; the subsets copy their fields over it.
+    fn restricted_to(&self, keep: ImportantMask) -> Self {
         let mut pending: Vec<crate::var::PendingDeclaration> = self
             .pending
             .iter()
@@ -388,11 +444,6 @@ impl TuiStyle {
         }
         Self {
             pending,
-            fg: self.fg.clone(),
-            bg: self.bg.clone(),
-            font: self.font.clone(),
-            text_decoration: self.text_decoration.clone(),
-            opacity: self.opacity,
             custom_properties: self.custom_properties.clone(),
             important: self.important & keep,
             ..Self::default()

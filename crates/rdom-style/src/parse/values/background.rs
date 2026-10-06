@@ -206,7 +206,7 @@ fn each_layer<T>(value: &[Token], one: impl Fn(&[Token]) -> Option<T>) -> Option
 /// `<bg-image>` (§3.3): `none` or an `<image>` — `url()` or a gradient
 /// function — as CSS text; a URL serializes as a string (`url("a.png")`,
 /// CSSOM §6.7.2).
-fn image_text(part: &[Token]) -> Option<String> {
+pub(crate) fn image_text(part: &[Token]) -> Option<String> {
     match part {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("none") => Some(INITIAL_IMAGE.to_string()),
         // An unquoted URL is one `<url-token>`, its text raw (CSS Syntax

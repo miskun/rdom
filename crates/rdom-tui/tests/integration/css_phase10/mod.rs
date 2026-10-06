@@ -11,6 +11,7 @@ mod content;
 mod counter_style;
 mod counters;
 mod legacy_colon;
+mod list_item;
 mod quotes;
 
 use rdom_tui::{NodeId, TuiDom};

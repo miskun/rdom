@@ -238,6 +238,10 @@ define_fields! {
     BorderCollapse => border_collapse : BORDER_COLLAPSE,
     Content => content : CONTENT,
     Quotes => quotes : QUOTES,
+    ListStyleType => list_style_type : LIST_STYLE_TYPE,
+    ListStylePosition => list_style_position : LIST_STYLE_POSITION,
+    ListStyleImage => list_style_image : LIST_STYLE_IMAGE,
+    MarkerSide => marker_side : MARKER_SIDE,
     Position => position : POSITION,
     Top => top : TOP,
     Right => right : RIGHT,
@@ -409,6 +413,11 @@ pub fn inherits(name: &str) -> bool {
             | "visibility"
             | "caret-color"
             | "quotes"
+            | "list-style"
+            | "list-style-type"
+            | "list-style-position"
+            | "list-style-image"
+            | "marker-side"
             | "caret-text-color"
             | "color-scheme"
             | "border-spacing"

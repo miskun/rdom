@@ -110,6 +110,7 @@ impl CounterState {
             let node = dom.node(used.owner.element);
             let own = node.ext().and_then(|e| match used.owner.slot {
                 OpBox::Element => e.computed.clone(),
+                OpBox::Marker => e.computed_marker.clone(),
                 OpBox::Before => e.computed_before.clone(),
                 OpBox::After => e.computed_after.clone(),
             });
@@ -139,7 +140,7 @@ pub(super) fn initial_value(
     let element = owner.element;
     let parent = match owner.slot {
         OpBox::Element => dom.node(element).parent_node().map(|p| p.id()),
-        OpBox::Before | OpBox::After => Some(element),
+        OpBox::Marker | OpBox::Before | OpBox::After => Some(element),
     };
     let mut scan = CounterState::exact();
     let target = scan.instantiate(name, 0, true, parent);
@@ -179,7 +180,8 @@ pub(super) fn initial_value(
                 );
             }
         }
-        OpBox::After => {}
+        // A marker holds no counter op (CSS Lists 3 §3.2).
+        OpBox::Marker | OpBox::After => {}
     }
     scan.trace.as_deref().map_or(0, Trace::initial_value)
 }

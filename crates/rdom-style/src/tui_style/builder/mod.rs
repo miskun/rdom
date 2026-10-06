@@ -419,6 +419,38 @@ impl TuiStyle {
         Content
     );
     setter!(
+        "list-style-type",
+        list_style_type,
+        list_style_type,
+        list_style_type_important,
+        LIST_STYLE_TYPE,
+        crate::layout::ListStyleType
+    );
+    setter!(
+        "list-style-position",
+        list_style_position,
+        list_style_position,
+        list_style_position_important,
+        LIST_STYLE_POSITION,
+        crate::layout::ListStylePosition
+    );
+    setter!(
+        "list-style-image",
+        list_style_image,
+        list_style_image,
+        list_style_image_important,
+        LIST_STYLE_IMAGE,
+        crate::layout::ListStyleImage
+    );
+    setter!(
+        "marker-side",
+        marker_side,
+        marker_side,
+        marker_side_important,
+        MARKER_SIDE,
+        crate::layout::MarkerSide
+    );
+    setter!(
         "quotes",
         quotes,
         quotes,

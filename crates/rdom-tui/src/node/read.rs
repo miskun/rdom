@@ -164,6 +164,13 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
         self.tui_ext().and_then(|e| e.computed_after.as_deref())
     }
 
+    /// A list item's `::marker` computed style (CSS Lists 3 §3.2):
+    /// `None` when it generates no marker. Its `content` is the marker
+    /// text.
+    fn computed_marker(&self) -> Option<&'a ComputedStyle> {
+        self.tui_ext().and_then(|e| e.computed_marker.as_deref())
+    }
+
     /// `true` when the cascade needs to re-run on this element's subtree.
     fn is_style_dirty(&self) -> bool {
         self.tui_ext().is_some_and(|e| e.style_dirty)

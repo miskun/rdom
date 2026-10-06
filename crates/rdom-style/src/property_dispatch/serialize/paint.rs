@@ -82,6 +82,34 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .as_ref()
             .and_then(specified)
             .map(|s| s.to_css()),
+        "list-style-type" => style
+            .list_style_type
+            .as_ref()
+            .and_then(specified)
+            .map(|t| t.to_css()),
+        "list-style-position" => style
+            .list_style_position
+            .as_ref()
+            .and_then(specified)
+            .map(|p| list_position(*p).to_string()),
+        "list-style-image" => style
+            .list_style_image
+            .as_ref()
+            .and_then(specified)
+            .map(|i| i.to_css()),
+        "list-style" => {
+            let position = style.list_style_position.as_ref().and_then(specified)?;
+            let image = style.list_style_image.as_ref().and_then(specified)?;
+            let kind = style.list_style_type.as_ref().and_then(specified)?;
+            Some(list_style_shorthand(*position, image, kind))
+        }
+        "marker-side" => style.marker_side.as_ref().and_then(specified).map(|m| {
+            match m {
+                crate::layout::MarkerSide::MatchParent => "match-parent",
+                _ => "match-self",
+            }
+            .to_string()
+        }),
         "quotes" => style.quotes.as_ref().and_then(specified).map(|q| match q {
             crate::Quotes::None => "none".to_string(),
             crate::Quotes::MatchParent => "match-parent".to_string(),
@@ -111,4 +139,44 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         _ => return None,
     };
     Some(out)
+}
+
+/// The `list-style-position` keyword.
+fn list_position(p: crate::layout::ListStylePosition) -> &'static str {
+    match p {
+        crate::layout::ListStylePosition::Inside => "inside",
+        _ => "outside",
+    }
+}
+
+/// The `list-style` shorthand, shortest: the longhands that are not
+/// initial, in position / image / type order; `none` when type and image
+/// are both `none` and the position is initial; `disc` when all are
+/// initial.
+fn list_style_shorthand(
+    position: crate::layout::ListStylePosition,
+    image: &crate::layout::ListStyleImage,
+    kind: &crate::layout::ListStyleType,
+) -> String {
+    use crate::layout::{ListStyleImage, ListStylePosition, ListStyleType};
+    let outside = position == ListStylePosition::Outside;
+    let no_image = *image == ListStyleImage::None;
+    if outside && no_image && *kind == ListStyleType::None {
+        return "none".to_string();
+    }
+    let mut parts = Vec::new();
+    if !outside {
+        parts.push(list_position(position).to_string());
+    }
+    if !no_image {
+        parts.push(image.to_css());
+    }
+    if *kind != ListStyleType::default() {
+        parts.push(kind.to_css());
+    }
+    if parts.is_empty() {
+        "disc".to_string()
+    } else {
+        parts.join(" ")
+    }
 }

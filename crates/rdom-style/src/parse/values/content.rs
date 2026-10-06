@@ -17,10 +17,13 @@ use crate::{Content, QuoteKind};
 /// an untyped `attr()` as a string. Images (`url()`, gradients) and the
 /// paged-media items are not parsed (DIVERGENCES §1).
 pub fn parse_content(value: &[Token]) -> Option<Content> {
-    if let [Token::Ident(kw)] = value
-        && (kw.eq_ignore_ascii_case("none") || kw.eq_ignore_ascii_case("normal"))
-    {
-        return Some(Content::None);
+    if let [Token::Ident(kw)] = value {
+        if kw.eq_ignore_ascii_case("none") {
+            return Some(Content::None);
+        }
+        if kw.eq_ignore_ascii_case("normal") {
+            return Some(Content::Normal);
+        }
     }
     let slash = value.iter().position(|t| matches!(t, Token::Delim('/')));
     let (list, alt) = match slash {

@@ -50,6 +50,7 @@ struct Instance {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum OpBox {
     Element,
+    Marker,
     Before,
     After,
 }
@@ -76,6 +77,7 @@ impl Owner {
 #[derive(Debug, Default)]
 pub(super) struct StoredOps {
     element: Option<Rc<ComputedStyle>>,
+    marker: Option<Rc<ComputedStyle>>,
     before: Option<Rc<ComputedStyle>>,
     after: Option<Rc<ComputedStyle>>,
 }
@@ -88,6 +90,7 @@ impl StoredOps {
             .ext()
             .map_or_else(Self::default, |e| StoredOps {
                 element: e.computed.clone(),
+                marker: e.computed_marker.clone(),
                 before: e.computed_before.clone(),
                 after: e.computed_after.clone(),
             })
@@ -239,7 +242,8 @@ impl CounterState {
     }
 
     /// Replay a kept element's stored counter ops in tree order — the
-    /// element's own, its `::before`'s, `children` (whatever accounts for
+    /// element's own, its `::marker`'s (quotes in its `content`), its
+    /// `::before`'s, `children` (whatever accounts for
     /// its subtree), its `::after`'s — then leave it. `::before` is the
     /// element's first child and `::after` its last (CSS Pseudo-Elements
     /// 4 §4), so their instances are scoped to the element. The one
@@ -255,6 +259,9 @@ impl CounterState {
         let owner = |slot| Owner { element: id, slot };
         if let Some(c) = &ops.element {
             self.enter(parent, owner(OpBox::Element), c);
+        }
+        if let Some(c) = &ops.marker {
+            self.enter(Some(id), owner(OpBox::Marker), c);
         }
         if let Some(c) = &ops.before {
             self.enter(Some(id), owner(OpBox::Before), c);

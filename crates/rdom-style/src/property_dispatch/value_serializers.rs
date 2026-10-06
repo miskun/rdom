@@ -300,7 +300,7 @@ pub(super) fn serialize_counter_ops(ops: &[crate::counters::CounterOp]) -> Strin
 /// CSSOM §2.1 "serialize a string": double-quoted, `"` and `\\`
 /// escaped, a control character as its code point.
 pub(super) fn serialize_css_string(s: &str) -> String {
-    crate::counters::css_string(s)
+    rdom_core::css_syntax::serialize_string(s)
 }
 
 pub(super) fn serialize_content(c: &Content) -> Option<String> {
@@ -337,6 +337,7 @@ pub(super) fn serialize_content(c: &Content) -> Option<String> {
             serialize_content(alt)?
         ),
         Content::None => "none".to_string(),
+        Content::Normal => "normal".to_string(),
         // `Content` is `#[non_exhaustive]`; `Var` has no specified form.
         _ => return None,
     })

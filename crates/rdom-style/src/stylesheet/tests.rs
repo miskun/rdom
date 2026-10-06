@@ -696,3 +696,56 @@ fn version_is_renewed_by_mutation_and_clone() {
     });
     assert_ne!(sheet.version(), before);
 }
+
+// ── ::marker (C10-LIST-ITEM) ────────────────────────────────────────
+
+/// CSS Pseudo-Elements 4 §3.1: `li::marker` targets the marker; CSS
+/// Lists 3 §3.2: only `color`, the font properties, `white-space`,
+/// `content`, `direction` and the animation / transition properties
+/// apply to it — a rule keeps those and drops the rest, `!important`
+/// bits included.
+#[test]
+fn marker_rules_keep_only_the_marker_properties() {
+    assert_eq!(
+        extract("li::marker").unwrap(),
+        ("li".into(), PseudoElementTarget::Marker)
+    );
+    let sheet = rdom_css_like(
+        "li::marker",
+        &[
+            ("color", "red"),
+            ("font-weight", "bold"),
+            ("white-space", "pre"),
+            ("content", "\"x\""),
+            ("direction", "rtl"),
+            ("transition-duration", "1s"),
+            ("padding", "3"),
+            ("text-transform", "uppercase"),
+            ("display", "block"),
+        ],
+    );
+    let rule = &sheet.rules()[0];
+    let s = &rule.style;
+    assert!(s.fg.is_some() && s.font.weight.is_some());
+    assert!(s.text.white_space_collapse.is_some() && s.content.is_some());
+    assert!(s.text_direction.is_some() && s.transition_duration.is_some());
+    assert!(
+        s.padding.top.is_none(),
+        "padding does not apply to ::marker"
+    );
+    assert!(s.text.text_transform.is_none());
+    assert!(s.display.is_none());
+}
+
+/// A sheet with one `selector` rule declaring `decls` (through the
+/// property dispatch, as the CSS parser would).
+fn rdom_css_like(selector: &str, decls: &[(&str, &str)]) -> Stylesheet {
+    let mut style = TuiStyle::new();
+    for (name, value) in decls {
+        crate::property_dispatch::set(name, value, &mut style).unwrap();
+    }
+    let sel = StyleSelector::parse(selector).unwrap();
+    let mut sheet = Stylesheet::bare();
+    sheet.add_style_rule(&sel, style, RuleContext::default());
+    sheet
+}

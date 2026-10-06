@@ -164,10 +164,12 @@ impl Stylesheet {
                 // flow-relative, and the subset keeps declarations only
                 // while one waits for substitution, so it has no
                 // direction-mapped forms to precompute.
-                let (style, directional) = if item.pseudo == PseudoElementTarget::Placeholder {
-                    (style.first_line_subset(), None)
-                } else {
-                    (style.clone(), directional.clone())
+                let (style, directional) = match item.pseudo {
+                    PseudoElementTarget::Placeholder => (style.first_line_subset(), None),
+                    // CSS Lists 3 §3.2: only some properties apply to
+                    // `::marker`; none of them is flow-relative.
+                    PseudoElementTarget::Marker => (style.marker_subset(), None),
+                    _ => (style.clone(), directional.clone()),
                 };
                 Rule {
                     selector: SelectorList(vec![item.complex.clone()]),

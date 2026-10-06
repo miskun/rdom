@@ -128,6 +128,8 @@ mod inline_tests;
 #[cfg(test)]
 mod line_clamp_tests;
 #[cfg(test)]
+mod list_tests;
+#[cfg(test)]
 mod logical_tests;
 #[cfg(test)]
 mod overflow_tests;

@@ -123,7 +123,7 @@ pub(super) fn generate(
     what: Representation,
 ) -> String {
     let (mut cur, mut anonymous) = match style {
-        CounterStyle::Name(name) => (&**name, None),
+        CounterStyle::Name(name) => (name.as_str(), None),
         CounterStyle::Symbols(rule) => ("", Some(&**rule)),
     };
     if cur == "none" {

@@ -44,7 +44,10 @@ fn ua_total_rule_count() {
     // 168: HTML's `abbr[title]` dotted underline (C9G-DOCS, +1).
     // 170: HTML's `q::before` / `q::after` quotation marks (C10-CONTENT, +2).
     // 171: HTML's `ol[reversed]` reversed `list-item` counter (C10-COUNTERS, +1).
-    assert_eq!(ua.len(), 171);
+    // 176: HTML's nested-list `circle` / `square` bullets (two
+    // 2-selector rules) and CSS Lists 3's `::marker { white-space: pre }`
+    // (C10-LIST-ITEM, +5).
+    assert_eq!(ua.len(), 176);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")

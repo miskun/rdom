@@ -93,9 +93,10 @@ pub(super) enum Slot {
     ThumbVertical,
     ThumbHorizontal,
     After,
+    Marker,
 }
 
-const SLOTS: usize = 8;
+const SLOTS: usize = 9;
 
 /// An element's matched rules per box, as of its last cascade, under one
 /// sheet set (`Sheets::stamp`). `None` for a box that was not matched

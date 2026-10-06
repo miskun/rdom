@@ -123,7 +123,7 @@ fn declare_step(
             *declared = match v {
                 Value::Specified(c) => Some(c.clone()),
                 Value::Inherit => declared.clone(),
-                Value::Initial => Some(Content::None),
+                Value::Initial => Some(Content::Normal),
                 Value::Revert => rollback.state_before(step.revert_to).clone(),
                 Value::RevertLayer => rollback.state_before(step.revert_layer_to).clone(),
             };

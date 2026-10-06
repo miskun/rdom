@@ -53,6 +53,9 @@ pub enum Content {
         alt: Box<Content>,
     },
     None,
+    /// `content: normal` (§2): `none` on `::before` / `::after`; on
+    /// `::marker`, the marker `list-style-type` makes (CSS Lists 3 §3.2).
+    Normal,
 }
 
 /// The four `<quote>` keywords (CSS Generated Content 3 §2.2).
@@ -152,7 +155,7 @@ impl Content {
     /// An unresolved var yields the empty string rather than failing.
     pub fn resolve(&self, ctx: &impl ContentContext) -> Option<String> {
         match self {
-            Content::None => None,
+            Content::None | Content::Normal => None,
             Content::WithAlt { content, .. } => content.resolve(ctx),
             other => {
                 let mut out = String::new();
@@ -174,7 +177,7 @@ impl Content {
     fn write(&self, ctx: &impl ContentContext, out: &mut String) {
         match self {
             // `Content::None` inside a concat contributes nothing.
-            Content::None => {}
+            Content::None | Content::Normal => {}
             Content::Str(s) => out.push_str(s),
             Content::Var(name) => out.push_str(&ctx.var(name).unwrap_or_default()),
             Content::Counter { name, style } => {

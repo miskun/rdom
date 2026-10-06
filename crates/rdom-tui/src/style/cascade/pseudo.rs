@@ -12,7 +12,7 @@ use super::ladder::{Declarations, apply_cascade_ladder, prepare};
 use super::matching::{Rules, Scratch};
 use super::walk::ElementCx;
 use crate::ext::TuiExt;
-use crate::style::{ComputedStyle, PseudoElementTarget};
+use crate::style::{ComputedStyle, Content, PseudoElementTarget};
 
 /// The rule targets that style `id`'s `::before` box. An `<input>` /
 /// `<textarea>` showing its placeholder paints the placeholder text as
@@ -62,9 +62,12 @@ pub(super) fn compute_pseudo_style(
     // sheet_idx as the secondary tiebreaker.
     cx.scratch.gather(dom, cx.sheets, id, targets, rules);
     let fallback = legacy_content(dom, id, target);
+    // A list item's marker exists without a rule: `list-style-type`
+    // makes its content (CSS Lists 3 §3.2).
+    let marker = target == PseudoElementTarget::Marker;
     // No rule styles it and it has no legacy content: there is no box,
     // and nothing to cascade.
-    if cx.scratch.sorted.is_empty() && fallback.is_none() {
+    if cx.scratch.sorted.is_empty() && fallback.is_none() && !marker {
         return None;
     }
     let Scratch {
@@ -182,7 +185,20 @@ pub(super) fn compute_pseudo_style(
         super::counters::reversed::resolve(dom, owner, &mut working);
         counters.enter(Some(id), owner, &working);
     }
+    if marker {
+        // The UA's `::marker { text-transform: none }` (CSS Lists 3 §3.2's
+        // UA sheet), which no author rule reaches: `text-transform` is
+        // not among the properties that apply to `::marker`.
+        working.text.text_transform = crate::layout::TextTransform::NONE;
+    }
     match declared_content(plan, decls) {
+        // `content: normal` on `::marker`: the marker `list-style-type`
+        // makes — the `list-item` counter in a counter style, between its
+        // prefix and suffix, or a string (CSS Lists 3 §3.2, §3.4).
+        None | Some(Content::Normal) if marker => {
+            let styles = cx.sheets.counter_styles();
+            working.content = marker_text(&working, counters, styles);
+        }
         Some(declared) => {
             // `quotes: auto` takes the host's content language (§2.1).
             let lang = declared
@@ -195,8 +211,9 @@ pub(super) fn compute_pseudo_style(
         None => working.content = fallback,
     }
 
-    // Skip entirely if the pseudo-element has nothing to contribute.
-    if sorted.is_empty() && working.content.is_none() {
+    // Skip entirely if the pseudo-element has nothing to contribute. A
+    // marker without content is no box (CSS Lists 3 §3.2).
+    if (sorted.is_empty() || marker) && working.content.is_none() {
         return None;
     }
     Some(working)
@@ -223,4 +240,51 @@ fn legacy_content(dom: &Dom<TuiExt>, id: NodeId, target: PseudoElementTarget) ->
         // pseudo-element has no legacy content field either.
         _ => None,
     })
+}
+
+/// The marker text `style`'s `list-style-type` makes for the `list-item`
+/// counter in scope (CSS Lists 3 §3.4): the counter in the style, between
+/// the style's prefix and suffix — the suffix before the number right to
+/// left, as the bidi algorithm orders an isolated marker (`1. ` shows as
+/// ` .1`) — or the string as written; `None` for `none`.
+pub(super) fn marker_text(
+    style: &ComputedStyle,
+    counters: &super::counters::CounterState,
+    styles: &rdom_style::counters::CounterStyleRegistry,
+) -> Option<String> {
+    use crate::layout::ListStyleType;
+    let rtl = style.text_direction == crate::layout::TextDirection::Rtl;
+    match &style.list_style_type {
+        ListStyleType::Style(counter_style) => {
+            let value = counters.value("list-item");
+            let text = counter_style.marker_text_with(value, rtl, styles);
+            Some(if rtl { visual_rtl(&text) } else { text })
+        }
+        ListStyleType::String(s) => Some(s.clone()),
+        _ => None,
+    }
+}
+
+/// `text`, an isolated left-to-right run in right-to-left text, in the
+/// order a terminal draws it left to right: its runs of digits and
+/// letters kept, the runs reversed (UAX #9 L2 on a marker: `"10. "`
+/// reads `" .10"`).
+fn visual_rtl(text: &str) -> String {
+    let mut runs: Vec<String> = Vec::new();
+    let mut word = String::new();
+    for c in text.chars() {
+        if c.is_alphanumeric() {
+            word.push(c);
+        } else {
+            if !word.is_empty() {
+                runs.push(std::mem::take(&mut word));
+            }
+            runs.push(c.to_string());
+        }
+    }
+    if !word.is_empty() {
+        runs.push(word);
+    }
+    runs.reverse();
+    runs.concat()
 }

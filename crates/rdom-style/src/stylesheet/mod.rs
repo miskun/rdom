@@ -120,6 +120,10 @@ pub enum PseudoElementTarget {
     /// `:first-letter` (Selectors 4 §15). Parsed and stored; it styles
     /// nothing until C10-FIRST.
     FirstLetter,
+    /// `::marker` (CSS Pseudo-Elements 4 §3.1, CSS Lists 3 §3.2) — a list
+    /// item's marker box. Only the properties §3.2 lets apply to it are
+    /// kept ([`TuiStyle::marker_subset`]); a rule keeps nothing else.
+    Marker,
 }
 
 impl PseudoElementTarget {

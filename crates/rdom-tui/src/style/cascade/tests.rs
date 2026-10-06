@@ -2397,6 +2397,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.caret_text_color = CaretTextColor::Color(Color::Rgb(1, 1, 1).into());
     parent.content = Some("x".into());
     parent.quotes = rdom_style::Quotes::None;
+    parent.list_style_type = rdom_style::layout::ListStyleType::None;
+    parent.list_style_position = rdom_style::layout::ListStylePosition::Inside;
+    parent.list_style_image = rdom_style::layout::ListStyleImage::Image("x".into());
+    parent.marker_side = rdom_style::layout::MarkerSide::MatchParent;
     parent.position = Position::Relative;
     parent.top = Length::Cells(1);
     parent.right = Length::Cells(1);
@@ -2630,6 +2634,26 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ),
         ("content", child.content == parent.content),
         ("quotes", child.quotes == parent.quotes),
+        (
+            "list-style-type",
+            child.list_style_type == parent.list_style_type,
+        ),
+        (
+            "list-style-position",
+            child.list_style_position == parent.list_style_position,
+        ),
+        (
+            "list-style-image",
+            child.list_style_image == parent.list_style_image,
+        ),
+        ("marker-side", child.marker_side == parent.marker_side),
+        // The shorthand's three longhands, probed above one by one.
+        (
+            "list-style",
+            child.list_style_type == parent.list_style_type
+                && child.list_style_position == parent.list_style_position
+                && child.list_style_image == parent.list_style_image,
+        ),
         ("position", child.position == parent.position),
         ("top", child.top == parent.top),
         ("right", child.right == parent.right),

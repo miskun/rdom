@@ -41,6 +41,7 @@ mod grid_placement;
 mod keywords;
 mod line_clamp;
 mod line_height;
+mod list;
 mod overflow;
 mod rect;
 mod scroll;
@@ -81,6 +82,7 @@ pub use keywords::{
 };
 pub use line_clamp::{BlockEllipsis, BoxOrient, Continue};
 pub use line_height::LineHeight;
+pub use list::{ListStyleImage, ListStylePosition, ListStyleType, MarkerSide};
 pub use overflow::{Overflow, OverflowClipMargin, TextOverflow, TextOverflowSide};
 pub use rect::LayoutRect;
 pub use scroll::{

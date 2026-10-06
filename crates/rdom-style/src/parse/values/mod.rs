@@ -56,6 +56,7 @@ mod inline;
 mod keyword;
 mod length;
 mod line_clamp;
+mod list;
 mod number;
 mod numeric;
 mod scroll;
@@ -135,6 +136,10 @@ pub use length::{
 pub use line_clamp::{
     parse_block_ellipsis, parse_box_orient, parse_continue, parse_line_clamp, parse_max_lines,
     parse_webkit_line_clamp,
+};
+pub use list::{
+    parse_list_style, parse_list_style_image, parse_list_style_position, parse_list_style_type,
+    parse_marker_side,
 };
 pub use number::{parse_aspect_ratio, parse_opacity, parse_order, parse_z_index};
 pub use scroll::{

@@ -171,6 +171,12 @@ const PROPERTY_NAMES: &[&str] = &[
     "border-spacing",
     "content",
     "quotes",
+    // Lists (CSS Lists 3)
+    "list-style",
+    "list-style-type",
+    "list-style-position",
+    "list-style-image",
+    "marker-side",
     // Positioning (M2)
     "position",
     "top",

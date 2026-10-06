@@ -326,6 +326,16 @@ pub struct ComputedStyle {
     /// `match-parent` is computed to the parent's. Inherited.
     pub quotes: crate::Quotes,
 
+    // ── Lists (CSS Lists 3 §3) ────────────────────────────────────────
+    /// `list-style-type`: the marker's content (§3.4). Inherited.
+    pub list_style_type: crate::layout::ListStyleType,
+    /// `list-style-position` (§3.5). Inherited.
+    pub list_style_position: crate::layout::ListStylePosition,
+    /// `list-style-image` (§3.3) — kept, inert. Inherited.
+    pub list_style_image: crate::layout::ListStyleImage,
+    /// `marker-side` (§3.6). Inherited.
+    pub marker_side: crate::layout::MarkerSide,
+
     // ── Positioning (M2) ─────────────────────────────────────────────
     /// `position` keyword. Default `Static`. Non-inheriting.
     pub position: crate::layout::Position,
@@ -543,6 +553,10 @@ impl ComputedStyle {
             content_alt: None,
             content_quotes: Vec::new(),
             quotes: crate::Quotes::Auto,
+            list_style_type: crate::layout::ListStyleType::default(),
+            list_style_position: crate::layout::ListStylePosition::Outside,
+            list_style_image: crate::layout::ListStyleImage::None,
+            marker_side: crate::layout::MarkerSide::MatchSelf,
             position: crate::layout::Position::Static,
             top: crate::layout::Length::Auto,
             right: crate::layout::Length::Auto,

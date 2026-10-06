@@ -396,6 +396,23 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         "content" => parse_content(value).map(|c| {
             style.content = Some(Value::Specified(c));
         }),
+        "list-style" => crate::parse::values::parse_list_style(value).map(|(p, i, t)| {
+            style.list_style_position = Some(Value::Specified(p));
+            style.list_style_image = Some(Value::Specified(i));
+            style.list_style_type = Some(Value::Specified(t));
+        }),
+        "list-style-type" => crate::parse::values::parse_list_style_type(value).map(|t| {
+            style.list_style_type = Some(Value::Specified(t));
+        }),
+        "list-style-position" => crate::parse::values::parse_list_style_position(value).map(|p| {
+            style.list_style_position = Some(Value::Specified(p));
+        }),
+        "list-style-image" => crate::parse::values::parse_list_style_image(value).map(|i| {
+            style.list_style_image = Some(Value::Specified(i));
+        }),
+        "marker-side" => crate::parse::values::parse_marker_side(value).map(|m| {
+            style.marker_side = Some(Value::Specified(m));
+        }),
         "quotes" => crate::parse::values::parse_quotes(value).map(|q| {
             style.quotes = Some(Value::Specified(q));
         }),

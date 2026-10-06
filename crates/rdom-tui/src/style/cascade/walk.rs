@@ -319,6 +319,7 @@ fn style_element<'a>(
     // children (`finish_element`): it sits after them in tree order, so
     // a `counter()` in it sees their increments.
     let (
+        computed_marker,
         computed_before,
         computed_backdrop,
         computed_selection,
@@ -337,6 +338,13 @@ fn style_element<'a>(
             compute_box(cx, slot, cached, &mut recorder, |cx, rules| {
                 compute_pseudo_style(cx, &computed, targets, rules)
             })
+        };
+        // A list item's `::marker` precedes its `::before` (CSS
+        // Pseudo-Elements 4 §3.1): its counter reads come first.
+        let cm = if computed.list_item {
+            pseudo(&mut cx, Slot::Marker, &[PseudoElementTarget::Marker])
+        } else {
+            None
         };
         let cb = pseudo(&mut cx, Slot::Before, before_targets(dom, id));
         let cbd = pseudo(&mut cx, Slot::Backdrop, &[PseudoElementTarget::Backdrop]);
@@ -369,11 +377,17 @@ fn style_element<'a>(
         } else {
             (None, None, None)
         };
-        (cb, cbd, csel, csb, csbt_v, csbt_h)
+        (cm, cb, cbd, csel, csb, csbt_v, csbt_h)
     };
     let reads_counters = counters.take_read();
-    // `::before` comes before the children: a changed op there moves
-    // their counters.
+    // `::marker` and `::before` come before the children: a changed op
+    // there moves their counters.
+    counters.note_ops(
+        dom.node(id)
+            .ext()
+            .and_then(|e| e.computed_marker.as_deref()),
+        computed_marker.as_ref(),
+    );
     counters.note_ops(
         dom.node(id)
             .ext()
@@ -392,6 +406,7 @@ fn style_element<'a>(
     let computed = Rc::new(computed);
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.computed = Some(computed.clone());
+        ext.computed_marker = computed_marker.map(Rc::new);
         ext.computed_backdrop = computed_backdrop.map(Rc::new);
         ext.computed_selection = computed_selection.map(Rc::new);
         ext.computed_scrollbar = computed_scrollbar.map(Rc::new);
@@ -521,6 +536,11 @@ fn finish_element<'a>(
 
     flags.has_counters |= reads_counters
         || has_ops(&computed)
+        || dom
+            .node(id)
+            .ext()
+            .and_then(|e| e.computed_marker.as_deref())
+            .is_some_and(has_ops)
         || computed_before.as_deref().is_some_and(has_ops)
         || computed_after.as_ref().is_some_and(has_ops);
 

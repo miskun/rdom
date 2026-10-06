@@ -26,6 +26,49 @@ impl CounterStyleLookup for Predefined {
     }
 }
 
+/// A counter style's name: a predefined one (lowercase, `'static` — no
+/// allocation, so the initial `list-style-type: disc` costs nothing per
+/// element) or an author's.
+#[derive(Debug, Clone)]
+pub struct CounterStyleName(NameRepr);
+
+#[derive(Debug, Clone)]
+enum NameRepr {
+    Static(&'static str),
+    Shared(Arc<str>),
+}
+
+impl CounterStyleName {
+    /// The name.
+    pub fn as_str(&self) -> &str {
+        match &self.0 {
+            NameRepr::Static(s) => s,
+            NameRepr::Shared(s) => s,
+        }
+    }
+}
+
+impl std::ops::Deref for CounterStyleName {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl PartialEq for CounterStyleName {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl Eq for CounterStyleName {}
+
+impl std::hash::Hash for CounterStyleName {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state);
+    }
+}
+
 /// A `<counter-style>`: a counter style name (§3: `<counter-style-name>`,
 /// a `<custom-ident>`) or `symbols()` (§5). A name no rule defines
 /// formats as `decimal`; the name `none` formats as nothing.
@@ -33,7 +76,7 @@ impl CounterStyleLookup for Predefined {
 #[non_exhaustive]
 pub enum CounterStyle {
     /// A `<counter-style-name>`. Predefined names are stored lowercase.
-    Name(Arc<str>),
+    Name(CounterStyleName),
     /// `symbols( <symbols-type>? <string>+ )` (§5): an anonymous style
     /// of that system (`symbolic` by default) over the strings, with
     /// the suffix `" "`.
@@ -49,20 +92,31 @@ impl Default for CounterStyle {
 
 impl CounterStyle {
     /// `decimal`, every counter's default style.
-    pub fn decimal() -> Self {
-        CounterStyle::Name(Arc::from("decimal"))
+    pub const fn decimal() -> Self {
+        Self::predefined_static("decimal")
+    }
+
+    /// `disc`, `list-style-type`'s initial value.
+    pub const fn disc() -> Self {
+        Self::predefined_static("disc")
+    }
+
+    const fn predefined_static(name: &'static str) -> Self {
+        CounterStyle::Name(CounterStyleName(NameRepr::Static(name)))
     }
 
     /// The style named `name`. A predefined name matches ASCII
     /// case-insensitively and is lowercased (§3: "predefined counter
-    /// styles … are matched case-insensitively"); any other name keeps
-    /// its case.
+    /// styles … are matched case-insensitively"), without allocating;
+    /// any other name keeps its case.
     pub fn named(name: &str) -> Self {
-        let lower = name.to_ascii_lowercase();
-        if super::predefined(&lower).is_some() || lower == "none" {
-            CounterStyle::Name(Arc::from(lower))
-        } else {
-            CounterStyle::Name(Arc::from(name))
+        let predefined = super::predefined_names()
+            .iter()
+            .chain(std::iter::once(&"none"))
+            .find(|p| p.eq_ignore_ascii_case(name));
+        match predefined {
+            Some(p) => Self::predefined_static(p),
+            None => CounterStyle::Name(CounterStyleName(NameRepr::Shared(Arc::from(name)))),
         }
     }
 
@@ -88,7 +142,7 @@ impl CounterStyle {
     /// The style's name; `None` for `symbols()`.
     pub fn name(&self) -> Option<&str> {
         match self {
-            CounterStyle::Name(name) => Some(name),
+            CounterStyle::Name(name) => Some(name.as_str()),
             CounterStyle::Symbols(_) => None,
         }
     }
@@ -102,7 +156,7 @@ impl CounterStyle {
     /// left out when it is `symbolic`.
     pub fn to_css(&self) -> String {
         match self {
-            CounterStyle::Name(name) => name.to_string(),
+            CounterStyle::Name(name) => name.as_str().to_string(),
             CounterStyle::Symbols(rule) => {
                 let mut out = String::from("symbols(");
                 let system = match rule.system.as_ref() {
@@ -114,7 +168,7 @@ impl CounterStyle {
                 };
                 let mut parts: Vec<String> = system.into_iter().map(str::to_string).collect();
                 for s in rule.symbols.iter().flat_map(|s| s.iter()) {
-                    parts.push(css_string(s));
+                    parts.push(rdom_core::css_syntax::serialize_string(s));
                 }
                 out.push_str(&parts.join(" "));
                 out.push(')');
@@ -166,22 +220,4 @@ pub fn is_counter_style_name(ident: &str) -> bool {
         "default",
     ];
     !ident.is_empty() && !reserved.iter().any(|r| ident.eq_ignore_ascii_case(r))
-}
-
-/// A CSS string (CSSOM §2.1 "serialize a string"): double-quoted, `"`
-/// and `\\` escaped, a control character as its code point.
-pub(crate) fn css_string(s: &str) -> String {
-    let mut out = String::from("\"");
-    for c in s.chars() {
-        match c {
-            '"' | '\\' => {
-                out.push('\\');
-                out.push(c);
-            }
-            c if c.is_control() => out.push_str(&format!("\\{:x} ", u32::from(c))),
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
 }

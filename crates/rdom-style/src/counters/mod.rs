@@ -24,8 +24,9 @@ pub use generate::{MAX_FALLBACK_DEPTH, MAX_REPRESENTATION_CHARS};
 pub use predefined::{predefined, predefined_names};
 pub use registry::{CounterStyleDefinition, CounterStyleRegistry};
 pub use rule::{CounterRange, CounterStyleRule, SpeakAs, System};
-pub(crate) use style::css_string;
-pub use style::{CounterStyle, CounterStyleLookup, Predefined, is_counter_style_name};
+pub use style::{
+    CounterStyle, CounterStyleLookup, CounterStyleName, Predefined, is_counter_style_name,
+};
 
 /// One item of `counter-reset`, `counter-increment` or `counter-set`
 /// (CSS Lists 3 §4.2–§4.3): `<counter-name> <integer>?`, or — reset

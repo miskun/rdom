@@ -3,7 +3,7 @@
 use crate::color::named;
 use crate::color::system::HIGHLIGHT;
 use crate::counters::{CounterOp, CounterStyle};
-use crate::layout::{Display, Padding};
+use crate::layout::{Display, ListStyleType, Padding};
 use crate::{Content, TuiStyle};
 
 /// The UA rules of this group, in cascade order.
@@ -17,6 +17,7 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             "ul",
             TuiStyle::new()
                 .counter_reset(vec![CounterOp::new("list-item", 0)])
+                .list_style_type(ListStyleType::Style(CounterStyle::named("disc")))
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 2)),
         ),
@@ -24,6 +25,7 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             "ol",
             TuiStyle::new()
                 .counter_reset(vec![CounterOp::new("list-item", 0)])
+                .list_style_type(ListStyleType::Style(CounterStyle::named("decimal")))
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 2)),
         ),
@@ -31,6 +33,7 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             "menu",
             TuiStyle::new()
                 .counter_reset(vec![CounterOp::new("list-item", 0)])
+                .list_style_type(ListStyleType::Style(CounterStyle::named("disc")))
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 2)),
         ),
@@ -39,6 +42,23 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // `ol[reversed] { counter-reset: reversed(list-item) }`. `start`
         // and `value` are presentational hints (`cascade::hints`).
         ("li", super::css(TuiStyle::new(), "display", "list-item")),
+        // HTML §15.3.8: a bullet list inside a list shows `circle`, one
+        // more level down `square`.
+        (
+            ":is(ul, ol, menu) ul, :is(ul, ol, menu) menu",
+            TuiStyle::new().list_style_type(ListStyleType::Style(CounterStyle::named("circle"))),
+        ),
+        (
+            ":is(ul, ol, menu) :is(ul, ol, menu) ul, :is(ul, ol, menu) :is(ul, ol, menu) menu",
+            TuiStyle::new().list_style_type(ListStyleType::Style(CounterStyle::named("square"))),
+        ),
+        // CSS Lists 3 §3.2's UA sheet: `::marker { white-space: pre }`
+        // (its `text-transform: none` is applied by the backend: no
+        // author rule can set it on a marker).
+        (
+            "::marker",
+            super::css(TuiStyle::new(), "white-space", "pre"),
+        ),
         (
             "ol[reversed]",
             TuiStyle::new().counter_reset(vec![CounterOp::reversed("list-item", None)]),

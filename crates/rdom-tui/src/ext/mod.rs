@@ -293,6 +293,10 @@ pub struct TuiExt {
     pub computed_before: Option<std::rc::Rc<ComputedStyle>>,
     /// `::after` pseudo-element computed style.
     pub computed_after: Option<std::rc::Rc<ComputedStyle>>,
+    /// `::marker` computed style (CSS Lists 3 §3.2): `Some` for a list
+    /// item (`display: list-item`) whose marker has content — its
+    /// `content` holds the marker text.
+    pub computed_marker: Option<std::rc::Rc<ComputedStyle>>,
     /// Previous-cascade snapshots of the two pseudo-element styles, so
     /// the transition engine can diff them like `computed_prev`
     /// (`D-M3-3`).

@@ -211,7 +211,7 @@ row comes from.
 | C10-QUOTES | `quotes` | done |
 | C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | done |
 | C10-COUNTER-STYLE | `@counter-style` and `symbols()` | done |
-| C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | |
+| C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | partial — properties and the `::marker` cascade landed; laying the marker out (and the UA switch from `li::before`) is the next commit |
 | C10-FIRST | `::first-line` / `::first-letter` | |
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | |
@@ -6130,3 +6130,26 @@ row comes from.
   it green — the early one bounds the allocation, the final one the text). No existing expectation
   changed. CSS-COVERAGE: `@counter-style` / `symbols()` Missing → Supported, §3.15 8 / 0 / 2 / 2, total
   190 / 15 / 57 / 45.
+- 2026-10-13 — C10-LIST-ITEM, part 1 of 2 (the list properties and the `::marker` cascade). Found:
+  `list-style-*`, `list-style` and `marker-side` were unknown properties; `::marker` an unsupported
+  pseudo-element; `display: list-item` set a flag nothing read but the counters (C10-COUNTERS). Decisions:
+  (1) The four longhands and the shorthand in rdom-style (`layout/list.rs`, `parse/values/list.rs`; the
+  shorthand's `none` fills whichever of image / type is unset, §3.6), all inherited; `list-style-image`
+  reuses the `background-image` `<image>` parser and stays inert. (2) `::marker` is a pseudo-element target
+  whose rules are cut at rule-build time to §3.2's properties (`TuiStyle::marker_subset`, sharing
+  `restricted_to` with `first_line_subset`), so no layout property can reach a marker. (3) The cascade
+  computes a list item's marker before its `::before` (CSS Pseudo 4 §3.1's order, so counter and quote
+  reads come first): `content: normal` — now `Content::Normal`, distinct from `none` — gives `list-style-type`'s
+  text (`CounterStyle::marker_text_with` through the sheets' registry: prefix, the `list-item` value,
+  suffix), `none` no marker; `text-transform` is forced `none` (the Lists UA sheet's rule, which no author
+  rule can reach since the property does not apply); a marker's quotes count in the replays (`OpBox::Marker`).
+  Right to left the marker text is given in visual order (runs reversed: `1. ` → ` .1`), as UAX #9 lays an
+  isolated marker out — rdom draws text left to right. `TuiExt::computed_marker` (tripwire 448 → 456).
+  Red: compile-red (new API: `computed_marker`, the list properties, `PseudoElementTarget::Marker`) for
+  `css_phase10/list_item.rs` (5), rdom-style `list_tests` (2) and `marker_rules_keep_only_the_marker_properties`.
+  Green after. Mutations (restored, touched): no `marker_subset` → the subset test and
+  `the_marker_pseudo_element` (padding 3 reached the marker). Changed expectation: `ua_total_rule_count`
+  171 → 176. The gate's `the_initial_style_allocates_nothing_for_grid` caught the initial `disc` allocating
+  per element (a lowercased `String` and an `Arc`): predefined counter style names are now `'static`
+  (`CounterStyleName`, matched case-insensitively against the table without allocating), `CounterStyle::disc()`
+  / `decimal()` are `const`. The marker is not laid out yet; `li::before` still draws it (part 2).
