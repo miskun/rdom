@@ -39,6 +39,14 @@
 //! - [`inline_run`] — an inline run's anonymous block box.
 //! - [`runs`] — block-level / inline-level run partitioning.
 
+#[cfg(test)]
+thread_local! {
+    /// Box sequences built to decide a first child's clearance (cost
+    /// tests, `margin_collapse::first_child_has_clearance`).
+    pub(in crate::render::layout_pass) static CLEARANCE_SCANS: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+}
+
 mod align;
 mod flow;
 pub(in crate::render::layout_pass) mod generated;

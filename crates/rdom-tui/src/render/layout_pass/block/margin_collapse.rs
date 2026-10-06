@@ -118,32 +118,43 @@ pub(super) fn parent_collapses_top_with_first_child(
 
 /// §8.3.1's "the child has no clearance", decided as §9.5.2 asks from the
 /// child's hypothetical position — with its top margin collapsed through
-/// `id`, at `id`'s own top. A float ahead of it among `id`'s children is
-/// placed at that top too, so a first in-flow block child whose `clear`
-/// names the side of such a float has clearance. (A float from outside
-/// `id` that reaches below `id`'s top is not weighed: DIVERGENCES, margin collapsing.)
+/// `id`, at `id`'s own top. A float ahead of it among `id`'s children — an
+/// element or a floated `::before` — is placed at that top too, so a first
+/// in-flow block child whose `clear` names the side of such a float has
+/// clearance. Decided only where a float may be (`may_hold_floats`, which
+/// builds nothing): most blocks hold none. (A float from outside `id` that
+/// reaches below `id`'s top is not weighed: DIVERGENCES, margin
+/// collapsing.)
 fn first_child_has_clearance(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     use crate::layout::FloatSide;
-    use crate::render::layout_pass::float::{clear_sides, float_side};
+    use crate::render::box_tree::BoxItem;
+    use crate::render::layout_pass::float::{clear_sides, float_side_of};
+    if !crate::render::layout_pass::float::measure::may_hold_floats(dom, id) {
+        return false;
+    }
+    #[cfg(test)]
+    super::CLEARANCE_SCANS.with(|c| c.set(c.get() + 1));
     let (mut left, mut right) = (false, false);
     for item in crate::render::box_tree::box_sequence(dom, id) {
-        let Some(child) = item.node() else {
-            return false;
-        };
-        if dom.node(child).node_type() != NodeType::Element {
-            continue;
-        }
-        match float_side(dom, child) {
+        match float_side_of(dom, item) {
             Some(FloatSide::Left) => left = true,
             Some(FloatSide::Right) => right = true,
-            None if is_in_flow(dom, child) => {
+            // A block-level `::before` comes first: it is no float and
+            // holds no `clear` of the child's.
+            None if matches!(item, BoxItem::Generated(..)) => return false,
+            None => {
+                let Some(child) = item.node() else {
+                    return false;
+                };
+                if dom.node(child).node_type() != NodeType::Element || !is_in_flow(dom, child) {
+                    continue;
+                }
                 let Some(c) = dom.node(child).ext().and_then(|e| e.computed.as_deref()) else {
                     return false;
                 };
                 let (clears_left, clears_right) = clear_sides(dom, child, c);
                 return (clears_left && left) || (clears_right && right);
             }
-            None => {}
         }
     }
     false
@@ -421,8 +432,13 @@ fn outer_edge_margin(
             Edge::Bottom => Box::new(children.into_iter().rev()),
         };
         for item in ordered {
-            // A generated item holds a line, which blocks the chain.
+            // A floated `::before` / `::after` is out of flow, as a
+            // floated element is (CSS 2.1 §9.5); any other generated item
+            // holds a line or a box, which blocks the chain.
             let Some(child) = item.node() else {
+                if crate::render::layout_pass::float::float_side_of(dom, item).is_some() {
+                    continue;
+                }
                 break;
             };
             let child = dom.node(child);

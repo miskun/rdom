@@ -140,3 +140,44 @@ fn without_clear_the_first_childs_margin_still_collapses_through() {
         (2, 2, 2)
     );
 }
+
+/// C9G-CLEARANCE-COST — the same with the float a floated `::before`
+/// (CSS 2.1 §12.1: the host's first child box): the cleared div is still
+/// the first in-flow child, has clearance, and stops the collapse.
+#[test]
+fn a_floated_before_gives_the_first_child_clearance_too() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let body = el(&mut dom, root, "body", "");
+    let parent = el(&mut dom, body, "div", "p");
+    let x = boxed(&mut dom, parent, "x", "x");
+    lay_out(
+        &mut dom,
+        ".p::before { content: ''; float: left; width: 3; height: 3 } \
+         .x { clear: left; margin-top: 2 }",
+        10,
+        8,
+    );
+    assert_eq!((rect(&dom, parent).y, rect(&dom, x).y), (0, 3));
+}
+
+/// C9G-CLEARANCE-COST — without `clear`, a floated `::before` (out of flow)
+/// does not stop the first child's margin collapsing through the parent:
+/// the parent moves down 2, as with a floated element (the margin was
+/// lost: the chain stopped at the pseudo-element while the flow still
+/// suppressed the child's margin inside the parent).
+#[test]
+fn a_floated_before_does_not_stop_the_collapse() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let body = el(&mut dom, root, "body", "");
+    let parent = el(&mut dom, body, "div", "p");
+    let x = boxed(&mut dom, parent, "x", "x");
+    lay_out(
+        &mut dom,
+        ".p::before { content: ''; float: left; width: 3; height: 3 } .x { margin-top: 2 }",
+        10,
+        8,
+    );
+    assert_eq!((rect(&dom, parent).y, rect(&dom, x).y), (2, 2));
+}

@@ -106,7 +106,7 @@ pub(in crate::render::layout_pass) fn block_width(
 /// child (CSS Display 3 §2.5) — without building it: a superset of
 /// [`holds_floats`]'s answer (a float inside a box-less child that holds
 /// only inline content is in its line, not a run item), which decides.
-fn may_hold_floats(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+pub(in crate::render::layout_pass) fn may_hold_floats(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     use crate::ext::StyleSlot;
     use crate::render::inline::generated::is_float_pseudo;
     let pseudo = |host| {

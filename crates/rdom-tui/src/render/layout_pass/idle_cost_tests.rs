@@ -43,3 +43,28 @@ fn block_inline_sizes_partition_floats_only_when_one_floats() {
     assert_eq!(flow_runs(8, false), 0);
     assert!(flow_runs(8, true) > 0);
 }
+
+/// C9G-CLEARANCE-COST — §8.3.1's "the child has no clearance" is decided
+/// only where a float may give it one: nested blocks with no float in the
+/// document build no box sequence for it.
+#[test]
+fn clearance_is_not_scanned_without_floats() {
+    use crate::render::layout_pass::block::CLEARANCE_SCANS;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let mut parent = root;
+    for _ in 0..6 {
+        let div = dom.create_element("div");
+        dom.append_child(parent, div).unwrap();
+        let t = dom.create_text_node("x");
+        dom.append_child(div, t).unwrap();
+        let inner = dom.create_element("div");
+        dom.append_child(div, inner).unwrap();
+        parent = inner;
+    }
+    let sheet = rdom_css::from_css_strict("div { margin-top: 1 }").unwrap();
+    dom.cascade(&sheet);
+    CLEARANCE_SCANS.with(|c| c.set(0));
+    dom.layout_dom(Rect::new(0, 0, 40, 30));
+    assert_eq!(CLEARANCE_SCANS.with(|c| c.get()), 0);
+}

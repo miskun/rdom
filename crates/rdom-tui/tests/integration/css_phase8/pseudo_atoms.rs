@@ -252,3 +252,21 @@ fn a_click_on_a_floated_pseudo_targets_its_host() {
     assert_eq!(dom.hit_test(0, 2), Some(h));
     assert_eq!(dom.hit_test(5, 2), Some(body));
 }
+
+/// C9G-CLEARANCE-COST — a floated `::before`'s exclusion is the box it is
+/// laid out in (CSS 2.1 §9.5): its height is measured and laid out by the
+/// same packing of its content (a line height of 2 included), so the
+/// host's text runs beside it for exactly its rows and below it after.
+#[test]
+fn a_floated_pseudos_exclusion_is_its_laid_out_box() {
+    let (rows, _) = host(
+        ".h { width: 6 } .h::before { content: 'a b'; float: left; width: 1; line-height: 2 }",
+        "zz zz zz zz zz zz zz zz zz zz",
+        6,
+        6,
+    );
+    assert_eq!(
+        rows,
+        ["azz zz", " zz zz", "bzz zz", " zz zz", "zz zz ", "      "]
+    );
+}

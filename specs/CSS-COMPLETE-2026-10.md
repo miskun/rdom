@@ -5829,3 +5829,26 @@ row comes from.
   tests fail; a fresh extents Vec per line → the line test. Not done: a `Calc` inside `TextIndent` still
   clones a box per element when a `calc()` indent is inherited (rare; tracked in the gate report). No
   existing expectation or snapshot changed.
+- 2026-10-12 — C9G-CLEARANCE-COST (architect N4, N5). Found: (1) `first_child_has_clearance` built a
+  `box_sequence` for every collapsible parent — 22 for six nested blocks with no float anywhere; (2) it
+  returned `false` at a generated item, so a floated `::before` never gave the first child clearance; and,
+  found while testing it, (3) `outer_edge_margin` stopped the parent / first-child chain at *any* generated
+  item, a floated `::before` included, while the flow still suppressed the child's top margin inside the
+  parent — `.p::before { float: left } .x { margin-top: 2 }` lost the margin (parent and `x` at row 0, for
+  2). Fixed at the root: the predicate runs only where `float::measure::may_hold_floats` (the scan that
+  allocates nothing, now `pub(in layout_pass)`) says a float may be, and classifies each box item by
+  `float_side_of` — elements and pseudo-elements alike; the margin chain skips a floated pseudo-element as
+  it skips a floated element (out of flow) and still stops at a block-level one. N5, decided after a probe
+  of eleven styles (line heights, padding, `display: flex` / `grid`, `pre`, `balance`, `vertical-align`):
+  a floated pseudo-element is measured (`FloatBox::of` → `AnonymousItem::contribution`) and laid out
+  (`AnonymousItem::lay_out` at that border box) by the same packing, so its laid-out height is its placed
+  height and its exclusion needs no settling — no code change; the Phase 8 Log's "every float is settled
+  by its index" holds for elements, whose automatic height layout resolves, and pseudo-elements keep the
+  one measured box. Red: `idle_cost_tests.rs::clearance_is_not_scanned_without_floats` (22 for 0) and
+  `css_phase8/float/clear.rs::a_floated_before_does_not_stop_the_collapse` (`(0, 0)` for `(2, 2)`) failed;
+  `a_floated_before_gives_the_first_child_clearance_too` passed on HEAD by accident (the lost margin and
+  the clearance land `x` at row 3 either way) and now holds for the right reason. Green after; pin added:
+  `css_phase8/pseudo_atoms.rs::a_floated_pseudos_exclusion_is_its_laid_out_box`. Mutation (each alone,
+  restored, touched): no `may_hold_floats` gate → the scan test; floated pseudos ignored for clearance →
+  the clearance test; the chain not skipping them → the collapse test. No existing expectation or snapshot
+  changed.
