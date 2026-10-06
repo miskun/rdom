@@ -127,7 +127,12 @@ pub(crate) enum Motion {
 /// the snapport, every offset is a valid snap position — `dest` itself,
 /// unless a directional scroll would pass another snap position on the
 /// way (the next box's start, a `scroll-snap-stop: always` one), which
-/// [`select::choose`] then picks as usual.
+/// [`select::choose`] then picks as usual, among the aligned positions
+/// and the ends of every covering range ([`points::positions`]). A
+/// directional scroll from inside a covering range that would leave it
+/// rests first at the range's end in its direction (decided: so a page or
+/// a tick never skips the end of a tall area — 25-row cards in a 10-row
+/// list show rows 20–24).
 fn pick(
     dom: &TuiDom,
     element: NodeId,
@@ -141,22 +146,42 @@ fn pick(
         target: p.target,
         offset: p.position.offset,
     };
-    let passes = |offset: i32| match intent {
-        Intent::Nearest => false,
-        Intent::Directional { from } => {
-            (from < offset && offset < dest) || (dest < offset && offset < from)
-        }
+    // Whether an aligned position lies strictly between `a` and `b`.
+    let any_between = |a: i32, b: i32| {
+        points.iter().any(|q| {
+            (a.min(b)..=a.max(b)).contains(&q.position.offset)
+                && ![a, b].contains(&q.position.offset)
+        })
+    };
+    let from = match intent {
+        Intent::Nearest => None,
+        Intent::Directional { from } => Some(from),
     };
     if let Some(p) = points
         .iter()
         .find(|p| p.cover.is_some_and(|(s, e)| s <= dest && dest <= e))
-        && !points.iter().any(|q| passes(q.position.offset))
+        && !from.is_some_and(|f| any_between(f, dest))
     {
         return Some((dest, record(p)));
     }
-    let positions: Vec<select::Position> = points.iter().map(|p| p.position).collect();
+    if let Some(f) = from
+        && f != dest
+    {
+        let dir = (dest - f).signum();
+        let leaving = points.iter().find_map(|p| {
+            let (s, e) = p.cover?;
+            let edge = if dir > 0 { e } else { s };
+            ((s..=e).contains(&f) && f != edge && (dest - edge) * dir > 0).then_some((p, edge))
+        });
+        if let Some((p, edge)) = leaving
+            && !any_between(f, edge)
+        {
+            return Some((edge, record(p)));
+        }
+    }
+    let (positions, owners) = points::positions(&points);
     let i = select::choose(&positions, dest, intent, mandatory)?;
-    Some((points[i].position.offset, record(&points[i])))
+    Some((positions[i].offset, record(&points[owners[i]])))
 }
 
 #[cfg(test)]
@@ -279,15 +304,18 @@ fn follow(
     if !mandatory {
         return (cur, None);
     }
-    let positions: Vec<select::Position> = points.iter().map(|p| p.position).collect();
+    let (positions, owners) = points::positions(&points);
     match select::choose(&positions, cur, Intent::Nearest, true) {
-        Some(i) => (
-            positions[i].offset,
-            Some(SnapRecord {
-                target: points[i].target,
-                offset: positions[i].offset,
-            }),
-        ),
+        Some(i) => {
+            let p = &points[owners[i]];
+            (
+                positions[i].offset,
+                Some(SnapRecord {
+                    target: p.target,
+                    offset: p.position.offset,
+                }),
+            )
+        }
         None => (cur, None),
     }
 }

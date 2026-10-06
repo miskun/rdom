@@ -79,6 +79,32 @@ pub(crate) fn snap_points(
     out
 }
 
+/// The positions a scroll may rest at among `points` (§6.2.3), each with
+/// the index of its point: every point's aligned position, and for an area
+/// longer than the snapport the two ends of its covering range — the
+/// offsets aligning its start and its end with the snapport's — which are
+/// no `scroll-snap-stop`.
+pub(crate) fn positions(points: &[SnapPoint]) -> (Vec<Position>, Vec<usize>) {
+    let mut positions = Vec::with_capacity(points.len());
+    let mut owners = Vec::with_capacity(points.len());
+    for (i, p) in points.iter().enumerate() {
+        positions.push(p.position);
+        owners.push(i);
+        if let Some((start, end)) = p.cover {
+            for offset in [start, end] {
+                if offset != p.position.offset {
+                    positions.push(Position {
+                        offset,
+                        stop: false,
+                    });
+                    owners.push(i);
+                }
+            }
+        }
+    }
+    (positions, owners)
+}
+
 /// The alignment of `align` on `axis`: the block value on the vertical
 /// axis, the inline value on the horizontal one (`horizontal-tb`).
 fn axis_align(align: crate::layout::ScrollSnapAlign, axis: ScrollAxis) -> SnapAlign {

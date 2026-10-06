@@ -21,6 +21,11 @@ const AREA: Rect = Rect::new(0, 0, 12, 12);
 /// `start` (positions 0, 30, 60, 90 — the last clamped to the range's
 /// end, 110), focused.
 fn list() -> (TuiDom, NodeId) {
+    list_of(30)
+}
+
+/// [`list`] with `card`-row cards.
+fn list_of(card: u16) -> (TuiDom, NodeId) {
     let mut dom = TuiDom::new();
     let root = dom.root();
     let l = dom.create_element("div");
@@ -32,10 +37,10 @@ fn list() -> (TuiDom, NodeId) {
         dom.set_attribute(c, "class", "card").unwrap();
         dom.append_child(l, c).unwrap();
     }
-    let sheet = rdom_css::from_css_strict(
-        ".list { width: 10; height: 10; overflow-y: auto; scroll-snap-type: y mandatory } \
-         .card { height: 30; scroll-snap-align: start }",
-    )
+    let sheet = rdom_css::from_css_strict(&format!(
+        ".list {{ width: 10; height: 10; overflow-y: auto; scroll-snap-type: y mandatory }} \
+         .card {{ height: {card}; scroll-snap-align: start }}"
+    ))
     .unwrap();
     dom.cascade(&sheet);
     dom.layout_dom(AREA);
@@ -125,4 +130,71 @@ fn a_resnap_keeps_the_place_inside_a_tall_card() {
     dom.layout_dom(AREA);
     assert!(super::resnap(&mut dom));
     assert_eq!(top(&dom, l), 17);
+}
+
+/// The content rows of a 10-row list scrolled to each of `tops` that were
+/// never on screen, of `0..rows`.
+fn unseen(tops: &[i32], rows: i32) -> Vec<i32> {
+    (0..rows)
+        .filter(|r| !tops.iter().any(|t| (*t..t + 10).contains(r)))
+        .collect()
+}
+
+/// C9G-SNAP-COVER. §6.2.3: every offset at which a tall area covers the
+/// snapport is a valid snap position — its end-aligned one too — so a page
+/// scroll leaving a 25-row card (not a multiple of the 10-row page) rests
+/// at the card's end before the next card: rows 20–24 of each card are
+/// shown (they were skipped, 10 → 25).
+#[test]
+fn page_down_reveals_every_row_of_cards_off_the_page_size() {
+    for card in [25, 23] {
+        let (mut dom, l) = list_of(card);
+        let mut tops = vec![0];
+        for _ in 0..20 {
+            page_down(&mut dom);
+            tops.push(top(&dom, l));
+        }
+        let rows = 4 * i32::from(card);
+        assert_eq!(tops.last(), Some(&(rows - 10)), "card {card}: the end");
+        assert_eq!(
+            unseen(&tops, rows),
+            Vec::<i32>::new(),
+            "card {card}: {tops:?}"
+        );
+    }
+}
+
+/// C9G-SNAP-COVER. The wheel, a row a tick inside a tall card, rests at
+/// the card's end-aligned position before snapping to the next card.
+#[test]
+fn the_wheel_reveals_every_row_of_cards_off_the_page_size() {
+    let (mut dom, l) = list_of(25);
+    let mut router = Router::new();
+    let mut tops = vec![0];
+    for _ in 0..120 {
+        router.route(
+            &mut dom,
+            Event::Mouse(MouseEvent {
+                kind: MouseEventKind::ScrollDown,
+                column: 2,
+                row: 2,
+                modifiers: KeyModifiers::empty(),
+            }),
+        );
+        dom.layout_dom(AREA);
+        tops.push(top(&dom, l));
+    }
+    assert_eq!(tops.last(), Some(&90));
+    assert_eq!(unseen(&tops, 100), Vec::<i32>::new(), "{tops:?}");
+}
+
+/// C9G-SNAP-COVER. §6.2.3 for a scroll to a destination: the nearest valid
+/// position to an offset just past a tall card's covering range is the
+/// range's end, not the next card's start.
+#[test]
+fn scroll_to_just_past_a_tall_card_rests_at_its_end() {
+    use crate::accessors::TuiAccessorsMut;
+    let (mut dom, l) = list_of(23);
+    dom.node_mut(l).scroll_to(0, 15).unwrap();
+    assert_eq!(top(&dom, l), 13);
 }

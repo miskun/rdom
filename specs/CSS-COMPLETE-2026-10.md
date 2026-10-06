@@ -5691,3 +5691,21 @@ row comes from.
   and is kept as the pin for the multi-grapheme full-width piece. Green after. Mutation (restored,
   touched): `class_of_rendered` reading the whole rendering's width → the red test fails again. No
   existing expectation or snapshot changed.
+- 2026-10-12 — C9G-SNAP-COVER (architect B2; completes C8G-SNAP-TALL). Found: `pick` rested at a
+  destination only inside a covering range, and `choose` saw only the aligned positions, so a page from
+  inside a tall card to a destination past its range snapped to the next card: 25-row cards in a 10-row
+  `y mandatory` list paged 0 → 10 → 25, rows 20–24 never shown (`tall_tests.rs` passed only because 30 is a
+  multiple of the page). Decision: §6.2.3 makes every covering offset valid, the end-aligned one included —
+  `points::positions` offers each covering range's two ends (no stop) beside the aligned positions, to
+  `pick` and to `follow`'s mandatory fallback (the record keeps the box's aligned offset); and, decided
+  beyond the spec's letter, a directional scroll from inside a covering range that would leave it rests
+  first at the range's end in its direction (unless an aligned position lies between), so a 23-row card —
+  whose end (13) is farther from a page's destination (20) than the next card (23) — still shows rows 20–22.
+  DIVERGENCES §2's snap entry says so. Red: `scroll_snap/tall_tests.rs` —
+  `page_down_reveals_every_row_of_cards_off_the_page_size` failed (rows `[20..24, 45..49, 70..74]` unseen
+  for 25-row cards) and `scroll_to_just_past_a_tall_card_rests_at_its_end` failed (`scrollTo(15)` with
+  23-row cards: 23 for 13); `the_wheel_reveals_every_row_of_cards_off_the_page_size` passed on HEAD (a
+  one-row tick from the range's end lands on the next card with nothing skipped) and is kept as the
+  wheel's pin. Green after. Mutation (each alone, restored, touched): no leaving-edge rest → the page test
+  fails for 23-row cards (rows 20–22, 43–45, 66–68 unseen); no range ends among the positions → the
+  `scrollTo` test fails (23). No existing expectation or snapshot changed.
