@@ -78,7 +78,7 @@ pub fn parse_font_family(value: &[Token]) -> Option<FontFamily> {
     for item in super::numeric::split_commas(value)? {
         names.push(family_name(item)?);
     }
-    (!names.is_empty()).then_some(FontFamily::Names(names))
+    (!names.is_empty()).then(|| FontFamily::Names(names.into()))
 }
 
 /// One family name as it serializes: a string quoted, identifiers joined

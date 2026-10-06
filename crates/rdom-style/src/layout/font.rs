@@ -148,8 +148,10 @@ pub enum FontFamily {
     /// The initial value: the UA's default family.
     #[default]
     Initial,
-    /// The listed families, each serialized as it is written back.
-    Names(Vec<String>),
+    /// The listed families, each serialized as it is written back —
+    /// shared, so a computed style inherits the list without copying it
+    /// (C9G-PACKER-ALLOC).
+    Names(std::sync::Arc<[String]>),
     /// A system font keyword of the `font` shorthand (§3.7: `caption`,
     /// `icon`, `menu`, `message-box`, `small-caption`, `status-bar`).
     System(SystemFont),

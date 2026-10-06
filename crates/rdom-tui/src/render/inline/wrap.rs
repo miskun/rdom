@@ -72,9 +72,8 @@ fn balance(
     width: u16,
     replay: impl Fn(WidthCaps) -> (Vec<LineBox>, Vec<usize>),
 ) -> Vec<LineBox> {
-    let count = |groups: &[usize], g: usize| groups.iter().filter(|&&x| x == g).count();
     let n_groups = groups.iter().max().map_or(0, |g| g + 1);
-    let target: Vec<usize> = (0..n_groups).map(|g| count(groups, g)).collect();
+    let target = histogram(groups, n_groups);
     // The groups to balance, each with its bisection range [lo, hi]: `hi`
     // keeps the count (the line box width does, greedily).
     let mut range: Vec<Option<(u16, u16)>> = target
@@ -104,11 +103,12 @@ fn balance(
             groups: mids.clone(),
             line: None,
         });
+        let got = histogram(&got, n_groups);
         for (g, r) in range.iter_mut().enumerate() {
             if let Some((lo, hi)) = r
                 && *lo < *hi
             {
-                if count(&got, g) <= target[g] {
+                if got[g] <= target[g] {
                     *hi = mids[g];
                 } else {
                     *lo = mids[g] + 1;
@@ -116,6 +116,20 @@ fn balance(
             }
         }
     }
+}
+
+/// The number of lines in each of the `n` groups, from each line's group
+/// — one pass (a count per group was a pass per group).
+fn histogram(groups: &[usize], n: usize) -> Vec<usize> {
+    #[cfg(test)]
+    COUNTED.with(|c| c.set(c.get() + groups.len()));
+    let mut lines = vec![0; n];
+    for &g in groups {
+        if let Some(count) = lines.get_mut(g) {
+            *count += 1;
+        }
+    }
+    lines
 }
 
 /// `pretty` / `avoid-short-last-line`: move the previous line's last word
@@ -149,6 +163,12 @@ fn has_space(line: &LineBox) -> bool {
         .chain(line.generated.iter().map(|g| g.text.as_str()))
         .collect();
     text.trim().contains(' ')
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Lines visited counting `balance`'s groups (cost tests).
+    pub(super) static COUNTED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[cfg(test)]

@@ -248,3 +248,38 @@ fn an_unchanged_contents_element_keeps_its_subtree_in_a_restyle() {
     let visits = super::walk::probe::take();
     assert!(visits <= 2, "visited {visits} nodes");
 }
+
+/// The allocations of cascading a `.p` parent styled `css` holding `n`
+/// plain `div` children.
+fn cascade_allocations(css: &str, n: usize) -> u64 {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("section");
+    dom.set_attribute(p, "class", "p").unwrap();
+    dom.append_child(root, p).unwrap();
+    for _ in 0..n {
+        let div = dom.create_element("div");
+        dom.append_child(p, div).unwrap();
+    }
+    let css = sheet(css);
+    crate::test_alloc::allocations_in(|| dom.cascade(&css))
+}
+
+/// C9G-PACKER-ALLOC. An inherited value that draws nothing costs nothing
+/// per element: a `font-family` list on an ancestor — almost every sheet's
+/// `body { font-family: system-ui, … }` — is shared by its descendants'
+/// computed styles, not copied, so a plain element cascades with the same
+/// allocations whether the list is there or not (it cost one per family
+/// name per element).
+#[test]
+fn an_inherited_family_list_is_shared_not_copied() {
+    let per_element = |css: &str| cascade_allocations(css, 40) - cascade_allocations(css, 20);
+    let plain = per_element(".p { color: red }");
+    let family = per_element(
+        ".p { color: red; font-family: system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif }",
+    );
+    assert_eq!(
+        family, plain,
+        "20 elements: {family} allocations for {plain}"
+    );
+}

@@ -2302,7 +2302,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         weight: rdom_style::layout::FontWeight::Number(700.0),
         style: rdom_style::layout::FontStyle::Italic,
         size: rdom_style::layout::FontSize::Math,
-        family: rdom_style::layout::FontFamily::Names(vec!["serif".into()]),
+        family: rdom_style::layout::FontFamily::Names(vec!["serif".to_string()].into()),
         stretch: rdom_style::layout::FontStretch::Percent(80.0),
         variant: rdom_style::layout::FontVariant::SmallCaps,
     };

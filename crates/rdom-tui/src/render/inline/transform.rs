@@ -64,16 +64,16 @@ pub(crate) fn apply<'a>(
     let mut out: Cow<'a, str> = Cow::Borrowed(g);
     match transform.case {
         TextCase::None => {}
-        TextCase::Uppercase => out = map_chars(&out, |c, s| s.extend(c.to_uppercase())),
+        TextCase::Uppercase => out = map_chars(&out, |c| Chars::of(c.to_uppercase())),
         TextCase::Lowercase => {
-            out = map_chars(&out, |c, s| {
+            out = map_chars(&out, |c| {
                 if c == 'Σ' {
                     // Unicode Final_Sigma: after a cased letter and not
                     // before one.
                     let fin = ctx.after_cased && !next.is_some_and(is_cased);
-                    s.push(if fin { 'ς' } else { 'σ' });
+                    Chars::one(if fin { 'ς' } else { 'σ' })
                 } else {
-                    s.extend(c.to_lowercase());
+                    Chars::of(c.to_lowercase())
                 }
             });
         }
@@ -90,10 +90,10 @@ pub(crate) fn apply<'a>(
         }
     }
     if transform.full_width {
-        out = map_chars(&out, |c, s| s.push(full_width(c)));
+        out = map_chars(&out, |c| Chars::one(full_width(c)));
     }
     if transform.full_size_kana {
-        out = map_chars(&out, |c, s| s.push(full_size_kana(c)));
+        out = map_chars(&out, |c| Chars::one(full_size_kana(c)));
     }
     (out != g).then_some(out)
 }
@@ -123,16 +123,70 @@ pub(crate) fn math_italic(c: char) -> Option<char> {
     }
 }
 
-/// `text` with each character mapped by `f`, borrowed when unchanged.
-fn map_chars<'a>(text: &Cow<'a, str>, f: impl Fn(char, &mut String)) -> Cow<'a, str> {
-    let mut s = String::with_capacity(text.len());
-    for c in text.chars() {
-        f(c, &mut s);
+/// `text` with each character mapped by `f`, borrowed when unchanged —
+/// a string allocated only from the first character that changes.
+fn map_chars<'a>(text: &Cow<'a, str>, f: impl Fn(char) -> Chars) -> Cow<'a, str> {
+    let mut out: Option<String> = None;
+    for (i, c) in text.char_indices() {
+        let mut mapped = f(c);
+        match &mut out {
+            Some(s) => s.extend(mapped),
+            None if mapped.is(c) => {}
+            None => {
+                let mut s = String::with_capacity(text.len() + 4);
+                s.push_str(&text[..i]);
+                s.extend(&mut mapped);
+                out = Some(s);
+            }
+        }
     }
-    if s == text.as_ref() {
-        text.clone()
-    } else {
-        Cow::Owned(s)
+    out.map_or_else(|| text.clone(), Cow::Owned)
+}
+
+/// One character's mapping: up to three characters (Unicode's longest
+/// case mapping is three), without allocating.
+struct Chars {
+    buf: [char; 3],
+    len: u8,
+    at: u8,
+}
+
+impl Chars {
+    fn one(c: char) -> Self {
+        Chars {
+            buf: [c, '\0', '\0'],
+            len: 1,
+            at: 0,
+        }
+    }
+
+    fn of(chars: impl Iterator<Item = char>) -> Self {
+        let mut out = Chars {
+            buf: ['\0'; 3],
+            len: 0,
+            at: 0,
+        };
+        for c in chars.take(3) {
+            out.buf[usize::from(out.len)] = c;
+            out.len += 1;
+        }
+        out
+    }
+
+    /// Whether the mapping is `c` itself.
+    fn is(&self, c: char) -> bool {
+        self.len == 1 && self.buf[0] == c
+    }
+}
+
+impl Iterator for Chars {
+    type Item = char;
+
+    fn next(&mut self) -> Option<char> {
+        (self.at < self.len).then(|| {
+            self.at += 1;
+            self.buf[usize::from(self.at - 1)]
+        })
     }
 }
 

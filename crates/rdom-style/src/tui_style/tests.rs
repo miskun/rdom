@@ -338,7 +338,9 @@ fn every_property_has_important_setter() {
         .tab_size_important(crate::layout::TabSize::Number(4.0))
         .line_height_important(crate::layout::LineHeight::Number(2.0))
         .font_size_important(crate::layout::FontSize::Medium)
-        .font_family_important(crate::layout::FontFamily::Names(vec!["serif".into()]))
+        .font_family_important(crate::layout::FontFamily::Names(
+            vec!["serif".to_string()].into(),
+        ))
         .font_stretch_important(crate::layout::FontStretch::Normal)
         .font_variant_important(crate::layout::FontVariant::SmallCaps)
         .vertical_align_important(crate::layout::VerticalAlign::Super)

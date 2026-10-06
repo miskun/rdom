@@ -19,42 +19,64 @@ use unicode_width::UnicodeWidthStr;
 
 use super::InlineFragment;
 
+#[cfg(test)]
+thread_local! {
+    /// Units summed for source lengths (cost tests).
+    pub(super) static SUMMED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Per source grapheme of a fragment, `(source bytes, text bytes)`, in
 /// order: the fragment's `text` is the concatenation of the rendered
-/// pieces, its source the concatenation of the source graphemes.
+/// pieces, its source the concatenation of the source graphemes. The
+/// source bytes' total is kept, so a merge reads it in constant time.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(crate) struct SourceMap(Vec<(u32, u32)>);
+pub(crate) struct SourceMap {
+    units: Vec<(u32, u32)>,
+    source_len: usize,
+}
 
 impl SourceMap {
     /// A map of `units`, `(source bytes, text bytes)` each.
     pub(crate) fn new(units: Vec<(u32, u32)>) -> Self {
-        SourceMap(units)
+        let source_len = sum(&units);
+        SourceMap { units, source_len }
     }
 
     /// The map of `text` rendered verbatim: one unit per grapheme.
     pub(crate) fn verbatim(text: &str) -> Self {
-        SourceMap(
-            text.graphemes(true)
+        SourceMap {
+            units: text
+                .graphemes(true)
                 .map(|g| (g.len() as u32, g.len() as u32))
                 .collect(),
-        )
+            source_len: text.len(),
+        }
     }
 
     /// Append `other`'s units.
     pub(crate) fn extend(&mut self, other: &SourceMap) {
-        self.0.extend_from_slice(&other.0);
+        self.units.extend_from_slice(&other.units);
+        self.source_len += other.source_len;
     }
 
     /// The source bytes the map covers.
     fn source_len(&self) -> usize {
-        self.0.iter().map(|&(s, _)| s as usize).sum()
+        self.source_len
     }
 
-    /// The units, mutably — a renderer that changes a unit's text (the
-    /// hyphen a broken soft hyphen shows) adjusts its text bytes here.
-    pub(crate) fn units_mut(&mut self) -> &mut Vec<(u32, u32)> {
-        &mut self.0
+    /// The units' text bytes, mutably — a renderer that changes a unit's
+    /// text (the hyphen a broken soft hyphen shows, the spacing a line's
+    /// end drops) adjusts its text bytes here; the source bytes are fixed.
+    pub(crate) fn text_bytes_mut(&mut self) -> impl Iterator<Item = &mut u32> {
+        self.units.iter_mut().map(|(_, t)| t)
     }
+}
+
+/// The source bytes of `units`.
+fn sum(units: &[(u32, u32)]) -> usize {
+    #[cfg(test)]
+    SUMMED.with(|c| c.set(c.get() + units.len()));
+    units.iter().map(|&(s, _)| s as usize).sum()
 }
 
 /// One source grapheme of a fragment as rendered: its source bytes
@@ -65,6 +87,53 @@ pub(crate) struct Unit<'a> {
     pub(crate) source: Range<usize>,
     pub(crate) text: &'a str,
     pub(crate) width: u16,
+}
+
+/// A fragment's units ([`InlineFragment::units`]), without allocating.
+pub(crate) enum Units<'a> {
+    /// The text's own graphemes.
+    Verbatim(unicode_segmentation::GraphemeIndices<'a>),
+    /// Through a source map: the units left, the fragment's text, and the
+    /// source and text bytes before the next one.
+    Mapped {
+        units: std::slice::Iter<'a, (u32, u32)>,
+        text: &'a str,
+        source: usize,
+        at: usize,
+    },
+}
+
+impl<'a> Iterator for Units<'a> {
+    type Item = Unit<'a>;
+
+    fn next(&mut self) -> Option<Unit<'a>> {
+        let width = |t: &str| UnicodeWidthStr::width(t).min(usize::from(u16::MAX)) as u16;
+        match self {
+            Units::Verbatim(graphemes) => graphemes.next().map(|(i, g)| Unit {
+                source: i..i + g.len(),
+                text: g,
+                width: width(g),
+            }),
+            Units::Mapped {
+                units,
+                text,
+                source,
+                at,
+            } => {
+                let &(s, t) = units.next()?;
+                let (s, t) = (s as usize, t as usize);
+                let piece = &text[*at..*at + t];
+                let unit = Unit {
+                    source: *source..*source + s,
+                    text: piece,
+                    width: width(piece),
+                };
+                *source += s;
+                *at += t;
+                Some(unit)
+            }
+        }
+    }
 }
 
 impl InlineFragment {
@@ -80,28 +149,15 @@ impl InlineFragment {
     }
 
     /// The fragment's source graphemes as rendered, in order.
-    pub(crate) fn units(&self) -> Box<dyn Iterator<Item = Unit<'_>> + '_> {
-        let width = |t: &str| UnicodeWidthStr::width(t).min(usize::from(u16::MAX)) as u16;
+    pub(crate) fn units(&self) -> Units<'_> {
         match &self.map {
-            None => Box::new(self.text.grapheme_indices(true).map(move |(i, g)| Unit {
-                source: i..i + g.len(),
-                text: g,
-                width: width(g),
-            })),
-            Some(map) => {
-                let (mut source, mut text) = (0usize, 0usize);
-                Box::new(map.0.iter().map(move |&(s, t)| {
-                    let (s, t) = (s as usize, t as usize);
-                    let unit = Unit {
-                        source: source..source + s,
-                        text: &self.text[text..text + t],
-                        width: width(&self.text[text..text + t]),
-                    };
-                    source += s;
-                    text += t;
-                    unit
-                }))
-            }
+            None => Units::Verbatim(self.text.grapheme_indices(true)),
+            Some(map) => Units::Mapped {
+                units: map.units.iter(),
+                text: &self.text,
+                source: 0,
+                at: 0,
+            },
         }
     }
 

@@ -67,6 +67,8 @@ mod white_space;
 mod wrap;
 
 #[cfg(test)]
+mod alloc_tests;
+#[cfg(test)]
 mod tests;
 
 use rdom_core::{Dom, NodeId};

@@ -49,7 +49,7 @@ impl LinePacker<'_> {
     pub(super) fn push_separator(&mut self, origin: Origin, source_offset: usize, width: u16) {
         let text = super::emit::spaces(width);
         let map = (width > 1).then(|| SourceMap::new(vec![(1, u32::from(width))]));
-        self.append_fragment(origin, source_offset, &text, width, map);
+        self.append_fragment(origin, source_offset, text, width, map);
         self.cur_trailing_spacing = width.saturating_sub(1);
     }
 
@@ -73,9 +73,9 @@ impl LinePacker<'_> {
             trim(&mut f.text);
             f.width = f.width.saturating_sub(n);
             if let Some(map) = f.map.as_mut()
-                && let Some(unit) = map.units_mut().last_mut()
+                && let Some(text) = map.text_bytes_mut().last()
             {
-                unit.1 = unit.1.saturating_sub(u32::from(n));
+                *text = text.saturating_sub(u32::from(n));
             }
         } else if let Some(g) = self.cur_generated.iter_mut().rfind(|g| !g.is_atom())
             && end(g.x, g.width) == line_end

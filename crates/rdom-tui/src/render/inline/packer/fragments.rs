@@ -4,6 +4,8 @@
 //! its rendering needs; and the hyphen a line broken at a soft hyphen
 //! shows (CSS Text 3 §6.1).
 
+use std::borrow::Cow;
+
 use super::super::source_map::SourceMap;
 use super::super::{GeneratedFragment, InlineFragment};
 use super::{GraphemeKind, LinePacker, Origin};
@@ -34,28 +36,34 @@ impl LinePacker<'_> {
 
         // Group consecutive same-origin graphemes into fragments. A
         // change of origin starts a new fragment.
+        // The units of a source map are built only for a group that needs
+        // one (a grapheme rendered as something else).
         let mut idx = 0;
         while idx < self.word_buffer.len() {
             let g0 = &self.word_buffer[idx];
             let origin = g0.origin;
             let source_offset = g0.source_offset;
-            let mut text = String::new();
+            let end = self.word_buffer[idx..]
+                .iter()
+                .position(|g| g.origin != origin)
+                .map_or(self.word_buffer.len(), |n| idx + n);
+            let group = &self.word_buffer[idx..end];
+            let mut text = String::with_capacity(group.iter().map(|g| g.text.len()).sum());
             let mut width: u16 = 0;
-            let mut units: Vec<(u32, u32)> = Vec::new();
-            let mut mapped = false;
-            while idx < self.word_buffer.len() {
-                let g = &self.word_buffer[idx];
-                if g.origin != origin {
-                    break;
-                }
+            for g in group {
                 text.push_str(&g.text);
                 width = width.saturating_add(g.width);
-                units.push((g.source_len as u32, g.text.len() as u32));
-                mapped |= g.mapped;
-                idx += 1;
             }
-            let map = mapped.then(|| SourceMap::new(units));
-            self.append_fragment(origin, source_offset, &text, width, map);
+            let map = group.iter().any(|g| g.mapped).then(|| {
+                SourceMap::new(
+                    group
+                        .iter()
+                        .map(|g| (g.source_len as u32, g.text.len() as u32))
+                        .collect(),
+                )
+            });
+            idx = end;
+            self.append_fragment(origin, source_offset, Cow::Owned(text), width, map);
         }
 
         self.word_buffer.clear();
@@ -71,12 +79,13 @@ impl LinePacker<'_> {
     /// byte ranges are contiguous — keeps fragment counts low and
     /// preserves correct source mapping. Generated content goes to the
     /// line's generated list instead. `map` is the text's source map
-    /// when it is not the source verbatim.
+    /// when it is not the source verbatim. An owned `text` becomes a new
+    /// fragment's without a copy.
     pub(super) fn append_fragment(
         &mut self,
         origin: Origin,
         source_offset: usize,
-        text: &str,
+        text: Cow<'_, str>,
         width: u16,
         map: Option<SourceMap>,
     ) {
@@ -91,11 +100,11 @@ impl LinePacker<'_> {
                 && last.atom.is_none()
                 && last.x + i32::from(last.width) == x
             {
-                last.text.push_str(text);
+                last.text.push_str(&text);
                 last.width = last.width.saturating_add(width);
                 return;
             }
-            let mut run = GeneratedFragment::text(origin.owner, slot, x, text);
+            let mut run = GeneratedFragment::text(origin.owner, slot, x, text.into_owned());
             run.width = width;
             run.frame = origin.frame;
             self.cur_generated.push(run);
@@ -117,15 +126,17 @@ impl LinePacker<'_> {
                         .map
                         .take()
                         .map_or_else(|| SourceMap::verbatim(&last.text), |m| *m);
-                    joined.extend(&map.unwrap_or_else(|| SourceMap::verbatim(text)));
+                    joined.extend(&map.unwrap_or_else(|| SourceMap::verbatim(&text)));
                     last.map = Some(Box::new(joined));
                 }
-                last.text.push_str(text);
+                last.text.push_str(&text);
                 last.width = last.width.saturating_add(width);
                 return;
             }
         }
-        let mut fragment = InlineFragment::text(owner, text_node, source_offset, x, text);
+        // A new fragment takes the text, moved when it is owned.
+        let mut fragment =
+            InlineFragment::text(owner, text_node, source_offset, x, text.into_owned());
         fragment.width = width;
         fragment.map = map.map(Box::new);
         fragment.frame = origin.frame;
@@ -146,9 +157,9 @@ impl LinePacker<'_> {
             f.text.push('-');
             f.width = f.width.saturating_add(1);
             if let Some(map) = f.map.as_mut()
-                && let Some(unit) = map.units_mut().last_mut()
+                && let Some(text) = map.text_bytes_mut().last()
             {
-                unit.1 += 1;
+                *text += 1;
             }
         } else if let Some(g) = last_gen
             && end(g.x, g.width) == line_end

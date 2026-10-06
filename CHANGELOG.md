@@ -161,6 +161,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 | `Stylesheet::add_rule_in_layer(…)` | `add_style_rule(…, RuleContext::default().in_layer(layer))` | C1G-API-SURFACE | — |
 | `TuiStyle::scroll_padding_top` … / `scroll_margin_left` fields; `ComputedStyle::scroll_padding_top` … / `scroll_margin_left` | `TuiStyle::scroll_padding` / `scroll_margin: Sides<Option<Value<…>>>` (`style.scroll_padding.top`), `ComputedStyle::scroll_padding: Sides<ScrollPadding>` / `scroll_margin: Sides<i16>`; the per-side builders unchanged | C8G-API-TYPES | `scroll_sides_and_root_hints` |
 | `App::register_property(…) -> Result<(), String>` | `-> Result<(), RegisterPropertyError>` | C1G-TYPED-ERRORS | `typed_error_hints` |
+| `FontFamily::Names(Vec<String>)` | `FontFamily::Names(Arc<[String]>)` (`vec![…].into()`), shared by the elements that inherit it | C9G-PACKER-ALLOC | — |
 
 ### Added — `rdom-core`
 
@@ -530,6 +531,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **Inline layout allocates less and merges in linear time**: no source map for a word rendered as its source, no per-line buffers, no copy of a fragment's text, no allocation walking units or for a grapheme a transform leaves alone; `balance` counts groups once; an inherited `font-family` is shared. (C9G-PACKER-ALLOC)
 - **A box's baselines are its packed lines' text rows** (CSS 2.1 §10.8.1, CSS Box Alignment 3 §9.1): an inline block or a flex item takes its first and last baselines from the lines layout packs, so `H<sub>2</sub>O` in an inline block stays on its line's row and a leading text line before a block child holds the first baseline. (C9G-ONE-BASELINE)
 - **A tall snap area's end is a snap position** (CSS Scroll Snap 1 §6.2.3): the end-aligned offset of an area longer than the snapport is offered, and a scroll leaving such an area rests there first, so PageDown through 25-row cards in a 10-row `mandatory` list shows rows 20–24 (it went 10 → 25). (C9G-SNAP-COVER)
 - **A letter a transform lengthens stays a letter for line breaking** (CSS Text 3 §2.1, §5): `ß` uppercased is `SS`, two letters — it was classed as one two-cell ideograph, so `straße` under `uppercase` broke inside the word and its min-content was 4, not 7. Full-width text still breaks like ideographs. (C9G-TRANSFORM-BREAK)

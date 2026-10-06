@@ -119,18 +119,20 @@ struct Extent {
     below: i32,
 }
 
-/// The rows of a settled line: its height, and each aligned subtree's
-/// baseline row from the line's top.
+/// The rows of a settled line: its height, the strut's baseline row from
+/// the line's top, and each other aligned subtree's — kept only when the
+/// line has one, so a line of plain content allocates nothing here.
 #[derive(Debug, Clone, Default)]
 pub(super) struct Settled {
     pub(super) height: u16,
-    baselines: Vec<(FrameId, u16)>,
+    strut: u16,
+    others: Vec<(FrameId, u16)>,
 }
 
 impl Settled {
     /// The line's baseline row: the strut's.
     pub(super) fn baseline(&self) -> u16 {
-        self.baselines.first().map_or(0, |&(_, row)| row)
+        self.strut
     }
 }
 
@@ -246,13 +248,10 @@ impl Frames {
     /// that grows it away from the edge it is aligned with. The next line
     /// starts with the strut alone.
     pub(super) fn settle(&mut self) -> Settled {
-        let extents = std::mem::replace(
-            &mut self.extents,
-            vec![Self::strut_extent(self.frames[0].rows)],
-        );
         self.line += 1;
         self.frames[0].marked = self.line;
         let row = |v: i32| v.clamp(0, i32::from(u16::MAX)) as u16;
+        let extents = &self.extents;
         let (mut above, mut below) = (extents[0].above, extents[0].below);
         for e in &extents[1..] {
             let tall = (e.above + 1 + e.below) - (above + 1 + below);
@@ -264,7 +263,7 @@ impl Frames {
             }
         }
         let height = above + 1 + below;
-        let baselines = extents
+        let others = extents[1..]
             .iter()
             .map(|e| {
                 let baseline = match self.frames[e.root as usize].align {
@@ -275,9 +274,14 @@ impl Frames {
                 (e.root, row(baseline))
             })
             .collect();
+        // The next line starts with the strut's extent alone, in the same
+        // buffer.
+        self.extents.truncate(1);
+        self.extents[0] = Self::strut_extent(self.frames[0].rows);
         Settled {
             height: row(height),
-            baselines,
+            strut: row(above),
+            others,
         }
     }
 
@@ -285,10 +289,10 @@ impl Frames {
     pub(super) fn row(&self, settled: &Settled, frame: FrameId) -> u16 {
         let f = &self.frames[frame as usize];
         let baseline = settled
-            .baselines
+            .others
             .iter()
             .find(|&&(root, _)| root == f.root)
-            .map_or(settled.baseline(), |&(_, row)| row);
+            .map_or(settled.strut, |&(_, row)| row);
         (i32::from(baseline) - f.raise).clamp(0, i32::from(u16::MAX)) as u16
     }
 }

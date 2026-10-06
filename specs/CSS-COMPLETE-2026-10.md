@@ -5803,3 +5803,29 @@ row comes from.
   preserved-space spacing → 1; no UA `letter-spacing` reset → the form-control test. Changed expectations:
   the inherited-set probe and `PERTURB` / `initial` probe, the canonical-values table and the
   `!important`-setter test cover the two properties. No snapshot changed.
+- 2026-10-12 — C9G-PACKER-ALLOC (architect N1, N2, N3). Found, by counting (red first, each): (1) an
+  inherited `font-family` list (`FontFamily::Names(Vec<String>)`) was cloned into every descendant's
+  computed style — 12 more allocations per plain element under `.p { font-family: system-ui,
+  -apple-system, "Segoe UI", Roboto, sans-serif }` (540 for 300 per 20 elements); (2) a `units` Vec built
+  for every word, mapped or not, and a temporary text `String` copied into each new fragment (81
+  allocations per 40 words on a line); (3) `Frames::settle` allocated a fresh extents Vec and a baselines
+  Vec per line (6 allocations a line with the above); (4) `SourceMap::units()` boxed a `dyn Iterator` — 3
+  allocations for a caret, hit and unit-walk query on one fragment; (5) `map_chars` allocated per grapheme
+  under a case transform even when unchanged (468 for 198 on already-upper text); (6) `append_fragment`'s
+  merge summed the whole map for `source_len()` — 89 700 units for a 600-unit `pre-wrap` line of tabs; (7)
+  `balance` counted each group's lines with a pass per group — 4 000 000 visits for a 2000-line `pre-line`
+  log. Fixed at each root: (1) `Names(Arc<[String]>)` (rdom-style; API table "Changes to APIs added after
+  0.5"); (2) a group's units built only when a grapheme in it is mapped, and `append_fragment` takes a
+  `Cow` and moves an owned text into a new fragment; (3) `settle` reuses the extents buffer and `Settled`
+  keeps the strut's row apart from the other subtrees' (empty, unallocated, on a plain line); (4) a
+  concrete `source_map::Units` iterator; (5) `map_chars` maps through a three-char `Chars` buffer and
+  allocates from the first changed character only; (6) `SourceMap` keeps its source length (the text-byte
+  adjusters, `text_bytes_mut`, cannot change it); (7) one `histogram` pass per pack. Tests:
+  `style/cascade/cost_tests.rs::an_inherited_family_list_is_shared_not_copied` (equal per-element
+  allocations with and without the list) and `render/inline/alloc_tests.rs` (six: ≤ 48 allocations per 40
+  words, ≤ 88 per 40 lines, equal allocations under `uppercase` on upper text, 0 per unit walk, ≤ 4 units
+  summed per unit, ≤ 4 line visits per line); all red on HEAD as quoted, green after (40 words: 41; 40
+  lines: 82). Mutation (each alone, restored, touched): units built for every group → the word and line
+  tests fail; a fresh extents Vec per line → the line test. Not done: a `Calc` inside `TextIndent` still
+  clones a box per element when a `calc()` indent is inherited (rare; tracked in the gate report). No
+  existing expectation or snapshot changed.
