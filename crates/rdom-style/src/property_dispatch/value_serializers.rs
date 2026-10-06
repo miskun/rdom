@@ -286,7 +286,11 @@ pub(super) fn serialize_counter_ops(ops: &[crate::counters::CounterOp]) -> Strin
         return "none".to_string();
     }
     ops.iter()
-        .map(|op| format!("{} {}", op.name, op.value))
+        .map(|op| match (op.reversed, op.value_given) {
+            (true, false) => format!("reversed({})", op.name),
+            (true, true) => format!("reversed({}) {}", op.name, op.value),
+            _ => format!("{} {}", op.name, op.value),
+        })
         .collect::<Vec<_>>()
         .join(" ")
 }

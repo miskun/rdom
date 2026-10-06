@@ -209,7 +209,7 @@ row comes from.
 |---|---|---|
 | C10-CONTENT | `content` full grammar (quotes, `var()`, `counters()`, alt text) | done |
 | C10-QUOTES | `quotes` | done |
-| C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | partial — the predefined styles landed; `reversed()`, `counter-set`, the scoping rules and the HTML list-item counter are the next commit |
+| C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | done |
 | C10-COUNTER-STYLE | `@counter-style` and `symbols()` | |
 | C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | |
 | C10-FIRST | `::first-line` / `::first-letter` | |
@@ -6073,3 +6073,34 @@ row comes from.
   (restored, touched): `pad` not counting the negative sign → `numeric_styles_write_positional_digits`
   (`-07`). No existing expectation changed (two cascade tests build `CounterStyle::named("upper-roman")` /
   `decimal()` for the old variants).
+- 2026-10-13 — C10-COUNTERS, part 2 of 2 (counter ops, scoping, the list-item counter). Found: `reversed()`
+  and `counter-set` dropped the declaration; a sibling's reset nested in the previous sibling's counter
+  instead of replacing it (§4.5), so `counters()` of a second list read `2.1`; `li` counted through an
+  explicit UA `counter-increment`, `display: list-item` incremented nothing (§4.6), and `<ol start>`,
+  `<ol reversed>` and `<li value>` did nothing; pseudo-elements other than `::before` / `::after`
+  (`::backdrop`, `::selection`, the scrollbar parts) applied counter ops no replay accounted for.
+  Decisions: (1) `CounterState::enter` takes the box's style and applies §4.4's order — reset (instantiate,
+  replacing a same-parent counter), increment (plus the implicit `list-item` one: −1 when the innermost
+  `list-item` is reversed), set — and only `::before` / `::after` hold ops; `has_ops` / `note_ops` count
+  `counter-set` and `list-item`. (2) The reversed counter's initial value (§4.2's algorithm, current ED:
+  negated increments plus the last non-zero one, a set stopping it) depends on boxes the top-down walk has
+  not reached. It is computed at the instantiating box by replaying, in a scratch `CounterState` that traces
+  the new counter, the scope's ops as last cascaded (`counters::reversed::initial_value`, stored in the
+  computed op so replays reuse it); every value a walk used is checked after the walk against the boxes as
+  they now are (`stale_reversed`), and `cascade` / `subtrees` re-run from the stale owners once — ops never
+  depend on counter values, so it settles (the first cascade of an `<ol reversed>` and an appended item both
+  take that path). Chose this over a post-cascade counter pass, which would have replaced the incremental
+  replay machinery. (3) HTML's list attributes are presentational hints (CSS Cascade 4 §6.4.4): a new
+  ladder step `Source::Hint` after UA normal (`Plan::add_hints`, `Declarations::with_hints`), built per
+  element by `cascade::hints` (only `ol` / `li`; HTML §2.3.4.1's integer rules); `ol[reversed]` is a UA
+  rule and `li` is `display: list-item` in the UA sheet. `CounterOp` gains `reversed` / `value_given`
+  (`#[non_exhaustive]`, Breaking). Split (SIZE-1): `cascade/counters.rs` → `counters/{mod,reversed,tests}.rs`.
+  Red: `css_phase10/counters.rs` — 6 of 7 new tests failed (three strict sheets rejected `counter-set` /
+  `reversed()`; `2.1 z` for `1 z`; `0 x` for list items; `1. x` for `<ol start=5>`);
+  `an_author_rule_beats_the_start_hint` passed before (a guard); rdom-style `content_tests` (counter ops)
+  and the cascade tests `appending_to_a_reversed_list_renumbers_it`, `counters::tests` (new API). Green
+  after. Mutations (restored, touched): no stale check → three integration tests and the append test; no
+  sibling replacement → the sibling test; no hint step → the `<ol start>` test. Changed expectations:
+  `ua_total_rule_count` 170 → 171; `nested_lists_scope_and_resume` now asserts the second list replaces
+  the first's counter (`values == [0]`). CSS-COVERAGE: `counter-reset` Partial → Supported, `counter-set`
+  Missing → Supported, §3.15 7 / 0 / 3 / 2, total 189 / 15 / 58 / 45. No snapshot changed.

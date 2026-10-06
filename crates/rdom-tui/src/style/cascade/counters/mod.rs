@@ -3,11 +3,18 @@
 //! values generated content reads that run in tree order.
 //!
 //! A counter instance is created by `counter-reset` (or implicitly by
-//! an increment / read of a counter not in scope) on an element `E`
-//! and is in scope for `E`, `E`'s descendants, and `E`'s following
+//! an increment, set or read of a counter not in scope) on an element
+//! `E` and is in scope for `E`, `E`'s descendants, and `E`'s following
 //! siblings with their descendants. That is exactly "until `E`'s
 //! parent is left", so instances record the parent they were created
-//! under and are dropped when the walk leaves that parent.
+//! under and are dropped when the walk leaves that parent. A counter an
+//! element instantiates replaces the same-named one its previous
+//! sibling (or itself) created, rather than nesting in it (§4.5).
+//!
+//! A reversed counter's initial value without an integer depends on the
+//! increments after it ([`reversed`]): the cascade computes it from the
+//! boxes in its scope as last cascaded, and checks it once the walk is
+//! done ([`CounterState::stale_reversed`]).
 
 use std::rc::Rc;
 
@@ -16,6 +23,13 @@ use rdom_core::{Dom, NodeId};
 use crate::ext::TuiExt;
 use crate::style::{ComputedStyle, CounterOp, QuoteKind};
 
+pub(super) mod reversed;
+#[cfg(test)]
+mod tests;
+
+/// The implicit counter of list items (CSS Lists 3 §4.6).
+const LIST_ITEM: &str = "list-item";
+
 #[derive(Debug, Clone)]
 struct Instance {
     name: String,
@@ -23,6 +37,37 @@ struct Instance {
     /// The parent of the element that created the instance; the
     /// instance dies when the walk leaves this element.
     scope_parent: Option<NodeId>,
+    /// A reversed counter (§4.2): the implicit `list-item` increment
+    /// counts it down.
+    reversed: bool,
+    /// Identity within one state, which a [`reversed`] scan traces.
+    id: u32,
+}
+
+/// Which box of an element holds counter ops: the element's own, or its
+/// `::before` / `::after` (CSS Pseudo-Elements 4 §4: its first and last
+/// child).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum OpBox {
+    Element,
+    Before,
+    After,
+}
+
+/// A box that holds counter ops: an element and which of its boxes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct Owner {
+    pub element: NodeId,
+    pub slot: OpBox,
+}
+
+impl Owner {
+    pub(super) fn element(element: NodeId) -> Self {
+        Owner {
+            element,
+            slot: OpBox::Element,
+        }
+    }
 }
 
 /// The computed styles holding a kept element's counter ops, as last
@@ -69,18 +114,32 @@ pub(super) fn takes_part(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     }
 }
 
-/// Does `style` create or increment a counter, or move the quote depth
-/// (a `<quote>` item of generated content)?
+/// Does `style` create, increment or set a counter — explicitly, or as
+/// a list item (§4.6) — or move the quote depth (a `<quote>` item of
+/// generated content)?
 pub(super) fn has_ops(style: &ComputedStyle) -> bool {
     !style.counter_reset.is_empty()
         || !style.counter_increment.is_empty()
+        || !style.counter_set.is_empty()
+        || style.list_item
         || !style.content_quotes.is_empty()
+}
+
+/// A reversed counter whose initial value a box computed (§4.2), as the
+/// walk used it.
+#[derive(Debug, Clone)]
+struct AutoReversed {
+    owner: Owner,
+    name: String,
+    value: i32,
 }
 
 /// Counter instances in creation order (later = innermost).
 #[derive(Debug, Default, Clone)]
 pub(super) struct CounterState {
     instances: Vec<Instance>,
+    /// The next [`Instance::id`].
+    next_id: u32,
     /// The walk must account for every element in tree order — the
     /// sheets use counters — so a subtree it skips has its stored ops
     /// replayed ([`replay_children`](Self::replay_children)).
@@ -95,6 +154,12 @@ pub(super) struct CounterState {
     /// The quote depth (CSS Generated Content 3 §2.2): document-wide, in
     /// tree order, moved by the `<quote>` items of generated content.
     quote_depth: std::cell::Cell<u32>,
+    /// The reversed counters with a computed initial value the walk
+    /// used, to check once it is done.
+    auto_reversed: Vec<AutoReversed>,
+    /// A [`reversed`] scan: the instance it follows, and per box that
+    /// touched it, the box's increment and set.
+    trace: Option<Box<reversed::Trace>>,
 }
 
 impl CounterState {
@@ -125,9 +190,22 @@ impl CounterState {
         if !self.exact || self.changed {
             return;
         }
-        fn ops(c: Option<&ComputedStyle>) -> (&[CounterOp], &[CounterOp], &[QuoteKind]) {
-            c.map_or((&[], &[], &[]), |c| {
-                (&c.counter_reset, &c.counter_increment, &c.content_quotes)
+        type Ops<'a> = (
+            &'a [CounterOp],
+            &'a [CounterOp],
+            &'a [CounterOp],
+            &'a [QuoteKind],
+            bool,
+        );
+        fn ops(c: Option<&ComputedStyle>) -> Ops<'_> {
+            c.map_or((&[], &[], &[], &[], false), |c| {
+                (
+                    &c.counter_reset,
+                    &c.counter_increment,
+                    &c.counter_set,
+                    &c.content_quotes,
+                    c.list_item,
+                )
             })
         }
         if ops(old) != ops(new) {
@@ -174,63 +252,124 @@ impl CounterState {
         ops: &StoredOps,
         children: impl FnOnce(&mut Self),
     ) {
+        let owner = |slot| Owner { element: id, slot };
         if let Some(c) = &ops.element {
-            self.enter(parent, &c.counter_reset, &c.counter_increment);
+            self.enter(parent, owner(OpBox::Element), c);
         }
         if let Some(c) = &ops.before {
-            self.enter(Some(id), &c.counter_reset, &c.counter_increment);
-            self.replay_quotes(&c.content_quotes);
+            self.enter(Some(id), owner(OpBox::Before), c);
         }
         children(self);
         if let Some(c) = &ops.after {
-            self.enter(Some(id), &c.counter_reset, &c.counter_increment);
-            self.replay_quotes(&c.content_quotes);
+            self.enter(Some(id), owner(OpBox::After), c);
         }
         self.exit(id);
     }
 
-    /// Apply an element's `counter-reset` then `counter-increment`
-    /// (CSS Lists 3 §3.1.1 – §3.1.2). `parent` is the element's parent,
-    /// which bounds the scope of anything created here.
-    pub(super) fn enter(
-        &mut self,
-        parent: Option<NodeId>,
-        reset: &[CounterOp],
-        increment: &[CounterOp],
-    ) {
-        for op in reset {
-            self.instances.push(Instance {
-                name: op.name.clone(),
-                value: op.value,
-                scope_parent: parent,
-            });
-        }
-        for op in increment {
-            match self.instances.iter_mut().rev().find(|i| i.name == op.name) {
-                Some(inst) => inst.value = inst.value.saturating_add(op.value),
-                // Incrementing a counter not in scope implicitly resets
-                // it to 0 on this element first.
-                None => self.instances.push(Instance {
+    /// Apply a box's counter ops (CSS Lists 3 §4.4): instantiate its
+    /// `counter-reset` counters, then increment — its `counter-increment`
+    /// and, for a list item that names no `list-item` increment, the
+    /// implicit one (§4.6: +1, or -1 on a reversed counter) — then set
+    /// its `counter-set` ones; and move the quote depth by its `<quote>`
+    /// items. `parent` is the box's parent, which bounds the scope of
+    /// anything created here; `owner` the box.
+    pub(super) fn enter(&mut self, parent: Option<NodeId>, owner: Owner, style: &ComputedStyle) {
+        let mut touched = reversed::Touch::aimed_at(self.touch_target());
+        for op in &style.counter_reset {
+            if op.is_auto_reversed() && self.trace.is_none() {
+                self.auto_reversed.push(AutoReversed {
+                    owner,
                     name: op.name.clone(),
                     value: op.value,
-                    scope_parent: parent,
-                }),
+                });
+            }
+            self.instantiate(&op.name, op.value, op.reversed, parent);
+        }
+        for op in &style.counter_increment {
+            self.increment(&op.name, op.value, parent, &mut touched);
+        }
+        if style.list_item
+            && !style
+                .counter_increment
+                .iter()
+                .any(|op| op.name == LIST_ITEM)
+        {
+            let down = self.innermost(LIST_ITEM).is_some_and(|i| i.reversed);
+            self.increment(LIST_ITEM, if down { -1 } else { 1 }, parent, &mut touched);
+        }
+        for op in &style.counter_set {
+            match self.instances.iter_mut().rev().find(|i| i.name == op.name) {
+                Some(inst) => {
+                    inst.value = op.value;
+                    touched.set(inst.id, op.value);
+                }
+                None => {
+                    self.instantiate(&op.name, op.value, false, parent);
+                }
             }
         }
+        if let Some(trace) = self.trace.as_deref_mut() {
+            trace.record(touched);
+        }
+        let depth = self.quote_depth.get_mut();
+        for q in &style.content_quotes {
+            *depth = q.next_depth(*depth);
+        }
+    }
+
+    /// Instantiate counter `name` (§4.5): it replaces the innermost
+    /// same-named counter when that one was created by this element or a
+    /// previous sibling (same `parent`), and nests otherwise.
+    fn instantiate(
+        &mut self,
+        name: &str,
+        value: i32,
+        reversed: bool,
+        parent: Option<NodeId>,
+    ) -> u32 {
+        if let Some(at) = self.instances.iter().rposition(|i| i.name == name)
+            && self.instances[at].scope_parent == parent
+        {
+            self.instances.remove(at);
+        }
+        let id = self.next_id;
+        self.next_id += 1;
+        self.instances.push(Instance {
+            name: name.to_string(),
+            value,
+            scope_parent: parent,
+            reversed,
+            id,
+        });
+        id
+    }
+
+    /// Increment the innermost counter `name` by `by`; one not in scope
+    /// is instantiated at 0 first (§4.4).
+    fn increment(
+        &mut self,
+        name: &str,
+        by: i32,
+        parent: Option<NodeId>,
+        touched: &mut reversed::Touch,
+    ) {
+        if self.innermost(name).is_none() {
+            self.instantiate(name, 0, false, parent);
+        }
+        if let Some(inst) = self.instances.iter_mut().rev().find(|i| i.name == name) {
+            inst.value = inst.value.saturating_add(by);
+            touched.increment(inst.id, by);
+        }
+    }
+
+    fn innermost(&self, name: &str) -> Option<&Instance> {
+        self.instances.iter().rev().find(|i| i.name == name)
     }
 
     /// Leave `element`: instances created by its children go out of
     /// scope.
     pub(super) fn exit(&mut self, element: NodeId) {
         self.instances.retain(|i| i.scope_parent != Some(element));
-    }
-
-    /// A kept box's `<quote>` items: their moves of the quote depth.
-    fn replay_quotes(&mut self, quotes: &[QuoteKind]) {
-        let depth = self.quote_depth.get_mut();
-        for q in quotes {
-            *depth = q.next_depth(*depth);
-        }
     }
 
     /// The text of a `<quote>` item at this point of the walk, moving
@@ -268,82 +407,9 @@ impl CounterState {
     }
 
     /// The innermost instance of `name` in scope, or 0 (CSS Lists 3
-    /// §3.2: a missing counter reads as 0).
+    /// §4.3: a missing counter reads as 0).
     pub(super) fn value(&self, name: &str) -> i32 {
         self.read.set(true);
-        self.instances
-            .iter()
-            .rev()
-            .find(|i| i.name == name)
-            .map_or(0, |i| i.value)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn op(name: &str, value: i32) -> CounterOp {
-        CounterOp {
-            name: name.into(),
-            value,
-        }
-    }
-
-    /// `ol > li` numbering with a nested list: the inner reset is
-    /// scoped to the inner `<ol>`, the outer count resumes after it,
-    /// and a following sibling `<ol>` starts over.
-    #[test]
-    fn nested_lists_scope_and_resume() {
-        let mut dom: Dom = Dom::new();
-        let root = dom.root();
-        let ol = dom.create_element("ol");
-        let li1 = dom.create_element("li");
-        let inner = dom.create_element("ol");
-        let inner_li = dom.create_element("li");
-        let li2 = dom.create_element("li");
-        let ol2 = dom.create_element("ol");
-        dom.append_child(root, ol).unwrap();
-        dom.append_child(ol, li1).unwrap();
-        dom.append_child(li1, inner).unwrap();
-        dom.append_child(inner, inner_li).unwrap();
-        dom.append_child(ol, li2).unwrap();
-        dom.append_child(root, ol2).unwrap();
-
-        let mut st = CounterState::default();
-        st.enter(Some(root), &[op("list-item", 0)], &[]); // <ol>
-        st.enter(Some(ol), &[], &[op("list-item", 1)]); // <li> 1
-        assert_eq!(st.value("list-item"), 1);
-        st.enter(Some(li1), &[op("list-item", 0)], &[]); // inner <ol>
-        st.enter(Some(inner), &[], &[op("list-item", 1)]); // inner <li>
-        assert_eq!(st.value("list-item"), 1);
-        st.exit(inner_li);
-        st.exit(inner); // inner <ol> closes: its own instance survives until li1 exits
-        assert_eq!(
-            st.value("list-item"),
-            1,
-            "still in the inner <ol>'s scope (a following sibling would see it)"
-        );
-        st.exit(li1); // leaving <li> 1 drops the inner <ol>'s instance
-        assert_eq!(st.value("list-item"), 1, "outer count resumes");
-        st.enter(Some(ol), &[], &[op("list-item", 1)]); // <li> 2
-        assert_eq!(st.value("list-item"), 2);
-        st.exit(li2);
-        st.exit(ol);
-        // <ol> 2 is a following sibling of <ol> 1: the first instance is
-        // still in scope, and the reset creates a fresh one.
-        st.enter(Some(root), &[op("list-item", 0)], &[]);
-        st.enter(Some(ol2), &[], &[op("list-item", 1)]);
-        assert_eq!(st.value("list-item"), 1);
-    }
-
-    #[test]
-    fn increment_without_reset_creates_the_counter_and_missing_reads_zero() {
-        let mut st = CounterState::default();
-        assert_eq!(st.value("x"), 0);
-        st.enter(None, &[], &[op("x", 5)]);
-        assert_eq!(st.value("x"), 5);
-        st.enter(None, &[], &[op("x", -2)]);
-        assert_eq!(st.value("x"), 3);
+        self.innermost(name).map_or(0, |i| i.value)
     }
 }

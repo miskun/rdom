@@ -167,10 +167,21 @@ pub(super) fn compute_pseudo_style(
     //   - a `<content-list>` → its text, alt text and quote items
     // (An `attr()` read the HOST element's attribute when `prepare`
     // substituted it: `optgroup::before { content: attr(label) }`.)
-    // The pseudo-element's own `counter-reset` / `counter-increment`
-    // (the `h2::before { counter-increment: sec }` idiom). It is a child
-    // of the host, so its instances are scoped to the host's subtree.
-    counters.enter(Some(id), &working.counter_reset, &working.counter_increment);
+    // The pseudo-element's own counter ops (the `h2::before {
+    // counter-increment: sec }` idiom) — `::before` and `::after` only,
+    // the pseudo-elements that are boxes of the tree (CSS Lists 3 §4).
+    // It is a child of the host, so its instances are scoped to the
+    // host's subtree.
+    let slot = match target {
+        PseudoElementTarget::Before => Some(super::counters::OpBox::Before),
+        PseudoElementTarget::After => Some(super::counters::OpBox::After),
+        _ => None,
+    };
+    if let Some(slot) = slot {
+        let owner = super::counters::Owner { element: id, slot };
+        super::counters::reversed::resolve(dom, owner, &mut working);
+        counters.enter(Some(id), owner, &working);
+    }
     match declared_content(plan, decls) {
         Some(declared) => {
             // `quotes: auto` takes the host's content language (§2.1).

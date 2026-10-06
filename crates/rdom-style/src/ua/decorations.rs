@@ -16,41 +16,32 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         (
             "ul",
             TuiStyle::new()
-                .counter_reset(vec![CounterOp {
-                    name: "list-item".into(),
-                    value: 0,
-                }])
+                .counter_reset(vec![CounterOp::new("list-item", 0)])
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 2)),
         ),
         (
             "ol",
             TuiStyle::new()
-                .counter_reset(vec![CounterOp {
-                    name: "list-item".into(),
-                    value: 0,
-                }])
+                .counter_reset(vec![CounterOp::new("list-item", 0)])
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 2)),
         ),
         (
             "menu",
             TuiStyle::new()
-                .counter_reset(vec![CounterOp {
-                    name: "list-item".into(),
-                    value: 0,
-                }])
+                .counter_reset(vec![CounterOp::new("list-item", 0)])
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 2)),
         ),
+        // HTML §15.3.8: `li { display: list-item }` — which increments
+        // the `list-item` counter implicitly (CSS Lists 3 §4.6) — and
+        // `ol[reversed] { counter-reset: reversed(list-item) }`. `start`
+        // and `value` are presentational hints (`cascade::hints`).
+        ("li", super::css(TuiStyle::new(), "display", "list-item")),
         (
-            "li",
-            TuiStyle::new()
-                .display(Display::Block)
-                .counter_increment(vec![CounterOp {
-                    name: "list-item".into(),
-                    value: 1,
-                }]),
+            "ol[reversed]",
+            TuiStyle::new().counter_reset(vec![CounterOp::reversed("list-item", None)]),
         ),
         // List item markers — bullet glyph + space before the
         // `<li>` content. Child-combinator scoping: only direct

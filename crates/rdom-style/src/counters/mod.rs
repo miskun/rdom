@@ -22,10 +22,50 @@ pub use predefined::{predefined, predefined_names};
 pub use rule::{CounterRange, CounterStyleRule, SpeakAs, System};
 pub use style::{CounterStyle, CounterStyleLookup, Predefined};
 
-/// One `name [<integer>]` item of `counter-reset` / `counter-increment`.
+/// One item of `counter-reset`, `counter-increment` or `counter-set`
+/// (CSS Lists 3 §4.2–§4.3): `<counter-name> <integer>?`, or — reset
+/// only — `reversed(<counter-name>) <integer>?`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct CounterOp {
     pub name: String,
-    /// The reset value, or the increment delta.
+    /// The reset or set value, or the increment delta. For a reversed
+    /// counter whose value was not given, the initial value the cascade
+    /// computed from the increments in its scope (§4.2) — 0 as declared.
     pub value: i32,
+    /// `reversed(<counter-name>)`: a reversed counter (§4.2), which the
+    /// implicit `list-item` increment counts down (§4.6).
+    pub reversed: bool,
+    /// The integer was written; `false` only for a reversed reset
+    /// without one, whose initial value is computed.
+    pub value_given: bool,
+}
+
+impl CounterOp {
+    /// `name value` — a plain reset, increment or set.
+    pub fn new(name: impl Into<String>, value: i32) -> Self {
+        CounterOp {
+            name: name.into(),
+            value,
+            reversed: false,
+            value_given: true,
+        }
+    }
+
+    /// `reversed(name) value?` — a reversed counter's reset; `None`
+    /// lets the cascade compute its initial value (§4.2).
+    pub fn reversed(name: impl Into<String>, value: Option<i32>) -> Self {
+        CounterOp {
+            name: name.into(),
+            value: value.unwrap_or(0),
+            reversed: true,
+            value_given: value.is_some(),
+        }
+    }
+
+    /// Whether the cascade computes this op's value: a reversed reset
+    /// without an integer.
+    pub fn is_auto_reversed(&self) -> bool {
+        self.reversed && !self.value_given
+    }
 }

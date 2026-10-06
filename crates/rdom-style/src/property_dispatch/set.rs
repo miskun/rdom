@@ -447,11 +447,14 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
             style.transition_delay = Some(Value::Specified(delays));
         }),
 
-        "counter-reset" => parse_counter_ops(value, 0).map(|ops| {
+        "counter-reset" => parse_counter_ops(value, 0, true).map(|ops| {
             style.counter_reset = Some(Value::Specified(ops));
         }),
-        "counter-increment" => parse_counter_ops(value, 1).map(|ops| {
+        "counter-increment" => parse_counter_ops(value, 1, false).map(|ops| {
             style.counter_increment = Some(Value::Specified(ops));
+        }),
+        "counter-set" => parse_counter_ops(value, 0, false).map(|ops| {
+            style.counter_set = Some(Value::Specified(ops));
         }),
 
         // `all` takes a CSS-wide keyword only (handled above).

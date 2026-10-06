@@ -252,6 +252,7 @@ define_fields! {
     TransitionDelay => transition_delay : TRANSITION_DELAY,
     CounterReset => counter_reset : COUNTER_RESET,
     CounterIncrement => counter_increment : COUNTER_INCREMENT,
+    CounterSet => counter_set : COUNTER_SET,
     ColorScheme => color_scheme : COLOR_SCHEME,
 }
 

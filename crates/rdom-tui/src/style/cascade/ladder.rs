@@ -6,8 +6,8 @@
 //! (+ cascade layer) group applied in specificity / source order on
 //! top of the previous:
 //!
-//! 1. UA normal, Author normal (one step per layer, unlayered last),
-//!    Inline normal,
+//! 1. UA normal, presentational hints (when the element has any), Author
+//!    normal (one step per layer, unlayered last), Inline normal,
 //! 2. Author important (layers reversed), Inline important, UA
 //!    important.
 //!
@@ -45,6 +45,10 @@ use crate::style::{ComputedStyle, Rule, RuleOrigin, TuiStyle};
 pub(super) enum Source {
     /// Matched rules of the user-agent origin.
     UserAgent,
+    /// The element's presentational hints (CSS Cascade 4 §6.4.4: author
+    /// origin, specificity zero, before every other author declaration;
+    /// HTML §15.3.8's list attributes — `cascade::hints`).
+    Hint,
     /// Matched rules of the author origin in the cascade layer of this
     /// rank (`rdom_style::LayerOrder`; `UNLAYERED` for unlayered
     /// rules).
@@ -77,6 +81,8 @@ pub(super) struct Step {
 pub(super) struct Plan {
     steps: Vec<Step>,
     ranks: Vec<u32>,
+    /// The ladder holds a [`Source::Hint`] step.
+    hints: bool,
 }
 
 impl Plan {
@@ -95,17 +101,36 @@ impl Plan {
 
     /// [`new`](Self::new) into this plan's buffers.
     pub(super) fn rebuild(&mut self, author_ranks: impl IntoIterator<Item = u32>) {
-        let Plan { steps, ranks } = self;
-        ranks.clear();
-        ranks.extend(author_ranks);
-        ranks.sort_unstable();
-        ranks.dedup();
+        self.ranks.clear();
+        self.ranks.extend(author_ranks);
+        self.ranks.sort_unstable();
+        self.ranks.dedup();
+        self.hints = false;
+        self.build_steps();
+    }
+
+    /// Add the presentational-hint step (CSS Cascade 4 §6.4.4) right
+    /// after UA normal, for an element with hints.
+    pub(super) fn add_hints(&mut self) {
+        if !self.hints {
+            self.hints = true;
+            self.build_steps();
+        }
+    }
+
+    /// The steps for the stored author ranks (and hints).
+    fn build_steps(&mut self) {
+        let Plan {
+            steps,
+            ranks,
+            hints,
+        } = self;
         steps.clear();
         let mut push = |source, important| {
             let own = steps.len();
             let (revert_to, revert_layer_to) = match source {
                 Source::UserAgent => (0, 0),
-                Source::Author(_) | Source::Inline => (1, own),
+                Source::Hint | Source::Author(_) | Source::Inline => (1, own),
             };
             steps.push(Step {
                 source,
@@ -115,6 +140,9 @@ impl Plan {
             });
         };
         push(Source::UserAgent, false);
+        if *hints {
+            push(Source::Hint, false);
+        }
         for &rank in ranks.iter() {
             push(Source::Author(rank), false);
         }
@@ -140,6 +168,8 @@ pub(super) struct Declarations<'a> {
     pub sorted: &'a [&'a Rule],
     pub ranks: &'a [u32],
     pub inline: Option<&'a TuiStyle>,
+    /// The element's presentational hints ([`Source::Hint`]).
+    pub hints: Option<&'a TuiStyle>,
     pub substituted: Option<&'a Substituted>,
     /// The element's `direction`, which picks each rule's
     /// [`Rule::directional_overlay`].
@@ -156,9 +186,15 @@ impl<'a> Declarations<'a> {
             sorted,
             ranks,
             inline,
+            hints: None,
             substituted: None,
             direction: crate::layout::TextDirection::Ltr,
         }
+    }
+
+    /// These declarations with the element's presentational hints.
+    pub(super) fn with_hints(self, hints: Option<&'a TuiStyle>) -> Self {
+        Declarations { hints, ..self }
     }
 
     /// Whether a block holds an inline-axis flow-relative property (CSS
@@ -168,9 +204,9 @@ impl<'a> Declarations<'a> {
         self.sorted.iter().any(|r| any(&r.style)) || self.inline.is_some_and(any)
     }
 
-    /// No matched rule and no inline style.
+    /// No matched rule, no hint and no inline style.
     pub(super) fn is_empty(self) -> bool {
-        self.sorted.is_empty() && self.inline.is_none()
+        self.sorted.is_empty() && self.inline.is_none() && self.hints.is_none()
     }
 
     /// These declarations with `var()` substituted (`None`: none held
@@ -218,22 +254,25 @@ impl<'a> Declarations<'a> {
                     Source::Author(layer) => {
                         r.origin == RuleOrigin::Author && self.ranks[i] == layer
                     }
-                    Source::Inline => false,
+                    Source::Hint | Source::Inline => false,
                 }
             })
             .flat_map(move |i| self.rule_blocks(i));
+        let hints = self.hints.filter(|_| source == Source::Hint);
         let inline = (source == Source::Inline)
             .then(|| self.inline_blocks())
             .into_iter()
             .flatten();
-        rules.chain(inline)
+        hints.into_iter().chain(rules).chain(inline)
     }
 
-    /// Every declaration block, rules then inline.
+    /// Every declaration block: hints, rules, then inline.
     pub(super) fn all(self) -> impl Iterator<Item = &'a TuiStyle> + 'a {
-        (0..self.sorted.len())
-            .flat_map(move |i| self.rule_blocks(i))
-            .chain(self.inline_blocks())
+        self.hints.into_iter().chain(
+            (0..self.sorted.len())
+                .flat_map(move |i| self.rule_blocks(i))
+                .chain(self.inline_blocks()),
+        )
     }
 }
 
@@ -468,16 +507,32 @@ mod tests {
     /// the user-agent origin (the state after UA normal, step 1).
     #[test]
     fn revert_targets_follow_the_origin() {
-        let plan = Plan::new([]);
+        let mut plan = Plan::new([]);
+        plan.add_hints();
         for step in plan.steps() {
             let want = match step.source {
                 Source::UserAgent => 0,
-                Source::Author(_) | Source::Inline => 1,
+                Source::Hint | Source::Author(_) | Source::Inline => 1,
             };
             assert_eq!(step.revert_to, want, "{step:?}");
         }
         assert_eq!(plan.steps()[0].source, Source::UserAgent);
         assert!(!plan.steps()[0].important);
+    }
+
+    /// Cascade 4 §6.4.4: presentational hints are author-origin
+    /// declarations before every other author one — the step right after
+    /// UA normal, only for an element with hints.
+    #[test]
+    fn hints_follow_ua_normal() {
+        let mut plan = Plan::new([0]);
+        assert!(plan.steps().iter().all(|s| s.source != Source::Hint));
+        plan.add_hints();
+        assert_eq!(plan.steps()[1].source, Source::Hint);
+        assert!(!plan.steps()[1].important);
+        assert_eq!(plan.steps()[2].source, Source::Author(0));
+        plan.rebuild([0]);
+        assert!(plan.steps().iter().all(|s| s.source != Source::Hint));
     }
 
     /// Cascade 5 §6.4: normal author steps run layer by layer, lowest

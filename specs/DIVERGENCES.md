@@ -271,7 +271,7 @@ The web platform has no tree element — trees are built from `role="tree"` / `r
 - **Whitespace is preserved verbatim** in text nodes, including inter-element whitespace; collapsing happens in `rdom-tui`'s layout per `white-space`, as in the browser's rendering (not parsing) pipeline. The one tokenizer-level exception is honored: a newline right after `<textarea>` is dropped (HTML §13.2.6.4.7). The same rule for `<pre>` / `<listing>` is **not** implemented — `<pre>` keeps a leading newline.
 - **`</` followed by a non-letter** ends the current element's children and is then an error, rather than becoming a bogus comment. At the top level any `</…` is an error ("unexpected closing tag at top level") instead of silently truncating the template.
 
-- **Ordered lists count through UA rules, not `display: list-item`.** `ol { counter-reset: list-item } li { counter-increment: list-item } ol > li::before { content: counter(list-item) ". " }` ship in the UA stylesheet; the marker of `display: list-item` (the keyword parses, C6-DISPLAY-KEYWORDS), `list-style-type`, `::marker`, `counter-set`, `<ol start>`, `<ol reversed>` and `<li value>` are not implemented (the CSS ones: C10-LIST-ITEM, C10-COUNTERS, §3). `ul`, `ol` and `menu` all reset `list-item` (HTML §15.3.8), so a nested bullet list does not advance the enclosing numbering. Authors override the marker with their own `ol > li::before` rule.
+- **List markers are still `li::before`.** `li` is `display: list-item` and counts through the implicit `list-item` increment (CSS Lists 3 §4.6); `ol` / `ul` / `menu` reset `list-item` (HTML §15.3.8, so a nested bullet list does not advance the enclosing numbering), `ol[reversed]` resets it reversed, and `<ol start>` / `<li value>` are presentational hints (`counter-reset: list-item N-1`, `reversed(list-item) N+1` with `reversed`, `counter-set: list-item N`; parsed by HTML's rules for integers). The marker itself is the UA's `ol > li::before { content: counter(list-item) ". " }` / `ul > li::before { content: "• " }` until `::marker` lands (C10-LIST-ITEM, §3); authors override it with their own `li::before` rule.
 
 ## 3. Not yet shipped
 
@@ -330,7 +330,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Lists, counters and generated content
 
-- `counter-reset: reversed()`, `counter-set` — C10-COUNTERS
 - `@counter-style`, `symbols()` — C10-COUNTER-STYLE
 - `list-style-type` / `-position` / `list-style`, `::marker`, `marker-side` — C10-LIST-ITEM
 

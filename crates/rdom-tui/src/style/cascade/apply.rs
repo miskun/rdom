@@ -277,6 +277,7 @@ pub(super) fn apply_style(
         transition_delay: TRANSITION_DELAY,
         counter_reset: COUNTER_RESET,
         counter_increment: COUNTER_INCREMENT,
+        counter_set: COUNTER_SET,
         // Inherits; `light-dark()` picks by it (CSS Color Adjust 1 §2).
         color_scheme: COLOR_SCHEME,
         // Inherits (CSS 2.1 §17.6.1); laid out with C13-TFC.

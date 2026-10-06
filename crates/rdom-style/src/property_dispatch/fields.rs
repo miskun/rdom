@@ -317,6 +317,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         ],
         "counter-reset" => &[CounterReset],
         "counter-increment" => &[CounterIncrement],
+        "counter-set" => &[CounterSet],
         "color-scheme" => &[ColorScheme],
         "direction" => &[TextDirection],
         "writing-mode" => &[WritingMode],

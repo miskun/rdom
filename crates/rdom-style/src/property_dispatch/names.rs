@@ -190,6 +190,7 @@ const PROPERTY_NAMES: &[&str] = &[
     // Counters (CSS Lists 3)
     "counter-reset",
     "counter-increment",
+    "counter-set",
     // Color adjustment (CSS Color Adjust 1)
     "color-scheme",
     // Text (CSS Text 3 / 4)

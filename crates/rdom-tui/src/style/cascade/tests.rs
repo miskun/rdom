@@ -2873,10 +2873,7 @@ fn counters_reset_increment_and_read_in_tree_order() {
     for s in [a, b, c] {
         dom.append_child(doc, s).unwrap();
     }
-    let op = |name: &str, value: i32| CounterOp {
-        name: name.into(),
-        value,
-    };
+    let op = |name: &str, value: i32| CounterOp::new(name, value);
     let sheet = Stylesheet::bare()
         .rule_unchecked("doc", TuiStyle::new().counter_reset(vec![op("sec", 0)]))
         .rule_unchecked("s", TuiStyle::new().counter_increment(vec![op("sec", 1)]))
@@ -3019,18 +3016,12 @@ fn pseudo_element_counter_ops_apply() {
     let sheet = Stylesheet::bare()
         .rule_unchecked(
             "doc",
-            TuiStyle::new().counter_reset(vec![CounterOp {
-                name: "sec".into(),
-                value: 0,
-            }]),
+            TuiStyle::new().counter_reset(vec![CounterOp::new("sec", 0)]),
         )
         .rule_unchecked(
             "h2::before",
             TuiStyle::new()
-                .counter_increment(vec![CounterOp {
-                    name: "sec".into(),
-                    value: 1,
-                }])
+                .counter_increment(vec![CounterOp::new("sec", 1)])
                 .content(Content::Counter {
                     name: "sec".into(),
                     style: CounterStyle::decimal(),

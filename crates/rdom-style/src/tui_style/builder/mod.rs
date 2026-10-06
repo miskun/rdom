@@ -256,6 +256,14 @@ impl TuiStyle {
         Vec<crate::counters::CounterOp>
     );
     setter!(
+        "counter-set",
+        counter_set,
+        counter_set,
+        counter_set_important,
+        COUNTER_SET,
+        Vec<crate::counters::CounterOp>
+    );
+    setter!(
         "color-scheme",
         color_scheme,
         color_scheme,

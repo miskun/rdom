@@ -32,6 +32,12 @@ pub(super) fn compute_element_style(
     // like later rules in a single sheet do.
     cx.scratch
         .gather(dom, sheets, id, &[PseudoElementTarget::None], rules);
+    // HTML's presentational hints (`<ol start>`, `<li value>`): author
+    // origin, before every author rule (CSS Cascade 4 §6.4.4).
+    let hints = super::hints::presentational_hints(dom, id);
+    if hints.is_some() {
+        cx.scratch.plan.add_hints();
+    }
     let Scratch {
         sorted,
         ranks,
@@ -43,7 +49,7 @@ pub(super) fn compute_element_style(
     // Inline style on this element (may be empty).
     let inline = dom.node(id).ext().and_then(|e| e.inline_style.as_deref());
 
-    let decls = Declarations::new(sorted, ranks, inline);
+    let decls = Declarations::new(sorted, ranks, inline).with_hints(hints.as_ref());
     // Running transitions of registered custom properties
     // (`runtime::animation`).
     let transitions = dom
@@ -101,13 +107,12 @@ pub(super) fn compute_element_style(
     // its final `color-scheme`.
     colors.finalize(&mut working, parent.fg, preferred);
 
-    // This element's `counter-reset` / `counter-increment` take effect
-    // before its own generated content and its children are seen.
-    counters.enter(
-        parent_id,
-        &working.counter_reset,
-        &working.counter_increment,
-    );
+    // This element's counter ops take effect before its own generated
+    // content and its children are seen — a reversed counter's computed
+    // initial value first (CSS Lists 3 §4.2).
+    let owner = super::counters::Owner::element(id);
+    super::counters::reversed::resolve(dom, owner, &mut working);
+    counters.enter(parent_id, owner, &working);
 
     // The element's own `content` (CSS Generated Content 3 §2): computed
     // and kept, but it generates nothing — no engine replaces an

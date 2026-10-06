@@ -352,11 +352,13 @@ pub struct ComputedStyle {
     pub transition_timing_function: Vec<crate::transition::TimingFunction>,
     pub transition_delay: Vec<u32>,
 
-    /// `counter-reset` / `counter-increment` (CSS Lists 3 §3.1).
-    /// Non-inheriting; the cascade applies them to its counter state
-    /// in tree order.
+    /// `counter-reset` / `counter-increment` / `counter-set` (CSS Lists
+    /// 3 §4). Non-inheriting; the cascade applies them to its counter
+    /// state in tree order — reset, increment, set (§4.4). A reversed
+    /// reset without an integer holds its computed initial value.
     pub counter_reset: Vec<crate::counters::CounterOp>,
     pub counter_increment: Vec<crate::counters::CounterOp>,
+    pub counter_set: Vec<crate::counters::CounterOp>,
 
     /// `color-scheme` (CSS Color Adjust 1 §2). Inherits; initial
     /// `normal`. The used scheme is
@@ -555,6 +557,7 @@ impl ComputedStyle {
             transition_delay: Vec::new(),
             counter_reset: Vec::new(),
             counter_increment: Vec::new(),
+            counter_set: Vec::new(),
             color_scheme: crate::color::ColorSchemeList::normal(),
             vars: Rc::new(std::collections::HashMap::new()),
             animated_vars: None,

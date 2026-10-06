@@ -285,6 +285,7 @@ fn every_property_has_important_setter() {
         .flow_important(crate::layout::Flow::Block)
         .counter_reset_important(vec![])
         .counter_increment_important(vec![])
+        .counter_set_important(vec![])
         .pointer_events_important(crate::layout::PointerEvents::None)
         .visibility_important(crate::layout::Visibility::Hidden)
         .order_important(1)

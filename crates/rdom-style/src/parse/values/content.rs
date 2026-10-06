@@ -112,42 +112,62 @@ fn trailing_style(rest: &[Token]) -> Option<(CounterStyle, usize)> {
     }
 }
 
-/// `counter-reset` / `counter-increment`: `none` | `[ <ident> <integer>? ]+`
-/// with `default` as the implied integer (0 for reset, 1 for increment).
-pub fn parse_counter_ops(value: &[Token], default: i32) -> Option<Vec<crate::counters::CounterOp>> {
+/// `counter-reset` / `counter-increment` / `counter-set` (CSS Lists 3
+/// §4.2–§4.3): `none` | `[ <counter-name> <integer>? ]+`, with `default`
+/// as the implied integer (0 for reset and set, 1 for increment); when
+/// `reversed` (reset only), an item may also be `reversed(<counter-name>)
+/// <integer>?`, whose missing integer the cascade computes.
+pub fn parse_counter_ops(
+    value: &[Token],
+    default: i32,
+    reversed: bool,
+) -> Option<Vec<crate::counters::CounterOp>> {
     use crate::counters::CounterOp;
     if let [Token::Ident(kw)] = value
         && kw.eq_ignore_ascii_case("none")
     {
         return Some(Vec::new());
     }
+    // A `<counter-name>` is a `<custom-ident>` other than `none` (§4.1).
+    let counter_name = |t: Option<&Token>| match t {
+        Some(Token::Ident(name)) if !name.eq_ignore_ascii_case("none") => Some(name.clone()),
+        _ => None,
+    };
     let mut ops = Vec::new();
     let mut i = 0;
     while i < value.len() {
-        let Token::Ident(name) = &value[i] else {
-            return None;
-        };
-        if name.eq_ignore_ascii_case("none") {
-            return None;
-        }
-        i += 1;
-        let mut v = default;
-        match (value.get(i), value.get(i + 1)) {
-            // A counter value is an `<integer>` (CSS Lists 3 §3.1),
-            // clamped to rdom's range (CSS Values 4 §5.1).
-            (Some(Token::Number(n)), _) => {
-                v = clamp_i32(*n);
+        let (name, is_reversed) = match &value[i] {
+            Token::Function(f) if reversed && f.eq_ignore_ascii_case("reversed") => {
+                let name = counter_name(value.get(i + 1))?;
+                if !matches!(value.get(i + 2), Some(Token::RParen)) {
+                    return None;
+                }
+                i += 3;
+                (name, true)
+            }
+            t => {
+                let name = counter_name(Some(t))?;
                 i += 1;
+                (name, false)
+            }
+        };
+        // A counter value is an `<integer>`, clamped to rdom's range (CSS
+        // Values 4 §5.1).
+        let given = match (value.get(i), value.get(i + 1)) {
+            (Some(Token::Number(n)), _) => {
+                i += 1;
+                Some(clamp_i32(*n))
             }
             (Some(Token::Delim('-')), Some(Token::Number(n))) => {
-                v = clamp_i32(-*n);
                 i += 2;
+                Some(clamp_i32(-*n))
             }
-            _ => {}
-        }
-        ops.push(CounterOp {
-            name: name.clone(),
-            value: v,
+            _ => None,
+        };
+        ops.push(if is_reversed {
+            CounterOp::reversed(name, given)
+        } else {
+            CounterOp::new(name, given.unwrap_or(default))
         });
     }
     if ops.is_empty() { None } else { Some(ops) }

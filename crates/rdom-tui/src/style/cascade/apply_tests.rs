@@ -133,6 +133,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("transition-delay", "10ms"),
     ("counter-reset", "a"),
     ("counter-increment", "a"),
+    ("counter-set", "a 3"),
     ("quotes", "\"<\" \">\""),
     ("color-scheme", "light"),
     ("background-clip", "content-box"),
@@ -290,6 +291,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         transition_delay,
         counter_reset,
         counter_increment,
+        counter_set,
         color_scheme,
         // Custom properties, not a property value.
         vars: _,
@@ -400,6 +402,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         transition_delay,
         counter_reset,
         counter_increment,
+        counter_set,
         color_scheme,
     );
     // The CSS Text group, field by field: the destructuring of

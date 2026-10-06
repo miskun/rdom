@@ -5268,12 +5268,7 @@ fn counters_in_inline_pseudos_resolve() {
         dom.append_child(p, span).unwrap();
     }
     dom.append_child(root, p).unwrap();
-    let op = |value| {
-        vec![CounterOp {
-            name: "n".into(),
-            value,
-        }]
-    };
+    let op = |value| vec![CounterOp::new("n", value)];
     let sheet = Stylesheet::new()
         .rule_unchecked("p", TuiStyle::new().counter_reset(op(0)))
         .rule_unchecked("span", TuiStyle::new().counter_increment(op(1)))

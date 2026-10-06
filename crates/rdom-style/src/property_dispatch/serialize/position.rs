@@ -93,6 +93,11 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .as_ref()
             .and_then(specified)
             .map(|ops| serialize_counter_ops(ops)),
+        "counter-set" => style
+            .counter_set
+            .as_ref()
+            .and_then(specified)
+            .map(|ops| serialize_counter_ops(ops)),
 
         _ => return None,
     };

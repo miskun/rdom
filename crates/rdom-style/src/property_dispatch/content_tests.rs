@@ -189,3 +189,50 @@ fn auto_quotes_follow_the_language() {
     assert_eq!(pair(Some("tlh"), 0), Some(("\u{201c}", "\u{201d}")));
     assert_eq!(Quotes::None.pair(0, None), None);
 }
+
+// ── counter-reset / counter-set (C10-COUNTERS) ───────────────────────
+
+/// Set `name: css` on a fresh style; its serialization back.
+fn prop_round_trip(name: &str, css: &str) -> Result<String, DispatchError> {
+    let mut style = TuiStyle::new();
+    set(name, css, &mut style)?;
+    Ok(serialize(name, &style).expect("serializes"))
+}
+
+/// CSS Lists 3 §4.2: `counter-reset: [ <counter-name> <integer>? |
+/// reversed(<counter-name>) <integer>? ]+ | none`; §4.3: `counter-set:
+/// [ <counter-name> <integer>? ]+ | none`, the integer defaulting to 0.
+#[test]
+fn counter_reset_takes_reversed_and_counter_set_parses() {
+    for (name, css, out) in [
+        ("counter-reset", "reversed(c)", "reversed(c)"),
+        ("counter-reset", "reversed(c) 4 d", "reversed(c) 4 d 0"),
+        (
+            "counter-reset",
+            "REVERSED(list-item) -2",
+            "reversed(list-item) -2",
+        ),
+        ("counter-set", "c", "c 0"),
+        ("counter-set", "c 5 d -1", "c 5 d -1"),
+        ("counter-set", "none", "none"),
+    ] {
+        assert_eq!(
+            prop_round_trip(name, css).as_deref(),
+            Ok(out),
+            "{name}: {css}"
+        );
+    }
+    for (name, css) in [
+        ("counter-set", "reversed(c)"),
+        ("counter-increment", "reversed(c)"),
+        ("counter-reset", "reversed(none)"),
+        ("counter-reset", "reversed()"),
+        ("counter-set", "none c"),
+    ] {
+        assert!(
+            prop_round_trip(name, css).is_err(),
+            "{name}: {css} must be rejected"
+        );
+    }
+    assert!(!inherits("counter-set"));
+}

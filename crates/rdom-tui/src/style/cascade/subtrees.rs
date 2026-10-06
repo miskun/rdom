@@ -47,6 +47,27 @@ pub(super) fn subtrees(
         return roots;
     }
     let registry = registry.unwrap_or_else(|| document_registry(dom, stylesheets));
+    let (mut done, stale) = walk_subtrees(dom, stylesheets, registry.clone(), roots, mode);
+    // A reversed counter's initial value read the boxes after it as last
+    // cascaded (CSS Lists 3 §4.2): re-cascade from those it moved — once,
+    // as counter ops never depend on counter values.
+    if !stale.is_empty() {
+        let (again, _) = walk_subtrees(dom, stylesheets, registry, stale, Mode::Cascade);
+        done.extend(again);
+    }
+    done
+}
+
+/// [`subtrees`]' one walk: the roots it recomputed, and the elements
+/// whose reversed counter's initial value it found stale.
+fn walk_subtrees(
+    dom: &mut Dom<TuiExt>,
+    stylesheets: &[&Stylesheet],
+    registry: Rc<PropertyRegistry>,
+    roots: Vec<NodeId>,
+    mode: Mode,
+) -> (Vec<NodeId>, Vec<NodeId>) {
+    let roots = outermost(dom, &roots);
     let sheets = Sheets::new(
         stylesheets,
         registry,
@@ -74,7 +95,7 @@ pub(super) fn subtrees(
         for &root in &roots {
             cascade_alone(dom, root);
         }
-        return roots;
+        return (roots, Vec::new());
     }
     // Only roots inside the document take part: a detached subtree that
     // was marked dirty (the previous demo of a swap, a removed row)
@@ -105,7 +126,7 @@ pub(super) fn subtrees(
         }
     }
     if ordered.is_empty() {
-        return done;
+        return (done, Vec::new());
     }
     ordered.sort_by(|a, b| tree_order(dom, *a, *b));
     let mut walk = Ordered {
@@ -124,7 +145,7 @@ pub(super) fn subtrees(
     let recomputed = walk.recomputed;
     done.extend(ordered);
     done.extend(recomputed);
-    done
+    (done, counters.stale_reversed(dom))
 }
 
 /// The live roots of `roots` that no other root contains, deduplicated,

@@ -43,7 +43,8 @@ fn ua_total_rule_count() {
     // (C9G-UA-LINE-HEIGHT, +4).
     // 168: HTML's `abbr[title]` dotted underline (C9G-DOCS, +1).
     // 170: HTML's `q::before` / `q::after` quotation marks (C10-CONTENT, +2).
-    assert_eq!(ua.len(), 170);
+    // 171: HTML's `ol[reversed]` reversed `list-item` counter (C10-COUNTERS, +1).
+    assert_eq!(ua.len(), 171);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")

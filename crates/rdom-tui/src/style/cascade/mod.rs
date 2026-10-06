@@ -71,6 +71,7 @@ pub(crate) use blockify::children_are_items;
 mod content;
 mod counters;
 mod custom;
+mod hints;
 mod inherit;
 mod ladder;
 mod line_clamp;
@@ -269,7 +270,7 @@ pub(crate) fn cascade_all_with(
     let registry = registry.unwrap_or_else(|| registered::document_registry(dom, stylesheets));
     let sheets = walk::Sheets::new(
         stylesheets,
-        registry,
+        registry.clone(),
         document_viewport(dom),
         document_color_scheme(dom),
     );
@@ -294,6 +295,18 @@ pub(crate) fn cascade_all_with(
         &mut scratch,
         walk::Mode::Cascade,
     );
+    // A reversed counter's initial value read the boxes after it as last
+    // cascaded (CSS Lists 3 §4.2): re-cascade from those it moved.
+    let stale = counters.stale_reversed(dom);
+    if !stale.is_empty() {
+        subtrees::subtrees(
+            dom,
+            stylesheets,
+            Some(registry),
+            &stale,
+            walk::Mode::Cascade,
+        );
+    }
 }
 
 /// [`CascadeExt::cascade_subtrees_all`] with the sheets' registrations

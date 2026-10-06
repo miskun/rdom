@@ -307,9 +307,10 @@ pub struct TuiStyle {
     /// `transition-delay` longhand, in milliseconds.
     pub transition_delay: Option<Value<Vec<u32>>>,
 
-    // ── Counters (CSS Lists 3 §3.1) ──────────────────────────────────
+    // ── Counters (CSS Lists 3 §4) ────────────────────────────────────
     pub counter_reset: Option<Value<Vec<crate::counters::CounterOp>>>,
     pub counter_increment: Option<Value<Vec<crate::counters::CounterOp>>>,
+    pub counter_set: Option<Value<Vec<crate::counters::CounterOp>>>,
 
     // ── Color adjustment (CSS Color Adjust 1) ────────────────────────
     /// `color-scheme` (§2): the color schemes the element supports,

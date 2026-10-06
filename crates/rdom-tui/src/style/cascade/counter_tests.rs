@@ -298,3 +298,40 @@ fn partial_cascades_replay_the_quote_depth() {
     assert_eq!(before(&dom, ids[1]).as_deref(), Some("\u{201c}"));
     assert_eq!(before(&dom, ids[3]).as_deref(), Some("\u{2018}"));
 }
+
+/// CSS Lists 3 §4.2: a reversed counter's computed initial value counts
+/// the increments in its scope. Appending an item to `<ol reversed>` and
+/// cascading only the new item (as the dirty tracker does) still renumbers
+/// the items before it: the walk replays the `<ol>`'s stored initial
+/// value, sees it is stale once the walk is done, and re-cascades the
+/// `<ol>` — 4, 3, 2, 1.
+#[test]
+fn appending_to_a_reversed_list_renumbers_it() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let ol = dom.create_element("ol");
+    dom.append_child(root, ol).unwrap();
+    dom.set_attribute(ol, "reversed", "").unwrap();
+    let mut items: Vec<NodeId> = (0..3)
+        .map(|_| {
+            let li = dom.create_element("li");
+            dom.append_child(ol, li).unwrap();
+            li
+        })
+        .collect();
+    let sheet = sheet("");
+    dom.cascade(&sheet);
+    assert_eq!(before(&dom, items[0]).as_deref(), Some("3. "));
+    assert_eq!(before(&dom, items[2]).as_deref(), Some("1. "));
+    let li = dom.create_element("li");
+    dom.append_child(ol, li).unwrap();
+    items.push(li);
+    dom.cascade_subtrees(&sheet, &[li]);
+    let got: Vec<_> = items.iter().map(|&i| before(&dom, i)).collect();
+    assert_eq!(
+        got,
+        ["4. ", "3. ", "2. ", "1. "]
+            .map(|s| Some(s.to_string()))
+            .to_vec()
+    );
+}
