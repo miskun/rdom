@@ -3,7 +3,8 @@
 //! `overflow-wrap` (and its legacy name `word-wrap`), `line-break`,
 //! `hyphens`, `tab-size`, `text-transform`, `text-indent`, `text-align`
 //! (and its longhands `text-align-all` / `text-align-last`),
-//! `text-justify` — their `set` and `serialize` arms.
+//! `text-justify`, `text-wrap` (and its longhand `text-wrap-style`) —
+//! their `set` and `serialize` arms.
 
 use super::value_serializers::{serialize_length, specified};
 use crate::layout::{TextWrapMode, WhiteSpace, WhiteSpaceCollapse};
@@ -11,8 +12,8 @@ use crate::parse::token::Token;
 use crate::parse::values::{
     parse_hyphens, parse_line_break, parse_overflow_wrap, parse_tab_size, parse_text_align,
     parse_text_align_all, parse_text_align_last, parse_text_indent, parse_text_justify,
-    parse_text_transform, parse_text_wrap_mode, parse_white_space, parse_white_space_collapse,
-    parse_word_break, serialize_text_transform,
+    parse_text_transform, parse_text_wrap, parse_text_wrap_mode, parse_text_wrap_style,
+    parse_white_space, parse_white_space_collapse, parse_word_break, serialize_text_transform,
 };
 use crate::{TuiStyle, Value};
 
@@ -65,6 +66,13 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "text-justify" => parse_text_justify(value).map(|j| {
             text.text_justify = Some(Value::Specified(j));
         }),
+        "text-wrap" => parse_text_wrap(value).map(|(m, s)| {
+            text.text_wrap_mode = Some(Value::Specified(m));
+            text.text_wrap_style = Some(Value::Specified(s));
+        }),
+        "text-wrap-style" => parse_text_wrap_style(value).map(|s| {
+            text.text_wrap_style = Some(Value::Specified(s));
+        }),
         _ => return None,
     })
 }
@@ -84,6 +92,16 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         "text-align-all" => keyword(&text.text_align_all, |a| a.keyword()),
         "text-align-last" => keyword(&text.text_align_last, |l| l.keyword()),
         "text-justify" => keyword(&text.text_justify, |j| j.keyword()),
+        "text-wrap-style" => keyword(&text.text_wrap_style, |s| s.keyword()),
+        "text-wrap" => {
+            use crate::layout::TextWrapStyle;
+            match (mode, text.text_wrap_style.as_ref().and_then(specified)) {
+                (Some(m), Some(TextWrapStyle::Auto)) => Some(m.keyword().to_string()),
+                (Some(TextWrapMode::Wrap), Some(s)) => Some(s.keyword().to_string()),
+                (Some(m), Some(s)) => Some(format!("{} {}", m.keyword(), s.keyword())),
+                _ => None,
+            }
+        }
         "text-align" => {
             use crate::layout::{TextAlign, TextAlignLast};
             let all = text.text_align_all.as_ref().and_then(specified);

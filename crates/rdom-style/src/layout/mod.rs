@@ -81,5 +81,6 @@ pub use sizing::{
 };
 pub use text::{
     Hyphens, LineBreak, OverflowWrap, TabSize, TextAlign, TextAlignLast, TextCase, TextIndent,
-    TextJustify, TextStyle, TextTransform, TextWrapMode, WhiteSpace, WhiteSpaceCollapse, WordBreak,
+    TextJustify, TextStyle, TextTransform, TextWrapMode, TextWrapStyle, WhiteSpace,
+    WhiteSpaceCollapse, WordBreak,
 };

@@ -2388,6 +2388,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.text.text_align_all = rdom_style::layout::TextAlign::Center;
     parent.text.text_align_last = rdom_style::layout::TextAlignLast::Right;
     parent.text.text_justify = rdom_style::layout::TextJustify::None;
+    parent.text.text_wrap_style = rdom_style::layout::TextWrapStyle::Balance;
     parent.user_select = UserSelect::None;
     parent.pointer_events = PointerEvents::None;
     parent.visibility = rdom_style::layout::Visibility::Hidden;
@@ -2558,6 +2559,15 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         (
             "text-justify",
             child.text.text_justify == parent.text.text_justify,
+        ),
+        (
+            "text-wrap",
+            child.text.text_wrap_mode == parent.text.text_wrap_mode
+                && child.text.text_wrap_style == parent.text.text_wrap_style,
+        ),
+        (
+            "text-wrap-style",
+            child.text.text_wrap_style == parent.text.text_wrap_style,
         ),
         ("user-select", child.user_select == parent.user_select),
         (

@@ -433,3 +433,79 @@ fn text_align_is_the_shorthand_of_all_and_last() {
         assert!(inherits(name), "{name}");
     }
 }
+
+/// CSS Text 4: `text-wrap: <'text-wrap-mode'> || <'text-wrap-style'>`,
+/// an omitted longhand its initial value, serialized shortest;
+/// `text-wrap-style: auto | balance | stable | pretty |
+/// avoid-short-last-line`, inherited.
+#[test]
+fn text_wrap_is_the_shorthand_of_mode_and_style() {
+    use crate::layout::{TextWrapMode, TextWrapStyle};
+    for (text, mode, style_v, out) in [
+        ("wrap", TextWrapMode::Wrap, TextWrapStyle::Auto, "wrap"),
+        (
+            "nowrap",
+            TextWrapMode::Nowrap,
+            TextWrapStyle::Auto,
+            "nowrap",
+        ),
+        (
+            "balance",
+            TextWrapMode::Wrap,
+            TextWrapStyle::Balance,
+            "balance",
+        ),
+        (
+            "pretty nowrap",
+            TextWrapMode::Nowrap,
+            TextWrapStyle::Pretty,
+            "nowrap pretty",
+        ),
+        (
+            "stable",
+            TextWrapMode::Wrap,
+            TextWrapStyle::Stable,
+            "stable",
+        ),
+        (
+            "avoid-short-last-line",
+            TextWrapMode::Wrap,
+            TextWrapStyle::AvoidShortLastLine,
+            "avoid-short-last-line",
+        ),
+    ] {
+        let mut style = TuiStyle::new();
+        set("text-wrap", text, &mut style).unwrap_or_else(|e| panic!("{text}: {e:?}"));
+        assert_eq!(
+            style.text.text_wrap_mode,
+            Some(Value::Specified(mode)),
+            "{text}"
+        );
+        assert_eq!(
+            style.text.text_wrap_style,
+            Some(Value::Specified(style_v)),
+            "{text}"
+        );
+        assert_eq!(
+            serialize("text-wrap", &style).as_deref(),
+            Some(out),
+            "{text}"
+        );
+    }
+    for bad in ["wrap nowrap", "balance pretty", "auto auto", "normal"] {
+        assert_eq!(
+            set("text-wrap", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+    let mut style = TuiStyle::new();
+    set("text-wrap-style", "pretty", &mut style).unwrap();
+    assert_eq!(
+        serialize("text-wrap-style", &style).as_deref(),
+        Some("pretty")
+    );
+    assert_eq!(serialize("text-wrap", &style), None);
+    assert!(inherits("text-wrap-style"));
+    assert!(inherits("text-wrap"));
+}

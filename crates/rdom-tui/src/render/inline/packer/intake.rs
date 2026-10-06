@@ -13,7 +13,7 @@ use super::super::breaking::{self, BreakClass};
 use super::super::run_style::RunStyle;
 use super::super::transform;
 use super::super::white_space::{self, WhiteSpaceClass};
-use super::{GraphemeKind, LineEnd, LinePacker, Origin, PendingGrapheme};
+use super::{GraphemeKind, LineEnd, LinePacker, Op, Origin, PendingGrapheme};
 use crate::ext::PseudoSlot;
 use crate::layout::{OverflowWrap, WhiteSpaceCollapse};
 
@@ -28,6 +28,12 @@ impl<'a> LinePacker<'a> {
         text: &'a str,
         run: RunStyle,
     ) {
+        self.log(Op::Text {
+            owner,
+            text_node,
+            text,
+            run,
+        });
         self.run = run;
         self.push_str(Origin::text(owner, text_node), text);
     }
@@ -43,6 +49,12 @@ impl<'a> LinePacker<'a> {
         text: &'a str,
         run: RunStyle,
     ) {
+        self.log(Op::Generated {
+            host,
+            slot,
+            text,
+            run,
+        });
         let origin = Origin {
             owner: host,
             text_node: host,
@@ -53,6 +65,8 @@ impl<'a> LinePacker<'a> {
     }
 
     fn push_str(&mut self, origin: Origin, text: &'a str) {
+        #[cfg(test)]
+        super::GRAPHEMES.with(|c| c.set(c.get() + text.graphemes(true).count()));
         // MathML Core §4.2: `math-auto` italicizes a text of one
         // character.
         let mut chars = text.chars();
@@ -76,7 +90,13 @@ impl<'a> LinePacker<'a> {
     /// Force a line break. Pushes any pending word and breaks the
     /// current line. Used by `<br>` and by a preserved segment break
     /// (CSS Text 3 §4.1.3).
-    pub(in crate::render::inline) fn push_hard_break(&mut self, _owner: NodeId) {
+    pub(in crate::render::inline) fn push_hard_break(&mut self, owner: NodeId) {
+        self.log(Op::HardBreak(owner));
+        self.hard_break();
+    }
+
+    /// A forced line break: the pending word placed, the line ended.
+    fn hard_break(&mut self) {
         self.commit_word();
         // A collapsible space before a forced break is removed (CSS Text
         // 3 §4.1.1 step 1, §4.1.2).
@@ -92,6 +112,7 @@ impl<'a> LinePacker<'a> {
     /// `<wbr>` ("a line break opportunity"): the line may wrap here when
     /// the text before it wraps.
     pub(in crate::render::inline) fn push_break_opportunity(&mut self) {
+        self.log(Op::Opportunity);
         if self.last_wraps {
             self.commit_word();
         }
@@ -113,7 +134,7 @@ impl<'a> LinePacker<'a> {
         }
         match class {
             WhiteSpaceClass::Control => {}
-            WhiteSpaceClass::ForcedBreak => self.push_hard_break(origin.owner),
+            WhiteSpaceClass::ForcedBreak => self.hard_break(),
             WhiteSpaceClass::Collapsible { segment_break } => {
                 self.push_collapsible(origin, source_offset, segment_break);
                 self.last_class = None;

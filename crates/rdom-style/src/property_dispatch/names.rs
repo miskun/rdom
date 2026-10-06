@@ -193,6 +193,8 @@ const PROPERTY_NAMES: &[&str] = &[
     "text-align-all",
     "text-align-last",
     "text-justify",
+    "text-wrap",
+    "text-wrap-style",
     // Writing modes (CSS Writing Modes 4)
     "direction",
     "writing-mode",

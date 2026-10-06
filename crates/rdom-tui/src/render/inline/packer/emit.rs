@@ -8,7 +8,7 @@ use super::super::align::{self, LineGeometry, TextAlignment};
 use super::super::boxes::GeneratedAtom;
 use super::super::vertical::{self, AtomAt, AtomRows};
 use super::super::{GeneratedFragment, InlineFragment, LineBox};
-use super::{GraphemeKind, LineEnd, LinePacker, Origin, PendingGrapheme};
+use super::{GraphemeKind, LineEnd, LinePacker, Op, Origin, PendingGrapheme};
 use crate::layout::OverflowWrap;
 
 impl LinePacker<'_> {
@@ -216,6 +216,7 @@ impl LinePacker<'_> {
         width: u16,
         rows: AtomRows,
     ) {
+        self.log(Op::Atom { node, width, rows });
         let x = self.open_atom(node, width);
         self.cur_atoms
             .push((AtomAt::Fragment(self.cur_fragments.len()), rows));
@@ -247,6 +248,12 @@ impl LinePacker<'_> {
         width: u16,
         rows: AtomRows,
     ) {
+        self.log(Op::GeneratedAtom {
+            host,
+            slot,
+            width,
+            rows,
+        });
         let x = self.open_atom(host, width);
         self.cur_atoms
             .push((AtomAt::Generated(self.cur_generated.len()), rows));
@@ -367,6 +374,10 @@ impl LinePacker<'_> {
             hang,
             indent,
         });
+        self.line_groups.push(self.cur_group);
+        if end == LineEnd::Forced {
+            self.cur_group += 1;
+        }
         self.cur_indent = self.indent.of_line(false, end == LineEnd::Forced);
         self.open_line();
     }

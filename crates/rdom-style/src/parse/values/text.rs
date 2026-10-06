@@ -4,7 +4,7 @@ use super::numeric::{LengthPercentage, Range, length_percentage, number};
 use super::parse_keyword;
 use crate::layout::{
     Hyphens, LineBreak, OverflowWrap, TabSize, TextAlign, TextAlignLast, TextCase, TextIndent,
-    TextJustify, TextTransform, TextWrapMode, WhiteSpaceCollapse, WordBreak,
+    TextJustify, TextTransform, TextWrapMode, TextWrapStyle, WhiteSpaceCollapse, WordBreak,
 };
 use crate::parse::token::Token;
 
@@ -297,4 +297,43 @@ pub fn parse_text_justify(value: &[Token]) -> Option<TextJustify> {
             ("distribute", TextJustify::InterCharacter),
         ],
     )
+}
+
+/// `text-wrap-style: auto | balance | stable | pretty |
+/// avoid-short-last-line` (CSS Text 4).
+pub fn parse_text_wrap_style(value: &[Token]) -> Option<TextWrapStyle> {
+    parse_keyword(
+        value,
+        &[
+            ("auto", TextWrapStyle::Auto),
+            ("balance", TextWrapStyle::Balance),
+            ("stable", TextWrapStyle::Stable),
+            ("pretty", TextWrapStyle::Pretty),
+            ("avoid-short-last-line", TextWrapStyle::AvoidShortLastLine),
+        ],
+    )
+}
+
+/// `text-wrap: <'text-wrap-mode'> || <'text-wrap-style'>` (CSS Text 4):
+/// the two longhands, an omitted one its initial value.
+pub fn parse_text_wrap(value: &[Token]) -> Option<(TextWrapMode, TextWrapStyle)> {
+    if value.is_empty() || value.len() > 2 {
+        return None;
+    }
+    let (mut mode, mut style) = (None, None);
+    for word in value {
+        let word = std::slice::from_ref(word);
+        if let Some(m) = parse_text_wrap_mode(word) {
+            if mode.replace(m).is_some() {
+                return None;
+            }
+        } else if let Some(s) = parse_text_wrap_style(word) {
+            if style.replace(s).is_some() {
+                return None;
+            }
+        } else {
+            return None;
+        }
+    }
+    Some((mode.unwrap_or_default(), style.unwrap_or_default()))
 }

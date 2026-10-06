@@ -80,7 +80,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 6 | 0 | 0 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 13 | 0 | 1 | 0 | 14 |
-| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 12 | 0 | 3 | 6 | 21 |
+| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 13 | 0 | 2 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **170** | **22** | **69** | **46** | **307** |
+| **Total** | **171** | **22** | **68** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 91 rows Partial / Missing (C9-WHITE-SPACE shipped two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM and C9-TEXT-INDENT one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 90 rows Partial / Missing (Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
 Headline: rdom parses **227 property names** (`property_names()`: 159 in the table and 68 flow-relative ones, after Phase 8). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gaps a web developer hits first are `line-height` and `@media`.
 
@@ -426,7 +426,7 @@ dropped. The audit's six, with where each stands:
 |---|---|---|---|---|
 | `white-space` | Supported | Every Text 4 §3 form (`normal` / `pre` / `pre-wrap` / `pre-line` / `nowrap` / `break-spaces`, the longhand pair), a shorthand of the two longhands, serialized shortest; per element (C9-WHITE-SPACE). `white-space-trim` not parsed (DIVERGENCES §2). | — | `DISP/text.rs`, `IFC` (`inline/white_space.rs`, `packer/intake.rs`) |
 | `white-space-collapse` / `text-wrap-mode` (Text 4) | Supported | Every value: §4.1 collapsing, preserved segment breaks, hanging (`pre-wrap`) and space-taking (`break-spaces`) trailing spaces (C9-WHITE-SPACE). | — | `DISP/text.rs`, `IFC` |
-| `text-wrap` / `text-wrap-style` (Text 4) | Missing | `balance` / `pretty` / `stable` line breaking. | No | `IFC` |
+| `text-wrap` / `text-wrap-style` (Text 4) | Supported | The shorthand of `text-wrap-mode` and `text-wrap-style`; `auto` / `stable` greedy, `balance` (groups of up to six lines), `pretty` / `avoid-short-last-line` (no one-word last line) — the rules in DIVERGENCES §2 (C9-TEXT-WRAP). | — | `DISP/text.rs`, `IFC` (`inline/wrap.rs`) |
 | `text-align` | Supported | The Text 3 shorthand of `text-align-all` and `text-align-last`: `start` / `end` (by `direction`) / `left` / `right` / `center` / `justify` / `match-parent` / `justify-all`, within the line box beside floats and past the indent; an overflowing line start-aligned (C9-TEXT-ALIGN). | — | `DISP/text.rs`, `IFC` (`inline/align.rs`) |
 | `text-align-last` | Supported | Every value; the last line and the lines before a forced break (C9-TEXT-ALIGN). | — | `DISP/text.rs`, `IFC` |
 | `text-justify` | Supported | `auto` (word separators and CJK gaps) / `none` / `inter-word` / `inter-character` (`distribute` its alias), whole cells (C9-TEXT-ALIGN). | — | `DISP/text.rs`, `IFC` |
@@ -777,7 +777,7 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 - `white-space` — Partial: `normal` / `pre` / `pre-wrap` / `nowrap`; `pre-line` and `break-spaces` rejected. *Shipped: C9-WHITE-SPACE.*
 - `white-space-collapse` / `text-wrap-mode` (Text 4) — Missing: Longhands of `white-space`. *Shipped: C9-WHITE-SPACE.*
-- `text-wrap` / `text-wrap-style` (Text 4) — Missing: `balance` / `pretty` / `stable` line breaking.
+- `text-wrap` / `text-wrap-style` (Text 4) — Missing: `balance` / `pretty` / `stable` line breaking. *Shipped: C9-TEXT-WRAP.*
 - `text-align-last` — Missing: Last-line alignment. *Shipped: C9-TEXT-ALIGN.*
 - `text-justify` — Missing: Justification method (`inter-word` is the only sensible one). *Shipped: C9-TEXT-ALIGN.*
 - `text-indent` — Missing: First-line indent in cells. *Shipped: C9-TEXT-INDENT.*

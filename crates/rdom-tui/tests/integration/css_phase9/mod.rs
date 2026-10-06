@@ -11,6 +11,7 @@ mod tab_size;
 mod text_align;
 mod text_indent;
 mod text_transform;
+mod text_wrap;
 mod white_space;
 
 use rdom_tui::{NodeId, TuiDom};

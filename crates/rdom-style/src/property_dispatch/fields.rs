@@ -94,6 +94,9 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "text-align-all" => &[TextAlignAll],
         "text-align-last" => &[TextAlignLast],
         "text-justify" => &[TextJustify],
+        // CSS Text 4: the shorthand sets both longhands.
+        "text-wrap" => &[TextWrapMode, TextWrapStyle],
+        "text-wrap-style" => &[TextWrapStyle],
         "user-select" => &[UserSelect],
         "pointer-events" => &[PointerEvents],
         "visibility" => &[Visibility],

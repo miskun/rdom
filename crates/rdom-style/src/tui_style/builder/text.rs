@@ -114,6 +114,13 @@ impl TuiStyle {
         crate::layout::TextAlignLast
     );
     text_setter!(
+        "text-wrap-style",
+        text_wrap_style,
+        text_wrap_style_important,
+        TEXT_WRAP_STYLE,
+        crate::layout::TextWrapStyle
+    );
+    text_setter!(
         "text-justify",
         text_justify,
         text_justify_important,

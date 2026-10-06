@@ -62,8 +62,18 @@ use crate::render::box_tree::BoxItem;
 use crate::render::layout_pass::float::lines::LineExclusions;
 
 mod emit;
+
+#[cfg(test)]
+thread_local! {
+    /// Graphemes fed to any packer on this thread, replays included: what
+    /// the cost of `text-wrap-style` is pinned by (`wrap`'s cost tests).
+    pub(in crate::render::inline) static GRAPHEMES: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+}
+pub(in crate::render::inline) use replay::{Op, WidthCaps};
 mod fragments;
 mod intake;
+mod replay;
 
 /// One grapheme awaiting commit, with every piece of provenance we
 /// need to rebuild a source position later.
@@ -241,6 +251,16 @@ pub(super) struct LinePacker<'a> {
     align: TextAlignment,
     /// The current line holds a preserved tab (not justified, §6.1).
     cur_has_tab: bool,
+    /// The intake log, when recording (`replay`).
+    ops: Option<Vec<Op<'a>>>,
+    /// Caps on the lines' widths (`text-wrap-style`, `replay`).
+    caps: WidthCaps,
+    /// The current group: the forced breaks so far.
+    cur_group: usize,
+    /// Each packed line's group.
+    line_groups: Vec<usize>,
+    /// A float was met in the content.
+    met_float: bool,
 }
 
 impl<'a> LinePacker<'a> {
@@ -277,6 +297,11 @@ impl<'a> LinePacker<'a> {
             cur_indent: 0,
             align: TextAlignment::default(),
             cur_has_tab: false,
+            ops: None,
+            caps: WidthCaps::default(),
+            cur_group: 0,
+            line_groups: Vec::new(),
+            met_float: false,
         }
     }
     /// Start each line at the right edge of its band — the inline-start
@@ -311,7 +336,8 @@ impl<'a> LinePacker<'a> {
     /// The current line's width: its band's, less its indent (CSS Text 3
     /// §8.1: a margin at the line box's start edge, either sign).
     pub(super) fn line_width(&self) -> u16 {
-        (i32::from(self.band.1) - self.cur_indent).clamp(0, i32::from(u16::MAX)) as u16
+        let line_box = (i32::from(self.band.1) - self.cur_indent).clamp(0, i32::from(u16::MAX));
+        (line_box as u16).min(self.caps.cap(self.cur_group, self.lines.len()))
     }
 
     /// Cells from the block's starting content edge — the left one, the
@@ -345,6 +371,8 @@ impl<'a> LinePacker<'a> {
     /// line is settled — else at the next line's top. Without exclusions
     /// (an intrinsic measurement) it is not packed.
     pub(in crate::render::inline) fn push_float(&mut self, item: BoxItem) {
+        self.log(Op::Float(item));
+        self.met_float = true;
         let used = self.line_has_content().then_some(self.cur_line_width);
         let Some(ex) = self.exclusions.as_deref_mut() else {
             return;

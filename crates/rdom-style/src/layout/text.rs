@@ -71,6 +71,36 @@ impl TextWrapMode {
     }
 }
 
+/// `text-wrap-style` (CSS Text 4 "Selecting How to Wrap"): how a block
+/// chooses among its soft wrap opportunities. Inherited; initial `auto`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextWrapStyle {
+    /// Greedy line breaking: each line takes what fits.
+    #[default]
+    Auto,
+    /// Lines of even length (groups of up to six lines in rdom).
+    Balance,
+    /// Breaks that do not look ahead, so editing leaves earlier lines.
+    Stable,
+    /// Better layout over speed: rdom avoids a one-word last line.
+    Pretty,
+    /// Avoid an excessively short last line (rdom: as `pretty`).
+    AvoidShortLastLine,
+}
+
+impl TextWrapStyle {
+    /// The keyword's CSS spelling.
+    pub const fn keyword(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Balance => "balance",
+            Self::Stable => "stable",
+            Self::Pretty => "pretty",
+            Self::AvoidShortLastLine => "avoid-short-last-line",
+        }
+    }
+}
+
 /// The `white-space` shorthand's keywords (CSS Text 4 §3): each one a
 /// pair of [`WhiteSpaceCollapse`] and [`TextWrapMode`] — the longhands
 /// it sets ([`longhands`](Self::longhands)). The cascade computes the
@@ -526,6 +556,9 @@ pub struct TextStyle {
     pub text_align_last: TextAlignLast,
     /// `text-justify` (CSS Text 3 §6.4).
     pub text_justify: TextJustify,
+    /// `text-wrap-style` (CSS Text 4), the `text-wrap` shorthand's second
+    /// longhand.
+    pub text_wrap_style: TextWrapStyle,
 }
 
 impl TextStyle {

@@ -61,6 +61,7 @@ mod source_map;
 mod transform;
 pub(crate) mod vertical;
 mod white_space;
+mod wrap;
 
 #[cfg(test)]
 mod tests;
@@ -322,11 +323,12 @@ pub(crate) fn compute_inline_layout_around<'a>(
     content_width: u16,
     exclusions: Option<&'a mut dyn LineExclusions>,
 ) -> InlineLayout {
-    let mut packer = packer_for(dom, block, content_width, true, exclusions);
-    fill_block(dom, block, &mut packer);
-    packer.finish();
+    let packer = packer_for(dom, block, content_width, true, exclusions);
+    let lines = wrap::pack(packer, wrap_style(dom, block), |p| {
+        fill_block(dom, block, p)
+    });
     InlineLayout {
-        lines: packer.take_lines(),
+        lines,
         content_width,
     }
 }
@@ -403,16 +405,18 @@ pub(crate) fn pack_generated(
 ) -> InlineLayout {
     let rtl = style.text_direction == crate::layout::TextDirection::Rtl;
     let indent = indent::LineIndent::of(&style.text.text_indent, width, true);
-    let mut packer = LinePacker::new(width)
+    let packer = LinePacker::new(width)
         .starting_right(rtl)
         .indented(indent)
         .aligned(align::TextAlignment::of(&style.text));
-    if let Some(text) = generated::static_pseudo_text(dom, host, slot.into()) {
-        packer.push_generated(host, slot, text, run_style::RunStyle::of(style));
-    }
-    packer.finish();
+    let text = generated::static_pseudo_text(dom, host, slot.into());
+    let lines = wrap::pack(packer, style.text.text_wrap_style, |p| {
+        if let Some(text) = text {
+            p.push_generated(host, slot, text, run_style::RunStyle::of(style));
+        }
+    });
     InlineLayout {
-        lines: packer.take_lines(),
+        lines,
         content_width: width,
     }
 }
@@ -442,11 +446,22 @@ pub(crate) fn pack_run<'a>(
     // The run holds the parent's first line-bearing content when it holds
     // its `::before` edge (`generated::run_pseudos`): its first line is the
     // parent's first formatted line (CSS Text 3 §8.1).
-    let mut packer = packer_for(dom, parent, content_width, pseudos.before, exclusions);
-    fill_run(dom, parent, direct_children, pseudos, &mut packer);
-    packer.finish();
+    let packer = packer_for(dom, parent, content_width, pseudos.before, exclusions);
+    let lines = wrap::pack(packer, wrap_style(dom, parent), |p| {
+        fill_run(dom, parent, direct_children, pseudos, p);
+    });
     InlineLayout {
-        lines: packer.take_lines(),
+        lines,
         content_width,
     }
+}
+
+/// The `text-wrap-style` of the block container `block` (CSS Text 4: it
+/// applies to block containers).
+fn wrap_style(dom: &Dom<TuiExt>, block: NodeId) -> crate::layout::TextWrapStyle {
+    dom.node(block)
+        .ext()
+        .and_then(|e| e.computed.as_ref())
+        .map(|c| c.text.text_wrap_style)
+        .unwrap_or_default()
 }

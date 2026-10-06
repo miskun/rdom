@@ -192,7 +192,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C9-WHITE-SPACE | `white-space: pre-line / break-spaces`; `white-space-collapse` / `text-wrap-mode` longhands | done |
-| C9-TEXT-WRAP | `text-wrap` / `text-wrap-style` (`balance` / `pretty` / `stable`) | |
+| C9-TEXT-WRAP | `text-wrap` / `text-wrap-style` (`balance` / `pretty` / `stable`) | done |
 | C9-TEXT-ALIGN | `text-align` (incl. `start` / `end` / `justify`), `text-align-last`, `text-justify` | done |
 | C9-TEXT-INDENT | `text-indent` | done |
 | C9-TEXT-TRANSFORM | `text-transform` (case mapping, `full-width`) | done |
@@ -5459,3 +5459,38 @@ row comes from.
   touched): `center` rounding up → two; no remainder → two; `text-align-last: auto` not falling back to
   `start` → two; `auto` without CJK gaps → one; overflow not start-aligned → one; no justified source map →
   one. No existing test expectation or snapshot changed.
+- 2026-10-11 — C9-TEXT-WRAP (CSS Text 4 "Joint Wrapping Control: the text-wrap shorthand", "Selecting How to
+  Wrap: the text-wrap-style property"; the current draft adds `avoid-short-last-line`, implemented with
+  `pretty`'s rule). rdom-style: `text-wrap: <'text-wrap-mode'> || <'text-wrap-style'>` (omitted longhand
+  initial, shortest serialization — `nowrap pretty`, `balance`), `TextWrapStyle`, inherited. rdom-tui —
+  decided at the root: the packer streams (it places each word as its soft wrap opportunity arrives), so a
+  wrap style that compares layouts needs the content again; instead of walking and measuring the tree again
+  the packer records its intake (`packer/replay.rs::Op`: each text borrowed from the DOM with its `RunStyle`,
+  each atom with its measured width and rows, forced breaks, `<wbr>`, floats) and a replica — same width,
+  direction, indent, alignment — replays it with `WidthCaps` on its lines (per group of lines between forced
+  breaks, and on one line), which `line_width()` reads; the packer tracks each line's group. `render/inline/
+  wrap.rs`: `auto` / `stable` are the greedy packing (it never looks ahead — `stable`'s definition — pinned
+  by `stable_keeps_earlier_lines_when_text_is_added`, which `balance` fails as expected); `balance` bisects,
+  for every group of 2–6 lines at once (`MAX_BALANCED_LINES`, Chromium's limit; the spec: "may treat this
+  value as auto if there are more than ten lines"), the narrowest cap keeping the group's greedy line count
+  ("must not change the number of line boxes" for ≤5 lines), one replay per step plus the final one; `pretty`
+  / `avoid-short-last-line` cap the line before a one-word last line one cell short of its content, kept only
+  when the count holds (the exact rule in DIVERGENCES §2). Balanced lines keep their alignment in the whole
+  line box (`align.rs` reads the band, not the cap). Floats: a paragraph that met a float or had a line beside
+  one keeps its greedy breaks (a replay would place the floats into the area again). Cost, pinned by
+  `inline/wrap_cost_tests.rs` (a test-only grapheme counter in the intake): a paragraph past six lines is
+  packed once (the same count as `auto`); a short one at most (1 + ⌈log2 20⌉ + 1) times its text; 60 groups
+  between forced breaks the same bound — the groups are bisected together, so it is not multiplied by their
+  number; `pretty` at most twice. Red: `css_phase9/text_wrap.rs` — 4 of 5 failed (`aa bb cc dd ee` / `ff` for
+  the balanced lines, alone and per group; `ddd` alone under `pretty`; the first row unchanged under
+  `balance`); the `nowrap balance` test passed before and after. Green after. Mutation (restored, touched):
+  no six-line limit → the long-paragraph cost test; `pretty` keeping a layout with more lines → the revert
+  test (added after this mutation survived); bisection accepting one extra line → two. No existing test
+  expectation or snapshot changed.
+- 2026-10-11 — Phase 9 part 1 complete (C9-WHITE-SPACE, C9-BREAKING, C9-TAB-SIZE, C9-TEXT-TRANSFORM,
+  C9-TEXT-INDENT, C9-TEXT-ALIGN, C9-TEXT-WRAP). The inline packer now has a module per concern: white space
+  processing (`white_space.rs`, `run_style.rs`), breaking (`breaking.rs`), text-transform (`transform.rs`),
+  the indent (`indent.rs`), alignment and justification (`align.rs`), wrap styles (`wrap.rs`), and the
+  source map every rendering that is not its source goes through (`source_map.rs`); `packer/` split into
+  `intake.rs`, `emit.rs`, `fragments.rs`, `replay.rs`. Part 2 (C9-LINE-HEIGHT, C9-VERTICAL-ALIGN,
+  C9-DECORATION, C9-FONT) is next; the Phase 9 gates run after it.

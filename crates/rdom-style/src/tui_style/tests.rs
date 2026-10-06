@@ -337,6 +337,7 @@ fn every_property_has_important_setter() {
         .text_indent_important(crate::layout::TextIndent::cells(1))
         .text_align_important(crate::layout::TextAlign::Center)
         .text_justify_important(crate::layout::TextJustify::None)
+        .text_wrap_style_important(crate::layout::TextWrapStyle::Balance)
         .user_select_important(UserSelect::None)
         .caret_color_important(CaretColor::Transparent)
         .caret_text_color_important(CaretTextColor::Auto)

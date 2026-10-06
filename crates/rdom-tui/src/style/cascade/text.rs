@@ -38,6 +38,7 @@ pub(super) fn apply_text(
         text_align_all: TEXT_ALIGN_ALL,
         text_align_last: TEXT_ALIGN_LAST,
         text_justify: TEXT_JUSTIFY,
+        text_wrap_style: TEXT_WRAP_STYLE,
     );
 }
 

@@ -4,7 +4,7 @@
 use crate::Value;
 use crate::layout::{
     Hyphens, LineBreak, OverflowWrap, TabSize, TextAlign, TextAlignLast, TextIndent, TextJustify,
-    TextTransform, TextWrapMode, WhiteSpaceCollapse, WordBreak,
+    TextTransform, TextWrapMode, TextWrapStyle, WhiteSpaceCollapse, WordBreak,
 };
 
 /// The CSS Text properties a [`TuiStyle`](crate::TuiStyle) declares
@@ -38,4 +38,7 @@ pub struct TextDeclarations {
     pub text_align_last: Option<Value<TextAlignLast>>,
     /// `text-justify` (CSS Text 3 §6.4).
     pub text_justify: Option<Value<TextJustify>>,
+    /// `text-wrap-style` (CSS Text 4); the `text-wrap` shorthand writes it
+    /// and `text_wrap_mode`.
+    pub text_wrap_style: Option<Value<TextWrapStyle>>,
 }

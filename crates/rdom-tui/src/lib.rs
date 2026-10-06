@@ -87,9 +87,9 @@ pub use layout::{
     ScrollSnapAxis, ScrollSnapStop, ScrollSnapStrictness, ScrollSnapType, ScrollbarColor,
     ScrollbarGutter, ScrollbarWidth, Sides, Size, SnapAlign, TabSize, TextAlign, TextAlignLast,
     TextCase, TextDirection, TextIndent, TextJustify, TextOverflow, TextOverflowSide, TextStyle,
-    TextTransform, TextWrapMode, TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize,
-    UserSelect, Visibility, VisualBox, WhiteSpace, WhiteSpaceCollapse, WordBreak, WritingMode,
-    ZIndex,
+    TextTransform, TextWrapMode, TextWrapStyle, TrackBreadth, TrackList, TrackListItem,
+    TrackRepeat, TrackSize, UserSelect, Visibility, VisualBox, WhiteSpace, WhiteSpaceCollapse,
+    WordBreak, WritingMode, ZIndex,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets

@@ -145,6 +145,7 @@ define_fields! {
     TextAlignAll => text.text_align_all : TEXT_ALIGN_ALL,
     TextAlignLast => text.text_align_last : TEXT_ALIGN_LAST,
     TextJustify => text.text_justify : TEXT_JUSTIFY,
+    TextWrapStyle => text.text_wrap_style : TEXT_WRAP_STYLE,
     UserSelect => user_select : USER_SELECT,
     PointerEvents => pointer_events : POINTER_EVENTS,
     Visibility => visibility : VISIBILITY,
@@ -374,6 +375,8 @@ pub fn inherits(name: &str) -> bool {
             | "text-align-all"
             | "text-align-last"
             | "text-justify"
+            | "text-wrap"
+            | "text-wrap-style"
             | "pointer-events"
             | "visibility"
             | "caret-color"
