@@ -208,6 +208,8 @@ const PROPERTY_NAMES: &[&str] = &[
     "text-justify",
     "text-wrap",
     "text-wrap-style",
+    "letter-spacing",
+    "word-spacing",
     // Inline layout (CSS Inline 3)
     "line-height",
     "vertical-align",

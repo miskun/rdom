@@ -3,17 +3,19 @@
 //! `overflow-wrap` (and its legacy name `word-wrap`), `line-break`,
 //! `hyphens`, `tab-size`, `text-transform`, `text-indent`, `text-align`
 //! (and its longhands `text-align-all` / `text-align-last`),
-//! `text-justify`, `text-wrap` (and its longhand `text-wrap-style`) —
+//! `text-justify`, `text-wrap` (and its longhand `text-wrap-style`),
+//! `letter-spacing`, `word-spacing` —
 //! their `set` and `serialize` arms.
 
 use super::value_serializers::{serialize_length, specified};
 use crate::layout::{TextWrapMode, WhiteSpace, WhiteSpaceCollapse};
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_hyphens, parse_line_break, parse_overflow_wrap, parse_tab_size, parse_text_align,
-    parse_text_align_all, parse_text_align_last, parse_text_indent, parse_text_justify,
-    parse_text_transform, parse_text_wrap, parse_text_wrap_mode, parse_text_wrap_style,
-    parse_white_space, parse_white_space_collapse, parse_word_break, serialize_text_transform,
+    parse_hyphens, parse_line_break, parse_overflow_wrap, parse_spacing, parse_tab_size,
+    parse_text_align, parse_text_align_all, parse_text_align_last, parse_text_indent,
+    parse_text_justify, parse_text_transform, parse_text_wrap, parse_text_wrap_mode,
+    parse_text_wrap_style, parse_white_space, parse_white_space_collapse, parse_word_break,
+    serialize_spacing, serialize_text_transform,
 };
 use crate::{TuiStyle, Value};
 
@@ -72,6 +74,12 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         }),
         "text-wrap-style" => parse_text_wrap_style(value).map(|s| {
             text.text_wrap_style = Some(Value::Specified(s));
+        }),
+        "letter-spacing" => parse_spacing(value).map(|s| {
+            text.letter_spacing = Some(Value::Specified(s));
+        }),
+        "word-spacing" => parse_spacing(value).map(|s| {
+            text.word_spacing = Some(Value::Specified(s));
         }),
         _ => return None,
     })
@@ -134,6 +142,16 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .as_ref()
             .and_then(specified)
             .map(|t| serialize_text_transform(*t)),
+        "letter-spacing" => text
+            .letter_spacing
+            .as_ref()
+            .and_then(specified)
+            .map(serialize_spacing),
+        "word-spacing" => text
+            .word_spacing
+            .as_ref()
+            .and_then(specified)
+            .map(serialize_spacing),
         "tab-size" => text.tab_size.as_ref().and_then(specified).map(|t| match t {
             crate::layout::TabSize::Number(n) => format!("{n}"),
             crate::layout::TabSize::Length(c) => format!("{c}ch"),

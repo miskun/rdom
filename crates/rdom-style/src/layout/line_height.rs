@@ -69,14 +69,13 @@ impl LineHeight {
     }
 }
 
-/// `v` rows floored to whole rows, at least one (`NaN` one): a value
-/// within a millionth below a whole row is that row, so `f32` and math
-/// function arithmetic (`calc(3 * (1 / 3))`) does not lose one.
+/// `v` rows floored to whole rows (`calc::floor_cells`), at least one
+/// (`NaN` one).
 pub(crate) fn floor_rows(v: f64) -> u16 {
     if v.is_nan() {
         return 1;
     }
-    (v + 1e-6).floor().clamp(1.0, f64::from(u16::MAX)) as u16
+    crate::calc::floor_cells(v).clamp(1.0, f64::from(u16::MAX)) as u16
 }
 
 #[cfg(test)]

@@ -149,10 +149,11 @@ pub use spacing::{
     parse_margin_trim, parse_padding_shorthand, parse_padding_value,
 };
 pub use text::{
-    parse_hyphens, parse_line_break, parse_overflow_wrap, parse_tab_size, parse_text_align,
-    parse_text_align_all, parse_text_align_last, parse_text_indent, parse_text_justify,
-    parse_text_transform, parse_text_wrap, parse_text_wrap_mode, parse_text_wrap_style,
-    parse_white_space, parse_white_space_collapse, parse_word_break, serialize_text_transform,
+    parse_hyphens, parse_line_break, parse_overflow_wrap, parse_spacing, parse_tab_size,
+    parse_text_align, parse_text_align_all, parse_text_align_last, parse_text_indent,
+    parse_text_justify, parse_text_transform, parse_text_wrap, parse_text_wrap_mode,
+    parse_text_wrap_style, parse_white_space, parse_white_space_collapse, parse_word_break,
+    serialize_spacing, serialize_text_transform,
 };
 pub use text_decoration::{
     TextDecorationShorthand, parse_text_decoration, parse_text_decoration_line,

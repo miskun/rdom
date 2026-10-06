@@ -418,6 +418,8 @@ What's supported:
 - **`line-height`** in whole rows, a fraction floored (`1.5` is one row,
   `2.5` two; CSS Inline 3 §5.1): every inline box and the block's strut
   add their half-leading around the glyph row; `lh` / `rlh` follow it.
+- **`letter-spacing` / `word-spacing`** in whole blank cells (CSS Text 3
+  §9): after each grapheme / word separator, none at a line's end.
 - **`vertical-align`** (CSS 2.1 §10.8.1): `sub` / `super` a row,
   lengths, `middle` / `text-top` / `text-bottom`, and `top` / `bottom`
   aligned subtrees, on spans, generated text and inline blocks.

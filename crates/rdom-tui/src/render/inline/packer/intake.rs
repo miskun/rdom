@@ -159,7 +159,15 @@ impl<'a> LinePacker<'a> {
                     hangs: self.run.hangs_spaces(),
                     tab: tab.then_some(self.run.tab_size),
                 };
-                let piece = self.piece(origin, source_offset, g, Cow::Borrowed(text), width, kind);
+                // §9: a space is spaced; a tab already reaches its stop.
+                let spacing = if tab {
+                    0
+                } else {
+                    self.spacing_after(' ', text == " ")
+                };
+                let piece = self
+                    .piece(origin, source_offset, g, Cow::Borrowed(text), width, kind)
+                    .spaced(spacing);
                 self.push_to_word(piece);
                 self.last_class = None;
                 // `break-spaces`: a soft wrap opportunity after every
@@ -187,6 +195,7 @@ impl<'a> LinePacker<'a> {
                 if !self.pending_space {
                     self.pending_space = true;
                     self.pending_space_source = Some((origin, source_offset));
+                    self.pending_space_spacing = self.spacing_after(' ', true);
                 }
                 self.pending_segment_break |= segment_break;
             }
@@ -202,7 +211,10 @@ impl<'a> LinePacker<'a> {
             None if !self.emitted_any => {}
             _ => {
                 let kind = GraphemeKind::Collapsible { segment_break };
-                let piece = self.piece(origin, source_offset, " ", Cow::Borrowed(" "), 1, kind);
+                let spacing = self.spacing_after(' ', true);
+                let piece = self
+                    .piece(origin, source_offset, " ", Cow::Borrowed(" "), 1, kind)
+                    .spaced(spacing);
                 self.push_to_word(piece);
             }
         }
@@ -272,7 +284,11 @@ impl<'a> LinePacker<'a> {
         }
         self.take_opportunity(class);
         self.last_char = text.chars().last();
-        let piece = self.piece(origin, source_offset, g, text, w, GraphemeKind::Text);
+        let source = g.chars().next().unwrap_or(first);
+        let spacing = self.spacing_after(first, super::spacing::is_word_separator(source));
+        let piece = self
+            .piece(origin, source_offset, g, text, w, GraphemeKind::Text)
+            .spaced(spacing);
         self.push_to_word(piece);
         self.last_class = Some(class);
         self.last_wraps = self.run.wraps;
@@ -320,6 +336,7 @@ impl<'a> LinePacker<'a> {
             } else {
                 OverflowWrap::Normal
             },
+            spacing: 0,
         }
     }
 
@@ -334,16 +351,17 @@ impl<'a> LinePacker<'a> {
         if self.pending_space && self.pending_segment_break && removed(self.last_char) {
             self.clear_pending_space();
         }
-        if let Some(PendingGrapheme {
+        if let Some(&PendingGrapheme {
             kind: GraphemeKind::Collapsible {
                 segment_break: true,
             },
+            width,
             ..
         }) = self.word_buffer.last()
             && removed(self.last_char)
         {
             self.word_buffer.pop();
-            self.word_width = self.word_width.saturating_sub(1);
+            self.word_width = self.word_width.saturating_sub(width);
         }
     }
 
@@ -367,5 +385,20 @@ impl<'a> LinePacker<'a> {
         self.pending_space = false;
         self.pending_segment_break = false;
         self.pending_space_source = None;
+        self.pending_space_spacing = 0;
+    }
+}
+
+impl<'a> PendingGrapheme<'a> {
+    /// The piece followed by `n` cells of letter and word spacing (CSS
+    /// Text 3 §9), rendered as blanks its source unit maps to.
+    fn spaced(mut self, n: u16) -> Self {
+        if n > 0 {
+            self.text = super::spacing::spaced(self.text, n);
+            self.width = self.width.saturating_add(n);
+            self.spacing = n;
+            self.mapped = true;
+        }
+        self
     }
 }

@@ -1,7 +1,7 @@
 //! The CSS Text setters of the `TuiStyle` builder (CSS Text 3 / 4):
 //! `white-space` and its longhands, `word-break`, `overflow-wrap`,
 //! `line-break`, `hyphens`, `tab-size`, `text-transform`, `text-indent`, `text-align` and its longhands,
-//! `text-justify`.
+//! `text-justify`, `letter-spacing`, `word-spacing`.
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
@@ -126,6 +126,20 @@ impl TuiStyle {
         text_justify_important,
         TEXT_JUSTIFY,
         crate::layout::TextJustify
+    );
+    text_setter!(
+        "letter-spacing",
+        letter_spacing,
+        letter_spacing_important,
+        LETTER_SPACING,
+        crate::layout::Spacing
+    );
+    text_setter!(
+        "word-spacing",
+        word_spacing,
+        word_spacing_important,
+        WORD_SPACING,
+        crate::layout::Spacing
     );
     text_setter!(
         "text-indent",

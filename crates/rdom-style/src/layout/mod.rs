@@ -26,6 +26,7 @@
 //! - `white_space` — the CSS Text values of white space processing, wrapping
 //!   and line breaking (`white-space-collapse`, …, `tab-size`)
 //! - `text_align` — the CSS Text values of transform, indent and alignment
+//! - `spacing` — `letter-spacing` / `word-spacing` (`Spacing`)
 //! - `text` — `TextStyle`, the computed CSS Text group
 
 pub(crate) mod alignment;
@@ -48,6 +49,7 @@ mod sides;
 mod sizing;
 #[cfg(test)]
 mod sizing_tests;
+mod spacing;
 mod text;
 mod text_align;
 mod text_decoration;
@@ -93,6 +95,7 @@ pub use sizing::{
     AspectRatio, ContainIntrinsicSize, FlexBasis, GapValue, IntrinsicSize, Length, MaxSize,
     MinSize, Size, valid_flex_factor,
 };
+pub use spacing::Spacing;
 pub use text::TextStyle;
 pub use text_align::{TextAlign, TextAlignLast, TextCase, TextIndent, TextJustify, TextTransform};
 pub use text_decoration::{

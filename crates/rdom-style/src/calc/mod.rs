@@ -213,6 +213,14 @@ pub fn to_cells(v: f64) -> i32 {
     }
 }
 
+/// `v` floored onto the grid — the used value of a length that cannot draw
+/// a part of a cell (`line-height`, `letter-spacing`, `word-spacing`) — a
+/// value within a millionth below a whole cell taking that cell, so `f32`
+/// and math-function arithmetic (`calc(3 * (1 / 3))`) does not lose one.
+pub(crate) fn floor_cells(v: f64) -> f64 {
+    (v + 1e-6).floor()
+}
+
 #[cfg(test)]
 mod semantics_tests;
 #[cfg(test)]

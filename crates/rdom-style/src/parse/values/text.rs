@@ -3,8 +3,9 @@
 use super::numeric::{LengthPercentage, Range, length_percentage, number};
 use super::parse_keyword;
 use crate::layout::{
-    Hyphens, LineBreak, OverflowWrap, TabSize, TextAlign, TextAlignLast, TextCase, TextIndent,
-    TextJustify, TextTransform, TextWrapMode, TextWrapStyle, WhiteSpaceCollapse, WordBreak,
+    Hyphens, LineBreak, OverflowWrap, Spacing, TabSize, TextAlign, TextAlignLast, TextCase,
+    TextIndent, TextJustify, TextTransform, TextWrapMode, TextWrapStyle, WhiteSpaceCollapse,
+    WordBreak,
 };
 use crate::parse::token::Token;
 
@@ -136,6 +137,31 @@ pub fn parse_tab_size(value: &[Token]) -> Option<TabSize> {
     match length_percentage(value, Range::NonNegative)? {
         LengthPercentage::Cells(c) => Some(TabSize::Length(c as f32)),
         LengthPercentage::Integer(_) | LengthPercentage::Expr(_) => None,
+    }
+}
+
+/// `letter-spacing` / `word-spacing: normal | <length>` (CSS Text 3 §9.2,
+/// §9.1): a length of either sign in cells — a percentage (CSS Text 4's) is
+/// not taken, nor a pixel or font-relative length, which `length_percentage`
+/// never gives (DESIGN "Pixel lengths select, cells measure").
+pub fn parse_spacing(value: &[Token]) -> Option<Spacing> {
+    if parse_keyword(value, &[("normal", ())]).is_some() {
+        return Some(Spacing::Normal);
+    }
+    match length_percentage(value, Range::Any)? {
+        LengthPercentage::Integer(n) => Some(Spacing::Cells(n as f32)),
+        LengthPercentage::Cells(v) => v.is_finite().then_some(Spacing::Cells(v as f32)),
+        LengthPercentage::Expr(e) => (!e.contains_percent()).then(|| Spacing::Calc(Box::new(e))),
+    }
+}
+
+/// `letter-spacing` / `word-spacing`'s serialization: the keyword, a
+/// parse-time length in `ch` (rdom's cell), or the expression.
+pub fn serialize_spacing(value: &Spacing) -> String {
+    match value {
+        Spacing::Normal => "normal".to_string(),
+        Spacing::Cells(n) => format!("{n}ch"),
+        Spacing::Calc(expr) => crate::property_dispatch::serialize_math(expr),
     }
 }
 

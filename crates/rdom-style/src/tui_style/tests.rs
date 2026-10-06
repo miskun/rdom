@@ -347,6 +347,8 @@ fn every_property_has_important_setter() {
         .text_align_important(crate::layout::TextAlign::Center)
         .text_justify_important(crate::layout::TextJustify::None)
         .text_wrap_style_important(crate::layout::TextWrapStyle::Balance)
+        .letter_spacing_important(crate::layout::Spacing::Cells(1.0))
+        .word_spacing_important(crate::layout::Spacing::Cells(1.0))
         .user_select_important(UserSelect::None)
         .caret_color_important(CaretColor::Transparent)
         .caret_text_color_important(CaretTextColor::Auto)

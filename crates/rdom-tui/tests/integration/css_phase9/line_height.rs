@@ -230,7 +230,7 @@ fn lh_and_rlh_follow_the_line_height() {
 /// text on it, nothing to scroll — and a 4-row `<textarea>` four lines;
 /// the other inherited text properties Chromium resets there
 /// (`text-transform`, `text-indent`, `text-align`, the font's weight and
-/// style)
+/// style, the letter and word spacing)
 /// do not reach in either.
 #[test]
 fn form_controls_keep_a_normal_line_height() {
@@ -245,7 +245,7 @@ fn form_controls_keep_a_normal_line_height() {
     let buf = paint(
         &mut dom,
         "html { line-height: 2; text-transform: uppercase; text-indent: 2; text-align: right; \
-         font-weight: bold; font-style: italic }",
+         font-weight: bold; font-style: italic; letter-spacing: 1; word-spacing: 1 }",
         6,
         5,
     );

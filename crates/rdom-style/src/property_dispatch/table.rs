@@ -153,6 +153,8 @@ define_fields! {
     TextAlignLast => text.text_align_last : TEXT_ALIGN_LAST,
     TextJustify => text.text_justify : TEXT_JUSTIFY,
     TextWrapStyle => text.text_wrap_style : TEXT_WRAP_STYLE,
+    LetterSpacing => text.letter_spacing : LETTER_SPACING,
+    WordSpacing => text.word_spacing : WORD_SPACING,
     LineHeight => text.line_height : LINE_HEIGHT,
     VerticalAlign => vertical_align : VERTICAL_ALIGN,
     TextUnderlineOffset => text.text_underline_offset : TEXT_UNDERLINE_OFFSET,
@@ -395,6 +397,8 @@ pub fn inherits(name: &str) -> bool {
             | "text-justify"
             | "text-wrap"
             | "text-wrap-style"
+            | "letter-spacing"
+            | "word-spacing"
             | "line-height"
             | "text-underline-offset"
             | "text-underline-position"

@@ -22,25 +22,27 @@ impl LinePacker<'_> {
     pub(super) fn commit_word(&mut self) {
         // The collapsed space ending the word separates it from what
         // follows: pending once the word is placed.
-        let mut trailing: Option<(Origin, usize, bool)> = None;
+        let mut trailing: Option<(Origin, usize, bool, u16)> = None;
         while let Some(&PendingGrapheme {
             kind: GraphemeKind::Collapsible { segment_break },
             origin,
             source_offset,
             width,
+            spacing,
             ..
         }) = self.word_buffer.last()
         {
             self.word_buffer.pop();
             self.word_width = self.word_width.saturating_sub(width);
-            let sb = trailing.map_or(segment_break, |(.., b)| b || segment_break);
-            trailing = Some((origin, source_offset, sb));
+            let sb = trailing.map_or(segment_break, |(.., b, _)| b || segment_break);
+            trailing = Some((origin, source_offset, sb, spacing));
         }
         self.place_word();
-        if let Some((origin, source_offset, segment_break)) = trailing {
+        if let Some((origin, source_offset, segment_break, spacing)) = trailing {
             if !self.pending_space {
                 self.pending_space = true;
                 self.pending_space_source = Some((origin, source_offset));
+                self.pending_space_spacing = spacing;
             }
             self.pending_segment_break |= segment_break;
         }
@@ -55,11 +57,7 @@ impl LinePacker<'_> {
             return;
         }
 
-        let separator: u16 = if self.pending_space && self.cur_line_width > 0 {
-            1
-        } else {
-            0
-        };
+        let separator = self.separator_width();
         self.layout_tabs(self.cur_line_width.saturating_add(separator));
         let fit = self.word_fit();
         let projected = self
@@ -117,19 +115,25 @@ impl LinePacker<'_> {
     }
 
     /// The cells the word buffer needs on its line: its width less the
-    /// spaces that would hang at the line's end, plus the hyphen a soft
-    /// hyphen ending it shows if the line breaks there (CSS Text 3
-    /// §4.1.2, §6.1).
+    /// spaces that would hang at the line's end and the spacing ending it,
+    /// which a line's end drops, plus the hyphen a soft hyphen ending it
+    /// shows if the line breaks there (CSS Text 3 §4.1.2, §6.1, §9.2).
     fn word_fit(&self) -> u16 {
-        let shy = matches!(
-            self.word_buffer.last(),
+        let (shy, spacing) = match self.word_buffer.last() {
             Some(PendingGrapheme {
                 kind: GraphemeKind::SoftHyphen { shows: true },
                 ..
+            }) => (true, 0),
+            Some(PendingGrapheme {
+                kind: GraphemeKind::Preserved { hangs: true, .. },
+                ..
             })
-        );
+            | None => (false, 0),
+            Some(g) => (false, g.spacing),
+        };
         self.word_width
             .saturating_sub(self.word_hang())
+            .saturating_sub(spacing)
             .saturating_add(u16::from(shy))
     }
 
@@ -150,7 +154,8 @@ impl LinePacker<'_> {
             let room = self.line_width();
             let (mut used, mut cut) = (0u16, 0usize);
             for (i, g) in self.word_buffer.iter().enumerate() {
-                if used.saturating_add(g.width) > room && cut > 0 {
+                // The spacing of the line's last grapheme is dropped.
+                if used.saturating_add(g.width - g.spacing) > room && cut > 0 {
                     break;
                 }
                 used = used.saturating_add(g.width);
@@ -293,11 +298,7 @@ impl LinePacker<'_> {
     /// a separator with no recorded provenance.
     fn open_atom(&mut self, owner: NodeId, width: u16) -> i32 {
         self.commit_word();
-        let separator: u16 = if self.pending_space && self.cur_line_width > 0 {
-            1
-        } else {
-            0
-        };
+        let separator = self.separator_width();
         let projected = self
             .cur_line_width
             .saturating_add(separator)
@@ -312,7 +313,7 @@ impl LinePacker<'_> {
             let (sep_origin, sep_offset) = self
                 .pending_space_source
                 .unwrap_or((Origin::text(owner, owner, self.frames.current()), 0));
-            self.append_fragment(sep_origin, sep_offset, " ", 1, None);
+            self.push_separator(sep_origin, sep_offset, separator);
             self.clear_pending_space();
         }
         self.fit_empty_line(width);
@@ -324,6 +325,7 @@ impl LinePacker<'_> {
     fn close_atom(&mut self, width: u16) {
         self.cur_line_width = self.cur_line_width.saturating_add(width);
         self.cur_hang = 0;
+        self.cur_trailing_spacing = 0;
         self.cur_ends_in_shy = false;
         self.last_class = None;
         self.emitted_any = true;
@@ -335,6 +337,8 @@ impl LinePacker<'_> {
     /// §4.1.2: at a soft wrap they hang, at a forced break or the end only
     /// where they overflow) — and open the next one.
     pub(super) fn break_line(&mut self, end: LineEnd) {
+        // §9.2: no letter spacing at the end of a line.
+        self.drop_trailing_spacing();
         // §6.1: a line broken at a soft hyphen shows a hyphen — not when
         // it breaks at a collapsed space after it, or is forced.
         if end == LineEnd::Soft && self.cur_ends_in_shy && !self.pending_space {
@@ -412,8 +416,8 @@ impl LinePacker<'_> {
     }
 }
 
-/// `n` spaces: a tab's rendering.
-fn spaces(n: u16) -> std::borrow::Cow<'static, str> {
+/// `n` spaces: a tab's rendering, a separator's with its spacing.
+pub(super) fn spaces(n: u16) -> std::borrow::Cow<'static, str> {
     const SPACES: &str = "                                                                ";
     match SPACES.get(..usize::from(n)) {
         Some(s) => std::borrow::Cow::Borrowed(s),

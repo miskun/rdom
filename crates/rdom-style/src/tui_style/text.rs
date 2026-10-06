@@ -42,6 +42,10 @@ pub struct TextDeclarations {
     /// `text-wrap-style` (CSS Text 4); the `text-wrap` shorthand writes it
     /// and `text_wrap_mode`.
     pub text_wrap_style: Option<Value<TextWrapStyle>>,
+    /// `letter-spacing` (CSS Text 3 §9.2).
+    pub letter_spacing: Option<Value<crate::layout::Spacing>>,
+    /// `word-spacing` (CSS Text 3 §9.1).
+    pub word_spacing: Option<Value<crate::layout::Spacing>>,
     /// `line-height` (CSS Inline 3 §5.1).
     pub line_height: Option<Value<LineHeight>>,
     /// `text-underline-offset` (CSS Text Decoration 4 §4.2).

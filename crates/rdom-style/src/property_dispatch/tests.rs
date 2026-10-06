@@ -204,6 +204,8 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("text-justify", "inter-character"),
         ("text-wrap", "nowrap balance"),
         ("text-wrap-style", "pretty"),
+        ("letter-spacing", "2ch"),
+        ("word-spacing", "1ch"),
         ("line-height", "2"),
         ("vertical-align", "middle"),
         ("direction", "rtl"),

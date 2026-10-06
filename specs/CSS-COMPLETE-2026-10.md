@@ -5771,3 +5771,35 @@ row comes from.
   expectations: `rows_round_onto_the_grid_at_least_one` pinned `1.5` → 2 (now 1); `the_values_map_onto_whole_rows`
   pinned `1.5` / `150%` at 4 rows for two lines (now 2), with `1.9ch`, `2.5`, `250%` added. No snapshot
   changed (no demo uses a fractional line height).
+- 2026-10-12 — C9G-LETTER-SPACING (the Phase 9 gate's decision; API N8). Split first (`900571a`):
+  rdom-style `layout/text.rs` (586 lines, past the split-on-touch bar) into `white_space.rs` (white space
+  processing, wrapping, line breaking, `tab-size`), `text_align.rs` (transform, indent, alignment) and
+  `text.rs` (`TextStyle`). Then: `letter-spacing` / `word-spacing: normal | <length>` (CSS Text 3 §9.2,
+  §9.1) — rdom-style `layout/spacing.rs` `Spacing` (`Normal`, `Cells`, `Calc`; closed, DESIGN's list),
+  in the inherited text group, parsed (`parse_spacing`), serialized (`ch`), absolutized with the other
+  context lengths (`absolute.rs`), `cells()` the used whole cells — floored by `calc::floor_cells`, now
+  shared with `line-height` (C9G-LINE-HEIGHT-FLOOR) — and never negative. Pixels, decided: **rejected**,
+  with every font-relative length — spacing is geometry, and DESIGN "Pixel lengths select, cells
+  measure" makes such a length invalid (`length_percentage` never yields one); a percentage (Text 4) is
+  not taken either. DIVERGENCES §1 has the entry (and the sub-cell list lost the two names). rdom-tui:
+  `RunStyle` carries both; new `packer/spacing.rs` — a piece's spacing is blank cells appended to its
+  rendered text (`PendingGrapheme::spacing`, mapped to its source unit, so the `SourceMap`, caret,
+  hit-testing, selection and copy see a unit and its spacing as one, copy the DOM text): letter spacing
+  after every grapheme of text, a preserved space and a collapsed separator (`separator_width` /
+  `push_separator`), word spacing after each §9.1 word separator; none after a tab, a zero-width unit, an
+  atom, or inside a cursive script (Arabic, Syriac, N'Ko, Mandaic, Mongolian, Phags-pa). §9.2's "not at the
+  end of a line": a word is fitted without its last grapheme's spacing (`word_fit`, `split_word`), and the
+  spacing ending a line is dropped when it is settled (`drop_trailing_spacing`, unless spaces hang). The
+  justification opportunities read a unit by its first grapheme (`align::unit_of`), so a widened separator
+  is still one. Intrinsic sizes and `text-overflow` follow through the packer; bare text and pseudo
+  content measured outside it are C9G-MISC-CORRECTNESS's. The UA form-control reset (C9G-UA-LINE-HEIGHT)
+  gains `letter-spacing` / `word-spacing: normal`, as Chromium's has. Coverage: the 3.12 row N/A →
+  Supported (16 / 0 / 0 / 5; totals 182 / 18 / 62 / 45), 260 property names. Upgrade item 38 (silent: the
+  properties were dropped). Red: `css_phase9/letter_spacing.rs` — 10 of 10 failed (the strict sheets
+  rejected both properties); green after. Mutation (each alone, restored, touched): no line-end drop → 4
+  fail; no fit without the last spacing → 1 (the `a bc` fit, added after this mutation survived); no
+  spacing in `split_word`'s fit → 1 (the `overflow-wrap` case, added with it); `unit_of` reading the whole
+  unit → the justification test; no cursive exemption → the cursive test; no separator spacing → 4; no
+  preserved-space spacing → 1; no UA `letter-spacing` reset → the form-control test. Changed expectations:
+  the inherited-set probe and `PERTURB` / `initial` probe, the canonical-values table and the
+  `!important`-setter test cover the two properties. No snapshot changed.

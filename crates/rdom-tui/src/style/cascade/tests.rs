@@ -2373,6 +2373,8 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.text.line_break = rdom_style::layout::LineBreak::Strict;
     parent.text.hyphens = rdom_style::layout::Hyphens::None;
     parent.text.tab_size = rdom_style::layout::TabSize::Number(2.0);
+    parent.text.letter_spacing = rdom_style::layout::Spacing::Cells(2.0);
+    parent.text.word_spacing = rdom_style::layout::Spacing::Cells(1.0);
     parent.text.line_height = rdom_style::layout::LineHeight::Number(3.0);
     parent.text.text_underline_offset = rdom_style::layout::TextUnderlineOffset::Length(
         rdom_style::layout::PaintLength::Cells(1.0),
@@ -2605,6 +2607,14 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         (
             "text-wrap-style",
             child.text.text_wrap_style == parent.text.text_wrap_style,
+        ),
+        (
+            "letter-spacing",
+            child.text.letter_spacing == parent.text.letter_spacing,
+        ),
+        (
+            "word-spacing",
+            child.text.word_spacing == parent.text.word_spacing,
         ),
         ("user-select", child.user_select == parent.user_select),
         (

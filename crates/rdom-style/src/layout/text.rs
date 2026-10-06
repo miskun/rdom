@@ -5,8 +5,9 @@
 //! alignment).
 
 use super::{
-    Hyphens, LineBreak, OverflowWrap, TabSize, TextAlign, TextAlignLast, TextIndent, TextJustify,
-    TextTransform, TextWrapMode, TextWrapStyle, WhiteSpace, WhiteSpaceCollapse, WordBreak,
+    Hyphens, LineBreak, OverflowWrap, Spacing, TabSize, TextAlign, TextAlignLast, TextIndent,
+    TextJustify, TextTransform, TextWrapMode, TextWrapStyle, WhiteSpace, WhiteSpaceCollapse,
+    WordBreak,
 };
 
 /// The computed CSS Text properties of an element
@@ -43,6 +44,11 @@ pub struct TextStyle {
     /// `text-wrap-style` (CSS Text 4), the `text-wrap` shorthand's second
     /// longhand.
     pub text_wrap_style: TextWrapStyle,
+    /// `letter-spacing` (CSS Text 3 §9.2), computed: a context length
+    /// resolved to cells.
+    pub letter_spacing: Spacing,
+    /// `word-spacing` (CSS Text 3 §9.1), computed as `letter_spacing`.
+    pub word_spacing: Spacing,
     /// `line-height` (CSS Inline 3 §5.1), computed: a percentage or a
     /// context length resolved to rows. Inherited, as the CSS Text
     /// properties are.

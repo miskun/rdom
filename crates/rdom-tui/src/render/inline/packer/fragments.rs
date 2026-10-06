@@ -10,7 +10,7 @@ use super::{GraphemeKind, LinePacker, Origin};
 
 impl LinePacker<'_> {
     /// Emit the word buffer onto the current line after a separator
-    /// `separator_width` cells wide (0 or 1).
+    /// `separator_width` cells wide (none, or one with its spacing).
     pub(super) fn emit_word_to_current_line(&mut self, separator_width: u16) {
         // Emit the separator space (if any) with the provenance of
         // the whitespace that produced it.
@@ -19,8 +19,9 @@ impl LinePacker<'_> {
                 let g = &self.word_buffer[0];
                 (g.origin, g.source_offset)
             });
-            self.append_fragment(sep_origin, sep_source_offset, " ", 1, None);
+            self.push_separator(sep_origin, sep_source_offset, separator_width);
         }
+        let trailing_spacing = self.word_buffer.last().map_or(0, |g| g.spacing);
         let hang = self.word_hang();
         self.cur_has_tab |= self
             .word_buffer
@@ -60,6 +61,7 @@ impl LinePacker<'_> {
         self.word_buffer.clear();
         self.word_width = 0;
         self.cur_hang = hang;
+        self.cur_trailing_spacing = trailing_spacing;
         self.cur_ends_in_shy = ends_in_shy;
         self.emitted_any = true;
     }

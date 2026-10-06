@@ -46,6 +46,8 @@ pub(super) fn apply_text(
         text_align_last: TEXT_ALIGN_LAST,
         text_justify: TEXT_JUSTIFY,
         text_wrap_style: TEXT_WRAP_STYLE,
+        letter_spacing: LETTER_SPACING,
+        word_spacing: WORD_SPACING,
         line_height: LINE_HEIGHT,
         text_underline_offset: TEXT_UNDERLINE_OFFSET,
         text_underline_position: TEXT_UNDERLINE_POSITION,

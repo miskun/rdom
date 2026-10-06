@@ -44,6 +44,8 @@
 //!   source maps their rendering needs; the hyphen a soft hyphen shows.
 //! - `emit` — committing a word to the current line or the next,
 //!   fragments, atomic inlines, and settling and breaking lines.
+//! - `spacing` — letter and word spacing (CSS Text 3 §9): the cells after
+//!   a unit, the widened word separator, none at a line's end.
 
 use std::borrow::Cow;
 
@@ -77,6 +79,7 @@ pub(in crate::render::inline) use replay::{Op, WidthCaps};
 mod fragments;
 mod intake;
 mod replay;
+mod spacing;
 
 /// One grapheme awaiting commit, with every piece of provenance we
 /// need to rebuild a source position later.
@@ -102,6 +105,9 @@ pub(super) struct PendingGrapheme<'a> {
     /// The `overflow-wrap` of its text: whether an otherwise unbreakable
     /// word too long for its line may break after it (CSS Text 3 §5.5).
     split: OverflowWrap,
+    /// The blank cells of letter and word spacing ending `text` (CSS Text 3
+    /// §9), part of `width` — dropped where the grapheme ends a line.
+    spacing: u16,
 }
 
 /// What a buffered grapheme is to line breaking.
@@ -208,6 +214,12 @@ pub(super) struct LinePacker<'a> {
     /// and "<b>bold</b>" routes to the enclosing `<p>` (the
     /// whitespace's text-node parent) rather than to `<b>`.
     pending_space_source: Option<(Origin, usize)>,
+    /// The letter and word spacing after the pending separator (CSS Text 3
+    /// §9), the cells it adds to the separator's one.
+    pending_space_spacing: u16,
+    /// The spacing ending the current line's content (`spacing`), dropped
+    /// when the line is settled: none at a line's end (§9.2).
+    cur_trailing_spacing: u16,
 
     /// The last character of text taken in: the context the segment
     /// break transformation rules read.
@@ -289,6 +301,8 @@ impl<'a> LinePacker<'a> {
             pending_space: false,
             pending_segment_break: false,
             pending_space_source: None,
+            pending_space_spacing: 0,
+            cur_trailing_spacing: 0,
             last_char: None,
             last_wraps: true,
             last_class: None,

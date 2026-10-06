@@ -189,6 +189,12 @@ impl ComputedStyle {
                 PaintLength::Cells(v as f32)
             });
         }
+        // CSS Text 3 §9.1 / §9.2: the spacing lengths.
+        for spacing in [&mut self.text.letter_spacing, &mut self.text.word_spacing] {
+            absolutize(spacing, vp, crate::layout::Spacing::Calc, |v| {
+                crate::layout::Spacing::Cells(v as f32)
+            });
+        }
         // CSS Text 3 §8.1: `text-indent` is a length-percentage.
         absolutize(&mut self.text.text_indent.length, vp, Length::Calc, |v| {
             Length::Cells(cells_i32(v))
@@ -282,6 +288,15 @@ impl HasExpr for crate::layout::TrackBreadth {
     fn expr(&self) -> Option<&CalcExpr> {
         match self {
             crate::layout::TrackBreadth::Calc(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl HasExpr for crate::layout::Spacing {
+    fn expr(&self) -> Option<&CalcExpr> {
+        match self {
+            crate::layout::Spacing::Calc(e) => Some(e),
             _ => None,
         }
     }

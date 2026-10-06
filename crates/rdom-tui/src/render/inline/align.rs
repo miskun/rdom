@@ -290,11 +290,13 @@ impl Opportunities {
     }
 }
 
-/// A unit of rendered text `t`.
+/// A unit of rendered text `t`, by its first grapheme — the blanks of
+/// letter and word spacing after it (CSS Text 3 §9) are not what it is.
 fn unit_of(t: &str) -> Unit {
+    let g = t.graphemes(true).next().unwrap_or(t);
     Unit {
-        space: matches!(t, " " | "\u{A0}"),
-        wide: UnicodeWidthStr::width(t) == 2,
+        space: matches!(g, " " | "\u{A0}"),
+        wide: UnicodeWidthStr::width(g) == 2,
     }
 }
 

@@ -80,7 +80,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 6 | 0 | 0 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 13 | 0 | 1 | 0 | 14 |
-| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 15 | 0 | 0 | 6 | 21 |
+| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 16 | 0 | 0 | 5 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 4 | 0 | 0 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 3 | 0 | 0 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **181** | **18** | **62** | **46** | **307** |
+| **Total** | **182** | **18** | **62** | **45** | **307** |
 
 When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 80 rows Partial / Missing (C9-FONT shipped `font-weight`, `font-style` and `font`; C9-DECORATION shipped the four text decoration rows; C9-VERTICAL-ALIGN shipped `vertical-align` on inline content; C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
-Headline: rdom parses **258 property names** (`property_names()`: 190 in the table and 68 flow-relative ones, after Phase 9). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gap a web developer hits first is `@media`.
+Headline: rdom parses **260 property names** (`property_names()`: 192 in the table and 68 flow-relative ones, after Phase 9 and C9G-LETTER-SPACING). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gap a web developer hits first is `@media`.
 
 ---
 
@@ -437,7 +437,7 @@ dropped. The audit's six, with where each stands:
 | `overflow-wrap` / `word-wrap` | Supported | `normal` / `break-word` / `anywhere`, `word-wrap` a legacy alias; `anywhere`'s breaks count for min-content, `break-word`'s do not (C9-BREAKING). | — | `DISP/text.rs`, `IFC` (`packer/emit.rs::split_word`) |
 | `line-break` | Supported | `auto` / `loose` / `normal` / `strict` / `anywhere`; the CJK rules read off the characters (no `lang`, DIVERGENCES §2) (C9-BREAKING). | — | `DISP/text.rs`, `IFC` (`inline/breaking.rs`) |
 | `hyphens` | Supported | `none` / `manual` / `auto` (= `manual`, no dictionary): a line broken at a soft hyphen shows `-` (C9-BREAKING). | — | `DISP/text.rs`, `IFC` (`packer/fragments.rs::show_hyphen`) |
-| `letter-spacing` / `word-spacing` | N/A | Sub-cell by nature; whole-cell spacing is conceivable but documented as out of scope. | — | — |
+| `letter-spacing` / `word-spacing` | Supported | `normal \| <length>` in whole cells (CSS Text 3 §9.1, §9.2): blank cells after each grapheme (letter), after each word separator (word), none at a line's end or inside a cursive script; a fraction floors, a negative length is none, a pixel / font-relative length or percentage invalid (DESIGN "Pixel lengths select"); the source map, caret, selection, justification, intrinsic sizes and `text-overflow` read the spacing as its unit's (C9G-LETTER-SPACING; DIVERGENCES §1). | — | `V/text.rs`, `DISP/text.rs`, `IFC` (`packer/spacing.rs`) |
 | `hanging-punctuation` | N/A | Hanging a glyph into the margin is a typographic nicety without a TUI use. | — | — |
 | `line-height` | Supported | `normal` / `<number>` / `<length-percentage>` in whole rows (floored, at least one — C9G-LINE-HEIGHT-FLOOR); half-leading around the glyph row, the odd row below; each inline box, `::before` / `::after` text and the block's strut; inline-block baselines, intrinsic heights, `line-clamp`, scroll extents, caret and hit-testing follow (C9-LINE-HEIGHT; DIVERGENCES §2). | — | `DISP/text.rs`, `V/inline.rs`, `IFC` (`packer/frames.rs`, `vertical.rs`, `baselines.rs`) |
 | `vertical-align` | Supported | Every value on inline elements, `::before` / `::after` text and atomic inlines, whole rows: `sub` / `super` one row, lengths and percentages (of the line height) raise, `middle` / `text-top` / `text-bottom` against the glyph row, `top` / `bottom` aligned subtrees (C9-VERTICAL-ALIGN; DIVERGENCES §2). Table cells: C13-TABLE-PROPS (§3.20). | — | `V/inline.rs`, `IFC` (`packer/frames.rs`) |

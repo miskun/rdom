@@ -24,6 +24,10 @@ pub(crate) struct RunStyle {
     pub(crate) tab_size: u16,
     /// `text-transform` (§2.1).
     pub(crate) transform: TextTransform,
+    /// `letter-spacing` in whole cells (§9.2).
+    pub(crate) letter_spacing: u16,
+    /// `word-spacing` in whole cells (§9.1).
+    pub(crate) word_spacing: u16,
 }
 
 impl Default for RunStyle {
@@ -35,6 +39,8 @@ impl Default for RunStyle {
             overflow_wrap: OverflowWrap::Normal,
             tab_size: 8,
             transform: TextTransform::NONE,
+            letter_spacing: 0,
+            word_spacing: 0,
         }
     }
 }
@@ -64,6 +70,8 @@ impl RunStyle {
             },
             tab_size: text.tab_size.cells(),
             transform: text.text_transform,
+            letter_spacing: text.letter_spacing.cells(),
+            word_spacing: text.word_spacing.cells(),
         }
     }
 
