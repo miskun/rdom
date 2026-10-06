@@ -114,7 +114,7 @@ pub(super) fn compute_element_style(
     // element's children with a `<content-list>` (DIVERGENCES §2) — so
     // its `<quote>` items move no quote depth.
     if let Some(declared) = declared_content(plan, decls) {
-        resolve_onto(&mut working, &declared, counters, false);
+        resolve_onto(&mut working, &declared, counters, false, None);
     }
 
     // BFC formation predicate (CSS 2.1 §9.4.1). Computed AFTER the
@@ -128,6 +128,7 @@ pub(super) fn compute_element_style(
     }
     super::blockify::finalize_float(&mut working);
     super::font::finalize_font(&mut working, parent);
+    super::quotes::finalize_quotes(&mut working, parent, dom, parent_id);
     super::text_decoration::finalize_applied_decorations(&mut working, parent.applied_decorations);
     super::apply::finalize_justify_items(&mut working, parent);
     let root = parent_id.is_none_or(|p| dom.node(p).node_type() != rdom_core::NodeType::Element);

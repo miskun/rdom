@@ -396,6 +396,9 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         "content" => parse_content(value).map(|c| {
             style.content = Some(Value::Specified(c));
         }),
+        "quotes" => crate::parse::values::parse_quotes(value).map(|q| {
+            style.quotes = Some(Value::Specified(q));
+        }),
 
         // Positioning (M2)
         "position" => parse_position(value).map(|p| {

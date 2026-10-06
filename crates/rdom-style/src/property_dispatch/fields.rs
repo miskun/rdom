@@ -295,6 +295,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "border-collapse" => &[BorderCollapse],
         "border-spacing" => &[BorderSpacing],
         "content" => &[Content],
+        "quotes" => &[Quotes],
         "position" => &[Position],
         "top" => &[Top],
         "right" => &[Right],

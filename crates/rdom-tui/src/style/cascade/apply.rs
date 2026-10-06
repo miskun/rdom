@@ -255,6 +255,7 @@ pub(super) fn apply_style(
         webkit_box: WEBKIT_BOX,
         user_select: USER_SELECT,
         pointer_events: POINTER_EVENTS,
+        quotes: QUOTES,
         visibility: VISIBILITY,
         caret_color: CARET_COLOR,
         caret_text_color: CARET_TEXT_COLOR,

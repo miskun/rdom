@@ -2396,6 +2396,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.caret_color = CaretColor::Transparent;
     parent.caret_text_color = CaretTextColor::Color(Color::Rgb(1, 1, 1).into());
     parent.content = Some("x".into());
+    parent.quotes = rdom_style::Quotes::None;
     parent.position = Position::Relative;
     parent.top = Length::Cells(1);
     parent.right = Length::Cells(1);
@@ -2628,6 +2629,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
             child.caret_text_color == parent.caret_text_color,
         ),
         ("content", child.content == parent.content),
+        ("quotes", child.quotes == parent.quotes),
         ("position", child.position == parent.position),
         ("top", child.top == parent.top),
         ("right", child.right == parent.right),

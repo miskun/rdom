@@ -20,6 +20,10 @@ use crate::style::{ComputedStyle, Content, ImportantMask, Value};
 pub(super) struct ElementContext<'a> {
     pub vars: &'a std::collections::HashMap<String, rdom_style::CustomValue>,
     pub counters: &'a CounterState,
+    /// The box's computed `quotes` and its content language, which
+    /// `quotes: auto` reads (§2.1).
+    pub quotes: &'a rdom_style::Quotes,
+    pub lang: Option<&'a str>,
     /// The box generates its content — a `::before` / `::after` — so its
     /// `<quote>` items take part in the quote depth (CSS Generated
     /// Content 3 §2.2). An element's own `content` generates nothing
@@ -42,7 +46,8 @@ impl ContentContext for ElementContext<'_> {
         if !self.generates {
             return String::new();
         }
-        self.counters.quote(kind).to_string()
+        let pair = |level| self.quotes.pair(level, self.lang);
+        self.counters.quote(kind, pair).to_string()
     }
 }
 
@@ -65,16 +70,20 @@ pub(super) fn declared_content(plan: &Plan, decls: Declarations<'_>) -> Option<C
 
 /// Resolve `declared` onto `working`: its `content` text, its alt text
 /// and — for a box that `generates` — its `<quote>` items, moving the
-/// quote depth in `counters` as it goes.
+/// quote depth in `counters` as it goes. `lang` is the content language
+/// (`quotes: auto` reads it).
 pub(super) fn resolve_onto(
     working: &mut ComputedStyle,
     declared: &Content,
     counters: &CounterState,
     generates: bool,
+    lang: Option<&str>,
 ) {
     let ctx = ElementContext {
         vars: &working.vars,
         counters,
+        quotes: &working.quotes,
+        lang,
         generates,
     };
     let content = declared.resolve(&ctx);

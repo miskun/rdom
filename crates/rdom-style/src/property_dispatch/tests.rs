@@ -171,6 +171,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("border-collapse", "collapse"),
         ("border-spacing", "1 2"),
         ("content", "\"hello\""),
+        ("quotes", "\"<\" \">\""),
         ("position", "absolute"),
         ("top", "10"),
         ("right", "20"),

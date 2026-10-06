@@ -3,7 +3,9 @@
 //! `user-select`, `pointer-events`, `visibility`, the caret colors,
 //! `color-scheme` and `content`.
 
-use super::super::value_serializers::{serialize_color, serialize_content, specified};
+use super::super::value_serializers::{
+    serialize_color, serialize_content, serialize_css_string, specified,
+};
 use crate::layout::{CaretColor, CaretTextColor, UserSelect};
 use crate::{Content, TuiStyle};
 
@@ -80,6 +82,22 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .as_ref()
             .and_then(specified)
             .map(|s| s.to_css()),
+        "quotes" => style.quotes.as_ref().and_then(specified).map(|q| match q {
+            crate::Quotes::None => "none".to_string(),
+            crate::Quotes::MatchParent => "match-parent".to_string(),
+            crate::Quotes::Pairs(pairs) => pairs
+                .iter()
+                .map(|p| {
+                    format!(
+                        "{} {}",
+                        serialize_css_string(&p.open),
+                        serialize_css_string(&p.close)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(" "),
+            _ => "auto".to_string(),
+        }),
         "content" => style
             .content
             .as_ref()

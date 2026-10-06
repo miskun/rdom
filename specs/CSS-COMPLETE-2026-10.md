@@ -208,7 +208,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C10-CONTENT | `content` full grammar (quotes, `var()`, `counters()`, alt text) | done |
-| C10-QUOTES | `quotes` | |
+| C10-QUOTES | `quotes` | done |
 | C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | |
 | C10-COUNTER-STYLE | `@counter-style` and `symbols()` | |
 | C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | |
@@ -6036,3 +6036,18 @@ row comes from.
   (restored, touched): no quote replay → the replay test; quotes left out of `note_ops` → the replay test.
   Changed expectation: `ua_total_rule_count` 168 → 170. CSS-COVERAGE: `content` Partial → Supported,
   `counters()` Missing → Supported, §3.15 3 / 2 / 5 / 2, total 185 / 17 / 60 / 45.
+- 2026-10-13 — C10-QUOTES. Found: `quotes` was an unknown property; C10-CONTENT's `<quote>` items used
+  fixed English marks. Decisions: `rdom_style::Quotes` (`Auto` / `None` / `MatchParent` / `Pairs`, an
+  `Arc` so inheriting is a refcount) with `pair(level, lang)` — a level past the last pair repeats it — and
+  the table `auto_quotes(lang)` (CLDR's quotation / alternate delimiters for 21 primary subtags, English
+  otherwise; documented, DIVERGENCES §2). The content language is the host's nearest `lang` / `xml:lang`
+  (`cascade::quotes::content_language`, HTML §3.2.6.2; crate-local — C11-LINK-LANG's `:lang()` may move it
+  into rdom-core), read only when a pseudo's `content` holds a quote. `match-parent` is computed away
+  (`finalize_quotes`): the parent's value, an `auto` parent's made explicit in the parent's language, so a
+  `lang="fr"` child of German text keeps „ “; the root's is `auto`. `CounterState::quote` takes the pair
+  lookup, so the depth logic is unchanged. Red: rdom-style `content_tests` (two, compile-red: no `Quotes`);
+  `css_phase10/quotes.rs` — 4 of 5 failed (three strict sheets warned on `quotes`; every language painted
+  English), `auto_quotes_use_the_quoting_elements_own_language` passed before (a guard). Green after.
+  Mutations (restored, touched): no `match-parent` computation → the match-parent test; no language →
+  the language test. Changed expectations: `canonical_values` and `every_property_has_important_setter`
+  gain `quotes`. CSS-COVERAGE: `quotes` Missing → Supported, §3.15 4 / 2 / 4 / 2, total 186 / 17 / 59 / 45.

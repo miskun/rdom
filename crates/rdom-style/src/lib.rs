@@ -64,6 +64,7 @@ mod computed;
 mod content;
 mod custom_value;
 mod modifier;
+mod quotes;
 mod specificity;
 mod stylesheet;
 mod tui_color;
@@ -77,6 +78,7 @@ pub use content::{Content, ContentContext, QuoteKind};
 pub use counters::{CounterOp, CounterStyle};
 pub use custom_value::CustomValue;
 pub use modifier::Modifier;
+pub use quotes::{QuotePair, Quotes, auto_quotes};
 pub use registration::{
     Multiplier, PropertyRegistration, PropertySyntax, PropertySyntaxError, RegisterPropertyError,
     SyntaxComponent,

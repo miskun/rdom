@@ -280,6 +280,8 @@ pub struct TuiStyle {
 
     // ── Pseudo-element content ───────────────────────────────────────
     pub content: Option<Value<Content>>,
+    /// `quotes` (CSS Generated Content 3 §2.1). Inherited.
+    pub quotes: Option<Value<crate::Quotes>>,
 
     // ── Positioning (M2) ─────────────────────────────────────────────
     pub position: Option<Value<crate::layout::Position>>,

@@ -134,3 +134,58 @@ fn content_resolves_counters_quotes_and_alt_text() {
     assert!(!parsed(r#""a""#).uses_quotes());
     assert!(parsed(r#""a" / counter(x)"#).uses_counters());
 }
+
+// ── quotes (C10-QUOTES) ──────────────────────────────────────────────
+
+/// Set `quotes: css` on a fresh style; its serialization back.
+fn quotes_round_trip(css: &str) -> Result<String, DispatchError> {
+    let mut style = TuiStyle::new();
+    set("quotes", css, &mut style)?;
+    Ok(serialize("quotes", &style).expect("serializes"))
+}
+
+/// CSS Generated Content 3 §2.1: `quotes: auto | none | match-parent |
+/// [ <string> <string> ]+`, inherited, initial `auto`.
+#[test]
+fn quotes_takes_its_grammar() {
+    for (css, out) in [
+        ("auto", "auto"),
+        ("NONE", "none"),
+        ("match-parent", "match-parent"),
+        (r#""<" ">""#, r#""<" ">""#),
+        (r#""«" "»" "‹" "›""#, r#""«" "»" "‹" "›""#),
+        ("inherit", "inherit"),
+    ] {
+        assert_eq!(quotes_round_trip(css).as_deref(), Ok(out), "{css}");
+    }
+    for css in [
+        r#""<""#,
+        r#""<" ">" "{""#,
+        "auto none",
+        r#"auto "<" ">""#,
+        "x",
+    ] {
+        assert!(quotes_round_trip(css).is_err(), "{css} must be rejected");
+    }
+    assert!(inherits("quotes"));
+}
+
+/// §2.1 `auto`: "a typographically appropriate" system for the content
+/// language — CLDR's delimiters, by primary language subtag, English as
+/// the fallback; a level past the last pair repeats it.
+#[test]
+fn auto_quotes_follow_the_language() {
+    use crate::Quotes;
+    let auto = Quotes::Auto;
+    let pair = |lang: Option<&str>, level| auto.pair(level, lang);
+    assert_eq!(pair(None, 0), Some(("\u{201c}", "\u{201d}")));
+    assert_eq!(pair(Some("en-GB"), 1), Some(("\u{2018}", "\u{2019}")));
+    assert_eq!(pair(Some("de"), 0), Some(("\u{201e}", "\u{201c}")));
+    assert_eq!(pair(Some("DE-ch"), 1), Some(("\u{201a}", "\u{2018}")));
+    assert_eq!(pair(Some("fr"), 0), Some(("\u{ab}", "\u{bb}")));
+    assert_eq!(pair(Some("fi"), 0), Some(("\u{201d}", "\u{201d}")));
+    assert_eq!(pair(Some("ja"), 0), Some(("\u{300c}", "\u{300d}")));
+    assert_eq!(pair(Some("ja"), 5), Some(("\u{300e}", "\u{300f}")));
+    assert_eq!(pair(Some("tlh"), 0), Some(("\u{201c}", "\u{201d}")));
+    assert_eq!(Quotes::None.pair(0, None), None);
+}

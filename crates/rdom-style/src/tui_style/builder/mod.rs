@@ -410,6 +410,14 @@ impl TuiStyle {
         CONTENT,
         Content
     );
+    setter!(
+        "quotes",
+        quotes,
+        quotes,
+        quotes_important,
+        QUOTES,
+        crate::Quotes
+    );
 
     // ── Positioning setters (M2) ─────────────────────────────────────
     setter!(

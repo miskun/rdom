@@ -170,6 +170,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "border-collapse",
     "border-spacing",
     "content",
+    "quotes",
     // Positioning (M2)
     "position",
     "top",

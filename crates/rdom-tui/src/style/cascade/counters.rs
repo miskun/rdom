@@ -77,10 +77,6 @@ pub(super) fn has_ops(style: &ComputedStyle) -> bool {
         || !style.content_quotes.is_empty()
 }
 
-/// The quotation marks of each nesting level, outermost first: the
-/// English marks of `quotes: auto` (CSS Generated Content 3 §2.1).
-const QUOTES: [(&str, &str); 2] = [("\u{201c}", "\u{201d}"), ("\u{2018}", "\u{2019}")];
-
 /// Counter instances in creation order (later = innermost).
 #[derive(Debug, Default, Clone)]
 pub(super) struct CounterState {
@@ -241,16 +237,19 @@ impl CounterState {
     /// the quote depth (CSS Generated Content 3 §2.2): `open-quote` the
     /// opening mark of the current level, `close-quote` the closing mark
     /// of the level it returns to — nothing at depth 0, which it leaves —
-    /// and the `no-*` forms no mark. A level past the last pair uses the
-    /// last pair.
-    pub(super) fn quote(&self, kind: QuoteKind) -> &'static str {
+    /// and the `no-*` forms no mark. `pair` gives a level's marks
+    /// (`Quotes::pair`; `None` under `quotes: none`).
+    pub(super) fn quote<'q>(
+        &self,
+        kind: QuoteKind,
+        pair: impl Fn(u32) -> Option<(&'q str, &'q str)>,
+    ) -> &'q str {
         self.read.set(true);
         let depth = self.quote_depth.get();
         self.quote_depth.set(kind.next_depth(depth));
-        let level = |d: u32| QUOTES[(d as usize).min(QUOTES.len() - 1)];
         match kind {
-            QuoteKind::Open => level(depth).0,
-            QuoteKind::Close if depth > 0 => level(depth - 1).1,
+            QuoteKind::Open => pair(depth).map_or("", |p| p.0),
+            QuoteKind::Close if depth > 0 => pair(depth - 1).map_or("", |p| p.1),
             _ => "",
         }
     }

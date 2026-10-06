@@ -140,6 +140,7 @@ pub(super) fn compute_pseudo_style(
         super::blockify::blockify(&mut working);
     }
     super::font::finalize_font(&mut working, host_computed);
+    super::quotes::finalize_quotes(&mut working, host_computed, dom, Some(id));
     super::text_decoration::finalize_applied_decorations(
         &mut working,
         host_computed.applied_decorations,
@@ -171,7 +172,14 @@ pub(super) fn compute_pseudo_style(
     // of the host, so its instances are scoped to the host's subtree.
     counters.enter(Some(id), &working.counter_reset, &working.counter_increment);
     match declared_content(plan, decls) {
-        Some(declared) => resolve_onto(&mut working, &declared, counters, true),
+        Some(declared) => {
+            // `quotes: auto` takes the host's content language (§2.1).
+            let lang = declared
+                .uses_quotes()
+                .then(|| super::quotes::content_language(dom, id))
+                .flatten();
+            resolve_onto(&mut working, &declared, counters, true, lang)
+        }
         None => working.content = fallback,
     }
 

@@ -33,6 +33,8 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     // CSS Fonts 4: the font properties all inherit.
     working.font = parent.font.clone();
     working.pointer_events = parent.pointer_events;
+    // CSS Generated Content 3 §2.1: `quotes` inherits.
+    working.quotes = parent.quotes.clone();
     working.visibility = parent.visibility;
     // CSS UI 4 §7.1: `caret-color` inherits; rdom's `caret-text-color`
     // mirrors it.

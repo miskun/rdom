@@ -322,6 +322,9 @@ pub struct ComputedStyle {
     /// a partial cascade can replay it. Empty for an element, whose own
     /// `content` generates nothing.
     pub content_quotes: Vec<crate::QuoteKind>,
+    /// `quotes` (CSS Generated Content 3 §2.1): `auto`, `none` or pairs —
+    /// `match-parent` is computed to the parent's. Inherited.
+    pub quotes: crate::Quotes,
 
     // ── Positioning (M2) ─────────────────────────────────────────────
     /// `position` keyword. Default `Static`. Non-inheriting.
@@ -537,6 +540,7 @@ impl ComputedStyle {
             content: None,
             content_alt: None,
             content_quotes: Vec::new(),
+            quotes: crate::Quotes::Auto,
             position: crate::layout::Position::Static,
             top: crate::layout::Length::Auto,
             right: crate::layout::Length::Auto,

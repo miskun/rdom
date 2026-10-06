@@ -48,8 +48,8 @@ pub use rdom_style::{
     AnimatableProperty, Color, ColorContext, ColorFunction, ComputedStyle, Content, ContentContext,
     CounterOp, CounterStyle, CustomDeclaration, CustomValue, FontDeclarations, ImportantMask,
     LayerId, Modifier, PropertyRegistration, PropertySyntax, PropertySyntaxError,
-    PseudoElementTarget, QuoteKind, RegisterPropertyError, Rule, RuleContext, RuleOrigin,
-    Specificity, StyleError, StyleSelector, Stylesheet, TextDeclarations,
+    PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError, Rule, RuleContext,
+    RuleOrigin, Specificity, StyleError, StyleSelector, Stylesheet, TextDeclarations,
     TextDecorationDeclarations, TimingFunction, TransitionProperty, TransitionRule, TuiColor,
     TuiStyle, Value, VarMap, parse_color, resolve_tui_color,
 };

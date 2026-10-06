@@ -76,6 +76,7 @@ mod ladder;
 mod line_clamp;
 mod matching;
 mod pseudo;
+mod quotes;
 mod registered;
 pub(crate) use inherit::anonymous_box_style;
 pub(crate) use matching::MatchedRules;

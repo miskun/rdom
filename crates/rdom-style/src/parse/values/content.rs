@@ -152,3 +152,31 @@ pub fn parse_counter_ops(value: &[Token], default: i32) -> Option<Vec<crate::cou
     }
     if ops.is_empty() { None } else { Some(ops) }
 }
+
+/// `quotes` (CSS Generated Content 3 §2.1): `auto | none | match-parent |
+/// [ <string> <string> ]+`.
+pub fn parse_quotes(value: &[Token]) -> Option<crate::Quotes> {
+    use crate::{QuotePair, Quotes};
+    if let [Token::Ident(kw)] = value {
+        return match kw.to_ascii_lowercase().as_str() {
+            "auto" => Some(Quotes::Auto),
+            "none" => Some(Quotes::None),
+            "match-parent" => Some(Quotes::MatchParent),
+            _ => None,
+        };
+    }
+    if value.is_empty() || !value.len().is_multiple_of(2) {
+        return None;
+    }
+    let pairs = value
+        .chunks(2)
+        .map(|pair| match pair {
+            [Token::String(open), Token::String(close)] => Some(QuotePair {
+                open: open.clone(),
+                close: close.clone(),
+            }),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(Quotes::Pairs(pairs.into()))
+}

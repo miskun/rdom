@@ -237,6 +237,7 @@ define_fields! {
     BorderSpacing => border_spacing : BORDER_SPACING,
     BorderCollapse => border_collapse : BORDER_COLLAPSE,
     Content => content : CONTENT,
+    Quotes => quotes : QUOTES,
     Position => position : POSITION,
     Top => top : TOP,
     Right => right : RIGHT,
@@ -406,6 +407,7 @@ pub fn inherits(name: &str) -> bool {
             | "pointer-events"
             | "visibility"
             | "caret-color"
+            | "quotes"
             | "caret-text-color"
             | "color-scheme"
             | "border-spacing"
