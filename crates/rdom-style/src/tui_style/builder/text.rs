@@ -76,26 +76,22 @@ impl TuiStyle {
         LINE_BREAK,
         crate::layout::LineBreak
     );
-    /// Set the `text-align` shorthand to `v` (CSS Text 3 §6.1):
-    /// `text-align-all`, and `text-align-last` reset to `auto` — both
-    /// `match-parent` for `MatchParent`. Chainable.
-    pub fn text_align(self, v: crate::layout::TextAlign) -> Self {
-        let last = if v == crate::layout::TextAlign::MatchParent {
-            crate::layout::TextAlignLast::MatchParent
-        } else {
-            crate::layout::TextAlignLast::Auto
-        };
-        self.text_align_all(v).text_align_last(last)
+    /// Set the `text-align` shorthand to `v` (CSS Text 3 §6.1) — a
+    /// [`TextAlign`](crate::layout::TextAlign), or
+    /// [`TextAlignKeyword::JustifyAll`](crate::layout::TextAlignKeyword):
+    /// `text-align-all` and `text-align-last` as
+    /// [`TextAlignKeyword::longhands`](crate::layout::TextAlignKeyword::longhands)
+    /// gives them (`text-align-last` reset to `auto`, both `match-parent`
+    /// for `MatchParent`, both `justify` for `justify-all`). Chainable.
+    pub fn text_align(self, v: impl Into<crate::layout::TextAlignKeyword>) -> Self {
+        let (all, last) = v.into().longhands();
+        self.text_align_all(all).text_align_last(last)
     }
 
     /// Like `text_align` but also marks the declaration `!important`.
-    pub fn text_align_important(self, v: crate::layout::TextAlign) -> Self {
-        let last = if v == crate::layout::TextAlign::MatchParent {
-            crate::layout::TextAlignLast::MatchParent
-        } else {
-            crate::layout::TextAlignLast::Auto
-        };
-        self.text_align_all_important(v)
+    pub fn text_align_important(self, v: impl Into<crate::layout::TextAlignKeyword>) -> Self {
+        let (all, last) = v.into().longhands();
+        self.text_align_all_important(all)
             .text_align_last_important(last)
     }
 

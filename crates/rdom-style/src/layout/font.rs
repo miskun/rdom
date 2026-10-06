@@ -189,35 +189,89 @@ impl SystemFont {
 }
 
 /// `font-stretch` / `font-width` (CSS Fonts 4 §2.3): `normal`, a keyword
-/// (`ultra-condensed` … `ultra-expanded`) as its percentage, or a
-/// percentage. Parsed and kept; one width is drawn.
+/// (`ultra-condensed` … `ultra-expanded`), or a percentage. Parsed and
+/// kept; one width is drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum FontStretch {
     #[default]
     Normal,
-    /// A width keyword other than `normal`, as written.
-    Keyword(&'static str),
+    /// A width keyword other than `normal`.
+    Keyword(FontStretchKeyword),
     /// A percentage of the normal width.
     Percent(f32),
 }
 
-/// The keywords of `font-stretch` with the percentages they stand for
-/// (CSS Fonts 4 §2.3).
-pub const FONT_STRETCH_KEYWORDS: [(&str, f32); 8] = [
-    ("ultra-condensed", 50.0),
-    ("extra-condensed", 62.5),
-    ("condensed", 75.0),
-    ("semi-condensed", 87.5),
-    ("semi-expanded", 112.5),
-    ("expanded", 125.0),
-    ("extra-expanded", 150.0),
-    ("ultra-expanded", 200.0),
-];
+/// The width keywords of `font-stretch` other than `normal` (CSS Fonts 4
+/// §2.3), each standing for a percentage of the normal width. A closed
+/// set: the grammar names these eight.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FontStretchKeyword {
+    UltraCondensed,
+    ExtraCondensed,
+    Condensed,
+    SemiCondensed,
+    SemiExpanded,
+    Expanded,
+    ExtraExpanded,
+    UltraExpanded,
+}
+
+impl FontStretchKeyword {
+    /// Every keyword with its spelling and percentage, narrowest first.
+    pub const ALL: [(FontStretchKeyword, &'static str, f32); 8] = [
+        (Self::UltraCondensed, "ultra-condensed", 50.0),
+        (Self::ExtraCondensed, "extra-condensed", 62.5),
+        (Self::Condensed, "condensed", 75.0),
+        (Self::SemiCondensed, "semi-condensed", 87.5),
+        (Self::SemiExpanded, "semi-expanded", 112.5),
+        (Self::Expanded, "expanded", 125.0),
+        (Self::ExtraExpanded, "extra-expanded", 150.0),
+        (Self::UltraExpanded, "ultra-expanded", 200.0),
+    ];
+
+    fn entry(self) -> (FontStretchKeyword, &'static str, f32) {
+        Self::ALL[self as usize]
+    }
+
+    /// The keyword's CSS spelling.
+    pub fn keyword(self) -> &'static str {
+        self.entry().1
+    }
+
+    /// The percentage of the normal width it stands for.
+    pub fn percent(self) -> f32 {
+        self.entry().2
+    }
+
+    /// The keyword spelled `s` (ASCII case-insensitive).
+    pub fn from_keyword(s: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .find(|(_, k, _)| s.eq_ignore_ascii_case(k))
+            .map(|(w, _, _)| *w)
+    }
+}
 
 /// `font-variant` (CSS Fonts 4 §6.11) in CSS 2.1's form, which the `font`
 /// shorthand takes: `normal | small-caps`. Parsed and kept; the terminal
 /// draws no small capitals.
+///
+/// `#[non_exhaustive]`: an open vocabulary — CSS Fonts 4 adds
+/// `all-small-caps`, `petite-caps`, `unicase`, … — that rdom takes in
+/// part and draws none of, so a consumer meeting an unknown value can
+/// treat it as `normal`:
+///
+/// ```compile_fail
+/// use rdom_style::layout::FontVariant;
+/// fn small(v: FontVariant) -> bool {
+///     match v {
+///         FontVariant::Normal => false,
+///         FontVariant::SmallCaps => true,
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum FontVariant {
     #[default]
     Normal,

@@ -985,6 +985,29 @@ fn white_space_hints() {
     );
     let both = ImportantMask::WHITE_SPACE_COLLAPSE | ImportantMask::TEXT_WRAP_MODE;
     assert!(both.intersects(ImportantMask::all()));
+    assert_eq!(ImportantMask::WHITE_SPACE, both);
+}
+
+/// C9G-TYPES (changes to APIs added after 0.5): `FontStretch`'s keywords
+/// are typed, `FontVariant` takes a `_` arm, and `text_align` takes a
+/// `TextAlign` or `justify-all`.
+#[test]
+fn font_type_hints() {
+    let k = FontStretch::Keyword(FontStretchKeyword::Condensed);
+    assert_eq!(k, FontStretch::Keyword(FontStretchKeyword::ALL[2].0));
+    assert_eq!(
+        FontStretchKeyword::from_keyword("condensed"),
+        Some(FontStretchKeyword::Condensed)
+    );
+    let name = match FontVariant::SmallCaps {
+        FontVariant::Normal => "normal",
+        FontVariant::SmallCaps => "small-caps",
+        _ => "normal",
+    };
+    assert_eq!(name, "small-caps");
+    let _ = TuiStyle::new()
+        .text_align(TextAlign::Center)
+        .text_align(TextAlignKeyword::JustifyAll);
 }
 
 /// C9-DECORATION: `text-decoration` is a group of four longhands — the

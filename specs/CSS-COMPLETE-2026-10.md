@@ -5949,4 +5949,28 @@ row comes from.
   a note under "Inline formatting" on `<sup>` doubling a line, with the opt-out `sub, sup { vertical-align:
   baseline }` as a doctest (` 2 ` / `x  ` under the UA sheet, `x2 ` with the opt-out). No code changed; no
   expectation or snapshot changed.
+- 2026-10-12 — C9G-TYPES (API N4, N5, N6; architect N13's classification). (1) DESIGN's `#[non_exhaustive]`
+  classification names every Phase 9 type. Closed (a value layout, paint or a serializer must handle whole):
+  `LineHeight`, `VerticalAlign`, `FontWeight`, `FontStyle`, the inert `FontSize` / `FontSizeKeyword` /
+  `FontFamily` / `SystemFont` / `FontStretch` / new `FontStretchKeyword` (fixed sets a serializer writes back
+  whole), the decoration values, `TextDecorations`, `AppliedDecorations` / `AppliedLine`, the groups
+  `Font` / `FontDeclarations` / `TextDecorationDeclarations`, the parser records `TextDecorationShorthand` /
+  `FontShorthand`, new `TextAlignKeyword`; open: `SgrCapabilities` (an options bag), and — decided —
+  `FontVariant`, now `#[non_exhaustive]`: CSS Fonts 4 §6.11 extends CSS 2.1's `normal | small-caps`, rdom
+  draws none of it, and a consumer can treat an unknown value as `normal` (a `compile_fail` doctest pins
+  it). (2) `FontStretch::Keyword(&'static str)` → `Keyword(FontStretchKeyword)`, the eight §2.3 keywords
+  typed (`keyword()`, `percent()`, `from_keyword`, `ALL` replacing `FONT_STRETCH_KEYWORDS`), so no string
+  outside the grammar can be stored. (3) `ImportantMask::WHITE_SPACE` restored as `WHITE_SPACE_COLLAPSE |
+  TEXT_WRAP_MODE`, like `BOLD` / `ITALIC`; the white-space Breaking bullet and API row no longer list it.
+  (4) `justify-all`: not a `text-align-all` value, so not a `TextAlign` variant — new `TextAlignKeyword`
+  (`All(TextAlign)` | `JustifyAll`, `longhands()`), the `text-align` shorthand's value, which
+  `TuiStyle::text_align` / `_important` now take as `impl Into<TextAlignKeyword>` (a `TextAlign` as before)
+  and `parse_text_align` builds through, one mapping. (5) The prelude gains `TextAlign`, `LineHeight`,
+  `VerticalAlign`, `TextDecoration`, `TextDecorationLine`, `TextDecorationStyle`, `TextTransform`, `TextCase`,
+  `FontWeight`, `FontStyle` (what a typical app's text builders take); `Spacing`, `TextAlignKeyword` and
+  `FontStretchKeyword` are exported at the root (`Spacing` was missing there). The changed after-0.5 items
+  are API-table rows with a `font_type_hints` migration group; `white_space_hints` reads
+  `ImportantMask::WHITE_SPACE`. Red: `css_phase9/api_types.rs` (the prelude-only module, `justify-all`
+  through the builder, the typed keywords, the mask) did not compile (21 errors: the prelude names, the
+  new types, the mask); green after. No existing expectation or snapshot changed.
 

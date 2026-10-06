@@ -137,6 +137,47 @@ impl TextAlign {
     }
 }
 
+/// The `text-align` shorthand's value (CSS Text 3 §6.1): a
+/// `text-align-all` keyword, or `justify-all` — what the
+/// [`TuiStyle::text_align`](crate::TuiStyle::text_align) builder and the
+/// parser ([`parse_text_align`](crate::parse::values::parse_text_align))
+/// take. A [`TextAlign`] converts into it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextAlignKeyword {
+    /// A `text-align-all` keyword: `text-align-last` resets to `auto`
+    /// (`match-parent` to `match-parent`).
+    All(TextAlign),
+    /// `justify-all`: every line justified, the last included.
+    JustifyAll,
+}
+
+impl TextAlignKeyword {
+    /// The `text-align-all` and `text-align-last` values it sets.
+    pub const fn longhands(self) -> (TextAlign, TextAlignLast) {
+        match self {
+            Self::JustifyAll => (TextAlign::Justify, TextAlignLast::Justify),
+            Self::All(TextAlign::MatchParent) => {
+                (TextAlign::MatchParent, TextAlignLast::MatchParent)
+            }
+            Self::All(all) => (all, TextAlignLast::Auto),
+        }
+    }
+
+    /// The keyword's CSS spelling.
+    pub const fn keyword(self) -> &'static str {
+        match self {
+            Self::JustifyAll => "justify-all",
+            Self::All(all) => all.keyword(),
+        }
+    }
+}
+
+impl From<TextAlign> for TextAlignKeyword {
+    fn from(all: TextAlign) -> Self {
+        Self::All(all)
+    }
+}
+
 /// `text-align-last` (CSS Text 3 §6.3): the alignment of a block's last
 /// line and of each line before a forced break. Inherited; initial
 /// `auto` — `text-align-all`'s, `start` when that is `justify`.

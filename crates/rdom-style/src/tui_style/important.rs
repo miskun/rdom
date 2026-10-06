@@ -31,6 +31,9 @@ impl ImportantMask {
     pub const BOLD: Self = Self::FONT_WEIGHT;
     /// `font-style`'s bit under its 0.5 name.
     pub const ITALIC: Self = Self::FONT_STYLE;
+    /// The `white-space` shorthand's bits under its 0.5 name: its two
+    /// longhands' (CSS Text 4 §3).
+    pub const WHITE_SPACE: Self = Self::WHITE_SPACE_COLLAPSE.union(Self::TEXT_WRAP_MODE);
     /// The font longhands' bits (the `font` shorthand sets
     /// `line-height` too).
     pub const FONT: Self = Self::FONT_WEIGHT

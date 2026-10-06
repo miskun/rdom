@@ -1,7 +1,8 @@
 //! One-stop import for the common API. `use rdom_tui::prelude::*;`
 //! brings in the types a typical app needs: `TuiDom`, the node
 //! accessor traits, the style types a stylesheet is built from (the
-//! builders' arguments: sizes, colors, borders, `box-sizing`, …), and
+//! builders' arguments: sizes, colors, borders, `box-sizing`, text
+//! alignment, line height, decorations, font weight, …), and
 //! extension traits whose methods (`cascade`, `set_width`, `computed`,
 //! ...) would otherwise be invisible until imported.
 //!
@@ -101,6 +102,8 @@ pub use crate::{
     FlexWrap,
     Flow,
     FocusOptions,
+    FontStyle,
+    FontWeight,
     GapValue,
     GridAutoFlow,
     GridLine,
@@ -112,6 +115,7 @@ pub use crate::{
     IntrinsicSize,
     LayoutExt,
     LayoutRect,
+    LineHeight,
     ListenerOptions,
     Margin,
     MaxSize,
@@ -147,7 +151,13 @@ pub use crate::{
     Terminal,
     TerminalGuard,
     TestBackend,
+    TextAlign,
+    TextCase,
+    TextDecoration,
+    TextDecorationLine,
+    TextDecorationStyle,
     TextDirection,
+    TextTransform,
     TrackBreadth,
     TrackList,
     TrackSize,
@@ -174,6 +184,7 @@ pub use crate::{
     UserSelect,
     Value,
     VarMap,
+    VerticalAlign,
     Viewport,
     Visibility,
     WhiteSpace,

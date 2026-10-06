@@ -3,9 +3,9 @@
 use super::numeric::{LengthPercentage, Range, length_percentage, number};
 use super::parse_keyword;
 use crate::layout::{
-    Hyphens, LineBreak, OverflowWrap, Spacing, TabSize, TextAlign, TextAlignLast, TextCase,
-    TextIndent, TextJustify, TextTransform, TextWrapMode, TextWrapStyle, WhiteSpaceCollapse,
-    WordBreak,
+    Hyphens, LineBreak, OverflowWrap, Spacing, TabSize, TextAlign, TextAlignKeyword, TextAlignLast,
+    TextCase, TextIndent, TextJustify, TextTransform, TextWrapMode, TextWrapStyle,
+    WhiteSpaceCollapse, WordBreak,
 };
 use crate::parse::token::Token;
 
@@ -301,13 +301,12 @@ pub fn parse_text_align_last(value: &[Token]) -> Option<TextAlignLast> {
 /// `justify-all` both `justify`, `match-parent` both `match-parent`, any
 /// other keyword `text-align-all`'s with `text-align-last: auto`.
 pub fn parse_text_align(value: &[Token]) -> Option<(TextAlign, TextAlignLast)> {
-    if parse_keyword(value, &[("justify-all", ())]).is_some() {
-        return Some((TextAlign::Justify, TextAlignLast::Justify));
-    }
-    Some(match parse_text_align_all(value)? {
-        TextAlign::MatchParent => (TextAlign::MatchParent, TextAlignLast::MatchParent),
-        all => (all, TextAlignLast::Auto),
-    })
+    let keyword = if parse_keyword(value, &[("justify-all", ())]).is_some() {
+        TextAlignKeyword::JustifyAll
+    } else {
+        TextAlignKeyword::All(parse_text_align_all(value)?)
+    };
+    Some(keyword.longhands())
 }
 
 /// `text-justify: auto | none | inter-word | inter-character`, with

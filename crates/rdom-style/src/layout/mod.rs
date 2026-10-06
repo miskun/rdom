@@ -65,7 +65,7 @@ pub use border::{
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
 pub use float::{Clear, Float, FloatSide};
 pub use font::{
-    FONT_STRETCH_KEYWORDS, Font, FontFamily, FontSize, FontSizeKeyword, FontStretch, FontStyle,
+    Font, FontFamily, FontSize, FontSizeKeyword, FontStretch, FontStretchKeyword, FontStyle,
     FontVariant, FontWeight, SystemFont,
 };
 pub use grid::{
@@ -97,7 +97,9 @@ pub use sizing::{
 };
 pub use spacing::Spacing;
 pub use text::TextStyle;
-pub use text_align::{TextAlign, TextAlignLast, TextCase, TextIndent, TextJustify, TextTransform};
+pub use text_align::{
+    TextAlign, TextAlignKeyword, TextAlignLast, TextCase, TextIndent, TextJustify, TextTransform,
+};
 pub use text_decoration::{
     AppliedDecorations, AppliedLine, TextDecorationLine, TextDecorationSkipInk,
     TextDecorationStyle, TextDecorationThickness, TextDecorations, TextUnderlineOffset,

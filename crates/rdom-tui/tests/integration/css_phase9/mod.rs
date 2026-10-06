@@ -6,6 +6,7 @@
 #[allow(unused_imports)]
 pub(crate) use super::css_phase5::{el, lay_out, paint, rect, rows, size};
 
+mod api_types;
 mod breaking;
 mod font;
 mod letter_spacing;

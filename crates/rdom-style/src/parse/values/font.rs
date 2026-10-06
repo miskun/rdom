@@ -6,8 +6,8 @@ use super::border::paint_length;
 use super::numeric::{Range, components, number, parse_angle};
 use super::parse_keyword;
 use crate::layout::{
-    FONT_STRETCH_KEYWORDS, FontFamily, FontSize, FontSizeKeyword, FontStretch, FontStyle,
-    FontVariant, FontWeight, LineHeight, SystemFont,
+    FontFamily, FontSize, FontSizeKeyword, FontStretch, FontStretchKeyword, FontStyle, FontVariant,
+    FontWeight, LineHeight, SystemFont,
 };
 use crate::parse::token::Token;
 
@@ -121,10 +121,7 @@ pub fn parse_font_stretch(value: &[Token]) -> Option<FontStretch> {
         if s.eq_ignore_ascii_case("normal") {
             return Some(FontStretch::Normal);
         }
-        return FONT_STRETCH_KEYWORDS
-            .iter()
-            .find(|(k, _)| s.eq_ignore_ascii_case(k))
-            .map(|(k, _)| FontStretch::Keyword(k));
+        return FontStretchKeyword::from_keyword(s).map(FontStretch::Keyword);
     }
     match value {
         [Token::Percentage(p)] if *p >= 0.0 => Some(FontStretch::Percent(*p as f32)),
@@ -307,7 +304,7 @@ pub fn serialize_font_family(f: &FontFamily) -> Option<String> {
 pub fn serialize_font_stretch(s: FontStretch) -> String {
     match s {
         FontStretch::Normal => "normal".to_string(),
-        FontStretch::Keyword(k) => k.to_string(),
+        FontStretch::Keyword(k) => k.keyword().to_string(),
         FontStretch::Percent(p) => format!("{p}%"),
     }
 }
