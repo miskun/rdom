@@ -70,7 +70,7 @@ fn atomic_inlines_are_the_non_flow_inline_level_boxes() {
         (Display::Block, Flow::Flex, false),
     ] {
         assert_eq!(
-            super::is_atomic_inline(&style(display, flow)),
+            style(display, flow).is_atomic_inline(),
             atomic,
             "{display:?} {flow:?}"
         );

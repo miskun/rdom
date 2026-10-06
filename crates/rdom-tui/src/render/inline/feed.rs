@@ -201,10 +201,7 @@ pub(super) fn fill_run<'a>(
                 }
                 // An atomic inline participates as one box — see
                 // `walk_subtree` for the rationale.
-                if child
-                    .computed()
-                    .is_some_and(crate::render::box_tree::is_atomic_inline)
-                {
+                if child.computed().is_some_and(|c| c.is_atomic_inline()) {
                     push_atom(dom, child_id, packer);
                     continue;
                 }
@@ -276,16 +273,13 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
                     continue;
                 }
                 // CSS 2.1 §10.8: an atomic inline (`inline-block`,
-                // `inline-flex`, `box_tree::is_atomic_inline`)
+                // `inline-flex`, `ComputedStyle::is_atomic_inline`)
                 // participates in IFC as a single atomic inline-
                 // level box. Don't recurse into it — the packer
                 // emits one fragment of its width and rows, the layout
                 // pass lays the element out at that rect and paint
                 // paints it there as a box, at its turn in the line.
-                if child
-                    .computed()
-                    .is_some_and(crate::render::box_tree::is_atomic_inline)
-                {
+                if child.computed().is_some_and(|c| c.is_atomic_inline()) {
                     push_atom(dom, child.id(), packer);
                     continue;
                 }

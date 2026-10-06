@@ -380,6 +380,16 @@ impl ComputedStyle {
         self.overflow_x.is_scrollable() || self.overflow_y.is_scrollable()
     }
 
+    /// Whether the box is an atomic inline (CSS Display 3 §2.4): an
+    /// inline-level box that is no inline box — `inline-block`, `inline
+    /// flow-root`, `inline-flex`, `inline-grid` — laid out as one unit in
+    /// its line.
+    pub fn is_atomic_inline(&self) -> bool {
+        use crate::layout::{Display, Flow};
+        self.display == Display::InlineBlock
+            || (self.display == Display::Inline && self.flow != Flow::Block)
+    }
+
     /// Whether the box clips its content on either axis — a scroll
     /// container or an `overflow: clip` axis.
     pub fn clips_overflow(&self) -> bool {

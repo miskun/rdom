@@ -42,6 +42,48 @@ pub(crate) fn widest_run_line(
     widest(packer)
 }
 
+/// The widest line of `host`'s `slot` pseudo-element's own inline content
+/// — its generated text, or its atom or float as the run packs them —
+/// packed alone `available` wide: its text transformed, collapsed, at its
+/// tab stops and letter-spaced, as layout packs it (CSS Sizing 3 §5.1).
+pub(crate) fn widest_pseudo_line(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    slot: crate::ext::PseudoSlot,
+    available: u16,
+) -> u16 {
+    let pseudos = RunPseudos {
+        before: slot == crate::ext::PseudoSlot::Before,
+        after: slot == crate::ext::PseudoSlot::After,
+    };
+    let mut packer = LinePacker::measuring(available);
+    fill_run(dom, host, &[], pseudos, &mut packer);
+    widest(packer)
+}
+
+/// The widest line of the text node `text` packed alone `available` wide,
+/// by its parent's CSS Text values; and the rows it packs to.
+pub(crate) fn text_node_extent(dom: &Dom<TuiExt>, text: NodeId, available: u16) -> (u16, u16) {
+    let parent = dom.node(text).parent_node().map_or(text, |p| p.id());
+    let mut packer = LinePacker::measuring(available);
+    fill_run(
+        dom,
+        parent,
+        &[BoxItem::Node(text)],
+        RunPseudos::default(),
+        &mut packer,
+    );
+    packer.finish();
+    let lines = packer.take_lines();
+    let rows = lines.last().map_or(0, |l| l.bottom());
+    let widest = lines
+        .iter()
+        .map(|line| line.width - line.hang)
+        .max()
+        .unwrap_or(0);
+    (widest, rows)
+}
+
 fn widest(mut packer: LinePacker<'_>) -> u16 {
     packer.finish();
     packer

@@ -1,10 +1,12 @@
-//! C8G-ABSPOS-EXTENT (architect N1): how many times one frame runs
-//! layout's phases 1–2. A frame lays out once, then once more after a
-//! re-snap (CSS Scroll Snap 1 §5.4) and once more after a caret reveal
-//! that moved an offset; each `layout_dom` runs the phases at most
-//! `positioned_overflow::MAX_ROUNDS` times, while absolutely positioned
-//! boxes change their scroll containers' reach. The pin is a frame that
-//! needs all of it.
+//! C8G-ABSPOS-EXTENT (architect N1), C9G-MISC-CORRECTNESS: how many times
+//! one frame runs layout's phases 1–2. A frame lays out once, then once
+//! more when a re-snap (CSS Scroll Snap 1 §5.4), a focused element's scroll
+//! into view (HTML's focusing steps) or a caret reveal moved an offset —
+//! all three against the first layout (each corrects for the offsets moved
+//! since: `scrollbar::state::laid_out`), so one relayout; each `layout_dom`
+//! runs the phases at most `positioned_overflow::MAX_ROUNDS` times, while
+//! absolutely positioned boxes change their scroll containers' reach. The
+//! pin is a frame that needs all of it.
 
 use crossterm::event::{
     Event as CtEvent, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers,
@@ -25,16 +27,20 @@ fn el(dom: &mut TuiDom, parent: rdom_core::NodeId, class: &str) -> rdom_core::No
 }
 
 /// One frame with a new positioned box whose scrollbar narrows it, a
-/// snap target moved by an insertion, and a typed line to reveal: three
-/// runs (the stale reach, the new one, the narrowed one), one after the
-/// re-snap, one after the caret reveal.
+/// snap target moved by an insertion, a typed line to reveal and an
+/// element focused in a scroller: three runs (the stale reach, the new
+/// one, the narrowed one), then one after the re-snap, the focus scroll
+/// and the caret reveal together.
 #[test]
-fn a_frame_runs_layout_at_most_three_times_the_round_cap() {
+fn a_frame_runs_layout_at_most_twice_the_round_cap() {
     let mut dom = TuiDom::new();
     let root = dom.root();
     let port = el(&mut dom, root, "port");
     let snap = el(&mut dom, root, "snap");
     let items: Vec<_> = (0..5).map(|_| el(&mut dom, snap, "item")).collect();
+    let list = el(&mut dom, root, "list");
+    let rows: Vec<_> = (0..6).map(|_| el(&mut dom, list, "row")).collect();
+    dom.set_attribute(rows[5], "tabindex", "0").unwrap();
     let ta = dom.create_element("textarea");
     let text = dom.create_text_node("aa bb cc dd");
     dom.append_child(ta, text).unwrap();
@@ -45,7 +51,8 @@ fn a_frame_runs_layout_at_most_three_times_the_round_cap() {
          .snap { overflow-y: scroll; height: 4; width: 10; \
                  scroll-snap-type: y mandatory } \
          .item { height: 3; scroll-snap-align: start } .new { height: 2 } \
-         textarea { width: 6; height: 2; overflow-y: auto }",
+         textarea { width: 6; height: 2; overflow-y: auto } \
+         .list { overflow-y: auto; height: 2; width: 8 } .row { height: 1 }",
     )
     .unwrap();
     let terminal = Terminal::new(TestBackend::new(30, 14)).unwrap();
@@ -75,12 +82,17 @@ fn a_frame_runs_layout_at_most_three_times_the_round_cap() {
         }));
     }
 
+    // Script focus in another scroller, keeping the typed caret's reveal
+    // pending: focusing does not move the selection.
+    crate::runtime::focus::focus_node(app.dom_mut(), Some(rows[5]));
+
     ROUNDS.with(|c| c.set(0));
     app.draw_if_dirty().unwrap();
     let runs = ROUNDS.with(|c| c.get());
     use crate::accessors::TuiAccessors;
     assert_eq!(app.dom().node(snap).scroll_top(), Some(5), "re-snapped");
     assert_eq!(app.dom().node(ta).scroll_top(), Some(1), "caret revealed");
-    assert_eq!(runs, 5, "3 rounds, the re-snap's, the reveal's");
-    assert!(runs <= 3 * crate::render::layout_pass::MAX_ROUNDS);
+    assert_eq!(app.dom().node(list).scroll_top(), Some(4), "focus revealed");
+    assert_eq!(runs, 4, "3 rounds, then one for the three services");
+    assert!(runs <= 2 * crate::render::layout_pass::MAX_ROUNDS);
 }

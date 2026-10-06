@@ -120,7 +120,7 @@ fn measure_flow_content(
     // to the row's intrinsic width sum but not to column height
     // (single-line pseudo content joins the existing inline row).
     let pseudo_main = match direction {
-        Direction::Row => pseudo_content_width(dom, id),
+        Direction::Row => pseudo_content_width(dom, id, measure),
         Direction::Column => 0,
     };
 

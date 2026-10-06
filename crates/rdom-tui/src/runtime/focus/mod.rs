@@ -67,11 +67,11 @@ impl FocusOptions {
 /// the element into view": `nearest` on both axes, as browsers reveal a
 /// focused element, into each scroll container's optimal viewing region
 /// (its `scroll-padding`, the element's `scroll-margin`: CSS Scroll Snap 1
-/// §4). Under a running `App` the scroll waits for its next layout — the
-/// one the new focus is shown in — so a handler that moved the element
-/// before focusing it reveals it where it is laid out, not at a rect its
-/// own changes made stale; on a bare document it is done at once, against
-/// the last layout.
+/// §4). On a document an `App` lays out the scroll waits for its next
+/// layout — the one the new focus is shown in — so a handler that moved the
+/// element before focusing it reveals it where it is laid out, not at a
+/// rect its own changes made stale; on any other document it is done at
+/// once, against the last layout.
 pub fn focus_node_with_options(dom: &mut TuiDom, new_focus: Option<NodeId>, options: FocusOptions) {
     let before = dom.focused();
     change_focus(dom, new_focus, None);
@@ -82,12 +82,24 @@ pub fn focus_node_with_options(dom: &mut TuiDom, new_focus: Option<NodeId>, opti
         && dom.focused() == Some(id)
         && before != Some(id)
     {
-        if crate::runtime::timers::in_app() {
+        if dom.document_data::<LaidOutByApp>().is_some() {
             dom.set_document_data(PendingFocusScroll(id));
         } else {
             scroll_into_view(dom, id);
         }
     }
+}
+
+/// Document data: an `App` lays this document out, and scrolls an element
+/// focused since its last layout into view at its next one
+/// ([`service_focus_scroll`]) — what [`focus_node_with_options`] reads, so
+/// the deferral is a property of the document, not of the thread it runs
+/// on (another document focused from an `App`'s handler scrolls at once).
+struct LaidOutByApp;
+
+/// Mark `dom` as one an `App` lays out (`App`'s construction).
+pub(crate) fn laid_out_by_app(dom: &mut TuiDom) {
+    dom.set_document_data(LaidOutByApp);
 }
 
 /// The focused element whose scroll into view waits for the next layout

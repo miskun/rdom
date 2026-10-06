@@ -89,6 +89,20 @@ fn sgr_22_clears_bold() {
     assert!(!s.cell(1, 0).unwrap().modifier.contains(Modifier::BOLD));
 }
 
+/// C9G-MISC-CORRECTNESS — ECMA-48's plain `4` is a single underline: after
+/// a styled one (`4:3`, curly) it sets the solid style again, as terminals
+/// do, rather than keeping the curly bit.
+#[test]
+fn a_plain_4_resets_the_underline_style() {
+    let mut s = VirtualScreen::new(5, 1);
+    s.apply(b"\x1b[4:3mA\x1b[4mB");
+    let a = s.cell(0, 0).unwrap().modifier;
+    let b = s.cell(1, 0).unwrap().modifier;
+    assert!(a.contains(Modifier::UNDERLINED | Modifier::UNDERLINE_CURLY));
+    assert!(b.contains(Modifier::UNDERLINED));
+    assert!(!b.contains(Modifier::UNDERLINE_CURLY), "{b:?}");
+}
+
 // ── Cursor ───────────────────────────────────────────────────────
 
 #[test]

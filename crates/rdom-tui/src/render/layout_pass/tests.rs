@@ -3130,6 +3130,34 @@ fn intrinsic_size_text_only_block_uses_inline_layout() {
     assert_eq!(h, 1, "short text fits on one line at width 40");
 }
 
+/// C9G-MISC-CORRECTNESS — a text node measured on its own (CSS Sizing 3
+/// §5.1) is packed as layout packs it, by its parent's CSS Text values:
+/// `straße` under `uppercase` is 7 wide (raw width: 6), its collapsible
+/// spaces collapse, and on the block axis it is the rows it packs to at
+/// the budget (not its source line count).
+#[test]
+fn a_text_node_is_measured_through_the_packer() {
+    let mut dom = tui_dom();
+    let root = dom.root();
+    let note = dom.create_element("note");
+    let text = dom.create_text_node("straße    aa\nbb");
+    dom.append_child(note, text).unwrap();
+    dom.append_child(root, note).unwrap();
+    let sheet = Stylesheet::bare().rule_unchecked(
+        "note",
+        TuiStyle::new()
+            .display(Display::Block)
+            .text_transform(crate::layout::TextTransform {
+                case: crate::layout::TextCase::Uppercase,
+                ..crate::layout::TextTransform::NONE
+            }),
+    );
+    cascade(&mut dom, &sheet);
+    let size = |d, budget| super::intrinsic::intrinsic_size(&dom, text, d, budget, 40);
+    assert_eq!(size(Direction::Row, 40), 13, "STRASSE AA BB on one line");
+    assert_eq!(size(Direction::Column, 7), 2, "STRASSE / AA BB at 7 cells");
+}
+
 // ── is_ifc_block predicate ──────────────────────────────────────
 
 #[test]

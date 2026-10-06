@@ -51,7 +51,7 @@ pub(super) fn wrapped_rows(
 }
 
 /// Sum of visible cell widths of an element's `::before` and `::after`
-/// generated content. Mirrors what `paint_pass/inline_paint.rs` writes
+/// generated content under `measure`. Mirrors what `paint_pass/inline_paint.rs` writes
 /// inline alongside the element's own content; without including this
 /// here, an auto-width element with pseudo chrome (e.g. `<button>` with
 /// bracketed `::before` / `::after`) would size to its text content
@@ -59,7 +59,7 @@ pub(super) fn wrapped_rows(
 ///
 /// A list marker counts where it is laid out: on the block whose first
 /// line it rides (`inline::generated`), not on its `<li>`.
-pub(super) fn pseudo_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
+pub(super) fn pseudo_content_width(dom: &Dom<TuiExt>, id: NodeId, measure: Measure) -> u16 {
     use crate::ext::StyleSlot;
     use crate::render::inline::generated;
     let width = |host: NodeId, slot: StyleSlot| -> u32 {
@@ -86,7 +86,11 @@ pub(super) fn pseudo_content_width(dom: &Dom<TuiExt>, id: NodeId) -> u16 {
             _ => crate::ext::PseudoSlot::After,
         };
         match generated::own_inline_pseudo(dom, id, slot) {
-            Some(generated::InlinePseudo::Text(t)) => UnicodeWidthStr::width(t) as u32,
+            // Packed as layout packs it: transformed, collapsed, at its
+            // tab stops, letter-spaced (C9G-MISC-CORRECTNESS).
+            Some(generated::InlinePseudo::Text(_)) => u32::from(
+                crate::render::inline::widest_pseudo_line(dom, id, pslot, measure.available()),
+            ),
             Some(generated::InlinePseudo::Atom) => {
                 crate::render::layout_pass::generated_atoms::measure(dom, id, pslot, 0, Some(true))
                     .map_or(0, |(w, _)| u32::from(w))

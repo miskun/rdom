@@ -196,3 +196,29 @@ fn text_overflow_cuts_spaced_text_by_units() {
         ["a b…  "]
     );
 }
+
+/// C9G-MISC-CORRECTNESS — CSS Sizing 3 §5.1: an inline block holding only
+/// generated text is as wide as that text laid out — measured by the
+/// packer, as it is painted: transformed (`ß` → `SS`), collapsed, at its tab
+/// stops, letter-spaced.
+#[test]
+fn generated_text_is_measured_as_it_is_laid_out() {
+    for (decl, width) in [
+        ("content: 'straße'; text-transform: uppercase", 7),
+        ("content: 'ab'; letter-spacing: 1", 3),
+        ("content: 'a    b'", 3),
+        ("content: 'a\\9 b'; white-space: pre; tab-size: 4", 5),
+    ] {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let b = el(&mut dom, root, "div", "b");
+        let ib = el(&mut dom, b, "span", "ib");
+        lay_out(
+            &mut dom,
+            &format!(".ib {{ display: inline-block }} .ib::before {{ {decl} }}"),
+            20,
+            2,
+        );
+        assert_eq!(size(&dom, ib).0, width, "{decl}");
+    }
+}

@@ -314,17 +314,16 @@ fn style_and_layout(
             crate::runtime::animation::settle_restyled(dom, &restyled);
         }
         dom.layout_dom(area);
-        // CSS Scroll Snap 1 §5.4: a snap container whose snap target moved
-        // re-snaps to it.
-        if crate::runtime::scroll_snap::resnap(dom) {
-            dom.layout_dom(area);
-        }
-        // HTML's focusing steps scroll a newly focused element into view
-        // against the layout it is shown in.
-        if crate::runtime::focus::service_focus_scroll(dom) {
-            dom.layout_dom(area);
-        }
-        if crate::runtime::scrollbar::service_caret_reveal(dom) {
+        // Against this layout, each correcting for the offsets moved since
+        // it (`scrollbar::state::laid_out`), then one relayout for all:
+        // CSS Scroll Snap 1 §5.4 — a snap container whose snap target moved
+        // re-snaps to it; HTML's focusing steps — a newly focused element
+        // scrolls into view against the layout it is shown in; a caret
+        // edited out of its box's view is revealed.
+        let resnapped = crate::runtime::scroll_snap::resnap(dom);
+        let focused = crate::runtime::focus::service_focus_scroll(dom);
+        let revealed = crate::runtime::scrollbar::service_caret_reveal(dom);
+        if resnapped || focused || revealed {
             dom.layout_dom(area);
         }
     }

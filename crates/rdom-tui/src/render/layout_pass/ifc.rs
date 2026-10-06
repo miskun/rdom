@@ -76,7 +76,7 @@ pub(crate) fn is_ifc_block(dom: &Dom<TuiExt>, id: NodeId) -> bool {
         }
         // An atomic inline (`inline-block`, `inline-flex`, CSS Display 3
         // §2.4) is one opaque box in the line, never inline text.
-        if computed.is_some_and(|c| crate::render::box_tree::is_atomic_inline(c)) {
+        if computed.is_some_and(|c| c.is_atomic_inline()) {
             continue;
         }
         let display = computed.map(|c| c.display).unwrap_or(Display::Block);

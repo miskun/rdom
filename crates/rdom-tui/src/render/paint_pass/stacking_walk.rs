@@ -335,7 +335,7 @@ fn in_a_line(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool {
         && dom
             .node(child)
             .computed()
-            .is_some_and(crate::render::box_tree::is_atomic_inline)
+            .is_some_and(|c| c.is_atomic_inline())
 }
 
 /// An inline element with no inline layout: outside an inline

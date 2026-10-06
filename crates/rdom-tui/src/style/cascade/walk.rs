@@ -13,6 +13,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
 use crate::layout::Position;
+use crate::node::TuiNodeExt;
 use crate::style::{ComputedStyle, PseudoElementTarget};
 
 pub(super) use super::counters::CounterState;
@@ -285,8 +286,20 @@ fn style_element<'a>(
     {
         scratch.items_changed.push(id);
     }
-    let keeps_subtree = computed.display != crate::layout::Display::Contents
-        || !items_changed_above(dom, id, &scratch.items_changed);
+    // CSS Values 4 §6.1.1: every `rlh` reads the root element's line
+    // height, absolute at computed-value time — a restyle that moves it
+    // reaches them under elements whose own style stays.
+    if mode == Mode::Restyle
+        && dom.document_element().id() == id
+        && previous
+            .as_deref()
+            .is_some_and(|p| p.text.line_height.rows() != computed.text.line_height.rows())
+    {
+        scratch.root_line_height_moved = true;
+    }
+    let keeps_subtree = (computed.display != crate::layout::Display::Contents
+        || !items_changed_above(dom, id, &scratch.items_changed))
+        && !scratch.root_line_height_moved;
     if mode == Mode::Restyle
         && let Some(previous) = previous.as_ref().filter(|p| ***p == computed)
         && !reads_moved_counters
@@ -415,7 +428,10 @@ fn items_changed_above(dom: &Dom<TuiExt>, id: NodeId, changed: &[NodeId]) -> boo
         if changed.contains(&n.id()) {
             return true;
         }
-        if !crate::render::box_tree::is_contents(dom, n.id()) {
+        if !n
+            .computed()
+            .is_some_and(|c| c.display == crate::layout::Display::Contents)
+        {
             return false;
         }
         cur = n.parent_node();

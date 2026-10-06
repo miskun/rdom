@@ -314,6 +314,9 @@ impl<B: Backend> App<B> {
         // element. No-op when something is already focused or when no
         // matching element exists.
         crate::runtime::autofocus::focus_first_autofocus(&mut dom);
+        // From here a focused element scrolls into view at the frame's
+        // layout (`runtime::focus`).
+        crate::runtime::focus::laid_out_by_app(&mut dom);
         let mut stylesheet_ids = stylesheets::StylesheetIdAllocator::default();
         let mut app = Self {
             dom,

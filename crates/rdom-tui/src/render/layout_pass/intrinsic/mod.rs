@@ -3,8 +3,8 @@
 //!
 //! Used by the flex layout to resolve `Size::Auto`:
 //!
-//! - Text nodes → widest line (Row) / line count (Column), via
-//!   `unicode-width`.
+//! - Text nodes → widest line (Row) / rows (Column), packed by the
+//!   packer's measuring mode as layout packs them.
 //! - A box's contribution (`contribution`, CSS Sizing 3 §5.2): its
 //!   declared size when definite (a length, or a percentage of a known
 //!   containing block width) through its `box-sizing`, else its content;
@@ -17,7 +17,6 @@
 //!   padding/border/gap costs.
 
 use rdom_core::{Dom, NodeId, NodeType};
-use unicode_width::UnicodeWidthStr;
 
 use crate::ext::TuiExt;
 use crate::layout::Direction;
@@ -212,7 +211,7 @@ fn intrinsic_size_inner(
 ) -> u16 {
     let kind = dom.node(id).node_type();
     match kind {
-        NodeType::Text => intrinsic_text(dom, id, direction),
+        NodeType::Text => intrinsic_text(dom, id, direction, cross_budget, measure),
         NodeType::Element | NodeType::Fragment => intrinsic_element(
             dom,
             id,
@@ -228,17 +227,22 @@ fn intrinsic_size_inner(
     }
 }
 
-fn intrinsic_text(dom: &Dom<TuiExt>, id: NodeId, direction: Direction) -> u16 {
-    let text = dom.text_content(id);
+/// A text node's size, packed alone by its parent's CSS Text values as
+/// layout packs it (transformed, collapsed, at its tab stops,
+/// letter-spaced): its widest line under `measure` on the Row axis, the
+/// rows it packs to at `cross_budget` on the Column axis (at least one).
+fn intrinsic_text(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    direction: Direction,
+    cross_budget: u16,
+    measure: Measure,
+) -> u16 {
     match direction {
-        Direction::Row => {
-            // Widest line (in case text has newlines).
-            text.lines()
-                .map(|line| UnicodeWidthStr::width(line) as u16)
-                .max()
-                .unwrap_or(0)
-        }
-        Direction::Column => text.lines().count().max(1) as u16,
+        Direction::Row => crate::render::inline::text_node_extent(dom, id, measure.available()).0,
+        Direction::Column => crate::render::inline::text_node_extent(dom, id, cross_budget)
+            .1
+            .max(1),
     }
 }
 

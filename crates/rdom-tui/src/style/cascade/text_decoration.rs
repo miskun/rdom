@@ -55,7 +55,7 @@ pub(super) fn finalize_applied_decorations(
 ) {
     let out_of_flow = working.float != Float::None
         || matches!(working.position, Position::Absolute | Position::Fixed);
-    let atomic = crate::render::box_tree::is_atomic_inline(working);
+    let atomic = working.is_atomic_inline();
     let propagated = if out_of_flow || atomic {
         AppliedDecorations::NONE
     } else {

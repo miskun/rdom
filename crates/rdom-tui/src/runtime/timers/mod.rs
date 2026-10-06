@@ -98,12 +98,6 @@ where
     Some(f(&mut current.borrow_mut()))
 }
 
-/// Whether code runs under an `App` — inside one of its entry points,
-/// which lays the document out before its next paint.
-pub(crate) fn in_app() -> bool {
-    CURRENT_SCHEDULER.with(|s| s.borrow().is_some())
-}
-
 /// The running `App`'s scheduler clock, when user code is executing
 /// under one. Builtins and the router use it for time-window
 /// heuristics (multi-click, type-ahead) so `App::advance` drives them

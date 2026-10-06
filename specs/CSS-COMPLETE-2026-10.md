@@ -5852,3 +5852,37 @@ row comes from.
   restored, touched): no `may_hold_floats` gate → the scan test; floated pseudos ignored for clearance →
   the clearance test; the chain not skipping them → the collapse test. No existing expectation or snapshot
   changed.
+- 2026-10-12 — C9G-MISC-CORRECTNESS (architect N7, N8, N9, N10, N13's layering). Five fixes, each red
+  first. (1) Stale `rlh` (N8): a restyle (`walk::Mode::Restyle`) kept an element whose own style stayed and
+  skipped its subtree, but `rlh` below reads the root's line height — `html { line-height: 1 → 3 }` over
+  `.card { line-height: 1 } .card p { margin-top: 1rlh }` left `p` at 1. Fixed as viewport units are: a
+  restyle that moves the root element's used line height sets `Scratch::root_line_height_moved`, and no
+  element keeps its subtree for the rest of that pass. Red: `var_tests.rs::
+  a_restyle_of_the_roots_line_height_reaches_rlh_below_a_kept_element` (1 for 3). (2) Focus deferral (N9):
+  keyed on the `timers::in_app` thread-local, so a second, bare document focused from an `App` handler
+  recorded a `PendingFocusScroll` nothing serviced. Now document data the `App` sets on its own document
+  (`focus::laid_out_by_app`, at construction); `in_app` is gone (its only reader). Red:
+  `focus/scroll_tests.rs::a_bare_document_focused_inside_an_app_handler_scrolls_at_once` (0 for 7). The
+  frame pin (`app/layout_runs_tests.rs`) now has a focus scroll too: it ran 6 `layout_dom` rounds (3 + the
+  re-snap's + the focus scroll's + the reveal's). Brought down: the three post-layout services run against
+  the first layout — each already corrects for offsets moved since (`scrollbar::state::laid_out`) — and
+  share one relayout, so 4 (≤ 2 × `MAX_ROUNDS`, was 3 ×); red 6 for 4, every scroll still landing (the
+  snap at 5, the textarea at 1, the list at 4). (3) Intrinsic widths (N10): `pseudo_content_width` and
+  `intrinsic_text` took raw `unicode-width` widths. Now the packer's measuring mode: new
+  `inline::widest_pseudo_line` (a pseudo-element's own inline content packed alone, under the measurement's
+  constraint) and `inline::text_node_extent` (a text node packed alone by its parent's values: widest line,
+  rows at the budget). Red: `css_phase9/letter_spacing.rs::generated_text_is_measured_as_it_is_laid_out`
+  (`straße` uppercased 6 for 7; letter-spaced, collapsed and tabbed cases with it) and
+  `layout_pass/tests.rs::a_text_node_is_measured_through_the_packer` (12 for 13). List markers riding a
+  descendant's line keep their raw width (Phase 10's markers). (4) `VirtualScreen` (N7): a plain `4` kept
+  the underline style bits; it now clears them (ECMA-48: a single underline). Red: `virtual_screen/tests/
+  parser.rs::a_plain_4_resets_the_underline_style`. (5) Layering (N13): `cascade/text_decoration.rs` called
+  `render::box_tree::is_atomic_inline`, and `cascade/walk.rs` `render::box_tree::is_contents`. The predicate
+  is now `ComputedStyle::is_atomic_inline` (rdom-style; every caller uses it, the render copy deleted), and
+  the walk reads `display: contents` off the computed style. Red: `style/layering_tests.rs::
+  the_cascade_does_not_depend_on_render_code` (a source scan of `style/`'s production modules: 2 hits).
+  Mutation (each alone, restored, touched): no root-line-height flag → the `rlh` test; deferral on every
+  document → 3 focus tests; the `App` not marking its document →
+  `focus_in_a_handler_scrolls_against_the_next_layout`. Changed expectation: the frame pin's 5 runs → 4
+  with a focus scroll added (`a_frame_runs_layout_at_most_twice_the_round_cap`). DIVERGENCES §2's focus entry
+  says the deferral is per document. No snapshot changed.

@@ -23,8 +23,9 @@ use crate::style::{PseudoElementTarget, Rule};
 /// The buffers of one element's rule matching, kept for the whole
 /// cascade pass and reused by every element and pseudo-element
 /// (`C1G-CASCADE-ALLOC`): candidate indices, the matched rules, their
-/// sorted order, their layer ranks and the ladder — and the one piece of
-/// walk state a restyle reads across elements, `items_changed`.
+/// sorted order, their layer ranks and the ladder — and the walk state a
+/// restyle reads across elements, `items_changed` and
+/// `root_line_height_moved`.
 #[derive(Default)]
 pub(super) struct Scratch<'a> {
     candidates: Vec<u32>,
@@ -39,6 +40,10 @@ pub(super) struct Scratch<'a> {
     /// flex / grid flow changed — this pass (`walk::style_element`'s
     /// restyle guard, C7G-MINOR). Empty unless one did.
     pub(super) items_changed: Vec<rdom_core::NodeId>,
+    /// A restyle moved the root element's used line height this pass:
+    /// every `rlh` below reads it (CSS Values 4 §6.1.1), so no element
+    /// keeps its subtree (`walk::style_element`).
+    pub(super) root_line_height_moved: bool,
 }
 
 /// One matched rule: which of the requested targets it styles, its

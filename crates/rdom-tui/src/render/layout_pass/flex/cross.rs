@@ -244,7 +244,7 @@ pub(super) fn baseline_box(
 /// are not flex items: an inline block sits in a line at its content
 /// width, so it is not stretched.
 fn hugs_as_inline_level(computed: &ComputedStyle) -> bool {
-    crate::render::box_tree::is_atomic_inline(computed)
+    computed.is_atomic_inline()
 }
 
 /// What the cross-axis resolver needs to know about the main axis and

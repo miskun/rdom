@@ -134,7 +134,11 @@ impl VirtualScreen {
                 // Incoming SGR-2 is now silently ignored.
                 2 => { /* dim — ignored, see T8 */ }
                 3 => self.sgr.modifier |= Modifier::ITALIC,
-                4 => self.sgr.modifier |= Modifier::UNDERLINED,
+                // A single underline (ECMA-48): it replaces a styled one.
+                4 => {
+                    self.sgr.modifier.remove(UNDERLINE_BITS);
+                    self.sgr.modifier |= Modifier::UNDERLINED;
+                }
                 5 => self.sgr.modifier |= Modifier::SLOW_BLINK,
                 6 => self.sgr.modifier |= Modifier::RAPID_BLINK,
                 // SGR-7 (reverse video) was emitted by rdom pre-

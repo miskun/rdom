@@ -30,6 +30,9 @@ pub(crate) mod selector_walk;
 pub(crate) mod sibling_triggers;
 pub(crate) mod user_select;
 
+#[cfg(test)]
+mod layering_tests;
+
 pub use cascade::CascadeExt;
 pub use dirty_tracker::DirtyTracker;
 

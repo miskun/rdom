@@ -179,3 +179,20 @@ fn focus_in_a_handler_scrolls_against_the_next_layout() {
     assert_eq!(app.dom().focused(), Some(target));
     assert_eq!(app.dom().node(s).scroll_top(), Some(4));
 }
+
+/// C9G-MISC-CORRECTNESS — the scroll waits for the next layout only on a
+/// document an `App` lays out (it services it, `app::frame`): a second,
+/// bare document focused from inside an `App`'s handler — its scheduler on
+/// this thread — scrolls at once, as any bare document does; deferred,
+/// nothing would ever scroll it.
+#[test]
+fn a_bare_document_focused_inside_an_app_handler_scrolls_at_once() {
+    use crate::runtime::timers::{Scheduler, SchedulerGuard};
+    let scheduler = std::rc::Rc::new(std::cell::RefCell::new(Scheduler::new(
+        std::time::Instant::now(),
+    )));
+    let _in_app = SchedulerGuard::install(&scheduler);
+    let (mut dom, s, b) = scroller(10, "");
+    dom.node_mut(b[9]).focus();
+    assert_eq!(dom.node(s).scroll_top(), Some(7));
+}

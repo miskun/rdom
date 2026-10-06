@@ -264,3 +264,35 @@ fn registered_lengths_compute_to_absolute_cells() {
         assert_eq!(vars.get("p").map(|v| v.as_str()), Some("calc(2 + 50%)"));
     }
 }
+
+/// C9G-MISC-CORRECTNESS — CSS Values 4 §6.1.1: `rlh` is the root element's
+/// line height, absolute at computed-value time, so a restyle that moves the
+/// root's line height moves every `rlh` below it — also under an element
+/// the restyle keeps (`.card`, whose own style does not change), whose
+/// subtree it would otherwise skip.
+#[test]
+fn a_restyle_of_the_roots_line_height_reaches_rlh_below_a_kept_element() {
+    use crate::style::cascade::PropertyRegistry;
+    use std::rc::Rc;
+    let mut dom: TuiDom = TuiDom::with_root_tag("html");
+    let html = dom.root();
+    let card = dom.create_element("div");
+    dom.set_attribute(card, "class", "card").unwrap();
+    dom.append_child(html, card).unwrap();
+    let p = dom.create_element("p");
+    dom.append_child(card, p).unwrap();
+    let css = |lh: u16| {
+        sheet(&format!(
+            "html {{ line-height: {lh} }} .card {{ line-height: 1 }} \
+             .card p {{ margin-top: 1rlh }}"
+        ))
+    };
+    let before = css(1);
+    dom.cascade(&before);
+    assert_eq!(computed_of(&dom, p).margin.top.resolve(0), 1);
+    let after = css(3);
+    let sheets = [&after];
+    let registry = Rc::new(PropertyRegistry::new(&sheets));
+    restyle_vars(&mut dom, &sheets, registry, &[html]);
+    assert_eq!(computed_of(&dom, p).margin.top.resolve(0), 3);
+}

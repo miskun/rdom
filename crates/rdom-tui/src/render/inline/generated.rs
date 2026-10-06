@@ -128,7 +128,7 @@ pub(crate) fn inline_pseudo(
     if crate::render::layout_pass::float::float_side_of(dom, item).is_some() {
         return Some(InlinePseudo::Float);
     }
-    if crate::render::box_tree::is_atomic_inline(computed) {
+    if computed.is_atomic_inline() {
         return Some(InlinePseudo::Atom);
     }
     Some(InlinePseudo::Text(text))
