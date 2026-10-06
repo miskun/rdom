@@ -432,6 +432,43 @@ What's supported:
 - **Nested inline styles compose** — `<b>bold <i>+italic</i></b>`
   contributes both modifiers to the inner span.
 
+`<sub>` and `<sup>` follow HTML's UA sheet (`vertical-align: sub` /
+`super`), and in a terminal that is a whole row: `x<sup>2</sup>` makes a
+two-row line where a browser grows it by a third of an em — footnote
+markers and `1<sup>st</sup>` in table cells and list rows double them.
+To keep such lines one row, opt out:
+
+```rust
+use rdom_tui::prelude::*;
+
+fn rows(css: &str) -> Vec<String> {
+    let sheet = rdom_css::from_css_strict(css).unwrap();
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    dom.append_child(root, p).unwrap();
+    let x = dom.create_text_node("x");
+    dom.append_child(p, x).unwrap();
+    let sup = dom.create_element("sup");
+    let two = dom.create_text_node("2");
+    dom.append_child(sup, two).unwrap();
+    dom.append_child(p, sup).unwrap();
+    let area = Rect::new(0, 0, 3, 2);
+    dom.cascade(&sheet);
+    dom.layout_dom(area);
+    let mut buf = Buffer::empty(area);
+    dom.paint_dom(&mut buf, area);
+    (0..2)
+        .map(|y| (0..3).map(|x| buf.cell(x, y).unwrap().symbol()).collect())
+        .collect()
+}
+
+// The UA sheet raises the `2` a row, and the line is two rows tall.
+assert_eq!(rows(""), [" 2 ", "x  "]);
+// The opt-out keeps it on the baseline: one row.
+assert_eq!(rows("sub, sup { vertical-align: baseline }"), ["x2 ", "   "]);
+```
+
 What's out of scope:
 
 - Inline borders / margins (`display: inline-block` is supported as an

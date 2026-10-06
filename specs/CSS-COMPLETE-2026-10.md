@@ -5934,4 +5934,19 @@ row comes from.
   touched); `the_builders_make_a_custom_set` and `css_phase9/text_decoration.rs::
   the_app_takes_a_capability_override` did not compile (no builders, no `App` method, no root export).
   Green after. No existing expectation or snapshot changed.
+- 2026-10-12 — C9G-UPGRADE-RANK (API N2, N3; docs). The upgrade guide's silent-change list was ranked by
+  impact only to item 29, items 30–38 appended in implementation order. Re-ranked whole (41 items), widest
+  first: `line-height` (4) after the three flex / box-model changes — `line-height: 2` on `body` doubles every
+  paragraph; the 0.5-dropped CSS Text properties now applying (5, new); decoration propagation (6) — the UA
+  `a[href]` underline now reaches a link's children; `<sub>` / `<sup>` taking a row (9, from 34); per-element
+  `white-space` (12) and the form-control resets (13) beside the other layout changes; the two reader-facing
+  changes (15, 16, new) after the focus rules; the font, UAX #14, tab and spacing items (24–27) with the
+  other "a dropped property now applies" items of smaller reach. Added, each with what to read instead: the
+  six CSS Text properties dropped in 0.5 (`text-align` with `-last` / `text-justify`, `text-transform`,
+  `text-indent`, `word-break`, `overflow-wrap`, `text-wrap`) now apply; `ComputedStyle::modifiers` no longer
+  carries `UNDERLINED` / `CROSSED_OUT` (`applied_decorations`); `InlineFragment::text` is the rendered text
+  (`source_len()`), and `LineBox::text_row()` is the line's baseline row, not every run's. rdom-tui README:
+  a note under "Inline formatting" on `<sup>` doubling a line, with the opt-out `sub, sup { vertical-align:
+  baseline }` as a doctest (` 2 ` / `x  ` under the UA sheet, `x2 ` with the opt-out). No code changed; no
+  expectation or snapshot changed.
 
