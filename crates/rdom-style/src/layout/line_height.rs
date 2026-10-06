@@ -1,13 +1,14 @@
 //! `line-height` (CSS Inline 3 §5.1, CSS 2.1 §10.8.1): how tall an
 //! inline box is, in whole rows on a terminal grid.
 
-use crate::calc::{CalcExpr, ResolveCtx, UnitContext, to_cells};
+use crate::calc::{CalcExpr, ResolveCtx, UnitContext};
 
 /// `line-height: normal | <number [0,∞]> | <length-percentage [0,∞]>`
 /// (CSS Inline 3 §5.1). Inherited; initial `normal`.
 ///
 /// The font is one row tall, so `normal` and `1` are one row, a number
-/// is that many rows and a percentage that share of one row. A number
+/// is that many rows and a percentage that share of one row, the used
+/// value floored to whole rows ([`rows`](Self::rows)). A number
 /// inherits as the number, a length or percentage as its computed rows
 /// (§5.1 "Computed value: the keyword normal or a number or an absolute
 /// length"). [`rows`](Self::rows) is the used line height.
@@ -44,17 +45,19 @@ impl LineHeight {
         }
     }
 
-    /// The used line height in whole rows: the value rounded onto the
-    /// grid (ties to even, as every fractional length rounds —
-    /// DIVERGENCES §1), at least one — the glyph's own row (DIVERGENCES
-    /// §2: a line height below one row would overlap the lines).
+    /// The used line height in whole rows: the value floored onto the
+    /// grid — leading under a row cannot be drawn, and a terminal row
+    /// already carries the font's line gap, so `1.5` is one row and `2.5`
+    /// two (C9G-LINE-HEIGHT-FLOOR, DIVERGENCES §1) — at least one, the
+    /// glyph's own row (DIVERGENCES §2: a line height below one row would
+    /// overlap the lines).
     pub fn rows(&self) -> u16 {
         let value = match self {
             LineHeight::Normal => 1.0,
             LineHeight::Number(n) | LineHeight::Rows(n) => f64::from(*n),
             LineHeight::Calc(expr) => expr.resolve_f64(&ResolveCtx::new(1)),
         };
-        to_cells(value).clamp(1, i32::from(u16::MAX)) as u16
+        floor_rows(value)
     }
 
     /// Rows of leading above and below the glyph row of an inline box
@@ -66,25 +69,52 @@ impl LineHeight {
     }
 }
 
+/// `v` rows floored to whole rows, at least one (`NaN` one): a value
+/// within a millionth below a whole row is that row, so `f32` and math
+/// function arithmetic (`calc(3 * (1 / 3))`) does not lose one.
+pub(crate) fn floor_rows(v: f64) -> u16 {
+    if v.is_nan() {
+        return 1;
+    }
+    (v + 1e-6).floor().clamp(1.0, f64::from(u16::MAX)) as u16
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::calc::{CalcUnit, Viewport};
 
     /// CSS Inline 3 §5.1 on a one-row font: `normal` and `1` are one row,
-    /// numbers and lengths round onto the grid, nothing is below one row.
+    /// numbers, percentages and lengths floor to whole rows
+    /// (C9G-LINE-HEIGHT-FLOOR), nothing is below one row.
     #[test]
-    fn rows_round_onto_the_grid_at_least_one() {
+    fn rows_floor_onto_the_grid_at_least_one() {
         assert_eq!(LineHeight::Normal.rows(), 1);
         assert_eq!(LineHeight::Number(1.0).rows(), 1);
-        assert_eq!(LineHeight::Number(1.5).rows(), 2);
+        assert_eq!(LineHeight::Number(1.5).rows(), 1);
+        assert_eq!(LineHeight::Number(1.99).rows(), 1);
         assert_eq!(LineHeight::Number(2.5).rows(), 2);
         assert_eq!(LineHeight::Rows(3.0).rows(), 3);
+        assert_eq!(LineHeight::Rows(2.7).rows(), 2);
         assert_eq!(LineHeight::Number(0.0).rows(), 1);
+        assert_eq!(LineHeight::Number(0.6).rows(), 1);
         assert_eq!(
             LineHeight::Calc(Box::new(CalcExpr::Percent(200.0))).rows(),
             2
         );
+        assert_eq!(
+            LineHeight::Calc(Box::new(CalcExpr::Percent(150.0))).rows(),
+            1
+        );
+    }
+
+    /// Math on fractions lands a hair below a whole row; it is that row.
+    #[test]
+    fn a_hair_below_a_whole_row_is_that_row() {
+        assert_eq!(floor_rows(3.0 * (1.0 / 3.0) * 3.0 - 1e-9), 3);
+        assert_eq!(floor_rows(2.99), 2);
+        assert_eq!(floor_rows(f64::NAN), 1);
+        assert_eq!(floor_rows(f64::INFINITY), u16::MAX);
     }
 
     /// CSS 2.1 §10.8.1: half the leading above the glyph row and half

@@ -36,16 +36,21 @@ fn an_odd_leading_puts_the_extra_row_below() {
 }
 
 /// CSS Inline 3 §5.1: `normal` and the number 1 are the font's height —
-/// one row; a number "multiplied by the element's font size" (one row)
-/// and a percentage "relative to the font size" round onto the grid;
-/// a length is rows; a height below one row still takes the glyph's row.
+/// one row; a number "multiplied by the element's font size" (one row),
+/// a percentage "relative to the font size" and a length floor to whole
+/// rows (C9G-LINE-HEIGHT-FLOOR: leading under a row cannot be drawn, and
+/// a terminal row already carries the font's line gap — DIVERGENCES §1);
+/// a height below one row still takes the glyph's row.
 #[test]
 fn the_values_map_onto_whole_rows() {
     for (value, height) in [
         ("normal", 2),
         ("1", 2),
-        ("1.5", 4),
-        ("150%", 4),
+        ("1.5", 2),
+        ("150%", 2),
+        ("1.9ch", 2),
+        ("2.5", 4),
+        ("250%", 4),
         ("3", 6),
         ("calc(1 + 1)", 4),
         ("0", 2),
@@ -255,4 +260,18 @@ fn form_controls_keep_a_normal_line_height() {
         rows(&buf, 6, 5),
         [" hi   ", " a    ", " b    ", " c    ", " d    "]
     );
+}
+
+/// C9G-LINE-HEIGHT-FLOOR. Tailwind's preflight (and most resets) set
+/// `html { line-height: 1.5 }`; a fractional line height floors to whole
+/// rows, so the page keeps one row per line instead of double-spacing.
+#[test]
+fn a_reset_line_height_does_not_double_space() {
+    let mut dom = TuiDom::with_root_tag("html");
+    let root = dom.root();
+    let b = el(&mut dom, root, "div", "b");
+    let t = dom.create_text_node("aa bb cc");
+    dom.append_child(b, t).unwrap();
+    let buf = paint(&mut dom, "html { line-height: 1.5 } .b { width: 2 }", 2, 4);
+    assert_eq!(rows(&buf, 2, 4), ["aa", "bb", "cc", "  "]);
 }

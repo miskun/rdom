@@ -5754,3 +5754,20 @@ row comes from.
   right`, `bold`, `italic` on `html` leave the controls alone). Mutation (each declaration dropped alone,
   restored, touched): each of the six fails the test. Changed expectation: `ua_total_rule_count` 163 → 167
   (the new 4-selector rule). No snapshot changed.
+- 2026-10-12 — C9G-LINE-HEIGHT-FLOOR (the Phase 9 gate's decision; architect N11, API N2). Found:
+  `LineHeight::rows()` rounded ties to even, as fractional lengths do, so `line-height: 1.5` — Tailwind
+  preflight's `html` value, and most resets' — was two rows and double-spaced a whole app. Decision (the
+  gate's): a fractional used line height floors to whole rows, at least one — number, percentage and
+  length alike (`1.5`, `150%`, `1.9ch` one row; `2.5` two): leading under a row cannot be drawn, and a
+  terminal row already carries the font's line gap. `rows()` is the one place (`lh` / `rlh`, the packer's
+  half-leading, `vertical-align` percentages all read it); new `line_height::floor_rows` takes a value
+  within a millionth below a whole row as that row (`f32` and math-function arithmetic). DIVERGENCES §1's
+  `line-height` entry, the coverage row, the rdom-tui README, CHANGELOG (Changed — rdom-style; upgrade item
+  33, and item 36's `font` example now `14px/2`) say so. Red: rdom-style `rows_floor_onto_the_grid_at_least_one`
+  (renamed from `rows_round_…`; `1.5` → 2 for 1), rdom-tui `css_phase9/line_height.rs::
+  a_reset_line_height_does_not_double_space` (`html { line-height: 1.5 }`: `["aa", "  ", "bb", "  "]` for
+  `["aa", "bb", "cc", "  "]`) and `the_values_map_onto_whole_rows` (`1.5`: 4 rows for 2) failed; green
+  after. Mutation (restored, touched): no epsilon → `a_hair_below_a_whole_row_is_that_row` fails. Changed
+  expectations: `rows_round_onto_the_grid_at_least_one` pinned `1.5` → 2 (now 1); `the_values_map_onto_whole_rows`
+  pinned `1.5` / `150%` at 4 rows for two lines (now 2), with `1.9ch`, `2.5`, `250%` added. No snapshot
+  changed (no demo uses a fractional line height).

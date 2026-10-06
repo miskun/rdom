@@ -415,9 +415,9 @@ What's supported:
   that take up room and wrap; `nowrap` collapses but never soft-wraps.
   Inherits.
 - **`<br>`** — hard break.
-- **`line-height`** in whole rows (CSS Inline 3 §5.1): every inline box
-  and the block's strut add their half-leading around the glyph row;
-  `lh` / `rlh` follow it.
+- **`line-height`** in whole rows, a fraction floored (`1.5` is one row,
+  `2.5` two; CSS Inline 3 §5.1): every inline box and the block's strut
+  add their half-leading around the glyph row; `lh` / `rlh` follow it.
 - **`vertical-align`** (CSS 2.1 §10.8.1): `sub` / `super` a row,
   lengths, `middle` / `text-top` / `text-bottom`, and `top` / `bottom`
   aligned subtrees, on spans, generated text and inline blocks.
