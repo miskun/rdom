@@ -111,7 +111,7 @@ pub use rdom_style::calc::Viewport;
 pub use render::VirtualScreen;
 pub use render::{
     Backend, Buffer, Cell, CellDiff, CompletedFrame, CrosstermBackend, LayoutExt, PaintExt, Rect,
-    Style, Terminal, TerminalGuard, TestBackend,
+    SgrCapabilities, Style, Terminal, TerminalGuard, TestBackend,
 };
 /// The canvas paint surface a `<canvas>` `set_paint` callback receives.
 /// (Re-exported here as the canonical `RenderContext`; the old, unused

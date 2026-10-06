@@ -653,6 +653,22 @@ the `TuiEvent::keydown` / `keyup` / `keypress` / `click` / mouse /
 - **Startup color-scheme query.** Unless the app sets a scheme (`App::with_color_scheme`), `App::run` asks the terminal for its background with OSC 11 before the first frame (Unix, when stdout is a terminal; replies are read from stdin, or `/dev/tty` when stdin is redirected), and prefers the light or dark scheme it calls for — what `light-dark()` and `color-scheme: normal` follow. A terminal that answers ends the wait at once; one that answers nothing costs 200 ms; a reply that has begun is waited for up to 800 ms more. Keys typed during the wait are kept and handled after it, and a reply that arrives later is still taken as the answer. `App::detected_background()` is the reported color, `None` when there was no answer.
 - **Theme changes.** `App::run` enables DEC mode 2031 on Unix: a terminal that supports it (Contour, Ghostty, kitty, and others) reports a switch between its light and dark themes, and the preferred scheme follows, restyling the tree — unless the app set the scheme. On Windows neither the startup query nor theme reports are read (crossterm's console reader delivers no terminal replies), so the scheme is dark unless the app sets it.
 - **Input.** On Unix rdom reads the terminal itself (its own reader, inside `App::run`), parsing keys (including the kitty keyboard protocol), SGR mouse, paste, focus and resize into crossterm's `Event` types; an unknown escape sequence is consumed instead of stalling the input after it, and a lone `ESC` is the Esc key after 25 ms without a following byte.
+- **Text decorations and `SgrCapabilities`.** An underline's style (`4:2`–`4:5`) and color (`58:2::r:g:b`) and the overline (`53`) are SGR extensions a terminal that does not know them may misread (`4:3` as underline plus italic), so a backend emits only those its `SgrCapabilities` list; elsewhere an underline is a plain `4`. `App::new` guesses them from the environment (`SgrCapabilities::from_env`): all three for kitty, WezTerm, foot, Ghostty, mintty, VTE 0.60+ and tmux 3.2+ (which passes each on where its outer terminal's terminfo has it: `Smulx`, `Setulc`, `Smol`); the underline styles and color for Alacritty and VS Code; the styles alone for iTerm2 3.4+; none under GNU screen or an older tmux — a multiplexer wins over the outer terminal's inherited variables — nor for anything else, Windows Terminal included (its `WT_SESSION` carries no version). Override the guess on the `App`:
+
+  ```rust
+  use rdom_tui::prelude::*;
+  use rdom_tui::SgrCapabilities;
+
+  let terminal = Terminal::new(TestBackend::new(20, 2)).unwrap();
+  let app = App::with_backend(TuiDom::new(), Stylesheet::new(), terminal)
+      .unwrap()
+      // Windows Terminal 1.20+: every extension.
+      .with_sgr_capabilities(SgrCapabilities::EXTENDED);
+  assert_eq!(app.sgr_capabilities(), SgrCapabilities::EXTENDED);
+  // Curly underlines and nothing else; or `BASIC` for a log or recording.
+  let _custom = SgrCapabilities::BASIC.with_styled_underline(true);
+  ```
+
 - **iTerm2 and hover.** iTerm2 may ignore the any-motion mouse mode until it sees a real click, at launch and after every refocus, so `:hover` styles start following the pointer only after one click. Other terminals (Alacritty, Kitty, Ghostty, WezTerm) honor it immediately. The cause and the failed re-arm attempts are recorded in `specs/DIVERGENCES.md` §4.
 
 ## Examples

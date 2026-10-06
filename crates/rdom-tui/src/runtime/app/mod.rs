@@ -9,6 +9,8 @@
 //!   custom backends.
 //! - [`App::on_tick`] — register a tick callback.
 //! - [`App::tick_rate`] — configure event-poll timeout.
+//! - [`App::with_sgr_capabilities`] — the terminal's SGR extensions,
+//!   overriding the detected ones.
 //! - [`App::run`] — block until exit, owning the full event loop.
 //!   Only available on `App<CrosstermBackend<Stdout>>`.
 //! - [`App::handle_event`], [`App::draw_if_dirty`] — granular
@@ -384,6 +386,25 @@ impl<B: Backend> App<B> {
     #[cfg(test)]
     pub(crate) fn smooth_scroll_deadline(&self) -> Option<std::time::Instant> {
         self.prelude.smooth_scroll_next
+    }
+
+    /// Emit the SGR extensions `caps` lists — the underline styles and
+    /// color, the overline (CSS Text Decoration 4) — overriding what the
+    /// backend had: [`App::new`]'s guess from the environment
+    /// ([`SgrCapabilities::from_env`](crate::SgrCapabilities::from_env)),
+    /// a [`TestBackend`](crate::TestBackend)'s
+    /// [`BASIC`](crate::SgrCapabilities::BASIC). Force `BASIC` for output
+    /// that is logged or recorded, or give a terminal the detection does
+    /// not know its extensions. The next frame is drawn whole.
+    pub fn with_sgr_capabilities(mut self, caps: crate::SgrCapabilities) -> Self {
+        self.terminal.backend_mut().set_sgr_capabilities(caps);
+        self.terminal.queue_full_redraw();
+        self
+    }
+
+    /// The SGR extensions the app's backend emits.
+    pub fn sgr_capabilities(&self) -> crate::SgrCapabilities {
+        self.terminal.backend().sgr_capabilities()
     }
 
     /// Replace the clipboard backend. Useful for tests

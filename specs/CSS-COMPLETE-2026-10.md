@@ -5905,3 +5905,33 @@ row comes from.
   and the test was corrected to assert that and the clamped box's clearance). Mutation (restored,
   touched): an atom's or float's lines painted with no marking → the atomic test fails. List markers'
   raw widths go to C10-LIST-ITEM (its row says so). No existing expectation or snapshot changed.
+- 2026-10-12 — C9G-SGR-CAPS (API N1, architect N6). Found: `App::new` hard-coded
+  `SgrCapabilities::from_env()` and the backends' `with_sgr_capabilities` takes them by value, so an app could
+  not force `BASIC` (a log, a recording) or give a terminal the detection missed its extensions; the
+  `#[non_exhaustive]` type had no way to build a custom set; and detection let an inherited
+  `KITTY_WINDOW_ID` / `TERM_PROGRAM` win over a multiplexer — GNU screen started from kitty got `EXTENDED`,
+  and screen splits `58:2::255:0:0` into faint and resets. Decisions: (1) the override follows the `App`
+  builder pattern (`with_caret_blink`, `with_clipboard`): `App::with_sgr_capabilities(caps)` (the next frame
+  drawn whole) and `App::sgr_capabilities()`, carried by new *provided* `Backend::set_sgr_capabilities` /
+  `sgr_capabilities` methods (a no-op and `BASIC` by default, so a consumer's backend still compiles; the
+  two built-in backends implement them); `SgrCapabilities` is re-exported at the crate root. (2) `const`
+  builders `with_styled_underline` / `with_underline_color` / `with_overline`, so
+  `SgrCapabilities::BASIC.with_styled_underline(true)` is a set. (3) Detection, conservative, checked
+  against the terminals' own changelogs / the vtdn.dev SGR tables: a multiplexer wins — `STY` (GNU screen,
+  no colon forms) → `BASIC`; `TERM_PROGRAM=tmux` with a version ≥ 3.2 (tmux exports both from 3.2, its
+  CHANGES; it has parsed `4:x` since 2.9, `58` and `53` since 3.0, and passes each on where the outer terminfo
+  has `Smulx` / `Setulc` / `Smol`, a plain underline or nothing elsewhere) → `EXTENDED`; any other sign (`TMUX`, `TERM`
+  `screen*` / `tmux*`) → `BASIC`. Then all three for kitty / foot / WezTerm / Ghostty / mintty /
+  `KITTY_WINDOW_ID` / VTE ≥ 0.60; styles and color for Alacritty (`TERM=alacritty` or
+  `ALACRITTY_WINDOW_ID`; 0.11, no overline), VS Code ≥ 1.60 (xterm.js 4.10+) and VTE 0.52–0.59; the
+  styles alone for iTerm2 ≥ 3.4 (its SGR 58 is nightly-only). Not detected, documented: Windows Terminal
+  (all three from 1.20, but `WT_SESSION` has no version) and `COLORTERM` (24-bit color says nothing about
+  these). README "Terminal notes" documents the table and the override (a doctest); DIVERGENCES §2's
+  decoration entry says so. Red: rdom-tui `render::sgr_capabilities::tests` —
+  `detection_knows_the_partial_terminals` (Alacritty `BASIC` for styles + color) and
+  `a_multiplexer_wins_over_the_outer_terminal` (screen + `KITTY_WINDOW_ID`: `EXTENDED` for `BASIC`) failed
+  against the old `detect` (environment injected through `detect`'s `var`, no process environment
+  touched); `the_builders_make_a_custom_set` and `css_phase9/text_decoration.rs::
+  the_app_takes_a_capability_override` did not compile (no builders, no `App` method, no root export).
+  Green after. No existing expectation or snapshot changed.
+

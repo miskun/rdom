@@ -112,6 +112,14 @@ impl<W: Write> Backend for CrosstermBackend<W> {
     fn reset_style_cache(&mut self) {
         self.state = BackendState::default();
     }
+
+    fn set_sgr_capabilities(&mut self, caps: SgrCapabilities) {
+        self.caps = caps;
+    }
+
+    fn sgr_capabilities(&self) -> SgrCapabilities {
+        self.caps
+    }
 }
 
 // ─── Mode management (raw mode, alt screen) ─────────────────────────

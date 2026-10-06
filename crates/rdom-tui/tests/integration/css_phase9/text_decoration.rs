@@ -111,3 +111,52 @@ fn the_placement_properties_parse_and_are_inert() {
         "currentcolor is the text's"
     );
 }
+
+// ---- C9G-SGR-CAPS: the App's terminal capabilities ----
+
+/// The bytes an `App` over a `TestBackend` emits for a curly underline,
+/// with `caps` set on the `App` (or not).
+fn app_bytes(caps: Option<rdom_tui::SgrCapabilities>) -> (String, rdom_tui::SgrCapabilities) {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = el(&mut dom, root, "div", "d");
+    let t = dom.create_text_node("ab");
+    dom.append_child(d, t).unwrap();
+    let sheet = rdom_css::from_css_strict(".d { text-decoration: underline wavy red }").unwrap();
+    let terminal = Terminal::new(TestBackend::new(4, 1)).unwrap();
+    let mut app = App::with_backend(dom, sheet, terminal).unwrap();
+    if let Some(caps) = caps {
+        app = app.with_sgr_capabilities(caps);
+    }
+    app.draw_if_dirty().unwrap();
+    let bytes = app.terminal().backend().bytes();
+    (
+        String::from_utf8_lossy(bytes).into_owned(),
+        app.sgr_capabilities(),
+    )
+}
+
+/// An `App` emits the SGR extensions its capabilities list:
+/// `with_sgr_capabilities` overrides what the backend had (a
+/// `TestBackend`'s `BASIC`, `App::new`'s detected set), so a log or a
+/// recording can be forced to the common subset and a terminal the
+/// detection misses given its extensions.
+#[test]
+fn the_app_takes_a_capability_override() {
+    use rdom_tui::SgrCapabilities;
+    let (basic, caps) = app_bytes(None);
+    assert_eq!(caps, SgrCapabilities::BASIC);
+    assert!(!basic.contains("4:3") && !basic.contains("58"), "{basic:?}");
+    let (ext, caps) = app_bytes(Some(SgrCapabilities::EXTENDED));
+    assert_eq!(caps, SgrCapabilities::EXTENDED);
+    assert!(
+        ext.contains("\x1b[4:3m") && ext.contains("58:2::255:0:0"),
+        "{ext:?}"
+    );
+    let curly_only = SgrCapabilities::BASIC.with_styled_underline(true);
+    let (some, _) = app_bytes(Some(curly_only));
+    assert!(
+        some.contains("\x1b[4:3m") && !some.contains("58"),
+        "{some:?}"
+    );
+}

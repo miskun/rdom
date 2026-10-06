@@ -63,6 +63,22 @@ pub trait Backend: io::Write {
     /// draw() call will emit full state. Use after something else
     /// may have written to stdout (e.g., an uncaught `println!`).
     fn reset_style_cache(&mut self);
+
+    /// Emit the SGR extensions `caps` lists from the next draw on — the
+    /// underline styles and color, the overline (CSS Text Decoration 4) —
+    /// as to a terminal that has them
+    /// ([`App::with_sgr_capabilities`](crate::App::with_sgr_capabilities)
+    /// calls it). A backend that emits none of them, as this default
+    /// does, ignores it.
+    fn set_sgr_capabilities(&mut self, caps: SgrCapabilities) {
+        let _ = caps;
+    }
+
+    /// The SGR extensions the backend emits
+    /// ([`SgrCapabilities::BASIC`] for one that emits none).
+    fn sgr_capabilities(&self) -> SgrCapabilities {
+        SgrCapabilities::BASIC
+    }
 }
 
 /// Internal tracking shared by both backend implementations. Both
@@ -282,6 +298,14 @@ impl Backend for TestBackend {
 
     fn reset_style_cache(&mut self) {
         self.state = BackendState::default();
+    }
+
+    fn set_sgr_capabilities(&mut self, caps: SgrCapabilities) {
+        self.caps = caps;
+    }
+
+    fn sgr_capabilities(&self) -> SgrCapabilities {
+        self.caps
     }
 }
 
