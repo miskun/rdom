@@ -217,3 +217,42 @@ fn lh_and_rlh_follow_the_line_height() {
     assert_eq!(rect(&dom, b).height, 4);
     assert_eq!(rect(&dom, c).height, 2);
 }
+
+/// C9G-UA-LINE-HEIGHT. HTML's UA sheets keep form controls at
+/// `line-height: normal` (Chromium's `input, textarea, select, button {
+/// line-height: normal }`, Gecko's `input { line-height: normal }`), so a
+/// page's `html { line-height: 2 }` leaves a text `<input>` one row — its
+/// text on it, nothing to scroll — and a 4-row `<textarea>` four lines;
+/// the other inherited text properties Chromium resets there
+/// (`text-transform`, `text-indent`, `text-align`, the font's weight and
+/// style)
+/// do not reach in either.
+#[test]
+fn form_controls_keep_a_normal_line_height() {
+    let mut dom = TuiDom::with_root_tag("html");
+    let root = dom.root();
+    let input = el(&mut dom, root, "input", "");
+    let t = dom.create_text_node("hi");
+    dom.append_child(input, t).unwrap();
+    let area = el(&mut dom, root, "textarea", "");
+    let t = dom.create_text_node("a\nb\nc\nd");
+    dom.append_child(area, t).unwrap();
+    let buf = paint(
+        &mut dom,
+        "html { line-height: 2; text-transform: uppercase; text-indent: 2; text-align: right; \
+         font-weight: bold; font-style: italic }",
+        6,
+        5,
+    );
+    assert_eq!(dom.node(input).scroll_height(), Some(1));
+    assert_eq!(dom.node(area).scroll_height(), Some(4));
+    let weight = |id| dom.node(id).computed().unwrap().font.weight;
+    let normal = rdom_tui::FontWeight::Number(400.0);
+    assert_eq!((weight(input), weight(area)), (normal, normal));
+    let upright = rdom_tui::FontStyle::Normal;
+    assert_eq!(dom.node(input).computed().unwrap().font.style, upright);
+    assert_eq!(
+        rows(&buf, 6, 5),
+        [" hi   ", " a    ", " b    ", " c    ", " d    "]
+    );
+}

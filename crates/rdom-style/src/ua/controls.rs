@@ -2,12 +2,35 @@
 
 use super::css;
 use crate::color::system::{ACCENT, FIELD_BG, TEXT_MUTED};
-use crate::layout::{BoxSizing, Display, Overflow, Padding, Size, UserSelect, WhiteSpace};
+use crate::layout::{
+    BoxSizing, Display, FontStyle, FontWeight, LineHeight, Overflow, Padding, Size, TextAlign,
+    TextIndent, TextTransform, UserSelect, WhiteSpace,
+};
 use crate::{Color, Content, TuiStyle};
 
 /// The UA rules of this group, in cascade order.
 pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
     vec![
+        // ── Form controls: the inherited text properties reset ──
+        // Chromium's `input, textarea, select, button { … line-height:
+        // normal; text-transform: none; text-indent: 0; text-align:
+        // start; … }` and its `font: -webkit-small-control` (Gecko's
+        // `input { line-height: normal }`, HTML §15.5): a control lays its
+        // own text out, so a page's `line-height: 1.5`, `text-indent`,
+        // `uppercase` or `text-align: center` does not reach into it. The
+        // font reset keeps the weight and style (the button rules below
+        // set their own); the font's size and family are inert in a
+        // terminal.
+        (
+            "input, textarea, select, button",
+            TuiStyle::new()
+                .line_height(LineHeight::Normal)
+                .text_transform(TextTransform::NONE)
+                .text_indent(TextIndent::default())
+                .text_align(TextAlign::Start)
+                .font_weight(FontWeight::Normal)
+                .font_style(FontStyle::Normal),
+        ),
         // ── Form fields ──
         // `<input>` is a single-line text-family editor. White-
         // space `Pre` keeps spaces verbatim; overflow-x `Hidden`

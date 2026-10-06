@@ -5737,3 +5737,20 @@ row comes from.
   `an_inline_block_aligns_by_each_keyword`); none in anonymous runs → the leading-line test; the
   baseline memo bypassed → the cost pin (20 walks at 4 levels). No existing expectation or snapshot
   changed.
+- 2026-10-12 — C9G-UA-LINE-HEIGHT (API B1). Confirmed first (the gate inferred it): with `html {
+  line-height: 2 }` a text `<input>` (one row, `overflow-x: hidden` pairing `overflow-y: auto`) had a
+  `scrollHeight` of 2 — a scrollable second row — and a `<textarea>` of fixed height 4 showed two lines (`a`,
+  blank, `b`, blank). Decision: HTML's UA sheets keep a control's own text layout — Chromium's `input,
+  textarea, select, button { … letter-spacing: normal; word-spacing: normal; line-height: normal;
+  text-transform: none; text-indent: 0; text-shadow: none; text-align: start }` with `font:
+  -webkit-small-control`, Gecko's `input { line-height: normal }` — so rdom's UA sheet
+  (`ua/controls.rs`) gains the rule with the properties rdom has: `line-height: normal`, `text-transform:
+  none`, `text-indent: 0`, `text-align: start`, and from the font reset the weight and style (`normal`;
+  size and family are inert); the button rules after it keep buttons bold. `letter-spacing` /
+  `word-spacing` join the rule with C9G-LETTER-SPACING. Silent change from 0.5 (`body { font-weight:
+  bold }` no longer reaches a field) — upgrade item 37. Red: `css_phase9/line_height.rs::
+  form_controls_keep_a_normal_line_height` failed (input `scrollHeight` 2 for 1; the textarea `[" a", "",
+  " b", ""]`); green after, with the other resets asserted (`uppercase`, `text-indent: 2`, `text-align:
+  right`, `bold`, `italic` on `html` leave the controls alone). Mutation (each declaration dropped alone,
+  restored, touched): each of the six fails the test. Changed expectation: `ua_total_rule_count` 163 → 167
+  (the new 4-selector rule). No snapshot changed.

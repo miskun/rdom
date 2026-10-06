@@ -39,7 +39,9 @@ fn ua_total_rule_count() {
     // form controls plus `meter` / `progress` (C5-BOX-SIZING), an
     // 11-selector rule (+11).
     // 163: the `dir` attribute's `direction` rules (C5-WRITING, +2).
-    assert_eq!(ua.len(), 163);
+    // 167: the form controls' inherited-text reset, a 4-selector rule
+    // (C9G-UA-LINE-HEIGHT, +4).
+    assert_eq!(ua.len(), 167);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")
