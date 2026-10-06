@@ -82,7 +82,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 13 | 0 | 1 | 0 | 14 |
 | 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 15 | 0 | 0 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 4 | 0 | 0 | 2 | 6 |
-| 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
+| 3.14 Fonts (Fonts 4) | 3 | 0 | 0 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
 | 3.16 Pseudo-elements (Pseudo-Elements 4, Selectors 4) | 4 | 1 | 5 | 6 | 16 |
 | 3.17 Selectors (Selectors 4) | 16 | 2 | 16 | 4 | 38 |
@@ -93,11 +93,11 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **178** | **20** | **63** | **46** | **307** |
+| **Total** | **181** | **18** | **62** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 83 rows Partial / Missing (C9-DECORATION shipped the four text decoration rows; C9-VERTICAL-ALIGN shipped `vertical-align` on inline content; C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 80 rows Partial / Missing (C9-FONT shipped `font-weight`, `font-style` and `font`; C9-DECORATION shipped the four text decoration rows; C9-VERTICAL-ALIGN shipped `vertical-align` on inline content; C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
-Headline: rdom parses **227 property names** (`property_names()`: 159 in the table and 68 flow-relative ones, after Phase 8). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gap a web developer hits first is `@media`.
+Headline: rdom parses **258 property names** (`property_names()`: 190 in the table and 68 flow-relative ones, after Phase 9). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gap a web developer hits first is `@media`.
 
 ---
 
@@ -159,7 +159,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 49 | Table properties: `border-spacing`, `vertical-align` (cells), `table-layout`, `caption-side`, `empty-cells` | Cell gaps in cells; `middle` / `bottom` cell alignment; `fixed` = first-row widths only; caption above / below; hide empty cells' borders. | S each (`vertical-align` M) | Partial — `vertical-align` Yes; rest No |
 | 50 | `vertical-align` (inline) | Shipped (C9-VERTICAL-ALIGN; §3.12): every value in whole rows, `sub` / `super` one row. | M | Yes |
 | 51 | `text-decoration-line` / `-color` / `-style`, multi-line `text-decoration`, `overline` | Shipped (C9-DECORATION; §3.13): SGR 4:x / 58 / 53 by the terminal's capabilities. | S | No |
-| 52 | `font-weight` numeric / `bolder` / `lighter`, `font-style: oblique`, `font` shorthand | `≥ 600` / `bold` / `bolder` → SGR 1; `≤ 300` / `lighter` → SGR 2 (faint) is optional; `oblique` → italic; `font` shorthand reads weight / style and ignores family / size. | S | No |
+| 52 | `font-weight` numeric / `bolder` / `lighter`, `font-style: oblique`, `font` shorthand | Shipped (C9-FONT; §3.14): SGR 1 from 600, no faint; `oblique` → italic. | S | No |
 | 53 | `quotes` + `open-quote` / `close-quote` in `content` | Quote marks for `<q>` and nested quotations, from the `quotes` pairs. | S | No |
 | 54 | `counters()`, `counter-set`, `reversed()` in `counter-reset`, more counter styles, `@counter-style`, `symbols()` | Nested "1.2.3" numbering; set without reset; `<ol reversed>`; `disc` / `circle` / `square` / `decimal-leading-zero` / `lower-greek` / author-defined styles. | S / M | Partial — `counters()`, `counter-set` Yes; rest No |
 | 55 | `line-clamp` (`max-lines`, `block-ellipsis`, `continue`) | Clamp a block to N rows, last row ends in `…`. | M | No | *Shipped: C8-LINE-CLAMP.*
@@ -199,8 +199,8 @@ dropped. The audit's six, with where each stands:
 5. ~~**`top` / `right` / `bottom` / `left` reject a bare `%`.**~~ *Shipped: C2-PERCENT.*
 6. **`width` / `height` lack `min-content` / `max-content` / `fit-content`**, although the
    intrinsic sizes are computed (`layout_pass/intrinsic.rs`). **Open: C5-INTRINSIC.**
-7. **`font-weight` is `normal | bold` only** — `font-weight: 700` / `600` / `bolder` are dropped.
-   **Doc'd: No.**
+7. ~~**`font-weight` is `normal | bold` only** — `font-weight: 700` / `600` / `bolder` are dropped.~~
+   *Shipped: C9-FONT.*
 8. ~~**`text-decoration` is one keyword**, matched case-sensitively; no `overline`, no
    combinations, no color / style components.~~ *Shipped: C9-DECORATION* — the full shorthand and
    its longhands.
@@ -461,10 +461,10 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `font-weight` | Partial | `normal` / `bold`; numeric weights, `bolder` / `lighter` rejected. | No | `DISP/set.rs` |
-| `font-style` | Partial | `normal` / `italic`; `oblique [<angle>]` rejected. | No | `DISP/set.rs` |
-| `font` | Missing | Shorthand: honor weight / style, ignore size / family. | No | `DISP` |
-| `font-family` / `font-size` / `font-stretch` (`font-width`) / `font-size-adjust` / `font-optical-sizing` / `font-kerning` / `font-feature-settings` / `font-variation-settings` / `font-language-override` / `font-synthesis*` / `font-palette` / `font-variant*` | N/A | The terminal owns the font; one monospaced face at one size (documented). | — | — |
+| `font-weight` | Supported | `normal` / `bold` / `bolder` / `lighter` / `<number [1,1000]>`, the relative keywords by §2.2's table against the parent's weight; SGR bold from 600, lighter weights normal (C9-FONT; DIVERGENCES §2). | — | `V/font.rs`, `DISP/font.rs`, `CASC/font.rs` |
+| `font-style` | Supported | `normal` / `italic` / `oblique <angle [-90deg,90deg]>?`; SGR italic, `oblique 0deg` upright (C9-FONT). | — | `V/font.rs`, `DISP/font.rs` |
+| `font` | Supported | The full grammar incl. `/ line-height` and the system font keywords: weight and style honoured, `line-height` reset, size / family / stretch / variant kept inert; serialized shortest (C9-FONT). | — | `V/font.rs`, `DISP/font.rs` |
+| `font-family` / `font-size` / `font-stretch` (`font-width`) / `font-size-adjust` / `font-optical-sizing` / `font-kerning` / `font-feature-settings` / `font-variation-settings` / `font-language-override` / `font-synthesis*` / `font-palette` / `font-variant*` | N/A | The terminal owns the font; one monospaced face at one size (documented). `font-family`, `font-size`, `font-stretch` / `font-width` and `font-variant` (CSS 2.1's form) parse, cascade and serialize, inert (C9-FONT); the others are not parsed. | — | `DISP/font.rs` |
 | `@font-face` / `@font-feature-values` / `@font-palette-values` | N/A | Same. | — | — |
 
 ### 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4)
@@ -796,9 +796,9 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 
 **3.14 Fonts (Fonts 4)**
 
-- `font-weight` — Partial: `normal` / `bold`; numeric weights, `bolder` / `lighter` rejected.
-- `font-style` — Partial: `normal` / `italic`; `oblique [<angle>]` rejected.
-- `font` — Missing: Shorthand: honor weight / style, ignore size / family.
+- `font-weight` — Partial: `normal` / `bold`; numeric weights, `bolder` / `lighter` rejected. *Shipped: C9-FONT.*
+- `font-style` — Partial: `normal` / `italic`; `oblique [<angle>]` rejected. *Shipped: C9-FONT.*
+- `font` — Missing: Shorthand: honor weight / style, ignore size / family. *Shipped: C9-FONT.*
 
 **3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4)**
 

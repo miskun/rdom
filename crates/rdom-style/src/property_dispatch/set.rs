@@ -89,6 +89,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         .or_else(|| super::text::set(name, value, style))
         .or_else(|| super::inline::set(name, value, style))
         .or_else(|| super::text_decoration::set(name, value, style))
+        .or_else(|| super::font::set(name, value, style))
     {
         return outcome.ok_or(DispatchError::InvalidValue);
     }
@@ -99,12 +100,6 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         }),
         "background-color" => parse_color(value).map(|c| {
             style.bg = Some(Value::Specified(c));
-        }),
-        "font-weight" => parse_keyword(value, &[("bold", true), ("normal", false)]).map(|v| {
-            style.bold = Some(Value::Specified(v));
-        }),
-        "font-style" => parse_keyword(value, &[("italic", true), ("normal", false)]).map(|v| {
-            style.italic = Some(Value::Specified(v));
         }),
         "opacity" => parse_opacity(value).map(|v| {
             style.opacity = Some(Value::Specified(v));

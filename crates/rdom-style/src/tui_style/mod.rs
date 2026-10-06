@@ -25,7 +25,7 @@ use crate::layout::{
 use crate::{Content, TuiColor, Value};
 
 pub use important::ImportantMask;
-pub use text::{TextDeclarations, TextDecorationDeclarations};
+pub use text::{FontDeclarations, TextDeclarations, TextDecorationDeclarations};
 
 /// Author-written style block. Build with the fluent setters; feed
 /// into a `Stylesheet` via `rule(...)` or assign to
@@ -57,8 +57,10 @@ pub struct TuiStyle {
     pub background_origin: Option<Value<Vec<crate::layout::VisualBox>>>,
     /// `background-clip` (§3.8), per layer.
     pub background_clip: Option<Value<Vec<crate::layout::VisualBox>>>,
-    pub bold: Option<Value<bool>>,
-    pub italic: Option<Value<bool>>,
+    /// The font properties (CSS Fonts 4): `font-weight`, `font-style`,
+    /// and the inert `font-size`, `font-family`, `font-stretch`,
+    /// `font-variant`. All inherit.
+    pub font: FontDeclarations,
     /// CSS `opacity`: 0.0–1.0 (clamped at cascade time). The
     /// `.opacity(f)` / `.opacity_important(f)` setters clamp at
     /// the call site. Paint alpha-blends fg / bg / border-fg
@@ -360,8 +362,7 @@ impl TuiStyle {
     pub fn first_line_subset(&self) -> Self {
         let keep = ImportantMask::FG
             | ImportantMask::BG
-            | ImportantMask::BOLD
-            | ImportantMask::ITALIC
+            | ImportantMask::FONT
             | ImportantMask::TEXT_DECORATION
             | ImportantMask::OPACITY;
         let mut pending: Vec<crate::var::PendingDeclaration> = self
@@ -386,8 +387,7 @@ impl TuiStyle {
             pending,
             fg: self.fg.clone(),
             bg: self.bg.clone(),
-            bold: self.bold,
-            italic: self.italic,
+            font: self.font.clone(),
             text_decoration: self.text_decoration.clone(),
             opacity: self.opacity,
             custom_properties: self.custom_properties.clone(),

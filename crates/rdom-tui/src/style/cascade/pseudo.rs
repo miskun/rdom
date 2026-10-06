@@ -139,6 +139,7 @@ pub(super) fn compute_pseudo_style(
     {
         super::blockify::blockify(&mut working);
     }
+    super::font::finalize_font(&mut working, host_computed);
     super::text_decoration::finalize_applied_decorations(
         &mut working,
         host_computed.applied_decorations,

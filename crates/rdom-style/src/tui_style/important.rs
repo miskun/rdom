@@ -27,6 +27,19 @@ pub struct ImportantMask {
 }
 
 impl ImportantMask {
+    /// `font-weight`'s bit under its 0.5 name.
+    pub const BOLD: Self = Self::FONT_WEIGHT;
+    /// `font-style`'s bit under its 0.5 name.
+    pub const ITALIC: Self = Self::FONT_STYLE;
+    /// The font longhands' bits (the `font` shorthand sets
+    /// `line-height` too).
+    pub const FONT: Self = Self::FONT_WEIGHT
+        .union(Self::FONT_STYLE)
+        .union(Self::FONT_SIZE)
+        .union(Self::FONT_FAMILY)
+        .union(Self::FONT_STRETCH)
+        .union(Self::FONT_VARIANT);
+
     /// The `text-decoration` shorthand's bits: its four longhands' (CSS
     /// Text Decoration 4 §2.6).
     pub const TEXT_DECORATION: Self = Self::TEXT_DECORATION_LINE

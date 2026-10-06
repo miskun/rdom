@@ -25,6 +25,8 @@
 //! - `grid_placement.rs` — grid placement (`grid-row` / `-column` /
 //!   `-area` and their longhands, `grid-auto-flow`).
 //! - `grid_shorthand.rs` — the `grid-template` and `grid` shorthands.
+//! - `font.rs` — CSS Fonts 4: the font properties and the `font`
+//!   shorthand.
 //! - `inline.rs` — CSS Inline 3: `line-height`, `vertical-align`.
 //! - `text_decoration.rs` — `text-decoration` and its longhands, the
 //!   underline placement properties.
@@ -45,6 +47,7 @@ mod content;
 mod display;
 mod flex;
 mod float;
+mod font;
 mod grid;
 mod grid_areas;
 mod grid_placement;
@@ -97,6 +100,12 @@ pub use flex::{
     serialize_flex_flow, serialize_flex_wrap,
 };
 pub use float::{parse_clear, parse_float};
+pub use font::{
+    FontShorthand, parse_font, parse_font_family, parse_font_size, parse_font_stretch,
+    parse_font_style, parse_font_variant, parse_font_weight, serialize_font_family,
+    serialize_font_size, serialize_font_stretch, serialize_font_style, serialize_font_variant,
+    serialize_font_weight,
+};
 pub(crate) use grid::is_line_name;
 pub use grid::{
     parse_grid_template, parse_track_size, parse_track_sizes, serialize_grid_template,

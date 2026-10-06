@@ -61,7 +61,10 @@ fn builder_sets_specified() {
         s.bg,
         Some(Value::Specified(TuiColor::Literal(Color::Rgb(0, 0, 0))))
     );
-    assert_eq!(s.bold, Some(Value::Specified(true)));
+    assert_eq!(
+        s.font.weight,
+        Some(Value::Specified(crate::layout::FontWeight::Bold))
+    );
     assert_eq!(s.declared_count(), 3);
 }
 
@@ -334,6 +337,10 @@ fn every_property_has_important_setter() {
         .hyphens_important(crate::layout::Hyphens::None)
         .tab_size_important(crate::layout::TabSize::Number(4.0))
         .line_height_important(crate::layout::LineHeight::Number(2.0))
+        .font_size_important(crate::layout::FontSize::Medium)
+        .font_family_important(crate::layout::FontFamily::Names(vec!["serif".into()]))
+        .font_stretch_important(crate::layout::FontStretch::Normal)
+        .font_variant_important(crate::layout::FontVariant::SmallCaps)
         .vertical_align_important(crate::layout::VerticalAlign::Super)
         .text_transform_important(crate::layout::TextTransform::NONE)
         .text_indent_important(crate::layout::TextIndent::cells(1))

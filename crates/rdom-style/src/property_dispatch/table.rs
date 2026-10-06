@@ -114,8 +114,12 @@ define_fields! {
     BackgroundAttachment => background_attachment : BACKGROUND_ATTACHMENT,
     BackgroundOrigin => background_origin : BACKGROUND_ORIGIN,
     BackgroundClip => background_clip : BACKGROUND_CLIP,
-    Bold => bold : BOLD,
-    Italic => italic : ITALIC,
+    FontWeight => font.weight : FONT_WEIGHT,
+    FontStyle => font.style : FONT_STYLE,
+    FontSize => font.size : FONT_SIZE,
+    FontFamily => font.family : FONT_FAMILY,
+    FontStretch => font.stretch : FONT_STRETCH,
+    FontVariant => font.variant : FONT_VARIANT,
     TextDecorationLine => text_decoration.line : TEXT_DECORATION_LINE,
     TextDecorationStyle => text_decoration.style : TEXT_DECORATION_STYLE,
     TextDecorationColor => text_decoration.color : TEXT_DECORATION_COLOR,
@@ -368,6 +372,12 @@ pub fn inherits(name: &str) -> bool {
         "color"
             | "font-weight"
             | "font-style"
+            | "font"
+            | "font-size"
+            | "font-family"
+            | "font-stretch"
+            | "font-width"
+            | "font-variant"
             | "white-space"
             | "white-space-collapse"
             | "text-wrap-mode"

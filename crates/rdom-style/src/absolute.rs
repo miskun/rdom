@@ -183,6 +183,12 @@ impl ComputedStyle {
                 PaintLength::Cells(v as f32)
             });
         }
+        // CSS Fonts 4 §2.5: `font-size` (parsed and kept, not drawn).
+        if let crate::layout::FontSize::Length(length) = &mut self.font.size {
+            absolutize(length, vp, PaintLength::Calc, |v| {
+                PaintLength::Cells(v as f32)
+            });
+        }
         // CSS Text 3 §8.1: `text-indent` is a length-percentage.
         absolutize(&mut self.text.text_indent.length, vp, Length::Calc, |v| {
             Length::Cells(cells_i32(v))

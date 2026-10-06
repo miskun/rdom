@@ -28,9 +28,10 @@ pub struct ComputedStyle {
     /// `border-top-color` … `border-left-color`, resolved (an
     /// undeclared side is the element's `color`, `currentcolor`).
     pub border_color: crate::layout::Sides<Color>,
-    /// All modifier bits collapsed — bold, dim, italic, underlined,
-    /// reversed. Cascade sets these from the individual `bold`/`dim`/...
-    /// properties on `TuiStyle`.
+    /// The modifier bits the font draws: bold (`font-weight` from 600)
+    /// and italic (`font-style`), derived by the cascade from
+    /// [`font`](Self::font). The decorations are
+    /// [`applied_decorations`](Self::applied_decorations).
     pub modifiers: Modifier,
     /// CSS `opacity` in `[0.0, 1.0]`. Cascade clamps; paint
     /// alpha-blends `fg` / `bg` / `border_color` against the resolved
@@ -279,6 +280,10 @@ pub struct ComputedStyle {
     /// The CSS Text properties — white-space processing, wrapping —
     /// which all inherit (CSS Text 3 / 4).
     pub text: crate::layout::TextStyle,
+    /// The font properties (CSS Fonts 4), the weight computed to a
+    /// number. All inherit; `modifiers` carries the bold and italic they
+    /// draw.
+    pub font: crate::layout::Font,
     /// `vertical-align` (CSS 2.1 §10.8.1), a percentage resolved against
     /// the line height. Not inherited; initial `baseline`.
     pub vertical_align: crate::layout::VerticalAlign,
@@ -493,6 +498,10 @@ impl ComputedStyle {
             webkit_box: false,
             establishes_new_bfc: false,
             text: crate::layout::TextStyle::default(),
+            font: crate::layout::Font {
+                weight: crate::layout::FontWeight::Number(400.0),
+                ..crate::layout::Font::default()
+            },
             vertical_align: crate::layout::VerticalAlign::Baseline,
             text_decoration: crate::layout::TextDecorations {
                 line: crate::layout::TextDecorationLine::NONE,

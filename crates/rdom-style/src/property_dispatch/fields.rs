@@ -57,8 +57,24 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
             BorderBottomColor,
             BorderLeftColor,
         ],
-        "font-weight" => &[Bold],
-        "font-style" => &[Italic],
+        "font-weight" => &[FontWeight],
+        "font-style" => &[FontStyle],
+        "font-size" => &[FontSize],
+        "font-family" => &[FontFamily],
+        // CSS Fonts 4 §2.3: `font-width` is `font-stretch`'s new name.
+        "font-stretch" | "font-width" => &[FontStretch],
+        "font-variant" => &[FontVariant],
+        // CSS Fonts 4 §3.7: the shorthand sets the font longhands and
+        // `line-height`.
+        "font" => &[
+            FontWeight,
+            FontStyle,
+            FontSize,
+            FontFamily,
+            FontStretch,
+            FontVariant,
+            LineHeight,
+        ],
         // CSS Text Decoration 4 §2.6: the shorthand sets its four
         // longhands.
         "text-decoration" => &[

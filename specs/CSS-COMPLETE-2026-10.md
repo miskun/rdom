@@ -201,7 +201,7 @@ row comes from.
 | C9-LINE-HEIGHT | `line-height` (whole-row line boxes) | done |
 | C9-VERTICAL-ALIGN | `vertical-align` for inline-blocks and inline content | done |
 | C9-DECORATION | `text-decoration` full shorthand; `-line` (incl. `overline`), `-color` (SGR 58), `-style` (SGR 4:x) | done |
-| C9-FONT | `font-weight` numeric / `bolder` / `lighter`, `font-style: oblique`, `font` shorthand (weight / style honored, size / family inert) | |
+| C9-FONT | `font-weight` numeric / `bolder` / `lighter`, `font-style: oblique`, `font` shorthand (weight / style honored, size / family inert) | done |
 
 ### Phase 10 — Lists, counters, generated content, pseudo-elements (audit §3.15, §3.16)
 
@@ -5614,3 +5614,38 @@ row comes from.
   underlined — CSS §2.1, where the old test pinned the opposite); `text_decoration_inherit_copies_parents_
   bits` reads the line; rdom-css's property tests read `text_decoration.line`; the inherited-set probe covers
   the eight names. No snapshot changed.
+- 2026-10-12 — C9-FONT (CSS Fonts 4 §2.1–§2.5, §3.7, §6.11's CSS 2.1 form). rdom-style: the font properties are a
+  group, `TuiStyle::font` (`FontDeclarations`) / `ComputedStyle::font` (`Font`), inherited whole: `font-weight`
+  (`FontWeight`: `normal`, `bold`, `bolder`, `lighter`, `<number [1,1000]>` — a literal outside the range invalid,
+  a math function clamped; computed to a number), `font-style` (`FontStyle`, `oblique <angle [-90deg,90deg]>?`),
+  and, parsed, cascaded and serialized but drawing nothing, `font-size` (`FontSize`: the keywords, `math`, a
+  length — a `PaintLength`, so `16px` / `1.2em` take the decorating properties' pixel rule, `em` = 16px, not
+  `font-size`), `font-family` (`FontFamily`: names as written, or a system font), `font-stretch` with its new
+  name `font-width` (`FontStretch`), `font-variant` in CSS 2.1's form (`normal | small-caps`, the `font`
+  shorthand's). The `font` shorthand takes the full grammar — the prefix in any order with `normal`, the size,
+  `/ line-height`, the family list, or a system font keyword — and sets the six longhands and `line-height` (reset
+  to `normal` when omitted: §3.7 "resets ... line-height"); it serializes shortest, or as its system keyword.
+  Breaking — `TuiStyle::bold` / `italic` (`bool`) are gone (CHANGELOG, API table, `font_hints`); the `bold()` /
+  `italic()` builders and `ImportantMask::BOLD` / `ITALIC` (now aliases of `FONT_WEIGHT` / `FONT_STYLE`) stay.
+  Not parsed (N/A, DIVERGENCES §1): `font-variant-*`, `font-synthesis*`, `font-kerning`, `font-feature-settings`,
+  the other font-tuning properties — the coverage audit classes them N/A, not Missing. rdom-tui:
+  `cascade/font.rs` applies the group (out of `apply.rs`, which lost its modifier-bit applicator — 511 → 472, after C9-DECORATION's 566 → 511) and
+  `finalize_font` computes the weight against the parent's (§2.2's relative-weight table) and derives
+  `ComputedStyle::modifiers`' bold and italic from the font. Decided (DIVERGENCES §2): bold (SGR 1) from 600 —
+  `bold`, `bolder` from 400, and 600–1000; lighter weights draw normal, not faint: SGR 2 dims the color rather
+  than thinning strokes (body text at `300` would read as disabled), and rdom dropped SGR 2 for that reason
+  (T8); `oblique` is italic except at `0deg`. Red: `css_phase9/font.rs` — 5 of 5 failed on HEAD (the strict sheet
+  rejected `font-weight: 100`, `font-style: oblique`, `font`, `font-size`); green after; the dispatch tests
+  (`property_dispatch/font_tests.rs`) written with the parsers. Found by the C2G viewport gate test:
+  `font-size: 10vw` kept its unit — resolved in `absolute.rs`. Mutation (each alone, restored, touched): bold from
+  700 → 1; relative weights against 400 → 1; `oblique` upright → 1; `lighter` than 800 at 400 → 1; `oblique 0deg`
+  italic → 1; the shorthand keeping `line-height` → 2; the weight's range unchecked → 1; the shorthand serialized
+  without its line height → 1. Changed expectations: the tests that read `style.bold` / `italic` read the font
+  group (rdom-style UA and stylesheet tests, rdom-tui node tests, rdom-css property tests); the inherited-set probe
+  and the `initial` test cover the group. No snapshot changed.
+- 2026-10-12 — Phase 9 part 2 complete (C9-LINE-HEIGHT closing C2-LH, C9-VERTICAL-ALIGN, C9-DECORATION, C9-FONT):
+  all eleven Phase 9 rows done. The inline packer gained `packer/frames.rs` (the inline boxes: line heights,
+  alignment, aligned subtrees) and `inline/baselines.rs`; the decorations are a derived used value in the cascade
+  and capability-gated SGR in the backend (`render/sgr_capabilities.rs`); the font is a cascade group
+  (`cascade/font.rs`). CSS-COVERAGE §3.12–§3.14 have no Partial or Missing row left; ACID tile 8 covers the
+  Phase 9 text features. The Phase 9 gates (architect + API, with the C8G re-review) are next.

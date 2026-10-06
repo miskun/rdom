@@ -16,7 +16,7 @@ pub(super) use super::colors::ElementColors;
 use super::colors::apply_colors;
 use super::decoration::apply_decoration;
 use crate::layout::Display;
-use crate::style::{ComputedStyle, ImportantMask, Modifier, TuiStyle, Value};
+use crate::style::{ComputedStyle, ImportantMask, TuiStyle, Value};
 
 /// Where the CSS-wide keywords of one ladder pass take their values
 /// from.
@@ -150,27 +150,8 @@ pub(super) fn apply_style(
     apply_colors(working, colors, style, important_pass, kw);
     apply_decoration(working, style, important_pass, kw);
 
-    apply_modifier_bit(
-        working,
-        Modifier::BOLD,
-        &style.bold,
-        style.important.contains(ImportantMask::BOLD),
-        important_pass,
-        kw,
-    );
-    // Pre-T8 had a `.dim(true)` modifier here; dropped in the
-    // pre-publish OOTB color overhaul. SGR-2 is theme-dependent and
-    // has no CSS analog — authors who want muted text reach for
-    // `color: gray` or `opacity: 0.5` instead, both browser-faithful
-    // and truecolor-precise.
-    apply_modifier_bit(
-        working,
-        Modifier::ITALIC,
-        &style.italic,
-        style.important.contains(ImportantMask::ITALIC),
-        important_pass,
-        kw,
-    );
+    // The font properties (`font.rs`).
+    super::font::apply_font(working, style, important_pass, kw);
     // The `text-decoration` longhands (`text_decoration.rs`; the color
     // with the other colors).
     super::text_decoration::apply_text_decoration(working, style, important_pass, kw);
@@ -487,25 +468,5 @@ fn apply_opacity(
             Resolved::Specified(v) => v.clamp(0.0, 1.0),
             Resolved::From(source) => source.opacity,
         };
-    }
-}
-
-/// `font-weight: bold` / `font-style: italic` — one modifier bit each.
-fn apply_modifier_bit(
-    working: &mut ComputedStyle,
-    bit: Modifier,
-    value: &Option<Value<bool>>,
-    important_prop: bool,
-    important_pass: bool,
-    kw: &Keywords<'_>,
-) {
-    if let Some(v) = value
-        && matches_pass(important_prop, important_pass)
-    {
-        let on = match kw.resolve(v) {
-            Resolved::Specified(b) => *b,
-            Resolved::From(source) => source.modifiers.contains(bit),
-        };
-        working.modifiers.set(bit, on);
     }
 }

@@ -582,8 +582,7 @@ fn placeholder_rules_keep_only_first_line_properties() {
     let kept = &rule.style;
     assert_eq!(kept.fg, style.fg);
     assert_eq!(kept.bg, style.bg);
-    assert_eq!(kept.bold, style.bold);
-    assert_eq!(kept.italic, style.italic);
+    assert_eq!(kept.font, style.font);
     assert_eq!(kept.opacity, style.opacity);
     assert_eq!(kept.text_decoration, style.text_decoration);
     assert_eq!(kept.width, None);

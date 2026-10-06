@@ -58,6 +58,7 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
         .or_else(|| super::text::serialize(name, style))
         .or_else(|| super::inline::serialize(name, style))
         .or_else(|| super::text_decoration::serialize(name, style))
+        .or_else(|| super::font::serialize(name, style))
         .or_else(|| super::logical::serialize_block_axis(name, style))
     {
         return out;

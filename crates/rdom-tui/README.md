@@ -415,6 +415,18 @@ What's supported:
   that take up room and wrap; `nowrap` collapses but never soft-wraps.
   Inherits.
 - **`<br>`** — hard break.
+- **`line-height`** in whole rows (CSS Inline 3 §5.1): every inline box
+  and the block's strut add their half-leading around the glyph row;
+  `lh` / `rlh` follow it.
+- **`vertical-align`** (CSS 2.1 §10.8.1): `sub` / `super` a row,
+  lengths, `middle` / `text-top` / `text-bottom`, and `top` / `bottom`
+  aligned subtrees, on spans, generated text and inline blocks.
+- **`text-decoration`** (CSS Text Decoration 4): underline (in its
+  style and color, SGR `4:x` / `58` where the terminal has them),
+  overline, line-through, blink, propagated to the text of in-flow
+  descendants.
+- **Fonts** — `font-weight` (bold from 600, `bolder` / `lighter`),
+  `font-style` (`italic`, `oblique`), the `font` shorthand.
 - **Nested inline styles compose** — `<b>bold <i>+italic</i></b>`
   contributes both modifiers to the inner span.
 
@@ -422,9 +434,6 @@ What's out of scope:
 
 - Inline borders / margins (`display: inline-block` is supported as an
   atomic inline).
-- `text-align`, justification, `vertical-align` (C9; an atomic inline
-  sits with its last line on the line's text row, and flex items take
-  `align-items: baseline`).
 - Full UAX #14 line breaking and dictionary hyphenation (the subset
   rdom implements is listed in DIVERGENCES; `hyphens: auto` is
   `manual`).

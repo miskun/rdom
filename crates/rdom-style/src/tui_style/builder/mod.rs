@@ -4,7 +4,8 @@
 //! (`width` / `height`, `min-*` / `max-*`, `aspect-ratio`) in `sizing`,
 //! the margin and padding ones in `spacing`, the flex and box-alignment
 //! ones in `flex`, the scrolling and scrollbar ones in `scroll`, the CSS Text ones in
-//! `text`, the text decoration ones in `text_decoration`.
+//! `text`, the text decoration ones in `text_decoration`, the font ones
+//! in `font`.
 
 use super::{ImportantMask, TuiStyle};
 #[allow(unused_imports)]
@@ -76,6 +77,7 @@ macro_rules! side_setter {
 
 mod decoration;
 mod flex;
+mod font;
 mod grid;
 mod scroll;
 mod sizing;
@@ -127,9 +129,6 @@ impl TuiStyle {
     pub fn border_fg_var(self, name: impl Into<String>) -> Self {
         self.border_fg(TuiColor::var(name))
     }
-
-    setter!("font-weight", bold, bold, bold_important, BOLD, bool);
-    setter!("font-style", italic, italic, italic_important, ITALIC, bool);
 
     /// CSS `opacity`. Clamped to `[0.0, 1.0]` at the call site
     /// (out-of-range inputs are silently saturated). Custom

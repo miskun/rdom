@@ -89,6 +89,7 @@ pub(crate) use viewport::{document_viewport, set_document_viewport};
 mod colors;
 mod decoration;
 mod element;
+mod font;
 mod root_vars;
 mod scheme;
 mod scope;

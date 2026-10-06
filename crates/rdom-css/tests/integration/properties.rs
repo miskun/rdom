@@ -52,19 +52,28 @@ fn border_color_named_green() {
 #[test]
 fn font_weight_bold() {
     let s = first_style("a { font-weight: bold; }");
-    assert_eq!(s.bold, Some(Value::Specified(true)));
+    assert_eq!(
+        s.font.weight,
+        Some(Value::Specified(rdom_style::layout::FontWeight::Bold))
+    );
 }
 
 #[test]
 fn font_weight_normal() {
     let s = first_style("a { font-weight: normal; }");
-    assert_eq!(s.bold, Some(Value::Specified(false)));
+    assert_eq!(
+        s.font.weight,
+        Some(Value::Specified(rdom_style::layout::FontWeight::Normal))
+    );
 }
 
 #[test]
 fn font_style_italic() {
     let s = first_style("a { font-style: italic; }");
-    assert_eq!(s.italic, Some(Value::Specified(true)));
+    assert_eq!(
+        s.font.style,
+        Some(Value::Specified(rdom_style::layout::FontStyle::Italic))
+    );
 }
 
 #[test]

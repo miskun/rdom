@@ -30,6 +30,7 @@ mod background;
 mod border;
 mod box_model;
 mod float;
+mod font;
 mod grid;
 mod grid_areas;
 mod grid_placement;
@@ -56,6 +57,10 @@ pub use border::{
 };
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
 pub use float::{Clear, Float, FloatSide};
+pub use font::{
+    FONT_STRETCH_KEYWORDS, Font, FontFamily, FontSize, FontSizeKeyword, FontStretch, FontStyle,
+    FontVariant, FontWeight, SystemFont,
+};
 pub use grid::{
     GridTemplate, LineNameItem, LineNameList, RepeatCount, TrackBreadth, TrackList, TrackListItem,
     TrackRepeat, TrackSize,

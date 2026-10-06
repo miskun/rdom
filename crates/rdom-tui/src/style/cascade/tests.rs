@@ -2298,6 +2298,14 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.bg = Color::Rgb(4, 5, 6);
     parent.border_color = rdom_style::layout::Sides::all(Color::Rgb(7, 8, 9));
     parent.modifiers = Modifier::BOLD | Modifier::ITALIC;
+    parent.font = rdom_style::layout::Font {
+        weight: rdom_style::layout::FontWeight::Number(700.0),
+        style: rdom_style::layout::FontStyle::Italic,
+        size: rdom_style::layout::FontSize::Math,
+        family: rdom_style::layout::FontFamily::Names(vec!["serif".into()]),
+        stretch: rdom_style::layout::FontStretch::Percent(80.0),
+        variant: rdom_style::layout::FontVariant::SmallCaps,
+    };
     parent.text_decoration.line = rdom_style::layout::TextDecorationLine::UNDERLINE;
     parent.text_decoration.style = rdom_style::layout::TextDecorationStyle::Wavy;
     parent.text_decoration.color = Color::Rgb(9, 9, 9);
@@ -2412,8 +2420,14 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ("color", child.fg == parent.fg),
         ("background-color", child.bg == parent.bg),
         ("border-color", child.border_color == parent.border_color),
-        ("font-weight", child.modifiers.contains(Modifier::BOLD)),
-        ("font-style", child.modifiers.contains(Modifier::ITALIC)),
+        ("font-weight", child.font.weight == parent.font.weight),
+        ("font-style", child.font.style == parent.font.style),
+        ("font", child.font == parent.font),
+        ("font-size", child.font.size == parent.font.size),
+        ("font-family", child.font.family == parent.font.family),
+        ("font-stretch", child.font.stretch == parent.font.stretch),
+        ("font-width", child.font.stretch == parent.font.stretch),
+        ("font-variant", child.font.variant == parent.font.variant),
         (
             "text-decoration",
             child.text_decoration == parent.text_decoration,

@@ -96,7 +96,10 @@ fn inline_style_settable() {
         s.fg,
         Some(Value::Specified(TuiColor::Literal(Color::Rgb(255, 0, 0))))
     );
-    assert_eq!(s.bold, Some(Value::Specified(true)));
+    assert_eq!(
+        s.font.weight,
+        Some(Value::Specified(crate::layout::FontWeight::Bold))
+    );
 }
 
 #[test]

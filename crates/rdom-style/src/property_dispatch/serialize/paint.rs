@@ -1,5 +1,5 @@
 //! `serialize` for the paint and text properties: `color`, `background-color`,
-//! the font keywords, `opacity`,
+//! `opacity`,
 //! `user-select`, `pointer-events`, `visibility`, the caret colors,
 //! `color-scheme` and `content`.
 
@@ -14,20 +14,6 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         // Color / modifiers
         "color" => style.fg.as_ref().and_then(specified).map(serialize_color),
         "background-color" => style.bg.as_ref().and_then(specified).map(serialize_color),
-        "font-weight" => style.bold.as_ref().and_then(specified).map(|b| {
-            if *b {
-                "bold".to_string()
-            } else {
-                "normal".to_string()
-            }
-        }),
-        "font-style" => style.italic.as_ref().and_then(specified).map(|b| {
-            if *b {
-                "italic".to_string()
-            } else {
-                "normal".to_string()
-            }
-        }),
         "opacity" => style.opacity.as_ref().and_then(specified).map(|v| {
             // Drop trailing zeros for the common cases — `1.0` →
             // `"1"`, `0.5` → `"0.5"`, `0.0` → `"0"`. Matches

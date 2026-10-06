@@ -52,6 +52,26 @@ pub struct TextDeclarations {
     pub text_decoration_skip_ink: Option<Value<crate::layout::TextDecorationSkipInk>>,
 }
 
+/// The font properties a [`TuiStyle`](crate::TuiStyle) declares
+/// ([`TuiStyle::font`](crate::TuiStyle::font)), one field per longhand
+/// (CSS Fonts 4), `None` where the block does not declare it; the `font`
+/// shorthand writes all six (and `line-height`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct FontDeclarations {
+    /// `font-weight`.
+    pub weight: Option<Value<crate::layout::FontWeight>>,
+    /// `font-style`.
+    pub style: Option<Value<crate::layout::FontStyle>>,
+    /// `font-size`.
+    pub size: Option<Value<crate::layout::FontSize>>,
+    /// `font-family`.
+    pub family: Option<Value<crate::layout::FontFamily>>,
+    /// `font-stretch` (and its alias `font-width`).
+    pub stretch: Option<Value<crate::layout::FontStretch>>,
+    /// `font-variant`.
+    pub variant: Option<Value<crate::layout::FontVariant>>,
+}
+
 /// The line decoration properties a [`TuiStyle`](crate::TuiStyle) declares
 /// ([`TuiStyle::text_decoration`](crate::TuiStyle::text_decoration)), the
 /// `text-decoration` shorthand's longhands (CSS Text Decoration 4 §2.6),

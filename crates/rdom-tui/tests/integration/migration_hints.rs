@@ -1016,3 +1016,18 @@ fn text_decoration_hints() {
         ..render::SgrState::RESET
     };
 }
+
+/// C9-FONT: `font-weight` / `font-style` are the font group's longhands;
+/// the two-state builders and the 0.5 mask names still work.
+#[test]
+fn font_hints() {
+    let s = TuiStyle::new().bold(true).italic(true);
+    assert_eq!(s.font.weight, Some(Value::Specified(FontWeight::Bold)));
+    assert_eq!(s.font.style, Some(Value::Specified(FontStyle::Italic)));
+    let _: &FontDeclarations = &s.font;
+    assert_eq!(ImportantMask::BOLD, ImportantMask::FONT_WEIGHT);
+    assert_eq!(ImportantMask::ITALIC, ImportantMask::FONT_STYLE);
+    let computed = ComputedStyle::initial();
+    let _: &Font = &computed.font;
+    assert_eq!(computed.font.weight(), 400.0);
+}

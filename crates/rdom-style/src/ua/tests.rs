@@ -185,7 +185,10 @@ fn ua_rules_cover_tier_1_semantics() {
     // Headings h1-h6 all bold + block.
     for h in ["h1", "h2", "h3", "h4", "h5", "h6"] {
         let r = ua[h];
-        assert_eq!(r.style.bold, Some(Value::Specified(true)));
+        assert_eq!(
+            r.style.font.weight,
+            Some(Value::Specified(crate::layout::FontWeight::Bold))
+        );
         assert_eq!(r.style.display, Some(Value::Specified(Display::Block)));
     }
 
@@ -198,8 +201,8 @@ fn ua_rules_cover_tier_1_semantics() {
             "<{t}> must be inline"
         );
         assert_eq!(
-            r.style.italic,
-            Some(Value::Specified(true)),
+            r.style.font.style,
+            Some(Value::Specified(crate::layout::FontStyle::Italic)),
             "<{t}> must be italic"
         );
     }

@@ -34,6 +34,7 @@ let mut style = TuiStyle::new()
 // rdom-css's parser and rdom-tui's StyleDeclaration both do).
 property_dispatch::set("color", "#3d90ce", &mut style).expect("a valid color");
 property_dispatch::set("font-weight", "bold", &mut style).expect("a valid weight");
+property_dispatch::set("text-decoration", "underline wavy red", &mut style).expect("a decoration");
 
 // A Stylesheet is a list of (selector, style) rules + a vars map.
 let sheet = Stylesheet::new() // UA defaults baked in
@@ -70,12 +71,18 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   `background` shorthand and its longhands (`background-image` /
   `-position` / `-size` / `-repeat` / `-attachment` / `-origin` /
   `-clip`; images parse but draw nothing), `border-color`, `opacity`,
-  `color-scheme`, `caret-color`, `caret-text-color`, `font-weight`,
-  `font-style`, `text-decoration`, `pointer-events`, `user-select`.
+  `color-scheme`, `caret-color`, `caret-text-color`, the `font` shorthand
+  and `font-weight` / `font-style` (drawn bold / italic) with the inert
+  `font-size` / `font-family` / `font-stretch` / `font-variant`, the
+  `text-decoration` shorthand and its longhands (`-line`, `-style`,
+  `-color`, `-thickness`), `text-underline-offset` /
+  `-position`, `text-decoration-skip-ink`, `pointer-events`,
+  `user-select`.
 - **Block model** — `display` (the CSS Display 3 keywords: `contents`,
   `flow-root`, the two-keyword forms, `list-item`), `visibility`, `flex-direction` (+ `-reverse`), `flex-wrap`, `flex-flow`, `justify-content`, `align-content`, `align-items`, `align-self`, `justify-items`, `justify-self`, the `place-*` shorthands, `flex`, `flex-grow`,
   `flex-shrink`, `flex-basis`, `order`,
-  `white-space` (with `white-space-collapse` / `text-wrap-mode`), `word-break`,
+  `white-space` (with `white-space-collapse` / `text-wrap-mode`), `line-height`,
+  `vertical-align`, `word-break`,
   `overflow-wrap` / `word-wrap`, `line-break`, `hyphens`, `overflow` (one or two values, `clip` included), `overflow-x`, `overflow-y`,
   `overflow-block`, `overflow-inline`, `overflow-clip-margin`, `text-overflow`, `line-clamp`
   (`max-lines`, `block-ellipsis`, `continue`, the legacy `-webkit-line-clamp` /
