@@ -23,7 +23,10 @@
 //! - `grid_placement` — grid item placement (`GridLine`, `GridAutoFlow`)
 //! - `sides` — `Sides`, the per-side shape
 //! - `background` — the background longhands' keyword families
-//! - `text` — the CSS Text values (`white-space-collapse`, …) and `TextStyle`
+//! - `white_space` — the CSS Text values of white space processing, wrapping
+//!   and line breaking (`white-space-collapse`, …, `tab-size`)
+//! - `text_align` — the CSS Text values of transform, indent and alignment
+//! - `text` — `TextStyle`, the computed CSS Text group
 
 pub(crate) mod alignment;
 mod background;
@@ -46,8 +49,10 @@ mod sizing;
 #[cfg(test)]
 mod sizing_tests;
 mod text;
+mod text_align;
 mod text_decoration;
 mod vertical_align;
+mod white_space;
 
 pub use alignment::{Align, AlignProperty, Alignment, OverflowAlign};
 pub use background::{BackgroundAttachment, BackgroundRepeat, BoxShadow, RepeatStyle, VisualBox};
@@ -88,14 +93,15 @@ pub use sizing::{
     AspectRatio, ContainIntrinsicSize, FlexBasis, GapValue, IntrinsicSize, Length, MaxSize,
     MinSize, Size, valid_flex_factor,
 };
-pub use text::{
-    Hyphens, LineBreak, OverflowWrap, TabSize, TextAlign, TextAlignLast, TextCase, TextIndent,
-    TextJustify, TextStyle, TextTransform, TextWrapMode, TextWrapStyle, WhiteSpace,
-    WhiteSpaceCollapse, WordBreak,
-};
+pub use text::TextStyle;
+pub use text_align::{TextAlign, TextAlignLast, TextCase, TextIndent, TextJustify, TextTransform};
 pub use text_decoration::{
     AppliedDecorations, AppliedLine, TextDecorationLine, TextDecorationSkipInk,
     TextDecorationStyle, TextDecorationThickness, TextDecorations, TextUnderlineOffset,
     TextUnderlinePosition,
 };
 pub use vertical_align::VerticalAlign;
+pub use white_space::{
+    Hyphens, LineBreak, OverflowWrap, TabSize, TextWrapMode, TextWrapStyle, WhiteSpace,
+    WhiteSpaceCollapse, WordBreak,
+};
