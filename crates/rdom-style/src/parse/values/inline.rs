@@ -1,7 +1,7 @@
-//! CSS Inline Layout 3 values: `line-height`.
+//! CSS Inline Layout 3 values: `line-height`, `vertical-align`.
 
 use super::numeric::{LengthPercentage, Range, length_percentage, number};
-use crate::layout::LineHeight;
+use crate::layout::{LineHeight, VerticalAlign};
 use crate::parse::token::Token;
 use crate::property_dispatch::serialize_math;
 
@@ -32,5 +32,41 @@ pub fn serialize_line_height(value: &LineHeight) -> String {
         LineHeight::Number(n) => format!("{n}"),
         LineHeight::Rows(n) => format!("{n}ch"),
         LineHeight::Calc(expr) => serialize_math(expr),
+    }
+}
+
+/// `vertical-align: baseline | sub | super | text-top | text-bottom |
+/// middle | top | bottom | <length-percentage>` (CSS 2.1 §10.8.1), a
+/// length of either sign (positive raises); a bare number is rdom's cell.
+pub fn parse_vertical_align(value: &[Token]) -> Option<VerticalAlign> {
+    const KEYWORDS: [VerticalAlign; 8] = [
+        VerticalAlign::Baseline,
+        VerticalAlign::Sub,
+        VerticalAlign::Super,
+        VerticalAlign::TextTop,
+        VerticalAlign::TextBottom,
+        VerticalAlign::Middle,
+        VerticalAlign::Top,
+        VerticalAlign::Bottom,
+    ];
+    if let [Token::Ident(s)] = value {
+        return KEYWORDS
+            .into_iter()
+            .find(|k| k.keyword().is_some_and(|w| s.eq_ignore_ascii_case(w)));
+    }
+    match length_percentage(value, Range::Any)? {
+        LengthPercentage::Integer(n) => Some(VerticalAlign::Rows(n as f32)),
+        LengthPercentage::Cells(v) => v.is_finite().then_some(VerticalAlign::Rows(v as f32)),
+        LengthPercentage::Expr(e) => Some(VerticalAlign::Calc(Box::new(e))),
+    }
+}
+
+/// `vertical-align`'s serialization: the keyword, rows as rdom's cell, or
+/// the expression.
+pub fn serialize_vertical_align(value: &VerticalAlign) -> String {
+    match value {
+        VerticalAlign::Rows(n) => format!("{n}"),
+        VerticalAlign::Calc(expr) => serialize_math(expr),
+        keyword => keyword.keyword().unwrap_or_default().to_string(),
     }
 }

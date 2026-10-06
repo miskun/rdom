@@ -86,6 +86,7 @@ mod fields;
 mod float;
 mod grid;
 mod importance;
+mod inline;
 mod line_clamp;
 mod logical;
 mod names;

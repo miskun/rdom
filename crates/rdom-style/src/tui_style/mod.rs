@@ -256,6 +256,8 @@ pub struct TuiStyle {
     /// `text-wrap-mode`, …); the `white-space` shorthand writes two of
     /// them.
     pub text: TextDeclarations,
+    /// `vertical-align` (CSS 2.1 §10.8.1).
+    pub vertical_align: Option<Value<crate::layout::VerticalAlign>>,
     pub user_select: Option<Value<UserSelect>>,
     /// CSS `pointer-events` (`auto` | `none`). Inherited.
     pub pointer_events: Option<Value<crate::layout::PointerEvents>>,

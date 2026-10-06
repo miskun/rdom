@@ -48,9 +48,19 @@ pub(super) fn apply_text(
         text_wrap_style: TEXT_WRAP_STYLE,
         line_height: LINE_HEIGHT,
     );
+    // CSS 2.1 §10.8.1: `vertical-align` (not inherited).
+    apply_value(
+        &mut working.vertical_align,
+        &style.vertical_align,
+        style.important.contains(ImportantMask::VERTICAL_ALIGN),
+        important_pass,
+        kw,
+        |c| &c.vertical_align,
+    );
 }
 
-/// `line-height`'s computed value (CSS Inline 3 §5.1: a percentage of
+/// `line-height`'s computed value, and `vertical-align`'s, which reads it
+/// (CSS Inline 3 §5.1: a percentage of
 /// the font size — one row — or a length, in rows; CSS Values 4 §6.1.1:
 /// `lh` in it is the parent's line height, `rlh` the root's, or on the
 /// root the initial one row), and the context the element's other
@@ -67,8 +77,13 @@ pub(super) fn finalize_line_height(
     let rlh = root_rows.map_or(1.0, f64::from);
     let parent_cx = UnitContext::new(viewport).with_line_heights(parent_rows, rlh);
     working.text.line_height = working.text.line_height.computed(&parent_cx);
-    let own = f64::from(working.text.line_height.rows());
-    UnitContext::new(viewport).with_line_heights(own, root_rows.map_or(own, f64::from))
+    let rows = working.text.line_height.rows();
+    let own = f64::from(rows);
+    let units = UnitContext::new(viewport).with_line_heights(own, root_rows.map_or(own, f64::from));
+    // CSS 2.1 §10.8.1: a `vertical-align` percentage is of the element's
+    // own line height.
+    working.vertical_align = working.vertical_align.computed(rows, &units);
+    units
 }
 
 /// The used line height of the document's root element, the basis of

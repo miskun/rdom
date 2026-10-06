@@ -3,18 +3,17 @@
 //! `overflow-wrap` (and its legacy name `word-wrap`), `line-break`,
 //! `hyphens`, `tab-size`, `text-transform`, `text-indent`, `text-align`
 //! (and its longhands `text-align-all` / `text-align-last`),
-//! `text-justify`, `text-wrap` (and its longhand `text-wrap-style`), and
-//! `line-height` (CSS Inline 3) — their `set` and `serialize` arms.
+//! `text-justify`, `text-wrap` (and its longhand `text-wrap-style`) —
+//! their `set` and `serialize` arms.
 
 use super::value_serializers::{serialize_length, specified};
 use crate::layout::{TextWrapMode, WhiteSpace, WhiteSpaceCollapse};
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_hyphens, parse_line_break, parse_line_height, parse_overflow_wrap, parse_tab_size,
-    parse_text_align, parse_text_align_all, parse_text_align_last, parse_text_indent,
-    parse_text_justify, parse_text_transform, parse_text_wrap, parse_text_wrap_mode,
-    parse_text_wrap_style, parse_white_space, parse_white_space_collapse, parse_word_break,
-    serialize_line_height, serialize_text_transform,
+    parse_hyphens, parse_line_break, parse_overflow_wrap, parse_tab_size, parse_text_align,
+    parse_text_align_all, parse_text_align_last, parse_text_indent, parse_text_justify,
+    parse_text_transform, parse_text_wrap, parse_text_wrap_mode, parse_text_wrap_style,
+    parse_white_space, parse_white_space_collapse, parse_word_break, serialize_text_transform,
 };
 use crate::{TuiStyle, Value};
 
@@ -73,9 +72,6 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         }),
         "text-wrap-style" => parse_text_wrap_style(value).map(|s| {
             text.text_wrap_style = Some(Value::Specified(s));
-        }),
-        "line-height" => parse_line_height(value).map(|l| {
-            text.line_height = Some(Value::Specified(l));
         }),
         _ => return None,
     })
@@ -142,11 +138,6 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             crate::layout::TabSize::Number(n) => format!("{n}"),
             crate::layout::TabSize::Length(c) => format!("{c}ch"),
         }),
-        "line-height" => text
-            .line_height
-            .as_ref()
-            .and_then(specified)
-            .map(serialize_line_height),
         "white-space" => match (collapse, mode) {
             (Some(&c), Some(&m)) => Some(white_space_text(c, m)),
             _ => None,

@@ -334,6 +334,7 @@ fn every_property_has_important_setter() {
         .hyphens_important(crate::layout::Hyphens::None)
         .tab_size_important(crate::layout::TabSize::Number(4.0))
         .line_height_important(crate::layout::LineHeight::Number(2.0))
+        .vertical_align_important(crate::layout::VerticalAlign::Super)
         .text_transform_important(crate::layout::TextTransform::NONE)
         .text_indent_important(crate::layout::TextIndent::cells(1))
         .text_align_important(crate::layout::TextAlign::Center)

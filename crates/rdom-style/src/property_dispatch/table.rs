@@ -147,6 +147,7 @@ define_fields! {
     TextJustify => text.text_justify : TEXT_JUSTIFY,
     TextWrapStyle => text.text_wrap_style : TEXT_WRAP_STYLE,
     LineHeight => text.line_height : LINE_HEIGHT,
+    VerticalAlign => vertical_align : VERTICAL_ALIGN,
     UserSelect => user_select : USER_SELECT,
     PointerEvents => pointer_events : POINTER_EVENTS,
     Visibility => visibility : VISIBILITY,

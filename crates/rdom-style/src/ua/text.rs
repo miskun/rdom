@@ -4,7 +4,8 @@ use crate::TuiStyle;
 use crate::color::named;
 use crate::color::system::{ACCENT, BORDER_DEFAULT, FIELD_BG, TEXT_MUTED};
 use crate::layout::{
-    Border, Display, Padding, Size, TextDecoration, TextDirection, UserSelect, WhiteSpace,
+    Border, Display, LineHeight, Padding, Size, TextDecoration, TextDirection, UserSelect,
+    VerticalAlign, WhiteSpace,
 };
 
 /// The UA rules of this group, in cascade order.
@@ -131,9 +132,23 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             "small",
             TuiStyle::new().display(Display::Inline).fg(TEXT_MUTED),
         ),
+        // HTML §15.3.4: `sub { vertical-align: sub } sup { vertical-align:
+        // super } sub, sup { line-height: normal }` — a row down or up.
+        (
+            "sub",
+            TuiStyle::new()
+                .display(Display::Inline)
+                .vertical_align(VerticalAlign::Sub)
+                .line_height(LineHeight::Normal),
+        ),
+        (
+            "sup",
+            TuiStyle::new()
+                .display(Display::Inline)
+                .vertical_align(VerticalAlign::Super)
+                .line_height(LineHeight::Normal),
+        ),
         // Pure-inline (no specific style, just the Display hint).
-        ("sub", TuiStyle::new().display(Display::Inline)),
-        ("sup", TuiStyle::new().display(Display::Inline)),
         ("q", TuiStyle::new().display(Display::Inline)),
         ("output", TuiStyle::new().display(Display::Inline)),
         ("time", TuiStyle::new().display(Display::Inline)),

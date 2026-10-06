@@ -5,12 +5,14 @@
 //!
 //! ## Vertical geometry (CSS 2.1 §10.8)
 //!
-//! A line box is as tall as the content on it: one row for text, more
-//! when an atomic inline block on it is taller. Its text sits on one
-//! row of it, the *baseline* row; each atom is placed so that its own
-//! baseline (CSS 2.1 §10.8.1 — its last line box, or its bottom margin
-//! edge) lands on that row, which is the `vertical-align: baseline`
-//! initial value (`vertical_align`). Lines stack without gaps —
+//! A line box is as tall as the inline boxes on it: their line heights
+//! around its *baseline* row, more when an atomic inline block on it is
+//! taller. Text sits on its inline box's baseline row — the line's,
+//! unless `vertical-align` raised, lowered or aligned the box with the
+//! line's top or bottom; each atom is placed so that its own baseline
+//! (CSS 2.1 §10.8.1 — its last line box's glyph row, or its bottom
+//! margin edge) lands where its alignment puts it. Lines stack without
+//! gaps —
 //! `lines[i + 1].top == lines[i].top + lines[i].height` — except where a
 //! line too narrow beside a float moved down past it (CSS 2.1 §9.5): its
 //! `top` is then lower, and the rows between belong to no line.
@@ -34,8 +36,8 @@ use crate::ext::PseudoSlot;
 /// border, content — at its turn in the line; selection skips them;
 /// hit-test routes to `node`.
 ///
-/// `#[non_exhaustive]`: fields will be added (`vertical-align`,
-/// C9-VERTICAL-ALIGN), so outside rdom-tui a fragment is built with
+/// `#[non_exhaustive]`: fields may be added, so outside rdom-tui a
+/// fragment is built with
 /// [`InlineFragment::text`] or [`InlineFragment::atom`], and its public
 /// fields are read or set.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,8 +62,9 @@ pub struct InlineFragment {
     /// for a fragment left of it (a line wider than its `rtl` box starts
     /// at the right edge and overflows the left one).
     pub x: i32,
-    /// Rows from the top of its line box to the fragment's top: the
-    /// line's baseline row for text, the border-box top for an atom.
+    /// Rows from the top of its line box to the fragment's top: its
+    /// inline box's baseline row for text (the line's, unless
+    /// `vertical-align` moved it), the border-box top for an atom.
     pub y: u16,
     /// Visible cell width of `text` (or, for atomic fragments,
     /// the inline-block's intrinsic main-axis content size).
@@ -84,6 +87,9 @@ pub struct InlineFragment {
     /// as something else (`source_map`); `None` when `text` is the
     /// source.
     pub(crate) map: Option<Box<super::source_map::SourceMap>>,
+    /// The inline box the packer placed it in, which its line's settling
+    /// reads for its row (`packer::frames`); 0, the block's, outside it.
+    pub(crate) frame: u32,
 }
 
 impl InlineFragment {
@@ -110,6 +116,7 @@ impl InlineFragment {
             text,
             atomic: false,
             map: None,
+            frame: 0,
         }
     }
 
@@ -128,6 +135,7 @@ impl InlineFragment {
             text: String::new(),
             atomic: true,
             map: None,
+            frame: 0,
         }
     }
 }
@@ -136,7 +144,7 @@ impl InlineFragment {
 /// line. CSS 2.1 §12.1: generated content is an inline box, the first
 /// / last child of its host, so the packer lays it out with the text —
 /// it wraps, and the text after it starts past it. It sits on its
-/// line's baseline row, as text does.
+/// inline box's baseline row, as text does.
 ///
 /// Generated content has no DOM node and no DOM position, so it is kept
 /// apart from [`LineBox::fragments`]: hit-testing, the caret,
@@ -162,17 +170,24 @@ pub struct GeneratedFragment {
     /// X offset from the inline flow's content-area left edge, negative
     /// left of it (as [`InlineFragment::x`]).
     pub x: i32,
+    /// Rows from the top of its line box to its text's row: its inline
+    /// box's baseline row (the line's, unless `vertical-align` moved it).
+    /// An atom's rows are [`atom_rows`](Self::atom_rows).
+    pub y: u16,
     /// Visible cell width of `text` (an atom's border-box width).
     pub width: u16,
     /// The normalized generated text on this line (empty for an atom).
     pub text: String,
     /// The atom's box, for an atomic inline pseudo-element.
     pub(crate) atom: Option<Box<GeneratedAtom>>,
+    /// The inline box the packer placed it in (`InlineFragment`'s).
+    pub(crate) frame: u32,
 }
 
 impl GeneratedFragment {
     /// A run of `host`'s `slot` pseudo-element's text at `x` on its
-    /// line's baseline row, as wide as `text`'s visible cells.
+    /// line's top row (set `y` to place it lower), as wide as `text`'s
+    /// visible cells.
     pub fn text(host: NodeId, slot: PseudoSlot, x: i32, text: impl Into<String>) -> Self {
         let text = text.into();
         let width = unicode_width::UnicodeWidthStr::width(text.as_str()).min(usize::from(u16::MAX));
@@ -180,9 +195,11 @@ impl GeneratedFragment {
             host,
             slot,
             x,
+            y: 0,
             width: width as u16,
             text,
             atom: None,
+            frame: 0,
         }
     }
 
@@ -218,8 +235,8 @@ pub(crate) struct GeneratedAtom {
 
 /// One line of inline content.
 ///
-/// `#[non_exhaustive]`: fields will be added (C9-VERTICAL-ALIGN), so
-/// outside rdom-tui a line is built with [`LineBox::new`] or from
+/// `#[non_exhaustive]`: fields may be added, so outside rdom-tui a line
+/// is built with [`LineBox::new`] or from
 /// [`LineBox::default`] (an empty one-row line at the top) with its
 /// public fields set:
 ///

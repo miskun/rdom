@@ -279,6 +279,9 @@ pub struct ComputedStyle {
     /// The CSS Text properties — white-space processing, wrapping —
     /// which all inherit (CSS Text 3 / 4).
     pub text: crate::layout::TextStyle,
+    /// `vertical-align` (CSS 2.1 §10.8.1), a percentage resolved against
+    /// the line height. Not inherited; initial `baseline`.
+    pub vertical_align: crate::layout::VerticalAlign,
     /// Whether text inside this element is selectable by the user.
     /// Inherits. Default `Auto`.
     pub user_select: UserSelect,
@@ -483,6 +486,7 @@ impl ComputedStyle {
             webkit_box: false,
             establishes_new_bfc: false,
             text: crate::layout::TextStyle::default(),
+            vertical_align: crate::layout::VerticalAlign::Baseline,
             user_select: UserSelect::Auto,
             pointer_events: crate::layout::PointerEvents::Auto,
             visibility: crate::layout::Visibility::Visible,

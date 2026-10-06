@@ -192,6 +192,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("text-wrap", "nowrap balance"),
         ("text-wrap-style", "pretty"),
         ("line-height", "2"),
+        ("vertical-align", "middle"),
         ("direction", "rtl"),
         ("writing-mode", "vertical-rl"),
         ("inline-size", "6"),

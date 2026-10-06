@@ -6,12 +6,13 @@
 
 use rdom_core::{Dom, NodeId, NodeType};
 
-use super::packer::{BoxRows, LinePacker};
+use super::packer::{BoxAlign, BoxRows, LinePacker};
 use super::run_style::RunStyle;
 use super::{RunPseudos, generated, vertical};
 use crate::ext::{PseudoSlot, StyleSlot, TuiExt};
 use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
+use crate::style::ComputedStyle;
 
 /// The CSS Text values of the text directly in the element `owner`:
 /// its computed ones (they apply to text, CSS Text 3 §3).
@@ -23,23 +24,29 @@ pub(super) fn run_of(dom: &Dom<TuiExt>, owner: NodeId) -> RunStyle {
         .unwrap_or_default()
 }
 
-/// The rows of `id`'s inline box (CSS 2.1 §10.8.1): its line height.
-pub(super) fn box_rows(dom: &Dom<TuiExt>, id: NodeId) -> BoxRows {
-    dom.node(id)
-        .computed()
-        .map(|c| BoxRows::of(&c.text.line_height))
-        .unwrap_or_default()
+/// The rows of a box styled `style` and its alignment in its line (CSS
+/// 2.1 §10.8.1): its line height, its `vertical-align`.
+fn box_of(style: Option<&ComputedStyle>) -> (BoxRows, BoxAlign) {
+    style.map_or_else(Default::default, |c| {
+        (
+            BoxRows::of(&c.text.line_height),
+            BoxAlign::of(&c.vertical_align),
+        )
+    })
 }
 
-/// The rows of `host`'s `slot` pseudo-element's inline box.
-fn pseudo_box_rows(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> BoxRows {
+/// `id`'s inline box ([`box_of`]).
+fn element_box(dom: &Dom<TuiExt>, id: NodeId) -> (BoxRows, BoxAlign) {
+    box_of(dom.node(id).computed())
+}
+
+/// `host`'s `slot` pseudo-element's inline box ([`box_of`]).
+fn pseudo_box(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> (BoxRows, BoxAlign) {
     let node = dom.node(host);
-    match slot {
+    box_of(match slot {
         PseudoSlot::Before => node.computed_before(),
         PseudoSlot::After => node.computed_after(),
-    }
-    .map(|c| BoxRows::of(&c.text.line_height))
-    .unwrap_or_default()
+    })
 }
 
 /// Feed `host`'s `slot` pseudo-element's `text` as the inline box it is
@@ -51,7 +58,8 @@ fn push_pseudo_text<'a>(
     text: &'a str,
     packer: &mut LinePacker<'a>,
 ) {
-    packer.enter_box(pseudo_box_rows(dom, host, slot));
+    let (rows, align) = pseudo_box(dom, host, slot);
+    packer.enter_box(rows, align);
     packer.push_generated(host, slot, text, pseudo_run(dom, host, slot));
     packer.leave_box();
 }
@@ -167,7 +175,10 @@ pub(super) fn fill_run<'a>(
                     // (CSS Display 3 §2.5), line height included.
                     let anonymous = owner != parent;
                     if anonymous {
-                        packer.enter_box(box_rows(dom, owner));
+                        // `vertical-align` is not inherited: the anonymous
+                        // box sits on the baseline.
+                        let (rows, _) = element_box(dom, owner);
+                        packer.enter_box(rows, BoxAlign::Baseline);
                     }
                     packer.push_text(owner, child_id, data, run_of(dom, owner));
                     if anonymous {
@@ -291,7 +302,8 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
 /// start / end, in its line flow (they wrap, and the text beside them
 /// shifts). They land in [`LineBox::generated`], hosted by the element.
 fn walk_inline_box<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a>) {
-    packer.enter_box(box_rows(dom, id));
+    let (rows, align) = element_box(dom, id);
+    packer.enter_box(rows, align);
     push_met_pseudo(dom, id, PseudoSlot::Before, packer);
     walk_subtree(dom, id, packer);
     push_met_pseudo(dom, id, PseudoSlot::After, packer);
@@ -311,8 +323,12 @@ fn push_float(dom: &Dom<TuiExt>, item: BoxItem, packer: &mut LinePacker<'_>) {
         );
         let rows = vertical::AtomRows::UNMEASURED;
         match item {
-            BoxItem::Node(id) => packer.push_atomic_inline_block(id, width, rows),
-            BoxItem::Generated(host, slot) => packer.push_generated_atom(host, slot, width, rows),
+            BoxItem::Node(id) => {
+                packer.push_atomic_inline_block(id, width, rows, BoxAlign::Baseline);
+            }
+            BoxItem::Generated(host, slot) => {
+                packer.push_generated_atom(host, slot, width, rows, BoxAlign::Baseline);
+            }
         }
         return;
     }
@@ -333,7 +349,8 @@ fn push_generated_atom(
     if let Some((width, rows)) =
         crate::render::layout_pass::generated_atoms::measure(dom, host, slot, cb_width, measuring)
     {
-        packer.push_generated_atom(host, slot, width, rows);
+        let (_, align) = pseudo_box(dom, host, slot);
+        packer.push_generated_atom(host, slot, width, rows, align);
     }
 }
 
@@ -356,7 +373,8 @@ fn push_atom(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'_>) {
             0,
             max_content,
         );
-        packer.push_atomic_inline_block(id, width, vertical::AtomRows::UNMEASURED);
+        let rows = vertical::AtomRows::UNMEASURED;
+        packer.push_atomic_inline_block(id, width, rows, BoxAlign::Baseline);
         return;
     }
     let cb_width = packer.content_width();
@@ -364,5 +382,6 @@ fn push_atom(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'_>) {
         crate::render::layout_pass::float::size::FloatBox::of(dom, BoxItem::Node(id), cb_width)
             .width;
     let rows = vertical::atom_rows(dom, id, width, cb_width);
-    packer.push_atomic_inline_block(id, width, rows);
+    let (_, align) = element_box(dom, id);
+    packer.push_atomic_inline_block(id, width, rows, align);
 }

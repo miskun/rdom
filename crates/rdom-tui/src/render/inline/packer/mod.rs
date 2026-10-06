@@ -71,7 +71,7 @@ thread_local! {
     pub(in crate::render::inline) static GRAPHEMES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
 }
-pub(in crate::render::inline) use frames::BoxRows;
+pub(in crate::render::inline) use frames::{BoxAlign, BoxRows};
 use frames::{FrameId, Frames};
 pub(in crate::render::inline) use replay::{Op, WidthCaps};
 mod fragments;
@@ -178,7 +178,7 @@ pub(super) struct LinePacker<'a> {
     /// The atoms on the current line: where they are (an element's in
     /// `cur_fragments`, a pseudo-element's in `cur_generated`) and their
     /// rows (`vertical`).
-    cur_atoms: Vec<(AtomAt, AtomRows)>,
+    cur_atoms: Vec<(AtomAt, AtomRows, FrameId)>,
     cur_line_width: u16,
     /// The cells of preserved spaces ending the current line that hang
     /// (CSS Text 3 §4.1.2), part of `cur_line_width`.
@@ -335,11 +335,11 @@ impl<'a> LinePacker<'a> {
     }
 
     /// The content taken in next is in a new inline box `rows` tall
-    /// (CSS 2.1 §10.8.1), inside the current one, until
+    /// aligned by `align` (CSS 2.1 §10.8.1), inside the current one, until
     /// [`Self::leave_box`].
-    pub(in crate::render::inline) fn enter_box(&mut self, rows: BoxRows) {
-        self.log(Op::Enter(rows));
-        self.frames.enter(rows);
+    pub(in crate::render::inline) fn enter_box(&mut self, rows: BoxRows, align: BoxAlign) {
+        self.log(Op::Enter(rows, align));
+        self.frames.enter(rows, align);
     }
 
     /// The inline box [`Self::enter_box`] opened ends.

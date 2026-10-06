@@ -98,6 +98,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "text-wrap" => &[TextWrapMode, TextWrapStyle],
         "text-wrap-style" => &[TextWrapStyle],
         "line-height" => &[LineHeight],
+        "vertical-align" => &[VerticalAlign],
         "user-select" => &[UserSelect],
         "pointer-events" => &[PointerEvents],
         "visibility" => &[Visibility],

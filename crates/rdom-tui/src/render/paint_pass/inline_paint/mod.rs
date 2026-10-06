@@ -346,7 +346,11 @@ fn paint_inline_layout(
     let selection_range = dom.selection_range().filter(|r| !r.is_collapsed());
     for (index, line) in inline_layout.lines.iter().enumerate() {
         let line_y = inner.y + i32::from(line.text_row());
-        let text_visible = line_y >= clip.y as i32 && line_y < clip.bottom() as i32;
+        let visible = |y: i32| y >= clip.y as i32 && y < clip.bottom() as i32;
+        let text_visible = visible(line_y);
+        // Each run of text paints on its inline box's row (`vertical-align`
+        // moves it off the baseline row, CSS 2.1 §10.8.1).
+        let row_of = |y: u16| inner.y + i32::from(line.top) + i32::from(y);
         // `text-overflow`'s cut of this line, narrowing the clip it paints
         // its text in (CSS Overflow 4 §3).
         let cut = marking.map(|m| cut_line(line, index, inner.x, m));
@@ -369,16 +373,9 @@ fn paint_inline_layout(
                 }
                 continue;
             }
-            if text_visible {
-                paint_generated(
-                    dom,
-                    generated,
-                    inner.x,
-                    line_y as u16,
-                    clip.x,
-                    line_right,
-                    buf,
-                );
+            let row = row_of(generated.y);
+            if visible(row) {
+                paint_generated(dom, generated, inner.x, row as u16, clip.x, line_right, buf);
             }
         }
 
@@ -398,7 +395,8 @@ fn paint_inline_layout(
                 }
                 continue;
             }
-            if !text_visible || frag_x >= clip.right() as i32 {
+            let row = row_of(fragment.y);
+            if !visible(row) || frag_x >= clip.right() as i32 {
                 continue;
             }
             // Text is drawn by its owner's `visibility` (CSS Display 3
@@ -445,14 +443,7 @@ fn paint_inline_layout(
 
             // Route through `paint_text` so painted content occludes any
             // border the joiner would re-derive beneath it (z-aware borders).
-            paint_text(
-                buf,
-                start_x,
-                line_y as u16,
-                budget_right,
-                text_to_paint,
-                style,
-            );
+            paint_text(buf, start_x, row as u16, budget_right, text_to_paint, style);
 
             // Polish #9: tag this fragment's cells with the
             // enclosing `<a href>`'s URL, if any. The fragment's
@@ -465,7 +456,7 @@ fn paint_inline_layout(
                     .sum::<u16>()
                     .min(max_width);
                 if written_cells > 0 {
-                    buf.set_link_range(start_x, line_y as u16, written_cells, Some(&href));
+                    buf.set_link_range(start_x, row as u16, written_cells, Some(&href));
                 }
             }
 
@@ -474,7 +465,7 @@ fn paint_inline_layout(
             // fragment's symbols + base style intact so a re-paint
             // without selection restores the original appearance.
             if let Some(ref sr) = selection_range {
-                apply_selection_overlay(dom, buf, line_y as u16, frag_x, clip, fragment, sr);
+                apply_selection_overlay(dom, buf, row as u16, frag_x, clip, fragment, sr);
             }
         }
         if let (Some(cut), Some(marking)) = (&cut, marking)

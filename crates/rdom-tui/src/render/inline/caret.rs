@@ -22,7 +22,7 @@
 //! 3. Convert the in-fragment byte offset to a cell offset via
 //!    unicode-width per grapheme.
 //! 4. Return `(ifc.content_rect.x + fragment.x + cell_offset,
-//!    ifc.content_rect.y + the line's text row)`.
+//!    ifc.content_rect.y + the fragment's row in its line)`.
 //!
 //! Generated content (`::before` / `::after`, list markers) is packed
 //! into the same lines as [`GeneratedFragment`](crate::render::inline::GeneratedFragment)s,
@@ -84,7 +84,9 @@ pub(crate) fn caret_cell(dom: &Dom<TuiExt>, pos: Position) -> Option<(i32, i32)>
     let cell_in_frag = fragment.cells_before_source(offset_in_frag);
 
     let x = content.x + fragment.x + cell_in_frag as i32;
-    let y = content.y + text_row_of_line(layout, line_idx);
+    // The fragment's own row: its inline box's baseline row, which
+    // `vertical-align` may have moved off the line's.
+    let y = content.y + i32::from(layout.lines[line_idx].top) + i32::from(fragment.y);
     Some((x, y))
 }
 

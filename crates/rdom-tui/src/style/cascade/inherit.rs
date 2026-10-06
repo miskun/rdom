@@ -128,6 +128,7 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         // `collapse` removes a flex item or table row from layout.
         || a.visibility != b.visibility
         || a.text != b.text
+        || a.vertical_align != b.vertical_align
         // Positioning: the box's placement, its containing-block role,
         // and stacking all feed layout / paint order.
         || a.position != b.position

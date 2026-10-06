@@ -197,6 +197,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "text-wrap-style",
     // Inline layout (CSS Inline 3)
     "line-height",
+    "vertical-align",
     // Writing modes (CSS Writing Modes 4)
     "direction",
     "writing-mode",

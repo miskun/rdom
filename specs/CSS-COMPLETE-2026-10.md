@@ -199,7 +199,7 @@ row comes from.
 | C9-TAB-SIZE | `tab-size` and real tab stops in `pre` | done |
 | C9-BREAKING | `word-break`, `overflow-wrap` / `word-wrap`, `line-break`, `hyphens` (soft hyphens) | done |
 | C9-LINE-HEIGHT | `line-height` (whole-row line boxes) | done |
-| C9-VERTICAL-ALIGN | `vertical-align` for inline-blocks and inline content | |
+| C9-VERTICAL-ALIGN | `vertical-align` for inline-blocks and inline content | done |
 | C9-DECORATION | `text-decoration` full shorthand; `-line` (incl. `overline`), `-color` (SGR 58), `-style` (SGR 4:x) | |
 | C9-FONT | `font-weight` numeric / `bolder` / `lighter`, `font-style: oblique`, `font` shorthand (weight / style honored, size / family inert) | |
 
@@ -5538,3 +5538,33 @@ row comes from.
   for pseudo text → 1; none for `display: contents` text → 1; anonymous items' baselines from content rows → 1.
   Changed expectation: `numeric_tests::lh_units_parse_as_one_row` became `lh_units_wait_for_the_line_height`
   (`2lh` is an expression until the cascade). No snapshot changed.
+- 2026-10-12 — C9-VERTICAL-ALIGN (CSS 2.1 §10.8, §10.8.1; CSS Inline 3 §4; HTML §15.3.4). rdom-style:
+  `vertical-align: baseline | sub | super | text-top | text-bottom | middle | top | bottom |
+  <length-percentage>` as `VerticalAlign` (`Rows` a length of either sign, `Calc` a percentage or a context
+  length, which computes to `Rows` against the element's own line height — `cascade/text.rs` after
+  `line-height`), a top-level field (not inherited), dispatched with `line-height` in
+  `property_dispatch/inline.rs` (new; `line-height`'s arms moved there from `text.rs`); the UA sheet gives
+  `sub` / `sup` their alignment and `line-height: normal`. Decided: CSS 2.1's single property — Inline 3's
+  shorthand split (`alignment-baseline`, `baseline-shift`, `baseline-source`) stays N/A, one baseline per row
+  (DIVERGENCES §1 / §2). rdom-tui — at the root, the line-height frames carry the alignment
+  (`packer/frames.rs`): each frame resolves its `BoxAlign` against its own rows when it is entered — a raise
+  from its parent's baseline (`sub` / `super` one row, the parent's sub/superscript position on a grid;
+  `middle`: its middle row — the upper of two — on the parent's baseline row; `text-top` / `text-bottom`: its
+  top / bottom on the parent's glyph row, the content area) accumulated down the tree, or a new aligned subtree
+  for `top` / `bottom`; an atom is a frame too (`atom_frame`: its margin box's rows, its own alignment). Marking
+  a frame adds its extent to its subtree's; `settle` makes the line from the strut's subtree and grows it for a
+  taller `top` (downward) / `bottom` (upward) subtree — CSS 2.1 leaves the placement to minimize the height;
+  Blink's choice — and gives each subtree's baseline row; `vertical::settle_line` places every fragment at its
+  frame's row (`InlineFragment::frame`, `GeneratedFragment::frame`, crate-private; `GeneratedFragment::y`, new,
+  public). Consumers that read the line's baseline row for text moved to the fragment's: paint (text, generated
+  text, links, the selection overlay), the caret; hit-testing already read `line.top + fragment.y`. Table
+  cells: the table builtin does not read it (no table formatting context yet) — C13-TABLE-PROPS. Red:
+  `css_phase9/vertical_align.rs` — 6 of 6 failed with the property parsed but not applied (every run on the
+  baseline: `["abc", "   ", "   "]` for the super / sub / length shifts, the atom's `B` on row 2 for row 0
+  under `top`, …); green after. The `sub` / `sup` UA test after (red `["x2i", …]`, green with the UA rules).
+  Mutation (each alone, restored, touched): `super` no shift → 2; shifts not accumulated → 2; `middle`
+  unshifted → 1; `text-top`'s sign → 2; a `bottom` subtree growing the line downward → 1; a `top` subtree on the
+  root's baseline → 2; a percentage of one row → 1; text painted on the line's baseline row → 4; the caret on
+  it → 1; generated text unplaced → 1; atoms ignoring their alignment → 2; the UA `sup` rule gone → 1. Changed
+  expectation: `vertical.rs`'s unit test now places fragments from frame rows (the line arithmetic moved to
+  `frames.rs`'s tests). No snapshot changed.

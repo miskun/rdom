@@ -54,12 +54,12 @@ impl AtomRows {
     };
 
     /// Rows of its margin box above its baseline row.
-    fn above(self) -> u16 {
+    pub(super) fn above(self) -> u16 {
         self.baseline
     }
 
     /// Rows of its margin box below its baseline row.
-    fn below(self) -> u16 {
+    pub(super) fn below(self) -> u16 {
         self.margin_top
             .saturating_add(self.height)
             .saturating_add(self.margin_bottom)
@@ -162,31 +162,25 @@ pub(super) enum AtomAt {
     Generated(usize),
 }
 
-/// Settle one line: place each fragment on it — text on the baseline
-/// row, each atom (`atoms`: where it is and its rows) with its baseline
-/// there — and return the line's `(baseline, height)`. `text` is the
-/// extent of the inline boxes on the line around the baseline row, the
-/// strut's included (CSS 2.1 §10.8.1: their line heights' leading).
+/// Place each fragment of a settled line on it (CSS 2.1 §10.8): text and
+/// generated text on their inline box's baseline row, each atom (`atoms`:
+/// where it is, its rows, its inline box) with its baseline on its box's —
+/// `row_of` the row the packer settled an inline box's baseline on.
 pub(super) fn settle_line(
     fragments: &mut [InlineFragment],
     generated: &mut [GeneratedFragment],
-    atoms: &[(AtomAt, AtomRows)],
-    text: super::packer::BoxRows,
-) -> (u16, u16) {
-    let above = atoms
-        .iter()
-        .map(|(_, a)| a.above())
-        .fold(text.above, u16::max);
-    let below = atoms
-        .iter()
-        .map(|(_, a)| a.below())
-        .fold(text.below, u16::max);
-    for f in fragments.iter_mut() {
-        f.y = above;
+    atoms: &[(AtomAt, AtomRows, u32)],
+    row_of: impl Fn(u32) -> u16,
+) {
+    for f in fragments.iter_mut().filter(|f| !f.atomic) {
+        f.y = row_of(f.frame);
         f.height = 1;
     }
-    for &(at, a) in atoms {
-        let y = above - a.above() + a.margin_top;
+    for g in generated.iter_mut().filter(|g| !g.is_atom()) {
+        g.y = row_of(g.frame);
+    }
+    for &(at, a, frame) in atoms {
+        let y = row_of(frame) - a.above() + a.margin_top;
         match at {
             AtomAt::Fragment(i) => {
                 let f = &mut fragments[i];
@@ -201,80 +195,53 @@ pub(super) fn settle_line(
             }
         }
     }
-    (above, above.saturating_add(1).saturating_add(below))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::packer::BoxRows;
     use super::*;
     use rdom_core::Dom;
 
-    fn fragment(node: NodeId, atomic: bool) -> InlineFragment {
-        InlineFragment {
-            node,
-            text_node: node,
-            source_byte_offset: 0,
-            x: 0,
-            y: 0,
-            width: 1,
-            height: 1,
-            text: String::new(),
-            atomic,
-            map: None,
-        }
+    fn fragment(node: NodeId, atomic: bool, frame: u32) -> InlineFragment {
+        let mut f = if atomic {
+            InlineFragment::atom(node, 0, 1, 1)
+        } else {
+            InlineFragment::text(node, node, 0, 0, "a")
+        };
+        f.frame = frame;
+        f
     }
 
-    /// CSS 2.1 §10.8: text alone makes a one-row line; a three-row atom
-    /// whose baseline is its middle row puts the text there and grows
-    /// the line to three rows; an empty atom (baseline = its bottom
-    /// edge) rises above the text.
+    /// CSS 2.1 §10.8: text sits on its box's baseline row; an atom's
+    /// baseline lands on its box's, below its top margin.
     #[test]
-    fn a_line_is_as_tall_as_its_atoms_around_the_baseline() {
+    fn fragments_sit_on_their_boxes_rows() {
         let dom: Dom<TuiExt> = Dom::new();
         let n = dom.root();
-        let mut text_only = [fragment(n, false)];
-        assert_eq!(
-            settle_line(&mut text_only, &mut [], &[], BoxRows::default()),
-            (0, 1)
-        );
-
         let bordered = AtomRows {
-            margin_top: 0,
-            height: 3,
-            margin_bottom: 0,
-            baseline: 1,
-        };
-        let mut line = [fragment(n, false), fragment(n, true)];
-        assert_eq!(
-            settle_line(
-                &mut line,
-                &mut [],
-                &[(AtomAt::Fragment(1), bordered)],
-                BoxRows::default()
-            ),
-            (1, 3)
-        );
-        assert_eq!((line[0].y, line[0].height), (1, 1));
-        assert_eq!((line[1].y, line[1].height), (0, 3));
-
-        let empty = AtomRows {
             margin_top: 1,
-            height: 2,
+            height: 3,
             margin_bottom: 0,
             baseline: 2,
         };
-        let mut line = [fragment(n, true), fragment(n, false)];
-        assert_eq!(
-            settle_line(
-                &mut line,
-                &mut [],
-                &[(AtomAt::Fragment(0), empty)],
-                BoxRows::default()
-            ),
-            (2, 3)
+        let mut line = [
+            fragment(n, false, 0),
+            fragment(n, true, 1),
+            fragment(n, false, 2),
+        ];
+        let rows = |frame: u32| [3, 4, 1][frame as usize];
+        settle_line(
+            &mut line,
+            &mut [],
+            &[(AtomAt::Fragment(1), bordered, 1)],
+            rows,
         );
-        assert_eq!((line[0].y, line[0].height), (1, 2), "below its top margin");
-        assert_eq!(line[1].y, 2);
+        assert_eq!((line[0].y, line[0].height), (3, 1));
+        assert_eq!(
+            (line[1].y, line[1].height),
+            (3, 3),
+            "baseline 4, 2 rows of margin box above it, 1 of them margin"
+        );
+        assert_eq!(line[2].y, 1, "a raised box's text");
     }
 }

@@ -88,6 +88,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         .or_else(|| super::scroll::set(name, value, style))
         .or_else(|| super::grid::set(name, value, style))
         .or_else(|| super::text::set(name, value, style))
+        .or_else(|| super::inline::set(name, value, style))
     {
         return outcome.ok_or(DispatchError::InvalidValue);
     }

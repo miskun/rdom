@@ -45,6 +45,7 @@ mod sizing;
 #[cfg(test)]
 mod sizing_tests;
 mod text;
+mod vertical_align;
 
 pub use alignment::{Align, AlignProperty, Alignment, OverflowAlign};
 pub use background::{BackgroundAttachment, BackgroundRepeat, BoxShadow, RepeatStyle, VisualBox};
@@ -86,3 +87,4 @@ pub use text::{
     TextJustify, TextStyle, TextTransform, TextWrapMode, TextWrapStyle, WhiteSpace,
     WhiteSpaceCollapse, WordBreak,
 };
+pub use vertical_align::VerticalAlign;

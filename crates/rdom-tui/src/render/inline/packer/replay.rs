@@ -34,16 +34,18 @@ pub(in crate::render::inline) enum Op<'a> {
         node: NodeId,
         width: u16,
         rows: AtomRows,
+        align: super::BoxAlign,
     },
     GeneratedAtom {
         host: NodeId,
         slot: PseudoSlot,
         width: u16,
         rows: AtomRows,
+        align: super::BoxAlign,
     },
     Float(BoxItem),
     /// An inline box opens (`frames`).
-    Enter(super::BoxRows),
+    Enter(super::BoxRows, super::BoxAlign),
     /// The inline box last opened ends.
     Leave,
 }
@@ -130,15 +132,21 @@ impl<'a> LinePacker<'a> {
                 } => self.push_generated(host, slot, text, run),
                 Op::HardBreak(owner) => self.push_hard_break(owner),
                 Op::Opportunity => self.push_break_opportunity(),
-                Op::Atom { node, width, rows } => self.push_atomic_inline_block(node, width, rows),
+                Op::Atom {
+                    node,
+                    width,
+                    rows,
+                    align,
+                } => self.push_atomic_inline_block(node, width, rows, align),
                 Op::GeneratedAtom {
                     host,
                     slot,
                     width,
                     rows,
-                } => self.push_generated_atom(host, slot, width, rows),
+                    align,
+                } => self.push_generated_atom(host, slot, width, rows, align),
                 Op::Float(item) => self.push_float(item),
-                Op::Enter(rows) => self.enter_box(rows),
+                Op::Enter(rows, align) => self.enter_box(rows, align),
                 Op::Leave => self.leave_box(),
             }
         }

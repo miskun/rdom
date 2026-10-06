@@ -155,6 +155,14 @@ impl TuiStyle {
         LINE_HEIGHT,
         crate::layout::LineHeight
     );
+    setter!(
+        "vertical-align",
+        vertical_align,
+        vertical_align,
+        vertical_align_important,
+        VERTICAL_ALIGN,
+        crate::layout::VerticalAlign
+    );
     text_setter!(
         "hyphens",
         hyphens,

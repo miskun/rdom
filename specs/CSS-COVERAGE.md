@@ -80,7 +80,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.9 Grid (Grid 1/2) | 9 | 0 | 1 | 0 | 10 |
 | 3.10 Positioned layout (Position 3, CSS 2.1 §9) | 6 | 0 | 0 | 1 | 7 |
 | 3.11 Overflow, scrolling and scrollbars (Overflow 3/4, Scroll Snap 1, Overscroll 1, Scrollbars 1) | 13 | 0 | 1 | 0 | 14 |
-| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 14 | 0 | 1 | 6 | 21 |
+| 3.12 Inline text (Text 3/4, Inline 3, CSS 2.1 §10.8) | 15 | 0 | 0 | 6 | 21 |
 | 3.13 Text decoration (Text Decoration 3/4) | 0 | 1 | 3 | 2 | 6 |
 | 3.14 Fonts (Fonts 4) | 0 | 2 | 1 | 2 | 5 |
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 1 | 3 | 6 | 2 | 12 |
@@ -93,9 +93,9 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **173** | **21** | **67** | **46** | **307** |
+| **Total** | **174** | **21** | **66** | **46** | **307** |
 
-When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 88 rows Partial / Missing (C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
+When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 87 rows Partial / Missing (C9-VERTICAL-ALIGN shipped `vertical-align` on inline content; C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
 Headline: rdom parses **227 property names** (`property_names()`: 159 in the table and 68 flow-relative ones, after Phase 8). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The gap a web developer hits first is `@media`.
 
@@ -157,7 +157,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 47 | `overscroll-behavior` (+ `-x`, `-y`, logical) | `contain` / `none` stop wheel scroll chaining into the ancestor at the scroll limit (keyboard scrolling never chains: DIVERGENCES). | S | No | *Shipped: C8-OVERSCROLL.*
 | 48 | `scroll-padding*` / `scroll-margin*` / `scroll-snap-type` / `scroll-snap-align` / `scroll-snap-stop` | Insets for `scrollIntoView` / keyboard scrolling; snap scroll offsets to item edges (row-snapped lists). | S / M | Partial — padding / margin Yes; snap No | *Shipped: C8-SCROLL-PADDING, C8-SNAP.*
 | 49 | Table properties: `border-spacing`, `vertical-align` (cells), `table-layout`, `caption-side`, `empty-cells` | Cell gaps in cells; `middle` / `bottom` cell alignment; `fixed` = first-row widths only; caption above / below; hide empty cells' borders. | S each (`vertical-align` M) | Partial — `vertical-align` Yes; rest No |
-| 50 | `vertical-align` (inline) | `top` / `middle` / `bottom` of an inline-block in a taller line box; `sub` / `super` are N/A (sub-cell). | M | Yes |
+| 50 | `vertical-align` (inline) | Shipped (C9-VERTICAL-ALIGN; §3.12): every value in whole rows, `sub` / `super` one row. | M | Yes |
 | 51 | `text-decoration-line` / `-color` / `-style`, multi-line `text-decoration`, `overline` | Underline color via SGR 58; style via SGR 4:1–4:5 (`solid` / `double` / `wavy` / `dotted` / `dashed` on kitty, WezTerm, foot, ghostty); `overline` via SGR 53; `underline line-through` together. | S | No |
 | 52 | `font-weight` numeric / `bolder` / `lighter`, `font-style: oblique`, `font` shorthand | `≥ 600` / `bold` / `bolder` → SGR 1; `≤ 300` / `lighter` → SGR 2 (faint) is optional; `oblique` → italic; `font` shorthand reads weight / style and ignores family / size. | S | No |
 | 53 | `quotes` + `open-quote` / `close-quote` in `content` | Quote marks for `<q>` and nested quotations, from the `quotes` pairs. | S | No |
@@ -440,7 +440,7 @@ dropped. The audit's six, with where each stands:
 | `letter-spacing` / `word-spacing` | N/A | Sub-cell by nature; whole-cell spacing is conceivable but documented as out of scope. | — | — |
 | `hanging-punctuation` | N/A | Hanging a glyph into the margin is a typographic nicety without a TUI use. | — | — |
 | `line-height` | Supported | `normal` / `<number>` / `<length-percentage>` in whole rows (ties to even, at least one); half-leading around the glyph row, the odd row below; each inline box, `::before` / `::after` text and the block's strut; inline-block baselines, intrinsic heights, `line-clamp`, scroll extents, caret and hit-testing follow (C9-LINE-HEIGHT; DIVERGENCES §2). | — | `DISP/text.rs`, `V/inline.rs`, `IFC` (`packer/frames.rs`, `vertical.rs`, `baselines.rs`) |
-| `vertical-align` | Missing | Inline-block `top` / `middle` / `bottom`; table-cell alignment (documented); `sub` / `super` / lengths N/A. | Yes | `IFC`, table builtin |
+| `vertical-align` | Supported | Every value on inline elements, `::before` / `::after` text and atomic inlines, whole rows: `sub` / `super` one row, lengths and percentages (of the line height) raise, `middle` / `text-top` / `text-bottom` against the glyph row, `top` / `bottom` aligned subtrees (C9-VERTICAL-ALIGN; DIVERGENCES §2). Table cells: C13-TABLE-PROPS (§3.20). | — | `V/inline.rs`, `IFC` (`packer/frames.rs`) |
 | `dominant-baseline` / `alignment-baseline` / `baseline-shift` / `baseline-source` | N/A | One text baseline per row. | — | — |
 | `initial-letter` | N/A | Multi-row drop caps need scaled glyphs. | — | — |
 | `text-emphasis*` | N/A | Emphasis marks sit above / below a glyph, inside the same cell. | — | — |

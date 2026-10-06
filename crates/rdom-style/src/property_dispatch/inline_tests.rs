@@ -1,8 +1,8 @@
 //! Dispatch tests for the CSS Inline Layout 3 properties (Phase 9):
-//! `line-height` (§5.1).
+//! `line-height` (§5.1) and `vertical-align` (CSS 2.1 §10.8.1).
 
 use super::*;
-use crate::layout::LineHeight;
+use crate::layout::{LineHeight, VerticalAlign};
 use crate::{TuiStyle, Value};
 
 /// CSS Inline 3 §5.1: `line-height: normal | <number [0,∞]> |
@@ -57,5 +57,55 @@ fn line_height_takes_normal_a_number_or_a_length() {
     assert_eq!(
         crate::layout::TextStyle::default().line_height,
         LineHeight::Normal
+    );
+}
+
+/// CSS 2.1 §10.8.1: `vertical-align: baseline | sub | super | text-top |
+/// text-bottom | middle | top | bottom | <percentage> | <length>`, not
+/// inherited, initial `baseline`; a length of either sign.
+#[test]
+fn vertical_align_takes_its_keywords_and_a_length() {
+    use crate::calc::CalcExpr;
+    for (text, value, out) in [
+        ("baseline", VerticalAlign::Baseline, "baseline"),
+        ("SUB", VerticalAlign::Sub, "sub"),
+        ("super", VerticalAlign::Super, "super"),
+        ("text-top", VerticalAlign::TextTop, "text-top"),
+        ("text-bottom", VerticalAlign::TextBottom, "text-bottom"),
+        ("middle", VerticalAlign::Middle, "middle"),
+        ("top", VerticalAlign::Top, "top"),
+        ("bottom", VerticalAlign::Bottom, "bottom"),
+        ("2", VerticalAlign::Rows(2.0), "2"),
+        ("-1", VerticalAlign::Rows(-1.0), "-1"),
+        (
+            "50%",
+            VerticalAlign::Calc(Box::new(CalcExpr::Percent(50.0))),
+            "50%",
+        ),
+    ] {
+        let mut style = TuiStyle::new();
+        set("vertical-align", text, &mut style).unwrap_or_else(|e| panic!("{text}: {e:?}"));
+        assert_eq!(
+            style.vertical_align,
+            Some(Value::Specified(value)),
+            "{text}"
+        );
+        assert_eq!(
+            serialize("vertical-align", &style).as_deref(),
+            Some(out),
+            "{text}"
+        );
+    }
+    for bad in ["auto", "center", "top bottom", "none"] {
+        assert_eq!(
+            set("vertical-align", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+    assert!(!inherits("vertical-align"));
+    assert_eq!(
+        crate::ComputedStyle::initial().vertical_align,
+        VerticalAlign::Baseline
     );
 }

@@ -8,7 +8,7 @@ use super::super::align::{self, LineGeometry, TextAlignment};
 use super::super::boxes::GeneratedAtom;
 use super::super::vertical::{self, AtomAt, AtomRows};
 use super::super::{GeneratedFragment, InlineFragment, LineBox};
-use super::{GraphemeKind, LineEnd, LinePacker, Op, Origin, PendingGrapheme};
+use super::{BoxAlign, BoxRows, GraphemeKind, LineEnd, LinePacker, Op, Origin, PendingGrapheme};
 use crate::layout::OverflowWrap;
 
 impl LinePacker<'_> {
@@ -215,24 +215,35 @@ impl LinePacker<'_> {
         node: NodeId,
         width: u16,
         rows: AtomRows,
+        align: BoxAlign,
     ) {
-        self.log(Op::Atom { node, width, rows });
-        let x = self.open_atom(node, width);
-        self.cur_atoms
-            .push((AtomAt::Fragment(self.cur_fragments.len()), rows));
-        self.cur_fragments.push(InlineFragment {
+        self.log(Op::Atom {
             node,
-            text_node: node, // sentinel — atom has no source text node
-            source_byte_offset: 0,
-            x,
-            y: 0,
             width,
-            height: rows.height,
-            text: String::new(),
-            atomic: true,
-            map: None,
+            rows,
+            align,
         });
+        let x = self.open_atom(node, width);
+        let frame = self.atom_frame(rows, align);
+        self.cur_atoms
+            .push((AtomAt::Fragment(self.cur_fragments.len()), rows, frame));
+        let mut atom = InlineFragment::atom(node, x, width, rows.height);
+        atom.frame = frame;
+        self.cur_fragments.push(atom);
         self.close_atom(width);
+    }
+
+    /// The inline box of an atom `rows` tall aligned by `align`, in the
+    /// current one, placed on the current line (CSS 2.1 §10.8.1: its
+    /// margin box is its box).
+    fn atom_frame(&mut self, rows: AtomRows, align: BoxAlign) -> u32 {
+        let box_rows = BoxRows {
+            above: rows.above(),
+            below: rows.below(),
+        };
+        let frame = self.frames.add(box_rows, align);
+        self.frames.mark(frame);
+        frame
     }
 
     /// Push an atomic inline `::before` / `::after` (CSS Display 3 §2.4,
@@ -247,18 +258,22 @@ impl LinePacker<'_> {
         slot: crate::ext::PseudoSlot,
         width: u16,
         rows: AtomRows,
+        align: BoxAlign,
     ) {
         self.log(Op::GeneratedAtom {
             host,
             slot,
             width,
             rows,
+            align,
         });
         let x = self.open_atom(host, width);
+        let frame = self.atom_frame(rows, align);
         self.cur_atoms
-            .push((AtomAt::Generated(self.cur_generated.len()), rows));
+            .push((AtomAt::Generated(self.cur_generated.len()), rows, frame));
         let mut atom = GeneratedFragment::text(host, slot, x, "");
         atom.width = width;
+        atom.frame = frame;
         atom.atom = Some(Box::new(GeneratedAtom {
             y: 0,
             height: rows.height(),
@@ -301,8 +316,6 @@ impl LinePacker<'_> {
             self.clear_pending_space();
         }
         self.fit_empty_line(width);
-        // The atom is on this line, and so is the inline box it is in.
-        self.frames.mark(self.frames.current());
         i32::from(self.cur_line_width)
     }
 
@@ -330,9 +343,12 @@ impl LinePacker<'_> {
         self.cur_ends_in_shy = false;
         let mut fragments = std::mem::take(&mut self.cur_fragments);
         let mut generated = std::mem::take(&mut self.cur_generated);
-        let text = self.frames.settle();
-        let (baseline, height) =
-            vertical::settle_line(&mut fragments, &mut generated, &self.cur_atoms, text);
+        let settled = self.frames.settle();
+        let frames = &self.frames;
+        vertical::settle_line(&mut fragments, &mut generated, &self.cur_atoms, |f| {
+            frames.row(&settled, f)
+        });
+        let (baseline, height) = (settled.baseline(), settled.height);
         self.cur_atoms.clear();
         let width = self.cur_line_width;
         let hang = match end {
