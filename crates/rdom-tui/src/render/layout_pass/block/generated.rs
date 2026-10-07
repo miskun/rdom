@@ -29,11 +29,7 @@ fn style_of(
     host: NodeId,
     slot: PseudoSlot,
 ) -> Option<std::rc::Rc<ComputedStyle>> {
-    let ext = dom.node(host).ext()?;
-    match slot {
-        PseudoSlot::Before => ext.computed_before.clone(),
-        PseudoSlot::After => ext.computed_after.clone(),
-    }
+    dom.node(host).ext()?.computed_pseudo(slot).cloned()
 }
 
 /// The pseudo-element as a box of its own, which measures and lays out
@@ -104,8 +100,9 @@ pub(super) struct GeneratedPlace<'a> {
 /// `len` items: the first, or the last.
 pub(super) fn index(slot: PseudoSlot, len: usize) -> usize {
     match slot {
-        PseudoSlot::Before => 0,
         PseudoSlot::After => len.saturating_sub(1),
+        // A marker is never a block box of its host's flow.
+        _ => 0,
     }
 }
 

@@ -497,8 +497,10 @@ of inline content between block children is wrapped in an anonymous
 block box with its own inline formatting context. Static `::before` /
 `::after` are laid out as the host's first / last inline content, so
 text wraps around them; a `::before` on a host that starts with a
-block child gets a line of its own (an `<li>`'s marker rides its
-block child's first line).
+block child gets a line of its own. A list item's `::marker` rides the
+item's first line box — its own, or its block child's — hung outside the
+item in the list's padding (`list-style-position: inside` puts it in the
+line).
 
 See the `parse_and_render` example for a working template.
 

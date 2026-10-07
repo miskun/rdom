@@ -184,6 +184,19 @@ pub struct GeneratedFragment {
     pub(crate) atom: Option<Box<GeneratedAtom>>,
     /// The inline box the packer placed it in (`InlineFragment`'s).
     pub(crate) frame: u32,
+    /// A piece of an outside list marker (CSS Lists 3 §3.5): beside its
+    /// line, taking no room in it; `x` is set from its item's box
+    /// (`markers::place_outside`).
+    pub(crate) outside: Option<OutsideMarker>,
+}
+
+/// Where a piece of an outside marker sits within the marker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OutsideMarker {
+    /// The whole marker's packed width.
+    pub(crate) width: u16,
+    /// The piece's x within the marker.
+    pub(crate) offset: i32,
 }
 
 impl GeneratedFragment {
@@ -202,6 +215,7 @@ impl GeneratedFragment {
             text,
             atom: None,
             frame: 0,
+            outside: None,
         }
     }
 

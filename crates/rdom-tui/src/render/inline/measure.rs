@@ -61,6 +61,32 @@ pub(crate) fn widest_pseudo_line(
     widest(packer)
 }
 
+/// The width of the markers riding `holder`'s first line
+/// (`markers::line_markers`) packed `available` wide — an inside marker as
+/// the inline text it is, an outside one taking no room — as followed by
+/// the line's content: the letter and word spacing their last character
+/// takes inside a line counts (CSS Text 3 §9.2 drops it only at the line's
+/// end). Measured as the markers followed by a one-cell probe, less the
+/// probe packed alone.
+pub(crate) fn widest_marker_line(dom: &Dom<TuiExt>, holder: NodeId, available: u16) -> u16 {
+    let markers = super::markers::line_markers(dom, holder);
+    let Some(last_inside) = markers.iter().rev().find(|m| !m.outside).map(|m| m.item) else {
+        return 0;
+    };
+    let run = super::feed::pseudo_run(dom, last_inside, crate::ext::PseudoSlot::Marker);
+    let probe = |packer: &mut LinePacker<'_>| {
+        packer.push_generated(last_inside, crate::ext::PseudoSlot::Marker, "x", run);
+    };
+    let mut with = LinePacker::measuring(available);
+    for marker in markers {
+        super::feed::push_marker(dom, marker, &mut with);
+    }
+    probe(&mut with);
+    let mut alone = LinePacker::measuring(available);
+    probe(&mut alone);
+    widest(with).saturating_sub(widest(alone))
+}
+
 /// The widest line of the text node `text` packed alone `available` wide,
 /// by its parent's CSS Text values; and the rows it packs to.
 pub(crate) fn text_node_extent(dom: &Dom<TuiExt>, text: NodeId, available: u16) -> (u16, u16) {

@@ -181,6 +181,9 @@ pub(super) struct LinePacker<'a> {
     cur_fragments: Vec<InlineFragment>,
     /// Committed generated content on the current line.
     cur_generated: Vec<GeneratedFragment>,
+    /// The outside list markers beside the current line (CSS Lists 3
+    /// §3.5): settled with it, never placed by its alignment.
+    cur_outside: Vec<GeneratedFragment>,
     /// The atoms on the current line: where they are (an element's in
     /// `cur_fragments`, a pseudo-element's in `cur_generated`) and their
     /// rows (`vertical`).
@@ -291,6 +294,7 @@ impl<'a> LinePacker<'a> {
             lines: Vec::new(),
             cur_fragments: Vec::new(),
             cur_generated: Vec::new(),
+            cur_outside: Vec::new(),
             cur_atoms: Vec::new(),
             cur_line_width: 0,
             cur_hang: 0,

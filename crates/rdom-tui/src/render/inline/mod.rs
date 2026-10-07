@@ -57,6 +57,7 @@ mod caret;
 mod feed;
 pub(crate) mod generated;
 mod indent;
+pub(crate) mod markers;
 mod measure;
 mod packer;
 mod run_style;
@@ -78,12 +79,14 @@ use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
 
 use crate::render::layout_pass::float::lines::LineExclusions;
-pub(crate) use boxes::GeneratedAtom;
+pub(crate) use boxes::{GeneratedAtom, OutsideMarker};
 pub use boxes::{GeneratedFragment, InlineFragment, InlineLayout, LineBox};
 pub(crate) use caret::caret_cell;
 pub use caret::cell_of_position;
 use feed::{fill_block, fill_run};
-pub(crate) use measure::{text_node_extent, widest_line, widest_pseudo_line, widest_run_line};
+pub(crate) use measure::{
+    text_node_extent, widest_line, widest_marker_line, widest_pseudo_line, widest_run_line,
+};
 use packer::LinePacker;
 pub(crate) use white_space::is_collapsible_white_space;
 

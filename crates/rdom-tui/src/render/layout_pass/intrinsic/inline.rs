@@ -3,13 +3,11 @@
 //! padding / border costs around them.
 
 use rdom_core::{Dom, NodeId};
-use unicode_width::UnicodeWidthStr;
 
 use super::Keywords;
 use super::Measure;
 use crate::ext::TuiExt;
 use crate::layout::{Direction, Size};
-use crate::node::TuiNodeExt;
 use crate::render::layout_pass::box_sizing::Sizer;
 use crate::style::ComputedStyle;
 
@@ -57,35 +55,18 @@ pub(super) fn wrapped_rows(
 /// bracketed `::before` / `::after`) would size to its text content
 /// only and clip the pseudos at paint time.
 ///
-/// A list marker counts where it is laid out: on the block whose first
-/// line it rides (`inline::generated`), not on its `<li>`.
+/// A list marker counts where it is laid out, on the block whose first
+/// line it rides (`inline::markers`), packed as layout packs it — an
+/// inside one as text, an outside one taking no room (C10-LIST-ITEM).
 pub(super) fn pseudo_content_width(dom: &Dom<TuiExt>, id: NodeId, measure: Measure) -> u16 {
-    use crate::ext::StyleSlot;
+    use crate::ext::{PseudoSlot, StyleSlot};
     use crate::render::inline::generated;
-    let width = |host: NodeId, slot: StyleSlot| -> u32 {
-        let node = dom.node(host);
-        let computed = match slot {
-            StyleSlot::Before => node.computed_before(),
-            _ => node.computed_after(),
-        };
-        computed
-            .and_then(|c| c.content.as_deref())
-            .map_or(0, |t| UnicodeWidthStr::width(t) as u32)
-    };
-    let mut acc: u32 = 0;
-    for item in generated::deferred_markers(dom, id) {
-        acc = acc.saturating_add(width(item, StyleSlot::Before));
-    }
-    // The host's own inline pseudo-elements: their text, an atom's box
-    // (its max-content width), a float's margin box — none for a
-    // block-level or `display: none` one, or a marker riding a
-    // descendant.
-    let own = |slot: StyleSlot| {
-        let pslot = match slot {
-            StyleSlot::Before => crate::ext::PseudoSlot::Before,
-            _ => crate::ext::PseudoSlot::After,
-        };
-        match generated::own_inline_pseudo(dom, id, slot) {
+    // The host's own inline pseudo-elements: their text (with the markers
+    // riding this line, which the packer takes in with the `::before`), an
+    // atom's box (its max-content width), a float's margin box — none for
+    // a block-level or `display: none` one.
+    let own = |slot: StyleSlot, pslot: PseudoSlot| -> u32 {
+        match generated::inline_pseudo(dom, id, slot) {
             // Packed as layout packs it: transformed, collapsed, at its
             // tab stops, letter-spaced (C9G-MISC-CORRECTNESS).
             Some(generated::InlinePseudo::Text(_)) => u32::from(
@@ -105,8 +86,22 @@ pub(super) fn pseudo_content_width(dom: &Dom<TuiExt>, id: NodeId, measure: Measu
             None => 0,
         }
     };
-    acc = acc.saturating_add(own(StyleSlot::Before));
-    acc = acc.saturating_add(own(StyleSlot::After));
+    let before_is_text = matches!(
+        generated::inline_pseudo(dom, id, StyleSlot::Before),
+        Some(generated::InlinePseudo::Text(_))
+    );
+    let markers = if before_is_text {
+        0
+    } else {
+        u32::from(crate::render::inline::widest_marker_line(
+            dom,
+            id,
+            measure.available(),
+        ))
+    };
+    let acc = markers
+        .saturating_add(own(StyleSlot::Before, PseudoSlot::Before))
+        .saturating_add(own(StyleSlot::After, PseudoSlot::After));
     acc.min(u16::MAX as u32) as u16
 }
 

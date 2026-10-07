@@ -27,11 +27,7 @@ pub(super) fn paint_generated(
     right: u16,
     buf: &mut Buffer,
 ) {
-    let node = dom.node(generated.host);
-    let computed = match generated.slot {
-        crate::ext::PseudoSlot::Before => node.computed_before(),
-        crate::ext::PseudoSlot::After => node.computed_after(),
-    };
+    let computed = dom.node(generated.host).computed_pseudo(generated.slot);
     let Some(computed) = computed else {
         return;
     };

@@ -379,8 +379,15 @@ fn paint_inline_layout(
                 continue;
             }
             let row = row_of(generated.y);
+            // An outside list marker hangs beside the line: no
+            // `text-overflow` cut of the line reaches it.
+            let (left, right) = if generated.outside.is_some() {
+                (outer_clip.x, outer_clip.right())
+            } else {
+                (clip.x, line_right)
+            };
             if visible(row) {
-                paint_generated(dom, generated, inner.x, row as u16, clip.x, line_right, buf);
+                paint_generated(dom, generated, inner.x, row as u16, left, right, buf);
             }
         }
 

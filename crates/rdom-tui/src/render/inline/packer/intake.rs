@@ -66,6 +66,45 @@ impl<'a> LinePacker<'a> {
         self.push_str(origin, text);
     }
 
+    /// An outside list marker of the list item `host` (CSS Lists 3 §3.5):
+    /// `text` packed alone in the marker's `run` — transformed, spaced as
+    /// any generated text — into fragments that sit beside the current
+    /// line on its baseline, taking no room in it. Their column is the
+    /// layout pass's (`markers::place_outside`). A marker hanging on the
+    /// `right` is written in visual order (`markers::visual_rtl`).
+    pub(in crate::render::inline) fn push_outside_marker(
+        &mut self,
+        host: NodeId,
+        text: &'a str,
+        run: RunStyle,
+        right: bool,
+    ) {
+        self.log(Op::OutsideMarker {
+            host,
+            text,
+            run,
+            right,
+        });
+        let mut marker = LinePacker::new(u16::MAX);
+        marker.push_generated(host, PseudoSlot::Marker, text, run);
+        marker.finish();
+        let Some(line) = marker.take_lines().into_iter().next() else {
+            return;
+        };
+        let frame = self.frames.current();
+        for mut g in line.generated {
+            if right {
+                g.text = super::super::markers::visual_rtl(&g.text);
+            }
+            g.outside = Some(super::super::OutsideMarker {
+                width: line.width,
+                offset: g.x,
+            });
+            g.frame = frame;
+            self.cur_outside.push(g);
+        }
+    }
+
     fn push_str(&mut self, origin: Origin, text: &'a str) {
         #[cfg(test)]
         super::GRAPHEMES.with(|c| c.set(c.get() + text.graphemes(true).count()));

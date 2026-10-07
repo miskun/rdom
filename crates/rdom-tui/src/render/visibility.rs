@@ -6,7 +6,6 @@ use rdom_core::{Dom, NodeId};
 
 use crate::ext::{StyleSlot, TuiExt};
 use crate::layout::Visibility;
-use crate::node::TuiNodeExt;
 
 /// `id`'s `slot` box's used `visibility`: a running transition's value
 /// (`TuiExt::presentation`), else the computed one. `Visible` for a
@@ -19,11 +18,7 @@ pub(crate) fn visibility_of(dom: &Dom<TuiExt>, id: NodeId, slot: StyleSlot) -> V
     if let Some(v) = ext.presentation_for(slot).and_then(|p| p.visibility) {
         return v;
     }
-    let computed = match slot {
-        StyleSlot::Host => node.computed(),
-        StyleSlot::Before => node.computed_before(),
-        StyleSlot::After => node.computed_after(),
-    };
+    let computed = ext.computed_for(slot);
     computed.map_or(Visibility::Visible, |c| c.visibility)
 }
 

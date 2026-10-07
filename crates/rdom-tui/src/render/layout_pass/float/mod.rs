@@ -96,11 +96,7 @@ fn pseudo_style(
     host: NodeId,
     slot: crate::ext::PseudoSlot,
 ) -> Option<&ComputedStyle> {
-    let ext = dom.node(host).ext()?;
-    match slot {
-        crate::ext::PseudoSlot::Before => ext.computed_before.as_deref(),
-        crate::ext::PseudoSlot::After => ext.computed_after.as_deref(),
-    }
+    dom.node(host).ext()?.computed_pseudo(slot).map(|c| &**c)
 }
 
 /// The element box a pseudo-element of `host` is laid out in: `host`,

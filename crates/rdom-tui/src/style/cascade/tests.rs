@@ -1251,11 +1251,13 @@ fn ua_blockquote_has_left_rail_and_is_muted() {
 
 #[test]
 fn ua_ul_ol_menu_have_left_padding() {
-    for tag in ["ul", "ol", "menu"] {
+    // HTML §15.3.8's `padding-inline-start`: the room an outside marker
+    // hangs in — "• " for `ul` / `menu`, "1. " for `ol`.
+    for (tag, cells) in [("ul", 2), ("ol", 3), ("menu", 2)] {
         let c = ua_computed_for(tag);
         assert_eq!(
             c.padding.left,
-            crate::layout::PaddingValue::Cells(2),
+            crate::layout::PaddingValue::Cells(cells),
             "<{tag}> needs list-marker room"
         );
     }
@@ -2966,12 +2968,13 @@ fn nested_ul_does_not_advance_the_enclosing_ol_numbering() {
     let marker = |id: NodeId| {
         dom.node(id)
             .ext()
-            .and_then(|e| e.computed_before.as_ref())
+            .and_then(|e| e.computed_marker.as_ref())
             .and_then(|p| p.content.clone())
     };
     assert_eq!(marker(a).as_deref(), Some("1. "));
     assert_eq!(marker(b).as_deref(), Some("2. "));
-    assert_eq!(marker(x).as_deref(), Some("• "));
+    // HTML §15.3.8: a bullet list inside a list is `circle`.
+    assert_eq!(marker(x).as_deref(), Some("◦ "));
 }
 
 /// Subtree cascades and counters: inserting an `<li>` before the second
@@ -2998,7 +3001,7 @@ fn subtree_cascade_renumbers_after_insertion_regardless_of_root_order() {
     let marker = |dom: &TuiDom, id: NodeId| {
         dom.node(id)
             .ext()
-            .and_then(|e| e.computed_before.as_ref())
+            .and_then(|e| e.computed_marker.as_ref())
             .and_then(|p| p.content.clone())
     };
     assert_eq!(marker(&dom, items[2]).as_deref(), Some("3. "));
@@ -3127,7 +3130,7 @@ fn detached_dirty_root_does_not_starve_connected_roots() {
     let marker = dom
         .node(li)
         .ext()
-        .and_then(|e| e.computed_before.as_ref())
+        .and_then(|e| e.computed_marker.as_ref())
         .and_then(|p| p.content.clone());
     assert_eq!(marker.as_deref(), Some("1. "));
 }

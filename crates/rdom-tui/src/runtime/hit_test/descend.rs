@@ -163,11 +163,7 @@ fn hit_floated_pseudo(
     else {
         return false;
     };
-    let node = dom.node(g.host);
-    let pseudo = match g.slot {
-        crate::ext::PseudoSlot::Before => node.computed_before(),
-        crate::ext::PseudoSlot::After => node.computed_after(),
-    };
+    let pseudo = dom.node(g.host).computed_pseudo(g.slot);
     let targets = pseudo.is_some_and(|c| c.pointer_events != crate::layout::PointerEvents::None)
         && crate::render::visibility::shows(dom, g.host, g.slot.into());
     if !targets || !clip.contains(x, y) || !rect_contains(g.border_box, x, y) {
@@ -452,11 +448,7 @@ fn hit_fragment(
         .find(|g| x_local >= g.x && x_local < g.x + i32::from(g.width))
         .filter(|g| is_descendant(dom, g.host, ifc_block))
         .filter(|g| {
-            let node = dom.node(g.host);
-            let pseudo = match g.slot {
-                crate::ext::PseudoSlot::Before => node.computed_before(),
-                crate::ext::PseudoSlot::After => node.computed_after(),
-            };
+            let pseudo = dom.node(g.host).computed_pseudo(g.slot);
             pseudo.is_none_or(|c| c.pointer_events != crate::layout::PointerEvents::None)
                 && crate::render::visibility::shows(dom, g.host, g.slot.into())
         })

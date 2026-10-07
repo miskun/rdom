@@ -157,11 +157,7 @@ pub(crate) fn item_sequence(dom: &Dom<TuiExt>, id: NodeId) -> Vec<BoxItem> {
 /// `content` (CSS 2.1 §12.1), is not `display: none` and not positioned
 /// (a positioned one is laid out on its own, `positioned_pseudos`).
 fn generates_static_pseudo(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> bool {
-    let node = dom.node(host);
-    let computed = match slot {
-        PseudoSlot::Before => node.computed_before(),
-        PseudoSlot::After => node.computed_after(),
-    };
+    let computed = dom.node(host).computed_pseudo(slot);
     computed.is_some_and(|c| c.display != Display::None)
         && generated_text(dom, host, slot).is_some()
 }

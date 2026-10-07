@@ -211,7 +211,7 @@ row comes from.
 | C10-QUOTES | `quotes` | done |
 | C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | done |
 | C10-COUNTER-STYLE | `@counter-style` and `symbols()` | done |
-| C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | partial — properties and the `::marker` cascade landed; laying the marker out (and the UA switch from `li::before`) is the next commit |
+| C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | done |
 | C10-FIRST | `::first-line` / `::first-letter` | |
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | |
@@ -6153,3 +6153,48 @@ row comes from.
   per element (a lowercased `String` and an `Arc`): predefined counter style names are now `'static`
   (`CounterStyleName`, matched case-insensitively against the table without allocating), `CounterStyle::disc()`
   / `decimal()` are `const`. The marker is not laid out yet; `li::before` still draws it (part 2).
+- 2026-10-13 — C10-LIST-ITEM, part 2 of 2 (laying the marker out). Found: the marker was the UA's
+  `li::before`, packed inside the line (never hung), riding a descendant's line through an `li`-only
+  path (`marker_line_holder` / `deferred_markers`, keyed on the tag) that also kept an `li`'s `::before`
+  from CSS 2.1 §9.2.1.1's own line; its intrinsic width was its raw `unicode-width` (C9G-MISC-CORRECTNESS's
+  leftover). Decisions: (1) One pseudo path for the marker: `PseudoSlot::Marker` / `StyleSlot::Marker`, and
+  the slot → style matches across layout, paint, hit-testing and visibility (19 sites, each `Before` /
+  `After` by hand) collapse into `TuiExt::computed_pseudo` / `computed_for`. (2) `inline::markers` decides
+  where a marker goes for any `display: list-item` box of block flow: it rides the item's first line box —
+  the item's own when its `::before` or first line-bearing content is inline, else a block descendant's,
+  else (no line reachable) a line the marker makes — and is pushed with that block's `::before`
+  (`feed::push_marker`); `line_markers` lists the markers riding a line, outermost first. (3) `inside`
+  packs as generated text (the `::before` path). `outside` packs through the packer too — the marker text
+  alone in its run style (transform `none`, letter spacing, `white-space: pre`) — into fragments the line
+  keeps apart (`LinePacker::push_outside_marker`, `cur_outside`, an `Op` for `text-wrap` replays): settled on
+  the line's rows, untouched by its alignment and width. The layout pass gives them their column once the
+  line's block is packed (`markers::place_outside`, at the two real packing sites): end at the item's
+  border edge — read from the item's rect, written before its children are laid out — or start at its
+  right edge when `marker-side` says right, the text then in visual order (`visual_rtl`; DIVERGENCES §2).
+  Paint uses the uncut clip for them; static positions skip them. (4) Intrinsic sizes pack the markers
+  riding a line (`widest_marker_line`) — an outside one takes no room — as followed by content: packed
+  alone, a marker's last letter spacing would be dropped as at a line's end (7 cells measured 6), so it is
+  measured as markers plus a one-cell probe, less the probe. (5) UA: the two `li::before` rules
+  and `[role=treeitem]::before` go; `ul` / `menu` `padding-inline-start: 2`, `ol` `3` (room for "1. ").
+  Caught on the way: `visible_inline_pseudos` asking for the line markers of every host recursed through
+  `box_sequence` (stack overflow in two suites) — it now asks only whether the host's own marker makes its
+  line (`makes_own_line`), which climbs nothing. Red: `css_phase10/list_item.rs` part 2 — 10 of 12 failed
+  on HEAD (`  • a` for `• a`; the marker on the item's text row instead of hung; no rtl side; no marker on an
+  empty item; `li::before` riding the paragraph), `inside_markers_are_the_first_inline_box` passed (the old
+  inside placement agrees) and the intrinsic test was reshaped to a mixed-content paragraph so it measures
+  the riding marker's term. Green after. Mutations (restored, touched): no `place_outside` and no right
+  side → 11 tests; markers dropped from the intrinsic term → the measurement test (5 for 9). Changed
+  expectations (the marker is `::marker`, hung): `ua_ul_renders_bullet_before_each_li` /
+  `ua_ol_renders_numbered_markers` (`  • first` → `• first`), four cascade / app tests read
+  `computed_marker` for `computed_before` (`nested_ul_does_not_advance_the_enclosing_ol_numbering`'s inner
+  bullet is now HTML's `◦`), `ua_ul_ol_menu_have_left_padding` (`ol` 3), `ua_tree_aria_rules`
+  (no `[role=treeitem]::before`), `ua_total_rule_count` 176 → 173, C10-COUNTERS' `<ol>` integration tests
+  (a padded wrapper so markers past the viewport edge stay visible). Snapshots: `lists_generated` and
+  `ua_chrome` — markers hang in the padding, a second paragraph aligns under the first: what a browser
+  draws. DIVERGENCES: the `li::before` entry is gone; the outside-marker approximations are recorded.
+  Not done: positioned `::before` / `::after` still lay out and paint on their own path
+  (`positioned_pseudos`) — the one separate pseudo path left; the Phase 10 gate decides its unification.
+- 2026-10-13 — Phase 10 part 1 closed (C10-LEGACY-COLON, -CONTENT, -QUOTES, -COUNTERS, -COUNTER-STYLE,
+  -LIST-ITEM): CSS-COVERAGE §3.15 10 / 0 / 0 / 2, §3.16 6 / 1 / 3 / 6, §3.7 8 / 0 / 1 / 2, total
+  194 / 14 / 54 / 45; ACID tile 9 extended. Part 2 (C10-FIRST, -HIGHLIGHT, -DETAILS-CONTENT, -PSEUDO-CHAINS)
+  is next.

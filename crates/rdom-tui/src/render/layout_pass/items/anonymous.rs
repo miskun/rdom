@@ -80,11 +80,7 @@ impl AnonymousItem {
         host: NodeId,
         slot: PseudoSlot,
     ) -> Option<Self> {
-        let ext = dom.node(host).ext()?;
-        let style = match slot {
-            PseudoSlot::Before => ext.computed_before.clone(),
-            PseudoSlot::After => ext.computed_after.clone(),
-        }?;
+        let style = dom.node(host).ext()?.computed_pseudo(slot)?.clone();
         Some(Self::new(
             host,
             vec![BoxItem::Generated(host, slot)],

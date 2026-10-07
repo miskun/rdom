@@ -3,9 +3,9 @@
 //!
 //! An `<ol>` item whose content is a `<p>` still gets its marker on the
 //! paragraph's first line, as in a browser, numbered by the `list-item`
-//! counter; a second paragraph in the same item gets none. rdom's marker
-//! is the item's `::before`, placed inside the line rather than hung in
-//! the list's padding (DIVERGENCES §Layout). Inline
+//! counter; a second paragraph in the same item gets none and lines up
+//! under the first, the marker hanging in the list's padding (CSS Lists 3
+//! §3.5 `outside`). Inline
 //! `::before` / `::after` put generated text around a phrase and a
 //! badge without touching the tree.
 

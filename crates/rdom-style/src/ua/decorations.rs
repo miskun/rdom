@@ -1,42 +1,24 @@
 //! UA rules: Lists, scrollbars, selection, document metadata.
 
+use crate::TuiStyle;
 use crate::color::named;
 use crate::color::system::HIGHLIGHT;
 use crate::counters::{CounterOp, CounterStyle};
 use crate::layout::{Display, ListStyleType, Padding};
-use crate::{Content, TuiStyle};
 
 /// The UA rules of this group, in cascade order.
 pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
     vec![
         // ── Lists ──
-        // `ul` / `ol` / `menu` use left padding so nested list
-        // markers (added by authors via `li::before`) have room.
+        // HTML §15.3.8: `ul` / `ol` / `menu` have `padding-inline-start`
+        // (40px there), the room an outside marker hangs in (CSS Lists 3
+        // §3.5): two cells for a bullet and its space, three for `ol`'s
+        // "1. " (a list past nine items hangs its "10. " a cell further
+        // out, as a browser's past ninety-nine).
         // Description lists: `dd` is indented from `dt`.
-        (
-            "ul",
-            TuiStyle::new()
-                .counter_reset(vec![CounterOp::new("list-item", 0)])
-                .list_style_type(ListStyleType::Style(CounterStyle::named("disc")))
-                .display(Display::Block)
-                .padding(Padding::new(0, 0, 0, 2)),
-        ),
-        (
-            "ol",
-            TuiStyle::new()
-                .counter_reset(vec![CounterOp::new("list-item", 0)])
-                .list_style_type(ListStyleType::Style(CounterStyle::named("decimal")))
-                .display(Display::Block)
-                .padding(Padding::new(0, 0, 0, 2)),
-        ),
-        (
-            "menu",
-            TuiStyle::new()
-                .counter_reset(vec![CounterOp::new("list-item", 0)])
-                .list_style_type(ListStyleType::Style(CounterStyle::named("disc")))
-                .display(Display::Block)
-                .padding(Padding::new(0, 0, 0, 2)),
-        ),
+        ("ul", list(CounterStyle::named("disc"), "2")),
+        ("ol", list(CounterStyle::named("decimal"), "3")),
+        ("menu", list(CounterStyle::named("disc"), "2")),
         // HTML §15.3.8: `li { display: list-item }` — which increments
         // the `list-item` counter implicitly (CSS Lists 3 §4.6) — and
         // `ol[reversed] { counter-reset: reversed(list-item) }`. `start`
@@ -63,32 +45,10 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             "ol[reversed]",
             TuiStyle::new().counter_reset(vec![CounterOp::reversed("list-item", None)]),
         ),
-        // List item markers — bullet glyph + space before the
-        // `<li>` content. Child-combinator scoping: only direct
-        // `<li>` children get the marker, matching CSS
-        // `list-style-type: disc`. Nested lists pick up the same
-        // marker from their own parent.
-        //
-        // `<ol>` counts: the UA resets the `list-item` counter on every
-        // list container (`ul`, `ol`, `menu` — HTML §15.3.8), increments
-        // it on every `<li>`, and renders it in the `<ol>` marker (CSS
-        // Lists 3 §3, via explicit UA rules because rdom has no
-        // `display: list-item`). Resetting on `<ul>` too is what keeps a
-        // nested bullet list from advancing the enclosing numbering.
-        (
-            "ul > li::before",
-            TuiStyle::new().content(Content::Str("• ".into())),
-        ),
-        (
-            "ol > li::before",
-            TuiStyle::new().content(Content::Concat(vec![
-                Content::Counter {
-                    name: "list-item".into(),
-                    style: CounterStyle::decimal(),
-                },
-                Content::Str(". ".into()),
-            ])),
-        ),
+        // The markers are each `li`'s `::marker`, from the list's
+        // `list-style-type` (CSS Lists 3 §3); resetting `list-item` on
+        // `ul` too keeps a nested bullet list from advancing the
+        // enclosing numbering.
         ("dl", TuiStyle::new().display(Display::Block)),
         ("dt", TuiStyle::new().display(Display::Block).bold(true)),
         (
@@ -156,4 +116,18 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // the tag.
         ("style", TuiStyle::new().display(Display::None)),
     ]
+}
+
+/// A list container's UA style (HTML §15.3.8): block, resetting the
+/// `list-item` counter, its items' `list-style-type`, and
+/// `padding-inline-start` (`cells`).
+fn list(kind: CounterStyle, cells: &str) -> TuiStyle {
+    super::css(
+        TuiStyle::new()
+            .counter_reset(vec![CounterOp::new("list-item", 0)])
+            .list_style_type(ListStyleType::Style(kind))
+            .display(Display::Block),
+        "padding-inline-start",
+        cells,
+    )
 }

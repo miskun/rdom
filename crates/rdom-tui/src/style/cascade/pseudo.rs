@@ -244,9 +244,9 @@ fn legacy_content(dom: &Dom<TuiExt>, id: NodeId, target: PseudoElementTarget) ->
 
 /// The marker text `style`'s `list-style-type` makes for the `list-item`
 /// counter in scope (CSS Lists 3 §3.4): the counter in the style, between
-/// the style's prefix and suffix — the suffix before the number right to
-/// left, as the bidi algorithm orders an isolated marker (`1. ` shows as
-/// ` .1`) — or the string as written; `None` for `none`.
+/// the style's prefix and suffix, or the string as written; `None` for
+/// `none`. (Layout writes a marker hanging on the right in visual order,
+/// `inline::markers::visual_rtl`.)
 pub(super) fn marker_text(
     style: &ComputedStyle,
     counters: &super::counters::CounterState,
@@ -257,34 +257,9 @@ pub(super) fn marker_text(
     match &style.list_style_type {
         ListStyleType::Style(counter_style) => {
             let value = counters.value("list-item");
-            let text = counter_style.marker_text_with(value, rtl, styles);
-            Some(if rtl { visual_rtl(&text) } else { text })
+            Some(counter_style.marker_text_with(value, rtl, styles))
         }
         ListStyleType::String(s) => Some(s.clone()),
         _ => None,
     }
-}
-
-/// `text`, an isolated left-to-right run in right-to-left text, in the
-/// order a terminal draws it left to right: its runs of digits and
-/// letters kept, the runs reversed (UAX #9 L2 on a marker: `"10. "`
-/// reads `" .10"`).
-fn visual_rtl(text: &str) -> String {
-    let mut runs: Vec<String> = Vec::new();
-    let mut word = String::new();
-    for c in text.chars() {
-        if c.is_alphanumeric() {
-            word.push(c);
-        } else {
-            if !word.is_empty() {
-                runs.push(std::mem::take(&mut word));
-            }
-            runs.push(c.to_string());
-        }
-    }
-    if !word.is_empty() {
-        runs.push(word);
-    }
-    runs.reverse();
-    runs.concat()
 }

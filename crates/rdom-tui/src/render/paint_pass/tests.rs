@@ -2386,8 +2386,9 @@ fn ua_summary_renders_down_triangle_when_open() {
 
 // ── UA bullets on <ul> ──────────────────────────────────────────
 
-/// `<ul>` renders each direct `<li>` child with a UA bullet marker
-/// (`• ` from the `ul > li::before` rule). Naked rdom — no author CSS.
+/// `<ul>` renders each `<li>` with its `::marker`, `disc` (`• `) hanging
+/// outside the item in the list's padding (CSS Lists 3 §3.5). Naked rdom
+/// — no author CSS.
 #[test]
 fn ua_ul_renders_bullet_before_each_li() {
     let mut dom = TuiDom::new();
@@ -2402,16 +2403,16 @@ fn ua_ul_renders_bullet_before_each_li() {
     dom.append_child(root, ul).unwrap();
 
     let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 3));
-    // `ul` has padding-left 2 from the existing UA rule, so the
-    // bullet+text start at viewport col 2.
-    assert_eq!(row(&buf, 0).trim_end(), "  • first");
-    assert_eq!(row(&buf, 1).trim_end(), "  • second");
+    // `ul`'s two cells of padding hold the outside marker; the text
+    // starts at the item's content edge, col 2.
+    assert_eq!(row(&buf, 0).trim_end(), "• first");
+    assert_eq!(row(&buf, 1).trim_end(), "• second");
 }
 
 /// `UA-OL-1`: `<ol>` numbers its items with the `list-item` counter
-/// (UA `counter-reset` on `ol`, `counter-increment` on `li`,
-/// `counter(list-item) ". "` in the marker); a sibling `<ol>` starts
-/// over. (A nested `<ol>` inside an `<li>` that also has text hits
+/// (UA `counter-reset` on `ol`, the implicit increment of `display:
+/// list-item`, `decimal` markers hanging in the list's three cells of
+/// padding); a sibling `<ol>` starts over. (A nested `<ol>` inside an `<li>` that also has text hits
 /// `TREE-BFC-PSEUDO-1` — the marker of a mixed-content block is not
 /// painted — so that shape is pinned at the cascade level until that
 /// item lands.)
@@ -2435,10 +2436,10 @@ fn ua_ol_renders_numbered_markers() {
     li_with(&mut dom, ol2, "again");
 
     let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 24, 4));
-    assert_eq!(row(&buf, 0).trim_end(), "  1. first");
-    assert_eq!(row(&buf, 1).trim_end(), "  2. second");
-    assert_eq!(row(&buf, 2).trim_end(), "  3. third");
-    assert_eq!(row(&buf, 3).trim_end(), "  1. again");
+    assert_eq!(row(&buf, 0).trim_end(), "1. first");
+    assert_eq!(row(&buf, 1).trim_end(), "2. second");
+    assert_eq!(row(&buf, 2).trim_end(), "3. third");
+    assert_eq!(row(&buf, 3).trim_end(), "1. again");
 }
 
 // ── C.6: <progress> + <meter> gauge rendering ────────────────────

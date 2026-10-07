@@ -74,13 +74,6 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .display(Display::Block)
                 .padding(Padding::new(0, 0, 0, 0)),
         ),
-        // Suppress the `ul > li::before { "• " }` list marker for
-        // treeitems — trees use chevrons + guides, not bullets.
-        // Higher specificity than `ul > li::before` wins.
-        (
-            "[role=treeitem]::before",
-            TuiStyle::new().content(Content::Str(String::new())),
-        ),
         // The group adds NO indent of its own — each nesting level's
         // 2-cell step comes from the treeitem's own `padding-left: 2`
         // (the arrow field). The guide paint draws the connector for

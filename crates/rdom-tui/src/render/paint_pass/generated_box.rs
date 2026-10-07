@@ -10,7 +10,7 @@ use rdom_core::{Dom, NodeId};
 use super::background::paint_background;
 use super::border::paint_border_sides;
 use super::layout_rect_to_grid;
-use crate::ext::{GeneratedBox, PseudoSlot, StyleSlot, TuiExt};
+use crate::ext::{GeneratedBox, StyleSlot, TuiExt};
 use crate::layout::LayoutRect;
 use crate::render::buffer::BorderContribution;
 use crate::render::{Buffer, Rect};
@@ -67,18 +67,8 @@ pub(super) fn paint_box(
     let Some(ext) = dom.node(g.host).ext() else {
         return;
     };
-    let (style, overrides, slot) = match g.slot {
-        PseudoSlot::Before => (
-            &ext.computed_before,
-            ext.presentation_before.as_deref(),
-            StyleSlot::Before,
-        ),
-        PseudoSlot::After => (
-            &ext.computed_after,
-            ext.presentation_after.as_deref(),
-            StyleSlot::After,
-        ),
-    };
+    let slot = StyleSlot::from(g.slot);
+    let (style, overrides) = (ext.computed_pseudo(g.slot), ext.presentation_for(slot));
     let Some(style) = style else {
         return;
     };

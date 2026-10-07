@@ -47,7 +47,10 @@ fn ua_total_rule_count() {
     // 176: HTML's nested-list `circle` / `square` bullets (two
     // 2-selector rules) and CSS Lists 3's `::marker { white-space: pre }`
     // (C10-LIST-ITEM, +5).
-    assert_eq!(ua.len(), 176);
+    // 173: `ul > li::before` / `ol > li::before` gave way to `::marker`,
+    // and `[role=treeitem]::before`'s bullet suppression with them
+    // (C10-LIST-ITEM, -3).
+    assert_eq!(ua.len(), 173);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")
@@ -77,7 +80,6 @@ fn ua_tree_aria_rules() {
         "[role=tree]",
         "[role=group]",
         "[role=treeitem]",
-        "[role=treeitem]::before",
         "[role=treeitem][aria-expanded=false] > [role=group]",
         // `[role=tree]:focus` reset removed by FOCUS-VOCAB-1 — the tint is
         // now scoped to controls, so the tree container never gets a fill.
@@ -86,6 +88,10 @@ fn ua_tree_aria_rules() {
     ] {
         assert!(ua.contains_key(sel), "missing UA rule for `{sel}`");
     }
+
+    // A treeitem is `display: block`, no list item: it shows no marker
+    // (the bullet a `[role=treeitem]::before` rule used to hide).
+    assert!(!ua.contains_key("[role=treeitem]::before"));
 
     // Container + group + item are block-level.
     for sel in ["[role=tree]", "[role=group]", "[role=treeitem]"] {

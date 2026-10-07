@@ -138,18 +138,26 @@ fn list_items_increment_the_list_item_counter_implicitly() {
 fn ol_start_reversed_and_li_value_number_the_items() {
     let ol = |attrs: &[(&str, &str)], values: &[Option<&str>]| {
         let mut owned_rows = Vec::new();
-        let rows = paint_tree("", 8, values.len() as u16, |dom, root| {
-            let ol = el(dom, root, "ol", "");
-            for (k, v) in attrs {
-                dom.set_attribute(ol, k, v).unwrap();
-            }
-            for v in values {
-                let li = text_el(dom, ol, "li", "", "x");
-                if let Some(v) = v {
-                    dom.set_attribute(li, "value", v).unwrap();
+        // The markers hang outside the items (CSS Lists 3 §3.5); the
+        // wrapper's padding leaves them room.
+        let rows = paint_tree(
+            ".w { padding-left: 2 }",
+            10,
+            values.len() as u16,
+            |dom, root| {
+                let w = el(dom, root, "div", "w");
+                let ol = el(dom, w, "ol", "");
+                for (k, v) in attrs {
+                    dom.set_attribute(ol, k, v).unwrap();
                 }
-            }
-        });
+                for v in values {
+                    let li = text_el(dom, ol, "li", "", "x");
+                    if let Some(v) = v {
+                        dom.set_attribute(li, "value", v).unwrap();
+                    }
+                }
+            },
+        );
         owned_rows.extend(rows.into_iter().map(|r| r.trim_end().to_string()));
         owned_rows
     };
@@ -159,7 +167,7 @@ fn ol_start_reversed_and_li_value_number_the_items() {
     );
     assert_eq!(
         ol(&[("start", " -2xyz")], &[None, None]),
-        vec!["  -2. x", "  -1. x"]
+        vec![" -2. x", " -1. x"]
     );
     assert_eq!(
         ol(&[("reversed", "")], &[None, None, None]),
@@ -167,7 +175,7 @@ fn ol_start_reversed_and_li_value_number_the_items() {
     );
     assert_eq!(
         ol(&[("reversed", ""), ("start", "10")], &[None, None]),
-        vec!["  10. x", "  9. x"]
+        vec![" 10. x", "  9. x"]
     );
     assert_eq!(
         ol(&[], &[None, Some("7"), None]),
@@ -189,10 +197,12 @@ fn ol_start_reversed_and_li_value_number_the_items() {
 /// an author `counter-reset` beats `<ol start>`.
 #[test]
 fn an_author_rule_beats_the_start_hint() {
-    let rows = paint_tree("ol { counter-reset: list-item 100 }", 9, 1, |dom, root| {
-        let ol = el(dom, root, "ol", "");
+    let css = ".w { padding-left: 2 } ol { counter-reset: list-item 100 }";
+    let rows = paint_tree(css, 9, 1, |dom, root| {
+        let w = el(dom, root, "div", "w");
+        let ol = el(dom, w, "ol", "");
         dom.set_attribute(ol, "start", "5").unwrap();
         text_el(dom, ol, "li", "", "x");
     });
-    assert_eq!(rows, vec!["  101. x "]);
+    assert_eq!(rows, vec!["101. x   "]);
 }

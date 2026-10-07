@@ -89,7 +89,7 @@ fn inserting_a_list_item_renumbers_the_ordered_list() {
         app.dom()
             .node(id)
             .ext()
-            .and_then(|e| e.computed_before.as_ref())
+            .and_then(|e| e.computed_marker.as_ref())
             .and_then(|p| p.content.clone())
     };
     assert_eq!(marker(&app, items[2]).as_deref(), Some("3. "));

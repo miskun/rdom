@@ -305,10 +305,7 @@ impl ItemsBuilder<'_> {
         child_range: (usize, usize),
     ) {
         let ext = self.dom.node(host).ext();
-        let style = ext.and_then(|e| match slot {
-            PseudoSlot::Before => e.computed_before.clone(),
-            PseudoSlot::After => e.computed_after.clone(),
-        });
+        let style = ext.and_then(|e| e.computed_pseudo(slot).cloned());
         let Some(style) = style else {
             // `box_tree::item_sequence` lists a pseudo-element only when it
             // has a computed style.

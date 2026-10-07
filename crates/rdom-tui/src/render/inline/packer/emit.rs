@@ -206,7 +206,9 @@ impl LinePacker<'_> {
     /// True once anything — text, an atom, generated content — sits on
     /// the current line; a word that does not fit then wraps.
     pub(super) fn line_has_content(&self) -> bool {
-        !self.cur_fragments.is_empty() || !self.cur_generated.is_empty()
+        !self.cur_fragments.is_empty()
+            || !self.cur_generated.is_empty()
+            || !self.cur_outside.is_empty()
     }
 
     /// Push an **atomic inline-block** fragment — a
@@ -347,11 +349,13 @@ impl LinePacker<'_> {
         self.cur_ends_in_shy = false;
         let mut fragments = std::mem::take(&mut self.cur_fragments);
         let mut generated = std::mem::take(&mut self.cur_generated);
+        let mut outside = std::mem::take(&mut self.cur_outside);
         let settled = self.frames.settle();
         let frames = &self.frames;
         vertical::settle_line(&mut fragments, &mut generated, &self.cur_atoms, |f| {
             frames.row(&settled, f)
         });
+        vertical::settle_line(&mut [], &mut outside, &[], |f| frames.row(&settled, f));
         let (baseline, height) = (settled.baseline(), settled.height);
         self.cur_atoms.clear();
         let width = self.cur_line_width;
@@ -381,6 +385,9 @@ impl LinePacker<'_> {
             self.align
         };
         let width = align::place_line(&mut fragments, &mut generated, geometry, alignment);
+        // Outside markers sit beside the line, not in it (CSS Lists 3
+        // §3.5): placed from their item's box, after layout.
+        generated.append(&mut outside);
         let top = self.cur_top;
         self.cur_top = top.saturating_add(height);
         // Kept only when floats shortened the line box: otherwise its

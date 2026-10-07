@@ -9,7 +9,7 @@ use rdom_core::{Dom, NodeId, NodeType};
 use super::packer::{BoxAlign, BoxRows, LinePacker};
 use super::run_style::RunStyle;
 use super::{RunPseudos, generated, vertical};
-use crate::ext::{PseudoSlot, StyleSlot, TuiExt};
+use crate::ext::{PseudoSlot, TuiExt};
 use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
 use crate::style::ComputedStyle;
@@ -42,11 +42,7 @@ fn element_box(dom: &Dom<TuiExt>, id: NodeId) -> (BoxRows, BoxAlign) {
 
 /// `host`'s `slot` pseudo-element's inline box ([`box_of`]).
 fn pseudo_box(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> (BoxRows, BoxAlign) {
-    let node = dom.node(host);
-    box_of(match slot {
-        PseudoSlot::Before => node.computed_before(),
-        PseudoSlot::After => node.computed_after(),
-    })
+    box_of(dom.node(host).computed_pseudo(slot))
 }
 
 /// Feed `host`'s `slot` pseudo-element's `text` as the inline box it is
@@ -66,13 +62,10 @@ fn push_pseudo_text<'a>(
 
 /// The CSS Text values of `host`'s `slot` pseudo-element's text.
 pub(super) fn pseudo_run(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> RunStyle {
-    let node = dom.node(host);
-    match slot {
-        PseudoSlot::Before => node.computed_before(),
-        PseudoSlot::After => node.computed_after(),
-    }
-    .map(RunStyle::of)
-    .unwrap_or_default()
+    dom.node(host)
+        .computed_pseudo(slot)
+        .map(RunStyle::of)
+        .unwrap_or_default()
 }
 
 /// Feed `block`'s whole inline content to `packer`: its `::before`, its
@@ -87,7 +80,7 @@ pub(super) fn fill_block<'a>(dom: &'a Dom<TuiExt>, block: NodeId, packer: &mut L
 /// content (see [`generated`]) — a float only with `floats` (a block
 /// container's floats are items of its box sequence, fed in its runs).
 /// `::before` first pushes the markers of the list items whose first
-/// line this is.
+/// line this is (`markers`).
 fn push_pseudo<'a>(
     dom: &'a Dom<TuiExt>,
     host: NodeId,
@@ -96,13 +89,11 @@ fn push_pseudo<'a>(
     floats: bool,
 ) {
     if slot == PseudoSlot::Before {
-        for item in generated::deferred_markers(dom, host) {
-            if let Some(text) = generated::static_pseudo_text(dom, item, StyleSlot::Before) {
-                push_pseudo_text(dom, item, PseudoSlot::Before, text, packer);
-            }
+        for marker in super::markers::line_markers(dom, host) {
+            push_marker(dom, marker, packer);
         }
     }
-    if let Some(kind) = generated::own_inline_pseudo(dom, host, slot.into()) {
+    if let Some(kind) = generated::inline_pseudo(dom, host, slot.into()) {
         push_pseudo_box(dom, host, slot, kind, packer, floats);
     }
 }
@@ -378,4 +369,22 @@ fn push_atom(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'_>) {
     let rows = vertical::atom_rows(dom, id, width, cb_width);
     let (_, align) = element_box(dom, id);
     packer.push_atomic_inline_block(id, width, rows, align);
+}
+
+/// Push a list item's marker (CSS Lists 3 §3.5): `inside`, the line's
+/// first inline box, as generated text; `outside`, beside the line — in
+/// visual order when it hangs right (`markers::visual_rtl`).
+pub(super) fn push_marker<'a>(
+    dom: &'a Dom<TuiExt>,
+    marker: super::markers::Marker<'a>,
+    packer: &mut LinePacker<'a>,
+) {
+    let (item, text) = (marker.item, marker.text);
+    if !marker.outside {
+        push_pseudo_text(dom, item, PseudoSlot::Marker, text, packer);
+        return;
+    }
+    let run = pseudo_run(dom, item, PseudoSlot::Marker);
+    let right = super::markers::hangs_right(dom, item);
+    packer.push_outside_marker(item, text, run, right);
 }

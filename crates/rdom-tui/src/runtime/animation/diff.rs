@@ -147,7 +147,8 @@ fn snapshot_pseudo(
     let (prev, curr) = match slot {
         StyleSlot::Before => (&ext.computed_before_prev, &ext.computed_before),
         StyleSlot::After => (&ext.computed_after_prev, &ext.computed_after),
-        StyleSlot::Host => return None,
+        // The host is diffed on its own; a marker does not transition.
+        _ => return None,
     };
     let (prev, curr) = (prev.as_ref()?, curr.as_ref()?);
     // Rc clones only; an unchanged pseudo (the cascade did not touch this
@@ -318,7 +319,9 @@ pub(super) fn write_presentation(
     let Some(ext) = node_mut.ext_mut() else {
         return;
     };
-    let ext = ext.presentation_for_mut(slot);
+    let Some(ext) = ext.presentation_for_mut(slot) else {
+        return;
+    };
     match (prop, value) {
         (AnimatedProp::Fg, AnimatedValue::Color(c)) => ext.fg = Some(c),
         (AnimatedProp::Bg, AnimatedValue::Color(c)) => ext.bg = Some(c),
@@ -353,7 +356,9 @@ pub(super) fn clear_presentation(
     if ext.presentation_for(slot).is_none() {
         return;
     }
-    let presentation = ext.presentation_for_mut(slot);
+    let Some(presentation) = ext.presentation_for_mut(slot) else {
+        return;
+    };
     match prop {
         AnimatedProp::Fg => presentation.fg = None,
         AnimatedProp::Bg => presentation.bg = None,

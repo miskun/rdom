@@ -164,6 +164,14 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
         self.tui_ext().and_then(|e| e.computed_after.as_deref())
     }
 
+    /// The computed style of the `slot` pseudo-element — `::before`,
+    /// `::after` or `::marker` — `None` when it generates no box.
+    fn computed_pseudo(&self, slot: crate::ext::PseudoSlot) -> Option<&'a ComputedStyle> {
+        self.tui_ext()
+            .and_then(|e| e.computed_pseudo(slot))
+            .map(|c| &**c)
+    }
+
     /// A list item's `::marker` computed style (CSS Lists 3 §3.2):
     /// `None` when it generates no marker. Its `content` is the marker
     /// text.

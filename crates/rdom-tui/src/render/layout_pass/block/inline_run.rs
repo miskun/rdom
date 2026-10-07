@@ -50,6 +50,7 @@ pub(super) fn lay_out(
             let layout = pack_run(dom, id, &run.children, pseudos, width, Some(&mut ex));
             (layout, ex.into_placed())
         });
+    crate::render::inline::markers::place_outside(dom, &mut inline_layout, place.at.x);
     crate::render::layout_pass::generated_atoms::lay_out(dom, &mut inline_layout);
     let rect = LayoutRect::new(place.at.x, place.at.y, width, inline_layout.height());
     for (atom, at) in crate::render::inline::atomic_placements(&inline_layout, rect) {

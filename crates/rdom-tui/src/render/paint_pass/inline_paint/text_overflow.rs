@@ -59,10 +59,7 @@ impl Marking {
         anon: Option<usize>,
     ) -> Option<Self> {
         let ext = dom.node(g.host).ext()?;
-        let c = match g.slot {
-            crate::ext::PseudoSlot::Before => ext.computed_before.as_deref(),
-            crate::ext::PseudoSlot::After => ext.computed_after.as_deref(),
-        }?;
+        let c = ext.computed_pseudo(g.slot)?;
         let own = lines.lines.iter().position(|l| l.ends_clamp);
         let block = own.or_else(|| anon.and_then(|k| block_line(dom, g.host, Some(k))));
         Self::of_box(c, content, block)

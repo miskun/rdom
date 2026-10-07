@@ -6,7 +6,7 @@
 //! host's first / last child. An *inline* host's pseudos simply pack at
 //! its start / end in the enclosing inline flow (`walk_inline_box`);
 //! paint tags them with the host's link and hit-testing routes their
-//! cells to the host. For a block host, three placements follow:
+//! cells to the host. For a block host, two placements follow:
 //!
 //! 1. **In the host's own inline flow** — the host is an IFC block or a
 //!    pure-text leaf, or its first (last) in-flow content is
@@ -16,14 +16,9 @@
 //!    is a block-level child: CSS 2.1 §9.2.1.1 wraps the inline pseudo
 //!    in an anonymous block box before (after) that child
 //!    ([`own_line_pseudos`]).
-//! 3. **On a descendant's first line, as a list marker** — rdom has no
-//!    `::marker` (DIVERGENCES): the UA numbers and bullets `<li>`
-//!    through `li::before`. A browser places a list item's marker on
-//!    the first line box of the item, even when that line belongs to a
-//!    block child (`<li><p>Step</p></li>` shows "1. Step"), so an
-//!    `<li>`'s `::before` whose first in-flow content is block-level
-//!    rides the first line of the block descendant that holds it
-//!    ([`marker_line_holder`] / [`deferred_markers`]).
+//!
+//! A list item's `::marker` is laid out by [`super::markers`]: it rides
+//! the item's first line box, wherever that line is.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -32,17 +27,25 @@ use crate::layout::{Display, Position};
 use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
 
+/// The computed style of `host`'s `slot` pseudo-element (`None` for the
+/// host itself).
+fn pseudo_style(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    slot: StyleSlot,
+) -> Option<&crate::style::ComputedStyle> {
+    if slot == StyleSlot::Host {
+        return None;
+    }
+    dom.node(host).ext()?.computed_for(slot).map(|c| &**c)
+}
+
 /// The text of `host`'s `slot` pseudo-element when it is a static
 /// (`position: static`) box with `content` — none under `display: none`,
 /// which generates no box (CSS 2.1 §12.1). Positioned pseudo-elements
 /// are laid out and painted on their own (`positioned_pseudos`).
 pub(crate) fn static_pseudo_text(dom: &Dom<TuiExt>, host: NodeId, slot: StyleSlot) -> Option<&str> {
-    let node = dom.node(host);
-    let computed = match slot {
-        StyleSlot::Before => node.computed_before(),
-        StyleSlot::After => node.computed_after(),
-        StyleSlot::Host => None,
-    }?;
+    let computed = pseudo_style(dom, host, slot)?;
     if computed.position != Position::Static || computed.display == Display::None {
         return None;
     }
@@ -65,11 +68,7 @@ pub(crate) fn is_block_pseudo(dom: &Dom<TuiExt>, host: NodeId, slot: StyleSlot) 
     if !hc.flow.is_block_flow() || !matches!(hc.display, Display::Block | Display::InlineBlock) {
         return false;
     }
-    let computed = match slot {
-        StyleSlot::Before => node.computed_before(),
-        StyleSlot::After => node.computed_after(),
-        StyleSlot::Host => None,
-    };
+    let computed = pseudo_style(dom, host, slot);
     computed.is_some_and(|c| {
         c.display == Display::Block
             && c.float == crate::layout::Float::None
@@ -111,12 +110,7 @@ pub(crate) fn inline_pseudo(
     slot: StyleSlot,
 ) -> Option<InlinePseudo<'_>> {
     let text = static_pseudo_text(dom, host, slot)?;
-    let node = dom.node(host);
-    let computed = match slot {
-        StyleSlot::Before => node.computed_before(),
-        StyleSlot::After => node.computed_after(),
-        StyleSlot::Host => None,
-    }?;
+    let computed = pseudo_style(dom, host, slot)?;
     if is_block_pseudo(dom, host, slot) {
         return None;
     }
@@ -132,20 +126,6 @@ pub(crate) fn inline_pseudo(
         return Some(InlinePseudo::Atom);
     }
     Some(InlinePseudo::Text(text))
-}
-
-/// [`inline_pseudo`] for `host`'s *own* inline content — minus a list
-/// marker that rides a descendant's first line instead
-/// ([`marker_line_holder`]).
-pub(crate) fn own_inline_pseudo(
-    dom: &Dom<TuiExt>,
-    host: NodeId,
-    slot: StyleSlot,
-) -> Option<InlinePseudo<'_>> {
-    if slot == StyleSlot::Before && marker_line_holder(dom, host).is_some() {
-        return None;
-    }
-    inline_pseudo(dom, host, slot)
 }
 
 /// Whether `host`'s `slot` pseudo-element is a float of its flow (CSS 2.1
@@ -169,8 +149,9 @@ pub(crate) fn sequence_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::RunPse
 /// Which of `host`'s pseudo-elements take a line of their own (CSS 2.1
 /// §9.2.1.1): the `::before` when the host's first in-flow content is a
 /// block-level child, the `::after` when its last is. Only for a
-/// block-flow container with visible generated text; a list marker that
-/// rides a descendant's line is not one.
+/// block-flow container with visible generated text (or a list marker
+/// riding its own first line, which then has no line box in its content
+/// to ride: CSS Lists 3 §3.1, the marker makes one).
 pub(crate) fn own_line_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::RunPseudos {
     if !is_block_flow_container(dom, host) {
         return super::RunPseudos::default();
@@ -186,16 +167,28 @@ pub(crate) fn own_line_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::RunPse
 
 /// Which of `host`'s `::before` / `::after` are visible inline content —
 /// text a line box would hold wherever the pseudo is placed, or an
-/// atomic inline (CSS 2.1 §9.4.2: in-flow content makes a line box).
+/// atomic inline (CSS 2.1 §9.4.2: in-flow content makes a line box). A
+/// list marker riding `host`'s own first line counts with the `::before`.
 pub(crate) fn visible_inline_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::RunPseudos {
-    let visible = |slot| match own_inline_pseudo(dom, host, slot) {
+    // `host`'s own marker, when no line box in its content can take it, is
+    // pushed with its `::before` (`feed::push_pseudo`): it makes that line.
+    super::RunPseudos {
+        before: before_is_inline_content(dom, host) || super::markers::makes_own_line(dom, host),
+        after: is_visible_inline(inline_pseudo(dom, host, StyleSlot::After)),
+    }
+}
+
+/// Whether `host`'s `::before` is visible inline content: text a line
+/// box holds, or an atomic inline.
+pub(super) fn before_is_inline_content(dom: &Dom<TuiExt>, host: NodeId) -> bool {
+    is_visible_inline(inline_pseudo(dom, host, StyleSlot::Before))
+}
+
+fn is_visible_inline(pseudo: Option<InlinePseudo<'_>>) -> bool {
+    match pseudo {
         Some(InlinePseudo::Text(t)) => !t.trim().is_empty(),
         Some(InlinePseudo::Atom) => true,
         Some(InlinePseudo::Float) | None => false,
-    };
-    super::RunPseudos {
-        before: visible(StyleSlot::Before),
-        after: visible(StyleSlot::After),
     }
 }
 
@@ -208,48 +201,6 @@ pub(crate) fn inline_level_pseudos(dom: &Dom<TuiExt>, host: NodeId) -> super::Ru
         before: visible.before || float(StyleSlot::Before),
         after: visible.after || float(StyleSlot::After),
     }
-}
-
-/// The block descendant whose first line carries `host`'s list marker:
-/// `Some` when `host` is an `<li>` with a static `::before` whose first
-/// in-flow content is a block-level child holding a line box. `None`
-/// otherwise — the `::before` then takes one of the other placements.
-pub(crate) fn marker_line_holder(dom: &Dom<TuiExt>, host: NodeId) -> Option<NodeId> {
-    if dom.node(host).tag_name() != Some("li")
-        || static_pseudo_text(dom, host, StyleSlot::Before).is_none()
-        || !is_block_flow_container(dom, host)
-    {
-        return None;
-    }
-    let first = line_bearing_child(dom, host, false)?;
-    if !is_block_level(dom, first) {
-        return None;
-    }
-    first_line_holder(dom, first.node()?)
-}
-
-/// The list items whose markers ride `holder`'s first line, outermost
-/// first (`<li><ol><li>x` puts both markers on the inner item's line).
-/// Empty unless `holder` owns the first line of each such item.
-pub(crate) fn deferred_markers(dom: &Dom<TuiExt>, holder: NodeId) -> Vec<NodeId> {
-    let mut markers = Vec::new();
-    let mut cur = holder;
-    // Climb while `cur` is the first line-bearing child of a block-flow
-    // parent: only along that path can an ancestor's first line be
-    // `holder`'s.
-    while let Some(parent) = crate::render::box_tree::box_parent(dom, cur) {
-        if !is_block_flow_container(dom, parent)
-            || line_bearing_child(dom, parent, false) != Some(BoxItem::Node(cur))
-        {
-            break;
-        }
-        if marker_line_holder(dom, parent) == Some(holder) {
-            markers.push(parent);
-        }
-        cur = parent;
-    }
-    markers.reverse();
-    markers
 }
 
 /// Whether `host`'s first (`from_end = false`) or last in-flow content
@@ -282,28 +233,15 @@ pub(crate) fn run_pseudos(
     }
 }
 
-/// The first line of `el` is its own when its first line-bearing
-/// content is inline-level; a block-level first child passes it down.
-/// `None` when no line box is reachable (an empty block, a flex
-/// container).
-fn first_line_holder(dom: &Dom<TuiExt>, el: NodeId) -> Option<NodeId> {
-    if !is_block_flow_container(dom, el) {
-        return None;
-    }
-    let first = line_bearing_child(dom, el, false)?;
-    match first {
-        BoxItem::Node(first) if is_block_level(dom, BoxItem::Node(first)) => {
-            first_line_holder(dom, first)
-        }
-        _ => Some(el),
-    }
-}
-
 /// `host`'s first (`from_end = false`) or last in-flow box item that
 /// can hold content of a line (see [`bears_line`]), in box-tree order
 /// (`box_tree::box_sequence`: a generated item of a box-less child
 /// holds its text).
-fn line_bearing_child(dom: &Dom<TuiExt>, host: NodeId, from_end: bool) -> Option<BoxItem> {
+pub(super) fn line_bearing_child(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    from_end: bool,
+) -> Option<BoxItem> {
     let bears = |c: &BoxItem| match *c {
         BoxItem::Node(c) => bears_line(dom, host, c),
         // A float holds no line (CSS 2.1 §9.5).
@@ -343,13 +281,13 @@ pub(crate) fn bears_line(dom: &Dom<TuiExt>, host: NodeId, child: NodeId) -> bool
 
 /// A `display: block` element whose children flow as blocks — the only
 /// container whose first child can pass its first line down.
-fn is_block_flow_container(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+pub(super) fn is_block_flow_container(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     dom.node(id)
         .computed()
         .is_some_and(|c| c.display == Display::Block && c.flow.is_block_flow())
 }
 
-fn is_block_level(dom: &Dom<TuiExt>, item: BoxItem) -> bool {
+pub(super) fn is_block_level(dom: &Dom<TuiExt>, item: BoxItem) -> bool {
     let BoxItem::Node(id) = item else {
         return false;
     };

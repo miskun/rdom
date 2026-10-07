@@ -401,7 +401,9 @@ fn write(dom: &mut Dom<TuiExt>, node: NodeId, name: &str, value: Option<String>)
     if current.map(|v| v.as_str()) == value.as_deref() {
         return false;
     }
-    let presentation = ext.presentation_for_mut(StyleSlot::Host);
+    let Some(presentation) = ext.presentation_for_mut(StyleSlot::Host) else {
+        return false;
+    };
     let map = presentation
         .custom_properties
         .get_or_insert_with(HashMap::new);

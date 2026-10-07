@@ -3,7 +3,7 @@
 
 use super::TuiExt;
 use crate::layout::{Length, Padding, Size, ZIndex};
-use crate::style::Color;
+use crate::style::{Color, ComputedStyle};
 
 /// Sparse override on top of `ComputedStyle`. Only populated for
 /// properties that an active transition is currently driving.
@@ -51,6 +51,9 @@ pub enum StyleSlot {
     Host,
     Before,
     After,
+    /// A list item's `::marker` (CSS Lists 3 §3.2). It has no animation
+    /// overrides: its transitions do not run (DIVERGENCES §3).
+    Marker,
 }
 
 impl StyleSlot {
@@ -60,6 +63,7 @@ impl StyleSlot {
             StyleSlot::Host => None,
             StyleSlot::Before => Some("::before"),
             StyleSlot::After => Some("::after"),
+            StyleSlot::Marker => Some("::marker"),
         }
     }
 }
@@ -72,6 +76,8 @@ impl StyleSlot {
 pub enum PseudoSlot {
     Before,
     After,
+    /// A list item's `::marker` (CSS Lists 3 §3.2).
+    Marker,
 }
 
 impl From<PseudoSlot> for StyleSlot {
@@ -79,6 +85,7 @@ impl From<PseudoSlot> for StyleSlot {
         match slot {
             PseudoSlot::Before => StyleSlot::Before,
             PseudoSlot::After => StyleSlot::After,
+            PseudoSlot::Marker => StyleSlot::Marker,
         }
     }
 }
@@ -91,31 +98,62 @@ impl TuiExt {
             StyleSlot::Host => self.presentation.as_deref(),
             StyleSlot::Before => self.presentation_before.as_deref(),
             StyleSlot::After => self.presentation_after.as_deref(),
+            StyleSlot::Marker => None,
         }
     }
 
-    /// The animation overrides for `slot`, boxed on first use.
-    /// Transition-engine plumbing (`runtime::animation`).
-    pub(crate) fn presentation_for_mut(&mut self, slot: StyleSlot) -> &mut PresentationStyle {
+    /// The animation overrides for `slot`, boxed on first use; `None`
+    /// for a slot that takes none (`::marker`). Transition-engine
+    /// plumbing (`runtime::animation`).
+    pub(crate) fn presentation_for_mut(
+        &mut self,
+        slot: StyleSlot,
+    ) -> Option<&mut PresentationStyle> {
         self.presentation_slot(slot)
-            .get_or_insert_with(Default::default)
+            .map(|boxed| &mut **boxed.get_or_insert_with(Default::default))
     }
 
     /// Drop `slot`'s override box once no property is overridden, so an
     /// element whose transitions finished is back to one `None`.
     /// Transition-engine plumbing (`runtime::animation`).
     pub(crate) fn release_empty_presentation(&mut self, slot: StyleSlot) {
-        let boxed = self.presentation_slot(slot);
-        if boxed.as_deref().is_some_and(PresentationStyle::is_empty) {
+        if let Some(boxed) = self.presentation_slot(slot)
+            && boxed.as_deref().is_some_and(PresentationStyle::is_empty)
+        {
             *boxed = None;
         }
     }
 
-    fn presentation_slot(&mut self, slot: StyleSlot) -> &mut Option<Box<PresentationStyle>> {
+    /// The computed style of `slot`: the element's own, or one of its
+    /// pseudo-elements' ([`computed_pseudo`](Self::computed_pseudo)).
+    pub fn computed_for(&self, slot: StyleSlot) -> Option<&std::rc::Rc<ComputedStyle>> {
         match slot {
-            StyleSlot::Host => &mut self.presentation,
-            StyleSlot::Before => &mut self.presentation_before,
-            StyleSlot::After => &mut self.presentation_after,
+            StyleSlot::Host => self.computed.as_ref(),
+            StyleSlot::Before => self.computed_before.as_ref(),
+            StyleSlot::After => self.computed_after.as_ref(),
+            StyleSlot::Marker => self.computed_marker.as_ref(),
+        }
+    }
+
+    /// The computed style of the `slot` pseudo-element — `::before`,
+    /// `::after` or `::marker` — `None` when it generates no box.
+    pub fn computed_pseudo(&self, slot: PseudoSlot) -> Option<&std::rc::Rc<ComputedStyle>> {
+        match slot {
+            PseudoSlot::Before => self.computed_before.as_ref(),
+            PseudoSlot::After => self.computed_after.as_ref(),
+            PseudoSlot::Marker => self.computed_marker.as_ref(),
+        }
+    }
+
+    fn presentation_slot(
+        &mut self,
+        slot: StyleSlot,
+    ) -> Option<&mut Option<Box<PresentationStyle>>> {
+        match slot {
+            StyleSlot::Host => Some(&mut self.presentation),
+            StyleSlot::Before => Some(&mut self.presentation_before),
+            StyleSlot::After => Some(&mut self.presentation_after),
+            StyleSlot::Marker => None,
         }
     }
 }

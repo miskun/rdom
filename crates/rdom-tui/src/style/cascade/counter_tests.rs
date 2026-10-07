@@ -321,17 +321,25 @@ fn appending_to_a_reversed_list_renumbers_it() {
         .collect();
     let sheet = sheet("");
     dom.cascade(&sheet);
-    assert_eq!(before(&dom, items[0]).as_deref(), Some("3. "));
-    assert_eq!(before(&dom, items[2]).as_deref(), Some("1. "));
+    assert_eq!(marker(&dom, items[0]).as_deref(), Some("3. "));
+    assert_eq!(marker(&dom, items[2]).as_deref(), Some("1. "));
     let li = dom.create_element("li");
     dom.append_child(ol, li).unwrap();
     items.push(li);
     dom.cascade_subtrees(&sheet, &[li]);
-    let got: Vec<_> = items.iter().map(|&i| before(&dom, i)).collect();
+    let got: Vec<_> = items.iter().map(|&i| marker(&dom, i)).collect();
     assert_eq!(
         got,
         ["4. ", "3. ", "2. ", "1. "]
             .map(|s| Some(s.to_string()))
             .to_vec()
     );
+}
+
+/// `id`'s `::marker` text.
+fn marker(dom: &TuiDom, id: NodeId) -> Option<String> {
+    dom.node(id)
+        .ext()
+        .and_then(|e| e.computed_marker.as_ref())
+        .and_then(|m| m.content.clone())
 }

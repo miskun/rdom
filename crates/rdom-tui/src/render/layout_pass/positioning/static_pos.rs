@@ -130,13 +130,15 @@ pub(in crate::render::layout_pass) fn static_position_in_ifc(
         // the parent's own (or a list marker riding this first line):
         // its `::before` is ahead of every child, its `::after` after
         // them all.
-        for g in &line.generated {
+        // An outside list marker sits beside the line, not in it.
+        for g in line.generated.iter().filter(|g| g.outside.is_none()) {
             let ahead = match item_of(g.host) {
+                // A marker leads its host's content as `::before` does.
                 Some((start, end)) => match g.slot {
-                    PseudoSlot::Before => start < child_index,
                     PseudoSlot::After => end < child_index,
+                    _ => start < child_index,
                 },
-                None => g.slot == PseudoSlot::Before,
+                None => g.slot != PseudoSlot::After,
             };
             if ahead {
                 last = last.max(Some((line_idx, g.x + i32::from(g.width))));

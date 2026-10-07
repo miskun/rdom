@@ -229,6 +229,7 @@ fn copy_reads_the_presented_visibility_mid_transition() {
         .ext_mut()
         .expect("cascaded")
         .presentation_for_mut(crate::ext::StyleSlot::Host)
+        .expect("the host takes overrides")
         .visibility = Some(crate::layout::Visibility::Visible);
     let range = Range::ordered_unchecked(Position::new(a, 0), Position::new(c, 1));
     assert_eq!(serialize_selection(&dom, &range), "aBc");
