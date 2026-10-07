@@ -25,17 +25,28 @@
 //! have gone, and `place::compute_placed_rect` reads it back.
 
 //!
+//! A `::before` / `::after` is positioned as an element is (CSS Pseudo 4
+//! §2): an absolutely or fixed positioned one is a box phase 2 places
+//! with the elements (`pseudo`), a relatively positioned or sticky one
+//! is laid out in flow and moved once the document is laid out
+//! (`pseudo_offsets`).
+//!
 //! - `static_pos` — the static position, recorded in phase 1.
 //! - `relative` — the relative shift.
-//! - `place` — phase-2 placement of absolute / fixed elements.
-//! - `axis` — one-axis size and offset resolvers, shared with
-//!   positioned pseudo-elements.
+//! - `place` — phase-2 placement of absolute / fixed boxes.
+//! - `pseudo` — an absolute / fixed `::before` / `::after`: its box and
+//!   its static position.
+//! - `pseudo_offsets` — the move of a relative / sticky `::before` /
+//!   `::after`.
+//! - `axis` — one-axis size and offset resolvers.
 //! - `containing` — the containing block of an absolutely positioned
 //!   box, element or pseudo-element.
 
 mod axis;
 mod containing;
 mod place;
+mod pseudo;
+mod pseudo_offsets;
 mod relative;
 mod static_pos;
 
@@ -46,7 +57,8 @@ use crate::layout::{LayoutRect, Position};
 
 pub(super) use axis::axis_position_anchored;
 pub(super) use containing::{absolute_containing_block, containing_ancestor};
-pub(super) use place::{place_positioned, resolve_size_axis};
+pub(super) use place::place_positioned;
+pub(super) use pseudo_offsets::offset_in_flow_pseudos;
 pub(super) use relative::{apply_relative_shift, relative_offset};
 pub(super) use static_pos::{
     out_of_flow_positioned_children, record_static_position, record_static_positions_in_ifc,

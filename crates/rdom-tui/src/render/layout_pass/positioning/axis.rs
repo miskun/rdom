@@ -1,14 +1,13 @@
-//! Shared one-axis resolvers for absolute / fixed elements and
-//! positioned pseudo-elements: the size between two insets and the
-//! anchored offset. The relative shift is `relative::relative_offset`.
+//! Shared one-axis resolvers for absolute / fixed boxes: the size
+//! between two insets and the anchored offset. The relative shift is
+//! `relative::relative_offset`.
 
 use crate::layout::Length;
 
 /// Resolve size on one axis when both edges are `Cells`, otherwise
 /// return `fallback`. Per CSS, an `auto` width on a positioned box
 /// only resolves to `cb_extent - start - end` when both edges are
-/// specified; one-sided cases fall back to an intrinsic measure
-/// (caller passes `0` for elements, content width for pseudos).
+/// specified; one-sided cases fall back to `fallback`.
 pub(super) fn axis_size_from_edges(
     start: &Length,
     end: &Length,
@@ -36,10 +35,9 @@ pub(super) fn axis_size_from_edges(
 /// - `(Cells(s), _)` → `cb_start + s` (start edge wins per CSS).
 /// - `(Auto, Cells(e))` → `cb_start + cb_extent - e - size` (anchor
 ///   flips to far edge, going inward).
-/// - `(Auto, Auto)` → `cb_start`. Element placement substitutes the
-///   recorded static position before reaching this case; pseudo
-///   placement and an element without one land at the containing
-///   block's start.
+/// - `(Auto, Auto)` → `cb_start`. Placement substitutes the static
+///   position before reaching this case; a box without one lands at
+///   the containing block's start.
 pub(in crate::render::layout_pass) fn axis_position_anchored(
     start: &Length,
     end: &Length,

@@ -27,8 +27,9 @@
 //! (CSS 2.1 §11.1.1: a box clips the descendants it contains), and to
 //! the reachable side of the scroll container's scrollport (its
 //! scrolling area starts at the scroll origin, CSSOM View §4). `fixed`
-//! boxes are contained by the viewport and count nowhere. Positioned
-//! `::before` / `::after` are not counted (DIVERGENCES §2).
+//! boxes are contained by the viewport and count nowhere. An absolutely
+//! positioned `::before` / `::after` counts as an element does, its
+//! containing block found from its host up.
 
 use std::collections::HashMap;
 
@@ -38,6 +39,8 @@ use super::ClipEdges;
 use super::positioning::{computed_position, parent_id};
 use crate::ext::TuiExt;
 use crate::layout::{LayoutRect, Position};
+use crate::node::TuiNodeExt;
+use crate::render::box_tree::BoxItem;
 
 /// The rect the positioned boxes a scroll container contains cover:
 /// cells from the container's border-box origin, with its scroll offset
@@ -85,10 +88,10 @@ thread_local! {
 /// Measure the reach of the boxes phase 2 `placed` (in document order)
 /// in their scroll containers, store it, and return whether it differs
 /// from what phase 1 read — the layout must then run again.
-pub(super) fn settle(dom: &mut Dom<TuiExt>, placed: &[NodeId]) -> bool {
+pub(super) fn settle(dom: &mut Dom<TuiExt>, placed: &[BoxItem]) -> bool {
     let mut reaches = Reaches::default();
-    for &id in placed {
-        let Some((scroller, clip)) = containing_scroller(dom, id) else {
+    for &item in placed {
+        let Some((scroller, clip)) = containing_scroller(dom, item) else {
             continue;
         };
         #[cfg(test)]
@@ -98,7 +101,7 @@ pub(super) fn settle(dom: &mut Dom<TuiExt>, placed: &[NodeId]) -> bool {
         };
         let clip = clip.narrow(reachable(dom, scroller));
         let mut reach: Option<Reach> = None;
-        super::scroll_extent::extend_box_overflow(dom, id, clip, &mut |r: LayoutRect| {
+        let mut extend = |r: LayoutRect| {
             let r = Reach {
                 left: r.x - origin.0,
                 top: r.y - origin.1,
@@ -106,7 +109,26 @@ pub(super) fn settle(dom: &mut Dom<TuiExt>, placed: &[NodeId]) -> bool {
                 bottom: r.y + i32::from(r.height) - origin.1,
             };
             reach = Some(reach.map_or(r, |a| a.union(r)));
-        });
+        };
+        match item {
+            BoxItem::Node(id) => {
+                super::scroll_extent::extend_box_overflow(dom, id, clip, &mut extend);
+            }
+            BoxItem::Generated(host, slot) => {
+                let boxes = dom
+                    .node(host)
+                    .ext()
+                    .map_or(&[][..], |e| e.positioned_pseudos());
+                let laid_out = boxes
+                    .iter()
+                    .filter(|a| a.generated.is_some_and(|g| g.slot == slot));
+                for a in laid_out {
+                    if let Some(r) = clip.cut(a.border_box()) {
+                        extend(r);
+                    }
+                }
+            }
+        }
         if let Some(r) = reach {
             reaches
                 .0
@@ -125,16 +147,24 @@ pub(super) fn settle(dom: &mut Dom<TuiExt>, placed: &[NodeId]) -> bool {
     changed
 }
 
-/// The scroll container whose scrollable overflow absolutely positioned
-/// `id` is part of, with the clip edges between: the nearest scroll
+/// The scroll container whose scrollable overflow the absolutely
+/// positioned `item` is part of, with the clip edges between: the nearest scroll
 /// container at or above its containing block. `None` for a `fixed` box,
 /// a box contained by the viewport, or one no scroll container holds.
-fn containing_scroller(dom: &Dom<TuiExt>, id: NodeId) -> Option<(NodeId, ClipEdges)> {
-    if computed_position(dom, id) != Position::Absolute {
+fn containing_scroller(dom: &Dom<TuiExt>, item: BoxItem) -> Option<(NodeId, ClipEdges)> {
+    // Its ancestors: an element's box parent and up, a pseudo-element's
+    // host and up (CSS Pseudo 4 §4).
+    let (position, from) = match item {
+        BoxItem::Node(id) => (computed_position(dom, id), parent_id(dom, id)),
+        BoxItem::Generated(host, slot) => {
+            (dom.node(host).computed_pseudo(slot)?.position, Some(host))
+        }
+    };
+    if position != Position::Absolute {
         return None;
     }
     // The containing block's ancestor (`positioning::containing_ancestor`).
-    let mut cur = super::positioning::containing_ancestor(dom, parent_id(dom, id));
+    let mut cur = super::positioning::containing_ancestor(dom, from);
     let mut clip = ClipEdges::NONE;
     while let Some(p) = cur {
         let ext = dom.node(p).ext()?;

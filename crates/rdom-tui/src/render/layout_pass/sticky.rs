@@ -73,8 +73,8 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
     };
 
     // Find the nearest scroll container ancestor.
-    let scrollport = nearest_scrollport(dom, id);
-    let Some((scrollport_id, scrollport_rect)) = scrollport else {
+    let Some(scrollport) = nearest_scrollport(dom, dom.node(id).parent_node().map(|p| p.id()))
+    else {
         // CSS rule: no scrollable ancestor → sticky behaves as
         // relative (position-as-laid-out, no pin). Nothing to do.
         return;
@@ -87,8 +87,31 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
         .node(id)
         .parent_node()
         .and_then(|p| p.ext().map(|e| e.content_layout))
-        .unwrap_or(scrollport_rect);
+        .unwrap_or(scrollport);
 
+    let (dx, dy) = sticky_offset(&computed, natural, scrollport, cb_rect);
+    if (dx, dy) == (0, 0) {
+        // No-op — element is in its pre-stick phase.
+        return;
+    }
+    // Recursively shift the sticky's subtree by the delta. CSS:
+    // sticky's children move with it (matches `position: relative`
+    // behavior), and so do the absolutely positioned boxes it contains
+    // (CSS Position 3 §2.1); a `fixed` descendant stays on the viewport.
+    super::tree::shift_subtree(dom, id, dx, dy);
+}
+
+/// The `(dx, dy)` a sticky box styled `computed`, laid out in flow at
+/// `natural`, moves by (CSS Position 3 §3.4): pinned inside `scrollport`
+/// by its insets once scrolling would carry it past them, never out of
+/// its containing block `cb_rect`. Shared by sticky elements and sticky
+/// pseudo-elements.
+pub(super) fn sticky_offset(
+    computed: &crate::style::ComputedStyle,
+    natural: LayoutRect,
+    scrollport_rect: LayoutRect,
+    cb_rect: LayoutRect,
+) -> (i32, i32) {
     let mut placed = natural;
 
     // Insets resolve like CSS Position 3 §3.4: percentages / `calc()`
@@ -155,24 +178,14 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
             placed.x = cb_rect.x;
         }
     }
-
-    if placed == natural {
-        // No-op — element is in its pre-stick phase.
-        return;
-    }
-
-    // Recursively shift the sticky's subtree by the delta. CSS:
-    // sticky's children move with it (matches `position: relative`
-    // behavior), and so do the absolutely positioned boxes it contains
-    // (CSS Position 3 §2.1); a `fixed` descendant stays on the viewport.
-    let dx = placed.x - natural.x;
-    let dy = placed.y - natural.y;
-    let _ = scrollport_id; // reserved for future debug logging
-    super::tree::shift_subtree(dom, id, dx, dy);
+    (placed.x - natural.x, placed.y - natural.y)
 }
 
-fn nearest_scrollport(dom: &Dom<TuiExt>, id: NodeId) -> Option<(NodeId, LayoutRect)> {
-    let mut cursor = dom.node(id).parent_node();
+/// The scrollport of the nearest scroll container at or above `from`
+/// (CSS Position 3 §3.4) — a sticky element's from its parent up, a
+/// sticky pseudo-element's from its host up.
+pub(super) fn nearest_scrollport(dom: &Dom<TuiExt>, from: Option<NodeId>) -> Option<LayoutRect> {
+    let mut cursor = from.map(|id| dom.node(id));
     while let Some(p) = cursor {
         if p.node_type() == NodeType::Element {
             let computed = p.computed();
@@ -187,8 +200,7 @@ fn nearest_scrollport(dom: &Dom<TuiExt>, id: NodeId) -> Option<(NodeId, LayoutRe
                 // padding box less the scrollbar gutters (`scrollport`),
                 // not `content_layout`, which under M5.5b border-collapse
                 // can widen into the border ring.
-                let scrollport = crate::render::layout_pass::scrollport_of(ext, c);
-                return Some((p.id(), scrollport));
+                return Some(crate::render::layout_pass::scrollport_of(ext, c));
             }
         }
         cursor = p.parent_node();

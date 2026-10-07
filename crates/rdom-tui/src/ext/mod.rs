@@ -12,7 +12,7 @@ mod presentation;
 mod tests;
 
 pub(crate) use layout_cache::MarginChainMemo;
-pub use layout_cache::{AnonymousIfc, GeneratedBox, PseudoLayout, StaticPosition};
+pub use layout_cache::{AnonymousIfc, GeneratedBox, StaticPosition};
 pub use presentation::{PresentationStyle, PseudoSlot, StyleSlot};
 
 use crate::layout::LayoutRect;
@@ -34,6 +34,17 @@ impl TuiExt {
     /// context run placed (`floated_pseudos`); empty with none.
     pub(crate) fn floated_pseudos(&self) -> &[AnonymousIfc] {
         self.floated_pseudos.as_deref().map_or(&[], Vec::as_slice)
+    }
+
+    /// This element's absolutely or fixed positioned `::before` /
+    /// `::after` boxes, as the last layout placed them: each one's border
+    /// box is its `generated` box's, its lines sit at its `rect`. Empty
+    /// with none. (A relatively positioned or sticky pseudo-element is
+    /// laid out in flow, with the static ones.)
+    pub fn positioned_pseudos(&self) -> &[AnonymousIfc] {
+        self.positioned_pseudos
+            .as_deref()
+            .map_or(&[], Vec::as_slice)
     }
 
     /// The inline style, or the empty style when none is set.
@@ -171,37 +182,17 @@ pub struct TuiExt {
     /// in-flow elements.
     pub static_position: Option<StaticPosition>,
 
-    // ── Positioned pseudo-element layout (M5-now Stage B) ────────────
-    /// Layout rect + cascaded `position` for the `::before` pseudo-
-    /// element, populated by the positioned-pseudo layout pass when
-    /// the cascaded `position` is non-`Static`. `None` otherwise —
-    /// the inline-append paint path handles static-position pseudos
-    /// (the existing default).
-    ///
-    /// **Hit-test divergence from CSS.** Positioned pseudo rects are
-    /// NOT in the hit-test set. Clicks that land on a `::before` /
-    /// `::after` rect fall through to the host element — `target`
-    /// in the synthesized `MouseEvent` is always the host, never the
-    /// pseudo. Web browsers route clicks to the pseudo when
-    /// `pointer-events` allows. rdom 0.1.0 always falls through; the
-    /// pseudo carries no `NodeId`, so there's no event target to
-    /// resolve. Authors who need clickable bracket chrome should
-    /// promote it to a real `<span>` instead of a pseudo.
-    pub before_layout: Option<PseudoLayout>,
-    /// `::after` companion of [`before_layout`](Self::before_layout).
-    /// Same population rules; same hit-test divergence (clicks fall
-    /// through to the host).
-    pub after_layout: Option<PseudoLayout>,
+    // ── Positioned pseudo-element boxes ──────────────────────────────
     /// Aggregated cascade output: true when this element OR any
     /// descendant has a `::before` / `::after` pseudo whose cascaded
     /// `position` is non-`Static`. Written bottom-up by the cascade
-    /// pass; read by `place_positioned_pseudos` (layout) and
-    /// `paint_positioned_pseudos` (paint) to skip the full-tree walk
-    /// in the common case where no positioned pseudos are in play.
+    /// pass; read by the layout pass that shifts relatively positioned
+    /// and sticky pseudo-elements (`positioning::pseudo`) to skip the
+    /// full-tree walk in the common case where none are in play.
     ///
     /// Conservative across incremental cascade: a `cascade_subtrees`
     /// call that DROPS positioned pseudos from a subtree may leave
-    /// ancestors stale-`true` (extra walks; never missed paints). A
+    /// ancestors stale-`true` (extra walks; never missed shifts). A
     /// call that ADDS a positioned pseudo bubbles up to ancestors so
     /// the flag never stale-`false`s.
     pub tree_has_positioned_pseudo: bool,
@@ -264,6 +255,16 @@ pub struct TuiExt {
     /// (`tui_ext_size_tripwire`), and a `Vec` is three words.
     #[allow(clippy::box_collection)]
     pub(crate) floated_pseudos: Option<Box<Vec<AnonymousIfc>>>,
+    /// This element's absolutely or fixed positioned `::before` /
+    /// `::after` (CSS Pseudo 4 §2, CSS 2.1 §10.3.7 / §10.6.4): each a box
+    /// of its own, placed against its containing block by phase-2
+    /// placement as a positioned element is, its border box in
+    /// `AnonymousIfc::generated`, its lines at `AnonymousIfc::rect`.
+    /// Paint and hit-testing take them from their stacking context's
+    /// layers. `None` with none (most boxes); boxed for a thin pointer,
+    /// as `floated_pseudos` is.
+    #[allow(clippy::box_collection)]
+    pub(crate) positioned_pseudos: Option<Box<Vec<AnonymousIfc>>>,
 
     // ── Cascade cache (populated by Dom::cascade) ─────────────────────
     /// Post-cascade style for this element. `None` means "no cascade run

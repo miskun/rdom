@@ -132,7 +132,7 @@ impl AnonymousItem {
     }
 
     /// [`style`](Self::style), shared.
-    pub(super) fn style_rc(&self) -> Rc<ComputedStyle> {
+    pub(in crate::render::layout_pass) fn style_rc(&self) -> Rc<ComputedStyle> {
         self.style.clone()
     }
 

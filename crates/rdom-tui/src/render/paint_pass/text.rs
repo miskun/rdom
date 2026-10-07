@@ -53,6 +53,20 @@ pub(super) fn pseudo_style(c: &ComputedStyle, overrides: &crate::ext::Presentati
     style
 }
 
+/// [`pseudo_style`] without the background: the glyphs of a
+/// pseudo-element laid out as a box of its own, whose box painted its
+/// background under them once (CSS Backgrounds 3 §3.10).
+pub(super) fn pseudo_glyph_style(
+    c: &ComputedStyle,
+    overrides: &crate::ext::PresentationStyle,
+) -> Style {
+    let mut style = glyph_style_from_computed(c);
+    if let Some(fg) = overrides.fg {
+        style = style.fg(fg);
+    }
+    style
+}
+
 /// Build a paint-layer `Style` from a `ComputedStyle`, including
 /// `bg`. Filters `Color::Reset` (means "no color set, use terminal
 /// default") and keeps only the modifier bits we actually support.

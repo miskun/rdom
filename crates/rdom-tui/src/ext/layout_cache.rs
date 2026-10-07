@@ -1,30 +1,10 @@
-//! Layout results cached on an element: positioned pseudo-element
-//! rects, the static position of an out-of-flow box, the per-pass
-//! margin-chain memo and the anonymous block boxes of mixed content.
+//! Layout results cached on an element: the static position of an
+//! out-of-flow box, the per-pass margin-chain memo, and the boxes with
+//! no node of their own — anonymous block boxes of mixed content and
+//! generated (`::before` / `::after`) boxes.
 
-use crate::layout::{LayoutRect, Position};
+use crate::layout::LayoutRect;
 use crate::render::inline::InlineLayout;
-
-/// Layout state for a positioned `::before` / `::after` pseudo-
-/// element. Carries the rect (where the pseudo paints) plus the
-/// cascaded `position` (so paint can route static pseudos through
-/// the inline-append path and non-static pseudos through the
-/// positioned-pseudo paint pass). Populated by the layout pass's
-/// `place_positioned_pseudos` phase.
-///
-/// Static-position pseudos (the default) do NOT populate this —
-/// they paint inline via the inline-content path. Only
-/// `Position::Relative | Absolute | Fixed` produces a slot here.
-///
-/// Consumers reading this for debug snapshots or hit-test work
-/// should note the divergence on `TuiExt::before_layout` /
-/// `after_layout` — positioned pseudo rects do not participate
-/// in hit-testing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PseudoLayout {
-    pub rect: LayoutRect,
-    pub position: Position,
-}
 
 /// The **static position** of an out-of-flow positioned element
 /// (CSS 2.1 §10.3.7 / §10.6.4): where its top-left corner would be
@@ -102,8 +82,10 @@ pub struct AnonymousIfc {
     /// selection use this to map a fragment to its surrounding DOM
     /// neighbors.
     pub child_range: (usize, usize),
-    /// The `::before` / `::after` flex item this box is, with its border
-    /// box (`rect` is its content box); `None` for an anonymous box.
+    /// The `::before` / `::after` this box is — a flex or grid item, a
+    /// block-level box, a float or an absolutely positioned box — with its
+    /// border box (`rect` is where its lines sit); `None` for an anonymous
+    /// box.
     pub generated: Option<GeneratedBox>,
 }
 
@@ -129,8 +111,9 @@ impl AnonymousIfc {
     }
 }
 
-/// A `::before` / `::after` laid out as a flex item (CSS Flexbox §4): a
-/// box of its own, styled by its computed style (`TuiExt::computed_before`
+/// A `::before` / `::after` laid out as a box of its own (CSS Pseudo 4
+/// §2: its `display`, `float` and `position` make its box, as an
+/// element's do), styled by its computed style (`TuiExt::computed_before`
 /// / `computed_after` of `host`), whose content is its [`AnonymousIfc`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]

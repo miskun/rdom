@@ -1,8 +1,9 @@
-//! Generated content in inline flows (CSS 2.1 §12.1, CSS Pseudo 4 §2): a
-//! `::before` / `::after` run of text where the packer put it, an atomic
-//! one's box and content at its turn in its line, and a floated one's box
-//! in its stacking context's float layer — each in its pseudo-element's
-//! style, a running transition's overrides included.
+//! Generated content (CSS 2.1 §12.1, CSS Pseudo 4 §2): a `::before` /
+//! `::after` run of text where the packer put it, an atomic one's box and
+//! content at its turn in its line, a floated one's box in its stacking
+//! context's float layer and a positioned one's on its positioned layer —
+//! each in its pseudo-element's style, a running transition's overrides
+//! included.
 
 use rdom_core::{Dom, NodeId};
 
@@ -10,19 +11,20 @@ use super::{FlowPlacement, anchor_href_for, paint_inline_layout};
 use crate::ext::TuiExt;
 use crate::layout::LayoutRect;
 use crate::node::TuiNodeExt;
-use crate::render::paint_pass::text::{paint_text_from, pseudo_style};
+use crate::render::paint_pass::text::{paint_text_from, pseudo_glyph_style, pseudo_style};
 use crate::render::{Buffer, Rect};
 
 /// Paint one generated-content run at its packed cell, in the style of
-/// its host's pseudo-element (transition overrides included), tagged
-/// with the host's enclosing `<a href>` link, if any. The run
-/// starts at its logical x even when that is left of the clip —
-/// `paint_text_from` skips the clipped prefix.
+/// its host's pseudo-element (transition overrides included) — without
+/// its background when it is the content of the pseudo-element's own box
+/// (`own_box`), which painted that — tagged with the host's enclosing
+/// `<a href>` link, if any. The run starts at its logical x (`origin_x`
+/// plus its own) even when that is left of the clip — `paint_text_from`
+/// skips the clipped prefix.
 pub(super) fn paint_generated(
     dom: &Dom<TuiExt>,
     generated: &crate::render::inline::GeneratedFragment,
-    origin_x: i32,
-    y: u16,
+    (origin_x, y, own_box): (i32, u16, bool),
     clip_left: u16,
     right: u16,
     buf: &mut Buffer,
@@ -34,10 +36,12 @@ pub(super) fn paint_generated(
     if !crate::render::visibility::shows(dom, generated.host, generated.slot.into()) {
         return;
     }
-    let style = pseudo_style(
-        computed,
-        presentation_of(dom, generated.host, generated.slot.into()),
-    );
+    let overrides = presentation_of(dom, generated.host, generated.slot.into());
+    let style = if own_box {
+        pseudo_glyph_style(computed, overrides)
+    } else {
+        pseudo_style(computed, overrides)
+    };
     let x = origin_x + generated.x;
     let end = paint_text_from(buf, x, y, clip_left, right, &generated.text, style);
     // A pseudo-element is part of its host: an `<a href>`'s (or its
@@ -92,6 +96,7 @@ fn paint_generated_box(
     let at = FlowPlacement {
         inner: lines_at,
         bg_dedup_owner: g.host,
+        boxed: Some((g.host, g.slot)),
     };
     let marking = super::Marking::of_generated(dom, g, lines_at, lines, None);
     paint_inline_layout(dom, lines, at, marking.as_ref(), buf, clip, viewport);
@@ -112,6 +117,36 @@ pub(in crate::render::paint_pass) fn paint_floated_pseudo(
         .ext()
         .and_then(|e| e.floated_pseudos.as_deref())
         .and_then(|f| f.get(k))
+    else {
+        return;
+    };
+    if let Some(g) = anon.generated {
+        paint_generated_box(
+            dom,
+            g,
+            (anon.rect, &anon.inline_layout),
+            buf,
+            clip,
+            viewport,
+        );
+    }
+}
+
+/// Paint `host`'s `k`-th absolutely or fixed positioned `::before` /
+/// `::after` (CSS Pseudo 4 §2) on its stacking context's positioned
+/// layer, as a positioned element paints: its box, then its lines.
+pub(in crate::render::paint_pass) fn paint_positioned_pseudo(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    k: usize,
+    buf: &mut Buffer,
+    clip: Rect,
+    viewport: Rect,
+) {
+    let Some(anon) = dom
+        .node(host)
+        .ext()
+        .and_then(|e| e.positioned_pseudos().get(k))
     else {
         return;
     };

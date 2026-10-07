@@ -422,7 +422,13 @@ pub(crate) fn pack_generated(
         .starting_right(rtl)
         .indented(indent)
         .aligned(align::TextAlignment::of(&style.text));
-    let text = generated::static_pseudo_text(dom, host, slot.into());
+    // The box's text, in flow or not (an absolutely positioned
+    // pseudo-element's box packs its own text too).
+    let text = dom
+        .node(host)
+        .computed_pseudo(slot)
+        .filter(|c| c.display != crate::layout::Display::None)
+        .and_then(|c| c.content.as_deref());
     let lines = wrap::pack(packer, style.text.text_wrap_style, |p| {
         if let Some(text) = text {
             p.push_generated(host, slot, text, run_style::RunStyle::of(style));

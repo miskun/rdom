@@ -40,16 +40,34 @@ fn pseudo_style(
     dom.node(host).ext()?.computed_for(slot).map(|c| &**c)
 }
 
-/// The text of `host`'s `slot` pseudo-element when it is a static
-/// (`position: static`) box with `content` — none under `display: none`,
-/// which generates no box (CSS 2.1 §12.1). Positioned pseudo-elements
-/// are laid out and painted on their own (`positioned_pseudos`).
+/// The text of `host`'s `slot` pseudo-element when it is an in-flow box
+/// with `content` — none under `display: none`, which generates no box
+/// (CSS 2.1 §12.1), and none for an absolutely or fixed positioned one,
+/// which is out of flow (§9.3.1): phase-2 placement lays that out, as it
+/// does a positioned element (`positioning::pseudo`). A relatively
+/// positioned or sticky one is in flow here, and shifted after layout.
 pub(crate) fn static_pseudo_text(dom: &Dom<TuiExt>, host: NodeId, slot: StyleSlot) -> Option<&str> {
     let computed = pseudo_style(dom, host, slot)?;
-    if computed.position != Position::Static || computed.display == Display::None {
+    if is_out_of_flow(computed) || computed.display == Display::None {
         return None;
     }
     computed.content.as_deref()
+}
+
+/// Whether a box styled `computed` is out of flow by its `position`
+/// (CSS 2.1 §9.3.1: `absolute` and `fixed`).
+pub(crate) fn is_out_of_flow(computed: &crate::style::ComputedStyle) -> bool {
+    matches!(computed.position, Position::Absolute | Position::Fixed)
+}
+
+/// Whether a pseudo-element styled `computed` is a run of inline text —
+/// an inline box in flow, not floated — rather than a box of its own,
+/// which layout places (a float, an atom, a block-level or positioned
+/// box).
+pub(crate) fn is_inline_text(computed: &crate::style::ComputedStyle) -> bool {
+    !is_out_of_flow(computed)
+        && computed.display == Display::Inline
+        && computed.float == crate::layout::Float::None
 }
 
 /// Whether `host`'s `slot` pseudo-element is a block-level box of its

@@ -14,7 +14,9 @@
 //!    (a non-positioned nested context paints atomically in its place),
 //! 4. positioned descendants with `z-index: auto | 0` in tree order —
 //!    an `auto` one as a plain box whose own positioned descendants
-//!    belong to this context, a `0` one as a child context,
+//!    belong to this context, a `0` one as a child context; an
+//!    absolutely or fixed positioned `::before` / `::after` is its host's
+//!    first / last child here (CSS Pseudo 4 §4),
 //! 5. child contexts with positive `z-index`, ascending.
 //!
 //! A *paint unit* is a box that paints as if it created a stacking
@@ -62,14 +64,26 @@ pub(crate) struct LayerEntry {
     pub context: bool,
     /// The clip this entry paints into.
     pub clip: Rect,
-    /// A floated `::before` / `::after` rather than the element `id`: its
-    /// index among `id`'s floated pseudo-elements (`TuiExt::floated_pseudos`,
-    /// the boxes `id`'s formatting context run placed).
-    pub generated: Option<usize>,
+    /// A generated box rather than the element `id` ([`Generated`]).
+    pub generated: Option<Generated>,
     /// For a float: the paint unit whose step 5 paints it — 0 for the
     /// context root, a `z-index: auto` entry's [`unit`](Self::unit). 0
     /// for any other entry.
     pub owner: usize,
+}
+
+/// A `::before` / `::after` box a [`LayerEntry`] paints in place of its
+/// element `id`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Generated {
+    /// The `k`-th floated pseudo-element `id`'s formatting context run
+    /// placed (`TuiExt::floated_pseudos`), on the float layer.
+    Floated(usize),
+    /// `id`'s `k`-th absolutely or fixed positioned pseudo-element
+    /// (`TuiExt::positioned_pseudos`), on the positioned layers like a
+    /// positioned element: a child of `id` (CSS Pseudo 4 §4), stacked by
+    /// its own `z-index`.
+    Positioned(usize),
 }
 
 impl LayerEntry {

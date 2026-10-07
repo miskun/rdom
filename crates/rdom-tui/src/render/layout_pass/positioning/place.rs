@@ -1,26 +1,30 @@
-//! Phase-2 placement of `position: absolute | fixed` elements: the
-//! containing block, the placed rect (CSS 2.1 §10.3.7 / §10.6.4), then
-//! the subtree laid out inside it.
+//! Phase-2 placement of `position: absolute | fixed` boxes — elements
+//! and `::before` / `::after` alike (CSS Pseudo 4 §2): the containing
+//! block, the placed rect (CSS 2.1 §10.3.7 / §10.6.4), then the box's
+//! content laid out inside it.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
-use crate::ext::TuiExt;
+use crate::ext::{PseudoSlot, StaticPosition, TuiExt};
 use crate::layout::{IntrinsicSize, LayoutRect, Length, Position, Size, clamp_size};
 use crate::node::TuiNodeExt;
+use crate::render::box_tree::BoxItem;
 use crate::style::ComputedStyle;
 
 use super::axis::axis_size_from_edges;
 use super::*;
 use crate::render::layout_pass::box_sizing::Sizer;
 use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
+use crate::render::layout_pass::items::AnonymousItem;
 
 /// After phase-1 flex layout completes, walk the tree in document
-/// order and place every `position: absolute | fixed` element
-/// against its containing block. For each placed element, re-run
-/// `layout_node` on the subtree so the element's own children flow
-/// inside the placed rect.
+/// order and place every `position: absolute | fixed` box against its
+/// containing block: an element, its subtree then laid out inside the
+/// placed rect by `layout_node`; a `::before` / `::after`, its content
+/// laid out inside it (`pseudo::place`).
 ///
-/// Returns the elements it placed, in document order.
+/// Returns the boxes it placed, in document order (a host's `::before`
+/// right after the host, its `::after` after the host's descendants).
 ///
 /// Document-order walk guarantees that an outer positioned element
 /// is placed before any positioned descendants — so when a nested
@@ -29,44 +33,141 @@ use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
 pub(in crate::render::layout_pass) fn place_positioned(
     dom: &mut Dom<TuiExt>,
     viewport: LayoutRect,
-) -> Vec<NodeId> {
-    let positioned = collect_positioned(dom, dom.root());
-    for &id in &positioned {
-        let cb = containing_block(dom, id, viewport);
-        let computed = dom
-            .node(id)
-            .computed_rc()
-            .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
-        let placed = compute_placed_rect(dom, id, &computed, cb);
-        crate::render::layout_pass::layout_node(dom, id, placed, cb.width);
+) -> Vec<BoxItem> {
+    let positioned = collect_positioned(dom);
+    for &item in &positioned {
+        match item {
+            BoxItem::Node(id) => {
+                let cb = containing_block(dom, id, viewport);
+                let computed = dom
+                    .node(id)
+                    .computed_rc()
+                    .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+                let placed = compute_placed_rect(dom, Placed::Element(id), &computed, cb);
+                crate::render::layout_pass::layout_node(dom, id, placed, cb.width);
+            }
+            BoxItem::Generated(host, slot) => super::pseudo::place(dom, host, slot, viewport),
+        }
     }
     positioned
 }
 
-fn collect_positioned(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {
+/// The positioned boxes phase 2 places, in document order; each
+/// element's positioned pseudo-elements from the last placement are
+/// dropped on the way (`TuiExt::positioned_pseudos`), as phase 1 drops a
+/// box's floated ones.
+fn collect_positioned(dom: &mut Dom<TuiExt>) -> Vec<BoxItem> {
     let mut out = Vec::new();
-    walk_for_positioned(dom, id, &mut out);
+    walk_for_positioned(dom, dom.root(), false, &mut out);
     out
 }
 
-fn walk_for_positioned(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
-    if dom.node(id).node_type() == NodeType::Element {
+/// `hidden`: under a `display: none` ancestor, where no box is generated
+/// (CSS Display 3 §2.5) — its pseudo-elements get none.
+fn walk_for_positioned(dom: &mut Dom<TuiExt>, id: NodeId, hidden: bool, out: &mut Vec<BoxItem>) {
+    let mut hidden = hidden;
+    let element = dom.node(id).node_type() == NodeType::Element;
+    if element {
         let pos = computed_position(dom, id);
         if matches!(pos, Position::Absolute | Position::Fixed) {
-            out.push(id);
+            out.push(BoxItem::Node(id));
+        }
+        hidden |= dom
+            .node(id)
+            .computed()
+            .is_some_and(|c| c.display == crate::layout::Display::None);
+        if let Some(ext) = dom.node_mut(id).ext_mut() {
+            ext.positioned_pseudos = None;
         }
     }
-    for child in dom.node(id).child_nodes() {
-        match child.node_type() {
-            NodeType::Element | NodeType::Fragment => {
-                walk_for_positioned(dom, child.id(), out);
+    let pseudo = |dom: &Dom<TuiExt>, slot| {
+        (element && !hidden && super::pseudo::is_positioned_box(dom, id, slot))
+            .then_some(BoxItem::Generated(id, slot))
+    };
+    out.extend(pseudo(dom, PseudoSlot::Before));
+    let mut child = dom.node(id).first_child().map(|c| c.id());
+    while let Some(c) = child {
+        if matches!(
+            dom.node(c).node_type(),
+            NodeType::Element | NodeType::Fragment
+        ) {
+            walk_for_positioned(dom, c, hidden, out);
+        }
+        child = dom.node(c).next_sibling().map(|n| n.id());
+    }
+    out.extend(pseudo(dom, PseudoSlot::After));
+}
+
+/// What phase 2 places: a positioned element, or the box of a positioned
+/// `::before` / `::after` (`item`, its host's `slot` pseudo-element).
+#[derive(Clone, Copy)]
+pub(super) enum Placed<'a> {
+    Element(NodeId),
+    Generated {
+        host: NodeId,
+        slot: PseudoSlot,
+        item: &'a AnonymousItem,
+    },
+}
+
+impl Placed<'_> {
+    /// The box's intrinsic size keywords on one axis.
+    fn keywords<'d>(
+        &'d self,
+        dom: &'d Dom<TuiExt>,
+        c: &ComputedStyle,
+        direction: crate::layout::Direction,
+        cross: u16,
+        cb_width: u16,
+    ) -> Keywords<'d> {
+        match *self {
+            Placed::Element(id) => Keywords::new(dom, id, c, direction, cross, cb_width),
+            Placed::Generated { item, .. } => {
+                Keywords::for_run(dom, item, direction, cross, cb_width)
             }
-            _ => {}
+        }
+    }
+
+    /// Its shrink-to-fit size on one axis (CSS 2.1 §10.3.7 / §10.6.4):
+    /// on the inline axis its max-content width, on the block axis its
+    /// content's height at the border-box width `cross`.
+    fn shrink_to_fit(
+        &self,
+        dom: &Dom<TuiExt>,
+        direction: crate::layout::Direction,
+        cross: u16,
+        cb_width: u16,
+    ) -> u16 {
+        match *self {
+            Placed::Element(id) => intrinsic_size(dom, id, direction, cross, cb_width),
+            Placed::Generated { item, .. } => {
+                item.content_size(dom, direction, cross, true, cb_width)
+            }
+        }
+    }
+
+    /// Its static position, when it has one.
+    fn static_position(&self, dom: &Dom<TuiExt>) -> Option<StaticPosition> {
+        match *self {
+            Placed::Element(id) => dom.node(id).ext().and_then(|e| e.static_position),
+            Placed::Generated { host, slot, item } => {
+                super::pseudo::static_position(dom, host, slot, item.style())
+            }
+        }
+    }
+
+    /// The node whose box it is laid out in — whose `direction` decides
+    /// an over-constrained inset: an element's box parent, a
+    /// pseudo-element's host.
+    fn parent(&self, dom: &Dom<TuiExt>) -> Option<NodeId> {
+        match *self {
+            Placed::Element(id) => crate::render::box_tree::box_parent(dom, id),
+            Placed::Generated { host, .. } => Some(host),
         }
     }
 }
 
-/// Compute the placed rect for an absolute/fixed element given its
+/// Compute the placed rect for an absolute/fixed box given its
 /// computed style and resolved containing block.
 ///
 /// Width / height resolve in this order:
@@ -84,10 +185,10 @@ fn walk_for_positioned(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
 ///     only `top` / `left` is therefore as wide as its text, not 0.
 ///
 /// X / Y resolve from the offsets via [`axis_position_anchored`];
-/// an axis with both insets `auto` takes `TuiExt::static_position`.
-fn compute_placed_rect(
+/// an axis with both insets `auto` takes the box's static position.
+pub(super) fn compute_placed_rect(
     dom: &Dom<TuiExt>,
-    id: NodeId,
+    placed: Placed<'_>,
     c: &ComputedStyle,
     cb: LayoutRect,
 ) -> LayoutRect {
@@ -129,18 +230,16 @@ fn compute_placed_rect(
         &c.right,
         cb.width,
         |keyword, available| match keyword {
-            Some(k) => Keywords::new(dom, id, c, Direction::Row, cb.height, cb.width).keyword(
-                k,
-                Some(cb.width),
-                available,
-            ),
-            None => intrinsic_size(dom, id, Direction::Row, cb.width, cb.width),
+            Some(k) => placed
+                .keywords(dom, c, Direction::Row, cb.height, cb.width)
+                .keyword(k, Some(cb.width), available),
+            None => placed.shrink_to_fit(dom, Direction::Row, cb.width, cb.width),
         },
     );
     // CSS 2.1 §10.4: the tentative width clamped by `max-width`, then
     // `min-width`, measured as `box-sizing` says (an absolutely
     // positioned box's containing block is definite).
-    let kw = Keywords::new(dom, id, c, Direction::Row, cb.height, cb.width);
+    let kw = placed.keywords(dom, c, Direction::Row, cb.height, cb.width);
     let width = kw.sizer().floor(clamp_size(
         width,
         kw.min(&c.min_width, Some(cb.width), cb.width),
@@ -155,10 +254,10 @@ fn compute_placed_rect(
         &c.top,
         &c.bottom,
         cb.height,
-        |_, _| intrinsic_size(dom, id, Direction::Column, width, cb.width),
+        |_, _| placed.shrink_to_fit(dom, Direction::Column, width, cb.width),
     );
     // CSS 2.1 §10.7, the same for the height.
-    let kw = Keywords::new(dom, id, c, Direction::Column, width, cb.width);
+    let kw = placed.keywords(dom, c, Direction::Column, width, cb.width);
     let height = kw.sizer().floor(clamp_size(
         height,
         kw.min(&c.min_height, Some(cb.height), cb.height),
@@ -184,9 +283,10 @@ fn compute_placed_rect(
     // phase 1 recorded (CSS 2.1 §10.3.7 / §10.6.4). It is `None` only
     // for an element whose parent has not been laid out yet; the
     // containing block's start stands in then.
-    let static_pos = dom.node(id).ext().and_then(|e| e.static_position);
+    let static_pos = placed.static_position(dom);
 
-    let cb_rtl = crate::render::box_tree::box_parent(dom, id)
+    let cb_rtl = placed
+        .parent(dom)
         .and_then(|p| dom.node(p).computed().map(|pc| pc.text_direction))
         .unwrap_or(c.text_direction)
         == crate::layout::TextDirection::Rtl;
@@ -310,9 +410,8 @@ fn inset_modified(start: &Length, end: &Length, cb_start: i32, cb_extent: u16) -
 /// size; `content(Some(keyword), available)` an intrinsic keyword's
 /// (CSS Sizing 3 §3.1), with the span between the edges — or the
 /// containing block — as its stretch-fit size. The border box is never
-/// smaller than the padding and border. Shared by positioned elements
-/// and positioned pseudo-elements.
-pub(in crate::render::layout_pass) fn resolve_size_axis(
+/// smaller than the padding and border.
+fn resolve_size_axis(
     size: &Size,
     sizer: Sizer,
     cb_extent: u16,

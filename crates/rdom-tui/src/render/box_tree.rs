@@ -153,9 +153,10 @@ pub(crate) fn item_sequence(dom: &Dom<TuiExt>, id: NodeId) -> Vec<BoxItem> {
     out
 }
 
-/// `host`'s `slot` pseudo-element generates a static box: it has
-/// `content` (CSS 2.1 §12.1), is not `display: none` and not positioned
-/// (a positioned one is laid out on its own, `positioned_pseudos`).
+/// `host`'s `slot` pseudo-element generates an in-flow box: it has
+/// `content` (CSS 2.1 §12.1), is not `display: none` and not absolutely
+/// or fixed positioned (phase-2 placement lays that out,
+/// `positioning::pseudo`).
 fn generates_static_pseudo(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> bool {
     let computed = dom.node(host).computed_pseudo(slot);
     computed.is_some_and(|c| c.display != Display::None)

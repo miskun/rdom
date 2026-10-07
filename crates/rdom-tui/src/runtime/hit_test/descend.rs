@@ -113,8 +113,8 @@ fn hit_layers(
 ) -> bool {
     for e in entries.iter().rev() {
         let mark = path.len();
-        let hit = if let Some(k) = e.generated {
-            hit_floated_pseudo(dom, e.id, k, x, y, e.clip, path)
+        let hit = if let Some(generated) = e.generated {
+            hit_generated(dom, e.id, generated, x, y, e.clip, path)
         } else if e.context {
             hit_stacking_context(dom, e.id, x, y, e.clip, viewport, path)
         } else {
@@ -140,27 +140,30 @@ fn hit_layers(
     false
 }
 
-/// Hit-test the `k`-th floated `::before` / `::after` of `owner`'s
-/// formatting context run: a pseudo-element is part of its host's box,
-/// so a hit inside its border box (and `clip`) targets the host — `owner`
-/// on the path above it — unless the pseudo-element is `pointer-events:
-/// none` or not drawn.
-fn hit_floated_pseudo(
+/// Hit-test a generated box a layer holds in place of `owner`: the `k`-th
+/// floated `::before` / `::after` of `owner`'s formatting context run, or
+/// `owner`'s `k`-th positioned one. A pseudo-element is part of its
+/// host's box, so a hit inside its border box (and `clip`) targets the
+/// host — `owner` on the path above it — unless the pseudo-element is
+/// `pointer-events: none` or not drawn.
+fn hit_generated(
     dom: &Dom<TuiExt>,
     owner: NodeId,
-    k: usize,
+    generated: crate::render::stacking::Generated,
     x: u16,
     y: u16,
     clip: Rect,
     path: &mut Vec<NodeId>,
 ) -> bool {
-    let Some(g) = dom
-        .node(owner)
-        .ext()
-        .and_then(|e| e.floated_pseudos.as_deref())
-        .and_then(|f| f.get(k))
-        .and_then(|a| a.generated)
-    else {
+    use crate::render::stacking::Generated;
+    let Some(ext) = dom.node(owner).ext() else {
+        return false;
+    };
+    let anon = match generated {
+        Generated::Floated(k) => ext.floated_pseudos().get(k),
+        Generated::Positioned(k) => ext.positioned_pseudos().get(k),
+    };
+    let Some(g) = anon.and_then(|a| a.generated) else {
         return false;
     };
     let pseudo = dom.node(g.host).computed_pseudo(g.slot);
@@ -421,6 +424,24 @@ fn hit_fragment(
     let ext = dom.node(ifc_block).ext()?;
     let layout = ext.inline_layout.as_ref()?;
 
+    // A relatively positioned or sticky run moved off its line paints
+    // over the lines (CSS 2.1 §9.4.3): it is hit first, for its host —
+    // the block itself when it is the block's own.
+    let (row_i, x_i) = (y as i32 - content.y, x as i32 - content.x);
+    for line in &layout.lines {
+        let moved = line.generated.iter().find(|g| {
+            let (dx, dy) = g.offset;
+            (dx, dy) != (0, 0)
+                && !g.is_atom()
+                && row_i == i32::from(line.top) + i32::from(g.y) + dy
+                && x_i >= g.x + dx
+                && x_i < g.x + dx + i32::from(g.width)
+        });
+        if let Some(g) = moved {
+            return is_descendant(dom, g.host, ifc_block).then_some((g.host, false));
+        }
+    }
+
     // The line box spanning the row (CSS 2.1 §10.8: a line is as tall
     // as its tallest atom).
     let row = u16::try_from(y as i32 - content.y).ok()?;
@@ -445,6 +466,7 @@ fn hit_fragment(
     // (and list markers) resolve to the block, which the caller holds.
     line.generated
         .iter()
+        .filter(|g| g.offset == (0, 0))
         .find(|g| x_local >= g.x && x_local < g.x + i32::from(g.width))
         .filter(|g| is_descendant(dom, g.host, ifc_block))
         .filter(|g| {

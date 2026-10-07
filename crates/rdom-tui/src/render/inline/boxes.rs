@@ -188,6 +188,12 @@ pub struct GeneratedFragment {
     /// line, taking no room in it; `x` is set from its item's box
     /// (`markers::place_outside`).
     pub(crate) outside: Option<OutsideMarker>,
+    /// The `(dx, dy)` cells a relatively positioned or sticky
+    /// pseudo-element is moved by from where the packer put it (CSS 2.1
+    /// §9.4.3, CSS Position 3 §3.4), set after layout
+    /// (`positioning::pseudo_offsets`); paint and hit-testing draw and
+    /// find it there. `(0, 0)` for any other.
+    pub(crate) offset: (i32, i32),
 }
 
 /// Where a piece of an outside marker sits within the marker.
@@ -216,6 +222,7 @@ impl GeneratedFragment {
             atom: None,
             frame: 0,
             outside: None,
+            offset: (0, 0),
         }
     }
 

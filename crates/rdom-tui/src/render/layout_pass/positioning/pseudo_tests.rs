@@ -16,12 +16,10 @@ fn after_rect(css: &str) -> LayoutRect {
     assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
     dom.cascade(&parsed.stylesheet);
     dom.layout_dom(Rect::new(0, 0, 20, 6));
-    dom.node(h)
-        .ext()
-        .unwrap()
-        .after_layout
+    super::positioned_box(&dom, h, crate::ext::PseudoSlot::After)
+        .and_then(|a| a.generated)
         .expect("a positioned ::after is placed")
-        .rect
+        .border_box
 }
 
 const HOST: &str = ".h { position: relative; width: 10; height: 4 } ";
@@ -69,7 +67,7 @@ fn a_declared_width_wins_over_both_insets() {
 
 /// CSS 2.1 §10.4 / §10.7: a positioned pseudo-element's size is clamped
 /// by `max-*`, then `min-*`, as a positioned element's is; a keyword
-/// bound is the content's size (DIVERGENCES §2).
+/// bound is the content's intrinsic size (CSS Sizing 3 §3.1).
 #[test]
 fn a_positioned_pseudo_honours_min_and_max() {
     let r = after_rect(&format!(
@@ -89,19 +87,37 @@ fn a_positioned_pseudo_honours_min_and_max() {
 /// under `ltr` (`left` under `rtl`: the inline-start inset wins), and
 /// its width stays its own — the content's for a pseudo-element; with
 /// both `top` and `bottom`, `bottom` is ignored and the height holds.
+/// The `::after` is laid out in flow (C10-PSEUDO-UNIFY) — the host's
+/// only content, at its start under `ltr`, its end under `rtl` — and
+/// moved from there.
 #[test]
 fn a_relative_pseudo_with_both_insets_only_shifts() {
-    // `::after` sits at the host's far edge: 10 − 1 = 9.
-    let css = |dir: &str| {
-        format!(
+    let rows = |dir: &str| {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let h = dom.create_element("div");
+        dom.set_attribute(h, "class", "h").unwrap();
+        dom.append_child(root, h).unwrap();
+        let parsed = rdom_css::parse(&format!(
             "{HOST} .h {{ direction: {dir} }} .h::after {{ position: relative; \
              left: 1; right: 1; top: 1; bottom: 1; content: \"x\" }}"
-        )
+        ));
+        assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+        dom.cascade(&parsed.stylesheet);
+        let area = Rect::new(0, 0, 12, 3);
+        dom.layout_dom(area);
+        let mut buf = crate::render::Buffer::empty(area);
+        dom.paint_dom(&mut buf, area);
+        (0..3)
+            .map(|y| {
+                (0..12)
+                    .map(|x| buf.cell(x, y).unwrap().symbol().to_string())
+                    .collect()
+            })
+            .collect::<Vec<String>>()
     };
-    let r = after_rect(&css("ltr"));
-    assert_eq!((r.x, r.y, r.width, r.height), (10, 1, 1, 1), "left wins");
-    let r = after_rect(&css("rtl"));
-    assert_eq!((r.x, r.y, r.width, r.height), (8, 1, 1, 1), "right wins");
+    assert_eq!(rows("ltr")[1], " x          ", "left wins");
+    assert_eq!(rows("rtl")[1], "        x   ", "right wins");
 }
 
 /// The same holds for an element: both insets shift it without

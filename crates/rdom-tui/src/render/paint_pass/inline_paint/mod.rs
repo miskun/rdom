@@ -56,7 +56,7 @@ use text_overflow::{Marking, cut_line};
 
 pub(super) use caret::paint_caret_if_editable;
 pub(crate) use chrome::{ChromeText, InlineChromeFn};
-pub(in crate::render::paint_pass) use generated::paint_floated_pseudo;
+pub(in crate::render::paint_pass) use generated::{paint_floated_pseudo, paint_positioned_pseudo};
 use generated::{paint_generated, paint_generated_atom, presentation_of};
 
 /// `::before` + own text + `::after` paint for a non-IFC element.
@@ -179,6 +179,7 @@ fn paint_lines(
     let at = FlowPlacement {
         inner,
         bg_dedup_owner: id,
+        boxed: None,
     };
     let marking = Marking::of(dom, id, None);
     paint_inline_layout(dom, layout, at, marking.as_ref(), buf, clip, viewport);
@@ -239,6 +240,7 @@ pub(super) fn paint_ifc(
     let at = FlowPlacement {
         inner,
         bg_dedup_owner: id,
+        boxed: None,
     };
     let marking = Marking::of(dom, id, None);
     paint_inline_layout(
@@ -293,6 +295,7 @@ pub(super) fn paint_anonymous_blocks(
         let at = FlowPlacement {
             inner: anon.rect,
             bg_dedup_owner: container_id,
+            boxed: anon.generated.map(|g| (g.host, g.slot)),
         };
         paint_inline_layout(
             dom,
@@ -315,6 +318,10 @@ pub(super) fn paint_anonymous_blocks(
 struct FlowPlacement {
     inner: LayoutRect,
     bg_dedup_owner: NodeId,
+    /// The `::before` / `::after` whose own box these lines are the
+    /// content of: its box painted its background, so its text takes
+    /// none ([`text::pseudo_glyph_style`](super::text::pseudo_glyph_style)).
+    boxed: Option<(NodeId, crate::ext::PseudoSlot)>,
 }
 
 /// Shared body: paint `inline_layout` where `at` says. Each line's text
@@ -337,7 +344,9 @@ fn paint_inline_layout(
     let FlowPlacement {
         inner,
         bg_dedup_owner,
+        boxed,
     } = at;
+    let own_box = |g: &crate::render::inline::GeneratedFragment| boxed == Some((g.host, g.slot));
     // Lines and atoms paint wherever the packer put them, inside `clip`
     // alone: content past the box is not clipped by it (CSS Overflow 3
     // §3.1 `visible`) — a box that clips passes its overflow clip edge in
@@ -364,18 +373,25 @@ fn paint_inline_layout(
             .map_or(clip, |cut| narrow(clip, cut.left, cut.right));
         let line_right = clip.right();
         for generated in &line.generated {
+            let (dx, dy) = generated.offset;
             if let Some(atom) = &generated.atom {
                 // An atomic pseudo-element paints as a box at its turn
-                // in the line, as an element atom does.
-                let x = inner.x + generated.x;
+                // in the line, as an element atom does — moved by its
+                // relative or sticky offset.
+                let x = inner.x + generated.x + dx;
                 let end = x + i32::from(generated.width);
                 if cut.as_ref().is_none_or(|cut| cut.keeps(x, end)) {
-                    let top = inner.y + i32::from(line.top) + i32::from(atom.y);
+                    let top = inner.y + i32::from(line.top) + i32::from(atom.y) + dy;
                     let border_box = LayoutRect::new(x, top, generated.width, atom.height);
                     paint_generated_atom(
                         dom, generated, atom, border_box, buf, atom_clip, viewport,
                     );
                 }
+                continue;
+            }
+            if (dx, dy) != (0, 0) {
+                // Moved from its place in the line: painted after the
+                // line's text (below).
                 continue;
             }
             let row = row_of(generated.y);
@@ -387,7 +403,8 @@ fn paint_inline_layout(
                 (clip.x, line_right)
             };
             if visible(row) {
-                paint_generated(dom, generated, inner.x, row as u16, left, right, buf);
+                let at = (inner.x, row as u16, own_box(generated));
+                paint_generated(dom, generated, at, left, right, buf);
             }
         }
 
@@ -478,6 +495,19 @@ fn paint_inline_layout(
             // without selection restores the original appearance.
             if let Some(ref sr) = selection_range {
                 apply_selection_overlay(dom, buf, row as u16, frag_x, clip, fragment, sr);
+            }
+        }
+        // A relatively positioned or sticky run (CSS 2.1 §9.4.3) moved
+        // off its place: over the line's text, uncut by its
+        // `text-overflow`, as a positioned box paints after in-flow
+        // content (DIVERGENCES §2).
+        for generated in line.generated.iter().filter(|g| g.atom.is_none()) {
+            let (dx, dy) = generated.offset;
+            let row = row_of(generated.y) + dy;
+            if (dx, dy) != (0, 0) && visible(row) {
+                let (left, right) = (outer_clip.x, outer_clip.right());
+                let at = (inner.x + dx, row as u16, own_box(generated));
+                paint_generated(dom, generated, at, left, right, buf);
             }
         }
         if let (Some(cut), Some(marking)) = (&cut, marking)

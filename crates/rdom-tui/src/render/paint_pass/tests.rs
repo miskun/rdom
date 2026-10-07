@@ -2152,8 +2152,7 @@ fn display_none_host_suppresses_positioned_pseudo() {
 
 /// D-M5N-5: a positioned pseudo whose CB-relative offset puts it
 /// partly off-viewport must clip cleanly at the viewport edge.
-/// `paint_pass::positioned_pseudos::layout_rect_to_grid` is the
-/// chokepoint; this guards against regressions where a pseudo
+/// `paint_pass::layout_rect_to_grid` is the chokepoint; this guards against regressions where a pseudo
 /// extends past `clip.right()` and writes outside the buffer or
 /// drops the visible prefix instead of clipping it.
 #[test]

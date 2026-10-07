@@ -74,7 +74,7 @@ pub use accessors::{
 pub use cssom::{extend_from_style_tags, extend_from_style_tags_with_loader, seed_inline_styles};
 pub use tui_event::{TuiDispatchExt, TuiEvent};
 
-pub use ext::{PseudoLayout, StaticPosition, TuiExt};
+pub use ext::{StaticPosition, TuiExt};
 pub use layout::{
     Align, AlignProperty, Alignment, AppliedDecorations, AppliedLine, AspectRatio,
     BackgroundAttachment, BackgroundRepeat, BlockEllipsis, Border, BorderRadius, BorderSpacing,

@@ -55,6 +55,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 40. **A relatively positioned box is laid out in flow, then shifted** (CSS 2.1 §9.4.3): its subtree is laid out where the box is in flow and moved with it, so a float inside it excludes the next paragraph's lines at the unshifted place. (C8-FLOAT)
 41. **Overflowing text paints over what follows it** (CSS 2.1 Appendix E): a block's text running past it into a float or a later block now shows over the float's and the block's backgrounds (it was covered by them). (C8G-PAINT-PHASES)
 42. **An overflowing `rtl` line hangs off the left edge** (CSS Text 3 §7.1): a line wider than its `rtl` block starts at the right edge and overflows the left one, reached with a negative `scrollLeft` (it started at the left edge and overflowed the right). (C8-RTL-LINE-OVERFLOW)
+43. **Positioned `::before` / `::after` stack, hit and scroll as elements** (CSS Pseudo 4 §2, CSS 2.1 Appendix E): an absolutely or fixed positioned pseudo-element paints in its host's stacking context by its own `z-index` — it painted above everything, ordered by its host's `z-index` — so a sibling context with a higher `z-index` now covers it and `z-index: -1` puts it under its host's text; a click on it targets its host (it fell through); a scroll container's overflow counts it; an axis with both insets `auto` starts at its static position (it started at the containing block's edge); its `min-content` width wraps its text. A relatively positioned or sticky one is in its host's flow (it was laid out on its own at the host's edge): its text takes room in the line, then moves. (C10-PSEUDO-UNIFY)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -148,6 +149,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `PresentationStyle::gap` | `row_gap` / `column_gap` | C6-GAP | `gap_hints` |
 | `AnonymousIfc { rect, inline_layout, child_range }` | `AnonymousIfc::new(rect, inline_layout, child_range, None)` | C6G-PSEUDO-FLEX-ITEMS | `anonymous_box_hints` |
 | rdom-style value types reached through `rdom_style::…` | re-exported at the `rdom_tui` root (`use rdom_tui::*;`), with `set_border_radius` / `border_radius` on nodes | C4G-REEXPORTS, C5G-REEXPORTS-AND-ROOT | `node_border_radius_accessor` |
+| `TuiExt::before_layout` / `after_layout` (`PseudoLayout { rect, position }`) | `TuiExt::positioned_pseudos()` — an absolutely or fixed positioned pseudo-element's box (`AnonymousIfc`, its border box in `generated`); a relative or sticky one is laid out in flow | C10-PSEUDO-UNIFY | — |
 | `render::Style { fg, bg, add_modifier, sub_modifier }`; `SgrState { fg, bg, modifier }` literals | add `underline_color` (`Style::new()…underline_color(c)`, `SgrState::RESET`) | C9-DECORATION | `text_decoration_hints` |
 
 #### Changes to APIs added after 0.5
@@ -437,6 +439,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **`render::LineBox` and `render::InlineFragment` are `#[non_exhaustive]`** (C9-VERTICAL-ALIGN adds fields), and `LineBox` implements `Default` again (an empty one-row line). Migration: replaces 0.5.0's `..Default::default()` hint — see the API table. (C6G-LINEBOX-API)
 - **`AnonymousIfc` is `#[non_exhaustive]` and gains `generated: Option<GeneratedBox>`** (a `::before` / `::after` flex item's own box; `rect` its content box), with `AnonymousIfc::new` and `border_box()`. Migration: `AnonymousIfc::new(rect, inline_layout, child_range, None)`. (C6G-PSEUDO-FLEX-ITEMS)
 
+- **`TuiExt::before_layout` / `after_layout` and `PseudoLayout` are gone**: a positioned `::before` / `::after` is a generated box like every other pseudo-element (C10-PSEUDO-UNIFY). Migration: read an absolutely or fixed positioned one's box from `TuiExt::positioned_pseudos()` (`.generated` holds its slot and border box); a relatively positioned or sticky one is part of its host's flow (`GeneratedFragment`s or `AnonymousIfc`s, as a static one). (C10-PSEUDO-UNIFY)
+
 ### Added — `rdom-tui`
 
 - **List markers are laid out** (CSS Lists 3 §3): a `display: list-item` box's `::marker` rides its first line box — the item's own or a block descendant's, nested items' markers sharing the inner line; `outside` (the initial value) hangs it beside the line, its end at the item's inline-start border edge and taking no room in the line, `inside` makes it the line's first inline box; an item with no line box gets one for its marker; `marker-side` picks the side, a marker hanging right written in visual order. Markers are generated content through the packer (`PseudoSlot::Marker` / `StyleSlot::Marker`, `GeneratedFragment`s), measured as packed — letter spacing included — in intrinsic sizes. `TuiExt::computed_pseudo` / `computed_for` and `TuiNodeExt::computed_pseudo` read any pseudo-element's style by slot. (C10-LIST-ITEM)
@@ -566,6 +570,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A `::before` / `::after` box's translucent background composites once under its text** (CSS Backgrounds 3 §3.10): a floated, atomic, block-level or flex-item pseudo-element painted its background over its box and again with its text. (C10-PSEUDO-UNIFY)
 - **Terminal capability detection is conservative and multiplexer-aware**: a GNU screen session (`STY`), an older tmux or a `TERM` of `screen*` / `tmux*` gets the common SGR subset even when the outer terminal's `KITTY_WINDOW_ID` or `TERM_PROGRAM` is inherited (screen does not read the colon forms: `58:2::r:g:b` splits into faint and resets mid-run); tmux 3.2+ gets all three, which it passes on as its outer terminal's terminfo allows; Alacritty and VS Code get the underline styles and color, iTerm2 3.4+ the styles. (C9G-SGR-CAPS)
 - **A `::before` / `::after` box clamps its own lines** (CSS Overflow 4 §4, CSS Pseudo 4 §2): a block-level, inline-block or floated pseudo-element with `line-clamp: N` is its first N lines tall, the Nth ending with its `block-ellipsis` (it showed every line); its own `text-overflow` marks its lines. (C9G-PSEUDO-CLAMP)
 - **`rlh` follows a restyled root line height everywhere** (CSS Values 4 §6.1.1): a restyle that moves the root element's line height keeps no subtree, so `rlh` under an element whose own style stayed is recomputed (it kept the old row count). (C9G-MISC-CORRECTNESS)

@@ -104,7 +104,6 @@ mod margin_trim;
 mod positioned_overflow;
 #[cfg(test)]
 pub(crate) use positioned_overflow::MAX_ROUNDS;
-mod positioned_pseudos;
 mod positioning;
 mod scroll_extent;
 pub(crate) mod scrollport;
@@ -203,10 +202,10 @@ impl LayoutExt for Dom<TuiExt> {
         sticky::place_sticky(self);
         #[cfg(debug_assertions)]
         block::debug_assert_no_margin_chain_memo(self, root);
-        // Pass 3 — place positioned `::before` / `::after` pseudo-
-        // elements. Runs AFTER pass 2 so absolute pseudos whose hosts
-        // are themselves absolute can read the host's placed rect.
-        positioned_pseudos::place_positioned_pseudos(self, root_rect);
+        // Pass 3 — move relatively positioned and sticky `::before` /
+        // `::after` from their in-flow places (phase 2 placed the
+        // absolute and fixed ones with the elements).
+        positioning::offset_in_flow_pseudos(self);
         intrinsic::end_pass(self);
     }
 }

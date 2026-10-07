@@ -316,6 +316,35 @@ fn positioned_pseudo_translucent_background_composites_once_under_its_text() {
     );
 }
 
+/// The same for every `::before` / `::after` laid out as a box of its
+/// own — here a float (C10-PSEUDO-UNIFY): its box paints its background,
+/// and its text is written over it in a glyph style.
+#[test]
+fn floated_pseudo_translucent_background_composites_once_under_its_text() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    element(&mut dom, root, "div", "h", "");
+    let buf = paint(
+        &mut dom,
+        ".h { width: 6; height: 1; background-color: black } \
+         .h::before { float: left; width: 4; content: \"hi\"; \
+                      background-color: rgb(255 0 0 / 50%) }",
+        6,
+        1,
+    );
+    assert_eq!(buf.cell(0, 0).unwrap().symbol(), "h");
+    assert_eq!(
+        buf.cell(0, 0).unwrap().bg,
+        half_red_over_black(),
+        "under text"
+    );
+    assert_eq!(
+        buf.cell(3, 0).unwrap().bg,
+        half_red_over_black(),
+        "beside it"
+    );
+}
+
 /// A static `::before` has no box fill of its own: its background
 /// paints only with its text, once.
 #[test]

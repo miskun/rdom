@@ -9,8 +9,8 @@
 use rdom_core::{Dom, NodeId, NodeType};
 
 use super::{
-    BoxEntry, LayerEntry, Layers, children_clip, creates_stacking_context, is_float, is_layered,
-    is_positioned, is_z_indexed_item, paints_atomically,
+    BoxEntry, Generated, LayerEntry, Layers, children_clip, creates_stacking_context, is_float,
+    is_layered, is_positioned, is_z_indexed_item, paints_atomically,
 };
 use crate::ext::{PseudoSlot, TuiExt};
 use crate::layout::{Display, Position, ZIndex};
@@ -91,7 +91,6 @@ impl Walk<'_> {
     /// (`unit::for_each_unit_box`).
     fn children(&mut self, id: NodeId, box_parent: NodeId, unit: Option<usize>) {
         let dom = self.dom;
-        let viewport = self.viewport;
         if id == box_parent {
             self.generated(id, unit, PseudoSlot::Before);
         }
@@ -162,37 +161,9 @@ impl Walk<'_> {
                     self.chain.pop();
                 }
             } else if is_layered(dom, cid, box_parent, c) {
-                let clip = match c.position {
-                    Position::Fixed => viewport,
-                    Position::Absolute => self
-                        .chain
-                        .iter()
-                        .rev()
-                        .find(|f| f.positioned)
-                        .map_or(self.chain[0].content_clip, |f| f.content_clip),
-                    Position::Relative | Position::Sticky | Position::Static => current,
-                };
+                let clip = self.positioned_clip(c.position, current);
                 let context = creates_stacking_context(dom, box_parent, c);
-                let z = match c.z_index {
-                    ZIndex::Auto => 0,
-                    ZIndex::Value(n) => n,
-                };
-                let entry = LayerEntry {
-                    id: cid,
-                    z,
-                    order: self.order,
-                    context,
-                    clip,
-                    generated: None,
-                    owner: 0,
-                };
-                self.order += 1;
-                match z {
-                    _ if !context => self.layers.zero_auto.push(entry),
-                    z if z < 0 => self.layers.negative.push(entry),
-                    0 => self.layers.zero_auto.push(entry),
-                    _ => self.layers.positive.push(entry),
-                }
+                let entry = self.layer(cid, c, context, clip, None);
                 if !context {
                     // `z-index: auto`: its positioned descendants belong
                     // to this context, clipped by its own content clip;
@@ -228,6 +199,80 @@ impl Walk<'_> {
         }
     }
 
+    /// The clip a positioned box styled `position`, met where the
+    /// content clip is `current`, paints into (CSS 2.1 §11.1.1): the
+    /// viewport for `fixed`, the content clip at its containing block for
+    /// `absolute`, `current` otherwise.
+    fn positioned_clip(&self, position: Position, current: Rect) -> Rect {
+        match position {
+            Position::Fixed => self.viewport,
+            Position::Absolute => self
+                .chain
+                .iter()
+                .rev()
+                .find(|f| f.positioned)
+                .map_or(self.chain[0].content_clip, |f| f.content_clip),
+            Position::Relative | Position::Sticky | Position::Static => current,
+        }
+    }
+
+    /// Put the positioned box `id` styled `c` — or its `generated` box —
+    /// on its layer by its `z-index` (Appendix E steps 2, 8, 9): a child
+    /// context (`context`) by its value, a plain box at 0.
+    fn layer(
+        &mut self,
+        id: NodeId,
+        c: &crate::style::ComputedStyle,
+        context: bool,
+        clip: Rect,
+        generated: Option<Generated>,
+    ) -> LayerEntry {
+        let z = match c.z_index {
+            ZIndex::Auto => 0,
+            ZIndex::Value(n) => n,
+        };
+        let entry = LayerEntry {
+            id,
+            z,
+            order: self.order,
+            context,
+            clip,
+            generated,
+            owner: 0,
+        };
+        self.order += 1;
+        match z {
+            _ if !context => self.layers.zero_auto.push(entry),
+            z if z < 0 => self.layers.negative.push(entry),
+            0 => self.layers.zero_auto.push(entry),
+            _ => self.layers.positive.push(entry),
+        }
+        entry
+    }
+
+    /// `id`'s absolutely or fixed positioned `slot` pseudo-element, a
+    /// positioned child of `id` (CSS Pseudo 4 §4): on its layer, ahead of
+    /// `id`'s children for `::before`, after them for `::after`. It is a
+    /// stacking context of its own by its own `z-index` or `opacity`, as
+    /// an element is; it holds no descendants.
+    fn positioned_pseudo(&mut self, id: NodeId, slot: PseudoSlot) {
+        let dom = self.dom;
+        let Some(ext) = dom.node(id).ext() else {
+            return;
+        };
+        for (k, anon) in ext.positioned_pseudos().iter().enumerate() {
+            let Some(g) = anon.generated.filter(|g| g.slot == slot) else {
+                continue;
+            };
+            let Some(c) = ext.computed_pseudo(g.slot) else {
+                continue;
+            };
+            let clip = self.positioned_clip(c.position, self.content_clip());
+            let context = !matches!(c.z_index, ZIndex::Auto) || c.opacity < 1.0;
+            self.layer(id, c, context, clip, Some(Generated::Positioned(k)));
+        }
+    }
+
     /// The in-flow, non-atomic element `id` (reached through
     /// `box_parent`'s content paint) in its unit's background phase, when
     /// that content paint draws it as a box.
@@ -251,6 +296,19 @@ impl Walk<'_> {
     /// rest after them — on the float layer of `unit`. Inside a float or
     /// an atomic box (`unit` `None`) its own paint finds them.
     fn generated(&mut self, id: NodeId, unit: Option<usize>, slot: PseudoSlot) {
+        // A positioned pseudo-element belongs to the context whatever
+        // unit paints its host.
+        if slot == PseudoSlot::Before {
+            self.positioned_pseudo(id, slot);
+        }
+        self.unit_generated(id, unit, slot);
+        if slot == PseudoSlot::After {
+            self.positioned_pseudo(id, slot);
+        }
+    }
+
+    /// [`Self::generated`]'s in-flow boxes: block-level and floated.
+    fn unit_generated(&mut self, id: NodeId, unit: Option<usize>, slot: PseudoSlot) {
         let Some(unit) = unit else {
             return;
         };
@@ -286,7 +344,7 @@ impl Walk<'_> {
                 order: self.order,
                 context: false,
                 clip,
-                generated: Some(k),
+                generated: Some(Generated::Floated(k)),
                 owner: unit,
             });
             self.order += 1;

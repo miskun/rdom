@@ -102,11 +102,9 @@ fn collect_rows(dom: &Dom<TuiExt>, id: NodeId, rows: &mut Option<(i64, i64)>) {
             return;
         }
         extend_rect(rows, ext.layout);
-        for anon in ext.anonymous_blocks.iter().chain(ext.floated_pseudos()) {
+        let generated = ext.floated_pseudos().iter().chain(ext.positioned_pseudos());
+        for anon in ext.anonymous_blocks.iter().chain(generated) {
             extend_rect(rows, anon.border_box());
-        }
-        for pseudo in [ext.before_layout, ext.after_layout].into_iter().flatten() {
-            extend_rect(rows, pseudo.rect);
         }
         if let Some(layout) = &ext.inline_layout {
             // Lines past the box (overflowing text, anchor tagging)

@@ -217,6 +217,7 @@ row comes from.
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | |
 | C10-DETAILS-CONTENT | `::details-content` | |
 | C10-PSEUDO-CHAINS | Pseudo-element followed by user-action pseudo-classes (`::before:hover`) and nested pseudo-elements where defined | |
+| C10-PSEUDO-UNIFY | Positioned `::before` / `::after` on the generated-box path: the positioning layer places, stacks, hit-tests and scrolls them as elements (from C10-LIST-ITEM's note; `positioned_pseudos` gone) | done |
 
 ### Phase 11 — Selectors (audit §3.17)
 
@@ -6198,3 +6199,47 @@ row comes from.
   -LIST-ITEM): CSS-COVERAGE §3.15 10 / 0 / 0 / 2, §3.16 6 / 1 / 3 / 6, §3.7 8 / 0 / 1 / 2, total
   194 / 14 / 54 / 45; ACID tile 9 extended. Part 2 (C10-FIRST, -HIGHLIGHT, -DETAILS-CONTENT, -PSEUDO-CHAINS)
   is next.
+- 2026-10-13 — C10-PSEUDO-UNIFY (new row, from C10-LIST-ITEM's note). Found: positioned `::before` / `::after`
+  had a layout and paint path of their own (`positioned_pseudos`, two modules): one string on one line (every
+  intrinsic keyword its width), painted in a flat pass after every stacking context ordered by the host's
+  `z-index`, not hit-tested, not in any scroll container's overflow, an axis with both insets `auto` at the
+  containing block's edge; a relative one taken out of flow and anchored at the host's edge, a sticky one placed
+  as an absolute one against its host. Decisions (CSS Pseudo 4 §2: positioned as an element): (1) An absolutely
+  or fixed positioned pseudo-element is the generated box every other one is (`items::AnonymousItem::pseudo`),
+  placed by phase 2 with the elements — `place::compute_placed_rect` is now over a `Placed` (an element, or a
+  generated item: its `Keywords::for_run`, its content size as the shrink-to-fit size) — in document order, its
+  containing block from its host up (C8-CB-COMPLETE's walk, grid areas included), its static position computed
+  from its host's laid-out content (`positioning::pseudo::static_position`: a `::before` at the content start,
+  a `::after` after the last line — on it when inline-level — or below the last block; content start in a flex
+  or grid container; an inline host's first / last fragment). Its box is kept on the host
+  (`TuiExt::positioned_pseudos`, one thin `Box` like `floated_pseudos`; `before_layout` / `after_layout` /
+  `PseudoLayout` gone, Breaking), shifted with a sticky ancestor (a `fixed` one kept), counted by
+  `positioned_overflow::settle` (now over `BoxItem`s), and laid into its stacking context's layers as a positioned
+  child of its host (`stacking::Generated::Positioned`, `collect::Walk::positioned_pseudo`: its own `z-index` and
+  `opacity` make it a context, its clip by `position`), painted (`paint_positioned_pseudo`) and hit-tested to its
+  host there (`hit_generated`, shared with floats). (2) A relatively positioned or sticky one is in flow
+  (`inline::generated::static_pseudo_text` excludes only `absolute` / `fixed`) and moved after layout
+  (`positioning::pseudo_offsets`, pass 3, the flagged subtrees only): a box of its own moves its border box and
+  lines; a run or atom of a line keeps its packed place and records the move (`GeneratedFragment::offset`), which
+  paint (a moved run after the line's text) and hit-testing add. The relative offset is `relative_offset` against
+  the content box of the block container whose flow holds it; the sticky one `sticky::sticky_offset`, now shared
+  with sticky elements, in the nearest scrollport at or above the host. The moved one paints with its flow, not on
+  the positioned layer (DIVERGENCES §2). (3) `pack_generated` packs the pseudo-element's own `content`, in flow or
+  not. Caught on the way: every box-form pseudo-element (float, atom, block, flex item, now positioned) painted a
+  translucent background twice under its text (the box, then the text's style) — C3G-PSEUDO-TINT had fixed only
+  the old positioned path; its lines now paint in a glyph style (`FlowPlacement::boxed`,
+  `text::pseudo_glyph_style`) — and the single-row painter, a host with no content's fallback, drew such a
+  pseudo-element's text a second time at the host's first row (it now draws only inline-text pseudo-elements,
+  `generated::is_inline_text`). Red: `css_phase10/pseudo_unify.rs` — all 8 failed on HEAD (`ab cd` on one row for
+  a `min-content` box; `Zb` for `abZ`; `abcd` over the host's text for `XYcd`; the pseudo over a higher sibling
+  context; `None` for the click; `scrollHeight` 3 for 7; the relative `::before` out of flow; the sticky one
+  scrolled away); `color_tests::floated_pseudo_translucent_background_composites_once_under_its_text` red before
+  the glyph style and the single-row fix. Green after. Mutations (restored, touched): no glyph style → both
+  translucent tests; the single-row painter drawing floats again → the floated one; no
+  positioned layer entries → the z, click, static and min-content tests; no offsets pass → the relative and
+  sticky tests; overflow ignoring generated items → the overflow test; no static position → the static test.
+  Changed expectations: `a_relative_pseudo_with_both_insets_only_shifts` (now in flow: the `::after` is the host's
+  only content, at its start, moved by `(1, 1)`; under `rtl` at its end, moved left) and the two placement tests
+  that read `after_layout` read `positioned_pseudos()`. DIVERGENCES: the flat-pass, not-in-overflow,
+  not-hit-tested and one-string-width entries are gone; one entry records the moved pseudo-element's paint order.
+  No snapshot changed.

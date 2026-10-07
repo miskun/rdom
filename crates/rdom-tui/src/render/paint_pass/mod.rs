@@ -78,7 +78,6 @@ mod box_paint;
 mod generated_box;
 mod group;
 mod inline_paint;
-mod positioned_pseudos;
 pub(crate) mod scrollbar;
 mod shadow;
 mod stacking_walk;
@@ -120,14 +119,9 @@ impl PaintExt for Dom<TuiExt> {
         // canvas of the document's color scheme.
         buf.set_color_scheme(crate::style::CascadeExt::color_scheme(self));
         // The document is the root stacking context (CSS 2.1 Appendix
-        // E): positioned descendants paint from its layers, nested
-        // contexts recursively.
+        // E): positioned descendants — positioned `::before` / `::after`
+        // included — paint from its layers, nested contexts recursively.
         paint_stacking_context(self, self.root(), buf, clip, clip);
-        // Positioned `::before` / `::after` pseudo-elements paint after
-        // every stacking context, in one flat pass ordered by the
-        // host's `z-index` (DIVERGENCES): a pseudo has no `NodeId` and
-        // no layer slot of its own, and it does not hit-test.
-        positioned_pseudos::paint_positioned_pseudos(self, buf, clip);
         // Overlay backdrop behind modal dialogs. Runs AFTER the main
         // paint pass so the backdrop reliably sits on top of whatever
         // else painted into the viewport — then we re-paint the

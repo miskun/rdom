@@ -1,6 +1,8 @@
 //! The single-row painter: `::before` + a body string + `::after` on
 //! an element's first content row, then the `<a href>` tag over the
-//! painted span. Used for chrome substitution (gauge bar, closed
+//! painted span. A pseudo-element that is a box of its own (a float, an
+//! atom, a block-level or positioned box) is laid out and painted as one
+//! and is not drawn here. Used for chrome substitution (gauge bar, closed
 //! dropdown label, password mask) and for elements with no own text
 //! at all — everything that is one row by construction.
 
@@ -58,7 +60,7 @@ pub(super) fn paint_single_row_chrome(
     };
 
     if let Some(before) = dom.node(id).computed_before()
-        && before.position == crate::layout::Position::Static
+        && crate::render::inline::generated::is_inline_text(before)
         && let Some(ref text) = before.content
     {
         cursor_x = paint(
@@ -84,7 +86,7 @@ pub(super) fn paint_single_row_chrome(
     }
 
     if let Some(after) = dom.node(id).computed_after()
-        && after.position == crate::layout::Position::Static
+        && crate::render::inline::generated::is_inline_text(after)
         && let Some(ref text) = after.content
     {
         cursor_x = paint(

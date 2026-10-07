@@ -13,7 +13,7 @@ use crate::layout::Display;
 use crate::node::TuiNodeExt;
 use crate::render::layout_pass::is_ifc_block;
 use crate::render::stacking::{
-    BoxEntry, LayerEntry, Layers, UnitFloat, collect_layers, creates_stacking_context,
+    BoxEntry, Generated, LayerEntry, Layers, UnitFloat, collect_layers, creates_stacking_context,
     for_each_unit_box, is_layered, paints_atomically,
 };
 use crate::render::{Buffer, Rect};
@@ -92,7 +92,11 @@ fn paint_unit(
         paint_background_phase(dom, e, buf);
     }
     for f in layers.floats_of(unit) {
-        paint_float(dom, f.id, f.generated, f.context, buf, f.clip, viewport);
+        let k = match f.generated {
+            Some(Generated::Floated(k)) => Some(k),
+            _ => None,
+        };
+        paint_float(dom, f.id, k, f.context, buf, f.clip, viewport);
     }
     match frame {
         Some(frame) => paint_content(dom, root, buf, clip, viewport, frame),
@@ -148,6 +152,10 @@ fn paint_layers(
     viewport: Rect,
 ) {
     for e in entries {
+        if let Some(Generated::Positioned(k)) = e.generated {
+            super::inline_paint::paint_positioned_pseudo(dom, e.id, k, buf, e.clip, viewport);
+            continue;
+        }
         if e.context {
             paint_stacking_context(dom, e.id, buf, e.clip, viewport);
             continue;

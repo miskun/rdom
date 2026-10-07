@@ -141,6 +141,7 @@ fn clear_box_state(ext: &mut TuiExt, rect: LayoutRect) {
     ext.static_position = None;
     ext.grid_lines = None;
     ext.floated_pseudos = None;
+    ext.positioned_pseudos = None;
 }
 
 /// Move `id`'s laid-out subtree by `(dx, dy)`: every element's rects,
@@ -189,18 +190,36 @@ fn shift(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32, keep: Keep) {
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.layout = shift(ext.layout);
         ext.content_layout = shift(ext.content_layout);
+        // Its positioned pseudo-elements move with it, as its positioned
+        // descendants do: a `fixed` one stays where `keep` says.
+        let fixed: Vec<bool> = ext
+            .positioned_pseudos()
+            .iter()
+            .map(|a| {
+                keep == Keep::Fixed
+                    && a.generated
+                        .and_then(|g| ext.computed_pseudo(g.slot))
+                        .is_some_and(|c| c.position == crate::layout::Position::Fixed)
+            })
+            .collect();
         let floated = ext.floated_pseudos.as_deref_mut().into_iter().flatten();
-        for anon in ext.anonymous_blocks.iter_mut().chain(floated) {
+        let positioned = ext
+            .positioned_pseudos
+            .as_deref_mut()
+            .into_iter()
+            .flatten()
+            .zip(fixed)
+            .filter_map(|(a, fixed)| (!fixed).then_some(a));
+        for anon in ext
+            .anonymous_blocks
+            .iter_mut()
+            .chain(floated)
+            .chain(positioned)
+        {
             anon.rect = shift(anon.rect);
             if let Some(g) = anon.generated.as_mut() {
                 g.border_box = shift(g.border_box);
             }
-        }
-        for pseudo in [&mut ext.before_layout, &mut ext.after_layout]
-            .into_iter()
-            .flatten()
-        {
-            pseudo.rect = shift(pseudo.rect);
         }
         if let Some(p) = ext.static_position.as_mut() {
             p.x += dx;
