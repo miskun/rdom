@@ -112,13 +112,16 @@ pub enum PseudoElementTarget {
     /// placeholder. Only the `::first-line` property subset applies
     /// ([`TuiStyle::first_line_subset`]); a rule keeps nothing else.
     Placeholder,
-    /// `::first-line` (CSS Pseudo-Elements 4 §2.1), also spelled
-    /// `:first-line` (Selectors 4 §15). Its rules parse and are stored;
-    /// no box consumes them until C10-FIRST, so they style nothing yet.
+    /// `::first-line` (CSS Pseudo-Elements 4 §2.2), also spelled
+    /// `:first-line` (Selectors 4 §15): the first formatted line of a
+    /// block container. Only the properties §2.2.1 lets apply are kept
+    /// ([`TuiStyle::first_line_subset`]).
     FirstLine,
-    /// `::first-letter` (CSS Pseudo-Elements 4 §2.2), also spelled
-    /// `:first-letter` (Selectors 4 §15). Parsed and stored; it styles
-    /// nothing until C10-FIRST.
+    /// `::first-letter` (CSS Pseudo-Elements 4 §2.3), also spelled
+    /// `:first-letter` (Selectors 4 §15): the first typographic letter
+    /// unit of a block container's first formatted line. Only the
+    /// properties §2.3.1 lets apply are kept
+    /// ([`TuiStyle::first_letter_subset`]).
     FirstLetter,
     /// `::marker` (CSS Pseudo-Elements 4 §3.1, CSS Lists 3 §3.2) — a list
     /// item's marker box. Only the properties §3.2 lets apply to it are

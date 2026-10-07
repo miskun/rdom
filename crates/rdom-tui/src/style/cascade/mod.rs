@@ -90,6 +90,7 @@ pub(crate) use scheme::{document_color_scheme, set_document_color_scheme};
 pub(crate) use viewport::{document_viewport, set_document_viewport};
 mod colors;
 mod decoration;
+mod early_pseudos;
 mod element;
 mod font;
 mod root_vars;

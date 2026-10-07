@@ -212,7 +212,7 @@ row comes from.
 | C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | done |
 | C10-COUNTER-STYLE | `@counter-style` and `symbols()` | done |
 | C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | done |
-| C10-FIRST | `::first-line` / `::first-letter` | |
+| C10-FIRST | `::first-line` / `::first-letter` | partial — layout and paint (parts 2, 3) |
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | |
 | C10-DETAILS-CONTENT | `::details-content` | |
@@ -6243,3 +6243,22 @@ row comes from.
   that read `after_layout` read `positioned_pseudos()`. DIVERGENCES: the flat-pass, not-in-overflow,
   not-hit-tested and one-string-width entries are gone; one entry records the moved pseudo-element's paint order.
   No snapshot changed.
+- 2026-10-13 — C10-FIRST, part 1 of 3 (the cascade). Found: `::first-line` / `::first-letter` rules were stored
+  whole and matched nothing (C10-LEGACY-COLON). Decisions: (1) rdom-style cuts them when the rule is built, as
+  `::marker`'s: `first_line_subset` (CSS Pseudo 4 §2.2.1 — the font, color, `opacity`, background and text
+  decoration properties, `text-transform`, `letter-spacing`, `word-spacing`; `line-height`, which §2.2.1 also
+  lists, is left out until a first line can grow — DIVERGENCES §3) — shared with `::placeholder` (§4.3 gives it
+  the same list, so it gains the transform, the spacings and every background longhand) — and
+  `first_letter_subset` (§2.3.1: those plus `line-height`, `vertical-align`, `float`, margins, padding and
+  borders; `restricted_to` gains `flow_relative` so `margin-inline-end` keeps its declaration and maps by
+  direction, the rule getting direction overlays). (2) rdom-tui cascades them onto block containers (block flow,
+  not inline, box-less or flex / grid; `walk::is_block_container`) as `TuiExt::computed_first_line` /
+  `computed_first_letter`, the letter inheriting from the line (§2.3.1's fictional tag sequence), matched only
+  when a sheet has such rules (`Sheets::styles_first`) so other documents pay no matching pass;
+  `PseudoSlot::FirstLetter` / `StyleSlot::FirstLetter` name the letter's box (`computed_pseudo`). Red: rdom-style
+  `first_line_rules_keep_only_the_first_line_properties` / `first_letter_rules_keep_only_the_first_letter_properties`
+  (padding, `display`, sizes kept); `css_phase10/first.rs::first_line_and_first_letter_are_cascaded`
+  (compile-red: no `computed_first_line`). Green after. Mutation (restored, touched): the letter inheriting from
+  the block → the cascade test (green for red). No existing expectation changed. Split (SIZE-1): the subsets left
+  `tui_style/mod.rs` (615) for `tui_style/subsets.rs`; the early pseudo-element styles left `cascade/walk.rs` (629) for
+  `cascade/early_pseudos.rs` (a named struct for the nine-style tuple).

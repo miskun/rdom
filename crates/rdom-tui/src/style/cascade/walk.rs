@@ -22,7 +22,7 @@ use super::element::compute_element_style;
 use super::inherit::layout_differs;
 pub(super) use super::matching::Scratch;
 use super::matching::{MatchedRules, Recorder, Rules, Slot};
-use super::pseudo::{before_targets, compute_pseudo_style};
+use super::pseudo::compute_pseudo_style;
 pub(super) use super::root_vars::merge_root_vars;
 pub(super) use super::sheets::Sheets;
 
@@ -91,7 +91,7 @@ pub(super) struct ElementCx<'w, 'a> {
 
 /// Compute one box of the element in `cx` from `cached` (else by
 /// matching, recorded into `recorder`).
-fn compute_box<T>(
+pub(super) fn compute_box<T>(
     cx: &mut ElementCx<'_, '_>,
     slot: Slot,
     cached: Option<&MatchedRules>,
@@ -193,7 +193,10 @@ pub(super) fn cascade_subtree<'a>(
     finish_element(dom, sheets, id, styled, flags, counters, scratch)
 }
 
-/// [`style_element`]'s outcome.
+/// [`style_element`]'s outcome. It lives on the stack for one call, so
+/// the fresh variant's size (its match recorder's slots) costs nothing a
+/// box would save, and boxing it would allocate per element.
+#[allow(clippy::large_enum_variant)]
 enum Styled {
     /// A restyle left the element's style unchanged: nothing it passes
     /// down changed, so its boxes and its subtree keep theirs.
@@ -318,15 +321,7 @@ fn style_element<'a>(
     // Compute under a shared borrow. `::after` is computed after the
     // children (`finish_element`): it sits after them in tree order, so
     // a `counter()` in it sees their increments.
-    let (
-        computed_marker,
-        computed_before,
-        computed_backdrop,
-        computed_selection,
-        computed_scrollbar,
-        computed_scrollbar_thumb_vertical,
-        computed_scrollbar_thumb_horizontal,
-    ) = {
+    let early = {
         let mut cx = ElementCx {
             dom: &*dom,
             sheets,
@@ -334,50 +329,7 @@ fn style_element<'a>(
             counters: &mut *counters,
             scratch: &mut *scratch,
         };
-        let mut pseudo = |cx: &mut ElementCx<'_, '_>, slot, targets: &[PseudoElementTarget]| {
-            compute_box(cx, slot, cached, &mut recorder, |cx, rules| {
-                compute_pseudo_style(cx, &computed, targets, rules)
-            })
-        };
-        // A list item's `::marker` precedes its `::before` (CSS
-        // Pseudo-Elements 4 §3.1): its counter reads come first.
-        let cm = if computed.list_item {
-            pseudo(&mut cx, Slot::Marker, &[PseudoElementTarget::Marker])
-        } else {
-            None
-        };
-        let cb = pseudo(&mut cx, Slot::Before, before_targets(dom, id));
-        let cbd = pseudo(&mut cx, Slot::Backdrop, &[PseudoElementTarget::Backdrop]);
-        let csel = pseudo(&mut cx, Slot::Selection, &[PseudoElementTarget::Selection]);
-        // Scrollbar pseudos only computed for elements that actually
-        // have non-`Visible` overflow on at least one axis — saves a
-        // selector-matching pass per element on the (very common)
-        // non-scrollable case.
-        let shows_bar = |o: crate::layout::Overflow| {
-            matches!(
-                o,
-                crate::layout::Overflow::Scroll | crate::layout::Overflow::Auto
-            )
-        };
-        let needs_scrollbar = shows_bar(computed.overflow_x) || shows_bar(computed.overflow_y);
-        let (csb, csbt_v, csbt_h) = if needs_scrollbar {
-            (
-                pseudo(&mut cx, Slot::Scrollbar, &[PseudoElementTarget::Scrollbar]),
-                pseudo(
-                    &mut cx,
-                    Slot::ThumbVertical,
-                    &PseudoElementTarget::thumb_targets(true),
-                ),
-                pseudo(
-                    &mut cx,
-                    Slot::ThumbHorizontal,
-                    &PseudoElementTarget::thumb_targets(false),
-                ),
-            )
-        } else {
-            (None, None, None)
-        };
-        (cm, cb, cbd, csel, csb, csbt_v, csbt_h)
+        super::early_pseudos::compute(&mut cx, &computed, cached, &mut recorder)
     };
     let reads_counters = counters.take_read();
     // `::marker` and `::before` come before the children: a changed op
@@ -386,13 +338,13 @@ fn style_element<'a>(
         dom.node(id)
             .ext()
             .and_then(|e| e.computed_marker.as_deref()),
-        computed_marker.as_ref(),
+        early.marker.as_ref(),
     );
     counters.note_ops(
         dom.node(id)
             .ext()
             .and_then(|e| e.computed_before.as_deref()),
-        computed_before.as_ref(),
+        early.before.as_ref(),
     );
 
     // Diff for layout invalidation. "No previous computed" counts as a
@@ -402,16 +354,13 @@ fn style_element<'a>(
         None => true,
     };
 
-    // Write back.
+    // Write back; `::before` waits for the children (`finish_element`).
     let computed = Rc::new(computed);
+    let mut early = early;
+    let before = early.before.take();
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.computed = Some(computed.clone());
-        ext.computed_marker = computed_marker.map(Rc::new);
-        ext.computed_backdrop = computed_backdrop.map(Rc::new);
-        ext.computed_selection = computed_selection.map(Rc::new);
-        ext.computed_scrollbar = computed_scrollbar.map(Rc::new);
-        ext.computed_scrollbar_thumb_vertical = computed_scrollbar_thumb_vertical.map(Rc::new);
-        ext.computed_scrollbar_thumb_horizontal = computed_scrollbar_thumb_horizontal.map(Rc::new);
+        early.write(ext);
         ext.style_dirty = false;
         if layout_changed {
             ext.layout_dirty = true;
@@ -419,7 +368,7 @@ fn style_element<'a>(
     }
     Styled::Fresh(FreshElement {
         computed,
-        computed_before: computed_before.map(Rc::new),
+        computed_before: before.map(Rc::new),
         recorded,
         recorder,
         reads_counters,

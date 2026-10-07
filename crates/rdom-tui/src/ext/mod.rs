@@ -298,6 +298,16 @@ pub struct TuiExt {
     /// item (`display: list-item`) whose marker has content — its
     /// `content` holds the marker text.
     pub computed_marker: Option<std::rc::Rc<ComputedStyle>>,
+    /// `::first-line` computed style (CSS Pseudo-Elements 4 §2.2):
+    /// `Some` for a block container a `::first-line` rule matches,
+    /// inheriting from it, cut to §2.2.1's properties. Layout and paint
+    /// apply it to the block's first formatted line.
+    pub computed_first_line: Option<std::rc::Rc<ComputedStyle>>,
+    /// `::first-letter` computed style (§2.3): `Some` for a block
+    /// container a `::first-letter` rule matches, inheriting from its
+    /// `::first-line` (or the block without one), cut to §2.3.1's
+    /// properties.
+    pub computed_first_letter: Option<std::rc::Rc<ComputedStyle>>,
     /// Previous-cascade snapshots of the two pseudo-element styles, so
     /// the transition engine can diff them like `computed_prev`
     /// (`D-M3-3`).

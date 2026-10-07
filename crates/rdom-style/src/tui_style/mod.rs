@@ -358,98 +358,6 @@ impl TuiStyle {
         Self::default()
     }
 
-    /// This block restricted to the properties that apply to
-    /// `::first-line` — and so to `::placeholder` (CSS Pseudo-Elements 4
-    /// §2.1.1, §4.3) — among those rdom has: `color`, `background-color`,
-    /// the font properties (`font-weight` / `font-style`),
-    /// `text-decoration`, `opacity`, and custom properties. Everything
-    /// else is dropped with its `!important` bit. A declaration kept for
-    /// the cascade (a `var()` value, CSS Variables 1 §3) stays when it
-    /// sets one of them, restricted to them; none is flow-relative, so
-    /// the subset keeps a declaration only while one waits for
-    /// substitution.
-    pub fn first_line_subset(&self) -> Self {
-        let keep = ImportantMask::FG
-            | ImportantMask::BG
-            | ImportantMask::FONT
-            | ImportantMask::TEXT_DECORATION
-            | ImportantMask::OPACITY;
-        Self {
-            fg: self.fg.clone(),
-            bg: self.bg.clone(),
-            font: self.font.clone(),
-            text_decoration: self.text_decoration.clone(),
-            opacity: self.opacity,
-            ..self.restricted_to(keep)
-        }
-    }
-
-    /// This block restricted to the properties that apply to `::marker`
-    /// (CSS Lists 3 §3.2, CSS Pseudo-Elements 4 §3.1.1) among those rdom
-    /// has: `color`, the font properties, `white-space` (its two
-    /// longhands), `content`, `direction`, the transition properties,
-    /// and custom properties. Everything else — sizes, margins, padding,
-    /// `display`, `position`, `text-transform` — is dropped with its
-    /// `!important` bit; a kept `var()` declaration is restricted the
-    /// same way.
-    pub fn marker_subset(&self) -> Self {
-        let keep = ImportantMask::FG
-            | ImportantMask::FONT
-            | ImportantMask::WHITE_SPACE
-            | ImportantMask::CONTENT
-            | ImportantMask::TEXT_DIRECTION
-            | ImportantMask::TRANSITION_PROPERTY
-            | ImportantMask::TRANSITION_DURATION
-            | ImportantMask::TRANSITION_TIMING_FUNCTION
-            | ImportantMask::TRANSITION_DELAY;
-        let mut text = TextDeclarations::default();
-        text.white_space_collapse = self.text.white_space_collapse;
-        text.text_wrap_mode = self.text.text_wrap_mode;
-        Self {
-            fg: self.fg.clone(),
-            font: self.font.clone(),
-            text,
-            content: self.content.clone(),
-            text_direction: self.text_direction,
-            transition_property: self.transition_property.clone(),
-            transition_duration: self.transition_duration.clone(),
-            transition_timing_function: self.transition_timing_function.clone(),
-            transition_delay: self.transition_delay.clone(),
-            ..self.restricted_to(keep)
-        }
-    }
-
-    /// An empty block with this one's custom properties, the `keep` bits
-    /// of its `!important` mask, and its kept declarations (CSS Variables
-    /// 1 §3) that set a `keep` property — restricted to `keep` — while
-    /// one waits for substitution; the subsets copy their fields over it.
-    fn restricted_to(&self, keep: ImportantMask) -> Self {
-        let mut pending: Vec<crate::var::PendingDeclaration> = self
-            .pending
-            .iter()
-            .filter(|d| {
-                crate::property_dispatch::property_mask(&d.name).is_some_and(|m| m.intersects(keep))
-            })
-            .cloned()
-            .map(|mut d| {
-                let own = crate::property_dispatch::property_mask(&d.name).unwrap_or_default();
-                if !keep.contains(own) {
-                    d.restriction = crate::var::Restriction::Within(keep);
-                }
-                d
-            })
-            .collect();
-        if !pending.iter().any(|d| d.has_substitution) {
-            pending.clear();
-        }
-        Self {
-            pending,
-            custom_properties: self.custom_properties.clone(),
-            important: self.important & keep,
-            ..Self::default()
-        }
-    }
-
     // Paint color setters — accept both `Color::Rgb(255, 0, 0)` and
     // `TuiColor::var("accent")` via `impl Into<TuiColor>`.
 
@@ -518,6 +426,7 @@ impl TuiStyle {
 
 mod builder;
 mod important;
+mod subsets;
 #[cfg(test)]
 mod tests;
 mod text;

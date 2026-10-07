@@ -54,6 +54,9 @@ pub enum StyleSlot {
     /// A list item's `::marker` (CSS Lists 3 §3.2). It has no animation
     /// overrides: its transitions do not run (DIVERGENCES §3).
     Marker,
+    /// A block container's `::first-letter` (CSS Pseudo-Elements 4
+    /// §2.3). It has no animation overrides, as `::marker`.
+    FirstLetter,
 }
 
 impl StyleSlot {
@@ -64,6 +67,7 @@ impl StyleSlot {
             StyleSlot::Before => Some("::before"),
             StyleSlot::After => Some("::after"),
             StyleSlot::Marker => Some("::marker"),
+            StyleSlot::FirstLetter => Some("::first-letter"),
         }
     }
 }
@@ -78,6 +82,9 @@ pub enum PseudoSlot {
     After,
     /// A list item's `::marker` (CSS Lists 3 §3.2).
     Marker,
+    /// A block container's `::first-letter` laid out as a box of its own
+    /// — a float (CSS Pseudo-Elements 4 §2.3).
+    FirstLetter,
 }
 
 impl From<PseudoSlot> for StyleSlot {
@@ -86,6 +93,7 @@ impl From<PseudoSlot> for StyleSlot {
             PseudoSlot::Before => StyleSlot::Before,
             PseudoSlot::After => StyleSlot::After,
             PseudoSlot::Marker => StyleSlot::Marker,
+            PseudoSlot::FirstLetter => StyleSlot::FirstLetter,
         }
     }
 }
@@ -98,7 +106,7 @@ impl TuiExt {
             StyleSlot::Host => self.presentation.as_deref(),
             StyleSlot::Before => self.presentation_before.as_deref(),
             StyleSlot::After => self.presentation_after.as_deref(),
-            StyleSlot::Marker => None,
+            StyleSlot::Marker | StyleSlot::FirstLetter => None,
         }
     }
 
@@ -132,6 +140,7 @@ impl TuiExt {
             StyleSlot::Before => self.computed_before.as_ref(),
             StyleSlot::After => self.computed_after.as_ref(),
             StyleSlot::Marker => self.computed_marker.as_ref(),
+            StyleSlot::FirstLetter => self.computed_first_letter.as_ref(),
         }
     }
 
@@ -142,6 +151,7 @@ impl TuiExt {
             PseudoSlot::Before => self.computed_before.as_ref(),
             PseudoSlot::After => self.computed_after.as_ref(),
             PseudoSlot::Marker => self.computed_marker.as_ref(),
+            PseudoSlot::FirstLetter => self.computed_first_letter.as_ref(),
         }
     }
 
@@ -153,7 +163,7 @@ impl TuiExt {
             StyleSlot::Host => Some(&mut self.presentation),
             StyleSlot::Before => Some(&mut self.presentation_before),
             StyleSlot::After => Some(&mut self.presentation_after),
-            StyleSlot::Marker => None,
+            StyleSlot::Marker | StyleSlot::FirstLetter => None,
         }
     }
 }

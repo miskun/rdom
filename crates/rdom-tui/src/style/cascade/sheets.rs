@@ -30,6 +30,9 @@ pub(super) struct Sheets<'a> {
     /// The counter styles the sheets define over the predefined ones,
     /// built on first use.
     counter_styles: std::cell::OnceCell<CounterStyleRegistry>,
+    /// Whether any rule styles `::first-line` / `::first-letter`, found
+    /// on first use: an element's are matched only then.
+    first_rules: std::cell::OnceCell<(bool, bool)>,
 }
 
 impl<'a> Sheets<'a> {
@@ -49,7 +52,24 @@ impl<'a> Sheets<'a> {
             viewport,
             color_scheme,
             counter_styles: std::cell::OnceCell::new(),
+            first_rules: std::cell::OnceCell::new(),
         }
+    }
+
+    /// Whether any of the sheets has a `::first-line` rule, and a
+    /// `::first-letter` one (CSS Pseudo-Elements 4 §2.2, §2.3).
+    pub(super) fn styles_first(&self) -> (bool, bool) {
+        *self.first_rules.get_or_init(|| {
+            let has = |target| {
+                self.list
+                    .iter()
+                    .any(|s| s.rules().iter().any(|r| r.pseudo == target))
+            };
+            (
+                has(crate::style::PseudoElementTarget::FirstLine),
+                has(crate::style::PseudoElementTarget::FirstLetter),
+            )
+        })
     }
 
     /// The counter styles names resolve to (CSS Counter Styles 3 §3):

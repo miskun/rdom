@@ -697,6 +697,83 @@ fn version_is_renewed_by_mutation_and_clone() {
     assert_ne!(sheet.version(), before);
 }
 
+// ── ::first-line / ::first-letter (C10-FIRST) ──────────────────────
+
+/// CSS Pseudo-Elements 4 §2.2.1: the font, color, `opacity`,
+/// background and text decoration properties and the typesetting ones
+/// that apply to inline boxes — `text-transform`, `letter-spacing`,
+/// `word-spacing` — apply to `::first-line`; a rule keeps those and
+/// drops the rest (box properties, `float`, `display`), `!important`
+/// bits included.
+#[test]
+fn first_line_rules_keep_only_the_first_line_properties() {
+    let sheet = rdom_css_like(
+        "p::first-line",
+        &[
+            ("color", "red"),
+            ("background-color", "blue"),
+            ("font-weight", "bold"),
+            ("text-decoration", "underline"),
+            ("opacity", ".5"),
+            ("text-transform", "uppercase"),
+            ("letter-spacing", "1"),
+            ("word-spacing", "1"),
+            ("padding", "3"),
+            ("float", "left"),
+            ("display", "block"),
+        ],
+    );
+    let rule = &sheet.rules()[0];
+    assert_eq!(rule.pseudo, PseudoElementTarget::FirstLine);
+    let s = &rule.style;
+    assert!(s.fg.is_some() && s.bg.is_some() && s.font.weight.is_some());
+    assert!(s.text_decoration.line.is_some() && s.opacity.is_some());
+    assert!(s.text.text_transform.is_some());
+    assert!(s.text.letter_spacing.is_some() && s.text.word_spacing.is_some());
+    assert!(
+        s.padding.top.is_none(),
+        "padding does not apply to ::first-line"
+    );
+    assert!(s.float.is_none() && s.display.is_none());
+}
+
+/// §2.3.1: `::first-letter` takes the `::first-line` properties plus
+/// those of an inline box's own — `line-height`, `vertical-align`, the
+/// margins, padding and borders — and `float`; flow-relative ones map
+/// by direction like any other rule's. `display`, sizes and `position`
+/// do not apply.
+#[test]
+fn first_letter_rules_keep_only_the_first_letter_properties() {
+    let sheet = rdom_css_like(
+        "p::first-letter",
+        &[
+            ("color", "red"),
+            ("text-transform", "uppercase"),
+            ("line-height", "3"),
+            ("float", "left"),
+            ("padding", "1"),
+            ("margin-inline-end", "2"),
+            ("border", "solid"),
+            ("vertical-align", "top"),
+            ("display", "block"),
+            ("width", "4"),
+            ("position", "absolute"),
+        ],
+    );
+    let rule = &sheet.rules()[0];
+    assert_eq!(rule.pseudo, PseudoElementTarget::FirstLetter);
+    let s = &rule.style;
+    assert!(s.fg.is_some() && s.text.text_transform.is_some());
+    assert!(s.text.line_height.is_some() && s.float.is_some());
+    assert!(s.padding.top.is_some() && s.border_style.top.is_some());
+    assert!(s.vertical_align.is_some());
+    assert!(
+        rule.directional.is_some(),
+        "margin-inline-end maps by direction"
+    );
+    assert!(s.display.is_none() && s.width.is_none() && s.position.is_none());
+}
+
 // ── ::marker (C10-LIST-ITEM) ────────────────────────────────────────
 
 /// CSS Pseudo-Elements 4 §3.1: `li::marker` targets the marker; CSS

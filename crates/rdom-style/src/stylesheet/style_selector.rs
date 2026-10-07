@@ -159,13 +159,23 @@ impl Stylesheet {
                 let pseudo_count = u16::from(item.pseudo != PseudoElementTarget::None);
                 let source_idx = self.next_source_idx;
                 self.next_source_idx += 1;
-                // CSS Pseudo-Elements 4 §4.3: only the `::first-line`
-                // properties apply to `::placeholder`. None of them is
-                // flow-relative, and the subset keeps declarations only
-                // while one waits for substitution, so it has no
-                // direction-mapped forms to precompute.
+                // CSS Pseudo-Elements 4 §2.2.1, §4.3: only the
+                // `::first-line` properties apply to `::first-line` and
+                // `::placeholder`. None of them is flow-relative, and the
+                // subset keeps declarations only while one waits for
+                // substitution, so it has no direction-mapped forms to
+                // precompute.
                 let (style, directional) = match item.pseudo {
-                    PseudoElementTarget::Placeholder => (style.first_line_subset(), None),
+                    PseudoElementTarget::Placeholder | PseudoElementTarget::FirstLine => {
+                        (style.first_line_subset(), None)
+                    }
+                    // §2.3.1: `::first-letter` takes box properties too,
+                    // flow-relative ones among them, mapped by direction.
+                    PseudoElementTarget::FirstLetter => {
+                        let subset = style.first_letter_subset();
+                        let directional = subset.directional_overlays().map(std::sync::Arc::new);
+                        (subset, directional)
+                    }
                     // CSS Lists 3 §3.2: only some properties apply to
                     // `::marker`; none of them is flow-relative.
                     PseudoElementTarget::Marker => (style.marker_subset(), None),
