@@ -46,6 +46,7 @@ mod calc_size;
 mod color;
 mod content;
 mod display;
+mod easing;
 mod flex;
 mod float;
 mod font;
@@ -98,6 +99,9 @@ pub(crate) use color::{ColorExpr, compute_function as compute_color_function};
 pub use color::{MAX_COLOR_NESTING, parse_color, parse_color_at, parse_rgb_args, parse_rgba_args};
 pub use content::{parse_content, parse_counter_ops, parse_quotes};
 pub use display::{is_legacy_box, parse_display, serialize_display};
+pub use easing::{
+    parse_timing_function_at, parse_timing_function_keyword, parse_timing_function_list,
+};
 pub use flex::{
     parse_flex_direction, parse_flex_flow, parse_flex_wrap, serialize_flex_direction,
     serialize_flex_flow, serialize_flex_wrap,
@@ -170,9 +174,9 @@ pub use text_decoration::{
 };
 pub use transition::{
     TransitionShorthandRule, parse_duration_list, parse_signed_time_ms, parse_time_list,
-    parse_time_ms, parse_timing_function_at, parse_timing_function_keyword,
-    parse_timing_function_list, parse_transition_property_keyword, parse_transition_property_list,
-    parse_transition_shorthand, parse_transition_shorthand_single, unzip_transition_rules,
+    parse_time_ms, parse_transition_behavior_list, parse_transition_property_keyword,
+    parse_transition_property_list, parse_transition_shorthand, parse_transition_shorthand_single,
+    unzip_transition_rules,
 };
 
 use crate::parse::token::Token;

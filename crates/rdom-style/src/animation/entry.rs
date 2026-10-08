@@ -5,7 +5,7 @@
 //! `border`, the font modifiers, the applied text decorations) in step.
 
 use super::AnimationType;
-use super::value::{Cx, lerp_visibility};
+use super::value::{Cx, discrete, lerp_visibility};
 use crate::ComputedStyle;
 
 /// The canvas color a `reset` endpoint stands for (CSS Color Adjust 1
@@ -125,6 +125,60 @@ pub(super) fn fix_decorations(out: &mut ComputedStyle) {
         }
     }
 }
+
+/// `display` (CSS Display 4 §2.9, Web Animations 2's display rule):
+/// discrete, but a transition to or from `none` shows the other value for
+/// every progress strictly between 0 and 1 — `none` only at its end. The
+/// value's companions (inner type, list item, the `-webkit-box` and BFC
+/// bits) come from the side shown.
+pub(super) const DISPLAY: Option<Ops> = Some(Ops {
+    differs: |a, b| {
+        a.display != b.display
+            || a.flow != b.flow
+            || a.list_item != b.list_item
+            || a.webkit_box != b.webkit_box
+    },
+    interpolable: |_, _| false,
+    blend: |a, b, p, _, out| {
+        use crate::layout::Display;
+        let side = if p <= 0.0 {
+            a
+        } else if p >= 1.0 || a.display == Display::None {
+            b
+        } else if b.display == Display::None {
+            a
+        } else {
+            discrete(&a, &b, p)
+        };
+        out.display = side.display;
+        out.flow = side.flow;
+        out.list_item = side.list_item;
+        out.webkit_box = side.webkit_box;
+        out.establishes_new_bfc = side.establishes_new_bfc;
+        out.line_clamp_container = side.line_clamp_container;
+    },
+});
+
+/// `overlay` (CSS Position 4 §3.4): discrete, but — as `display` with
+/// `none` — `auto` for every progress strictly between 0 and 1 when an
+/// end is `auto`, so a transition keeps the element in the top layer to
+/// its end.
+pub(super) const OVERLAY: Option<Ops> = Some(Ops {
+    differs: |a, b| a.overlay != b.overlay,
+    interpolable: |_, _| false,
+    blend: |a, b, p, _, out| {
+        use crate::layout::Overlay;
+        out.overlay = if p <= 0.0 {
+            a.overlay
+        } else if p >= 1.0 {
+            b.overlay
+        } else if a.overlay == Overlay::Auto || b.overlay == Overlay::Auto {
+            Overlay::Auto
+        } else {
+            discrete(&a.overlay, &b.overlay, p)
+        };
+    },
+});
 
 /// `visibility` (CSS Display 3 §4, Web Animations 1 §5.3.2): discrete,
 /// but `visible` for the whole interval when an end is.

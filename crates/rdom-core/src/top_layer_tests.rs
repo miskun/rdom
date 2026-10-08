@@ -125,3 +125,38 @@ fn popover_open_matches_showing_popovers() {
     dom.remove_from_top_layer(pop);
     assert!(!dom.matches(pop, ":popover-open").unwrap());
 }
+
+/// CSS Position 4 §3.3 "request an element to be removed from the top
+/// layer": the element stays in the top layer — where it renders, in its
+/// place — pending removal, until its `overlay` stops being `auto` (a
+/// backend decides when and calls `remove_from_top_layer`). It no longer
+/// counts as a modal dialog or a showing popover (`top_layer_kind` is
+/// `None`): `:modal` and `:popover-open` stop matching, and the document
+/// is no longer blocked by it. Re-adding it clears the request.
+#[test]
+fn a_requested_removal_stays_pending_in_the_top_layer() {
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let modal = el(&mut dom, root, "dialog");
+    let pop = el(&mut dom, root, "div");
+    dom.add_to_top_layer(modal, TopLayerKind::ModalDialog)
+        .unwrap();
+    dom.add_to_top_layer(pop, TopLayerKind::Popover).unwrap();
+    assert!(dom.request_remove_from_top_layer(modal));
+    assert_eq!(dom.top_layer(), [modal, pop], "it keeps its place");
+    assert!(dom.is_in_top_layer(modal));
+    assert!(dom.is_pending_top_layer_removal(modal));
+    assert_eq!(dom.top_layer_kind(modal), None);
+    assert!(!dom.matches(modal, ":modal").unwrap());
+    assert_eq!(dom.pending_top_layer_removals(), vec![modal]);
+    assert!(!dom.request_remove_from_top_layer(modal), "already pending");
+    assert!(dom.remove_from_top_layer(modal));
+    assert_eq!(dom.top_layer(), [pop]);
+    assert!(dom.pending_top_layer_removals().is_empty());
+
+    assert!(dom.request_remove_from_top_layer(pop));
+    dom.add_to_top_layer(pop, TopLayerKind::Popover).unwrap();
+    assert!(!dom.is_pending_top_layer_removal(pop), "re-added");
+    assert!(dom.matches(pop, ":popover-open").unwrap());
+    assert!(!dom.request_remove_from_top_layer(root), "not in it");
+}

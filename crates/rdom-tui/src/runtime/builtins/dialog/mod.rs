@@ -212,7 +212,9 @@ pub fn top_modal(dom: &TuiDom) -> Option<NodeId> {
 /// close steps' "remove an element from the top layer".
 fn remove_modal(dom: &mut TuiDom, dialog: NodeId) {
     if dom.top_layer_kind(dialog) == Some(rdom_core::TopLayerKind::ModalDialog) {
-        dom.remove_from_top_layer(dialog);
+        // "Request an element to be removed from the top layer" (CSS
+        // Position 4 §3.3): it waits there while `overlay` transitions.
+        crate::runtime::top_layer::request_removal(dom, dialog);
     }
 }
 

@@ -510,6 +510,14 @@ impl TuiStyle {
         crate::layout::ZIndex
     );
     setter!(
+        "overlay",
+        overlay,
+        overlay,
+        overlay_important,
+        OVERLAY,
+        crate::layout::Overlay
+    );
+    setter!(
         "float",
         float,
         float,
@@ -541,6 +549,11 @@ impl TuiStyle {
         self.transition_timing_function = Some(Value::Specified(v));
         self
     }
+    pub fn transition_behavior(mut self, v: Vec<crate::transition::TransitionBehavior>) -> Self {
+        self.transition_behavior = Some(Value::Specified(v));
+        self
+    }
+
     pub fn transition_delay(mut self, v: Vec<i32>) -> Self {
         self.transition_delay = Some(Value::Specified(v));
         self

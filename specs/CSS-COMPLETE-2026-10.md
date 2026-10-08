@@ -239,7 +239,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C12-TIMING | `transition-timing-function` full (`linear()`, `steps()` positions), negative `transition-delay` || done |
-| C12-BEHAVIOR | `transition-behavior: allow-discrete` | |
+| C12-BEHAVIOR | `transition-behavior: allow-discrete` || done (`content-visibility` with C14-CONTAIN) |
 | C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) || done |
 | C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | |
 | C12-STARTING | `@starting-style` | |
@@ -7647,3 +7647,25 @@ row comes from.
   changing at once, `transitionrun` before the delay, the jump-start hold), the dispatch of
   `transitionrun`. Mutation-checked: starting the clock at registration fails the negative-delay test;
   `ease` for `ease_before` fails the jump-start one. Item done.
+- 2026-10-15 — C12-BEHAVIOR. CSS Transitions 2 §3.1 `transition-behavior: normal | allow-discrete` — a list
+  longhand like the other `transition-*` (cycled to `transition-property`'s length) and a keyword of each
+  `transition` piece (`TransitionBehavior`; the `transitions_important` group and the `::marker` subset
+  carry it). The engine starts a transition for a pair that does not interpolate only under
+  `allow-discrete`; it then steps by the longhand's rule — Web Animations 1 §5.3.1's 50 % for a plain
+  discrete one, `visibility`'s own, and for `display` the non-`none` value for every progress strictly
+  inside (0, 1) (CSS Display 4's / Web Animations 2's display rule), so `display: block → none` keeps the
+  box laid out and painted until the end and `none → block` shows at once. Overlay: CSS Position 4 §3.4
+  `overlay: none | auto` (`Overlay`, not inherited, `auto !important` on `:modal` / `:popover-open` in the
+  UA sheet, the same interpolation rule as `display`). The top layer could not defer removal; it can now:
+  rdom-core's `request_remove_from_top_layer` (§3.3 "request an element to be removed from the top layer")
+  keeps the element in the top layer in its place, drawn there, but with `top_layer_kind` `None` — no
+  longer `:modal` / `:popover-open`, no longer blocking the document — and `runtime::top_layer` removes it
+  at a style update once its computed `overlay` (the running value) is not `auto`: after each frame's
+  transition step in an `App`, after `CascadeExt::cascade*` outside one. Dialog close and popover hide
+  request the removal only when the element's `transition-property` takes `overlay` with `allow-discrete`
+  (nothing else could keep it), so every other close still leaves at once, as before. Red: rdom-core
+  `a_requested_removal_stays_pending_in_the_top_layer` (no API), rdom-tui `behavior_tests` (3 of 4: the
+  `transition` shorthand rejected `allow-discrete`), `a_display_none_transition_keeps_the_box_until_it_ends`,
+  `an_overlay_transition_keeps_a_hidden_popover_in_the_top_layer` (left at once). Mutation-checked: a plain
+  50 % step for `display` fails the display test; ignoring `overlay` in `finish_removals` fails the popover
+  one. `content-visibility` does not exist yet (C14-CONTAIN); its discrete transition comes with it. The easing parsers moved out of `parse/values/transition.rs` (503 production lines) into `easing.rs`. Done.

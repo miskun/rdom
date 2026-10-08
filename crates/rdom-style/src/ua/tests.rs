@@ -59,7 +59,9 @@ fn ua_total_rule_count() {
     // 180: HTML's `dialog:modal` placement (C11-MODAL-POPOVER, +1).
     // 183: HTML's popover rules — `[popover]` hidden until shown,
     // `dialog:popover-open` a block, `[popover]` placement (+3).
-    assert_eq!(ua.len(), 183);
+    // 185: `:modal` / `:popover-open { overlay: auto !important }` (CSS
+    // Position 4 §3.4, C12-BEHAVIOR, +2).
+    assert_eq!(ua.len(), 185);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")

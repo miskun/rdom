@@ -388,6 +388,16 @@ pub(super) fn serialize_timing_function(f: &TimingFunction) -> String {
     }
 }
 
+/// `transition-behavior`'s keyword.
+pub(super) fn serialize_transition_behavior(
+    b: crate::transition::TransitionBehavior,
+) -> &'static str {
+    match b {
+        crate::transition::TransitionBehavior::Normal => "normal",
+        crate::transition::TransitionBehavior::AllowDiscrete => "allow-discrete",
+    }
+}
+
 /// Serialize the `transition` shorthand from the four longhand
 /// vectors: one comma-separated piece per `transition-property` entry,
 /// the other lists repeated to its length (CSS Transitions 1 §2: "the
@@ -407,14 +417,27 @@ pub(super) fn serialize_transition_shorthand(style: &TuiStyle) -> Option<String>
     let pad_dur = |i: usize| durs[i % durs.len()];
     let pad_timing = |i: usize| &timings[i % timings.len()];
     let pad_delay = |i: usize| delays[i % delays.len()];
+    // `transition-behavior`: `normal` (left out) when not given.
+    let behaviors = style
+        .transition_behavior
+        .as_ref()
+        .and_then(specified)
+        .filter(|b| !b.is_empty());
+    let behavior = |i: usize| match behaviors {
+        Some(b) if b[i % b.len()] == crate::transition::TransitionBehavior::AllowDiscrete => {
+            " allow-discrete"
+        }
+        _ => "",
+    };
     let mut parts = Vec::with_capacity(n);
     for (i, p) in props.iter().enumerate() {
         parts.push(format!(
-            "{} {}ms {} {}ms",
+            "{} {}ms {} {}ms{}",
             serialize_transition_property(p),
             pad_dur(i),
             serialize_timing_function(pad_timing(i)),
             pad_delay(i),
+            behavior(i),
         ));
     }
     Some(parts.join(", "))

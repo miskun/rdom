@@ -348,7 +348,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Transitions and animations
 
-- `transition-behavior: allow-discrete` (a discrete property — `display`, `content`, … — never transitions; naming it in `transition-property` starts nothing) — C12-BEHAVIOR
 - `@keyframes`, `animation` and the `animation-*` longhands, animation events — C12-KEYFRAMES
 - `@starting-style` — C12-STARTING
 - Scroll-driven animations (`scroll-timeline*`, `view-timeline*`, `animation-timeline`, `animation-range*`) — C12-SCROLL-DRIVEN
@@ -370,7 +369,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 - `@media`, `matchMedia` — C14-MEDIA
 - `@supports`, `CSS.supports` — C14-SUPPORTS
 - `@container`, `container-type` / `-name` / `container` — C14-CONTAINER
-- `contain`, `content-visibility`, `will-change` — C14-CONTAIN
+- `contain`, `content-visibility`, `will-change` — C14-CONTAIN (`content-visibility`'s discrete transition under `allow-discrete`, CSS Transitions 2 §3.1, comes with the property: its animation type goes in the `rdom_style::animation` table then)
 
 ### Transforms, filters and compositing
 

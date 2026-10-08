@@ -380,6 +380,7 @@ fn every_property_has_important_setter() {
         .bottom_important(crate::layout::Length::Cells(1))
         .left_important(crate::layout::Length::Cells(1))
         .z_index_important(crate::layout::ZIndex::Value(1))
+        .overlay_important(crate::layout::Overlay::Auto)
         .float_important(crate::layout::Float::Left)
         .clear_important(crate::layout::Clear::Both)
         .flow_important(crate::layout::Flow::Block)

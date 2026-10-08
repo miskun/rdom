@@ -356,6 +356,18 @@ impl AnimationRegistry {
     }
 }
 
+/// Whether `style`'s transitions take the longhand `name` when its values
+/// do not interpolate: a rule covers it with a positive combined duration
+/// and `transition-behavior: allow-discrete` (CSS Transitions 2 §3.1).
+pub(crate) fn transitions_discretely(style: &ComputedStyle, name: &str) -> bool {
+    let Some(l) = Longhand::from_name(name) else {
+        return false;
+    };
+    rule::Coverage::of(style).rule(style, l).is_some_and(|r| {
+        r.runs() && r.behavior == crate::style::transition::TransitionBehavior::AllowDiscrete
+    })
+}
+
 // ── Effective-value helpers ───────────────────────────────────────
 
 /// The element's `color`: its computed value, which holds a running
@@ -404,5 +416,7 @@ mod visibility_tests;
 
 pub use custom::PendingCustomEvent;
 pub use diff::{diff_and_register, settle_restyled};
+#[cfg(test)]
+mod behavior_tests;
 #[cfg(test)]
 mod custom_tests;

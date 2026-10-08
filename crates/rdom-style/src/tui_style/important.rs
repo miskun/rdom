@@ -193,12 +193,13 @@ impl std::ops::BitAndAssign for ImportantMask {
 }
 
 impl ImportantMask {
-    /// The four `transition-*` longhands' bits — what the `transition`
+    /// The five `transition-*` longhands' bits — what the `transition`
     /// shorthand (and `TuiStyle::transitions_important`) marks.
     pub const TRANSITIONS: Self = Self::TRANSITION_PROPERTY
         .union(Self::TRANSITION_DURATION)
         .union(Self::TRANSITION_TIMING_FUNCTION)
-        .union(Self::TRANSITION_DELAY);
+        .union(Self::TRANSITION_DELAY)
+        .union(Self::TRANSITION_BEHAVIOR);
 }
 
 #[cfg(test)]

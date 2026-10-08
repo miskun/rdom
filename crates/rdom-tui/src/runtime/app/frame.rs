@@ -332,6 +332,10 @@ fn style_and_layout(
     let laid_out = cascade.is_some() || redraw >= Redraw::Layout;
     if laid_out {
         animations.advance(dom, now);
+        // The elements waiting to leave the top layer leave once their
+        // `overlay` is not `auto` (CSS Position 4 §3.3); the removal
+        // re-cascades them next frame (its mutation dirties them).
+        crate::runtime::top_layer::finish_removals(dom);
         // A registered custom property's animated value reaches its
         // `var()` consumers through the cascade, and an inherited
         // longhand's running value the element's descendants.

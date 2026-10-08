@@ -46,6 +46,7 @@ pub mod selection;
 pub mod smooth_scroll;
 pub(crate) mod state_writes;
 pub mod timers;
+pub(crate) mod top_layer;
 pub mod trace;
 pub mod url_opener;
 // Placeholders — later Phase 14.6 sub-phases fill these in.

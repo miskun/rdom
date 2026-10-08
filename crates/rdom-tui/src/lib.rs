@@ -86,7 +86,7 @@ pub use layout::{
     IntrinsicSize, LayoutRect, Length, LineBreak, LineHeight, LineNameItem, LineNameList,
     ListStyleImage, ListStylePosition, ListStyleType, Margin, MarginTrim, MarginValue, MarkerSide,
     MaxSize, MinSize, NamedArea, Overflow, OverflowAlign, OverflowClipMargin, OverflowWrap,
-    OverscrollBehavior, Padding, PaddingValue, PaintLength, RepeatCount, RepeatStyle,
+    Overlay, OverscrollBehavior, Padding, PaddingValue, PaintLength, RepeatCount, RepeatStyle,
     ScrollPadding, ScrollSnapAlign, ScrollSnapAxis, ScrollSnapStop, ScrollSnapStrictness,
     ScrollSnapType, ScrollbarColor, ScrollbarGutter, ScrollbarWidth, Sides, Size, SnapAlign,
     Spacing, SystemFont, TabSize, TextAlign, TextAlignKeyword, TextAlignLast, TextCase,

@@ -316,3 +316,76 @@ fn calc_size_sizes_from_its_basis() {
     let (app, div, _) = app("#a { height: calc-size(auto, size + 2) }");
     assert_eq!(rect(&app, div).height, 3, "one row of content + 2");
 }
+
+/// C12-BEHAVIOR (CSS Transitions 2 §3.1): under `allow-discrete` a box
+/// going `display: none` keeps its box — laid out and painted — until the
+/// transition ends, and then has none.
+#[test]
+fn a_display_none_transition_keeps_the_box_until_it_ends() {
+    let (mut app, div, _) = app(
+        "#a { height: 2; transition: display 100ms allow-discrete } \
+         #a.gone { display: none }",
+    );
+    app.dom_mut().set_attribute(div, "class", "gone").unwrap();
+    app.advance(0).unwrap();
+    app.advance(50).unwrap();
+    assert_eq!(rect(&app, div).height, 2, "still laid out half-way");
+    app.advance(60).unwrap();
+    let shown = app
+        .dom()
+        .node(div)
+        .ext()
+        .unwrap()
+        .computed
+        .as_ref()
+        .unwrap()
+        .display;
+    assert_eq!(shown, crate::layout::Display::None, "gone at the end");
+}
+
+/// C12-BEHAVIOR, CSS Position 4 §3.3–§3.4: a hidden popover whose
+/// `overlay` transitions (`allow-discrete`) waits in the top layer —
+/// painted there, no longer `:popover-open` — until the transition ends;
+/// one that does not leaves at once.
+#[test]
+fn an_overlay_transition_keeps_a_hidden_popover_in_the_top_layer() {
+    use crate::runtime::builtins::popover;
+    for (transition, waits) in [
+        (
+            "transition: overlay 100ms allow-discrete, display 100ms allow-discrete",
+            true,
+        ),
+        ("", false),
+    ] {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let pop = dom.create_element("div");
+        dom.set_attribute(pop, "popover", "").unwrap();
+        let t = dom.create_text_node("pop");
+        dom.append_child(pop, t).unwrap();
+        dom.append_child(root, pop).unwrap();
+        let sheet = rdom_css::parse(&format!("[popover] {{ {transition} }}"));
+        assert!(sheet.warnings.is_empty(), "{:?}", sheet.warnings);
+        let terminal = Terminal::new(TestBackend::new(20, 6)).unwrap();
+        let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
+        app.push_stylesheet(sheet.stylesheet);
+        app.advance(0).unwrap();
+        popover::show_popover(app.dom_mut(), pop).unwrap();
+        // The frame that cascades it starts its entry transitions; let
+        // them end.
+        app.advance(0).unwrap();
+        app.advance(200).unwrap();
+        popover::hide_popover(app.dom_mut(), pop).unwrap();
+        app.advance(0).unwrap();
+        app.advance(50).unwrap();
+        assert_eq!(
+            app.dom().is_in_top_layer(pop),
+            waits,
+            "{transition:?} half-way"
+        );
+        assert!(!app.dom().matches(pop, ":popover-open").unwrap());
+        app.advance(60).unwrap();
+        app.advance(0).unwrap();
+        assert!(!app.dom().is_in_top_layer(pop), "{transition:?} at the end");
+    }
+}

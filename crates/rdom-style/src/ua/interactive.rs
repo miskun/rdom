@@ -223,6 +223,16 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 super::css(style, name, value)
             }),
         ),
+        // CSS Position 4 §3.4: a top-layer element renders there —
+        // `overlay: auto !important`, which authors can only transition.
+        (
+            ":modal",
+            TuiStyle::new().overlay_important(crate::layout::Overlay::Auto),
+        ),
+        (
+            ":popover-open",
+            TuiStyle::new().overlay_important(crate::layout::Overlay::Auto),
+        ),
         ("form", TuiStyle::new().display(Display::Block)),
         (
             "fieldset",

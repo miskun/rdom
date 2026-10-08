@@ -236,6 +236,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-core`
 
+- **Pending top-layer removal** (CSS Position 4 §3.3): `Dom::request_remove_from_top_layer` keeps an element in the top layer, in its place, but no longer modal or a showing popover (`top_layer_kind` is `None`), until the backend removes it; `is_pending_top_layer_removal`, `pending_top_layer_removals`. (C12-BEHAVIOR)
 - `Dom::is_default_with(id, &mut SelectorCaches)`: `:default` (HTML §4.16.3) with a pass's caches — each form's default button found once — for a backend that asks it of every control without a parsed selector. (C11G-MINOR)
 - `CacheWork::chain_steps`: the candidates a combinator step of a complex selector tried — the matcher's backtracking work, by count. (C11G-HAS-COST)
 - **`:has()`** (Selectors 4 §4.5): `SimpleSelector::Has(Vec<RelativeSelector>)` — relative selectors with a leading `>`, `+`, `~` or none, unforgiving, invalid inside another `:has()`, with the specificity of the most specific argument; matched against the anchor's descendants or later siblings, the rest of each selector read from there. `SelectorCaches` keeps the answers per pass (`:has(.x)` over nested anchors is linear), counts the elements searched (`CacheWork::has_nodes`) and lists the anchors it evaluated (`SelectorCaches::has_anchors()`) for a backend's invalidation. (C11-HAS)
@@ -358,6 +359,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`transition-behavior` and `overlay`** (CSS Transitions 2 §3.1, Position 4 §3.4): `normal | allow-discrete` (`TransitionBehavior`, longhand and in `transition`), and `overlay: none | auto` (`Overlay`), `auto !important` on `:modal` / `:popover-open` in the UA sheet; `display` and `overlay` keep their non-`none` value through a transition. (C12-BEHAVIOR)
 - **`linear()` easing and negative delays** (CSS Easing 2 §2.1, Transitions 1 §2.4): `linear(<stops>)` canonicalized into `LinearStop`s, `TimingFunction::ease_before` (the steps' before flag), a negative `transition-delay`; `none` is valid only alone, and the `transition` shorthand serializes its lists repeated cyclically. (C12-TIMING)
 - **`interpolate-size` and `calc-size()`** (CSS Values 5 §10–§11): `width` / `height` take `calc-size(<basis>, <sum>)` (`Size::CalcSize`, a sum linear in `size`), and under `interpolate-size: allow-keywords` (inherited) `auto` and the intrinsic keywords interpolate with lengths. (C12-ANIMATABLE)
 - **`animation`**: each longhand's animation type from its spec (`AnimationType`, `Longhand`, `animation_type`), the longhands a `transition-property` name covers (`transition_longhands`, flow-relative names by direction), and how each computed value interpolates — whole cells, `calc()` mixes, Oklab colors, discrete steps. (C12-ANIMATABLE)
@@ -559,6 +561,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **Discrete transitions and exit animations** (CSS Transitions 2 §3.1): under `transition-behavior: allow-discrete` a discrete property transitions — `display: none` keeps the box until the end — and a closing dialog or hidden popover whose `overlay` transitions stays in the top layer, drawn there, until it ends. (C12-BEHAVIOR)
 - **`transitionrun`, and transitions that start part-way** (CSS Transitions 1 §2.4, §6): `transitionrun` fires when a transition is created (`TransitionEventKind::Run`), a negative delay starts it part-way with `elapsedTime` the part skipped, and a `steps(…, jump-start)` easing holds its start value through the delay. (C12-TIMING)
 - **`height: auto` animates**: under `interpolate-size: allow-keywords` a `height: 0` → `auto` transition — a `<details>` opening, on `::details-content` — grows the box toward its content's height; layout sizes a `calc-size()` box in a second pass, from its basis. (C12-ANIMATABLE)
 - **README: "Form states" — a text field has no border**, a doctested example: a text field has no UA border (a terminal border costs a row each side), so `input:invalid { border-color: red }` paints nothing; a background cue keeps the field one row, and an author `border: solid` gives the red border its three rows. (C11G-FORM-BORDER)

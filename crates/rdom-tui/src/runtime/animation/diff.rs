@@ -72,9 +72,14 @@ fn diff_style(
         if !changed {
             continue;
         }
-        if !l.interpolable(prev, curr) {
-            // A value that does not interpolate changes at once; one that
-            // was transitioning stops.
+        // A pair that does not interpolate transitions only under
+        // `transition-behavior: allow-discrete` (CSS Transitions 2 §3.1),
+        // stepping by its type's rule; otherwise it changes at once, and a
+        // transition of it that was running stops.
+        let discrete_allowed =
+            rule.behavior == crate::style::transition::TransitionBehavior::AllowDiscrete;
+        let transitions = l.interpolable(prev, curr) || (discrete_allowed && l.is_animatable());
+        if !transitions {
             registry.cancel(id, slot, l, now);
             continue;
         }

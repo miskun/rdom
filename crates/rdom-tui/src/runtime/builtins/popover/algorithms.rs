@@ -329,9 +329,10 @@ fn hide_steps(dom: &mut TuiDom, id: NodeId, how: Hide) -> rdom_core::Result<()> 
             return Ok(());
         }
     }
-    // Steps 12.4 / 13: out of the top layer (rdom has no overlay
-    // transition to wait for), then steps 14–17.
-    dom.remove_from_top_layer(id);
+    // Steps 12.4 / 13: "request an element to be removed from the top
+    // layer" — it waits there while an `overlay` transition runs (CSS
+    // Position 4 §3.3) — then steps 14–17.
+    crate::runtime::top_layer::request_removal(dom, id);
     forget(dom, id);
     // Step 18.
     if how.fire_events {

@@ -3,7 +3,8 @@
 
 use super::super::value_serializers::{
     join_csv, serialize_counter_ops, serialize_length, serialize_timing_function,
-    serialize_transition_property, serialize_transition_shorthand, specified,
+    serialize_transition_behavior, serialize_transition_property, serialize_transition_shorthand,
+    specified,
 };
 use crate::TuiStyle;
 use crate::layout::{Position, ZIndex};
@@ -41,6 +42,13 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         "z-index" => style.z_index.as_ref().and_then(specified).map(|z| match z {
             ZIndex::Auto => "auto".to_string(),
             ZIndex::Value(n) => n.to_string(),
+        }),
+        "overlay" => style.overlay.as_ref().and_then(specified).map(|o| {
+            match o {
+                crate::layout::Overlay::None => "none",
+                crate::layout::Overlay::Auto => "auto",
+            }
+            .to_string()
         }),
         // `inset` shorthand emits whenever all four sides agree on
         // some Specified Length. (CSS L1 only allows agreement;
@@ -82,6 +90,17 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .as_ref()
             .and_then(specified)
             .map(|list| join_csv(list.iter(), |ms| format!("{ms}ms"))),
+        "transition-behavior" => {
+            style
+                .transition_behavior
+                .as_ref()
+                .and_then(specified)
+                .map(|list| {
+                    join_csv(list.iter(), |b| {
+                        serialize_transition_behavior(*b).to_string()
+                    })
+                })
+        }
         "transition" => serialize_transition_shorthand(style),
         "counter-reset" => style
             .counter_reset

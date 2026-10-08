@@ -140,7 +140,8 @@ impl TuiStyle {
             | ImportantMask::TRANSITION_PROPERTY
             | ImportantMask::TRANSITION_DURATION
             | ImportantMask::TRANSITION_TIMING_FUNCTION
-            | ImportantMask::TRANSITION_DELAY;
+            | ImportantMask::TRANSITION_DELAY
+            | ImportantMask::TRANSITION_BEHAVIOR;
         let mut text = TextDeclarations::default();
         text.white_space_collapse = self.text.white_space_collapse;
         text.text_wrap_mode = self.text.text_wrap_mode;
@@ -154,6 +155,7 @@ impl TuiStyle {
             transition_duration: self.transition_duration.clone(),
             transition_timing_function: self.transition_timing_function.clone(),
             transition_delay: self.transition_delay.clone(),
+            transition_behavior: self.transition_behavior.clone(),
             ..self.restricted_to(keep, false)
         }
     }

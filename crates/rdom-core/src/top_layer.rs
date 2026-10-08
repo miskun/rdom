@@ -34,15 +34,40 @@ impl<Ext> Dom<Ext> {
         &self.top_layer.ids
     }
 
-    /// Why `id` is in the top layer, or `None` when it is not.
+    /// Why `id` is in the top layer, or `None` when it is not — or is
+    /// only waiting to leave it
+    /// ([`request_remove_from_top_layer`](Self::request_remove_from_top_layer)):
+    /// such an element is no modal dialog or showing popover any more.
     pub fn top_layer_kind(&self, id: NodeId) -> Option<TopLayerKind> {
         let i = self.top_layer.ids.iter().position(|&e| e == id)?;
-        Some(self.top_layer.kinds[i])
+        (!self.top_layer.pending[i]).then(|| self.top_layer.kinds[i])
     }
 
-    /// Whether `id` is in the top layer.
+    /// Whether `id` is in the top layer — where it renders — pending
+    /// removal or not.
     pub fn is_in_top_layer(&self, id: NodeId) -> bool {
         self.top_layer.ids.contains(&id)
+    }
+
+    /// Whether `id` is in the top layer waiting to leave it (CSS Position
+    /// 4 §3.3, "pending top layer removals").
+    pub fn is_pending_top_layer_removal(&self, id: NodeId) -> bool {
+        self.top_layer
+            .ids
+            .iter()
+            .position(|&e| e == id)
+            .is_some_and(|i| self.top_layer.pending[i])
+    }
+
+    /// The elements waiting to leave the top layer, bottom to top.
+    pub fn pending_top_layer_removals(&self) -> Vec<NodeId> {
+        self.top_layer
+            .ids
+            .iter()
+            .zip(&self.top_layer.pending)
+            .filter(|(_, pending)| **pending)
+            .map(|(id, _)| *id)
+            .collect()
     }
 }
 
@@ -67,8 +92,30 @@ impl<Ext: 'static> Dom<Ext> {
         self.top_layer.remove(id);
         self.top_layer.ids.push(id);
         self.top_layer.kinds.push(kind);
+        self.top_layer.pending.push(false);
         self.notify_top_layer(id);
         Ok(())
+    }
+
+    /// CSS Position 4 §3.3, "request an element to be removed from the top
+    /// layer": `id` stays in the top layer, in its place — it still
+    /// renders there — but pending removal: it is no modal dialog or
+    /// showing popover any more ([`top_layer_kind`](Self::top_layer_kind)
+    /// is `None`). The backend removes it
+    /// ([`remove_from_top_layer`](Self::remove_from_top_layer)) once its
+    /// `overlay` is not `auto` — at once, unless a transition keeps it.
+    /// Returns whether the request took (`id` was in the top layer and not
+    /// already pending).
+    pub fn request_remove_from_top_layer(&mut self, id: NodeId) -> bool {
+        let Some(i) = self.top_layer.ids.iter().position(|&e| e == id) else {
+            return false;
+        };
+        if self.top_layer.pending[i] {
+            return false;
+        }
+        self.top_layer.pending[i] = true;
+        self.notify_top_layer(id);
+        true
     }
 
     /// Take `id` out of the top layer. Returns whether it was in it.
@@ -101,6 +148,8 @@ impl<Ext: 'static> Dom<Ext> {
 pub(crate) struct TopLayer {
     ids: Vec<NodeId>,
     kinds: Vec<TopLayerKind>,
+    /// Beside each, whether it waits to leave (CSS Position 4 §3.3).
+    pending: Vec<bool>,
 }
 
 impl TopLayer {
@@ -110,6 +159,7 @@ impl TopLayer {
             Some(i) => {
                 self.ids.remove(i);
                 self.kinds.remove(i);
+                self.pending.remove(i);
                 true
             }
             None => false,

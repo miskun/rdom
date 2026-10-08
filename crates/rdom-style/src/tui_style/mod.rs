@@ -298,6 +298,8 @@ pub struct TuiStyle {
     pub bottom: Option<Value<crate::layout::Length>>,
     pub left: Option<Value<crate::layout::Length>>,
     pub z_index: Option<Value<crate::layout::ZIndex>>,
+    /// `overlay` (CSS Position 4 §3.4).
+    pub overlay: Option<Value<crate::layout::Overlay>>,
     /// `float` (CSS 2.1 §9.5.1).
     pub float: Option<Value<crate::layout::Float>>,
     /// `clear` (CSS 2.1 §9.5.2).
@@ -314,6 +316,8 @@ pub struct TuiStyle {
     pub transition_timing_function: Option<Value<Vec<crate::transition::TimingFunction>>>,
     /// `transition-delay` longhand, in milliseconds.
     pub transition_delay: Option<Value<Vec<i32>>>,
+    /// `transition-behavior` (CSS Transitions 2 §3.1).
+    pub transition_behavior: Option<Value<Vec<crate::transition::TransitionBehavior>>>,
 
     // ── Counters (CSS Lists 3 §4) ────────────────────────────────────
     pub counter_reset: Option<Value<Vec<crate::counters::CounterOp>>>,

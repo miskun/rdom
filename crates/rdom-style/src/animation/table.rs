@@ -6,8 +6,8 @@
 
 use super::AnimationType::{ByComputedValue, Discrete, NotAnimatable, RepeatableList, ShadowList};
 use super::entry::{
-    Entry, Ops, Role, VISIBILITY, e, fix_border, fix_decorations, fix_flex, fix_font, fix_opacity,
-    size, steps, value,
+    DISPLAY, Entry, OVERLAY, Ops, Role, VISIBILITY, e, fix_border, fix_decorations, fix_flex,
+    fix_font, fix_opacity, size, steps, value,
 };
 use super::value::{blend, discrete, interpolable};
 
@@ -80,18 +80,7 @@ pub(super) static LONGHANDS: &[Entry] = &[
     // CSS Color 4 §13
     e("opacity", ByComputedValue, value!(opacity => fix_opacity)),
     // CSS Display 3 / Flexbox / Box Alignment
-    e(
-        "display",
-        Discrete,
-        steps!(
-            display,
-            flow,
-            list_item,
-            webkit_box,
-            establishes_new_bfc,
-            line_clamp_container
-        ),
-    ),
+    e("display", Discrete, DISPLAY),
     e("flex-direction", Discrete, steps!(direction, flex_reverse)),
     e("flex-wrap", Discrete, steps!(flex_wrap)),
     e("justify-content", Discrete, steps!(justify_content)),
@@ -363,6 +352,7 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("bottom", ByComputedValue, value!(bottom)),
     e("left", ByComputedValue, value!(left)),
     e("z-index", ByComputedValue, value!(z_index)),
+    e("overlay", Discrete, OVERLAY),
     e("float", Discrete, steps!(float, establishes_new_bfc)),
     e("clear", Discrete, steps!(clear)),
     // CSS Transitions 1 §2
@@ -370,6 +360,7 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("transition-duration", NotAnimatable, None),
     e("transition-timing-function", NotAnimatable, None),
     e("transition-delay", NotAnimatable, None),
+    e("transition-behavior", NotAnimatable, None),
     // CSS Lists 3 §4
     e("counter-reset", ByComputedValue, value!(counter_reset)),
     e(

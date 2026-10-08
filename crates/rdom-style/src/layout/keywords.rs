@@ -431,6 +431,19 @@ pub enum Position {
     Sticky,
 }
 
+/// `overlay: none | auto` (CSS Position 4 §3.4): whether an element in
+/// the top layer renders there. The UA sets it on top-layer elements, and
+/// authors only transition it — with `transition-behavior:
+/// allow-discrete` — to keep a dialog or popover in the top layer while
+/// it animates out. Not inherited; initial `none`. Closed (DESIGN): the
+/// grammar's two values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Overlay {
+    #[default]
+    None,
+    Auto,
+}
+
 /// `z-index: auto | <integer>` (CSS 2.1 §9.9.1). `Auto` does not
 /// establish a stacking context; the positioned layer orders it by tree
 /// position (as 0). The integer is any `i32`: a larger literal clamps to

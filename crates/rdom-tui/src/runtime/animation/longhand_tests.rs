@@ -18,8 +18,10 @@ enum Mid {
     Between,
     /// The discrete step: the end value from 50 % on, the start below.
     Flips,
+    /// Discrete with its own rule: this value (CSS text) at 50 %.
+    Holds(&'static str),
 }
-use Mid::{Between, Flips, Is};
+use Mid::{Between, Flips, Holds, Is};
 
 /// `(longhand, from, to, at 50 %)`, one row per longhand with a computed
 /// value.
@@ -190,6 +192,7 @@ const SAMPLES: &[(&str, &str, &str, Mid)] = &[
     ("bottom", "2", "4", Is("3")),
     ("left", "2", "4", Is("3")),
     ("z-index", "0", "4", Is("2")),
+    ("overlay", "none", "auto", Holds("auto")),
     ("float", "none", "left", Flips),
     ("clear", "none", "both", Flips),
     ("counter-reset", "a 0", "a 4", Is("a 2")),
@@ -282,6 +285,11 @@ fn drive(l: Longhand) -> Result<(), String> {
                 l.differs(&half, &a) && l.differs(&half, &b),
                 "50 % is between the ends",
             )
+        }
+        Holds(css) => {
+            check(!l.interpolable(&a, &b), "is discrete")?;
+            let want = computed(name, css)?;
+            check(!l.differs(&half, &want), &format!("50 % is {css}"))
         }
         Flips => {
             check(!l.interpolable(&a, &b), "is discrete")?;

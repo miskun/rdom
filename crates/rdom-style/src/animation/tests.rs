@@ -231,6 +231,8 @@ const SPEC: &[(&str, Spec)] = &[
     ("left", L(V)),
     ("inset", S),
     ("z-index", L(V)),
+    // CSS Position 4 §3.4
+    ("overlay", L(D)),
     ("float", L(D)),
     ("clear", L(D)),
     // CSS Transitions 1 §2
@@ -238,6 +240,7 @@ const SPEC: &[(&str, Spec)] = &[
     ("transition-duration", L(N)),
     ("transition-timing-function", L(N)),
     ("transition-delay", L(N)),
+    ("transition-behavior", L(N)),
     ("transition", S),
     // CSS Color Adjust 1 §2
     ("color-scheme", L(D)),

@@ -73,6 +73,19 @@ impl TransitionProperty {
     }
 }
 
+/// `transition-behavior` (CSS Transitions 2 §3.1): whether a property
+/// whose values do not interpolate (a discrete one, or a pair that does
+/// not interpolate) transitions. Closed (DESIGN): the grammar's two values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum TransitionBehavior {
+    /// Only interpolable values transition (the initial value).
+    #[default]
+    Normal,
+    /// Discrete values transition too, stepping at the midpoint —
+    /// `display` and `visibility` by their own rules.
+    AllowDiscrete,
+}
+
 /// Where a `steps()` easing jumps (CSS Easing 1 §2.3). `start` /
 /// `end` are the `jump-start` / `jump-end` aliases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]

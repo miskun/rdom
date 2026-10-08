@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use rdom_style::animation::{Longhand, transition_longhands};
 
 use crate::style::ComputedStyle;
-use crate::style::transition::{TimingFunction, TransitionProperty};
+use crate::style::transition::{TimingFunction, TransitionBehavior, TransitionProperty};
 
 /// The timing of one matched `transition-*` entry.
 #[derive(Debug, Clone)]
@@ -17,6 +17,9 @@ pub(super) struct Rule {
     pub timing: TimingFunction,
     /// Negative: the transition starts part-way (CSS Transitions 1 §2.4).
     pub delay_ms: i32,
+    /// Whether values that do not interpolate transition (CSS Transitions
+    /// 2 §3.1).
+    pub behavior: TransitionBehavior,
 }
 
 /// When a transition registered at `now` under a rule runs.
@@ -79,6 +82,7 @@ fn at(style: &ComputedStyle, idx: usize) -> Rule {
         duration_ms: cycle(&style.transition_duration, idx, 0),
         timing: cycle(&style.transition_timing_function, idx, TimingFunction::Ease),
         delay_ms: cycle(&style.transition_delay, idx, 0),
+        behavior: cycle(&style.transition_behavior, idx, TransitionBehavior::Normal),
     }
 }
 

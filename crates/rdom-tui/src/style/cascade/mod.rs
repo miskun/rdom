@@ -236,6 +236,9 @@ impl CascadeExt for Dom<TuiExt> {
 
     fn cascade_all(&mut self, stylesheets: &[&Stylesheet]) {
         cascade_all_with(self, stylesheets, None);
+        // No transition runs outside an `App`: an element waiting to leave
+        // the top layer leaves at this style update (CSS Position 4 §3.3).
+        crate::runtime::top_layer::finish_removals(self);
     }
 
     fn cascade_subtrees(&mut self, stylesheet: &Stylesheet, roots: &[NodeId]) {
@@ -244,6 +247,7 @@ impl CascadeExt for Dom<TuiExt> {
 
     fn cascade_subtrees_all(&mut self, stylesheets: &[&Stylesheet], roots: &[NodeId]) {
         cascade_subtrees_all_with(self, stylesheets, None, roots);
+        crate::runtime::top_layer::finish_removals(self);
     }
 
     fn set_viewport(&mut self, viewport: Viewport) {

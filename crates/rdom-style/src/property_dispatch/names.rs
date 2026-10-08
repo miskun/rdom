@@ -185,6 +185,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "bottom",
     "left",
     "z-index",
+    "overlay",
     "float",
     "clear",
     "inset",
@@ -193,6 +194,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "transition-duration",
     "transition-timing-function",
     "transition-delay",
+    "transition-behavior",
     "transition",
     // Counters (CSS Lists 3)
     "counter-reset",

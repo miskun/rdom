@@ -439,6 +439,16 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         "z-index" => parse_z_index(value).map(|z| {
             style.z_index = Some(Value::Specified(z));
         }),
+        "overlay" => parse_keyword(
+            value,
+            &[
+                ("none", crate::layout::Overlay::None),
+                ("auto", crate::layout::Overlay::Auto),
+            ],
+        )
+        .map(|o| {
+            style.overlay = Some(Value::Specified(o));
+        }),
         "inset" => parse_inset_shorthand(value).map(|(t, r, b, l)| {
             style.top = Some(Value::Specified(t));
             style.right = Some(Value::Specified(r));
@@ -459,8 +469,16 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         "transition-delay" => parse_time_list(value).map(|list| {
             style.transition_delay = Some(Value::Specified(list));
         }),
+        "transition-behavior" => {
+            crate::parse::values::parse_transition_behavior_list(value).map(|list| {
+                style.transition_behavior = Some(Value::Specified(list));
+            })
+        }
         "transition" => parse_transition_shorthand(value).map(|rules| {
             let (props, durs, timings, delays) = unzip_transition_rules(&rules);
+            style.transition_behavior = Some(Value::Specified(
+                rules.iter().map(|r| r.behavior()).collect(),
+            ));
             style.transition_property = Some(Value::Specified(props));
             style.transition_duration = Some(Value::Specified(durs));
             style.transition_timing_function = Some(Value::Specified(timings));

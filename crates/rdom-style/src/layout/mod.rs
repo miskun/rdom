@@ -84,8 +84,8 @@ pub use grid_areas::{GridTemplateAreas, NamedArea};
 pub use grid_placement::{GridAutoFlow, GridLine};
 pub use keywords::{
     BoxSizing, CaretColor, CaretTextColor, Direction, Display, FlexDirection, FlexWrap, Flow,
-    PointerEvents, Position, ScrollBehavior, TextDecoration, TextDirection, UserSelect, Visibility,
-    WritingMode, ZIndex,
+    Overlay, PointerEvents, Position, ScrollBehavior, TextDecoration, TextDirection, UserSelect,
+    Visibility, WritingMode, ZIndex,
 };
 pub use line_clamp::{BlockEllipsis, BoxOrient, Continue};
 pub use line_height::LineHeight;

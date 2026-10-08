@@ -350,6 +350,9 @@ pub struct ComputedStyle {
     pub left: crate::layout::Length,
     /// `z-index`. Default `Auto`. Non-inheriting.
     pub z_index: crate::layout::ZIndex,
+    /// `overlay` (CSS Position 4 §3.4): `auto` keeps an element pending
+    /// removal in the top layer. Not inherited; initial `none`.
+    pub overlay: crate::layout::Overlay,
     /// `float` (CSS 2.1 §9.5.1): `none` on an absolutely positioned box
     /// (§9.7). Not inherited.
     pub float: crate::layout::Float,
@@ -364,6 +367,8 @@ pub struct ComputedStyle {
     pub transition_duration: Vec<u32>,
     pub transition_timing_function: Vec<crate::transition::TimingFunction>,
     pub transition_delay: Vec<i32>,
+    /// `transition-behavior` (CSS Transitions 2 §3.1); empty is `normal`.
+    pub transition_behavior: Vec<crate::transition::TransitionBehavior>,
 
     /// `counter-reset` / `counter-increment` / `counter-set` (CSS Lists
     /// 3 §4). Non-inheriting; the cascade applies them to its counter
