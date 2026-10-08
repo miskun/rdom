@@ -86,14 +86,14 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 | 3.15 Lists, counters and generated content (Lists 3, Generated Content 3, Counter Styles 3, Pseudo-Elements 4) | 10 | 0 | 0 | 2 | 12 |
 | 3.16 Pseudo-elements (Pseudo-Elements 4, Selectors 4) | 10 | 0 | 0 | 6 | 16 |
 | 3.17 Selectors (Selectors 4) | 32 | 0 | 2 | 4 | 38 |
-| 3.18 Transitions and animations (Transitions 1/2, Animations 1/2, Easing 1/2) | 7 | 0 | 3 | 0 | 10 |
+| 3.18 Transitions and animations (Transitions 1/2, Animations 1/2, Easing 1/2) | 8 | 0 | 2 | 0 | 10 |
 | 3.19 User interface (UI 4) | 2 | 1 | 8 | 1 | 12 |
 | 3.20 Tables (Tables 3, CSS 2.1 §17) | 0 | 0 | 4 | 0 | 4 |
 | 3.21 Conditional rules and containment (Conditional 3/5, Contain 2/3, Will Change 1) | 0 | 0 | 6 | 1 | 7 |
 | 3.22 Logical properties and writing modes (Logical 1, Writing Modes 4) | 5 | 2 | 1 | 1 | 9 |
 | 3.23 Transforms, filters, masking, compositing | 0 | 0 | 6 | 4 | 10 |
 | 3.24 Other modules (CSS 2.1 leftovers, Multi-column, Images, Speech, Fragmentation) | 0 | 0 | 2 | 4 | 6 |
-| **Total** | **218** | **8** | **36** | **45** | **307** |
+| **Total** | **219** | **8** | **35** | **45** | **307** |
 
 When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 48 rows Partial / Missing (Phase 11 part 2: C11-MODAL-POPOVER `:modal` and `:popover-open`; C11-FORM-STATES `:read-only` / `:read-write`, `:indeterminate`, `:in-range` / `:out-of-range`, `:default` and `:user-valid` / `:user-invalid`; Phase 11 part 1: C11-ATTR-FLAGS the attribute case flags, C11-NTH the three `:nth-*` / `-of-type` rows, C11-LINK-LANG `:link` / `:any-link`, `:lang()` and `:dir()`, C11-SCOPE `:scope`, C11-HAS `:has()`; C10G-DETAILS-CONTENT-BOX made `::details-content` a box, Supported, and C10G-PSEUDO-MARKER the pseudo-element-chain row, with `::before::marker` / `::after::marker`; Phase 10 part 2 shipped C10-FIRST's `::first-line` / `::first-letter` and C10-HIGHLIGHT's `::highlight()`, C10-DETAILS-CONTENT made `::details-content` Partial, and C10-PSEUDO-CHAINS took the pseudo-element-chain row's user-action pseudo-classes, the row staying Partial for nested pseudo-elements; part 1 shipped twelve: C10-LEGACY-COLON the single-colon pseudo-elements, C10-CONTENT `content` and `counters()`, C10-QUOTES `quotes`, C10-COUNTERS the counter styles, `counter-reset` and `counter-set`, C10-COUNTER-STYLE `@counter-style` / `symbols()`, C10-LIST-ITEM the list properties, `marker-side`, `::marker` and `display: list-item`; C9-FONT shipped `font-weight`, `font-style` and `font`; C9-DECORATION shipped the four text decoration rows; C9-VERTICAL-ALIGN shipped `vertical-align` on inline content; C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
@@ -561,7 +561,7 @@ dropped. The audit's six, with where each stands:
 | Animatable property set | Supported | Every longhand of the dispatch table animates by its spec's animation type (by computed value, repeatable list, shadow list, discrete, not animatable — `rdom_style::animation`), per longhand, on elements, `::before` / `::after` and `::details-content`; the running value is the computed value layout, paint and inheritance read (C12-ANIMATABLE). `interpolate-size: allow-keywords` and `calc-size()` (CSS Values 5 §10–§11) animate `width` / `height` to and from `auto` and the intrinsic keywords; sums linear in `size` (DIVERGENCES §2). | Yes | `rdom-style/src/animation`, `rdom-tui/src/runtime/animation` |
 | `@keyframes` | Missing | — | Yes | `AT`, `TR` |
 | `animation` / `animation-name` / `-duration` / `-timing-function` / `-delay` / `-iteration-count` / `-direction` / `-fill-mode` / `-play-state` / `-composition` | Missing | — | Yes | `DISP`, `TR` |
-| `@starting-style` | Missing | Entry transitions. | Blanket | `AT`, `TR` |
+| `@starting-style` | Supported | Top level and nested (CSS Nesting 1); a newly rendered element's transitions start from its starting style; without one its values change at once (Transitions 1 §3). Elements only, inheriting from the parent's computed style (DIVERGENCES §4). | Yes | `rdom-css/src/block.rs`, `rdom-tui/src/style/cascade/starting.rs` |
 
 ### 3.19 User interface (UI 4)
 

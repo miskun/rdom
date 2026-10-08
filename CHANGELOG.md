@@ -83,6 +83,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 68. **A `<dialog>` fires `beforetoggle`** (HTML §4.11.4, current Living Standard): `show()` / `showModal()` fire a cancelable `beforetoggle` (`closed` → `open`) before opening — canceled, the dialog stays closed — and `close()` a non-cancelable one (`open` → `closed`); the dialog's `toggle` is no longer cancelable. (C11G-DIALOG-BEFORETOGGLE)
 69. **An indeterminate checkbox draws `[-]`** (HTML §4.10.5.1.15): a checkbox with its indeterminate flag (the `indeterminate` attribute) shows `[-] ` instead of `[x] ` / `[ ] `; override `input[type=checkbox]:indeterminate::before`. (C11-FORM-STATES)
 70. **`:first-child` / `:last-child` / `:only-child` match an element without a parent** (Selectors 4 §13.3): a detached or root element matches them, as `:nth-child(1)` does. (C11-NTH)
+71. **A newly rendered element does not transition from its hidden values** (CSS Transitions 1 §3): coming out of `display: none` (itself or under an ancestor), it has no before-change style, so its values change at once — it transitioned from the values it had while hidden. Give it a `@starting-style` to fade it in. (C12-STARTING)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -359,6 +360,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`@starting-style` rules** (CSS Transitions 2 §3): `Rule::starting_style` and `RuleContext::in_starting_style` mark a rule that applies only to an element's starting style. (C12-STARTING)
 - **`transition-behavior` and `overlay`** (CSS Transitions 2 §3.1, Position 4 §3.4): `normal | allow-discrete` (`TransitionBehavior`, longhand and in `transition`), and `overlay: none | auto` (`Overlay`), `auto !important` on `:modal` / `:popover-open` in the UA sheet; `display` and `overlay` keep their non-`none` value through a transition. (C12-BEHAVIOR)
 - **`linear()` easing and negative delays** (CSS Easing 2 §2.1, Transitions 1 §2.4): `linear(<stops>)` canonicalized into `LinearStop`s, `TimingFunction::ease_before` (the steps' before flag), a negative `transition-delay`; `none` is valid only alone, and the `transition` shorthand serializes its lists repeated cyclically. (C12-TIMING)
 - **`interpolate-size` and `calc-size()`** (CSS Values 5 §10–§11): `width` / `height` take `calc-size(<basis>, <sum>)` (`Size::CalcSize`, a sum linear in `size`), and under `interpolate-size: allow-keywords` (inherited) `auto` and the intrinsic keywords interpolate with lengths. (C12-ANIMATABLE)
@@ -506,6 +508,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-css`
 
+- **`@starting-style`** (CSS Transitions 2 §3): parsed at the top level and nested in a style rule (CSS Nesting 1 §3.2); a prelude is invalid. (C12-STARTING)
 - **`@counter-style`** (CSS Counter Styles 3 §3): every descriptor, top-level and in `@layer`; a rule whose name cannot name a counter style (`none`, `decimal`, `disc`, `square`, `circle`, `disclosure-*`, a CSS-wide keyword) or whose symbols do not suit its system defines nothing, and an invalid descriptor is dropped — both reported as the new `WarningKind::InvalidCounterStyleRule { name, reason }`. (C10-COUNTER-STYLE)
 - **`@layer`** (CSS Cascade 5 §6.4.1): the statement and block forms, anonymous and nested layers; an invalid prelude drops the rule with the new `WarningKind::InvalidAtRulePrelude { name, prelude }`. (C1-LAYER)
 - **CSS Nesting** (CSS Nesting 1 §2–§3): style rules nest in style rules, declarations after a nested rule keep their order (`.a { color: red; & { color: blue } color: green }` is green), a nested `@layer` holds both; an invalid nested selector drops that rule alone. (C1-NESTING)
@@ -561,6 +564,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **Entry transitions**: a newly rendered element — first styled, inserted, or out of `display: none` — starts its transitions from its `@starting-style` style (CSS Transitions 2 §3), so a popover or dialog can fade in; `animation::diff_and_register_with` takes the starting style. (C12-STARTING)
 - **Discrete transitions and exit animations** (CSS Transitions 2 §3.1): under `transition-behavior: allow-discrete` a discrete property transitions — `display: none` keeps the box until the end — and a closing dialog or hidden popover whose `overlay` transitions stays in the top layer, drawn there, until it ends. (C12-BEHAVIOR)
 - **`transitionrun`, and transitions that start part-way** (CSS Transitions 1 §2.4, §6): `transitionrun` fires when a transition is created (`TransitionEventKind::Run`), a negative delay starts it part-way with `elapsedTime` the part skipped, and a `steps(…, jump-start)` easing holds its start value through the delay. (C12-TIMING)
 - **`height: auto` animates**: under `interpolate-size: allow-keywords` a `height: 0` → `auto` transition — a `<details>` opening, on `::details-content` — grows the box toward its content's height; layout sizes a `calc-size()` box in a second pass, from its basis. (C12-ANIMATABLE)

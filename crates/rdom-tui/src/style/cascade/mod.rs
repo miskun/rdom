@@ -89,6 +89,7 @@ pub(crate) use registered::PropertyRegistry;
 #[cfg(test)]
 pub(crate) use registered::probe as registry_probe;
 pub(crate) use scheme::{document_color_scheme, set_document_color_scheme};
+pub(crate) use starting::starting_style;
 pub(crate) use viewport::{document_viewport, set_document_viewport};
 mod colors;
 mod decoration;
@@ -101,6 +102,7 @@ mod root_vars;
 mod scheme;
 mod scope;
 mod sheets;
+mod starting;
 mod subtrees;
 mod text;
 mod text_decoration;

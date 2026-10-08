@@ -121,6 +121,9 @@ pub struct RuleContext {
     pub layer: Option<LayerId>,
     /// The innermost `@scope` (`None`: unscoped).
     pub scope: Option<ScopeId>,
+    /// Inside `@starting-style` (CSS Transitions 2 §3): the rule applies
+    /// only to an element's starting style.
+    pub starting_style: bool,
 }
 
 impl RuleContext {
@@ -133,6 +136,14 @@ impl RuleContext {
     pub fn in_scope(self, scope: Option<ScopeId>) -> Self {
         RuleContext { scope, ..self }
     }
+
+    /// Inside `@starting-style`.
+    pub fn in_starting_style(self) -> Self {
+        RuleContext {
+            starting_style: true,
+            ..self
+        }
+    }
 }
 
 impl Stylesheet {
@@ -143,6 +154,7 @@ impl Stylesheet {
         for rule in &mut rules {
             rule.layer = ctx.layer;
             rule.scope = ctx.scope;
+            rule.starting_style = ctx.starting_style;
         }
         self.push_rules(rules);
     }
@@ -215,6 +227,7 @@ impl Stylesheet {
                     source_text: item.text.clone(),
                     layer: None,
                     scope: None,
+                    starting_style: false,
                     directional,
                 }
             })

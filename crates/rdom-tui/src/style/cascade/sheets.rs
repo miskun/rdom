@@ -27,6 +27,9 @@ pub(super) struct Sheets<'a> {
     registry: Rc<PropertyRegistry>,
     viewport: Viewport,
     color_scheme: ColorScheme,
+    /// Whether `@starting-style` rules apply (CSS Transitions 2 §3): only
+    /// when computing an element's starting style (`starting.rs`).
+    starting: bool,
 }
 
 /// What a sheet set holds that every element's cascade asks, each found
@@ -42,6 +45,8 @@ pub(super) struct SheetFacts {
     first_rules: std::cell::OnceCell<(bool, bool)>,
     /// The names `::highlight()` rules style.
     highlight_names: std::cell::OnceCell<Vec<std::sync::Arc<str>>>,
+    /// Whether any rule is a `@starting-style` rule.
+    starting_rules: std::cell::OnceCell<bool>,
 }
 
 impl<'a> Sheets<'a> {
@@ -60,7 +65,32 @@ impl<'a> Sheets<'a> {
             registry,
             viewport,
             color_scheme,
+            starting: false,
         }
+    }
+
+    /// These sheets with their `@starting-style` rules applying — what an
+    /// element's starting style is computed under.
+    pub(super) fn with_starting_style(self) -> Self {
+        Sheets {
+            starting: true,
+            ..self
+        }
+    }
+
+    /// Whether a `rule` applies under this set: a `@starting-style` rule
+    /// only when computing a starting style.
+    pub(super) fn applies(&self, rule: &Rule) -> bool {
+        self.starting || !rule.starting_style
+    }
+
+    /// Whether any of the sheets has a `@starting-style` rule.
+    pub(super) fn has_starting_rules(&self) -> bool {
+        *self.registry.facts.starting_rules.get_or_init(|| {
+            self.list
+                .iter()
+                .any(|s| s.rules().iter().any(|r| r.starting_style))
+        })
     }
 
     /// The highlight names the sheets' `::highlight()` rules style (CSS

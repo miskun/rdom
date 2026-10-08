@@ -17,18 +17,55 @@ use crate::style::ComputedStyle;
 /// with the new one; for each longhand that changed under a
 /// `transition-*` rule, start (or replace) its transition. Then keep the
 /// new cascaded styles as the previous ones for the next pass.
+///
+/// An element that was not rendered before — never styled, or `display:
+/// none` itself or under an ancestor — has no before-change style (CSS
+/// Transitions 1 §3), so its values change at once; it has no starting
+/// style here ([`diff_and_register_with`] gives one).
 pub fn diff_and_register(dom: &mut Dom<TuiExt>, registry: &mut AnimationRegistry, now: Instant) {
+    diff_and_register_with(dom, registry, now, &|_, _| None);
+}
+
+/// [`diff_and_register`], an element newly rendered starting its
+/// transitions from `starting` — its starting style (CSS Transitions 2
+/// §3, `@starting-style`), `None` when it has none.
+pub fn diff_and_register_with(
+    dom: &mut Dom<TuiExt>,
+    registry: &mut AnimationRegistry,
+    now: Instant,
+    starting: &dyn Fn(&Dom<TuiExt>, NodeId) -> Option<ComputedStyle>,
+) {
     let ids = collect_element_ids(dom, dom.root());
     let preferred = crate::style::CascadeExt::color_scheme(dom);
+    // Whether each element was rendered at the last style update, read
+    // before any snapshot below moves on (parents come first).
+    let rendered = was_rendered(dom, &ids);
     for id in ids {
+        let was_rendered = rendered.get(&id).copied().unwrap_or(false);
         for slot in [StyleSlot::Host, StyleSlot::Before, StyleSlot::After] {
             let Some((prev, curr)) = snapshot(dom, id, slot) else {
+                continue;
+            };
+            let scheme = curr.color_scheme.used(preferred);
+            if !was_rendered {
+                // No before-change style: only a starting style starts
+                // transitions (`curr` is rendered, or it has nothing to
+                // show).
+                if slot == StyleSlot::Host
+                    && curr.display != crate::layout::Display::None
+                    && rule::any(&curr)
+                    && let Some(start) = starting(dom, id)
+                {
+                    diff_style(registry, id, slot, &Rc::new(start), &curr, scheme, now);
+                }
+                continue;
+            }
+            let Some(prev) = prev else {
                 continue;
             };
             if slot == StyleSlot::Host {
                 registry.diff_custom(dom, id, &prev, &curr, now);
             }
-            let scheme = curr.color_scheme.used(preferred);
             diff_style(registry, id, slot, &prev, &curr, scheme, now);
         }
         // Keep the cascaded styles for the next pass.
@@ -125,25 +162,45 @@ pub fn settle_restyled(dom: &mut Dom<TuiExt>, roots: &[NodeId]) {
     }
 }
 
-/// `(previous, new)` cascaded styles of `slot` when both exist and the
-/// cascade replaced the style (an unchanged one shares its allocation).
+/// `(previous, new)` cascaded styles of `slot` when the new one exists
+/// and the cascade replaced the style (an unchanged one shares its
+/// allocation); the previous one is `None` before the first.
 fn snapshot(
     dom: &Dom<TuiExt>,
     id: NodeId,
     slot: StyleSlot,
-) -> Option<(Rc<ComputedStyle>, Rc<ComputedStyle>)> {
+) -> Option<(Option<Rc<ComputedStyle>>, Rc<ComputedStyle>)> {
     let ext = dom.node(id).ext()?;
     let prev = match slot {
         StyleSlot::Host => ext.computed_prev.as_ref(),
         StyleSlot::Before => ext.computed_before_prev(),
         StyleSlot::After => ext.computed_after_prev(),
         _ => None,
-    }?;
+    };
     let curr = ext.cascaded_for(slot)?;
-    if Rc::ptr_eq(prev, curr) {
+    if prev.is_some_and(|p| Rc::ptr_eq(p, curr)) {
         return None;
     }
-    Some((prev.clone(), curr.clone()))
+    Some((prev.cloned(), curr.clone()))
+}
+
+/// Whether each of `ids` (in tree order, parents first) was rendered at
+/// the last style update: styled then, not `display: none`, and under a
+/// box parent that was rendered.
+fn was_rendered(dom: &Dom<TuiExt>, ids: &[NodeId]) -> std::collections::HashMap<NodeId, bool> {
+    let mut out = std::collections::HashMap::with_capacity(ids.len());
+    for &id in ids {
+        let own = dom
+            .node(id)
+            .ext()
+            .and_then(|e| e.computed_prev.as_deref())
+            .is_some_and(|p| p.display != crate::layout::Display::None);
+        let parent = crate::render::box_tree::box_parent(dom, id)
+            .and_then(|p| out.get(&p).copied())
+            .unwrap_or(true);
+        out.insert(id, own && parent);
+    }
+    out
 }
 
 fn collect_element_ids(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {

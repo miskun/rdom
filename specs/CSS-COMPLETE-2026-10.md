@@ -242,7 +242,7 @@ row comes from.
 | C12-BEHAVIOR | `transition-behavior: allow-discrete` || done (`content-visibility` with C14-CONTAIN) |
 | C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) || done |
 | C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | |
-| C12-STARTING | `@starting-style` | |
+| C12-STARTING | `@starting-style` || done |
 | C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | |
 | C12-OUTLINE | `outline` / `-color` / `-style` / `-width` / `-offset` (non-layout ring) | |
 | C12-CURSOR | `cursor` (OSC 22 pointer shapes) | |
@@ -7669,3 +7669,24 @@ row comes from.
   `an_overlay_transition_keeps_a_hidden_popover_in_the_top_layer` (left at once). Mutation-checked: a plain
   50 % step for `display` fails the display test; ignoring `overlay` in `finish_removals` fails the popover
   one. `content-visibility` does not exist yet (C14-CONTAIN); its discrete transition comes with it. The easing parsers moved out of `parse/values/transition.rs` (503 production lines) into `easing.rs`. Done.
+- 2026-10-15 — C12-STARTING. CSS Transitions 2 §3 `@starting-style`, stored as the C1 `@scope` / `@layer`
+  contexts are — on the rule, not in a sheet registry like `@property` / `@counter-style`, since its
+  contents are style rules: `RuleContext::in_starting_style` / `Rule::starting_style`. rdom-css parses it
+  at the top level (a rule list; `parse_rule_list` now carries the whole `RuleContext`) and nested in a
+  style rule (its block's declarations are the parent's, CSS Nesting 1 §3.2); a prelude is invalid. The
+  cascade skips starting-style rules (`Sheets::applies`, in `collect`); `cascade::starting_style`
+  computes an element's style with them applying, inheriting from its parent's computed style, and only
+  when one matches it. The engine's `diff_and_register_with` takes it: an element not rendered at the last
+  style update — never styled, or `display: none` itself or under a box ancestor (read for every element
+  before the snapshots move on) — has no before-change style (Transitions 1 §3), so its values change at
+  once unless it has a starting style, from which its transitions start. That is a behaviour change: an
+  element out of `display: none` used to transition from its hidden values (CHANGELOG silent change).
+  The App's frame passes its sheets and registry. Red: rdom-css `starting_style` (3: the at-rule was
+  unsupported), rdom-tui `starting_style_tests` (3: parse warnings), plus
+  `a_newly_rendered_element_without_a_starting_style_does_not_transition` (checked by mutation: treating a
+  styled element as rendered fails it). Mutation-checked: no starting style in the frame fails the
+  inserted-element and popover tests; applying starting rules in the normal cascade fails
+  `starting_style_rules_do_not_apply_otherwise`. Pseudo-elements get no starting style, and a child
+  inherits from its parent's computed style rather than its starting style (DIVERGENCES §4). ACID I6
+  updated and I16 added (popover entry and exit). Phase 12 part 1 (C12-ANIMATABLE, -TIMING, -BEHAVIOR,
+  -STARTING) done.

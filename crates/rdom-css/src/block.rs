@@ -266,6 +266,19 @@ fn consume_nested_at_rule(
         crate::layer::consume_layer_rule(cursor, sheet, warnings, layer, at, &mut body);
         return;
     }
+    if name.eq_ignore_ascii_case("starting-style") {
+        // CSS Transitions 2 §3, nested (CSS Nesting 1 §3.2): its block's
+        // declarations and rules are the parent rule's, starting style
+        // only.
+        if starting_style_block(cursor, warnings, at) {
+            let inner = Block {
+                ctx: block.ctx.in_starting_style(),
+                ..block
+            };
+            consume_block_contents(cursor, sheet, warnings, inner, false);
+        }
+        return;
+    }
     if name.eq_ignore_ascii_case("scope") {
         let ctx = Context {
             rule: block.ctx,
@@ -316,7 +329,7 @@ pub(crate) fn consume_scope_body(
 /// The at-rules a style rule's block evaluates (CSS Nesting 1 §3.2).
 /// The conditional group rules join here when they land (C14).
 fn is_evaluated_nested_at_rule(name: &str) -> bool {
-    ["layer", "scope"]
+    ["layer", "scope", "starting-style"]
         .iter()
         .any(|n| name.eq_ignore_ascii_case(n))
 }
@@ -495,4 +508,36 @@ fn skip_rest_of_block(cursor: &mut Cursor) {
             }
         }
     }
+}
+
+/// After `@starting-style`'s name: an empty prelude then `{` — consumed,
+/// `true` — or an invalid rule, reported and skipped (`false`).
+pub(crate) fn starting_style_block(
+    cursor: &mut Cursor,
+    warnings: &mut Vec<Warning>,
+    at: (u32, u32),
+) -> bool {
+    let Some(prelude) = crate::layer::read_prelude(cursor, warnings) else {
+        return false;
+    };
+    if prelude.trim().is_empty() && cursor.peek() == Some('{') {
+        cursor.bump();
+        return true;
+    }
+    warnings.push(Warning {
+        kind: WarningKind::InvalidAtRulePrelude {
+            name: "starting-style".to_string(),
+            prelude: prelude.trim().to_string(),
+        },
+        line: at.0,
+        column: at.1,
+    });
+    match cursor.peek() {
+        Some('{') => crate::top_level::skip_balanced_block(cursor),
+        Some(';') => {
+            cursor.bump();
+        }
+        _ => {}
+    }
+    false
 }

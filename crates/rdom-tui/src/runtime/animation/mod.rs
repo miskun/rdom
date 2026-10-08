@@ -415,7 +415,7 @@ mod timing_tests;
 mod visibility_tests;
 
 pub use custom::PendingCustomEvent;
-pub use diff::{diff_and_register, settle_restyled};
+pub use diff::{diff_and_register, diff_and_register_with, settle_restyled};
 #[cfg(test)]
 mod behavior_tests;
 #[cfg(test)]

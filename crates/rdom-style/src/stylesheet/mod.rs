@@ -216,6 +216,10 @@ pub struct Rule {
     /// The innermost `@scope` the rule sits in (CSS Cascade 6 §2.5), as
     /// declared in its own sheet; `None` for an unscoped rule.
     pub scope: Option<ScopeId>,
+    /// The rule sits in `@starting-style` (CSS Transitions 2 §3): it
+    /// applies to an element's starting style only, which the cascade
+    /// computes for an element with no before-change style.
+    pub starting_style: bool,
     /// `style`'s direction-mapped declarations replayed for each
     /// `direction`, built with the rule ([`Rule::directional_overlay`]).
     directional: Option<std::sync::Arc<[[TuiStyle; 2]; 2]>>,

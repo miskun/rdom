@@ -301,6 +301,11 @@ impl<'a> Scratch<'a> {
         list
     }
 
+    /// Whether a rule the last `gather` kept satisfies `f`.
+    pub(super) fn matched_any(&self, f: impl Fn(&Rule) -> bool) -> bool {
+        self.sorted.iter().any(|r| f(r))
+    }
+
     /// [`collect`](Self::collect) or [`load`](Self::load), per `rules`.
     pub(super) fn gather(
         &mut self,
@@ -361,6 +366,9 @@ impl<'a> Scratch<'a> {
             );
             for &ri in &self.candidates {
                 let rule = &sheet.rules()[ri as usize];
+                if !sheets.applies(rule) {
+                    continue;
+                }
                 if let Some(target) = targets.iter().position(|t| *t == rule.pseudo)
                     && let Some(proximity) = match_rule(
                         dom,

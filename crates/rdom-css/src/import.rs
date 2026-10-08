@@ -173,7 +173,13 @@ pub(crate) fn consume_import(
     imports.stack.push(loaded.url);
     imports.depth += 1;
     let mut inner = Cursor::new(&loaded.text);
-    parse_rule_list(&mut inner, sheet, warnings, into, Some(imports));
+    parse_rule_list(
+        &mut inner,
+        sheet,
+        warnings,
+        rdom_style::RuleContext::default().in_layer(into),
+        Some(imports),
+    );
     imports.depth -= 1;
     imports.stack.pop();
 }

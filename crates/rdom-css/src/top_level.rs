@@ -32,10 +32,17 @@ pub(crate) fn parse_stylesheet(
     warnings: &mut Vec<Warning>,
     imports: &mut Imports<'_>,
 ) {
-    parse_rule_list(cursor, sheet, warnings, None, Some(imports));
+    parse_rule_list(
+        cursor,
+        sheet,
+        warnings,
+        RuleContext::default(),
+        Some(imports),
+    );
 }
 
-/// §5.4.1 "consume a list of rules" into `layer` (`None`: unlayered).
+/// §5.4.1 "consume a list of rules" in `ctx` — its layer (`None`:
+/// unlayered) and whether it is `@starting-style`'s body.
 /// `imports`: the list is a sheet's top level, where `@import` may
 /// lead (CSS Cascade 5 §3); `None` for a block's body (`@layer x { … }`)
 /// — its `}` ends it and is consumed, while at the top level a stray
@@ -44,9 +51,10 @@ pub(crate) fn parse_rule_list(
     cursor: &mut Cursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
-    layer: Option<LayerId>,
+    ctx: RuleContext,
     mut imports: Option<&mut Imports<'_>>,
 ) {
+    let layer = ctx.layer;
     let nested = imports.is_none();
     // `@import` is valid only before every rule but `@charset` and
     // `@layer` statements.
@@ -84,10 +92,10 @@ pub(crate) fn parse_rule_list(
                     return;
                 }
             }
-            Some('@') => consume_at_rule(cursor, sheet, warnings, layer),
+            Some('@') => consume_at_rule(cursor, sheet, warnings, ctx),
             Some(_) => {
                 let ctx = Context {
-                    rule: RuleContext::default().in_layer(layer),
+                    rule: ctx,
                     parent: Parent::Top,
                 };
                 if !consume_style_rule(cursor, sheet, warnings, ctx) {
@@ -109,8 +117,9 @@ fn consume_at_rule(
     cursor: &mut Cursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
-    layer: Option<LayerId>,
+    ctx: RuleContext,
 ) {
+    let layer = ctx.layer;
     let line = cursor.line();
     let column = cursor.col();
     cursor.bump(); // '@'
@@ -121,7 +130,7 @@ fn consume_at_rule(
                         sheet: &mut Stylesheet,
                         warnings: &mut Vec<Warning>,
                         layer: Option<LayerId>| {
-            parse_rule_list(cursor, sheet, warnings, layer, None);
+            parse_rule_list(cursor, sheet, warnings, ctx.in_layer(layer), None);
         };
         crate::layer::consume_layer_rule(cursor, sheet, warnings, layer, (line, column), &mut body);
         return;
@@ -142,10 +151,18 @@ fn consume_at_rule(
     }
     if name.eq_ignore_ascii_case("scope") {
         let ctx = Context {
-            rule: RuleContext::default().in_layer(layer),
+            rule: ctx,
             parent: Parent::Top,
         };
         crate::scope::consume_scope_rule(cursor, sheet, warnings, ctx, (line, column));
+        return;
+    }
+    if name.eq_ignore_ascii_case("starting-style") {
+        // CSS Transitions 2 §3: `@starting-style { <rule-list> }`, no
+        // prelude.
+        if crate::block::starting_style_block(cursor, warnings, (line, column)) {
+            parse_rule_list(cursor, sheet, warnings, ctx.in_starting_style(), None);
+        }
         return;
     }
     warnings.push(Warning {

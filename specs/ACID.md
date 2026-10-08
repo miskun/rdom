@@ -73,7 +73,7 @@ tiles to a per-step reference.
 | I3 | Tab vs click focus | `:focus-visible` after Tab, not after a mouse click on a button; always on a text field |
 | I4 | Type into the `required` field | `:invalid` → `:valid`; the form's `:valid` follows |
 | I5 | Toggle a checkbox and a radio group | `:checked`; the radio group follows its form owner |
-| I6 | Advance the clock mid-transition | the transitioned colour equals the timing function's value at that time |
+| I6 | Advance the clock mid-transition (C12-ANIMATABLE, C12-TIMING) | the transitioned colour equals the timing function's value at that time (`linear()` stops, a `steps(…, jump-start)` holding its start value through the delay, a negative delay starting part-way); a `height` / `padding` / `gap` transition moves the tile's boxes frame by frame in whole cells (layout reads the running value); a `<details>` under `interpolate-size: allow-keywords` opens its `::details-content` from `height: 0` toward `auto`; `transitionrun` fires before the delay, `transitionstart` after it |
 | I7 | Rewrite a `<style>` element and an inline style through the CSSOM | both restyle on the next frame, in the documented cascade order |
 | I8 | Smooth scroll and `scrollIntoView` | offsets at a fixed time and at settle; outer containers untouched |
 | I9 | Caret blink and an edit | caret cell on / off per phase; the edit lands in the focused control |
@@ -83,6 +83,7 @@ tiles to a per-step reference.
 | I12 | Pointer over and pressing generated boxes (C10-PSEUDO-CHAINS) | tiles 9a–9c's `::before:hover` / `::marker:hover` (an inside and an outside marker, C10G-MARKER-HIT) / `::first-letter:hover` applying only while the pointer is over that pseudo-element, not its host's text; a `::after:active` while pressed; `::before:focus` never (Selectors 4 §3.6.3) |
 | I14 | User validity (C11-FORM-STATES) | tile 15's fields: typing into a `pattern` field changes no `:user-*` colour until Tab leaves it (`change` fires before `blur`), then `:user-invalid`; fixing it and leaving again, `:user-valid`; a click on the submit button makes the untouched `required` field `:user-invalid` and its `form:has(:user-invalid)` anchor restyle; the reset button clears both; clicking a `required` checkbox shows `:user-valid` checked, `:user-invalid` unchecked |
 | I15 | Popover light dismiss (C11-MODAL-POPOVER) | a `popovertarget` button opens an auto popover (`:popover-open`, focus to its `[autofocus]` field); a nested popover opens from a button inside it; a click inside the outer one hides only the nested one; a press inside and release outside hides nothing; a click outside hides the rest, focus returning to the button; Esc hides one popover per press, then cancels a modal dialog opened above another; a manual popover outlives every click and Esc |
+| I16 | Popover entry and exit (C12-STARTING, C12-BEHAVIOR) | a `popovertarget` button shows a popover that fades in from its `@starting-style` (`opacity: 0`) — it was `display: none`, so it has no before-change style; hiding it under `transition: opacity, display allow-discrete, overlay allow-discrete` keeps it shown and in the top layer (no longer `:popover-open`) while it fades out, then it leaves the top layer and is `display: none`; without the `overlay` transition it leaves at once |
 
 ## Coverage — gaps found while inventorying
 

@@ -311,7 +311,11 @@ impl Ordered<'_, '_> {
 /// `<details>` element's content slot's for its content — or the initial
 /// style seeded with the sheet-level variables when the parent is the
 /// fragment root.
-fn parent_computed_for(dom: &Dom<TuiExt>, root: NodeId, merged_vars: &VarMap) -> Rc<ComputedStyle> {
+pub(super) fn parent_computed_for(
+    dom: &Dom<TuiExt>,
+    root: NodeId,
+    merged_vars: &VarMap,
+) -> Rc<ComputedStyle> {
     let parent = dom.node(root).parent_node().map(|p| p.id());
     // A `<details>` element's content inherits from its slot.
     if let Some(slot) = parent.and_then(|p| super::details::inherited_style(dom, p, root)) {

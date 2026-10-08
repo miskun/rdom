@@ -327,7 +327,12 @@ fn style_and_layout(
     };
     if cascade.is_some() {
         animations.set_registered_properties(registry.clone());
-        crate::runtime::animation::diff_and_register(dom, animations, now);
+        // A newly rendered element's transitions start from its starting
+        // style (CSS Transitions 2 §3, `@starting-style`).
+        let starting = |dom: &TuiDom, id: NodeId| {
+            crate::style::cascade::starting_style(dom, (sheets, registry), id)
+        };
+        crate::runtime::animation::diff_and_register_with(dom, animations, now, &starting);
     }
     let laid_out = cascade.is_some() || redraw >= Redraw::Layout;
     if laid_out {

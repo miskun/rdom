@@ -89,6 +89,8 @@ mod setter_mutation_tests;
 #[cfg(test)]
 mod sibling_mark_tests;
 #[cfg(test)]
+mod starting_style_tests;
+#[cfg(test)]
 mod tests;
 
 use std::io::{self, Stdout};

@@ -23,6 +23,7 @@ mod property;
 mod round_trip;
 mod scope;
 mod selectors;
+mod starting_style;
 mod strict;
 mod tokenizer;
 mod transitions;
