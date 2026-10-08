@@ -115,3 +115,52 @@ fn a_nested_calc_size_resolves_inside_out() {
     assert_eq!(height(inner), 4);
     assert_eq!(height(outer), 2);
 }
+
+/// C13G-CALC-SIZE-AUTHORED (architect N6) — Chrome's documented accordion,
+/// `details[open]::details-content { height: calc-size(auto, size) }`,
+/// five `<details>` deep, all open and at rest: each box's sum gives back
+/// the size its basis laid it out at, so no level is laid out again — one
+/// pass a layout, not `d + 2` (7) — and every box keeps its `auto` height.
+#[test]
+fn an_authored_identity_calc_size_costs_no_extra_pass() {
+    use crate::render::layout_pass::ROUNDS;
+    use crate::{LayoutExt, TuiNodeExt};
+    let mut dom: TuiDom = TuiDom::new();
+    let mut parent = dom.root();
+    let mut summaries = Vec::new();
+    for level in 0..5 {
+        let details = dom.create_element("details");
+        dom.set_attribute(details, "open", "").unwrap();
+        let summary = dom.create_element("summary");
+        let t = dom.create_text_node(&format!("level {level}"));
+        dom.append_child(summary, t).unwrap();
+        dom.append_child(details, summary).unwrap();
+        let p = dom.create_element("p");
+        let t = dom.create_text_node("body");
+        dom.append_child(p, t).unwrap();
+        dom.append_child(details, p).unwrap();
+        dom.append_child(parent, details).unwrap();
+        summaries.push(summary);
+        parent = details;
+    }
+    let sheet = rdom_css::parse(
+        "details[open]::details-content { height: calc-size(auto, size) } \
+         details, summary, p { margin: 0 }",
+    );
+    assert!(sheet.warnings.is_empty(), "{:?}", sheet.warnings);
+    let terminal = Terminal::new(TestBackend::new(30, 20)).unwrap();
+    let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
+    app.push_stylesheet(sheet.stylesheet);
+    app.advance(0).unwrap();
+    ROUNDS.with(|c| c.set(0));
+    app.dom_mut()
+        .layout_dom(crate::render::Rect::new(0, 0, 30, 20));
+    assert_eq!(ROUNDS.with(std::cell::Cell::get), 1, "layout passes");
+    // Every level open at its `auto` height: its summary row, its body
+    // row, then the next level.
+    let ys: Vec<i32> = summaries
+        .iter()
+        .map(|&s| app.dom().node(s).layout_rect().unwrap().y)
+        .collect();
+    assert_eq!(ys, [0, 2, 4, 6, 8]);
+}

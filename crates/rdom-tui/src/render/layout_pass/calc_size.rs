@@ -13,8 +13,13 @@
 //! another resolve inside out: the innermost first, each level in a pass
 //! of its own after the one that measured it (C12G-CARRYOVER) — a
 //! document whose `calc-size()` boxes do not nest lays out twice, one
-//! nested `d` deep `d + 2` times. The computed styles are put back
-//! afterwards. A document without one lays out once, with no walk.
+//! nested `d` deep `d + 2` times. A box whose sum gives back its basis's
+//! size (`calc-size(auto, size)`, the authored accordion at rest) keeps
+//! its basis layout, and a level with no box changing size takes no pass
+//! (C13G-CALC-SIZE-AUTHORED): the extra passes are paid only while a sum
+//! moves a size — an `interpolate-size` transition running — so an
+//! authored, resting document lays out once. The computed styles are put
+//! back afterwards. A document without one lays out once, with no walk.
 
 use std::rc::Rc;
 
@@ -46,12 +51,21 @@ pub(super) fn lay_out(dom: &mut Dom<TuiExt>, viewport: Rect, pass: fn(&mut Dom<T
     pass(dom, viewport);
     let deepest = sized.iter().map(|(_, _, level)| *level).max().unwrap_or(0);
     for level in (0..=deepest).rev() {
-        let resolved: Vec<(NodeId, Rc<ComputedStyle>)> = sized
+        // A box whose sum gives back the size its basis laid it out at
+        // (`calc-size(auto, size)` at rest) keeps that layout: only the
+        // boxes that change size are put at their length, and a level
+        // with none is not laid out again.
+        let moved: Vec<(NodeId, Rc<ComputedStyle>)> = sized
             .iter()
             .filter(|(_, _, l)| *l == level)
-            .map(|(id, original, _)| (*id, Rc::new(resolved(dom, *id, original))))
+            .filter_map(|(id, original, _)| {
+                resolved(dom, *id, original).map(|style| (*id, Rc::new(style)))
+            })
             .collect();
-        for (id, style) in resolved {
+        if moved.is_empty() {
+            continue;
+        }
+        for (id, style) in moved {
             put(dom, id, style);
         }
         pass(dom, viewport);
@@ -99,12 +113,12 @@ fn at_basis(style: &ComputedStyle) -> ComputedStyle {
 }
 
 /// `style` with each `calc-size()` at the length its sum gives from the
-/// size the first pass laid the box out at — in the box `box-sizing`
-/// measures — a percentage in the offset against the containing block.
-fn resolved(dom: &Dom<TuiExt>, id: NodeId, style: &ComputedStyle) -> ComputedStyle {
-    let Some(ext) = dom.node(id).ext() else {
-        return at_basis(style);
-    };
+/// size the last pass laid the box out at — in the box `box-sizing`
+/// measures — a percentage in the offset against the containing block;
+/// `None` when every such length is that size (an identity sum, as
+/// `calc-size(auto, size)`): laid out again, the box would be as it is.
+fn resolved(dom: &Dom<TuiExt>, id: NodeId, style: &ComputedStyle) -> Option<ComputedStyle> {
+    let ext = dom.node(id).ext()?;
     // The content box: the box less its border, padding and any
     // scrollbar gutter — what `auto` resolved to in `content-box` terms.
     let measured = match style.box_sizing {
@@ -115,13 +129,16 @@ fn resolved(dom: &Dom<TuiExt>, id: NodeId, style: &ComputedStyle) -> ComputedSty
         .and_then(|p| dom.node(p).ext().map(|e| e.content_layout))
         .unwrap_or(ext.layout);
     let mut out = style.clone();
+    let mut changed = false;
     for (size, basis, percent) in [
         (&mut out.width, measured.width, block.width),
         (&mut out.height, measured.height, block.height),
     ] {
         if let Size::CalcSize(c) = size {
-            *size = Size::Fixed(c.resolve(basis, percent));
+            let length = c.resolve(basis, percent);
+            changed |= length != basis;
+            *size = Size::Fixed(length);
         }
     }
-    out
+    changed.then_some(out)
 }

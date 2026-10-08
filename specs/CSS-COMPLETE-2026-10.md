@@ -8751,3 +8751,18 @@ row comes from.
   `a_rowspanning_baseline_cell_gets_the_rows_it_needs` (x at row 1 for 2),
   `rows_inside_a_row_share_an_anonymous_table` (`["ab", "cccd"]` for `["a  b", "cccd"]`); green after.
   Mutation: each red is the old path.
+- 2026-10-08 — C13G-CALC-SIZE-AUTHORED (architect N6; CSS Values 5 §10). Found: `calc_size::lay_out` ran a
+  whole-tree pass per nesting level whenever the document flag said a `calc-size()` was authored — Chrome's
+  documented accordion, `details[open]::details-content { height: calc-size(auto, size) }`, five deep, laid
+  out 6 times on every layout, at rest. Decided: `resolved` returns `None` when every `calc-size()` length of
+  a box equals the size the last pass laid it out at (an identity sum); such a box keeps its basis style
+  and layout, and a level with no box changing size takes no pass. The passes are paid only on layouts
+  where a sum moves a size — a running `interpolate-size` transition, or a factor / offset other than the
+  identity — so the "frames where a basis could change" are exactly those. Behaviour: the box keeps its
+  basis's layout, so percentages inside it resolve as against the basis (an `auto` height, indefinite)
+  where the old extra pass had made them definite — DIVERGENCES' `calc-size()` entry says so. TECH_DEBT
+  `ANIM-RELAYOUT-1` restated: the `d + 2` term applies only while a sum moves a size. Red:
+  `runtime/app/calc_size_tests.rs` `an_authored_identity_calc_size_costs_no_extra_pass` — 6 layout rounds
+  for 1; green after, the summaries at rows 0, 2, 4, 6, 8 both before and after (checked against the old
+  code with the layout assertion first); `a_nested_calc_size_resolves_inside_out` (factor 0.5) still
+  resolves inside out. Mutation: the old `lay_out` restored alone gives the red count.
