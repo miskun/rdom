@@ -135,7 +135,10 @@ pub(super) fn compute_element_style(
     // margin-collapse pass — landing here in phase 1 so phase 5 has
     // it ready to consume.
     super::apply::finalize_unusual_contents(&mut working, dom.node(id).tag_name());
-    if super::blockify::children_are_items(dom, parent_id, parent) {
+    // The box parent: for a `<details>` element's slotted content, its
+    // `::details-content` box, whose style `parent` is.
+    let box_parent = super::details::box_parent(dom, id);
+    if super::blockify::children_are_items(dom, box_parent, parent) {
         super::blockify::blockify(&mut working);
     }
     super::blockify::finalize_top_layer(&mut working, dom.is_in_top_layer(id));

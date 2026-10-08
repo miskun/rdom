@@ -80,8 +80,10 @@ pub(crate) fn children_are_items(
         if computed.display != Display::Contents {
             return computed.flow.is_flex_or_grid();
         }
-        // The ancestors' styles are written: the walk is top-down.
-        let Some(next) = dom.node(id).parent_node().map(|p| p.id()) else {
+        // The ancestors' styles are written: the walk is top-down. A
+        // `display: contents` box passes its parent's role on — its parent
+        // in the box tree: a `::details-content` box's is its `<details>`.
+        let Some(next) = super::details::box_parent(dom, id) else {
             return false;
         };
         let Some(next_computed) = dom.node(next).ext().and_then(|e| e.computed.as_deref()) else {

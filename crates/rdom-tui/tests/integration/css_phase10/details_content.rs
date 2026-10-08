@@ -384,3 +384,113 @@ fn a_dropped_details_takes_its_slots_box_with_it() {
         "the details, its content and its slot's box"
     );
 }
+
+// ── C11G-DETAILS-PARENT: box-parent climbs through the slot ──────────
+
+/// `<details open><summary>s</summary><span>x</span></details>`; the
+/// span's id.
+fn details_span(dom: &mut TuiDom, root: NodeId) -> NodeId {
+    let d = el(dom, root, "details", "");
+    dom.set_attribute(d, "open", "").unwrap();
+    text_el(dom, d, "summary", "", "s");
+    text_el(dom, d, "span", "", "x")
+}
+
+/// The pseudo-element hit test finds a slotted element's `::before` on
+/// the line boxes of the `::details-content` box that holds them — its
+/// parent in the box tree — so `span::before:hover` can match (Selectors 4
+/// §3.6.3; architect N1).
+#[test]
+fn a_slotted_elements_before_is_hit() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let span = details_span(&mut dom, root);
+    let buf = super::paint(&mut dom, "span::before { content: '*' }", 8, 3);
+    assert_eq!(
+        buf.cell(0, 1).unwrap().symbol(),
+        "*",
+        "{:?}",
+        super::rows(&buf, 8, 3)
+    );
+    assert_eq!(
+        dom.hit_test_pseudo(0, 1),
+        Some((span, rdom_tui::ext::PseudoSlot::Before))
+    );
+}
+
+/// CSS Display 3 §2.7: the children of a flex container blockify, and a
+/// `display: contents` box passes that on — climbing the box tree, so a
+/// `details { display: flex }` whose `::details-content` is `contents`
+/// makes its slotted content flex items.
+#[test]
+fn slotted_content_of_a_flex_details_through_a_contents_slot_blockifies() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let span = details_span(&mut dom, root);
+    super::paint(
+        &mut dom,
+        "details { display: flex } details::details-content { display: contents }",
+        8,
+        3,
+    );
+    assert_eq!(
+        dom.node(span).computed().unwrap().display,
+        rdom_tui::layout::Display::Block
+    );
+}
+
+/// A subtree restyle below a `<details>` that brings a positioned
+/// `::before` flags the `::details-content` box above it too
+/// (`tree_has_positioned_pseudo`), so the paint walk that skips unflagged
+/// subtrees reaches it through the box.
+#[test]
+fn a_restyle_inside_details_flags_the_slot_box() {
+    use rdom_tui::render::{Terminal, TestBackend};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let span = details_span(&mut dom, root);
+    let sheet = rdom_css::from_css_strict(
+        ".on::before { content: '*'; position: absolute; left: 5; top: 2 }",
+    )
+    .unwrap();
+    let terminal = Terminal::new(TestBackend::new(8, 3)).unwrap();
+    let mut app = rdom_tui::App::with_backend(dom, sheet, terminal).unwrap();
+    app.advance(0).unwrap();
+    app.dom_mut().add_class(span, "on").unwrap();
+    app.advance(0).unwrap();
+    let area = rdom_tui::render::Rect::new(0, 0, 8, 3);
+    let mut buf = rdom_tui::render::Buffer::empty(area);
+    app.dom().paint_dom(&mut buf, area);
+    assert_eq!(
+        buf.cell(5, 2).unwrap().symbol(),
+        "*",
+        "{:?}",
+        super::rows(&buf, 8, 3)
+    );
+}
+
+/// A restyle that makes a flex `<details>`'s `::details-content` box
+/// `display: contents` turns its slotted content into flex items — the
+/// slot box's change reaches the children it holds, as an element's would
+/// (C7G-MINOR's `items_changed`, through the box tree).
+#[test]
+fn a_restyled_contents_slot_reblockifies_its_content() {
+    use rdom_tui::render::{Terminal, TestBackend};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let span = details_span(&mut dom, root);
+    let d = dom.node(span).parent_node().unwrap().id();
+    let sheet = rdom_css::from_css_strict(
+        "details { display: flex } details.c::details-content { display: contents }",
+    )
+    .unwrap();
+    let terminal = Terminal::new(TestBackend::new(8, 3)).unwrap();
+    let mut app = rdom_tui::App::with_backend(dom, sheet, terminal).unwrap();
+    app.advance(0).unwrap();
+    let display =
+        |app: &rdom_tui::App<TestBackend>| app.dom().node(span).computed().unwrap().display;
+    assert_eq!(display(&app), rdom_tui::layout::Display::Inline);
+    app.dom_mut().add_class(d, "c").unwrap();
+    app.advance(0).unwrap();
+    assert_eq!(display(&app), rdom_tui::layout::Display::Block);
+}

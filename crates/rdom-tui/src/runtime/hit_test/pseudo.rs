@@ -92,13 +92,13 @@ pub(super) fn on_outside_marker(
     in_lines_of(dom, holder, item, x, y) == Some((item, PseudoSlot::Marker))
 }
 
-/// `id` and its element ancestors, innermost first.
+/// `id` and its ancestors in the box tree, innermost first: a
+/// `::details-content` box between a `<details>` and its slotted content
+/// included — its line boxes are its own (`render::box_tree::slot`).
 fn ancestors_or_self(dom: &Dom<TuiExt>, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
     std::iter::successors(Some(id), move |&cur| {
-        dom.node(cur)
-            .parent_node()
-            .filter(|p| p.node_type() == NodeType::Element)
-            .map(|p| p.id())
+        crate::render::box_tree::slot::parent(dom, cur)
+            .filter(|&p| dom.node(p).node_type() == NodeType::Element)
     })
 }
 

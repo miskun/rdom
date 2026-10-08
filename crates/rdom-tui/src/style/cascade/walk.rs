@@ -393,12 +393,15 @@ fn items_changed_above(dom: &Dom<TuiExt>, id: NodeId, changed: &[NodeId]) -> boo
     if changed.is_empty() {
         return false;
     }
-    let mut cur = dom.node(id).parent_node();
-    while let Some(n) = cur {
+    // Box parents (`render::box_tree::slot`): slotted content's is its
+    // `::details-content` box.
+    let mut cur = super::details::box_parent(dom, id);
+    while let Some(id) = cur {
+        let n = dom.node(id);
         if n.node_type() != NodeType::Element {
             return false;
         }
-        if changed.contains(&n.id()) {
+        if changed.contains(&id) {
             return true;
         }
         if !n
@@ -407,7 +410,7 @@ fn items_changed_above(dom: &Dom<TuiExt>, id: NodeId, changed: &[NodeId]) -> boo
         {
             return false;
         }
-        cur = n.parent_node();
+        cur = super::details::box_parent(dom, id);
     }
     false
 }

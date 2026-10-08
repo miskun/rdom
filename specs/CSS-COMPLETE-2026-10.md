@@ -7378,3 +7378,29 @@ row comes from.
   restyles; green after (0, then one per flip ltr → rtl → ltr, none for an rtl → rtl edit). Mutations (each
   alone, restored, touched): marking unconditionally → the count; no cascade baseline (the first edit sees
   `None`) → the count (1).
+- 2026-10-14 — C11G-DETAILS-PARENT (architect N1). Found: two climbs that look for a box took DOM parents
+  and skipped the `::details-content` box (C10G-DETAILS-CONTENT-BOX's `slot::parent` is the box tree's
+  view): the pseudo hit test (`hit_test::pseudo::ancestors_or_self`) read the `<details>`'s line boxes
+  for a slotted `<span>`'s `::before`, which are the slot box's, and found nothing (so `:hover` never
+  applied); and blockification's `children_are_items` was called with the slotted child's DOM parent (the
+  `<details>`) but the slot's style, then climbed DOM parents — under `details { display: flex }
+  details::details-content { display: contents }` it went from the `<details>` to its parent and left the
+  content inline. Both now climb the box tree, and the element cascade passes the box parent. The cascade
+  may not depend on render code (`the_cascade_does_not_depend_on_render_code`), so the one answer moved:
+  `style::cascade::details::box_parent` (it reads the cascade's own slot links) and `slot::parent`
+  delegates to it. The audit
+  of every other `parent_node()` climb in render, layout, the hit test, scrolling, selection and the
+  cascade: `walk::items_changed_above` (the restyle's version of the same `display: contents` climb)
+  now climbs the box tree too — no case tells the two apart today, as the slot box is never itself in the
+  restyle's `items_changed` list, but it is the same question; the rest are DOM questions and stay —
+  `<a href>` lookup, table-row parents, closed-`<details>` text hiding (asks for the `<details>` itself),
+  the top layer's event path, clipboard serialisation, `@scope`, counters (the element tree), highlight
+  inheritance (the slot box keeps no highlight styles), `user-select`'s used value and hosts (selection
+  hosts are DOM elements whose text a selection spans; the slot box has no children of its own), and the
+  subtree cascade's flag bubbling (the slot box takes its `<details>`'s flags through `mirror_flags`; pinned
+  by `a_restyle_inside_details_flags_the_slot_box`, green before and after). Red:
+  `a_slotted_elements_before_is_hit` (no pseudo-element hit) and
+  `slotted_content_of_a_flex_details_through_a_contents_slot_blockifies` (`Inline`); green after, with
+  `a_restyled_contents_slot_reblockifies_its_content` for the restyle path. Mutations (each alone,
+  restored, touched): a DOM climb in the hit test → the hit test; the DOM parent passed to
+  `children_are_items` → both blockify tests; a DOM climb inside it → both blockify tests.

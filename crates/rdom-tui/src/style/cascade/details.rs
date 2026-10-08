@@ -26,6 +26,21 @@ pub(crate) fn slotted(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool 
     summary(dom, parent) != Some(child)
 }
 
+/// `id`'s parent in the box tree (`render::box_tree::slot::parent`): its
+/// parent node, except that content slotted into a `::details-content`
+/// box has that box, and the box has its `<details>`.
+pub(crate) fn box_parent(dom: &Dom<TuiExt>, id: NodeId) -> Option<NodeId> {
+    use crate::ext::ContentBoxLink;
+    if let Some(ContentBoxLink::HostedBy(host)) = dom.node(id).ext().map(|e| e.content_box_link()) {
+        return Some(host);
+    }
+    let p = dom.node(id).parent_node()?.id();
+    match dom.node(p).ext().map(|e| e.content_box_link()) {
+        Some(ContentBoxLink::Box(b)) if slotted(dom, p, id) => Some(b),
+        _ => Some(p),
+    }
+}
+
 /// The `<details>` `details`'s first `<summary>` element child: the one
 /// its first slot takes (HTML §15.5.20).
 pub(crate) fn summary(dom: &Dom<TuiExt>, details: NodeId) -> Option<NodeId> {

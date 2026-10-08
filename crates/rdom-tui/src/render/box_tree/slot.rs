@@ -31,7 +31,8 @@ use rdom_core::{Dom, NodeId};
 use crate::ext::{ContentBoxLink, TuiExt};
 
 /// The box of `host`'s `::details-content` slot: `host` is a `<details>`
-/// whose slot has a style.
+/// whose slot has a style (tests; the climbs use [`parent`]).
+#[cfg(test)]
 pub(crate) fn content_box(dom: &Dom<TuiExt>, host: NodeId) -> Option<NodeId> {
     match dom.node(host).ext()?.content_box_link() {
         ContentBoxLink::Box(b) => Some(b),
@@ -52,13 +53,10 @@ pub(crate) fn host_of(dom: &Dom<TuiExt>, id: NodeId) -> Option<NodeId> {
 /// box, and the box has its `<details>`. Every climb that looks for a
 /// box — a containing block, a scroll container, the inline formatting
 /// context a text belongs to — goes through here.
+///
+/// The cascade asks the same question (blockification climbs boxes) and
+/// may not depend on render code, so the answer is
+/// `style::cascade::details::box_parent`'s.
 pub(crate) fn parent(dom: &Dom<TuiExt>, id: NodeId) -> Option<NodeId> {
-    if let Some(host) = host_of(dom, id) {
-        return Some(host);
-    }
-    let p = dom.node(id).parent_node()?.id();
-    match content_box(dom, p) {
-        Some(b) if crate::style::cascade::details::slotted(dom, p, id) => Some(b),
-        _ => Some(p),
-    }
+    crate::style::cascade::details::box_parent(dom, id)
 }
