@@ -171,7 +171,7 @@ impl HighlightRegistry {
         &mut self,
         parent: NodeId,
         index: usize,
-        inside: impl Fn(NodeId) -> bool,
+        mut inside: impl FnMut(NodeId) -> bool,
     ) {
         self.bump();
         for p in self.points_mut() {

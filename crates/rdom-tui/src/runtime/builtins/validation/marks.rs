@@ -162,8 +162,6 @@ fn current(
     let mut invalid = Vec::new();
     // One pass's caches: each form's default button is found once.
     let mut caches = rdom_core::SelectorCaches::new();
-    let default_selector =
-        rdom_core::selectors::parse(":default").expect("`:default` is a valid selector");
     let mut stack = vec![dom.root()];
     while let Some(id) = stack.pop() {
         let node = dom.node(id);
@@ -197,7 +195,7 @@ fn current(
         }
         if reads.default
             && matches!(node.tag_name(), Some("button" | "input" | "option"))
-            && dom.matches_list_with(id, &default_selector, None, &mut caches)
+            && dom.is_default_with(id, &mut caches)
         {
             states |= DEFAULT;
         }

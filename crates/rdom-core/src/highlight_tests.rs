@@ -134,6 +134,46 @@ fn ranges_follow_tree_changes() {
 thread_local! {
     /// Sibling hops `Dom::child_index` walked.
     pub(crate) static INDEX_HOPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Parent hops the removal hook took asking whether a boundary is
+    /// inside the removed node.
+    pub(crate) static INSIDE_HOPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// C11G-MINOR (architect N11) — DOM §4.2.3 "remove" steps 4–7 ask, per
+/// boundary point, whether it is inside the removed node. A search
+/// highlighting 1000 lines of a log 60 levels deep, and a removed line,
+/// asked it with an ancestor walk each — 1000 · 60 hops per removal. The
+/// answers share their ancestors: each node's is found once per removal.
+#[test]
+fn removing_under_a_large_highlight_walks_each_ancestor_once() {
+    let mut dom: Dom = Dom::new();
+    let mut parent = dom.root();
+    for _ in 0..60 {
+        let d = dom.create_element("div");
+        dom.append_child(parent, d).unwrap();
+        parent = d;
+    }
+    let log = parent;
+    let mut hits = Vec::new();
+    for _ in 0..1000 {
+        let line = dom.create_element("p");
+        let t = dom.create_text_node("hit");
+        dom.append_child(line, t).unwrap();
+        dom.append_child(log, line).unwrap();
+        hits.push(range((t, 0), (t, 3)));
+    }
+    dom.highlights_mut().set("search", Highlight::new(hits));
+    INSIDE_HOPS.with(|c| c.set(0));
+    for _ in 0..10 {
+        let last = dom.node(log).last_child().unwrap().id();
+        dom.remove_child(log, last).unwrap();
+    }
+    // Per removal: a few hops per boundary point (2000), not its depth.
+    let hops = INSIDE_HOPS.with(std::cell::Cell::get);
+    assert!(
+        hops <= 10 * (4 * 2000 + 2 * 60),
+        "{hops} hops for 10 removals"
+    );
 }
 
 /// C10G-HIGHLIGHT-COST — DOM §4.2.3 "insert" step 6 moves a boundary in

@@ -4044,3 +4044,38 @@ fn custom_property_transition_events_name_the_property() {
     app.dispatch_animation_events_for_test();
     assert_eq!(captured.borrow().as_deref(), Some("--c"));
 }
+
+/// C11G-MINOR (architect N11): a panic while a `HighlightsMut` guard is
+/// held still records the change — the registry's generation moves, but
+/// no observer may run while unwinding, so no `HighlightsChanged` record
+/// reaches the dirty tracker. The frame notices the generation it painted
+/// is not the registry's and repaints the highlights.
+#[test]
+fn a_highlight_changed_by_a_panicking_caller_repaints() {
+    use rdom_core::{Highlight, Position, Range};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let t = dom.create_text_node("hello world");
+    dom.append_child(p, t).unwrap();
+    dom.append_child(root, p).unwrap();
+    let sheet = rdom_css::from_css_strict("::highlight(hit) { background-color: yellow }").unwrap();
+    let mut app = test_app(dom, sheet, Rect::new(0, 0, 20, 2));
+    app.draw_if_dirty().unwrap();
+    let before = app.terminal().backend().bytes().len();
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut registry = app.dom_mut().highlights_mut();
+        let hit = Range::ordered_unchecked(Position::new(t, 0), Position::new(t, 5));
+        registry.set("hit", Highlight::new([hit]));
+        panic!("a listener's panic");
+    }));
+    assert!(outcome.is_err());
+    app.draw_if_dirty().unwrap();
+    let mut screen = crate::render::VirtualScreen::new(20, 2);
+    screen.apply(app.terminal().backend().bytes());
+    assert!(
+        app.terminal().backend().bytes().len() > before,
+        "a frame was drawn"
+    );
+    assert_eq!(screen.cell(0, 0).unwrap().bg, Color::Rgb(255, 255, 0));
+}

@@ -3,7 +3,6 @@
 
 use super::{HighlightRegistry, HighlightsMut};
 use crate::node_id::NodeId;
-use crate::selection::Position;
 
 impl<Ext: 'static> crate::Dom<Ext> {
     /// The document's highlight registry (CSS Custom Highlight API 1 §4,
@@ -60,14 +59,19 @@ impl<Ext: 'static> crate::Dom<Ext> {
             return;
         };
         // The index is walked only when a boundary moves: one in `parent`
-        // or inside the removed subtree.
-        let moves = |p: &Position| p.node == parent || self.is_ancestor(id, p.node);
-        if !self.highlights.points().any(moves) {
+        // or inside the removed subtree. The boundaries share ancestors:
+        // each node's answer is found once per removal.
+        let mut memo = InsideMemo::new(id);
+        let moves = self
+            .highlights
+            .points()
+            .any(|p| p.node == parent || memo.inside(self, p.node));
+        if !moves {
             return;
         }
         let index = self.child_index(id);
         let mut registry = std::mem::take(&mut self.highlights);
-        registry.removing(parent, index, |n| self.is_ancestor(id, n));
+        registry.removing(parent, index, |n| memo.inside(self, n));
         self.highlights = registry;
     }
 
@@ -81,5 +85,46 @@ impl<Ext: 'static> crate::Dom<Ext> {
         if !self.highlights.is_empty() {
             self.highlights.replace_data(node, offset, count, len);
         }
+    }
+}
+
+/// Whether nodes are the removed node or inside it, each answered once:
+/// a walk up from a node stops at the removed node, the root, or a node
+/// already answered, and records its answer for every node it passed.
+struct InsideMemo {
+    removed: NodeId,
+    known: std::collections::HashMap<NodeId, bool>,
+}
+
+impl InsideMemo {
+    fn new(removed: NodeId) -> Self {
+        Self {
+            removed,
+            known: std::collections::HashMap::new(),
+        }
+    }
+
+    fn inside<Ext>(&mut self, dom: &crate::Dom<Ext>, n: NodeId) -> bool {
+        let mut path = Vec::new();
+        let mut cur = Some(n);
+        let answer = loop {
+            let Some(c) = cur else {
+                break false;
+            };
+            #[cfg(test)]
+            crate::highlight_tests::INSIDE_HOPS.with(|h| h.set(h.get() + 1));
+            if c == self.removed {
+                break true;
+            }
+            if let Some(&known) = self.known.get(&c) {
+                break known;
+            }
+            path.push(c);
+            cur = dom.get_node(c).and_then(|x| x.parent);
+        };
+        for c in path {
+            self.known.insert(c, answer);
+        }
+        answer
     }
 }

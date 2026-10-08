@@ -25,13 +25,16 @@
 //!    lays out and repaints (frames only);
 //! 9. **tracker flags** — a text change the dirty tracker saw lays out
 //!    and repaints, a selection change repaints (frames only; the
-//!    off-frame run leaves them for the next frame).
+//!    off-frame run leaves them for the next frame);
+//! 10. **painted highlights** — the highlight registry's generation is
+//!     not the one last painted (a change no record reported) repaints.
 //!
 //! Stages 5, 7 and 8 walk the whole tree, so a frame runs them only when
 //! code ran since the last frame ([`FramePrelude::touched`],
 //! `P7G-IDLE-WALKS-1`) — and 7 also while a smooth scroll is in flight.
 //! After the paint, [`FramePrelude::after_paint`] records the painted
-//! offsets stage 8 compares against.
+//! offsets stage 8 compares against and the highlight generation stage 10
+//! does.
 
 use std::time::{Duration, Instant};
 
@@ -217,6 +220,13 @@ impl FramePrelude {
             .note_if(cx.tracker.take_paint_dirty(), Redraw::Layout);
         cx.redraw
             .note_if(cx.tracker.take_selection_dirty(), Redraw::Paint);
+        // 10. The highlight registry moved since the last paint without a
+        // record reaching the tracker: a `HighlightsMut` guard dropped
+        // while unwinding bumps the generation but may run no observer.
+        let generation = cx.dom.highlights().generation();
+        let painted = cx.dom.document_data::<PaintedHighlights>().map(|p| p.0);
+        cx.redraw
+            .note_if(painted.is_some_and(|p| p != generation), Redraw::Paint);
         walks
     }
 
@@ -225,6 +235,8 @@ impl FramePrelude {
     /// (layout's clamp, the caret reveal); a paint-only frame draws the
     /// offsets already noted. Returns the walks made.
     pub(super) fn after_paint(&mut self, dom: &mut TuiDom, laid_out: bool) -> u32 {
+        let generation = dom.highlights().generation();
+        dom.set_document_data(PaintedHighlights(generation));
         if !laid_out {
             return 0;
         }
@@ -335,3 +347,7 @@ impl FramePrelude {
         self.scroll_focus_marked = target;
     }
 }
+
+/// The highlight registry generation the last frame painted (document
+/// data; stage 10 of the prelude).
+struct PaintedHighlights(u64);

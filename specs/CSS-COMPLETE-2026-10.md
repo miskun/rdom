@@ -7420,3 +7420,23 @@ row comes from.
   `enter_commits_before_implicit_submission` (`["submit"]`, no `change`),
   `date_fields_block_implicit_submission` (a text + date form submitted); green after. Mutation (restored,
   touched): no commit → both Enter tests.
+- 2026-10-14 — C11G-MINOR (architect N11's remainder). Three parts. (1) Highlighted-node removal cost: the
+  removal hook (DOM §4.2.3 "remove" steps 4–7) asked of every boundary point whether it is inside the
+  removed node with an ancestor walk each, twice (once to decide whether any boundary moves, once to move
+  them) — 2 511 690 parent hops for 10 removed lines of a 60-deep log under a 1000-hit search. The answers
+  now share their ancestors (`InsideMemo`: a walk stops at the removed node, the root or a node already
+  answered, and records its answer for the nodes it passed; one memo per removal, both passes) — 60 400
+  hops. (2) `FormStateMarks::current` parsed `:default` on every flush to match it through the selector
+  engine; rdom-core gains `Dom::is_default_with(id, &mut SelectorCaches)` (the cached path `:default`
+  matching already used, now public beside `is_default` and `matches_list_with`, syncing the caches to
+  the epoch as they do) and the walk calls it — no selector at all. (3) A panic while a `HighlightsMut`
+  guard is held: the guard's drop moves the generation but, unwinding, runs no observer (a second panic
+  would abort), so the dirty tracker never heard and no repaint was scheduled. Decided — not a deferred
+  record in rdom-core (a host that catches the panic and mutates nothing would still never hear it) but
+  the frame's own check: the `App` notes the registry generation it painted (`after_paint`, document data)
+  and a prelude stage repaints when the registry's differs — the scroll offsets' pattern (stage 8). Red:
+  `removing_under_a_large_highlight_walks_each_ancestor_once` (2 511 690 hops; bound 81 200) and
+  `a_highlight_changed_by_a_panicking_caller_repaints` (no frame drawn); green after.
+  `is_default_with_shares_the_pass_caches` pins the new API (one default-button walk for 50 buttons);
+  part (2) changes no behaviour — the existing `:default` tests cover it. Mutation (restored, touched):
+  memo lookups off → the hop count.

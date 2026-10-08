@@ -85,8 +85,17 @@ impl<Ext> Dom<Ext> {
         self.default_with(id, &mut SelectorCaches::new())
     }
 
+    /// [`is_default`](Self::is_default) with the caches of the pass this
+    /// call belongs to ([`SelectorCaches`]): each form's default button is
+    /// found once per pass — what a backend walking every control asks,
+    /// without matching `:default` through a parsed selector.
+    pub fn is_default_with(&self, id: NodeId, caches: &mut SelectorCaches) -> bool {
+        caches.sync(self.mutation_epoch);
+        self.default_with(id, caches)
+    }
+
     /// [`is_default`](Self::is_default), each form's default button found
-    /// once per pass through `caches`.
+    /// once per pass through `caches` (already synced).
     pub(crate) fn default_with(&self, id: NodeId, caches: &mut SelectorCaches) -> bool {
         match self.get_node(id).and_then(|n| n.tag_name()) {
             Some("option") => self.control_state(id, ControlState::DefaultSelected),

@@ -154,7 +154,7 @@ impl SelectorCaches {
     }
 
     /// Drop every entry built under another mutation epoch.
-    pub(super) fn sync(&mut self, epoch: u64) {
+    pub(crate) fn sync(&mut self, epoch: u64) {
         if self.epoch != Some(epoch) {
             self.nth.clear();
             self.dir.clear();

@@ -217,6 +217,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-core`
 
+- `Dom::is_default_with(id, &mut SelectorCaches)`: `:default` (HTML §4.16.3) with a pass's caches — each form's default button found once — for a backend that asks it of every control without a parsed selector. (C11G-MINOR)
 - `CacheWork::chain_steps`: the candidates a combinator step of a complex selector tried — the matcher's backtracking work, by count. (C11G-HAS-COST)
 - **`:has()`** (Selectors 4 §4.5): `SimpleSelector::Has(Vec<RelativeSelector>)` — relative selectors with a leading `>`, `+`, `~` or none, unforgiving, invalid inside another `:has()`, with the specificity of the most specific argument; matched against the anchor's descendants or later siblings, the rest of each selector read from there. `SelectorCaches` keeps the answers per pass (`:has(.x)` over nested anchors is linear), counts the elements searched (`CacheWork::has_nodes`) and lists the anchors it evaluated (`SelectorCaches::has_anchors()`) for a backend's invalidation. (C11-HAS)
 - **`:link`, `:any-link`, `:visited`, `:lang()` and `:dir()`** (Selectors 4 §8.1–§8.2, §7.1–§7.2): `:any-link` / `:link` match `a` / `area` with `href` (HTML §4.16.3); `:visited` parses and never matches (no history); `:lang()` takes identifier or string ranges matched by RFC 4647 extended filtering against `Dom::language(id)` (HTML §3.2.6.2: the inherited `xml:lang` / `lang`, `Some("")` when unknown); `:dir(ltr | rtl)` matches `Dom::directionality(id)` (HTML §3.2.6.4: `dir`, `auto` and `<bdi>` by the first strong character, `<input type=tel>`, inheritance — the new `Directionality`), not the CSS `direction` property. (C11-LINK-LANG)
@@ -241,6 +242,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-core`
 
+- **Removing a node under a large highlight costs a few hops per boundary point** (DOM §4.2.3 "remove" steps 4–7): each boundary's "inside the removed node?" walked to the root — 1000 search hits 60 levels deep cost 250 000 hops per removed log line; the answers now share their ancestors. (C11G-MINOR)
 - **`:has()` costs what TECH_DEBT `HAS-COST-1` says** (Selectors 4 §4.5): a descendant / child argument (`:has(p div)`) is answered once per element and compound per pass — nested anchors were ~N³ — sibling-argument climbs stop at the anchor, and answers are kept per scoping root (`:scope` in `:has()` / `of S` read the wrong one). (C11G-HAS-COST)
 - **Complex selectors match when any assignment of elements does** (Selectors 4 §3.1): the matcher took the nearest ancestor (or earlier sibling) matching each compound and gave up when the rest failed, so `div > p span` missed a `span` whose nearest `p` was not the `div`'s child; it now backtracks to farther candidates, bounded as Servo's matcher is. And `+` / `~` relate *element* siblings (§14.3 / §14.4): `h1 + p` matched nothing across a whitespace text node or a comment. (C11-COMBINATORS)
 - **The query methods scope `:scope` to their node** (DOM §4.2.6, Selectors 4 §8.4): `query_selector_in(root, …)` / `query_selector_all_in` match with `root` as the scoping root (`:scope > p` is `root`'s own `p` children), `Dom::query_selector` / `query_selector_all` with the document, `matches(id, …)` and `closest(id, …)` with `id`; `:scope` was `:root` there. (C11-SCOPE)
@@ -671,6 +673,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A highlight changed by a panicking caller repaints**: a `HighlightsMut` guard dropped while unwinding moves the registry's generation but may run no observer, so no repaint was scheduled; a frame now repaints when the generation is not the one it last painted. The form-state walk no longer parses `:default` per flush. (C11G-MINOR)
 - **Enter commits a single-line field, and date fields block implicit submission** (HTML §4.10.5.5, §4.10.21.2): Enter fires the field's `change` and sets its user validity before implicit submission, form or not; the date, month, week, time and datetime-local inputs count among a form's blocking fields and submit on Enter. (C11G-ENTER-COMMIT)
 - **Box-parent climbs pass through `::details-content`**: the pseudo-element hit test and blockification climbed DOM parents past the slot box, so `details > span::before:hover` never matched and a flex `<details>` with a `display: contents` slot left its content inline. (C11G-DETAILS-PARENT)
 - **A `dir=auto` host restyles only when its direction flips** (HTML §3.2.6.4): every text edit or child-list change under one re-cascaded its whole subtree — a `<main dir=auto>` log restyled per row; the host now remembers the directionality it was styled with. (C11G-DIR-AUTO-COST)

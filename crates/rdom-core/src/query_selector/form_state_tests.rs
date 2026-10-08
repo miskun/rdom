@@ -1,7 +1,7 @@
 //! C11-FORM-STATES — the input pseudo-classes of Selectors 4 §14 with
 //! HTML §4.16.3's definitions of what each matches.
 
-use crate::{Dom, NodeId};
+use crate::{Dom, NodeId, SelectorCaches};
 
 fn el(dom: &mut Dom, parent: NodeId, tag: &str, attrs: &[(&str, &str)]) -> NodeId {
     let e = dom.create_element(tag);
@@ -400,4 +400,29 @@ fn user_validity_combines_the_backends_flag_with_validity() {
         assert_eq!(is(&dom, id, ":user-valid"), user == Some(true), "{id:?}");
         assert_eq!(is(&dom, id, ":user-invalid"), user == Some(false), "{id:?}");
     }
+}
+
+/// C11G-MINOR: `Dom::is_default_with` answers `:default` without a
+/// parsed selector, each form's default button found once per pass — the
+/// question a backend's per-flush walk asks of every control.
+#[test]
+fn is_default_with_shares_the_pass_caches() {
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let form = dom.create_element("form");
+    dom.append_child(root, form).unwrap();
+    let mut buttons = Vec::new();
+    for _ in 0..50 {
+        let b = dom.create_element("button");
+        dom.append_child(form, b).unwrap();
+        buttons.push(b);
+    }
+    let mut caches = SelectorCaches::new();
+    let defaults: Vec<bool> = buttons
+        .iter()
+        .map(|&b| dom.is_default_with(b, &mut caches))
+        .collect();
+    assert!(defaults[0] && defaults[1..].iter().all(|d| !d));
+    assert_eq!(caches.work().default_button_walks, 1);
+    assert_eq!(dom.is_default(buttons[0]), defaults[0]);
 }
