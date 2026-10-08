@@ -332,7 +332,7 @@ impl AnimationRegistry {
                 i += 1;
             }
         }
-        self.step_css(now, &mut targets);
+        self.step_css(dom, now, &mut targets);
         let mut out = Advanced::default();
         for (node, slot) in targets {
             if !dom.contains(node) {
@@ -381,7 +381,7 @@ impl AnimationRegistry {
                 a.apply(now, &mut style);
             }
             for a in &css {
-                for l in a.apply(now, &mut style) {
+                for l in a.apply(&mut style) {
                     if !animated.contains(&l) {
                         animated.push(l);
                     }

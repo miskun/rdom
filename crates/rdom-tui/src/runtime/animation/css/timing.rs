@@ -84,9 +84,21 @@ impl Timing {
         }
     }
 
-    /// The animation at local time `t` (§4.8–§4.10).
-    pub(crate) fn sample(&self, t: f64) -> Sample {
-        let phase = self.phase(t);
+    /// The animation at local time `t` (§4.8–§4.10). On a progress-based
+    /// timeline (`progress_based`) the end of the active interval is still
+    /// active (Web Animations 2 §4.6.4.1: a scroll at its end shows the
+    /// last keyframe, not the after phase).
+    pub(crate) fn sample(&self, t: f64, progress_based: bool) -> Sample {
+        let mut phase = self.phase(t);
+        if progress_based
+            && phase == Phase::After
+            && t == (self.delay + self.active_duration())
+                .min(self.end_time())
+                .max(0.0)
+            && self.active_duration() > 0.0
+        {
+            phase = Phase::Active;
+        }
         let Some(active) = self.active_time(t, phase) else {
             return Sample {
                 phase,
@@ -200,7 +212,7 @@ mod tests {
     fn the_end_is_progress_one_of_the_last_iteration() {
         let mut t = timing(100.0, 0.0, 2.0);
         t.fill = AnimationFillMode::Forwards;
-        let s = t.sample(500.0);
+        let s = t.sample(500.0, false);
         assert_eq!((s.progress, s.iteration), (Some(1.0), Some(1.0)));
     }
 
@@ -210,7 +222,7 @@ mod tests {
     fn a_zero_duration_jumps_to_the_end() {
         let mut t = timing(0.0, 0.0, 1.0);
         t.fill = AnimationFillMode::Both;
-        assert_eq!(t.sample(0.0).progress, Some(1.0));
+        assert_eq!(t.sample(0.0, false).progress, Some(1.0));
         assert_eq!(t.phase(0.0), Phase::After);
     }
 
@@ -219,8 +231,8 @@ mod tests {
     fn alternate_reverse_starts_backwards() {
         let mut t = timing(100.0, 0.0, 2.0);
         t.direction = AnimationDirection::AlternateReverse;
-        assert_eq!(t.sample(25.0).progress, Some(0.75));
-        assert_eq!(t.sample(125.0).progress, Some(0.25));
+        assert_eq!(t.sample(25.0, false).progress, Some(0.75));
+        assert_eq!(t.sample(125.0, false).progress, Some(0.25));
     }
 
     /// CSS Animations 2 §4.2: the interval bounds.

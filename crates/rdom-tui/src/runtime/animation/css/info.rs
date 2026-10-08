@@ -27,6 +27,7 @@ pub struct AnimationInfo {
     pseudo_element: Option<&'static str>,
     play_state: AnimationPlayState,
     current_time_ms: Option<f64>,
+    timeline_progress: Option<f64>,
 }
 
 impl AnimationInfo {
@@ -45,10 +46,18 @@ impl AnimationInfo {
         self.play_state
     }
 
-    /// Its current time in ms (`Animation.currentTime`): its local time,
-    /// its delay included; `None` while its timeline is inactive.
+    /// Its current time in ms (`Animation.currentTime`) on the document
+    /// timeline: its local time, its delay included; `None` on a progress
+    /// timeline or while its timeline is inactive.
     pub fn current_time_ms(&self) -> Option<f64> {
         self.current_time_ms
+    }
+
+    /// On a scroll or view progress timeline, where the scroll offset
+    /// stood at the last frame in the animation's attachment range: 0 at
+    /// its start, 1 at its end (outside before and after it).
+    pub fn timeline_progress(&self) -> Option<f64> {
+        self.timeline_progress
     }
 }
 
@@ -69,6 +78,7 @@ impl AnimationRegistry {
                 current_time_ms: Some(
                     now.saturating_duration_since(a.started_at).as_secs_f64() * 1000.0,
                 ),
+                timeline_progress: None,
             })
             .collect();
         let mut css: Vec<_> = self.css.iter().filter(|a| a.node == node).collect();
@@ -77,7 +87,8 @@ impl AnimationRegistry {
             kind: AnimationKind::CssAnimation(a.name.clone()),
             pseudo_element: a.slot.pseudo_element(),
             play_state: a.play_state,
-            current_time_ms: a.local_time(now),
+            current_time_ms: a.clock_time(now),
+            timeline_progress: a.fraction,
         }));
         out
     }

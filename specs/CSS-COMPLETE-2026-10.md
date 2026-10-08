@@ -243,7 +243,7 @@ row comes from.
 | C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) || done |
 | C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | done |
 | C12-STARTING | `@starting-style` || done |
-| C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | partial — the timelines driving animations (2/2) |
+| C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | partial — keyframe selectors naming a timeline range (3/3) |
 | C12-OUTLINE | `outline` / `-color` / `-style` / `-width` / `-offset` (non-layout ring) | |
 | C12-CURSOR | `cursor` (OSC 22 pointer shapes) | |
 | C12-CARET | `caret-shape` / `caret-animation` / `caret` | |
@@ -7783,3 +7783,30 @@ row comes from.
   `css_phase2_gates::every_length_property_resolves_viewport_units_in_the_cascade`).
   Red: `property_dispatch::timeline_tests` (7: `UnknownProperty`); green after. Nothing follows a
   timeline yet: the engine is part 2/2.
+- 2026-10-16 — C12-SCROLL-DRIVEN (2/3), the timelines. `runtime::animation::css::timeline` resolves an
+  animation's timeline each frame it steps: `scroll()` — the nearest box ancestor that is a scroll
+  container, the document element for `root`, the element for `self` — `view()` — the element in its
+  nearest scroll container — and a name — the nearest element at or above it declaring it (a scroll
+  timeline before a view timeline of one name), or the single descendant declaring it of the nearest
+  ancestor whose `timeline-scope` takes it (none or several: inactive; TECH_DEBT
+  `TIMELINE-SCOPE-COST-1`). Progress is measured in cells from the scroll origin along the axis (`block`
+  is `y` in `horizontal-tb`): the current offset against the unified scrollport and scroll range
+  (`layout_pass::scrollport`, `scroll_bounds`; under `rtl` or a reversed flex axis `scrollLeft` runs
+  0 → −range and counts from the right), a range of 0 or no scroll container making the timeline
+  inactive — the animation idle, no effect, no events. A view timeline places its subject from the
+  last layout (its offset then added back) and builds §3.4's named ranges from the subject's near edge,
+  size and the scrollport shrunk by `view-timeline-inset` (`auto`: the scroller's `scroll-padding`);
+  `animation-range` attaches the animation to `[start, end]` in offsets (a name's range, or the whole
+  timeline; a percentage of that range). The animation's local time is the offset's place in that
+  range mapped onto its timing scaled to fill it (`auto`: the iterations share it), the range's end
+  still active (Web Animations 2's boundary rule); events follow the phase changes as on the clock.
+  A scroll-driven animation needs no clock frames (`needs_frames` is false): a scroll asks for the
+  frame, which steps it with the new offset; after that frame's layout the scroll-driven animations
+  step again and the page lays out once more if they moved geometry (§5, a timeline the layout made
+  stale — the first frame of a scroller included). `AnimationInfo::timeline_progress`. Red:
+  `scroll_timeline_tests` (7: the animation ran on the clock with a zero duration, or stayed at the
+  element's width); green after, plus `the_first_frame_shows_a_timeline_its_layout_made`, which fails
+  without the post-layout step. Mutation-checked: ignoring the origin's side fails the `rtl` test;
+  dropping the end-boundary rule fails `a_scroll_timeline_follows_the_scroll_offset`. `css/mod.rs` (585
+  lines) split: the registry side — matching, retiming, building effects, stepping — to `css/update.rs`.
+  Remaining (3/3): keyframe selectors naming a timeline range (§4.4).

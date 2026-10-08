@@ -32,14 +32,16 @@ use crate::ext::{StyleSlot, TuiExt};
 use crate::style::cascade::PropertyRegistry;
 use crate::style::transition::TimingFunction;
 use crate::style::{
-    AnimationComposition, AnimationPlayState, AnimationTimeline, ComputedStyle, KeyframesRule,
-    Stylesheet,
+    AnimationComposition, AnimationDuration, AnimationPlayState, AnimationTimeline, ComputedStyle,
+    KeyframesRule, RangeBoundary, Stylesheet,
 };
 
 mod effect;
 mod events;
 mod info;
+mod timeline;
 mod timing;
+mod update;
 
 pub(crate) use effect::KeyframeEffect;
 pub use events::AnimationEventKind;
@@ -47,8 +49,6 @@ pub(crate) use events::PendingAnimationEvent;
 pub(crate) use info::slot_order;
 pub use info::{AnimationInfo, AnimationKind};
 use timing::{Phase, Timing};
-
-use super::AnimationRegistry;
 
 /// What the cascade hook reads to run CSS animations: the sheets of the
 /// cascade (their `@keyframes` rules) and their registrations — the
@@ -84,6 +84,12 @@ pub(crate) struct CssAnimation {
     composition: AnimationComposition,
     play_state: AnimationPlayState,
     timeline: AnimationTimeline,
+    /// `animation-duration: auto`: on a progress timeline the iterations
+    /// fill the attachment range (CSS Animations 2 §3.3).
+    duration_auto: bool,
+    /// `animation-range-start` / `-end`: where on a progress timeline it
+    /// is attached (Scroll-driven Animations 1 §4.3).
+    range: (RangeBoundary, RangeBoundary),
     /// When its local time was 0, on the app's clock (running).
     start: Instant,
     /// Its local time while paused, in ms.
@@ -100,6 +106,10 @@ pub(crate) struct CssAnimation {
     /// composite anyway (it started, changed or was rebuilt).
     composited: Option<f64>,
     dirty: bool,
+    /// The last frame's local time (ms) and, on a progress timeline,
+    /// where the scroll offset stood in its attachment range.
+    local: Option<f64>,
+    fraction: Option<f64>,
 }
 
 /// The values of an element style's `animation-*` lists at entry `i`
@@ -110,6 +120,8 @@ struct Entry {
     composition: AnimationComposition,
     play_state: AnimationPlayState,
     timeline: AnimationTimeline,
+    duration_auto: bool,
+    range: (RangeBoundary, RangeBoundary),
 }
 
 impl Entry {
@@ -121,11 +133,7 @@ impl Entry {
                 list[i % list.len()].clone()
             }
         }
-        let duration = if style.animation_duration.is_empty() {
-            0
-        } else {
-            style.animation_duration[i % style.animation_duration.len()].ms()
-        };
+        let duration = at(&style.animation_duration, i);
         let easing = if style.animation_timing_function.is_empty() {
             TimingFunction::Ease
         } else {
@@ -138,7 +146,7 @@ impl Entry {
         };
         Entry {
             timing: Timing {
-                duration: f64::from(duration),
+                duration: f64::from(duration.ms()),
                 delay: f64::from(delay),
                 iterations: at(&style.animation_iteration_count, i).get(),
                 direction: at(&style.animation_direction, i),
@@ -148,48 +156,110 @@ impl Entry {
             composition: at(&style.animation_composition, i),
             play_state: at(&style.animation_play_state, i),
             timeline: at(&style.animation_timeline, i),
+            duration_auto: duration == AnimationDuration::Auto,
+            range: (
+                at(&style.animation_range_start, i),
+                at(&style.animation_range_end, i),
+            ),
         }
     }
 }
 
 impl CssAnimation {
-    /// Its local time at `now` (ms); `None` while its timeline is
-    /// inactive (`animation-timeline: none`) — it is idle.
-    fn local_time(&self, now: Instant) -> Option<f64> {
-        if self.timeline == AnimationTimeline::None {
-            return None;
+    /// Its time at `now`: the local time (ms) on its timeline, the timing
+    /// it runs under there, and whether the timeline is progress-based —
+    /// `None` while its timeline is inactive (it is idle). On the
+    /// document timeline that is the clock since its start; on a scroll or
+    /// view timeline (Scroll-driven Animations 1) the scroll offset's place
+    /// in its attachment range, mapped onto its timing scaled to fill the
+    /// range (`duration: auto`: the iterations share it; a time: delay
+    /// and iterations keep their proportions; `infinite` counts once).
+    /// A paused animation holds its local time.
+    fn time(&mut self, dom: &Dom<TuiExt>, now: Instant) -> Option<(f64, Timing, bool)> {
+        let resolved = timeline::resolve_timeline(dom, self.node, &self.timeline);
+        let (timing, span) = match resolved {
+            timeline::Resolved::Inactive => {
+                self.fraction = None;
+                return None;
+            }
+            timeline::Resolved::Document => {
+                self.fraction = None;
+                let t = self.hold.unwrap_or_else(|| {
+                    now.saturating_duration_since(self.start).as_secs_f64() * 1000.0
+                });
+                return Some((t, self.timing, false));
+            }
+            timeline::Resolved::Progress(ref tl) => {
+                self.fraction = Some(tl.fraction(&self.range.0, &self.range.1));
+                self.progress_timing()
+            }
+        };
+        let t = self
+            .hold
+            .unwrap_or_else(|| self.fraction.unwrap_or(0.0) * span);
+        Some((t, timing, true))
+    }
+
+    /// Its local time on the document timeline at `now` (ms); `None` on
+    /// any other.
+    fn clock_time(&self, now: Instant) -> Option<f64> {
+        (self.timeline == AnimationTimeline::Auto).then(|| {
+            self.hold
+                .unwrap_or_else(|| now.saturating_duration_since(self.start).as_secs_f64() * 1000.0)
+        })
+    }
+
+    /// Its timing on a progress timeline and the local time that fills
+    /// the attachment range.
+    fn progress_timing(&self) -> (Timing, f64) {
+        let iterations = if self.timing.iterations.is_finite() {
+            self.timing.iterations
+        } else {
+            1.0
+        };
+        if self.duration_auto {
+            let duration = if iterations > 0.0 {
+                1000.0 / iterations
+            } else {
+                0.0
+            };
+            let timing = Timing {
+                duration,
+                delay: 0.0,
+                iterations,
+                ..self.timing
+            };
+            (timing, 1000.0)
+        } else {
+            let timing = Timing {
+                iterations,
+                ..self.timing
+            };
+            (
+                timing,
+                self.timing.delay.max(0.0) + timing.active_duration(),
+            )
         }
-        Some(
-            self.hold.unwrap_or_else(|| {
-                now.saturating_duration_since(self.start).as_secs_f64() * 1000.0
-            }),
-        )
     }
 
     /// Whether it changes with the clock: running on the document
-    /// timeline, not yet past its active interval.
+    /// timeline, not yet past its active interval. (A scroll-driven one
+    /// moves with its scroller, frame by frame as scrolling asks.)
     pub(super) fn needs_frames(&self, now: Instant) -> bool {
         self.hold.is_none()
+            && self.timeline == AnimationTimeline::Auto
             && self
-                .local_time(now)
-                .is_some_and(|t| self.timing.phase(t) != Phase::After)
+                .timing
+                .phase(now.saturating_duration_since(self.start).as_secs_f64() * 1000.0)
+                != Phase::After
     }
 
-    /// The progress its keyframes are sampled at, at `now`; `None` when
-    /// it has no effect.
-    fn progress(&self, now: Instant) -> Option<f64> {
-        self.timing.sample(self.local_time(now)?).progress
-    }
-
-    /// Write its keyframe values at `now` into `out`, over `out`'s own
-    /// (the underlying values: the cascade's and the transitions'). The
-    /// longhands it wrote, empty when it has no effect.
-    pub(super) fn apply(
-        &self,
-        now: Instant,
-        out: &mut ComputedStyle,
-    ) -> Vec<rdom_style::animation::Longhand> {
-        let Some(progress) = self.progress(now) else {
+    /// Write its keyframe values, at the progress its last step reached,
+    /// into `out` over `out`'s own (the underlying values: the cascade's
+    /// and the transitions'). The longhands it wrote, empty when it has
+    /// no effect.
+    pub(super) fn apply(&self, out: &mut ComputedStyle) -> Vec<rdom_style::animation::Longhand> {
+        let Some(progress) = self.composited else {
             return Vec::new();
         };
         let underlying = out.clone();
@@ -197,18 +267,26 @@ impl CssAnimation {
         self.effect.longhands().collect()
     }
 
-    /// Advance its event state to `now`, queueing the events the phase
-    /// change calls for (CSS Animations 2 §4.2); `true` when its
-    /// composited value moved (or it was changed) and its target must be
-    /// composited again.
-    fn step(&mut self, now: Instant, events: &mut Vec<PendingAnimationEvent>) -> bool {
-        let sample = self.local_time(now).map(|t| (t, self.timing.sample(t)));
-        let state = sample.map(|(_, s)| (s.phase, s.iteration));
-        for (kind, elapsed) in events::transitions(self.seen, state, &self.timing) {
+    /// Advance it to `now`, queueing the events its phase change calls
+    /// for (CSS Animations 2 §4.2); `true` when its composited value moved
+    /// (or it was changed) and its target must be composited again.
+    fn step(
+        &mut self,
+        dom: &Dom<TuiExt>,
+        now: Instant,
+        events: &mut Vec<PendingAnimationEvent>,
+    ) -> bool {
+        let sample = self
+            .time(dom, now)
+            .map(|(t, timing, progress_based)| (t, timing, timing.sample(t, progress_based)));
+        let state = sample.map(|(_, _, s)| (s.phase, s.iteration));
+        let timing = sample.map_or(self.timing, |(_, t, _)| t);
+        for (kind, elapsed) in events::transitions(self.seen, state, &timing) {
             events.push(self.event(kind, elapsed, now));
         }
         self.seen = state;
-        let progress = sample.and_then(|(_, s)| s.progress);
+        self.local = sample.map(|(t, ..)| t);
+        let progress = sample.and_then(|(_, _, s)| s.progress);
         let moved = self.dirty || progress != self.composited;
         self.composited = progress;
         self.dirty = false;
@@ -220,7 +298,10 @@ impl CssAnimation {
     /// the elapsed time stands for (a paused or cancelled one: now).
     fn event(&self, kind: AnimationEventKind, elapsed: f64, now: Instant) -> PendingAnimationEvent {
         let local = self.timing.delay + elapsed;
-        let scheduled = if self.hold.is_some() || kind == AnimationEventKind::Cancel {
+        let scheduled = if self.hold.is_some()
+            || kind == AnimationEventKind::Cancel
+            || self.timeline != AnimationTimeline::Auto
+        {
             now
         } else {
             self.start + Duration::from_secs_f64(local.max(0.0) / 1000.0)
@@ -243,203 +324,12 @@ impl CssAnimation {
         if phase == Phase::After {
             return None;
         }
-        let t = self.local_time(now)?;
+        let t = if self.timeline == AnimationTimeline::Auto && self.hold.is_none() {
+            now.saturating_duration_since(self.start).as_secs_f64() * 1000.0
+        } else {
+            self.local?
+        };
         let elapsed = self.timing.clamped_active_time(t);
         Some(self.event(AnimationEventKind::Cancel, elapsed, now))
     }
-}
-
-impl AnimationRegistry {
-    /// Bring the CSS animations of `(id, slot)` in line with its style:
-    /// `style` is its cascaded style while it is rendered, `None` while
-    /// it is not (no box: `display: none` itself or above, a pseudo-element
-    /// without content). `restyled`: the style is a new one, so the
-    /// keyframe values are recomputed.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn update_css(
-        &mut self,
-        dom: &Dom<TuiExt>,
-        inputs: CssInputs<'_>,
-        (id, slot): (NodeId, StyleSlot),
-        style: Option<&ComputedStyle>,
-        scheme: ColorScheme,
-        restyled: bool,
-        now: Instant,
-    ) {
-        let mut existing: Vec<usize> = (0..self.css.len())
-            .filter(|&i| self.css[i].node == id && self.css[i].slot == slot)
-            .collect();
-        let names = style.map_or(&[][..], |s| s.animation_name.as_slice());
-        let mut kept: Vec<usize> = Vec::new();
-        let mut started: Vec<CssAnimation> = Vec::new();
-        for (index, name) in names.iter().enumerate() {
-            let (Some(name), Some(style)) = (name.name(), style) else {
-                continue;
-            };
-            // §4.1: a name no `@keyframes` rule defines runs nothing.
-            let Some(rule) =
-                crate::style::cascade::keyframes_rule(dom, (inputs.sheets, inputs.registry), name)
-            else {
-                continue;
-            };
-            let entry = Entry::of(style, index);
-            match existing
-                .iter()
-                .position(|&i| &*self.css[i].name == name)
-                .map(|k| existing.remove(k))
-            {
-                Some(i) => {
-                    let anim = &mut self.css[i];
-                    let rebuild = restyled
-                        || anim.rule != *rule
-                        || anim.easing != entry.easing
-                        || anim.composition != entry.composition;
-                    anim.retime(entry, now);
-                    anim.index = index;
-                    anim.scheme = scheme;
-                    if rebuild {
-                        anim.rule = rule.clone();
-                        anim.effect = Rc::new(build_effect(dom, inputs, (id, slot), anim, style));
-                    }
-                    anim.dirty = true;
-                    kept.push(i);
-                }
-                None => {
-                    let paused = entry.play_state == AnimationPlayState::Paused;
-                    let mut anim = CssAnimation {
-                        node: id,
-                        slot,
-                        name: name.into(),
-                        index,
-                        timing: entry.timing,
-                        easing: entry.easing,
-                        composition: entry.composition,
-                        play_state: entry.play_state,
-                        timeline: entry.timeline,
-                        start: now,
-                        hold: paused.then_some(0.0),
-                        effect: Rc::default(),
-                        rule: rule.clone(),
-                        scheme,
-                        seen: None,
-                        composited: None,
-                        dirty: true,
-                    };
-                    anim.effect = Rc::new(build_effect(dom, inputs, (id, slot), &anim, style));
-                    started.push(anim);
-                }
-            }
-        }
-        // §4.1: an animation whose name left the list is cancelled.
-        existing.sort_unstable();
-        for i in existing.into_iter().rev() {
-            let gone = self.css.remove(i);
-            if let Some(e) = gone.cancel_event(now) {
-                self.css_events.push(e);
-            }
-            self.css_cancelled.push((gone.node, gone.slot));
-        }
-        self.css.extend(started);
-    }
-
-    /// Advance every CSS animation to `now`: queue its events, and add
-    /// the targets whose composited values moved to `targets`.
-    pub(super) fn step_css(&mut self, now: Instant, targets: &mut Vec<(NodeId, StyleSlot)>) {
-        for (node, slot) in self.css_cancelled.drain(..) {
-            if !targets.contains(&(node, slot)) {
-                targets.push((node, slot));
-            }
-        }
-        for anim in &mut self.css {
-            if anim.step(now, &mut self.css_events) && !targets.contains(&(anim.node, anim.slot)) {
-                targets.push((anim.node, anim.slot));
-            }
-        }
-    }
-
-    /// The CSS animations of `(node, slot)`, in composite order.
-    pub(super) fn css_on(&self, node: NodeId, slot: StyleSlot) -> Vec<&CssAnimation> {
-        let mut out: Vec<&CssAnimation> = self
-            .css
-            .iter()
-            .filter(|a| a.node == node && a.slot == slot)
-            .collect();
-        out.sort_by_key(|a| a.index);
-        out
-    }
-
-    /// Take the CSS animation events queued since the last call.
-    pub(crate) fn take_pending_animation_events(&mut self) -> Vec<PendingAnimationEvent> {
-        std::mem::take(&mut self.css_events)
-    }
-
-    /// Cancel the CSS animations of `node` (every slot) at `now`.
-    pub(super) fn cancel_css_for_node(&mut self, node: NodeId, now: Instant) {
-        let mut i = 0;
-        while i < self.css.len() {
-            if self.css[i].node == node {
-                let gone = self.css.remove(i);
-                if let Some(e) = gone.cancel_event(now) {
-                    self.css_events.push(e);
-                }
-                self.css_cancelled.push((gone.node, gone.slot));
-            } else {
-                i += 1;
-            }
-        }
-    }
-}
-
-impl CssAnimation {
-    /// Take a new entry's timing in place (§4: "changes to the other
-    /// animation properties update the running animation"): a pause holds
-    /// the local time it reached, a resume restarts the clock from it.
-    fn retime(&mut self, entry: Entry, now: Instant) {
-        let paused = entry.play_state == AnimationPlayState::Paused;
-        match (self.hold, paused) {
-            (None, true) => {
-                self.hold = Some(now.saturating_duration_since(self.start).as_secs_f64() * 1000.0);
-            }
-            (Some(held), false) => {
-                self.start = now
-                    .checked_sub(Duration::from_secs_f64(held.max(0.0) / 1000.0))
-                    .unwrap_or(now);
-                self.hold = None;
-            }
-            _ => {}
-        }
-        self.timing = entry.timing;
-        self.easing = entry.easing;
-        self.composition = entry.composition;
-        self.play_state = entry.play_state;
-        self.timeline = entry.timeline;
-    }
-}
-
-/// Build `anim`'s keyframe effect for the element style `style` of
-/// `(id, slot)`: each keyframe's values computed with its blocks in the
-/// animation origin.
-fn build_effect(
-    dom: &Dom<TuiExt>,
-    inputs: CssInputs<'_>,
-    (id, slot): (NodeId, StyleSlot),
-    anim: &CssAnimation,
-    style: &ComputedStyle,
-) -> KeyframeEffect {
-    let mut style_of = |blocks: &[&crate::style::TuiStyle]| {
-        crate::style::cascade::keyframe_style(
-            dom,
-            (inputs.sheets, inputs.registry),
-            id,
-            slot,
-            blocks,
-        )
-    };
-    KeyframeEffect::build(
-        &anim.rule,
-        &anim.easing,
-        anim.composition,
-        style.text_direction,
-        &mut style_of,
-    )
 }

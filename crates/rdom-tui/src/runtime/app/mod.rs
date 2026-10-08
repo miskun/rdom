@@ -89,6 +89,8 @@ mod scope_invalidation_tests;
 #[cfg(test)]
 mod scroll_repaint_tests;
 #[cfg(test)]
+mod scroll_timeline_tests;
+#[cfg(test)]
 mod setter_mutation_tests;
 #[cfg(test)]
 mod sibling_mark_tests;

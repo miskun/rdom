@@ -435,6 +435,16 @@ fn style_and_layout(
         if resnapped || focused || revealed {
             dom.layout_dom(area);
         }
+        // Scroll-driven Animations 1 §5: a scroll or view timeline this
+        // layout moved is stale — step it again, and lay out once more
+        // when it moved geometry.
+        if animations.has_progress_timelines() {
+            let again = animations.restep_progress(dom, now);
+            composites += again.composites;
+            if again.layout {
+                dom.layout_dom(area);
+            }
+        }
     }
     Pass {
         cascade,
