@@ -62,8 +62,10 @@ pub(crate) use convert::convert;
 /// sensible default without a manual impl everywhere.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Color {
-    /// Terminal default (SGR 39 / 49). The cascade's initial value
-    /// for `fg`/`bg`.
+    /// Terminal default (SGR 39 / 49): `CanvasText` / `Canvas`. The
+    /// cascade's initial value for `fg`; as a background it paints — the
+    /// cells blanked in the default background — where `bg`'s initial
+    /// value, [`Color::TRANSPARENT`], paints nothing.
     #[default]
     Reset,
 

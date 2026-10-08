@@ -82,9 +82,9 @@ fn has_half_block(border: Border) -> bool {
 /// and `Buffer::composite_group` folds the layer back, which is
 /// where a translucent box's glyphs beneath show through (OPACITY-1).
 ///
-/// `Color::Reset` for `bg` is honored at the call site (caller
-/// gates `if computed.bg != Color::Reset`); this function assumes
-/// the caller has decided to paint.
+/// Whether `bg` paints at all is the caller's (`fills`: anything but
+/// fully transparent — `Color::Reset`, the terminal's default background,
+/// paints); this function assumes the caller has decided to paint.
 ///
 /// Wide-glyph handling: when the opaque clear writes a SPACE over
 /// a wide-glyph primary cell, the partner spacer at `x+1` is also

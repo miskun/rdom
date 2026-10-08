@@ -52,7 +52,7 @@ fn bg_does_not_inherit() {
     dom.cascade(&sheet);
 
     assert_eq!(computed_of(&dom, parent).bg, Color::Rgb(255, 0, 0));
-    assert_eq!(computed_of(&dom, child).bg, Color::Reset); // not inherited
+    assert_eq!(computed_of(&dom, child).bg, Color::TRANSPARENT); // not inherited: the initial value
 }
 
 #[test]
@@ -1385,7 +1385,7 @@ fn ua_aria_tree_selectors_match() {
     // tree itself holds focus.
     assert_eq!(
         computed_of(&dom, active).bg,
-        Color::Reset,
+        Color::TRANSPARENT,
         "no highlight while the tree is unfocused",
     );
     dom.set_focused(Some(tree));
@@ -2100,7 +2100,7 @@ fn focus_tint_does_not_fill_containers() {
     dom.cascade(&Stylesheet::new());
     assert_eq!(
         computed_of(&dom, div).bg,
-        Color::Reset,
+        Color::TRANSPARENT,
         "a focused container must not be flooded with the focus tint"
     );
 }

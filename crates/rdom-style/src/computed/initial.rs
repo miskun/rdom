@@ -20,12 +20,15 @@ thread_local! {
 impl ComputedStyle {
     /// Spec initial values: what every property starts as before any
     /// cascade input is applied. `Color::Reset` means "use the terminal
-    /// default"; size/layout defaults match the legacy Element defaults
+    /// default" — `color`'s initial value (`CanvasText`); `background-color`
+    /// starts `transparent` (CSS Backgrounds 3 §3.2), which paints nothing,
+    /// while a specified `Canvas` / `reset` paints the terminal's default
+    /// background. Size/layout defaults match the legacy Element defaults
     /// for continuity.
     pub fn initial() -> Self {
         Self {
             fg: Color::Reset,
-            bg: Color::Reset,
+            bg: Color::TRANSPARENT,
             border_color: crate::layout::Sides::all(Color::Reset),
             modifiers: Modifier::empty(),
             opacity: 1.0,

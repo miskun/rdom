@@ -92,7 +92,9 @@ impl Buffer {
     /// so compositing blends the background and tints the glyphs and
     /// borders it leaves toward it.
     pub(crate) fn tint(&mut self, area: Rect, bg: Color) {
-        if bg.alpha() == 0 || bg == Color::Reset {
+        // Only `transparent` tints nothing: the terminal's default
+        // background (`Canvas`) is a background like any other.
+        if bg.alpha() == 0 {
             return;
         }
         if translucent(bg) {

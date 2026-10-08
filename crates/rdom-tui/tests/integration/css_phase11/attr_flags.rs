@@ -25,5 +25,5 @@ fn a_sheets_case_flags_decide_the_value_comparison() {
     assert_eq!(fg(&dom, upper), UNSTYLED, "`s`: `A` is not `a`");
     let bg = |id| dom.node(id).computed().expect("cascaded").bg;
     assert_eq!(bg(a), Color::Rgb(0, 0, 255));
-    assert_eq!(bg(upper), Color::Reset);
+    assert_eq!(bg(upper), Color::TRANSPARENT);
 }

@@ -100,7 +100,7 @@ fn track_cell<'a>(
     if let Some(p) = pseudo {
         let glyph: &'a str = p.content.as_deref().unwrap_or(fallback);
         let mut style = Style::new();
-        if p.bg != Color::Reset {
+        if super::fills(p.bg) {
             style = style.bg(p.bg);
         }
         if p.fg != Color::Reset {
@@ -132,7 +132,7 @@ fn thumb_cell<'a>(
     if let Some(p) = pseudo {
         let glyph: &'a str = p.content.as_deref().unwrap_or(fallback);
         let mut style = Style::new();
-        if p.bg != Color::Reset {
+        if super::fills(p.bg) {
             style = style.bg(p.bg);
         }
         if p.fg != Color::Reset {

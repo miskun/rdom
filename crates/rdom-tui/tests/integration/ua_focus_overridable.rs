@@ -34,7 +34,7 @@ fn focused_canvas_is_clean_by_default() {
 
     assert_eq!(
         cascade_focused(&mut dom, &Stylesheet::new(), canvas),
-        Color::Reset,
+        Color::TRANSPARENT,
         "a focused <canvas> must keep its (transparent) background by default"
     );
 }
@@ -52,7 +52,7 @@ fn focused_container_gets_no_tint() {
 
     assert_eq!(
         cascade_focused(&mut dom, &Stylesheet::new(), div),
-        Color::Reset,
+        Color::TRANSPARENT,
         "a focused container must not be flooded with the focus tint"
     );
 }

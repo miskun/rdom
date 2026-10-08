@@ -49,7 +49,7 @@ pub(super) fn unpair(
         }
     }
     if fg && !bg {
-        working.bg = crate::style::Color::Reset;
+        working.bg = crate::style::Color::TRANSPARENT;
     } else if bg && !fg {
         working.fg = host.fg;
     }

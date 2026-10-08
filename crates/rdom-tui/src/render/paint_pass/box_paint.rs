@@ -287,9 +287,11 @@ fn compute_border_priority(dom: &Dom<TuiExt>, id: NodeId) -> u64 {
     BorderContribution::pack_priority(depth, id.as_u32())
 }
 
-/// True when `bg` fills a box: not the terminal default (`Reset`,
-/// which leaves the cells to what is beneath) and not fully
-/// transparent (CSS Color 4 §6.3).
+/// True when `bg` fills a box: any color that is not fully transparent
+/// (CSS Color 4 §6.3). `transparent` — `background-color`'s initial
+/// value — leaves the cells to what is beneath; the terminal's default
+/// background (`Color::Reset`, what `Canvas` and `reset` are) *paints*:
+/// the cells are blanked in SGR 49, as a browser paints `Canvas`.
 pub(crate) fn fills(bg: Color) -> bool {
-    bg != Color::Reset && bg.alpha() > 0
+    bg.alpha() > 0
 }

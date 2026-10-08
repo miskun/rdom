@@ -36,7 +36,7 @@ fn nth_pseudo_classes_style_through_a_sheet() {
         dom.node(id).computed().unwrap().bg
     };
     assert_eq!(bg(kids[0]), RED);
-    assert_eq!(bg(kids[1]), rdom_tui::Color::Reset);
+    assert_eq!(bg(kids[1]), rdom_tui::Color::TRANSPARENT);
     assert_eq!(bg(p), RED, "the only `p` is the first of its type");
 }
 

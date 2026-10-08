@@ -8,7 +8,8 @@ use std::collections::HashMap;
 fn initial_is_safe_defaults() {
     let s = ComputedStyle::initial();
     assert_eq!(s.fg, Color::Reset);
-    assert_eq!(s.bg, Color::Reset);
+    // CSS Backgrounds 3 §3.2: `background-color` starts `transparent`.
+    assert_eq!(s.bg, Color::TRANSPARENT);
     assert_eq!(s.modifiers, Modifier::empty());
     assert_eq!(s.width, Size::Auto);
     assert_eq!(s.height, Size::Auto);

@@ -7304,3 +7304,31 @@ row comes from.
   both direct ping-pong / nested-show tests (light dismiss alone stays bounded by the slice); no cleanup on
   a panic and no removal flush (two disjoint mutations in one run) → the panic test, and the removal and
   churn tests.
+- 2026-10-14 — C11G-CANVAS-FILL (API B2). Found: `Color::Reset` stood for two things — the terminal's
+  default background, which `Canvas` and `reset` resolve to, and "no background", the initial value —
+  and `fills()` treated it as the second everywhere, so the UA's `[popover] { background-color: Canvas }`
+  painted nothing and a modal dialog over text showed the page's glyphs in its padding and beside its
+  lines (a regression of C11-MODAL-POPOVER: the 0.5 dialog sat in flow). Decided — split them once, at
+  the root: `background-color`'s initial value is the real `transparent` (CSS Backgrounds 3 §3.2;
+  `ComputedStyle::initial().bg` is `Color::TRANSPARENT`), and `fills(bg)` is `alpha > 0` — so `Canvas` /
+  `reset` *paint*: the box's cells are blanked (space) in SGR 49, "the default background, painted", while
+  `transparent` is "no paint". `Color::Reset` keeps meaning the terminal's default colour; only the
+  initial value moved. Every reader that took `Reset` as "no fill" was audited: `fills` (background,
+  text, `::first-letter` / `::first-line`, highlight overlays, tree-row highlights) now follows from the
+  root; the scrollbar's track / thumb tested `bg != Reset` (now `fills`); `Buffer::tint` (a `::backdrop`)
+  skipped `Reset` (now only `transparent`, so a `::backdrop { background-color: Canvas }` tints);
+  `::selection`'s paired default dropped the UA's half to `Reset`, which would now paint — it drops it to
+  `transparent` (pinned by C10G-SELECTION-PAIRED's test, which fails under the mutation). The canvas model
+  (`compose`, the translucent composite, the caret) already resolved `Reset` through the scheme's canvas.
+  The UA's `dialog` rule takes HTML's `background-color: Canvas; color: CanvasText` (every dialog, as
+  HTML's; a non-modal one in flow blanks only its own box); `[popover]` already had it. Red: the four
+  `canvas_fill` tests failed (the initial was `Reset`; `Canvas` / `reset` over a red parent left it red;
+  the modal dialog's and the popover menu's boxes held the page's `x`s). Green after. Changed
+  expectations (all "an unstyled element's `bg` is the initial value", now `TRANSPARENT`):
+  `initial_is_safe_defaults`, `bg_does_not_inherit`, `focus_tint_does_not_fill_containers`,
+  `ua_aria_tree_selectors_match`, `a_sheets_case_flags_decide_the_value_comparison`,
+  `nth_pseudo_classes_style_through_a_sheet`, `focused_canvas_is_clean_by_default`,
+  `focused_container_gets_no_tint`. No paint snapshot changed (rdom-showcase's and ACID's included):
+  nothing in them specifies `Canvas` or `reset` as a background. Mutations (each alone, restored,
+  touched): `fills` excluding `Reset` again → the three paint tests; no `background-color` in the UA's
+  `dialog` rule → the modal dialog test; the paired default back to `Reset` → C10G's selection test.

@@ -151,14 +151,22 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // Width / height stay `Auto` so the dialog shrinks to its
         // content; authors who want a fixed centered dialog set
         // their own size + position.
+        // HTML's rendering section: `dialog { background-color: Canvas;
+        // color: CanvasText }` — the terminal's own colors, so an open
+        // dialog hides what it covers (a modal one is over the page).
         (
             "dialog",
-            TuiStyle::new()
-                .display(Display::Block)
-                .border(Border::single())
-                .border_radius(crate::layout::BorderRadius::cells(1.0))
-                .border_fg(ACCENT)
-                .padding(Padding::new(1, 2, 1, 2)),
+            [("background-color", "canvas"), ("color", "canvastext")]
+                .into_iter()
+                .fold(
+                    TuiStyle::new()
+                        .display(Display::Block)
+                        .border(Border::single())
+                        .border_radius(crate::layout::BorderRadius::cells(1.0))
+                        .border_fg(ACCENT)
+                        .padding(Padding::new(1, 2, 1, 2)),
+                    |style, (name, value)| super::css(style, name, value),
+                ),
         ),
         ("dialog:not([open])", TuiStyle::new().display(Display::None)),
         // HTML's rendering section: a modal dialog is `position: fixed`
