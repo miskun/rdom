@@ -313,7 +313,7 @@ pub struct TuiStyle {
     /// `transition-timing-function` longhand.
     pub transition_timing_function: Option<Value<Vec<crate::transition::TimingFunction>>>,
     /// `transition-delay` longhand, in milliseconds.
-    pub transition_delay: Option<Value<Vec<u32>>>,
+    pub transition_delay: Option<Value<Vec<i32>>>,
 
     // ── Counters (CSS Lists 3 §4) ────────────────────────────────────
     pub counter_reset: Option<Value<Vec<crate::counters::CounterOp>>>,

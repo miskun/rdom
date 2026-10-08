@@ -159,6 +159,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `parse::values::parse_counter_ops(tokens, default)` | `parse_counter_ops(tokens, default, reversed)` (`true` for `counter-reset` only) | C10-COUNTERS | `counter_op_hints` |
 | exhaustive `match` on `Content`; `content: normal` as `Content::None` | `#[non_exhaustive]` (a `_` arm; new `Counters`, `Quote`, `WithAlt`); `Content::Normal` | C10-CONTENT, C10-LIST-ITEM | `generated_content_hints` |
 | exhaustive `match` on `Size` | add a `Size::CalcSize(c)` arm (`calc-size()`; `c.basis_size()`, `c.resolve(basis, percent_basis)`) | C12-ANIMATABLE | `calc_size_hints` |
+| `TimingFunction` (`Copy`); `transition_delay: Vec<u32>`, `TransitionRule::delay_ms: u32`; `parse_time_list` for durations | `.clone()`; a `LinearStops` arm; `Vec<i32>` / `i32`; `parse_duration_list` (`parse_time_list` reads signed delays) | C12-TIMING | `timing_hints` |
 | `AnimatableProperty` (`TransitionProperty::Named(AnimatableProperty::Color)`); `parse::values::parse_animatable_property`; `TransitionProperty::Discrete(name)` | `TransitionProperty::Named("color")` — any property's canonical name, built by `TransitionProperty::named(name)`; `Other(name)` for a custom or unknown one | C12-ANIMATABLE | `transition_property_hints` |
 | `PseudoElementTarget` (`Copy`) | `.clone()`; a match adds `Highlight(_)` under its `_` arm | C10-HIGHLIGHT | `pseudo_element_target_hints` |
 
@@ -276,6 +277,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Breaking — `rdom-style`
 
+- **`TimingFunction` is not `Copy` and gains `LinearStops`** (`linear()`, CSS Easing 2); **`transition-delay` is signed**: `TuiStyle` / `ComputedStyle::transition_delay` are `Vec<i32>`, `TransitionRule::delay_ms` is `i32`, `parse_time_list` reads signed delays (`parse_duration_list` the durations). Migration: `.clone()` an easing; add a `LinearStops` arm; `i32` delays. (C12-TIMING)
 - **`Size` gains `CalcSize`** (`calc-size()`, CSS Values 5 §10), the value an `auto` ↔ length transition runs through. Migration: add a `Size::CalcSize(c)` arm — size it as `c.basis_size()`, or `c.resolve(basis, percent_basis)` once the basis is known. (C12-ANIMATABLE)
 - **`transition-property` names any property**: `TransitionProperty::Named` holds the property's canonical name (`Named("padding")`); `AnimatableProperty` and `parse_animatable_property` are gone, and `Discrete(name)` is `Other(name)`. Migration: `TransitionProperty::named("color")`; match `Named(name)`. (C12-ANIMATABLE)
 - **`Length::Calc` holds an `Arc<CalcExpr>`** (was a `Box`): an inherited `calc()` `text-indent` is shared by its descendants' computed styles, not copied per element, and every `Length` clones without allocating. Migration: `Length::Calc(Box::new(e))` → `Length::calc(e)` (or `Length::Calc(Arc::new(e))`); a match on `Length::Calc(e)` reads `e` as before. (C9-CARRY-INDENT)
@@ -356,6 +358,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`linear()` easing and negative delays** (CSS Easing 2 §2.1, Transitions 1 §2.4): `linear(<stops>)` canonicalized into `LinearStop`s, `TimingFunction::ease_before` (the steps' before flag), a negative `transition-delay`; `none` is valid only alone, and the `transition` shorthand serializes its lists repeated cyclically. (C12-TIMING)
 - **`interpolate-size` and `calc-size()`** (CSS Values 5 §10–§11): `width` / `height` take `calc-size(<basis>, <sum>)` (`Size::CalcSize`, a sum linear in `size`), and under `interpolate-size: allow-keywords` (inherited) `auto` and the intrinsic keywords interpolate with lengths. (C12-ANIMATABLE)
 - **`animation`**: each longhand's animation type from its spec (`AnimationType`, `Longhand`, `animation_type`), the longhands a `transition-property` name covers (`transition_longhands`, flow-relative names by direction), and how each computed value interpolates — whole cells, `calc()` mixes, Oklab colors, discrete steps. (C12-ANIMATABLE)
 - **User-action pseudo-classes after a pseudo-element** (Selectors 4 §3.6.3): `::before:hover`, `::after:active`, `li::marker:hover`, `p::first-letter:hover`, and the legacy `p:before:hover`, parse (each trailing pseudo-class through rdom-core's parser) into `Rule::pseudo_state`, a `UserActionState` set counted in the rule's specificity as pseudo-classes; `:focus`, `:focus-visible` and `:focus-within` parse and never match a pseudo-element. A pseudo-class after another pseudo-element, or a logical combination there, drops the rule. (C10-PSEUDO-CHAINS)
@@ -556,6 +559,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **`transitionrun`, and transitions that start part-way** (CSS Transitions 1 §2.4, §6): `transitionrun` fires when a transition is created (`TransitionEventKind::Run`), a negative delay starts it part-way with `elapsedTime` the part skipped, and a `steps(…, jump-start)` easing holds its start value through the delay. (C12-TIMING)
 - **`height: auto` animates**: under `interpolate-size: allow-keywords` a `height: 0` → `auto` transition — a `<details>` opening, on `::details-content` — grows the box toward its content's height; layout sizes a `calc-size()` box in a second pass, from its basis. (C12-ANIMATABLE)
 - **README: "Form states" — a text field has no border**, a doctested example: a text field has no UA border (a terminal border costs a row each side), so `input:invalid { border-color: red }` paints nothing; a background cue keeps the field one row, and an author `border: solid` gives the red border its three rows. (C11G-FORM-BORDER)
 - **README: user validity and popovers**, doctested: `:user-invalid` after an edit only once the field loses focus, and on every field after a submission attempt; a `popovertarget` menu placed under its invoker from `beforetoggle`'s `source`, its `Canvas` fill hiding the page, closed by a click outside. (C11G-DOCS)

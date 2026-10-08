@@ -348,7 +348,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Transitions and animations
 
-- `linear()` easing, negative `transition-delay` — C12-TIMING
 - `transition-behavior: allow-discrete` (a discrete property — `display`, `content`, … — never transitions; naming it in `transition-property` starts nothing) — C12-BEHAVIOR
 - `@keyframes`, `animation` and the `animation-*` longhands, animation events — C12-KEYFRAMES
 - `@starting-style` — C12-STARTING

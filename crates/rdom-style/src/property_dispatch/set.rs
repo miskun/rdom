@@ -450,7 +450,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         "transition-property" => parse_transition_property_list(value).map(|list| {
             style.transition_property = Some(Value::Specified(list));
         }),
-        "transition-duration" => parse_time_list(value).map(|list| {
+        "transition-duration" => crate::parse::values::parse_duration_list(value).map(|list| {
             style.transition_duration = Some(Value::Specified(list));
         }),
         "transition-timing-function" => parse_timing_function_list(value).map(|list| {

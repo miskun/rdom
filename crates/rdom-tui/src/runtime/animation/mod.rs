@@ -45,11 +45,15 @@ pub struct ActiveAnimation {
     pub from: Rc<ComputedStyle>,
     /// The end value: the after-change style's.
     pub to: Rc<ComputedStyle>,
-    /// Set when the animation was registered. The visual start is
-    /// `started_at + delay`.
+    /// When the delay began: registration, or earlier by the part a
+    /// negative delay skips. The visual start is `started_at + delay`.
     pub started_at: Instant,
+    /// The delay left to wait (zero for a negative `transition-delay`).
     pub delay: Duration,
     pub duration: Duration,
+    /// The part of the duration a negative delay skipped (CSS Transitions
+    /// 1 §2.4) — the `elapsedTime` of `transitionrun` / `transitionstart`.
+    pub skipped: Duration,
     pub timing: TimingFunction,
     /// The element's used color scheme when the transition started: what
     /// a `reset` endpoint interpolates as (CSS Color Adjust 1 §2.1).
@@ -61,14 +65,19 @@ pub struct ActiveAnimation {
 impl ActiveAnimation {
     /// Linear progress in [0, 1]; 0 before the delay elapses.
     fn progress(&self, now: Instant) -> f32 {
-        let elapsed = now.saturating_duration_since(self.started_at);
-        if elapsed < self.delay {
+        if self.in_delay(now) {
             return 0.0;
         }
+        let elapsed = now.saturating_duration_since(self.started_at);
         if self.duration.is_zero() {
             return 1.0;
         }
         ((elapsed - self.delay).as_secs_f32() / self.duration.as_secs_f32()).clamp(0.0, 1.0)
+    }
+
+    /// Whether `now` is in the before phase — the delay.
+    fn in_delay(&self, now: Instant) -> bool {
+        now.saturating_duration_since(self.started_at) < self.delay
     }
 
     /// True once `now >= started_at + delay + duration`.
@@ -78,7 +87,14 @@ impl ActiveAnimation {
 
     /// Write the eased current value into `out`.
     fn apply(&self, now: Instant, out: &mut ComputedStyle) {
-        let t = f64::from(self.timing.ease(self.progress(now)));
+        // CSS Easing 1 §2.3.1: the before flag holds a step back in the
+        // delay.
+        let p = self.progress(now);
+        let t = f64::from(if self.in_delay(now) {
+            self.timing.ease_before(p)
+        } else {
+            self.timing.ease(p)
+        });
         self.property
             .interpolate(&self.from, &self.to, t, self.scheme, out);
     }
@@ -125,6 +141,8 @@ pub struct PendingEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TransitionEventKind {
+    /// `transitionrun`: the transition was created, before its delay.
+    Run,
     Start,
     End,
     Cancel,
@@ -173,6 +191,14 @@ impl AnimationRegistry {
             self.cancel_event(&old, now);
             anim.from = old.current_style(now);
         }
+        // CSS Transitions 1 §6: `transitionrun` when it is created.
+        self.pending_events.push(PendingEvent {
+            node: anim.node,
+            slot: anim.slot,
+            kind: TransitionEventKind::Run,
+            property: anim.property,
+            elapsed_seconds: anim.skipped.as_secs_f32(),
+        });
         self.active.push(anim);
     }
 
@@ -239,15 +265,14 @@ impl AnimationRegistry {
             if !targets.contains(&target) {
                 targets.push(target);
             }
-            let elapsed = now.saturating_duration_since(anim.started_at);
-            if !anim.started_dispatched && elapsed >= anim.delay {
+            if !anim.started_dispatched && !anim.in_delay(now) {
                 anim.started_dispatched = true;
                 self.pending_events.push(PendingEvent {
                     node: anim.node,
                     slot: anim.slot,
                     kind: TransitionEventKind::Start,
                     property: anim.property,
-                    elapsed_seconds: 0.0,
+                    elapsed_seconds: anim.skipped.as_secs_f32(),
                 });
             }
             if anim.is_done(now) {
@@ -372,6 +397,8 @@ mod longhand_tests;
 mod rule;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod timing_tests;
 #[cfg(test)]
 mod visibility_tests;
 

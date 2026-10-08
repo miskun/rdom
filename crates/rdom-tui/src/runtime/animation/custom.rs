@@ -168,6 +168,8 @@ pub(super) struct CustomAnimation {
     started_at: Instant,
     delay: Duration,
     duration: Duration,
+    /// What a negative delay skipped (`rule::Clock`).
+    skipped: Duration,
     timing: TimingFunction,
     started_dispatched: bool,
 }
@@ -175,14 +177,18 @@ pub(super) struct CustomAnimation {
 impl CustomAnimation {
     fn current(&self, now: Instant) -> Value {
         let elapsed = now.saturating_duration_since(self.started_at);
-        let t = if elapsed < self.delay {
-            0.0
+        let eased = if elapsed < self.delay {
+            // The before phase (CSS Easing 1 §2.3.1).
+            self.timing.ease_before(0.0)
         } else if self.duration.is_zero() {
             1.0
         } else {
-            ((elapsed - self.delay).as_secs_f32() / self.duration.as_secs_f32()).clamp(0.0, 1.0)
+            self.timing.ease(
+                ((elapsed - self.delay).as_secs_f32() / self.duration.as_secs_f32())
+                    .clamp(0.0, 1.0),
+            )
         };
-        lerp(self.from, self.to, self.timing.ease(t))
+        lerp(self.from, self.to, eased)
     }
 
     fn is_done(&self, now: Instant) -> bool {
@@ -278,15 +284,24 @@ impl AnimationRegistry {
                 write(dom, id, &name, None);
                 continue;
             }
+            let clock = rule.clock(now);
+            // CSS Transitions 1 §6: `transitionrun` when it is created.
+            self.custom_events.push(PendingCustomEvent {
+                node: id,
+                kind: TransitionEventKind::Run,
+                property: format!("--{name}"),
+                elapsed_seconds: clock.skipped.as_secs_f32(),
+            });
             self.custom.push(CustomAnimation {
                 node: id,
                 name,
                 kind,
                 from,
                 to,
-                started_at: now,
-                delay: Duration::from_millis(u64::from(rule.delay_ms)),
-                duration: Duration::from_millis(u64::from(rule.duration_ms)),
+                started_at: clock.started_at,
+                delay: clock.delay,
+                duration: clock.duration,
+                skipped: clock.skipped,
                 timing: rule.timing,
                 started_dispatched: false,
             });
@@ -309,7 +324,7 @@ impl AnimationRegistry {
                     node: anim.node,
                     kind: TransitionEventKind::Start,
                     property: property.clone(),
-                    elapsed_seconds: 0.0,
+                    elapsed_seconds: anim.skipped.as_secs_f32(),
                 });
             }
             let (node, name) = (anim.node, anim.name.clone());

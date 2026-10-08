@@ -363,7 +363,7 @@ pub struct ComputedStyle {
     pub transition_property: Vec<crate::transition::TransitionProperty>,
     pub transition_duration: Vec<u32>,
     pub transition_timing_function: Vec<crate::transition::TimingFunction>,
-    pub transition_delay: Vec<u32>,
+    pub transition_delay: Vec<i32>,
 
     /// `counter-reset` / `counter-increment` / `counter-set` (CSS Lists
     /// 3 §4). Non-inheriting; the cascade applies them to its counter

@@ -1410,3 +1410,23 @@ fn calc_size_hints() {
         InterpolateSize::NumericOnly
     );
 }
+
+/// C12-TIMING: `TimingFunction` is not `Copy` and has `linear()`'s
+/// `LinearStops`; delays are signed (`transition_delay: Vec<i32>`);
+/// `parse_duration_list` reads durations, `parse_time_list` delays.
+#[test]
+fn timing_hints() {
+    use style::transition::{LinearStop, TimingFunction};
+    let f = TimingFunction::LinearStops(
+        vec![LinearStop::new(0.0, 0.0), LinearStop::new(1.0, 1.0)].into(),
+    );
+    let g = f.clone();
+    assert_eq!(g.ease(0.5), 0.5);
+    let s = TuiStyle::new().transition_delay(vec![-500]);
+    assert_eq!(s.transition_delay, Some(Value::Specified(vec![-500])));
+    let tokens = style::parse::tokenize("1s, 2s").unwrap();
+    assert_eq!(
+        style::parse::values::parse_duration_list(&tokens),
+        Some(vec![1000, 2000])
+    );
+}

@@ -376,13 +376,22 @@ pub(super) fn serialize_timing_function(f: &TimingFunction) -> String {
             };
             format!("steps({count}, {pos})")
         }
+        // CSS Easing 2 §2.1: every point with its input, canonical.
+        TimingFunction::LinearStops(stops) => format!(
+            "linear({})",
+            join_csv(stops.iter(), |s| format!(
+                "{} {}%",
+                s.output,
+                (f64::from(s.input) * 100.0 * 1000.0).round() / 1000.0
+            ))
+        ),
     }
 }
 
 /// Serialize the `transition` shorthand from the four longhand
-/// vectors. Pads shorter vectors by repeating the last element
-/// (matches CSS's "repeat shorter list" rule), then emits one
-/// comma-separated piece per rule.
+/// vectors: one comma-separated piece per `transition-property` entry,
+/// the other lists repeated to its length (CSS Transitions 1 §2: "the
+/// values are repeated as necessary"; excess values are unused).
 pub(super) fn serialize_transition_shorthand(style: &TuiStyle) -> Option<String> {
     let props = style.transition_property.as_ref().and_then(specified)?;
     let durs = style.transition_duration.as_ref().and_then(specified)?;
@@ -395,9 +404,9 @@ pub(super) fn serialize_transition_shorthand(style: &TuiStyle) -> Option<String>
     if n == 0 || durs.is_empty() || timings.is_empty() || delays.is_empty() {
         return None;
     }
-    let pad_dur = |i: usize| durs[i.min(durs.len() - 1)];
-    let pad_timing = |i: usize| &timings[i.min(timings.len() - 1)];
-    let pad_delay = |i: usize| delays[i.min(delays.len() - 1)];
+    let pad_dur = |i: usize| durs[i % durs.len()];
+    let pad_timing = |i: usize| &timings[i % timings.len()];
+    let pad_delay = |i: usize| delays[i % delays.len()];
     let mut parts = Vec::with_capacity(n);
     for (i, p) in props.iter().enumerate() {
         parts.push(format!(

@@ -171,6 +171,7 @@ impl<B: Backend> App<B> {
         } in pending
         {
             let event_name = match kind {
+                TransitionEventKind::Run => "transitionrun",
                 TransitionEventKind::Start => "transitionstart",
                 TransitionEventKind::End => "transitionend",
                 TransitionEventKind::Cancel => "transitioncancel",
@@ -203,6 +204,7 @@ impl<B: Backend> App<B> {
         self.prelude.touched |= !custom.is_empty();
         for e in custom {
             let event_name = match e.kind {
+                TransitionEventKind::Run => "transitionrun",
                 TransitionEventKind::Start => "transitionstart",
                 TransitionEventKind::End => "transitionend",
                 TransitionEventKind::Cancel => "transitioncancel",

@@ -238,7 +238,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C12-TIMING | `transition-timing-function` full (`linear()`, `steps()` positions), negative `transition-delay` | |
+| C12-TIMING | `transition-timing-function` full (`linear()`, `steps()` positions), negative `transition-delay` || done |
 | C12-BEHAVIOR | `transition-behavior: allow-discrete` | |
 | C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) || done |
 | C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | |
@@ -7626,3 +7626,24 @@ row comes from.
   animate: its content computes `display: none` at once, so the `auto` basis is 0 (a browser transitions
   `content-visibility` with `allow-discrete`; DIVERGENCES §2, C14-CONTAIN). `min-*` / `max-*` /
   `flex-basis` do not take `calc-size()` yet (DIVERGENCES §2). Item done.
+- 2026-10-15 — C12-TIMING. CSS Easing 2 §2.1 `linear(<linear-stop-list>)`: parsed and canonicalized
+  (§2.1.1 — missing first / last inputs 0% / 100%, an input below an earlier one raised to it, runs of
+  missing inputs spread evenly, two percentages a hold; fewer than two stops invalid) into
+  `TimingFunction::LinearStops(Arc<[LinearStop]>)`, evaluated by §2.1.2's algorithm exactly (point A the
+  last at or before the input, the pair before the last at the end; equal inputs give B). `TimingFunction`
+  is no longer `Copy`. Easing 1 §2.3.1's before flag: `ease_before`, used during a transition's delay, so
+  `steps(n, jump-start)` shows the start value until the delay ends (it showed the first jump).
+  Transitions 1 §2.4: a negative `transition-delay` is valid and starts the transition part-way —
+  `rule::Clock` sets the start back by the part skipped and the combined duration (`max(duration, 0) +
+  delay`) must be positive for a transition to start; delays are `i32` end to end (`parse_time_list`
+  signed, `parse_duration_list` for durations, a negative duration still invalid). §6: `transitionrun`
+  fires when a transition is created (`TransitionEventKind::Run`), before its delay, with `transitionstart`
+  after; both carry the skipped time as `elapsedTime`; custom-property transitions too. §2.1 / §2.5: `none`
+  only alone in `transition-property` and in the shorthand. The shorthand serializer repeated a short
+  list's last value; it now repeats the list (§2, as the cascade's lookup does). `cubic-bezier()` x outside
+  [0, 1] and `steps(1, jump-none)` were already invalid; `steps()` positions were complete. Red: rdom-style
+  `transition::timing_tests` (5 tests: `LinearStops` / `ease_before` / signed `parse_time_list` did not
+  exist), rdom-tui `animation::timing_tests` (4: negative delay half-way at once, `-100ms` of `100ms`
+  changing at once, `transitionrun` before the delay, the jump-start hold), the dispatch of
+  `transitionrun`. Mutation-checked: starting the clock at registration fails the negative-delay test;
+  `ease` for `ease_before` fails the jump-start one. Item done.

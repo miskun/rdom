@@ -541,7 +541,7 @@ impl TuiStyle {
         self.transition_timing_function = Some(Value::Specified(v));
         self
     }
-    pub fn transition_delay(mut self, v: Vec<u32>) -> Self {
+    pub fn transition_delay(mut self, v: Vec<i32>) -> Self {
         self.transition_delay = Some(Value::Specified(v));
         self
     }

@@ -15,7 +15,8 @@ pub struct TransitionRule {
     pub property: TransitionProperty,
     pub duration_ms: u32,
     pub timing: TimingFunction,
-    pub delay_ms: u32,
+    /// Negative: the transition starts part-way (CSS Transitions 1 §2.4).
+    pub delay_ms: i32,
 }
 
 /// Which property a transition rule covers (CSS Transitions 1 §2.1).
@@ -87,10 +88,26 @@ pub enum StepPosition {
     JumpBoth,
 }
 
-/// `<easing-function>` (CSS Easing 1): the keyword curves,
-/// `cubic-bezier(x1, y1, x2, y2)` and `steps(n, <position>)`.
-/// `PartialEq` only — `CubicBezier` carries `f32`s.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+/// One point of a `linear()` easing (CSS Easing 2 §2.1): at input
+/// progress `input` the output progress is `output`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LinearStop {
+    pub input: f32,
+    pub output: f32,
+}
+
+impl LinearStop {
+    /// The point `(input, output)`.
+    pub const fn new(input: f32, output: f32) -> Self {
+        LinearStop { input, output }
+    }
+}
+
+/// `<easing-function>` (CSS Easing 1 / 2): the keyword curves,
+/// `linear(<stops>)`, `cubic-bezier(x1, y1, x2, y2)` and
+/// `steps(n, <position>)`. `PartialEq` only — the curves carry `f32`s.
+/// Not `Copy`: `linear()`'s points are shared behind an `Arc`.
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum TimingFunction {
     /// Identity — `t` linearly maps to itself.
     Linear,
@@ -108,6 +125,10 @@ pub enum TimingFunction {
     CubicBezier { x1: f32, y1: f32, x2: f32, y2: f32 },
     /// `steps(count, position)`; `count ≥ 1` (`≥ 2` for `jump-none`).
     Steps { count: u32, position: StepPosition },
+    /// `linear(<linear-stop-list>)` (CSS Easing 2 §2.1): a piecewise
+    /// linear curve through these points, canonical — at least two,
+    /// inputs non-decreasing.
+    LinearStops(std::sync::Arc<[LinearStop]>),
 }
 
 impl TimingFunction {
@@ -126,28 +147,64 @@ impl TimingFunction {
     /// progress. Cubic-bezier evaluation via Newton's method —
     /// 5 iterations gives <1% error which is well below cell-
     /// grid quantization noise.
-    pub fn ease(self, t: f32) -> f32 {
+    pub fn ease(&self, t: f32) -> f32 {
         let t = t.clamp(0.0, 1.0);
-        match self {
+        match *self {
             TimingFunction::Linear => t,
             TimingFunction::Ease => bezier(0.25, 0.1, 0.25, 1.0, t),
             TimingFunction::EaseIn => bezier(0.42, 0.0, 1.0, 1.0, t),
             TimingFunction::EaseOut => bezier(0.0, 0.0, 0.58, 1.0, t),
             TimingFunction::EaseInOut => bezier(0.42, 0.0, 0.58, 1.0, t),
             TimingFunction::CubicBezier { x1, y1, x2, y2 } => bezier(x1, y1, x2, y2, t),
-            TimingFunction::Steps { count, position } => steps(count, position, t),
+            TimingFunction::Steps { count, position } => steps(count, position, t, false),
+            TimingFunction::LinearStops(ref stops) => linear(stops, t),
+        }
+    }
+
+    /// [`ease`](Self::ease) in the before phase (a transition's delay):
+    /// CSS Easing 1 §2.3.1's "before flag" holds a step easing's jump at
+    /// 0 back, so the start value shows until the delay ends.
+    pub fn ease_before(&self, t: f32) -> f32 {
+        match *self {
+            TimingFunction::Steps { count, position } => {
+                steps(count, position, t.clamp(0.0, 1.0), true)
+            }
+            _ => self.ease(t),
         }
     }
 }
 
-/// CSS Easing 1 §2.3.1, the step easing algorithm (without the
-/// "before flag", which only matters for animations in their delay
-/// phase).
-fn steps(count: u32, position: StepPosition, t: f32) -> f32 {
+/// CSS Easing 2 §2.1.2, "calculate linear easing output progress": point
+/// A is the last point whose input is at most `t` (the first when none
+/// is, the one before the last when it is the last), point B the next;
+/// equal inputs give B's output, else the line through A and B.
+fn linear(stops: &[LinearStop], t: f32) -> f32 {
+    let n = stops.len();
+    if n < 2 {
+        return stops.first().map_or(t, |s| s.output);
+    }
+    let mut a = stops.iter().rposition(|s| s.input <= t).unwrap_or(0);
+    if a == n - 1 {
+        a -= 1;
+    }
+    let (a, b) = (stops[a], stops[a + 1]);
+    if a.input == b.input {
+        return b.output;
+    }
+    a.output + (b.output - a.output) * (t - a.input) / (b.input - a.input)
+}
+
+/// CSS Easing 1 §2.3.1, the step easing algorithm, with its "before
+/// flag" (`before`: the input is in the before phase).
+fn steps(count: u32, position: StepPosition, t: f32, before: bool) -> f32 {
     let count = count.max(1) as f32;
     let mut current = (t * count).floor();
     if matches!(position, StepPosition::Start | StepPosition::JumpBoth) {
         current += 1.0;
+    }
+    // The before flag, at a step boundary: the jump has not happened.
+    if before && (t * count).fract() == 0.0 {
+        current -= 1.0;
     }
     let jumps = match position {
         StepPosition::Start | StepPosition::End => count,
@@ -259,3 +316,6 @@ mod easing_tests {
         assert_eq!(ease_in.ease(0.5), TimingFunction::EaseIn.ease(0.5));
     }
 }
+
+#[cfg(test)]
+mod timing_tests;

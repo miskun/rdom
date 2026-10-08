@@ -2102,7 +2102,9 @@ fn transitionstart_and_transitioncancel_also_carry_typed_detail() {
     use crate::runtime::animation::{Longhand, PendingEvent, TransitionEventKind};
     use std::cell::RefCell;
 
+    // C12-TIMING: `transitionrun` (CSS Transitions 1 §6) too.
     let kinds = [
+        (TransitionEventKind::Run, "transitionrun"),
         (TransitionEventKind::Start, "transitionstart"),
         (TransitionEventKind::Cancel, "transitioncancel"),
     ];

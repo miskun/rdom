@@ -3,7 +3,7 @@
 //! start, replace or cancel the transitions the changes call for.
 
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -78,6 +78,7 @@ fn diff_style(
             registry.cancel(id, slot, l, now);
             continue;
         }
+        let clock = rule.clock(now);
         registry.register(
             ActiveAnimation {
                 node: id,
@@ -85,9 +86,10 @@ fn diff_style(
                 property: l,
                 from: prev.clone(),
                 to: curr.clone(),
-                started_at: now,
-                delay: Duration::from_millis(u64::from(rule.delay_ms)),
-                duration: Duration::from_millis(u64::from(rule.duration_ms)),
+                started_at: clock.started_at,
+                delay: clock.delay,
+                duration: clock.duration,
+                skipped: clock.skipped,
                 timing: rule.timing,
                 scheme,
                 started_dispatched: false,

@@ -3,25 +3,57 @@
 //! several do — and the duration, easing and delay at that index, the
 //! other lists repeated to `transition-property`'s length.
 
+use std::time::{Duration, Instant};
+
 use rdom_style::animation::{Longhand, transition_longhands};
 
 use crate::style::ComputedStyle;
 use crate::style::transition::{TimingFunction, TransitionProperty};
 
 /// The timing of one matched `transition-*` entry.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(super) struct Rule {
     pub duration_ms: u32,
     pub timing: TimingFunction,
-    pub delay_ms: u32,
+    /// Negative: the transition starts part-way (CSS Transitions 1 §2.4).
+    pub delay_ms: i32,
+}
+
+/// When a transition registered at `now` under a rule runs.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Clock {
+    /// When its delay began — before `now` by the part a negative delay
+    /// skips.
+    pub started_at: Instant,
+    /// The delay still to wait: zero for a negative one.
+    pub delay: Duration,
+    /// The part of the duration a negative delay skipped:
+    /// `min(max(-delay, 0), duration)`, the `elapsedTime` of its
+    /// `transitionrun` and `transitionstart` (§6).
+    pub skipped: Duration,
+    pub duration: Duration,
 }
 
 impl Rule {
-    /// Whether a change under this rule transitions: a zero duration and
-    /// delay commit the value at once (CSS Transitions 1 §3, "combined
-    /// duration").
+    /// Whether a change under this rule transitions: its combined
+    /// duration — `max(duration, 0) + delay` — is positive (CSS
+    /// Transitions 1 §3); otherwise the value changes at once.
     pub(super) fn runs(&self) -> bool {
-        self.duration_ms > 0 || self.delay_ms > 0
+        i64::from(self.duration_ms) + i64::from(self.delay_ms) > 0
+    }
+
+    /// The clock of a transition this rule starts at `now`.
+    pub(super) fn clock(&self, now: Instant) -> Clock {
+        let duration = Duration::from_millis(u64::from(self.duration_ms));
+        let delay = Duration::from_millis(u64::from(self.delay_ms.max(0).unsigned_abs()));
+        let skipped =
+            Duration::from_millis(u64::from(self.delay_ms.min(0).unsigned_abs())).min(duration);
+        Clock {
+            started_at: now.checked_sub(skipped).unwrap_or(now),
+            delay,
+            skipped,
+            duration,
+        }
     }
 }
 
@@ -36,11 +68,11 @@ pub(super) fn any(style: &ComputedStyle) -> bool {
 /// The entry at `idx`, the other lists cycled (§2: "the values are
 /// repeated as necessary").
 fn at(style: &ComputedStyle, idx: usize) -> Rule {
-    fn cycle<T: Copy>(list: &[T], idx: usize, default: T) -> T {
+    fn cycle<T: Clone>(list: &[T], idx: usize, default: T) -> T {
         if list.is_empty() {
             default
         } else {
-            list[idx % list.len()]
+            list[idx % list.len()].clone()
         }
     }
     Rule {
