@@ -171,11 +171,14 @@ pub(super) fn mark_auto_direction_host(
 /// match of an anchor whose subtree holds it — an ancestor (`from`
 /// itself too when `inclusive`: its child list changed) — or, when a
 /// relative selector reaches siblings, an earlier sibling of `from` or of
-/// an ancestor. Mark the ones a cascade flagged as anchors
-/// (`TuiExt::has_anchor`), with `Cause::Has` so a sibling combinator
-/// reading their `:has()` reaches their siblings. O(depth), or
-/// O(depth · siblings) with sibling relations; nothing before any cascade
-/// flagged an anchor.
+/// an ancestor, at most `HasTriggers::sibling_reach` of them. Mark the
+/// ones a cascade flagged as anchors (`TuiExt::has_anchor`), with
+/// `Cause::Has` so a sibling combinator reading their `:has()` reaches
+/// their siblings. Each (element, parent) is walked once per drain
+/// (`DirtyState::has_walked`) — its ancestors' walks, and with unbounded
+/// reach its earlier siblings', are then done too — so many changes under
+/// one parent cost one walk of it. O(depth + reach) per change; nothing
+/// before any cascade flagged an anchor.
 pub(super) fn mark_has_anchors(
     dom: &mut Dom<TuiExt>,
     state: &mut DirtyState,
@@ -185,7 +188,7 @@ pub(super) fn mark_has_anchors(
     if !crate::style::doc_flags::has_has_anchors(dom) {
         return;
     }
-    let siblings = state.has.siblings();
+    let reach = state.has.sibling_reach();
     let is_anchor =
         |dom: &Dom<TuiExt>, id: NodeId| dom.node(id).ext().is_some_and(|e| e.has_anchor);
     let mut cur = Some(from);
@@ -195,18 +198,31 @@ pub(super) fn mark_has_anchors(
         if (inclusive || !first) && is_anchor(dom, id) {
             mark_state_dirty(dom, state, id, Cause::Has);
         }
-        if siblings {
-            let mut sib = dom.node(id).previous_element_sibling().map(|s| s.id());
-            while let Some(s) = sib {
-                probe::step();
-                if is_anchor(dom, s) {
-                    mark_state_dirty(dom, state, s, Cause::Has);
-                }
-                sib = dom.node(s).previous_element_sibling().map(|s| s.id());
+        let parent = dom.node(id).parent_node().map(|p| p.id());
+        // Walked this drain under the same parent: its earlier siblings
+        // and its ancestors are done.
+        if !state.has_walked.insert((id, parent)) {
+            break;
+        }
+        let mut sib = dom.node(id).previous_element_sibling().map(|s| s.id());
+        let mut left = reach;
+        while left > 0
+            && let Some(s) = sib
+        {
+            probe::step();
+            if is_anchor(dom, s) {
+                mark_state_dirty(dom, state, s, Cause::Has);
             }
+            // With unbounded reach, `s`'s own earlier siblings are this
+            // run's: its walk is done (its ancestors are `id`'s).
+            if reach == usize::MAX && !state.has_walked.insert((s, parent)) {
+                break;
+            }
+            left = left.saturating_sub(usize::from(reach != usize::MAX));
+            sib = dom.node(s).previous_element_sibling().map(|s| s.id());
         }
         first = false;
-        cur = dom.node(id).parent_node().map(|p| p.id());
+        cur = parent;
     }
 }
 

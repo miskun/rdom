@@ -126,6 +126,10 @@ pub(super) struct DirtyState {
     /// finds them dirty already, so the O(children) loop is skipped —
     /// appending n rows one by one is O(n) marks, not O(n²).
     pub(super) sibling_marked: std::collections::HashSet<NodeId>,
+    /// The (element, parent) pairs whose `:has()` anchor walk — earlier
+    /// siblings and ancestors — ran since the last drain
+    /// (`marks::mark_has_anchors`).
+    pub(super) has_walked: std::collections::HashSet<(NodeId, Option<NodeId>)>,
     /// Text-only mutations don't affect the cascade (selectors don't
     /// match against text content) but they DO change painted output.
     /// Set by `CharacterDataChanged`; consumed by the runtime's redraw
@@ -157,6 +161,7 @@ impl Default for DirtyState {
             roots: Vec::new(),
             roots_set: std::collections::HashSet::new(),
             sibling_marked: std::collections::HashSet::new(),
+            has_walked: std::collections::HashSet::new(),
             paint_dirty: false,
             selection_dirty: false,
             records: 0,
@@ -192,6 +197,7 @@ impl DirtyTracker {
         let mut state = self.inner.borrow_mut();
         state.roots_set.clear();
         state.sibling_marked.clear();
+        state.has_walked.clear();
         std::mem::take(&mut state.roots)
     }
 
@@ -201,6 +207,7 @@ impl DirtyTracker {
         let mut state = self.inner.borrow_mut();
         state.roots_set.clear();
         state.sibling_marked.clear();
+        state.has_walked.clear();
         std::mem::take(&mut state.roots)
     }
 

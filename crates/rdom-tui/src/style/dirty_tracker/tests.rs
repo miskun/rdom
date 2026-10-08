@@ -657,3 +657,73 @@ fn has_invalidation_with_unknown_sheets_walks_once_per_change() {
     assert!(steps <= 2 * DEPTH as u64, "{steps} steps for depth {DEPTH}");
     drop(tracker);
 }
+
+/// 5000 list rows, each a `:has()` anchor of `sheet` once cascaded, with
+/// the tracker told the sheet's triggers.
+fn has_rows(sheet: &str) -> (TuiDom, Vec<NodeId>, DirtyTracker) {
+    use crate::CascadeExt;
+    use crate::style::has_triggers::HasTriggers;
+    const N: usize = 5000;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let ul = dom.create_element("ul");
+    dom.append_child(root, ul).unwrap();
+    let rows: Vec<NodeId> = (0..N)
+        .map(|_| {
+            let li = dom.create_element("li");
+            dom.append_child(ul, li).unwrap();
+            li
+        })
+        .collect();
+    let sheet = rdom_css::parse(sheet).stylesheet;
+    dom.cascade(&sheet);
+    let tracker = DirtyTracker::install(&mut dom);
+    tracker.set_has_triggers(HasTriggers::of_sheets([&sheet]));
+    (dom, rows, tracker)
+}
+
+/// C11G-HAS-COST (architect N3): with `+` the only sibling relation, an
+/// anchor is at most one earlier sibling away from a changed element or
+/// its ancestors — so toggling a class on 5000 rows, a frame each, walks a
+/// few steps each, not every earlier row (~12.5M steps) — and the anchor
+/// before the row is still restyled.
+#[test]
+fn an_adjacent_has_walk_checks_one_earlier_sibling() {
+    use crate::style::dirty_tracker::marks::probe;
+    let (mut dom, rows, tracker) = has_rows("li:has(+ .on) { color: red }");
+    probe::take();
+    dom.add_class(rows[1], "on").unwrap();
+    assert!(tracker.take_roots().contains(&rows[0]), "the anchor before");
+    // One drain per change (a frame each), so no walk is shared.
+    probe::take();
+    for &li in &rows {
+        dom.add_class(li, "on").unwrap();
+        tracker.take_roots();
+    }
+    let steps = probe::take();
+    assert!(steps <= 6 * rows.len() as u64, "{steps} steps");
+    drop(tracker);
+}
+
+/// C11G-HAS-COST (architect N3): with `~` an anchor can be any earlier
+/// sibling, but within one drain each earlier-sibling run is walked once:
+/// 5000 rows toggled last to first cost a linear walk, not a quadratic
+/// one.
+#[test]
+fn a_subsequent_sibling_has_walk_is_deduplicated_within_a_drain() {
+    use crate::style::dirty_tracker::marks::probe;
+    let (mut dom, rows, tracker) = has_rows("li:has(~ .on) { color: red }");
+    probe::take();
+    for &li in rows.iter().rev() {
+        dom.add_class(li, "on").unwrap();
+    }
+    let steps = probe::take();
+    assert!(steps <= 6 * rows.len() as u64, "{steps} steps");
+    let roots = tracker.take_roots();
+    assert!(roots.contains(&rows[0]) && roots.contains(&rows[rows.len() - 2]));
+    // A new drain walks again.
+    probe::take();
+    dom.remove_class(rows[rows.len() - 1], "on").unwrap();
+    assert!(probe::take() >= rows.len() as u64 - 1);
+    assert!(tracker.take_roots().contains(&rows[0]));
+}

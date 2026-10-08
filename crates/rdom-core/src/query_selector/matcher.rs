@@ -97,6 +97,16 @@ impl<Ext> Dom<Ext> {
             let Some(candidate) = next else {
                 return not_found;
             };
+            // A compound of a `:has()` argument sits below the anchor (or
+            // below its later siblings): a climb that reaches the anchor
+            // — or, from its siblings, their parent — has no candidate
+            // left (Selectors 4 §4.5).
+            if let (Target::Compound(_), Some((lead, a))) = (target, anchor)
+                && self.is_past_anchor(candidate, lead, a)
+            {
+                return not_found;
+            }
+            cx.caches.count_chain_step();
             let result = match target {
                 Target::Node(node) if candidate == node => Outcome::Matched,
                 Target::Node(_) => Outcome::RestartFromClosestLaterSibling,
@@ -118,6 +128,18 @@ impl<Ext> Dom<Ext> {
             }
             next = self.step(candidate, comb);
         }
+    }
+
+    /// Whether a chain step reaching `candidate` has left the region a
+    /// `:has()` argument led by `lead` from `anchor` can occupy: the
+    /// anchor's subtree for a descendant / child lead, its later siblings
+    /// and their subtrees for a sibling one.
+    fn is_past_anchor(&self, candidate: NodeId, lead: Combinator, anchor: NodeId) -> bool {
+        candidate == anchor
+            || (matches!(
+                lead,
+                Combinator::AdjacentSibling | Combinator::GeneralSibling
+            ) && self.get_node(anchor).and_then(|n| n.parent) == Some(candidate))
     }
 
     /// The next candidate `comb` relates `el` to: its parent for a

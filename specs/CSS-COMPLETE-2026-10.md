@@ -7332,3 +7332,37 @@ row comes from.
   nothing in them specifies `Canvas` or `reset` as a background. Mutations (each alone, restored,
   touched): `fills` excluding `Reset` again → the three paint tests; no `background-color` in the UA's
   `dialog` rule → the modal dialog test; the paired default back to `Reset` → C10G's selection test.
+- 2026-10-14 — C11G-HAS-COST (architect N2, N3, N7, N8, N11; corrects TECH_DEBT `HAS-COST-1`). Found, by
+  count: `div:has(p div)` over 1000 nested `div`s visited 499 500 candidates and took 333 333 000 chain
+  steps (every candidate's climb ran to the root); a `div:has(+ i p)` miss under 1000 ancestors climbed
+  1002 steps; one `li:has(+ .on)` / `li:has(~ .on)` rule made toggling a class on 5000 rows walk
+  12 512 496 / 12 512 500 siblings; a mutation in a pass's middle cleared the anchors recorded before it;
+  and `:scope` inside `:has()` or `of S` read another `@scope` root's cached answer. Decided — (1) a
+  *downward* argument (descendant and child combinators only) is answered by a bottom-up memo per
+  (element, compound): "does an element below this one, related as the combinator left of compound k
+  says, match it and the rest to its right?" — each computed once per pass, the anchor's answer is k = 0
+  — generalising C11-HAS's `:has(.x)` memo to every downward form, O(N · compounds) for nested anchors
+  and no chain climb at all; (2) an argument with a sibling combinator keeps the search, but `match_chain`
+  stops a compound's climb at the anchor (descendant / child lead) or the anchor's parent (sibling lead) —
+  no compound of the argument can sit there (§4.5) — returning the step's not-found outcome, which keeps
+  Servo's bounds; (3) the invalidation walk's sibling reach comes from the sheets
+  (`HasTriggers::sibling_reach`): the length of the `+` run leading a relative selector, unbounded with a
+  `~` in it or a sibling step nested in `:is()` / `:not()`, 0 without — and each (element, parent) is
+  walked once per drain (`DirtyState::has_walked`; with unbounded reach a run's earlier siblings are
+  marked walked too, their walks being the run's suffixes; keyed by the parent so a node moved in the
+  drain walks again); (4) the anchors are facts, not cached answers: `sync` keeps them; (5) the `:has()`
+  key (`HasKey`) and the `of S` nth key carry the scoping root. `CacheWork::chain_steps` (new field of a
+  `#[non_exhaustive]` struct) counts the matcher's candidate steps, which pins the backtracking bound
+  (N11). TECH_DEBT `HAS-COST-1` now states the bounds the tests pin (a `~` argument over a long list is
+  still quadratic per pass; the sticky flag and subtree restyle stay accepted). Red → green:
+  `a_downward_has_chain_over_nested_anchors_is_linear` (499 500 / 333 333 000 → under 3N and 0),
+  `a_sibling_has_search_stops_at_the_anchors_parent` (1002 → ≤ 4), `has_anchors_survive_a_mutation_mid_pass`,
+  `cached_answers_are_kept_per_scoping_root`, `an_adjacent_has_walk_checks_one_earlier_sibling` and
+  `a_subsequent_sibling_has_walk_is_deduplicated_within_a_drain` (12.5M → under 6N);
+  `backtracking_is_bounded_by_the_depth_per_compound` is a pin (green before). Mutations (each alone,
+  restored, touched): no anchor bound → the sibling search test; the nth key without the scope → the scope
+  test's `of :scope` half; `sync` clearing the anchors → the anchors test; a descendant step's not-found
+  outcome as a restart → the backtracking pin; no sibling-run dedupe → the `~` test; unbounded reach
+  always → the `+` test (rewritten to one drain per change, since the dedupe alone also made the
+  one-drain version linear). Existing expectation changed: `the_arguments_reads_fire` asserts reaches
+  (`HasTriggers::siblings()` became `sibling_reach()`).

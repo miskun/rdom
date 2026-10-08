@@ -47,8 +47,12 @@ pub(crate) struct HasTriggers {
     attribute_state: bool,
     /// Attribute names the arguments test, ASCII-lowercase.
     attributes: Vec<String>,
-    /// A relative selector reaches the anchor's later siblings.
-    siblings: bool,
+    /// How many earlier siblings away an anchor can be from a changed
+    /// element or one of its ancestors: 0 without a sibling relation, the
+    /// number of `+` steps leading a relative selector, `usize::MAX` once
+    /// a `~` (or a sibling step nested in `:is()` / `:not()`) can reach
+    /// any of them.
+    sibling_reach: usize,
 }
 
 impl HasTriggers {
@@ -57,7 +61,7 @@ impl HasTriggers {
         Self {
             all: true,
             any: true,
-            siblings: true,
+            sibling_reach: usize::MAX,
             ..Self::default()
         }
     }
@@ -78,11 +82,8 @@ impl HasTriggers {
                         if let SimpleSelector::Has(relative) = simple {
                             t.any = true;
                             for rel in relative {
-                                t.siblings |= matches!(
-                                    rel.combinator,
-                                    Combinator::AdjacentSibling | Combinator::GeneralSibling
-                                );
-                                t.add_reads(&rel.selector);
+                                t.sibling_reach = t.sibling_reach.max(leading_reach(rel));
+                                t.add_reads(&rel.selector, false);
                             }
                         }
                     }
@@ -101,10 +102,11 @@ impl HasTriggers {
         self.any
     }
 
-    /// Whether a relative selector reaches later siblings: a change must
-    /// look along earlier siblings for anchors too.
-    pub(crate) fn siblings(&self) -> bool {
-        self.siblings
+    /// How many earlier siblings of a changed element (or of an
+    /// ancestor) can be an anchor: the walk's bound along each sibling
+    /// list (`usize::MAX`: all of them).
+    pub(crate) fn sibling_reach(&self) -> usize {
+        self.sibling_reach
     }
 
     /// Whether a change of kind `cause` on an element can change some
@@ -125,16 +127,19 @@ impl HasTriggers {
         }
     }
 
-    /// Record what `complex` (a relative selector, or a selector nested
-    /// in one) reads, every compound of it: they match elements around
-    /// the anchor, any of which can change.
-    fn add_reads(&mut self, complex: &ComplexSelector) {
-        if complex
-            .ancestors
-            .iter()
-            .any(|(c, _)| matches!(c, Combinator::AdjacentSibling | Combinator::GeneralSibling))
+    /// Record what `complex` (a relative selector, or — `nested` — a
+    /// selector nested in one) reads, every compound of it: they match
+    /// elements around the anchor, any of which can change. A sibling
+    /// step nested in `:is()` / `:not()` relates elements the anchor's own
+    /// relation does not bound: every earlier sibling is walked.
+    fn add_reads(&mut self, complex: &ComplexSelector, nested: bool) {
+        if nested
+            && complex
+                .ancestors
+                .iter()
+                .any(|(c, _)| matches!(c, Combinator::AdjacentSibling | Combinator::GeneralSibling))
         {
-            self.siblings = true;
+            self.sibling_reach = usize::MAX;
         }
         for simple in compounds(complex).flat_map(|c| &c.simples) {
             match simple {
@@ -154,14 +159,14 @@ impl HasTriggers {
                 | SimpleSelector::Is(list)
                 | SimpleSelector::Where(list) => {
                     for inner in &list.0 {
-                        self.add_reads(inner);
+                        self.add_reads(inner, true);
                     }
                 }
                 SimpleSelector::Nth(nth) => {
                     // The index reads the child list (always a trigger);
                     // `of S` reads what `S` reads, of the siblings.
                     for inner in nth.of.iter().flat_map(|of| &of.0) {
-                        self.add_reads(inner);
+                        self.add_reads(inner, true);
                     }
                 }
                 // Not valid inside `:has()`, and unknown kinds: everything.
@@ -181,6 +186,28 @@ impl HasTriggers {
             self.attributes.push(name.to_ascii_lowercase());
         }
     }
+}
+
+/// How many earlier siblings away from the element a relative selector's
+/// compounds sit on, the anchor can be (Selectors 4 §4.5): the run of
+/// sibling combinators leading it, left to right — one per `+`, all of
+/// them once a `~` is in the run; 0 when it leads with `>` or a
+/// descendant combinator (the anchor is then an ancestor, which the walk
+/// climbs to anyway).
+fn leading_reach(rel: &rdom_core::selectors::RelativeSelector) -> usize {
+    // `ancestors` is right to left: the combinators after the leading
+    // one, left to right, are theirs reversed.
+    let mut reach = 0usize;
+    for comb in
+        std::iter::once(rel.combinator).chain(rel.selector.ancestors.iter().rev().map(|(c, _)| *c))
+    {
+        match comb {
+            Combinator::AdjacentSibling => reach = reach.saturating_add(1),
+            Combinator::GeneralSibling => return usize::MAX,
+            _ => break,
+        }
+    }
+    reach
 }
 
 #[cfg(test)]
@@ -210,13 +237,26 @@ mod tests {
         assert!(t.fires(Cause::Attribute("data-k")));
         assert!(!t.fires(Cause::Attribute("title")));
         assert!(!t.fires(Cause::State));
-        assert!(!t.siblings());
+        assert_eq!(t.sibling_reach(), 0);
         let t = triggers("form:has(:checked) { color: red } li:has(+ li:hover) { color: red }");
         assert!(t.fires(Cause::State));
         assert!(t.fires(Cause::Attribute("checked")));
-        assert!(t.siblings());
+        assert_eq!(t.sibling_reach(), 1);
         let t = triggers(":is(.x, div:not(:has(> .y ~ .z))) { color: red }");
-        assert!(t.siblings(), "a sibling step inside the argument");
+        assert_eq!(t.sibling_reach(), 0, "the anchor is the parent: no walk");
+        assert_eq!(
+            triggers("a:has(+ b + c d) { color: red }").sibling_reach(),
+            2
+        );
+        assert_eq!(
+            triggers("a:has(+ b ~ c) { color: red }").sibling_reach(),
+            usize::MAX
+        );
+        assert_eq!(
+            triggers("a:has(> :is(b + c)) { color: red }").sibling_reach(),
+            usize::MAX,
+            "a nested sibling step"
+        );
         assert!(t.fires(Cause::Attribute("class")));
     }
 }

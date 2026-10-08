@@ -23,7 +23,7 @@ impl<Ext> Dom<Ext> {
                 if !self.matches_list_cx(id, of, cx) {
                     return false;
                 }
-                NthCount::Of(std::ptr::from_ref(of) as usize)
+                NthCount::Of(std::ptr::from_ref(of) as usize, cx.scope)
             }
         };
         let Some((from_start, from_end)) = self.nth_position(id, count, nth.of.as_ref(), cx) else {
@@ -96,7 +96,7 @@ impl<Ext> Dom<Ext> {
                     *n += 1;
                     *n
                 }
-                NthCount::Of(_) => {
+                NthCount::Of(..) => {
                     if !of.is_some_and(|of| self.matches_list_cx(c, of, cx)) {
                         continue;
                     }

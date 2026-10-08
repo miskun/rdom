@@ -2,13 +2,28 @@
 //! matches when one of its relative selectors matches an element
 //! related to it — a descendant, a child, the next sibling or a later
 //! sibling, the rest of the selector read from there. Answers are kept
-//! in the pass's [`SelectorCaches`](super::caches::SelectorCaches).
+//! in the pass's [`SelectorCaches`](super::caches::SelectorCaches), per
+//! scoping root.
+//!
+//! Two strategies, by the relative selector's combinators:
+//!
+//! - **Downward** (descendant and child combinators only: `:has(.x)`,
+//!   `:has(> li)`, `:has(p div)`): answered bottom-up per (element,
+//!   compound) — "does some element below this one, related as the
+//!   combinator says, match this compound and the rest to its right?" —
+//!   each computed once per pass and shared by every anchor, so nested
+//!   anchors cost O(N · compounds), not a search each.
+//! - **With a sibling combinator** (`:has(+ h2)`, `:has(~ p a)`,
+//!   `:has(> a + b)`): each element the relative selector can reach as
+//!   its subject is tried, the chain read back towards the anchor — its
+//!   climbs bounded by the anchor (`Dom::match_chain`).
 
+use super::caches::HasKey;
 use super::matcher::{Cx, Outcome};
 use crate::dom::Dom;
 use crate::node::NodeData;
 use crate::node_id::NodeId;
-use crate::selectors::{Combinator, RelativeSelector};
+use crate::selectors::{Combinator, CompoundSelector, RelativeSelector};
 
 impl<Ext> Dom<Ext> {
     /// Whether the anchor `id` matches `:has(relative)`. Records `id` as
@@ -26,59 +41,71 @@ impl<Ext> Dom<Ext> {
     }
 
     fn matches_relative(&self, anchor: NodeId, rel: &RelativeSelector, cx: &mut Cx<'_>) -> bool {
-        let key = (std::ptr::from_ref(rel) as usize, anchor);
+        if is_downward(rel) {
+            return self.holds_below(anchor, rel, 0, cx);
+        }
+        let key = HasKey::new(rel, u32::MAX, cx.scope, anchor);
         if let Some(&known) = cx.caches.has.get(&key) {
             return known;
         }
-        let found = if rel.combinator == Combinator::Descendant && rel.selector.ancestors.is_empty()
-        {
-            self.subtree_holds(anchor, rel, cx)
-        } else {
-            self.search_relative(anchor, rel, cx)
-        };
+        let found = self.search_relative(anchor, rel, cx);
         cx.caches.has.insert(key, found);
         found
     }
 
-    /// `:has(<compound>)`: whether some proper descendant of `anchor`
-    /// matches the compound. Computed bottom-up for every element of the
-    /// subtree not already known, each recorded, so a nested anchor
-    /// reads its answer instead of searching again.
-    fn subtree_holds(&self, anchor: NodeId, rel: &RelativeSelector, cx: &mut Cx<'_>) -> bool {
-        let at = std::ptr::from_ref(rel) as usize;
-        let mut stack = vec![(anchor, false)];
-        while let Some((node, expanded)) = stack.pop() {
+    /// For a downward relative selector with compounds `c0 … cn` left to
+    /// right (`c0` related to the anchor by the leading combinator):
+    /// whether some element below `node`, related to it by the
+    /// combinator left of `c_k`, matches `c_k` and — unless it is the
+    /// subject — holds `c_k+1 …` below it in turn. Every element of
+    /// `node`'s subtree the answer reads is computed once per pass
+    /// (bottom-up, iteratively) and recorded.
+    fn holds_below(&self, node: NodeId, rel: &RelativeSelector, k: usize, cx: &mut Cx<'_>) -> bool {
+        let scope = cx.scope;
+        let key = |n| HasKey::new(rel, k as u32, scope, n);
+        if let Some(&known) = cx.caches.has.get(&key(node)) {
+            return known;
+        }
+        let deep = combinator_left_of(rel, k) == Combinator::Descendant;
+        let mut stack = vec![(node, false)];
+        while let Some((n, expanded)) = stack.pop() {
+            let n_key = key(n);
             if !expanded {
-                if cx.caches.has.contains_key(&(at, node)) {
+                if cx.caches.has.contains_key(&n_key) {
                     continue;
                 }
                 cx.caches.count_has_node();
-                stack.push((node, true));
-                let mut child = self.first_element_child_id(node);
-                while let Some(c) = child {
-                    stack.push((c, false));
-                    child = self.next_element_sibling_id(c);
+                stack.push((n, true));
+                if deep {
+                    let mut child = self.first_element_child_id(n);
+                    while let Some(c) = child {
+                        stack.push((c, false));
+                        child = self.next_element_sibling_id(c);
+                    }
                 }
                 continue;
             }
             let mut holds = false;
-            let mut child = self.first_element_child_id(node);
-            while let Some(c) = child {
-                holds = holds
-                    || cx.caches.has.get(&(at, c)) == Some(&true)
-                    || self.matches_compound(c, &rel.selector.subject, cx);
+            let mut child = self.first_element_child_id(n);
+            while let Some(c) = child
+                && !holds
+            {
+                holds = (deep && cx.caches.has.get(&key(c)) == Some(&true))
+                    || (self.matches_compound(c, compound_at(rel, k), cx)
+                        && (k == last_index(rel) || self.holds_below(c, rel, k + 1, cx)));
                 child = self.next_element_sibling_id(c);
             }
-            cx.caches.has.insert((at, node), holds);
+            cx.caches.has.insert(n_key, holds);
         }
-        cx.caches.has.get(&(at, anchor)) == Some(&true)
+        cx.caches.has.get(&key(node)) == Some(&true)
     }
 
-    /// Any other relative selector: try each element it can reach as its
-    /// subject — the anchor's descendants (children only, for `>` with no
-    /// descendant step after it), or its later siblings (the next one
-    /// only, for `+` with no sibling step after it) and, when the
-    /// selector steps down from them, their descendants.
+    /// A relative selector with a sibling combinator: try each element it
+    /// can reach as its subject — the anchor's descendants (children
+    /// only, for `>` with no descendant step after it), or its later
+    /// siblings (the next one only, for `+` with no sibling step after
+    /// it) and, when the selector steps down from them, their
+    /// descendants.
     fn search_relative(&self, anchor: NodeId, rel: &RelativeSelector, cx: &mut Cx<'_>) -> bool {
         let steps = || rel.selector.ancestors.iter().map(|(c, _)| *c);
         let steps_down = steps().any(|c| matches!(c, Combinator::Descendant | Combinator::Child));
@@ -142,5 +169,41 @@ impl<Ext> Dom<Ext> {
             cur = n.next_sibling;
         }
         None
+    }
+}
+
+/// Whether every combinator of `rel` — the leading one and those between
+/// its compounds — is a descendant or child combinator.
+fn is_downward(rel: &RelativeSelector) -> bool {
+    std::iter::once(rel.combinator)
+        .chain(rel.selector.ancestors.iter().map(|(c, _)| *c))
+        .all(|c| matches!(c, Combinator::Descendant | Combinator::Child))
+}
+
+/// The index of the subject in `rel`'s compounds, left to right.
+fn last_index(rel: &RelativeSelector) -> usize {
+    rel.selector.ancestors.len()
+}
+
+/// `rel`'s `k`-th compound, left to right (the subject last). `ancestors`
+/// is right to left.
+fn compound_at(rel: &RelativeSelector, k: usize) -> &CompoundSelector {
+    let n = rel.selector.ancestors.len();
+    if k == n {
+        &rel.selector.subject
+    } else {
+        &rel.selector.ancestors[n - 1 - k].1
+    }
+}
+
+/// The combinator left of `rel`'s `k`-th compound: the leading one for
+/// the first; otherwise the one linking the compound before it (stored
+/// with that compound, right to left).
+fn combinator_left_of(rel: &RelativeSelector, k: usize) -> Combinator {
+    if k == 0 {
+        rel.combinator
+    } else {
+        let n = rel.selector.ancestors.len();
+        rel.selector.ancestors[n - k].0
     }
 }

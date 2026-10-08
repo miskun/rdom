@@ -9,13 +9,15 @@
 //! the index — O(siblings) per parent and kind for the whole pass.
 //!
 //! `:has()` (Selectors 4 §4.5) searches an anchor's subtree or later
-//! siblings. Its answers are kept per (relative selector, anchor); for a
-//! plain descendant argument (`:has(.x)`) the search records, for every
-//! element it passes, whether that element's subtree holds a match, so
-//! the anchors nested in one another reuse it — a deep chain of anchors
-//! costs one walk, not one per anchor.
+//! siblings. Its answers are kept per (relative selector, scoping root,
+//! anchor); for a downward argument (descendant and child combinators
+//! only) the search records, per element and compound, whether a match
+//! of the rest lies below it, so the anchors nested in one another reuse
+//! it — a deep chain of anchors costs one walk per compound, not one per
+//! anchor.
 //!
-//! Entries are keyed by node and — for `of S` — by the address of the
+//! Entries are keyed by node, by the scoping root where a selector can
+//! read `:scope`, and — for `of S` — by the address of the
 //! `S` selector list, so the caches are valid only while the tree and
 //! the selectors they were built for are unchanged. The tree half is
 //! enforced: every mutation record moves the `Dom`'s mutation epoch, and
@@ -42,16 +44,18 @@ pub struct SelectorCaches {
     pub(super) nth: HashMap<(NodeId, NthCount), HashMap<NodeId, (u32, u32)>>,
     /// Each element's directionality, once read (`:dir()`).
     pub(super) dir: HashMap<NodeId, Directionality>,
-    /// Per (relative selector address, element): whether the element,
-    /// as a `:has()` anchor, has a match — and, for a plain descendant
-    /// argument (`:has(.x)`), whether its subtree holds one.
-    pub(super) has: HashMap<(usize, NodeId), bool>,
+    /// Per [`HasKey`]: whether the element, as a `:has()` anchor, has a
+    /// match — and, for a downward argument, whether the element holds a
+    /// match of the argument's compounds from one on below it.
+    pub(super) has: HashMap<HasKey, bool>,
     /// Per radio: whether its radio button group has no checked member
     /// (`:indeterminate`), filled for a whole group at once.
     pub(crate) radio_unchecked: HashMap<NodeId, bool>,
     /// Per form: its default button (`:default`), once found.
     pub(crate) default_buttons: HashMap<NodeId, Option<NodeId>>,
-    /// The elements a `:has()` was evaluated for, in first-test order.
+    /// The elements a `:has()` was evaluated for, in first-test order —
+    /// facts for a backend to flag, not cached answers: a mutation in the
+    /// middle of a pass keeps them (`sync`).
     has_anchors: Vec<NodeId>,
     has_anchor_set: HashSet<NodeId>,
     work: CacheWork,
@@ -66,6 +70,9 @@ pub struct CacheWork {
     pub nth_siblings: u64,
     /// Elements visited looking for `:has()` matches.
     pub has_nodes: u64,
+    /// Candidates a combinator step of a complex selector tried (the
+    /// matcher's climbs to ancestors and walks to earlier siblings).
+    pub chain_steps: u64,
     /// Radio button groups gathered for `:indeterminate` — one per group
     /// per pass.
     pub radio_group_walks: u64,
@@ -81,8 +88,36 @@ pub(super) enum NthCount {
     Child,
     /// The siblings of each element's type.
     OfType,
-    /// The siblings matching the `of S` list at this address.
-    Of(usize),
+    /// The siblings matching the `of S` list at this address, under this
+    /// scoping root (`S` may read `:scope`).
+    Of(usize, Option<NodeId>),
+}
+
+/// The key of a `:has()` answer: the relative selector (by address), the
+/// compound it is asked from (left to right; `u32::MAX` for an anchor's
+/// whole answer), the scoping root `:scope` reads, and the element.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) struct HasKey {
+    rel: usize,
+    step: u32,
+    scope: Option<NodeId>,
+    node: NodeId,
+}
+
+impl HasKey {
+    pub(super) fn new(
+        rel: &crate::selectors::RelativeSelector,
+        step: u32,
+        scope: Option<NodeId>,
+        node: NodeId,
+    ) -> Self {
+        Self {
+            rel: std::ptr::from_ref(rel) as usize,
+            step,
+            scope,
+            node,
+        }
+    }
 }
 
 impl SelectorCaches {
@@ -114,6 +149,10 @@ impl SelectorCaches {
         self.work.has_nodes += 1;
     }
 
+    pub(super) fn count_chain_step(&mut self) {
+        self.work.chain_steps += 1;
+    }
+
     /// Drop every entry built under another mutation epoch.
     pub(super) fn sync(&mut self, epoch: u64) {
         if self.epoch != Some(epoch) {
@@ -122,8 +161,6 @@ impl SelectorCaches {
             self.has.clear();
             self.radio_unchecked.clear();
             self.default_buttons.clear();
-            self.has_anchors.clear();
-            self.has_anchor_set.clear();
             self.epoch = Some(epoch);
         }
     }
