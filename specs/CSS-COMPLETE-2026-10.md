@@ -42,7 +42,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 10 | Lists, counters, generated content, pseudo-elements | done 2026-10-08 (both gates; 19 gate fixes `C10G-*`; their re-review rides with the Phase 11 gate) |
 | 11 | Selectors | done 2026-10-08 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
 | 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
-| 13 | Tables (real table formatting context) | gates run 2026-10-08; `C13G-*` fixes in progress |
+| 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
@@ -9015,3 +9015,8 @@ row comes from.
   test, `css_phase7`'s negative-`z-index` test (a root element's negative layer paints over its canvas, as in a
   browser) and the README's transitions example put their boxes in a `<body>`. CHANGELOG silent change 3 (the old
   3–86 move to 4–87; the table port cites 6) and an Added bullet; CSS-COVERAGE's `background-color` row.
+- 2026-10-09 — Phase 13 closed: both gates run, their findings fixed in three batches — A (correctness and cost:
+  C13G-COLUMN-MATCH, -SPAN-COST, -TABLE-COST, -TABLE-GEOMETRY, -COLUMN-INVALIDATION, -SPEC-GAPS,
+  -CALC-SIZE-AUTHORED, -TEARDOWN-COST, -DOM-CONVENIENCE, -MISC), B (API, UA and docs: C13G-TH-CAPTION, -TABLE-UA,
+  -TABLE-TRACKS, -UPGRADE, -DOCS) and C (the document root as the initial containing block: C13-ROOT-BLOCK,
+  C13-ROOT-CANVAS). Their re-review rides with the Phase 14 gate.
