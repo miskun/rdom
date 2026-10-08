@@ -30,18 +30,18 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Docs truthful: DIVERGENCES contradictions fixed, every undocumented gap listed, roadmap moved | done |
-| 1 | Syntax, cascade, custom properties | done 2026-10-05 (both gates; 20 gate fixes `C1G-*`; their re-review rides with the Phase 2 gate) |
-| 2 | Values, units, math functions | done 2026-10-05 (both gates; 20 gate fixes `C2G-*`; their re-review rides with the Phase 3 gate; C2-LH closed with C9-LINE-HEIGHT) |
-| 3 | Color | done 2026-10-06 (both gates; 16 gate fixes `C3G-*` incl. rdom's own terminal input reader; re-review rides with the Phase 4 gate) |
-| 4 | Backgrounds and borders | done 2026-10-06 (both gates; 19 gate fixes `C4G-*`; their re-review rides with the Phase 5 gate; C4-SPACING layout with C13-TFC) |
-| 5 | Box model and sizing (incl. logical properties) | done 2026-10-07 (both gates; 19 gate fixes `C5G-*`; their re-review rides with the Phase 6 gate; C5-CONTAIN-SIZE use with C14-CONTAIN) |
-| 6 | Display, visibility, flexbox, box alignment | done 2026-10-08 (both gates; 28 gate fixes `C6G-*`; their re-review rides with the Phase 7 gate) |
-| 7 | Grid | done 2026-10-09 (both gates; 15 gate fixes `C7G-*`; their re-review rides with the Phase 8 gate) |
-| 8 | Positioning, floats, overflow, scrolling | done 2026-10-10 (both gates; 15 gate fixes `C8G-*`; their re-review rides with the Phase 9 gate) |
-| 9 | Inline text and decoration | done 2026-10-12 (both gates; 14 gate fixes `C9G-*`; their re-review rides with the Phase 10 gate) |
-| 10 | Lists, counters, generated content, pseudo-elements | done 2026-10-13 (both gates; 19 gate fixes `C10G-*`; their re-review rides with the Phase 11 gate) |
-| 11 | Selectors | done 2026-10-14 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
-| 12 | Transitions, animations, user interface | gates run 2026-10-15; `C12G-*` fixes in progress |
+| 1 | Syntax, cascade, custom properties | done 2026-10-04 (both gates; 20 gate fixes `C1G-*`; their re-review rides with the Phase 2 gate) |
+| 2 | Values, units, math functions | done 2026-10-04 (both gates; 20 gate fixes `C2G-*`; their re-review rides with the Phase 3 gate; C2-LH closed with C9-LINE-HEIGHT) |
+| 3 | Color | done 2026-10-05 (both gates; 16 gate fixes `C3G-*` incl. rdom's own terminal input reader; re-review rides with the Phase 4 gate) |
+| 4 | Backgrounds and borders | done 2026-10-05 (both gates; 19 gate fixes `C4G-*`; their re-review rides with the Phase 5 gate; C4-SPACING layout with C13-TFC) |
+| 5 | Box model and sizing (incl. logical properties) | done 2026-10-05 (both gates; 19 gate fixes `C5G-*`; their re-review rides with the Phase 6 gate; C5-CONTAIN-SIZE use with C14-CONTAIN) |
+| 6 | Display, visibility, flexbox, box alignment | done 2026-10-05 (both gates; 28 gate fixes `C6G-*`; their re-review rides with the Phase 7 gate) |
+| 7 | Grid | done 2026-10-05 (both gates; 15 gate fixes `C7G-*`; their re-review rides with the Phase 8 gate) |
+| 8 | Positioning, floats, overflow, scrolling | done 2026-10-06 (both gates; 15 gate fixes `C8G-*`; their re-review rides with the Phase 9 gate) |
+| 9 | Inline text and decoration | done 2026-10-06 (both gates; 14 gate fixes `C9G-*`; their re-review rides with the Phase 10 gate) |
+| 10 | Lists, counters, generated content, pseudo-elements | done 2026-10-08 (both gates; 19 gate fixes `C10G-*`; their re-review rides with the Phase 11 gate) |
+| 11 | Selectors | done 2026-10-08 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
+| 12 | Transitions, animations, user interface | gates run 2026-10-08; `C12G-*` fixes in progress |
 | 13 | Tables (real table formatting context) | |
 | 14 | Conditional rules, containment | |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | |
@@ -281,10 +281,10 @@ row comes from.
 
 ## Log
 
-- 2026-10-03 — Program opened at Miska's request: "address all partials and missing but meaningful
+- 2026-10-04 — Program opened at Miska's request: "address all partials and missing but meaningful
   in a terminal", CSS completeness as 0.6.0 before routing (now 0.7.0). Built from the 307-row
   audit in `CSS-COVERAGE.md` (`ba585c7`).
-- 2026-10-03 — Phase 0 done (C0-CONTRADICTIONS, C0-NOT-SHIPPED): the six `DIVERGENCES.md`
+- 2026-10-04 — Phase 0 done (C0-CONTRADICTIONS, C0-NOT-SHIPPED): the six `DIVERGENCES.md`
   statements of `CSS-COVERAGE.md` §6 corrected against the code; the four undocumented rdom
   extensions of §4 documented; DIVERGENCES §3 rewritten as the complete gap list, grouped by
   module with item ids; the decided exclusions recorded in §2 (the header above said §3; corrected —
@@ -446,7 +446,7 @@ row comes from.
   on first run — it pins the batch's features working together; it guards against vacuous passes by
   asserting each expected value differs from the initial one. Second batch of Phase 1 gate fixes
   complete.
-- 2026-10-05 — Phase 1 closed: 11 items + 20 gate fixes. The gate fixes' re-review is folded into the
+- 2026-10-04 — Phase 1 closed: 11 items + 20 gate fixes. The gate fixes' re-review is folded into the
   Phase 2 gate (range from the first C1G commit).
 - 2026-10-04 — C2-PERCENT: every length-bearing property parses through one leaf
   (`rdom-style/src/parse/values/numeric.rs::length_percentage`) and one component splitter, so
@@ -526,7 +526,7 @@ row comes from.
   absolute (`px`, `cm`, …) and font-relative (`em`, `rem`, `ex`, …) units stay N/A as
   `CSS-COVERAGE.md` classes them — no terminal mapping; recorded in DIVERGENCES §1 "Length units".
   Phase 2 gates (architect + API, with the C1G re-review) are next.
-- 2026-10-05 — Phase 2 gates (with the C1G re-review: all 20 fixed at the root). Architect: 3 blocking —
+- 2026-10-04 — Phase 2 gates (with the C1G re-review: all 20 fixed at the root). Architect: 3 blocking —
   flex factors summing to 1 lose a cell (f32 sum below 1.0 trips step 4.b); counter replay drops
   `::before` / `::after` ops on kept subtrees (cascade and restyle paths); no calc nesting cap (attr
   data can overflow the stack). API: 1 blocking — cascade forms without a viewport resolve `vw`
@@ -536,13 +536,13 @@ row comes from.
   unrepresentable, `flex` shorthand ignores shrink, parse-time `attr()` validation, `:root` `attr()`,
   u16 overflows, unvalidated `AspectRatio` / `Flex`, restyle walk cost, renames, re-exports, README
   0.2.0 history edit, changelog paths and hints). Decision: fix all as `C2G-*` items, two batches.
-- 2026-10-05 — C2G-FLEX-SUM: §9.7 step 4.b's "sum below one" and the rolling floors of grow and
+- 2026-10-04 — C2G-FLEX-SUM: §9.7 step 4.b's "sum below one" and the rolling floors of grow and
   shrink use one relative tolerance (`FACTOR_TOLERANCE`, four `f32` epsilons) instead of an exact
   `f64` comparison and a fixed `1e-9`. Decided against summing in `f32`: it only moves the rounding
   (`10 × 0.1` sums to 1.0000001 in `f32`) and leaves the floors seeing `71.9999999`, which also lost
   a cell for a genuine 0.9 sum. Tests: 0.1 / 0.2 / 0.7 fills 80 (grow and shrink), 0.2 + 0.7 takes
   exactly 72, a 0.1 item frozen by `max-width` leaves 0.9 to share 72.
-- 2026-10-05 — C2G-COUNTER-PSEUDO: `CounterState::replay_element` (with `StoredOps`, the `Rc`s of
+- 2026-10-04 — C2G-COUNTER-PSEUDO: `CounterState::replay_element` (with `StoredOps`, the `Rc`s of
   the element's, `::before`'s and `::after`'s computed styles) replays a kept element in tree order —
   element, `::before`, children, `::after` — and is the one replay used between `cascade_subtrees`
   roots, for a restyle's kept element (its pseudos; its own ops were applied computing it) and for
@@ -550,14 +550,14 @@ row comes from.
   three `h2::before`-numbered headings reads "3. " (was "1. "); `restyle_vars` keeping a root `h2` and
   a `div` of two reads "4. " for the next; a kept `div`'s `::after` counts after its children; a kept
   `div::before { counter-reset }` scopes its children (green before the fix too — an order guard).
-- 2026-10-05 — C2G-CALC-DEPTH: the calc parser caps nesting (`MAX_CALC_NESTING` = 32 math
+- 2026-10-04 — C2G-CALC-DEPTH: the calc parser caps nesting (`MAX_CALC_NESTING` = 32 math
   functions / parentheses; the parser recursed ~4 frames per level) and tree depth
   (`MAX_CALC_DEPTH` = 256, tracked as nodes are built, so an over-deep chain is rejected before it
   exists and nothing — type check, evaluation, `absolutize`, serialization, `Drop` — ever walks one).
   Chosen over an iterative `Drop` / balanced trees: one bound covers every walker, `-` and `/` do not
   re-associate, and 256 operands is far past hand-written CSS. A run of unary `+` is a loop. Red: a
   20 000-level `attr()` value aborted the test process (stack overflow); green: invalid, fallback.
-- 2026-10-05 — C2G-VIEWPORT-DOC: the viewport is the document's. rdom-core gains document data
+- 2026-10-04 — C2G-VIEWPORT-DOC: the viewport is the document's. rdom-core gains document data
   (`Dom::document_data` / `set_document_data` / …, one value per Rust type, `document_data.rs`) — the
   substrate's renderer-free hook for per-document backend state, as `Ext` is per node; the root is a
   fragment with no `Ext`, so no node could hold it. rdom-tui stores the `Viewport` there
@@ -566,7 +566,7 @@ row comes from.
   `App` sets its terminal's size each frame (its `cascaded_viewport` still decides the full
   re-cascade). Decided: `cascade_all_in` / `cascade_subtrees_all_in` removed (unreleased) — one way
   to give the size. `Viewport` joins the prelude. Phase 14's `@media` reads the same value.
-- 2026-10-05 — C2G-CALC-SEMANTICS: IEEE division (parse-time literal rejection and the runtime
+- 2026-10-04 — C2G-CALC-SEMANTICS: IEEE division (parse-time literal rejection and the runtime
   zero-gives-0 both gone); `calc::to_cells` clamps a top-level result to `±i32::MAX` (symmetric;
   `cells_i32` and `CalcExpr::resolve` share it) and `right` / `bottom` negate with `saturating_neg`;
   `CalcKind::Percent` with `kind()` (percent joins a length or number as a length) and
@@ -582,7 +582,7 @@ row comes from.
   (now 0.5).
   From its CHANGELOG bullet (moved by C6G-CHANGELOG): An infinite `<integer>` math result clamps to
   the property's range.
-- 2026-10-05 — C2G-VIEWPORT-FIELDS: `ResolveCtx::viewport` is `Option<Viewport>` (unreleased field),
+- 2026-10-04 — C2G-VIEWPORT-FIELDS: `ResolveCtx::viewport` is `Option<Viewport>` (unreleased field),
   `None` from `ResolveCtx::new` — every layout resolve — and `CalcUnit::canonical` debug-asserts a
   viewport unit never meets `None` (0 cells in release). The hand-kept field list in
   `ComputedStyle::resolve_viewport_units` stays (one place, typed per field), guarded by a test that
@@ -590,14 +590,14 @@ row comes from.
   at 80 × 20 and requires no `Viewport(` in the computed style's `Debug` and a clean layout — so a
   length property added later is covered without editing the test. Checked red: dropping `gap` from
   the list fails it.
-- 2026-10-05 — C2G-MAX-NONE (completes C5-MINMAX-SIZE): `TuiStyle::max_width` / `max_height` are
+- 2026-10-04 — C2G-MAX-NONE (completes C5-MINMAX-SIZE): `TuiStyle::max_width` / `max_height` are
   `Option<Value<Option<MaxSize>>>` like `aspect_ratio`, applied with `value!` (the declared `Option` is
   the computed one; `ComputedStyle` keeps `Option<MaxSize>`, `None` = `none`); `parse_max_size`
   takes `none`, serialization writes it back. `set_max_width` / `set_max_height` take
   `impl Into<Option<MaxSize>>` and always declare (`None` is `none`; removal through the CSSOM) —
   decided over a double `Option`. The C2-PERCENT changelog bullets are rewritten to the final shape
   with migration hints from 0.5.0. COVERAGE keeps the row *Partial* (intrinsic keywords, C5-INTRINSIC).
-- 2026-10-05 — C2G-FLEX-SHORTHAND: `parse_flex_shorthand` → `FlexShorthand { grow, shrink, basis }`
+- 2026-10-04 — C2G-FLEX-SHORTHAND: `parse_flex_shorthand` → `FlexShorthand { grow, shrink, basis }`
   with the Flexbox §7.2 grammar (`none`; `<grow> <shrink>? || <basis>` in either order; omitted grow /
   shrink 1, omitted basis 0; a number is a factor unless two factors precede it). The dispatch writes
   grow → `width` / `height` as before, shrink → `flex_shrink` (was 0 for any zero grow: `flex: 0 1
@@ -606,7 +606,7 @@ row comes from.
   is now *partial* with that gap. `flex` serializes as `<grow> <shrink> <basis>`. DIVERGENCES' flex entry
   rewritten (the stale `Size::Flex(1)` / `parse/values.rs`); the C2-NUMBER changelog example now says
   what `flex: 1.5 0.5 0%` sets. The `initial`-keyword apply test perturbs `flex_basis` through `flex`.
-- 2026-10-05 — C2G-ATTR-PARSE: `attr::valid_args` parses the head at parse time (an unknown unit, a
+- 2026-10-04 — C2G-ATTR-PARSE: `attr::valid_args` parses the head at parse time (an unknown unit, a
   bad `type()` syntax, a non-identifier name are invalid; a head holding `var()` / `attr()` is checked
   when substituted), so `width: 10; width: attr(x bogus)` keeps 10. `PendingDeclaration` stores
   `attr::AttrHeads` (the heads, parsed once, keyed by the `attr(` token's index; `substitute_at`
@@ -617,7 +617,7 @@ row comes from.
   (a fragment root has none — DIVERGENCES). Found: an element root already got the right value
   through its own cascade; only the mirror (what the root's parent seeds) read no attribute. The
   C2-ATTR test's `furlong` case moved: it is a parse error now, not a fallback.
-- 2026-10-05 — C2G-LAYOUT-SAFETY: `Padding::horizontal` / `vertical` (saturating) replace the
+- 2026-10-04 — C2G-LAYOUT-SAFETY: `Padding::horizontal` / `vertical` (saturating) replace the
   hand-summed sides at every layout site — the four named plus two found by the test
   (`geometry::compute_content_area_collapsed`, the intrinsic child cross budget); `padding: 0 40000`
   panicked in `intrinsic/inline.rs`, then `geometry.rs`. `AspectRatio`'s fields are private
@@ -628,7 +628,7 @@ row comes from.
   the container's height: an `auto`-height column (main) or row (cross) resolves them as 0 / `none`
   (was: 25% of the available height). `flex/main_axis.rs` is 545 lines, under the split bar.
   Phase 2 gate batch A (C2G-FLEX-SUM … C2G-LAYOUT-SAFETY) complete.
-- 2026-10-05 — C2G-RESTYLE-WALK: partial walks moved to `style/cascade/subtrees.rs`. Roots are reduced
+- 2026-10-04 — C2G-RESTYLE-WALK: partial walks moved to `style/cascade/subtrees.rs`. Roots are reduced
   to the outermost (a root inside another was cascaded twice when it came first) and ordered by tree
   order. `TuiExt` gains `tree_has_counters` (bottom-up: an op or a `counter()` read in the subtree,
   pseudo-elements included) and `reads_counters`; a root whose subtree takes no part in counters is
@@ -643,7 +643,7 @@ row comes from.
   `counter(c)` (was the cascaded end value), and a `cascade_subtrees` class change renumbers later
   headings. `restyle_vars` returns every root it restyled, and the App settles those. The walks step
   through children by sibling links (no child `Vec` per node).
-- 2026-10-05 — C2G-STATELESS-REGISTRY: the stateless `CascadeExt` forms take the registry from
+- 2026-10-04 — C2G-STATELESS-REGISTRY: the stateless `CascadeExt` forms take the registry from
   `registered::document_registry` — document data holding the last sheet set's registry, keyed by
   each sheet's `Stylesheet::version()` (new in rdom-style: a process-unique stamp from one atomic
   counter, renewed by every `&mut` / builder mutation, fresh on `Clone`, so equal keys are the same
@@ -651,7 +651,7 @@ row comes from.
   alias). `Sheets::new` takes the registry (no `Option`). Test: two `cascade`s and a
   `cascade_subtrees` with one sheet build 1 registry (was 3) and keep the element's match record
   (`Rc::ptr_eq`); a mutated sheet and another list each build one.
-- 2026-10-05 — C2G-REGISTERED-ABSOLUTE: `PropertySyntax::computed(value, viewport)`
+- 2026-10-04 — C2G-REGISTERED-ABSOLUTE: `PropertySyntax::computed(value, viewport)`
   (`rdom-style/src/registration/computed.rs`; `registration.rs` became `registration/mod.rs`, 556 lines
   plus this) — the first alternative the value matches decides; a `<length>` (or list item) is
   whole cells (viewport units against the viewport, `ch` / `lh` / math folded), a
@@ -664,7 +664,7 @@ row comes from.
   `Kind::LengthPercentage` (cells and percentage interpolate apart; a non-linear value is discrete).
   Tests: `10vw` → `8`, `calc(2ch + 50%)` → `calc(2 + 50%)` inherited; `10vw` → `50vw` is 24 cells
   half way (was: no transition); `10` → `calc(20 + 50%)` is `calc(15 + 25%)` half way.
-- 2026-10-05 — C2G-CONTENT-ATTR: `Content::Attr`, `ContentContext::attr` and `resolve_content_on`'s
+- 2026-10-04 — C2G-CONTENT-ATTR: `Content::Attr`, `ContentContext::attr` and `resolve_content_on`'s
   attribute lookup are deleted; the five UA rules that read an attribute (`input` / `textarea`
   placeholder, `input[type=button|submit|reset]` value, `input[type=image]` alt, `optgroup` label) are
   CSS declarations built with `ua::css` (`property_dispatch::set`), so they go through the `attr()`
@@ -672,7 +672,7 @@ row comes from.
   CHANGELOG migration hint. No test expectation changed; the one cascade test that built
   `Content::Attr` declares `content: attr(data-status)` instead. UA-dependent tests (placeholder,
   button labels, optgroup) green.
-- 2026-10-05 — C2G-SUBSTITUTION-ERRORS: `SubstitutionError { Undefined, Cycle, InvalidAttr, TooLong,
+- 2026-10-04 — C2G-SUBSTITUTION-ERRORS: `SubstitutionError { Undefined, Cycle, InvalidAttr, TooLong,
   Syntax }` (`#[non_exhaustive]`, `Display` + `Error`) from `backend::substitute` and the lookup
   (`backend::Lookup`); `resolve_custom_properties` returns the declared properties it invalidated, with
   why (a cycle's members report `Cycle(self)`, a dependent without a fallback the property it read).
@@ -683,7 +683,7 @@ row comes from.
   `CustomValue`), `CalcExpr::None` → `NoBound`. `var.rs` (639 lines) split into `var/{mod,pending,
   resolve,tests}.rs`. All unreleased: CHANGELOG bullets rewritten to the final names. Red: the new
   test did not compile (no error type); green: each failure kind reported.
-- 2026-10-05 — C2G-CELLS-CONVERSIONS: `Size::cells` / `cells_u16` and `Length::cells` (rdom-style
+- 2026-10-04 — C2G-CELLS-CONVERSIONS: `Size::cells` / `cells_u16` and `Length::cells` (rdom-style
   `layout/sizing.rs`) replace the size-to-cells matches in `flex/main_axis.rs` (natural size, auto-min
   cap), `flex/cross.rs`, `block/width.rs` (`resolve_size_to_cells` deleted), `block/height.rs` (a fifth
   copy, found) and `positioning.rs::resolve_size_axis`, and the inset matches in `positioning.rs`
@@ -694,17 +694,17 @@ row comes from.
   From its CHANGELOG bullet (moved by C6G-CHANGELOG): They replaced four hand copies of the size
   conversion and three of the inset one; a size is an extent clamped to `0..=u16::MAX`, like
   `MinSize::cells` / `MaxSize::cells`, while an inset is signed.
-- 2026-10-05 — C2G-FLEX-SPLIT: `flex/main_axis.rs` (525 lines after C2G-CELLS-CONVERSIONS) keeps the
+- 2026-10-04 — C2G-FLEX-SPLIT: `flex/main_axis.rs` (525 lines after C2G-CELLS-CONVERSIONS) keeps the
   §9.2 gathering (`ChildMain`, `MainNatural`, `collect_main_axis_items`, 221 lines); the §9.7
   distribution — `MainAxisBudget`, `resolve_flexible_lengths`, `FACTOR_TOLERANCE`, the grow / shrink
   freeze loops and the §4.5 auto-min floor — moves verbatim to `flex/distribute.rs` (314 lines). No
   behaviour change; flex suites unchanged.
-- 2026-10-05 — C2G-REEXPORT-CALC: `pub use rdom_style::calc` in `rdom_tui` (the module, so `CalcExpr`,
+- 2026-10-04 — C2G-REEXPORT-CALC: `pub use rdom_style::calc` in `rdom_tui` (the module, so `CalcExpr`,
   `ResolveCtx`, `to_cells`, … are all reachable; `Viewport` stays at the root too) and
   `MinSize::percent` / `MaxSize::percent` (`Calc(Percent(p))`, the parser's form). Red: the integration
   test did not compile (no `rdom_tui::calc`, no `percent`); green: a `set_max_width(MaxSize::percent(50.0))`
   child of an 80-column box is 40 wide.
-- 2026-10-05 — C2G-DOCS: README's 0.2.0 bullet restored to its released text ("`calc()` value system",
+- 2026-10-04 — C2G-DOCS: README's 0.2.0 bullet restored to its released text ("`calc()` value system",
   from before `4252faf`); the math-function text moves to a new "Unreleased (0.6.0, in progress)"
   section. CHANGELOG: the C2-ATTR bullet names the final `backend::` / `SubstitutionContext` API
   (done with C2G-SUBSTITUTION-ERRORS); `parse_content` no longer parsing `attr()` is a "Breaking —
@@ -716,7 +716,7 @@ row comes from.
   shipped. rdom-css README "Values" lists `%`, `ch`, viewport units, math functions, angles and
   `attr()`. DIVERGENCES: the `flex` entry checked current after C2G-FLEX-SHORTHAND; §1 gains "a
   literal fractional length is invalid; a computed one rounds".
-- 2026-10-05 — C2G-TEST-GAPS: every test the gate listed already exists, so none was added — calc
+- 2026-10-04 — C2G-TEST-GAPS: every test the gate listed already exists, so none was added — calc
   nesting depth (`parse/values/calc_tests.rs`: `MAX_CALC_NESTING` / `MAX_CALC_DEPTH` caps; the
   gates suite's hostile `attr()`), `1/0` (`calc/semantics_tests.rs::division_by_zero_is_ieee`), an
   inset of `-infinity` (`css_phase2_gates.rs::infinite_insets_lay_out_without_overflow`), opacity with
@@ -726,7 +726,7 @@ row comes from.
   %` (`max_height_percent_in_an_auto_height_flex_container_is_none`). `ScopeMemo`'s O(N × depth)
   memory is recorded in TECH_DEBT as the accepted simplification `SCOPE-MEMO-1`, with its bound.
   Phase 2 gate batch B (C2G-RESTYLE-WALK … C2G-TEST-GAPS) complete.
-- 2026-10-05 — Phase 2 closed: 11 items + 20 gate fixes. Gate-fix re-review folded into the Phase 3 gate.
+- 2026-10-04 — Phase 2 closed: 11 items + 20 gate fixes. Gate-fix re-review folded into the Phase 3 gate.
 - 2026-10-05 — Phase 3 items, recorded at C3G-DOCS (the gate found no per-item entries; the
   commits and CHANGELOG bullets are the detailed record). C3-RGB: `Color::Rgba` (alpha < 255;
   `Color::rgba` normalizes an opaque alpha to `Rgb`, so equal colors compare equal — decided over an
@@ -758,7 +758,7 @@ row comes from.
   Adjust §2). Also decided then: **`Cell::set_fg` / `set_bg` composited a translucent color against
   a fixed dark canvas** (the cell had no scheme) — superseded by C3G-SCHEME-CONSISTENCY, which made
   the `Buffer` the one canvas model and `Cell` opaque storage.
-- 2026-10-05 — Phase 3 gates (with the C2G re-review: all 20 at the root). Architect: 2 blocking —
+- 2026-10-04 — Phase 3 gates (with the C2G re-review: all 20 at the root). Architect: 2 blocking —
   color-function nesting has no depth cap (attr / var / CSS can overflow the stack; also quadratic);
   a positioned pseudo-element's translucent background composites twice under its text. API: 0
   blocking. Non-blocking: late OSC 11 replies become keystrokes and the query reads only stdin; relative
@@ -771,7 +771,7 @@ row comes from.
   re-exports; stale color docs and READMEs. Mode 2031: crossterm cannot parse the report in any release;
   decision — rdom owns the terminal input reader (`C3G-INPUT-READER`), which also fixes late replies.
   Fix all as `C3G-*`, two batches.
-- 2026-10-05 — C3G-COLOR-DEPTH: `ColorCx::nested` caps color-function nesting at `MAX_COLOR_NESTING`
+- 2026-10-04 — C3G-COLOR-DEPTH: `ColorCx::nested` caps color-function nesting at `MAX_COLOR_NESTING`
   = 32 (public beside `parse_color`, like `MAX_CALC_NESTING`); every color function — top level,
   a `color-mix()` / `light-dark()` argument, a relative origin — enters through `color::function`,
   which checks the cap before its level scans anything. `parse_absolute` takes a nested function's
@@ -782,7 +782,7 @@ row comes from.
   `hostile_color_nesting_is_invalid_not_a_stack_overflow` aborted the test binary (stack overflow);
   green: both pass, and a 10 000-level `attr(data-c type(<color>), …)` takes the fallback
   (`css_phase3_gates.rs`). DIVERGENCES: color functions nest at most 32 levels.
-- 2026-10-05 — C3G-PSEUDO-TINT: `positioned_pseudos` writes its `content` with
+- 2026-10-04 — C3G-PSEUDO-TINT: `positioned_pseudos` writes its `content` with
   `glyph_style_from_computed` (the box is tinted first), so the background composites once under the
   text; `text.rs`'s "cannot double-blend" note is gone (a glyph write composites its style's
   background). Every other painter that fills a translucent background and then writes text was
@@ -793,12 +793,12 @@ row comes from.
   `(128, 0, 0)`; the four other cases pass before and after. Found: a positioned pseudo's
   `width` / `height` are not read (its size comes from the insets or the content) — the test sizes
   it with `right`.
-- 2026-10-05 — C3G-RELATIVE-COMMA: `relative::parse` rejects a comma only at the arguments' top level
+- 2026-10-04 — C3G-RELATIVE-COMMA: `relative::parse` rejects a comma only at the arguments' top level
   (`channel::top_level_comma`, the check the legacy split already used), so a math function's own
   commas pass. Red: `rgb(from red min(r, 100) g b)` parsed to `None`; green: `rgb(100, 0, 0)`, and
   `oklch(from red clamp(0.2, l, 0.5) c h)` equals `oklch(from red 0.5 c h)`; through `var()` end to
   end in `css_phase3_gates.rs`. A comma between channels stays invalid.
-- 2026-10-05 — C3G-SCHEME-CONSISTENCY: (1) the caret resolves `caret-color` / `caret-text-color` with
+- 2026-10-04 — C3G-SCHEME-CONSISTENCY: (1) the caret resolves `caret-color` / `caret-text-color` with
   `ColorContext::with_scheme(used scheme)`, and its `reset` fallbacks take that scheme's canvas
   (were white / black in every scheme). (2) One canvas model, the `Buffer`'s. Decided over passing
   the scheme into `Cell`: a cell is opaque storage, and only the buffer knows the scheme a
@@ -817,7 +817,7 @@ row comes from.
   document was `(96, 96, 224)` at the midpoint; `Cell::set_*` accepted a translucent color; the
   translucent tree guide tripped the new assertion in the joiner. Green: all six, plus a cell test
   that opaque / transparent writes behave as before.
-- 2026-10-05 — C3G-POWERLESS-HUE: source fetched 2026-10-05 — CSS Color 4 §4.4.1 (a hue is powerless
+- 2026-10-04 — C3G-POWERLESS-HUE: source fetched 2026-10-05 — CSS Color 4 §4.4.1 (a hue is powerless
   when the chroma or saturation is ≤ the space's ε; lightness is not a criterion) and its sample
   code: `conversions.js` `Lab_to_LCH` ε = 0.0015, `OKLab_to_OKLCH` ε = 0.000004 (both `chroma <=
   epsilon`), `better-rgbToHsl.js` ε = 1/100000 of a saturation of 1 (`sat <= epsilon`); `hwb()` §8,
@@ -827,7 +827,7 @@ row comes from.
   Red: LCH chroma 0.0016 counted as powerless (old ε 0.005625); green: boundary tests at each ε and
   just above, HWB at 100% / 99.9%, `L = 0` with chroma not powerless. No existing expectation
   changed.
-- 2026-10-05 — C3G-SMALL-FIXES: (1) `border-color`'s initial `currentcolor` has one owner,
+- 2026-10-04 — C3G-SMALL-FIXES: (1) `border-color`'s initial `currentcolor` has one owner,
   `colors::BORDER_COLOR_INITIAL`: `ElementColors` notes whether any `border-color` declaration took
   part and `finalize` resolves an undeclared one as the initial value, after the final `color`;
   `apply::finalize_border_fg` and its two calls (`walk.rs`, `pseudo.rs`) are deleted. Refactor, no
@@ -1014,10 +1014,10 @@ row comes from.
   changed to make them pass). The batch's rustdoc gate found a private intra-doc link C3G-INPUT-READER
   added (`leave_tui_mode` → `enter_theme_reports`); made plain text here. Phase 3 gate batch B (C3G-INPUT-READER … C3G-COLOR-INTEGRATION)
   complete.
-- 2026-10-06 — Phase 3 closed: 10 items + 16 gate fixes. Found during C3G-PSEUDO-SIZE: positioned boxes ignore
+- 2026-10-05 — Phase 3 closed: 10 items + 16 gate fixes. Found during C3G-PSEUDO-SIZE: positioned boxes ignore
   `min-*` / `max-*` — added as C8-POS-MINMAX. The input reader (C3G-INPUT-READER) gets a focused look in the
   Phase 4 gate's re-review.
-- 2026-10-06 — C4-BACKGROUND: `background` parses Backgrounds 3 §3.10 in full (`V/background.rs`):
+- 2026-10-05 — C4-BACKGROUND: `background` parses Backgrounds 3 §3.10 in full (`V/background.rs`):
   comma-separated layers, each sub-value at most once and in any order, the color on the final layer
   only; omitted sub-values reset to their initial values. The six image longhands and
   `background-clip` are new `TuiStyle` fields (one importance bit each, bits 47–53); images,
@@ -1032,7 +1032,7 @@ row comes from.
   From its CHANGELOG bullet (moved by C6G-CHANGELOG): `background` resets every sub-value it omits:
   `background: none` is no image and a `transparent` color. `background-clip` took effect with
   C4-BG-CLIP.
-- 2026-10-06 — C4-BG-CLIP: found as specified for the default — the box fill already covered the
+- 2026-10-05 — C4-BG-CLIP: found as specified for the default — the box fill already covered the
   border box, so border cells took the background (`border-box`, §3.8's initial value). The final
   layer's clip computes into `ComputedStyle::background_clip` (new `cascade/decoration.rs`, which the
   later Phase 4 applicators join); `paint_pass/background.rs::paint_background` (moved out of
@@ -1044,7 +1044,7 @@ row comes from.
   four `css_phase4.rs` clip tests painted the border / padding cells red; the default test was green
   (characterisation). Green after. No showcase snapshot changes (no demo sets `background-clip`, and
   the default fill box is unchanged).
-- 2026-10-06 — C4-BORDER-SHORTHAND: `border` / `border-<side>` parse `<line-width> || <line-style> ||
+- 2026-10-05 — C4-BORDER-SHORTHAND: `border` / `border-<side>` parse `<line-width> || <line-style> ||
   <color>` (Backgrounds 3 §4.4) in `V/border.rs`; set / serialize arms moved to the new
   `property_dispatch/border.rs` (`set.rs` / `serialize.rs` lost theirs). Storage: the colors and widths
   are true per-side longhands — `TuiStyle::border_color` / `border_width: Sides<Option<Value<_>>>`, one
@@ -1067,7 +1067,7 @@ row comes from.
   `BorderRing`: the four side styles, the width and the color every side takes, and whether it was
   rdom's `rounded`. An omitted component resets to its initial value: width `medium`, style `none`,
   color `currentcolor`.
-- 2026-10-06 — C4-BORDER-SIDES: `border-style` / `-color` / `-width` take 1–4 values
+- 2026-10-05 — C4-BORDER-SIDES: `border-style` / `-color` / `-width` take 1–4 values
   (`V/border.rs::parse_sides` over `Sides::from_values`), serialized in the shortest form; the eight
   `border-<side>-color` / `-width` names join the table, one field each. Decided — the corner rule: a
   corner cell of one box goes to its dominant side, the heavier style (Tables 3 §11.5's ranking) and
@@ -1081,7 +1081,7 @@ row comes from.
   joiner read the right side's S first). Green after; the per-side cascade and double-dominance paint
   tests were green on first run (characterisation of C4-BORDER-SHORTHAND's storage and the existing
   rank rule). No showcase snapshot changes (no demo colors sides differently).
-- 2026-10-06 — C4-BORDER-WIDTH: `BorderWidth::weight` maps a width to `BorderWeight::{Light, Heavy}` or
+- 2026-10-05 — C4-BORDER-WIDTH: `BorderWidth::weight` maps a width to `BorderWeight::{Light, Heavy}` or
   none — `thin` / `medium` light, `thick` heavy, pixel lengths heavy from `thick`'s 5px, cell lengths
   from two cells (rounded onto the grid), any non-zero length at least light (a browser draws a
   sub-pixel border one device pixel wide). The cascade keeps the declared styles in the new
@@ -1096,7 +1096,7 @@ row comes from.
   `css_phase4.rs` tests (`thick` drew `┌`, `5px` `┌`, `border: 0 solid` took the corner cell, mixed
   corners `┌`). Green after; the inherit test was written green against the design. No showcase
   snapshot changes (every demo border is `medium`).
-- 2026-10-06 — C4-RADIUS: `border-radius` (1–4 values, `/` vertical radii; the top-level `/` only)
+- 2026-10-05 — C4-RADIUS: `border-radius` (1–4 values, `/` vertical radii; the top-level `/` only)
   and the four corner longhands (one or two radii) parse into `BorderRadius { horizontal, vertical }`
   (`PaintLength`s, percentages allowed) per corner (`Corners<T>`, beside `Sides`), cascade into
   `ComputedStyle::border_radius` (viewport units resolved), and paint per corner: `Pen::corner_at`
@@ -1115,7 +1115,7 @@ row comes from.
   + `BorderRadius::cells(1.0)` (same paint); the two node-setter tests use a double ring (a node setter
   sets styles only); `border_shorthand_keeps_rdom_keywords` asserts the radius instead of the corner
   flag. No showcase snapshot changes (the UA dialog's rounded ring is now a radius; same glyphs).
-- 2026-10-06 — C4-SHADOW: `box-shadow` parses `none | <shadow>#` (`V/shadow.rs`: lengths contiguous,
+- 2026-10-05 — C4-SHADOW: `box-shadow` parses `none | <shadow>#` (`V/shadow.rs`: lengths contiguous,
   blur non-negative, color and `inset` on either side; `split_commas` moved to `numeric.rs`, shared
   with the background layers; `paint_length` takes a sign range). Storage `BoxShadow<C>`: declared
   with a `TuiColor`, computed with a `Color` — the cascade resolves the colors in
@@ -1135,7 +1135,7 @@ row comes from.
   changes (no demo declares a shadow).
   From its CHANGELOG bullet (moved by C6G-CHANGELOG): A shadow's color is initially `currentcolor`;
   the lengths are written together, with `inset` and the color in any order around them.
-- 2026-10-06 — C4-SPACING (partial): `border-spacing` parses one or two non-negative cell lengths
+- 2026-10-05 — C4-SPACING (partial): `border-spacing` parses one or two non-negative cell lengths
   (`V/border.rs::parse_border_spacing`; `GapValue` per axis, viewport units resolved at computed-value
   time like `gap`), cascades (`value!`) and inherits (CSS 2.1 §17.6.1: added to `inherits` and
   `inherit_inheritable_from`, probed by the inherited-set test). Decided: no layout now — rdom's
@@ -1147,7 +1147,7 @@ row comes from.
   changes.
   From its CHANGELOG bullet (moved by C6G-CHANGELOG): `border-spacing` takes rdom's cell lengths
   only — no percentages (CSS 2.1 §17.6.1).
-- 2026-10-06 — Phase 4 gates (with the C3G re-review: all 16 at the root; the input reader matches
+- 2026-10-05 — Phase 4 gates (with the C3G re-review: all 16 at the root; the input reader matches
   crossterm 0.28 case by case and is stricter on unknown CSI, C0 inside CSI, zero mouse coordinates,
   EOF and EINTR). Architect: 1 blocking — the ESC grace check flushes a lone ESC *before* reading
   bytes already queued, so a loop late by > 25 ms splits a sequence and types its tail into the
@@ -1172,7 +1172,7 @@ row comes from.
   `C4G-LEAVE-TUI`, `C4G-SHADOW-CLAMP`, `C4G-MIXED-CORNERS`, `C4G-SHADOW-ORDER`, `C4G-BORDER-COST`,
   `C4G-PAINT-SPLIT`); B — API and docs (`C4G-IMPORTANT-BITSET`, `C4G-REEXPORTS`, `C4G-SERIALIZE`,
   `C4G-PX-CALC`, `C4G-SEALED`, `C4G-DOCS`, `C4G-EDGE-TESTS`).
-- 2026-10-06 — C4G-ESC-GRACE: `InputReader::poll` no longer flushes an expired escape prefix before
+- 2026-10-05 — C4G-ESC-GRACE: `InputReader::poll` no longer flushes an expired escape prefix before
   reading. Once the grace has passed it first reads what is already queued (`read_queued`: a
   zero-timeout readiness check and read) and flushes only when nothing came; bytes that did come
   restart the grace if they leave a prefix. A read that fills the 1 KiB buffer is marked "more may
@@ -1183,7 +1183,7 @@ row comes from.
   zero-timeout poll gave Esc) and `a_full_read_reads_on` (1023 + 3 bytes: 1023 inputs after one poll,
   Up missing); green after, with `a_lone_escape_flushes_on_a_late_zero_timeout_poll` pinning the
   lone-ESC case.
-- 2026-10-06 — C4G-OSC-DISCARD: new `parse/string.rs` holds the command-string framing (ECMA-48
+- 2026-10-05 — C4G-OSC-DISCARD: new `parse/string.rs` holds the command-string framing (ECMA-48
   §5.6): `string::byte` classifies a byte (body 0x08–0x0D / 0x20–0x7E, `ESC`, BEL, CAN / SUB, other);
   `osc::parse` uses it, so a byte outside the string range aborts the OSC and is read again (it was
   kept as string body), and a string past `MAX_LEN` (4 KiB) returns the new `Step::Discard`: the
@@ -1194,7 +1194,7 @@ row comes from.
   not end an OSC — Alt+`]` + a digit typed within the grace swallows typing up to the next control
   (Backspace, Ctrl+C, an arrow's `ESC`); pinned by a test. Red: both new corpus tests (5000 `x`s
   typed back as keys; Backspace and Ctrl+C swallowed); green after.
-- 2026-10-06 — C4G-ESC-ESC: `ESC ESC` consumed both bytes for one Esc (crossterm's reading), so
+- 2026-10-05 — C4G-ESC-ESC: `ESC ESC` consumed both bytes for one Esc (crossterm's reading), so
   two quick Esc presses were one. `parse::escape_then` now decides on the third byte: `ESC` + a CSI or
   SS3 key is Alt + that key; anything else is Esc with the second `ESC` read again (`ESC ESC x` →
   Esc, Alt+x; `ESC ESC` + mouse report → Esc, the mouse event). `awaits_prefix` adds `ESC ESC` and
@@ -1203,7 +1203,7 @@ row comes from.
   `ESC` before the key's sequence; crossterm typed it as Esc, `[`, `A`. Red: the new corpus test
   (`ESC ESC x` gave Esc, plain `x`); green after. Changed expectation: `alt_keys` asserted
   crossterm's one Esc for `ESC ESC` — removed, the new test covers both readings.
-- 2026-10-06 — C4G-CSI-FRAMING: `csi::parse` frames every sequence whose first byte after `ESC [` is
+- 2026-10-05 — C4G-CSI-FRAMING: `csi::parse` frames every sequence whose first byte after `ESC [` is
   a parameter or intermediate byte (0x20–0x3F; it took only digits, `;`, `<`, `?`, so `CSI > …` was
   `Invalid` and its parameters were typed); `dispatch` consumes one with intermediates (no key or
   report rdom reads has them) or a private marker other than `<` / `?`. `string.rs` now frames all five
@@ -1215,13 +1215,13 @@ row comes from.
   within the grace read as a string start, the trade-off OSC already makes; no terminal sends PM or
   SOS, but framing them costs nothing. Red: DA2 typed `41;388;0c`, XTVERSION typed `>|XTerm(388)`;
   green after.
-- 2026-10-06 — C4G-CTRL-F3: grepped for a cursor position request — no `CSI 6 n`, no
+- 2026-10-05 — C4G-CTRL-F3: grepped for a cursor position request — no `CSI 6 n`, no
   `crossterm::cursor::position` anywhere in the workspace; the startup query sends OSC 11 and DA1 only.
   So `csi::dispatch` no longer consumes `CSI … R`: `CSI 1 ; m R` goes to `keys::modified` (F3 with
   modifiers) and a bare `CSI R` is F3 beside `P` / `Q` / `S`. Red: `csi_r_is_f3` (`CSI R` gave
   nothing); green after. Changed expectation: `other_replies_are_consumed` dropped its
   `CSI 20 ; 10 R` (now F3 with a modifier mask, as a terminal would mean it).
-- 2026-10-06 — C4G-LEAVE-TUI: `leave_tui_mode` delegates to the private `restore_terminal(writer,
+- 2026-10-05 — C4G-LEAVE-TUI: `leave_tui_mode` delegates to the private `restore_terminal(writer,
   raw_off)`, which `queue!`s each step on its own — pop the keyboard flags (first: kitty keeps a stack
   per screen), focus off, mouse off, bracketed paste off (added: never enabled by rdom, but an app may
   have), cursor shown, alternate screen left, mode 2031 off (Unix), SGR reset — then flushes and calls
@@ -1230,7 +1230,7 @@ row comes from.
   always-failing writer never reached `raw_off` (0 calls); green after. (The first attempt at the test
   failed with `ErrorKind::Interrupted`, which `write_all` retries forever — the test writer uses
   `io::Error::other`.)
-- 2026-10-06 — C4G-SHADOW-CLAMP: `PaintLength::offset_cells` clamps to ±`u16::MAX` cells (it saturated
+- 2026-10-05 — C4G-SHADOW-CLAMP: `PaintLength::offset_cells` clamps to ±`u16::MAX` cells (it saturated
   at ±`i32::MAX`, and `grow` doubled the spread). `paint_pass/shadow.rs` now does its geometry over a
   private `Edges` (signed left / top / right / bottom, every operation saturating) and converts to a
   grid `Rect` only after clipping; the old `LayoutRect` form clamped a grown shade's extent to
@@ -1241,7 +1241,7 @@ row comes from.
   `grow_keeps_edges_past_a_u16_extent`. Note: the gate's bare `9999999999` does not parse — an integer
   literal outside `i32` tokenizes as a `Float`, which cell lengths do not take — so the tests use
   `2147483647` (the largest integer token) and `9999999999ch`; both panicked.
-- 2026-10-06 — C4G-MIXED-CORNERS: `border_join` reads each direction's line (`glyphs::Line`: none,
+- 2026-10-05 — C4G-MIXED-CORNERS: `border_join` reads each direction's line (`glyphs::Line`: none,
   light, heavy, double) and `glyphs::junction_glyph` picks the glyph — single lines by weight as before,
   all-double from `DOUBLE_TABLE`, a double axis crossing a light one from two new 16-entry tables
   (`VERTICAL_DOUBLE_TABLE`, `HORIZONTAL_DOUBLE_TABLE`; each glyph's Unicode name checked with Python's
@@ -1254,7 +1254,7 @@ row comes from.
   RIGHT SINGLE) is `solid double`'s corner. Both are tested. Red: `double solid` drew `╔═══╗` over
   `│`, the collapsed pair `╔═══╦═══╗`; green after, plus a unit test over all 18 mixed glyphs and the
   three no-glyph cases. No showcase snapshot changed (no demo mixes double and single sides).
-- 2026-10-06 — C4G-SHADOW-ORDER: fixed, without a second walk. `stacking::collect_layers`, which
+- 2026-10-05 — C4G-SHADOW-ORDER: fixed, without a second walk. `stacking::collect_layers`, which
   already walks a context's whole in-flow subtree (stopping at nested contexts, descending into
   `z-index: auto` boxes), now also gathers the in-flow boxes with an outer shadow (`ShadowEntry`, with
   the clip they paint into and their paint unit: the context, or the `z-index: auto` box they lie in —
@@ -1279,7 +1279,7 @@ row comes from.
   (fails if the unit's background phase is removed — checked by deleting the call) and
   `a_later_background_covers_an_earlier_shadow`. `paint_pass/mod.rs` is 583 lines; C4G-PAINT-SPLIT
   next. No showcase snapshot changed.
-- 2026-10-06 — C4G-BORDER-COST: `paint_border_sides` reads `border_width` / `border_radius` in place
+- 2026-10-05 — C4G-BORDER-COST: `paint_border_sides` reads `border_width` / `border_radius` in place
   (`Sides::each` / `Corners::each`, no clone — a `calc()` radius cloned two boxes per corner), and walks
   the ring once for every opaque side (the `Ink` already carries per-side colors; the `only` mask
   selects them) instead of once per distinct color. Translucent sides go by alpha (sides of one alpha
@@ -1293,7 +1293,7 @@ row comes from.
   (four side colors, one translucent, a `calc()` radius) counted 9 allocations with the
   C3G-TRANSLUCENT-FAST `test_alloc` allocator; green: 0. The translucent border tests
   (`color_tests.rs`) pass unchanged.
-- 2026-10-06 — C4G-PAINT-SPLIT: no behaviour change. `paint_pass/mod.rs` (583 lines after
+- 2026-10-05 — C4G-PAINT-SPLIT: no behaviour change. `paint_pass/mod.rs` (583 lines after
   C4G-SHADOW-ORDER) → `mod.rs` (188: `PaintExt`, `layout_rect_to_grid`, the module map),
   `stacking_walk.rs` (177: `paint_stacking_context` / `_body`, `paint_layers`, `paint_plain`,
   `recurse_children`, `orphan_inline`, `paints_child_box`) and `box_paint.rs` (254: `BoxFrame`,
@@ -1301,7 +1301,7 @@ row comes from.
   `paint_stacking_context` re-exported at their old paths. Every test passes unchanged. Phase 4 gate
   batch A (C4G-ESC-GRACE … C4G-PAINT-SPLIT) done; batch B open.
 
-- 2026-10-06 — C4G-IMPORTANT-BITSET: `ImportantMask` is an opaque `[u64; N]` (`tui_style/important.rs`),
+- 2026-10-05 — C4G-IMPORTANT-BITSET: `ImportantMask` is an opaque `[u64; N]` (`tui_style/important.rs`),
   `N` from the property table's row count (`IMPORTANT_BITS`, emitted by `define_fields!`). Each row of
   the table names its constant and gets the row's index as its bit (`ImportantMask::bit(Field as
   usize)`), so the 72 hand-numbered bits are gone and a new field cannot collide or run out of width.
@@ -1314,7 +1314,7 @@ row comes from.
   ("TransitionProperty and TransitionDuration share a bit"); green after, with
   `operations_span_every_word` over the last bit. The hand-listed `important_mask_bits_are_unique`
   is replaced by that test (its FLOW / POINTER_EVENTS regression kept as its own test).
-- 2026-10-06 — C4G-REEXPORTS: the `rdom_tui` root and prelude re-export the Phase 4 value types
+- 2026-10-05 — C4G-REEXPORTS: the `rdom_tui` root and prelude re-export the Phase 4 value types
   (`BorderRadius`, `BorderWidth`, `BorderWeight`, `BorderStyle`, `CornerStyle`, `BoxShadow`,
   `PaintLength`, `BorderSpacing`, `Sides`, `Corners`, `VisualBox`, `RepeatStyle`,
   `BackgroundRepeat`, `BackgroundAttachment`) and the sizing types (`MinSize`, `MaxSize`,
@@ -1336,7 +1336,7 @@ row comes from.
   expectation: `css_phase2_gates::max_width_percent_from_rdom_tui_paths` asserted
   `MaxSize::percent(50.0) == Calc(Percent(50))`; it now asserts `Percent(50.0)` and that the `calc()`
   form resolves the same.
-- 2026-10-06 — C4G-NUMBER-RANGE: the tokenizer keeps digits-only literals integer-typed and clamps
+- 2026-10-05 — C4G-NUMBER-RANGE: the tokenizer keeps digits-only literals integer-typed and clamps
   them to `i32::MAX` (CSS Syntax 3 §4.3.12 type flag, §4.3.13 conversion; Values 4 §5.1 clamps a value
   outside the implementation's range) — `read_number` returned `Float` past `i32`; a dimension's number
   part follows (`integer: true`, value `i32::MAX`). Decided — unitless fractions: rdom's cell takes any
@@ -1353,7 +1353,7 @@ row comes from.
   Changed expectations: the tokenizer test `oversized_integer_is_a_float_not_zero` is replaced by the
   clamping one; `flex_shorthand_full_grammar` listed `1 2 0.5` as invalid — it is `1 2 0` now (moved
   to the valid cases as `1 2 2.5`).
-- 2026-10-06 — C4G-PX-CALC: `paint_length` (`V/border.rs`), the one leaf of border widths, radii and
+- 2026-10-05 — C4G-PX-CALC: `paint_length` (`V/border.rs`), the one leaf of border widths, radii and
   shadow lengths, routes a math function holding a pixel-family dimension to `pixel_math`: each pixel
   leaf becomes a context-free `ch` length of its pixel value, the calc parser builds and types the
   expression, and `CalcExpr::kind_strict` (new; CSS's own §10.9 typing, `Typing { percent, cells }`
@@ -1368,7 +1368,7 @@ row comes from.
   `pixel_lengths_inside_math_functions` (`border-width: calc(2px)` → `InvalidValue`); green after,
   with eight invalid mixes (`calc(2px + 1)`, `calc(2px * 2px)`, `max(1px, 2)`, pixels with `ch` /
   `%` / `vw` / `deg`). No showcase snapshot changes.
-- 2026-10-06 — C4G-SERIALIZE: two roots. (1) `render_value` put a space before every token. Decided
+- 2026-10-05 — C4G-SERIALIZE: two roots. (1) `render_value` put a space before every token. Decided
   against keeping source spans or whitespace tokens: a browser does not echo the author's whitespace
   for these specified values either — CSSOM §6.7.2 serializes them from their parsed form, not from the source text — so the renderer now writes
   that form: one space between component values, none inside parentheses or before a comma, one after
@@ -1392,7 +1392,7 @@ row comes from.
   `colors::{var_simple, var_with_fallbacks_is_kept_for_the_cascade, border_color_var}` pinned the
   stray spaces (`var( --accent , red )`); they read `var(--accent, red)` now. No showcase snapshot
   changes.
-- 2026-10-06 — C4G-SEALED: decided once in DESIGN ("Which rdom-tui traits a consumer implements"):
+- 2026-10-05 — C4G-SEALED: decided once in DESIGN ("Which rdom-tui traits a consumer implements"):
   call-only extension traits are sealed, injection points are not. Real list, from a grep of
   `pub trait` in rdom-tui: sealed now — `LayoutExt`, `PaintExt`, `HitTestExt`, `TuiDispatchExt`,
   `TuiDocAccessors`, `TuiNodeExt`, `TuiNodeMutExt`, `TuiAccessors`, `TuiAccessorsMut`, `TuiTimers`
@@ -1404,7 +1404,7 @@ row comes from.
   trait (generated from the compiler's missing-item list, so a missing method cannot be what fails —
   stable rustdoc does not check a `compile_fail` error code), all ten compiled ("FAILED"); green
   after the supertraits. No behaviour change.
-- 2026-10-06 — C4G-DOCS: docs only. CSS-COVERAGE — the `border-style` row no longer claims `rounded`
+- 2026-10-05 — C4G-DOCS: docs only. CSS-COVERAGE — the `border-style` row no longer claims `rounded`
   rounds (it is `solid` there; only `border: rounded` sets a radius); §5's nine Phase 4 rows annotated
   (*Shipped* C4-BORDER-SHORTHAND / -SIDES / -WIDTH / C4-RADIUS / C4-SHADOW, `border-spacing` *partly*)
   and its count restated (133 as audited: 27 shipped, 1 partly, 105 open); §2 item 10 struck
@@ -1421,7 +1421,7 @@ row comes from.
   `Corners` geometry; decided `PaintLength` stays closed (each form resolves differently into a
   weight, a corner or an offset — a painter meeting an unknown one would guess). rdom-style README —
   `border-spacing` listed, and the `Value` row describes `Value<T>`, the CSS-wide-keyword wrapper.
-- 2026-10-06 — C4G-EDGE-TESTS: `tests/integration/css_phase4_gates.rs`, one test per edge case.
+- 2026-10-05 — C4G-EDGE-TESTS: `tests/integration/css_phase4_gates.rs`, one test per edge case.
   (1) An opaque side meeting a translucent one at a corner: green on first run — the corner goes to
   the opaque horizontal side, whole, and the translucent left / right blend on their own cells only
   (C4G-BORDER-COST's ring strips leave the corners to the opaque pass). (2) `border-width: -1px`
@@ -1441,15 +1441,15 @@ row comes from.
   `dashed_and_dotted_runs_pick_the_dash_glyphs` (code points, and the `None` cases). DIVERGENCES
   §2 border-style entry and the coverage row updated; CHANGELOG Changed. No showcase snapshot
   changed: no demo or UA rule uses `dashed` / `dotted`.
-- 2026-10-06 — Phase 4 closed: 8 items (C4-SPACING partial — layout with C13-TFC) + 19 gate fixes (batch A 11, batch B 8). Gate-fix re-review folded into the Phase 5 gate. Carried to Phase 5: a box smaller than its border and padding is not floored at them (found by C4G-EDGE-TESTS, DIVERGENCES §2) — C5-BOX-SIZING.
-- 2026-10-07 — C5-SPLIT: no behaviour change. `accessors/mod.rs` (676) → `mod.rs` (51: module docs,
+- 2026-10-05 — Phase 4 closed: 8 items (C4-SPACING partial — layout with C13-TFC) + 19 gate fixes (batch A 11, batch B 8). Gate-fix re-review folded into the Phase 5 gate. Carried to Phase 5: a box smaller than its border and padding is not floored at them (found by C4G-EDGE-TESTS, DIVERGENCES §2) — C5-BOX-SIZING.
+- 2026-10-05 — C5-SPLIT: no behaviour change. `accessors/mod.rs` (676) → `mod.rs` (51: module docs,
   the module map, re-exports), `read_api.rs` (378: `TuiAccessors`, `DomRect`) and `write_api.rs` (261:
   `TuiAccessorsMut`) beside the existing impl files. `runtime/timers.rs` (1153: 603 code, 550 tests) →
   `runtime/timers/{mod (182: shared handle, current-scheduler guard, `TimerId`, `TimerCtx`),
   scheduler (262: the queues), pump (107: the drains and the microtask checkpoint), ext (86:
   `TuiTimers`), tests (550)}`. Public paths unchanged (`runtime::timers::{TimerCtx, TimerId,
   TuiTimers}`, `accessors::*`). Every test passes unchanged.
-- 2026-10-07 — C5-BOX-SIZING: `box-sizing: content-box | border-box` (CSS UI 3 §3.1, now CSS Sizing 3
+- 2026-10-05 — C5-BOX-SIZING: `box-sizing: content-box | border-box` (CSS UI 3 §3.1, now CSS Sizing 3
   "Box Edges for Sizing"), initial `content-box`, not inherited (`BoxSizing`, a closed keyword enum;
   `TuiStyle` / `ComputedStyle::box_sizing`, `ImportantMask::BOX_SIZING`, builder, node setter and
   accessor, root and prelude re-exports). Decided — one conversion point: `render/layout_pass/
@@ -1499,7 +1499,7 @@ row comes from.
   `auto` height clamp the size `box-sizing` names, under `border-box` the border box (0.5 clamped
   the content height: `min-height: 5; border: solid` was 7 rows, now 5). Migration for those: size
   the box by its content (`content-box`), or add the padding and border to the bound.
-- 2026-10-07 — C5-INTRINSIC: `min-content | max-content | fit-content | fit-content(<length-percentage
+- 2026-10-05 — C5-INTRINSIC: `min-content | max-content | fit-content | fit-content(<length-percentage
   [0,∞]>)` (CSS Sizing 3 §3.1–§3.3) on `width` / `height` / `min-*` / `max-*`: `IntrinsicSize`, a
   closed enum (the limit a `CalcExpr` — `Length` for cells; viewport units absolutized at computed
   time like the other lengths), as `Size` / `MinSize` / `MaxSize::Intrinsic` (breaking for exhaustive
@@ -1530,7 +1530,7 @@ row comes from.
   No existing expectation changed; no snapshot changed. Split (`block/mod.rs` was 739 lines and is
   touched): `block/place.rs` (139, `BlockPlace` / `lay_out_block_child`) and `block/runs.rs` (117, run
   partitioning); `mod.rs` 501.
-- 2026-10-07 — C5-POS-MINMAX (found by C5-INTRINSIC, a fix between items): an absolutely positioned
+- 2026-10-05 — C5-POS-MINMAX (found by C5-INTRINSIC, a fix between items): an absolutely positioned
   box's placed width / height ignored `min-*` / `max-*` (CSS 2.1 §10.4 / §10.7 apply to it), as did a
   positioned pseudo-element's. `compute_placed_rect` now clamps the tentative width by `max-width`, then
   `min-width` (through `Keywords`, so `box-sizing` and the keywords apply), before the height is
@@ -1538,7 +1538,7 @@ row comes from.
   bound being the content string's size (DIVERGENCES §2). Red: `positioned_boxes_honour_min_and_max`
   gave (10, 1) for `width: 10; max-width: 4; height: 1; min-height: 3`; green after, with
   `a_positioned_pseudo_honours_min_and_max`. No existing expectation changed.
-- 2026-10-07 — C5-MARGIN-TRIM: `margin-trim: none | [block || inline] | [block-start ||
+- 2026-10-05 — C5-MARGIN-TRIM: `margin-trim: none | [block || inline] | [block-start ||
   inline-start || block-end || inline-end]` (CSS Box 4 §3; the brief's seven single keywords plus the
   grammar's combinations), not inherited: `MarginTrim` (four logical bools, closed data, `NONE` /
   `BLOCK` / `INLINE`), `parse_margin_trim` (each keyword once, the axis and side forms not mixed),
@@ -1557,7 +1557,7 @@ row comes from.
   (e.g. `(3, 6, 10)` for `(1, 4, 8)`; the sixth, block-container `inline` being a no-op, passed as
   it should); green after. Test fixed while writing: `block-start inline` mixes the axis and side
   forms, which the grammar rejects — the column test says `block-start inline-start inline-end`.
-- 2026-10-07 — C5-CONTAIN-SIZE (partial — used with C14 contain): `contain-intrinsic-size`,
+- 2026-10-05 — C5-CONTAIN-SIZE (partial — used with C14 contain): `contain-intrinsic-size`,
   `contain-intrinsic-width` / `-height` and the logical `-inline-size` / `-block-size` (CSS Sizing 4
   §6.1): `auto? [ none | <length [0,∞]> ]` (no percentages — the grammar is `<length>`), the shorthand
   one or two (width, height). `ContainIntrinsicSize { auto, length: Option<CalcExpr> }` (cells as
@@ -1572,7 +1572,7 @@ row comes from.
   the cascade wiring — `contain_intrinsic_size_cascades` then failed on `25vw` (0, not 10: the shared
   `css_phase5::lay_out` cascaded before any viewport was set), fixed in the helper (viewport first, as
   C2-VIEWPORT documents), not in production code.
-- 2026-10-07 — C5-WRITING (done before C5-LOGICAL, which maps the inline sides by `direction`):
+- 2026-10-05 — C5-WRITING (done before C5-LOGICAL, which maps the inline sides by `direction`):
   `direction: ltr | rtl` and `writing-mode: horizontal-tb | vertical-rl | vertical-lr | sideways-rl |
   sideways-lr` (CSS Writing Modes 4 §2.1 / §3.1), both inherited; `direction` stays out of `all` (CSS
   Cascade 4 §3.2 — it was already in `ALL_EXCLUDES`). Rust names `text_direction` / `TextDirection`
@@ -1603,7 +1603,7 @@ row comes from.
   table now and, per Cascade 4 §3.2, not in `all`, so the test skips it and asserts it stays unset.
   `cascade_inherits_exactly_the_style_crates_inherited_set` gains probes for `direction` and
   `writing-mode` (and the non-inherited `box-sizing` / `margin-trim` of the earlier items).
-- 2026-10-07 — C5-LOGICAL (after C5-WRITING): the 52 flow-relative properties of CSS Logical 1
+- 2026-10-05 — C5-LOGICAL (after C5-WRITING): the 52 flow-relative properties of CSS Logical 1
   §2–§6 (`property_dispatch/logical.rs`, its `NAMES` appended to `property_names()`, which is now
   `PROPERTY_NAMES` + those). Decided — no duplicated storage, order preserved: (1) the block-axis
   properties and the sizes map onto their physical twins *when declared* (`set_mapped` → `set_parsed`
@@ -1641,7 +1641,7 @@ row comes from.
   The batch's rustdoc gate (run before this last commit) found a link C5-SPLIT broke —
   `read_api.rs`'s `[`TuiAccessorsMut::style_mut`]` no longer in scope after the move — fixed here with
   a `super::` path, along with a link from `set_parsed`'s docs to the crate-private `set_parsed_in`.
-- 2026-10-07 — Phase 5 gates (with the C4G re-review: all 19 at the root except C4G-SHADOW-ORDER).
+- 2026-10-05 — Phase 5 gates (with the C4G re-review: all 19 at the root except C4G-SHADOW-ORDER).
   Architect: 2 blocking — flex items paint atomically but their shadows were queued as step-4 block
   shadows, so a shadow lands under an earlier item's text (a regression from C4G-SHADOW-ORDER); `rtl`
   scrolling moves mirrored content the wrong way, so left overflow is unreachable. API: 1 blocking — a
@@ -1664,7 +1664,7 @@ row comes from.
   rtl margin / positioned / no-bidi decisions, sealed-doctest fragility, rustdoc link broken on
   b2e2bcd..34a9cfb (history not rewritten). Fix all as `C5G-*`, two batches (A correctness, B API
   and docs).
-- 2026-10-07 — C5G-BARE-PSEUDO (gate fix, blocking): a pseudo-element with no compound before it
+- 2026-10-05 — C5G-BARE-PSEUDO (gate fix, blocking): a pseudo-element with no compound before it
   attaches to the implicit `*` (Selectors 4 §5.2: a compound without a type selector has an implied
   universal selector). `extract_pseudo_suffix` returns a `Cow` core and, when the text before the
   pseudo-element is empty or ends in whitespace or a combinator (`>` `+` `~`, not an escaped one),
@@ -1677,7 +1677,7 @@ row comes from.
   `.a ::before` painted `>AB` (the `div`'s own `::before`) instead of `A>B`; green after. Changed
   expectations: the four `extract_rejects_bare_*` assertions (the old rejection) became the new
   test. DIVERGENCES §3's line removed; the C5-BOX-SIZING migration hint names the bare reset again.
-- 2026-10-07 — C5G-FLEX-SHADOW (gate fix, blocking): flex items paint exactly as inline blocks
+- 2026-10-05 — C5G-FLEX-SHADOW (gate fix, blocking): flex items paint exactly as inline blocks
   (CSS Flexbox §5.4), i.e. atomically, as if they created a stacking context whose positioned
   descendants still belong to the parent (CSS 2.1 Appendix E, 7.2.1.4.1.1). C4G-SHADOW-ORDER had
   queued a flex item's shadow as a step-4 block shadow, so it painted under an earlier item's text.
@@ -1696,7 +1696,7 @@ row comes from.
   of a block inside a flex item both left `aaaab` (glyphs kept under a tinted shade) where the
   browser's `aa  b` is expected; green after. A third test (a later block's shadow inside one flex
   item stays under that item's earlier text) passed before and after. No expectation changed.
-- 2026-10-07 — C5G-INLINE-BLOCK-SHADOW (gate fix): an inline block in a line paints its outer
+- 2026-10-05 — C5G-INLINE-BLOCK-SHADOW (gate fix): an inline block in a line paints its outer
   `box-shadow` at its turn, as an atomic box (CSS 2.1 Appendix E, 7.2.1.4.1.1; consistent with
   C5G-FLEX-SHADOW: `Shadows::Whole`, over the line content painted before it; a translucent shade
   composites once and keeps the glyphs). `paint_inline_layout`'s atom branch paints it before the
@@ -1713,7 +1713,7 @@ row comes from.
   composites, against `(128, 0, 127)`); green after. The tests put an inline element before the atom:
   with bare text the block lays the run out through an anonymous box, whose text paints after the
   block children (`paint_content`), so the shade lands under it there — part of `ATOM-BOX-1`.
-- 2026-10-07 — C5G-RTL-SCROLL (gate fix, blocking): an `rtl` scroll container scrolls from its right
+- 2026-10-05 — C5G-RTL-SCROLL (gate fix, blocking): an `rtl` scroll container scrolls from its right
   edge. CSSOM View §4 puts the scrolling area origin at a box's inline-start edge, and `scrollLeft`
   is measured from it: 0 at the right edge of an `rtl` box, negative towards its left overflow
   (`-(scrollWidth − clientWidth)` at the far left) — the current spec and every current browser.
@@ -1738,7 +1738,7 @@ row comes from.
   `scrollIntoView`; the drag reached `+6`; the thumb sat at the left; the over-wide block's `-6`
   unreachable); green after. `scroll_into_view_inline_start_is_the_right_edge` was confirmed red with
   the start / end swap disabled (`(-6, 0)` against `(-8, 2)`). No existing expectation changed.
-- 2026-10-07 — C5G-STRING-INTRO (gate fix): rdom's input parser no longer frames PM (`ESC ^`) or SOS
+- 2026-10-05 — C5G-STRING-INTRO (gate fix): rdom's input parser no longer frames PM (`ESC ^`) or SOS
   (`ESC X`) strings, and takes APC (`ESC _`) as a string only when `G` follows — the kitty graphics
   reply, the one APC a terminal sends. C4G-CSI-FRAMING had started all three on any string byte
   (ECMA-48 §5.6 lets a string hold any of them), so Alt+Shift+X then `hello⏎` — or the same bytes
@@ -1749,7 +1749,7 @@ row comes from.
   `ESC _ x` row of `dcs_and_apc_strings_are_consumed` failed; green after. Changed expectation: that
   test (was `dcs_apc_pm_sos_strings_are_consumed`) drops its PM / SOS rows and their prefix-wait rows,
   which asserted the behaviour removed here.
-- 2026-10-07 — C5G-LOGICAL-COST (gate fix): an inline-axis flow-relative declaration put every later
+- 2026-10-05 — C5G-LOGICAL-COST (gate fix): an inline-axis flow-relative declaration put every later
   declaration of its block on `pending`, which the cascade replayed per element (a throwaway
   `TuiStyle`, the token re-parse, a `Vec` per element). Now a rule whose kept declarations need no
   substitution (`TuiStyle::needs_substitution`: no `var()` / `attr()`) carries their two
@@ -1768,7 +1768,7 @@ row comes from.
   `a_direction_change_reruns_the_ladder_once` (three ladder walks: the element twice, `::selection`)
   and `declaration_order_holds_under_rtl` pin the cap and the order (both passed before; regression
   guards). No expectation changed.
-- 2026-10-07 — C5G-SIZING-SITES (gate fix): the remaining sizing sites go through the `Sizer` and the
+- 2026-10-05 — C5G-SIZING-SITES (gate fix): the remaining sizing sites go through the `Sizer` and the
   `min-*` / `max-*` clamp. (1) Intrinsic contributions (CSS Sizing 3 §5.2: the box's outer size with
   its preferred size, if definite, in place of the content, "and with its min and max sizes
   applied"): `intrinsic_size_inner`'s `BoxSize` mode is now `intrinsic/contribution.rs`
@@ -1790,7 +1790,7 @@ row comes from.
   `explicit_author_width_is_respected_not_overwritten` 20 → 22, and
   `colspan_excess_spreads_over_author_sized_columns_too` now pins column 0 with `width: 4` (6 with the
   padding) to keep its arithmetic. No snapshot changed.
-- 2026-10-07 — C5G-INT-CLAMP-SITE (gate fix): C4G-NUMBER-RANGE clamped an integer literal to
+- 2026-10-05 — C5G-INT-CLAMP-SITE (gate fix): C4G-NUMBER-RANGE clamped an integer literal to
   `i32::MAX` in the tokenizer, which custom properties — kept as tokens and re-rendered — passed on:
   `--n: 99999999999` read back as `2147483647`, and `calc(var(--n) / 1e9)` came out 2.147 instead of
   100. CSS Syntax 3 §4.3.12 gives the token its value and type flag; CSS Values 4 §5.1's clamp to the
@@ -1807,7 +1807,7 @@ row comes from.
   `99999999999.0`). `box_shadow_takes_an_integer_past_the_range` gains the 23-digit and the
   `99999999999ch` cases — the box-shadow cases still parse and clamp (`PaintLength::Cells(i32::MAX)`),
   and `box_shadow_huge_lengths_do_not_overflow` (rdom-tui) passes unchanged.
-- 2026-10-07 — C5G-REL-PSEUDO-INSETS (gate fix; completes C8-POS-MINMAX, row set to `done
+- 2026-10-05 — C5G-REL-PSEUDO-INSETS (gate fix; completes C8-POS-MINMAX, row set to `done
   (C5-POS-MINMAX + C5G-REL-PSEUDO-INSETS)`): a `position: relative` pseudo-element with both insets
   stretched to their span — `compute_placed_rect` sized it like an absolute box
   (`resolve_size_axis` with the insets). CSS 2.1 §9.4.3: a relative box only moves; with both `left`
@@ -1821,7 +1821,7 @@ row comes from.
   pins its width. Red:
   `a_relative_pseudo_with_both_insets_only_shifts` failed — `(10, 1, 8, 2)` (stretched both ways)
   against `(10, 1, 1, 1)`; green after, `(8, 1, 1, 1)` under `rtl`. No expectation changed.
-- 2026-10-07 — C5G-ATOM-BOX (gate fix, closes TECH_DEBT `ATOM-BOX-1`): an inline block in a line is
+- 2026-10-05 — C5G-ATOM-BOX (gate fix, closes TECH_DEBT `ATOM-BOX-1`): an inline block in a line is
   one atomic box, laid out and painted by its line. Layout (CSS 2.1 §10.8 / §10.8.1): line boxes have
   heights — `LineBox` gains `top` / `height` / `baseline`, `InlineFragment` `y` / `height` (Breaking —
   rdom-tui, the data model moved to `render/inline/boxes.rs` to keep `inline/mod.rs` under the bar);
@@ -1848,7 +1848,7 @@ row comes from.
   3), the next line's `cc` was drawn under the box, and the atom's rows did not hit-test to it; green
   after, with `vertical.rs` / `boxes.rs` unit tests for the line arithmetic. No existing expectation
   or snapshot changed.
-- 2026-10-07 — C5G-PSEUDO-ONLY (gate fix): an element whose only content is its `::before` /
+- 2026-10-05 — C5G-PSEUDO-ONLY (gate fix): an element whose only content is its `::before` /
   `::after` shows it (CSS 2.1 §12.1 — they are its first / last child boxes — and §9.2.1.1, an
   anonymous line box). Root cause, one idea in three places: "content" meant child nodes. Block
   layout (`layout_block_children`) returned a zero measurement for a box with no (in-flow) children
@@ -1863,7 +1863,7 @@ row comes from.
   with `::before`, `::after` and both painted `next` on row 0 (nothing of `<`/`>`), the flex item the
   same, `margin: 1 0` left the sibling at row 1 (`["      ", "next  ", …]`); green after. No
   expectation or snapshot changed.
-- 2026-10-07 — C5G-MIGRATION-DOCS (gate fix, docs): the content-box Breaking note (rdom-tui) now names
+- 2026-10-05 — C5G-MIGRATION-DOCS (gate fix, docs): the content-box Breaking note (rdom-tui) now names
   the two changes that reach a box even under the `border-box` reset — the padding-plus-border floor
   (`height: 1; border: solid` is 2 rows; points to the Fixed entry) and `min-height` / `max-height` on
   an `auto` height bounding the box `box-sizing` names (0.5 clamped the content height: checked
@@ -1874,7 +1874,7 @@ row comes from.
   under Stylesheets (it has no layout section). Root README: 163 UA rules (the count
   `ua::tests` pins; was 150). rdom-style README: the sizing keywords and `none`, `contain-intrinsic-*`,
   `margin-trim`, and a writing-modes / logical-properties group. Docs only — no test.
-- 2026-10-07 — C5G-REEXPORTS-AND-ROOT (gate fix, API): the root re-exports `TextDirection`,
+- 2026-10-05 — C5G-REEXPORTS-AND-ROOT (gate fix, API): the root re-exports `TextDirection`,
   `WritingMode`, `MarginTrim` and `ContainIntrinsicSize`; rdom-style's `backend`, `parse` and
   `property_dispatch` modules moved from the root to `rdom_tui::style::` (`style::backend` no longer
   sits beside the terminal `Backend` trait). The prelude went back to a typical app's set: removed
@@ -1897,7 +1897,7 @@ row comes from.
   test failed to compile — `cannot find parse / backend / property_dispatch in style` (10),
   `ContainIntrinsicSize` / `MarginTrim` / `TextDirection` / `WritingMode` not in scope (5); green
   after.
-- 2026-10-07 — C5G-API-EDGES (gate fix, API): `From<IntrinsicSize>` for `Size` / `MinSize` / `MaxSize`
+- 2026-10-05 — C5G-API-EDGES (gate fix, API): `From<IntrinsicSize>` for `Size` / `MinSize` / `MaxSize`
   and `IntrinsicSize::fit_content(cells)` / `fit_content_percent(p)` (the variant holds a `CalcExpr`,
   so one constructor per limit kind); `ImportantMask::intersects` (const, word-wise); `From<BorderRadius>`
   for `Corners<BorderRadius>` with `set_border_radius` and the `border_radius` builders taking
@@ -1916,7 +1916,7 @@ row comes from.
   changes have no test. Splits (files past the bar): the builder's sizing setters moved to
   `tui_style/builder/sizing.rs` (`builder/mod.rs` 615 → 514), and `layout/sizing.rs`'s tests to
   `layout/sizing_tests.rs` (609 → 537).
-- 2026-10-07 — C5G-CSSOM-LOGICAL (gate fix): CSSOM reads of the inline-axis flow-relative properties
+- 2026-10-05 — C5G-CSSOM-LOGICAL (gate fix): CSSOM reads of the inline-axis flow-relative properties
   follow CSSOM §6.6. `getPropertyValue`: a longhand reads the last kept declaration that sets it —
   its own or a shorthand's component — and a shorthand only when every longhand is set; the value is
   computed by replaying those declarations onto a scratch style under `ltr` and serializing the
@@ -1938,7 +1938,7 @@ row comes from.
   `set_important` / `is_important`); green after. Changed along the way: the first draft returned
   nothing for an undeclared inline-axis name, which broke `all_shorthand_sets_every_property_in_the_table`
   (`None` against `initial`) — the fallback to the fields above fixes it; no expectation changed.
-- 2026-10-07 — C5G-LOGICAL-IMPORTANT (gate fix; margin / padding finished by C6-MARGIN-SIDES): an `!important`
+- 2026-10-05 — C5G-LOGICAL-IMPORTANT (gate fix; margin / padding finished by C6-MARGIN-SIDES): an `!important`
   inline-axis declaration is important on the side it maps to only (CSS Cascade 4 §6.4: importance
   is per declaration; CSS Logical 1 §4). `set_important` no longer sets the physical bits for an
   inline-axis name — its flag on the kept declaration (C5G-CSSOM-LOGICAL) is its importance. The
@@ -1967,7 +1967,7 @@ row comes from.
   (`margin-left` priority `"important"` against `""`) failed; green after, with the rdom-style unit
   `replayed_declarations_mark_their_own_side` and the `margin-left` assertion C5G-CSSOM-LOGICAL left
   for this item.
-- 2026-10-07 — C5G-CUSTOM-SERIALIZE (gate fix): custom properties and declarations holding `var()` /
+- 2026-10-05 — C5G-CUSTOM-SERIALIZE (gate fix): custom properties and declarations holding `var()` /
   `attr()` keep their source text (CSS Variables 1 §2: the value is the token sequence as written;
   §3 for a pending-substitution value), trimmed, comments and inner whitespace included. The
   tokenizer gains `tokenize_spans` (`SpannedTokens`: byte ranges, `TokenSpan`, beside the positions; `tokenize_at` is it without
@@ -1985,7 +1985,7 @@ row comes from.
   upper-case) failed; green after. No expectation changed. Split: `property_dispatch/set.rs` reached
   613 lines — the declaring entry points (`set`, `set_from_source`, `set_from_tokens`, the custom
   paths) moved to `property_dispatch/declare.rs` (159), `set.rs` keeps `set_parsed` (468).
-- 2026-10-07 — C5G-PERF-AND-TESTS (gate fix). (1) `fit-content` measuring: an intrinsic keyword box
+- 2026-10-05 — C5G-PERF-AND-TESTS (gate fix). (1) `fit-content` measuring: an intrinsic keyword box
   measures its subtree's min- and max-content Row sizes (`Keywords::keyword`), and each enclosing
   keyword box re-walked it — quadratic in the nesting depth. Row-axis `content_size` is now memoized
   for the layout pass (`intrinsic/memo.rs`): a `(node, max?, cross budget, containing-block width) →
@@ -2015,7 +2015,7 @@ row comes from.
   to the wrong inline side → `logical_corner_radii_follow_the_direction`; L5 the cascade picking the
   `ltr` overlay for every element → five logical tests. Every mutation is caught, so no test was
   added for them.
-- 2026-10-07 — C5G-DOCS-AND-SHOWCASE (gate fix, docs + showcase). DIVERGENCES §1's sub-cell list said
+- 2026-10-05 — C5G-DOCS-AND-SHOWCASE (gate fix, docs + showcase). DIVERGENCES §1's sub-cell list said
   `box-shadow` spread was unsupported, against the shadow entry above it (spread is whole cells):
   now "blur (its spread is whole cells, above)". DESIGN `#[non_exhaustive]`: `BoxSizing`,
   `TextDirection`, `WritingMode` join the closed keyword enums, `MarginTrim` and
@@ -2041,12 +2041,12 @@ row comes from.
   `inline_formatting`'s yellow highlight); `raf_progress`'s first layer showed a full 48-cell bar —
   the harness had never parsed its `style="width: 0"` — and with the seeding the initial paint is
   the empty track the app shows, so its snapshot is unchanged from before this item.
-- 2026-10-07 — Phase 5 closed: 7 items (C5-CONTAIN-SIZE partial — used with C14-CONTAIN) + 19 gate
+- 2026-10-05 — Phase 5 closed: 7 items (C5-CONTAIN-SIZE partial — used with C14-CONTAIN) + 19 gate
   fixes (batch A 9, batch B 10). Gate-fix re-review folded into the Phase 6 gate. Carried, recorded:
   margin / padding importance stays whole-field (C5G-LOGICAL-IMPORTANT; DIVERGENCES §2, the
   per-side-longhands entry — per-side margin / padding storage would fix it); `vertical-align` beyond
   `baseline` for inline blocks (C9-VERTICAL-ALIGN; C5G-ATOM-BOX laid the line-box heights it builds on).
-- 2026-10-08 — C6-MARGIN-SIDES (finishes C5G-LOGICAL-IMPORTANT): `margin-*` and `padding-*` are
+- 2026-10-05 — C6-MARGIN-SIDES (finishes C5G-LOGICAL-IMPORTANT): `margin-*` and `padding-*` are
   independent longhands (CSS Box 3 §3.2 / §4.2), the model C4-BORDER-SIDES gave the borders.
   `TuiStyle::margin` / `padding` are `Sides<Option<Value<MarginValue | PaddingValue>>>` (Breaking —
   rdom-style); the field table (C4G-IMPORTANT-BITSET) has a row per side, so each side has its own
@@ -2076,7 +2076,7 @@ row comes from.
   and rdom-css tests read sides instead of one `Margin` / `Padding`, and
   `padding_side_important_sets_its_sides_bit` (was `…_sets_padding_bit`) asserts the top bit only.
   No layout or paint expectation changed; no snapshot changed.
-- 2026-10-08 — C6-DISPLAY-KEYWORDS: `display` takes CSS Display 3 §2's grammar —
+- 2026-10-05 — C6-DISPLAY-KEYWORDS: `display` takes CSS Display 3 §2's grammar —
   `[<display-outside> || <display-inside>]` (outer `block | inline`, inner `flow | flow-root |
   flex`; an omitted outer is `block`, an omitted inner `flow`), `<display-listitem>`
   (`list-item` with an optional outer and `flow` / `flow-root`), `contents | none`, and the legacy
@@ -2129,7 +2129,7 @@ row comes from.
   box-tree sequence (`render::box_tree`): the parent's child nodes unless a `display: contents`
   child holds a block box, which gives its children in its place between its static `::before` /
   `::after`.
-- 2026-10-08 — C6-VISIBILITY: `visibility: visible | hidden | collapse` (CSS Display 3 §4),
+- 2026-10-05 — C6-VISIBILITY: `visibility: visible | hidden | collapse` (CSS Display 3 §4),
   inherited (`Visibility`, `TuiStyle` / `ComputedStyle::visibility`, `ImportantMask::VISIBILITY`,
   builder, root re-export). Decided — one answer: `render/visibility.rs::visibility_of` (the
   presented value of a running transition, else the computed one) is what paint, hit-testing and
@@ -2171,7 +2171,7 @@ row comes from.
   From its CHANGELOG bullet (moved by C6G-CHANGELOG): A `visibility` transition with a `visible` end
   presents `visible` for its whole run (`hidden → visible` shows at once, `visible → hidden` at the
   end); a hidden box's text is left out of a copy (HTML §3.2.7).
-- 2026-10-08 — C6-ORDER: `order: <integer>` (CSS Flexbox §5.4; a math function rounds, a value
+- 2026-10-05 — C6-ORDER: `order: <integer>` (CSS Flexbox §5.4; a math function rounds, a value
   past `i32` clamps, CSS Values 4 §10.9 / §5.1), not inherited (`TuiStyle` / `ComputedStyle::order`,
   `ImportantMask::ORDER`, builder, `parse::values::parse_order`). Decided — one ordering:
   `render/box_tree.rs::sort_by_order` (a stable sort by `order`, no-op when every item's is 0; a
@@ -2189,7 +2189,7 @@ row comes from.
   alone, reverted): paint ignoring `order` → `bba` (the painting test); hit-testing ignoring it →
   the hit at (1, 0) is `b`; layout ignoring it → all three tests. Changed expectations: the
   canonical-values table, important-setter coverage and the C1 `initial` test gain `order`.
-- 2026-10-08 — C6-DIRECTION-REVERSE: `flex-direction: row | row-reverse | column | column-reverse`
+- 2026-10-05 — C6-DIRECTION-REVERSE: `flex-direction: row | row-reverse | column | column-reverse`
   (CSS Flexbox §5.1). Model: the axis stays `direction` (`Direction` is the layout axis
   everywhere, so it gains no variants) and `flex_reverse` joins it — `TuiStyle` / `ComputedStyle`,
   `ImportantMask::FLEX_REVERSE`, owned by `flex-direction` like `display`'s `list_item`; the
@@ -2227,7 +2227,7 @@ row comes from.
   `FLEX_REVERSE`; scroll-reading tests and the showcase's scroll readout take `i32`
   (`sidebar_scroll_end_regression`, `scrollable_list_keyboard_scroll`, the app tests). No snapshot
   changed.
-- 2026-10-08 — C6-FLEX-LONGHANDS (done; was partial): the `flex-grow` (`<number [0,∞]>`,
+- 2026-10-05 — C6-FLEX-LONGHANDS (done; was partial): the `flex-grow` (`<number [0,∞]>`,
   initial 0) and `flex-basis` (`content | <'width'>`: `auto`, `content`, cells, `%`, `calc()`,
   and the intrinsic keywords — `FlexBasis::Intrinsic`, Breaking) longhands (CSS Flexbox §7.3), and
   the `flex` shorthand sets exactly its three longhands (`fields_of("flex")`), no longer `width` /
@@ -2265,7 +2265,7 @@ row comes from.
   moved to `property_dispatch/names.rs` (172; `table.rs` 439), paths re-exported unchanged.
   From its CHANGELOG bullet (moved by C6G-CHANGELOG): `flex: inherit` inherits the three factors
   (not the main size), and `parse::values::parse_flex_basis` is public.
-- 2026-10-08 — C6-GAP: `row-gap` / `column-gap` (`normal | <length-percentage [0,∞]>`, initial
+- 2026-10-05 — C6-GAP: `row-gap` / `column-gap` (`normal | <length-percentage [0,∞]>`, initial
   `normal`) and the two-value `gap` shorthand (`<'row-gap'> <'column-gap'>?`), CSS Box Alignment 3
   §8.1 / §8.3. Checked first: `gap` parsed one `<length-percentage>` into one field for both
   axes, and its two-value form was invalid. Model — ready for grid's two axes: `TuiStyle` /
@@ -2295,12 +2295,12 @@ row comes from.
   From its CHANGELOG bullet (moved by C6G-CHANGELOG): `TuiNodeExt::gap()` reads the inline gap only
   when `row-gap` and `column-gap` are the same cells; `set_gap` writes both. `length` / `item()`
   list the `gap` shorthand and its longhands, as for `padding`.
-- 2026-10-08 — C6 file-size pass (part 1, no behaviour change): `rdom-showcase/src/nav.rs` (634
+- 2026-10-05 — C6 file-size pass (part 1, no behaviour change): `rdom-showcase/src/nav.rs` (634
   lines, touched by C6-DIRECTION-REVERSE) — its inline test module moved to `nav_tests.rs` (195;
   `nav.rs` 441). Production files touched by part 1 now under the bar: `property_dispatch/table.rs`
   439 (C6-FLEX-LONGHANDS split), `intrinsic/mod.rs` 585 and `tui_style/builder/mod.rs` 569 — near
   it, for C6-SPLIT; the `flex/*` files are 219–403.
-- 2026-10-08 — C6-FLEX-DIRECTION-INITIAL: `flex-direction`'s initial value is `row` (CSS Flexbox
+- 2026-10-05 — C6-FLEX-DIRECTION-INITIAL: `flex-direction`'s initial value is `row` (CSS Flexbox
   §5.1; `ComputedStyle::initial().direction` and `Direction::default()`, Breaking — rdom-style).
   Root fix first — decided, one rule: `layout_pass::flow_axis(computed)` is the axis a box's in-flow
   children lay out along: a flex container's `flex-direction` axis, every other box's block axis
@@ -2327,7 +2327,7 @@ row comes from.
   From its CHANGELOG bullet (moved by C6G-CHANGELOG): Before, rdom-tui read `flex-direction` on a
   block container and measured its children along that axis, so `flex-direction: row` on a block
   made its shrink-to-fit width the sum of its children's.
-- 2026-10-08 — C6-WRAP: `flex-wrap: nowrap | wrap | wrap-reverse` (CSS Flexbox §5.2; `FlexWrap`,
+- 2026-10-05 — C6-WRAP: `flex-wrap: nowrap | wrap | wrap-reverse` (CSS Flexbox §5.2; `FlexWrap`,
   `TuiStyle` / `ComputedStyle::flex_wrap`, `ImportantMask::FLEX_WRAP`, builder, not inherited) and
   `flex-flow` (§5.3, `<'flex-direction'> || <'flex-wrap'>`, owning `flex-direction`'s two fields and
   `flex_wrap`, shortest serialization; cssText leaves the longhands to it only if it serializes —
@@ -2389,7 +2389,7 @@ row comes from.
   CHANGELOG: a non-stretched flex item's cross size (an `auto` cross margin, an inline block) is
   measured at its used main size — a row item's text wraps to the item's width, not the container's
   height.
-- 2026-10-08 — C6-JUSTIFY: `justify-content` (CSS Box Alignment 3 §5.2 grammar: `normal |
+- 2026-10-05 — C6-JUSTIFY: `justify-content` (CSS Box Alignment 3 §5.2 grammar: `normal |
   <content-distribution> | <overflow-position>? [ <content-position> | left | right ]`; not
   inherited). Model — decided, one vocabulary for all six alignment properties, extending the type
   ACID.md found CSS could not set: `Align` (was `{Start, Center, End, Stretch}`, unused) is every Box
@@ -2425,7 +2425,7 @@ row comes from.
   `start` ignoring `row-reverse` → the axes test. Changed expectations: the canonical-values table,
   important-setter coverage, the C1 `initial` perturbation and the inherited-set probe gain
   `justify-content`. No snapshot changed.
-- 2026-10-08 — C6-ALIGN: `align-items` (`normal | stretch | <baseline-position> |
+- 2026-10-05 — C6-ALIGN: `align-items` (`normal | stretch | <baseline-position> |
   <overflow-position>? <self-position>`, Box Alignment 3 §6.3) and `align-self` (`auto |
   <'align-items'>`, §6.1), not inherited, on the C6-JUSTIFY model (`Alignment`, the grammar-driven
   parser). Layout — decided, one module: `flex/align.rs` plans a line's cross alignment
@@ -2466,7 +2466,7 @@ row comes from.
   From its CHANGELOG bullet (moved by C6G-CHANGELOG): A stretched item's `auto` cross size is
   clamped by its `min-*` / `max-*` cross sizes; a box without content synthesizes its baseline at
   its bottom row, and a multi-line container's line grows to hold its baseline-aligned group.
-- 2026-10-08 — C6-ALIGN-CONTENT: `align-content` (`normal | <baseline-position> |
+- 2026-10-05 — C6-ALIGN-CONTENT: `align-content` (`normal | <baseline-position> |
   <content-distribution> | <overflow-position>? <content-position>`, Box Alignment 3 §5.1; not
   inherited). Layout (Flexbox §8.4, §9.4 step 15): `flex/justify.rs` became `flex/content.rs` — one
   whole-cell distribution (`offsets`: the C6-JUSTIFY placements and rounding) behind
@@ -2492,7 +2492,7 @@ row comes from.
   survives, as it must. Changed expectations: the canonical-values table, important-setter coverage,
   the C1 `initial` perturbation and the inherited-set probe gain `align-content`. No snapshot
   changed.
-- 2026-10-08 — C6-PLACE: `justify-items` (Box Alignment 3 §6.2, with `legacy` / `legacy left |
+- 2026-10-05 — C6-PLACE: `justify-items` (Box Alignment 3 §6.2, with `legacy` / `legacy left |
   right | center`) and `justify-self` (§6.1), and the `place-content` / `place-items` / `place-self`
   shorthands (§5.5 / §6.4 / §6.5: `<align> <justify>?`, one value for both — a baseline
   `place-content` gives `justify-content: start` — each owning its two longhands, shortest
@@ -2534,7 +2534,7 @@ row comes from.
   `legacy`, which computes to `normal` there; the canonical-values table, important-setter
   coverage, the perturbation and the inherited-set probe gain the five properties. No snapshot
   changed.
-- 2026-10-08 — C6-SPLIT (no behaviour change): `tui_style/builder/mod.rs` had reached 625 lines —
+- 2026-10-05 — C6-SPLIT (no behaviour change): `tui_style/builder/mod.rs` had reached 625 lines —
   it crossed the bar with C6-ALIGN's two setters (601) and was not split there, a slip this item
   repays: the gap, flex-factor, `flex-direction` / `flex-wrap`, alignment and `order` setters and
   the `display: flex` conveniences moved to `builder/flex.rs` (174; `mod.rs` 465), paths and
@@ -2545,7 +2545,7 @@ row comes from.
   Near it and left, recorded for the Phase 6 architect gate: `computed.rs` and `tui_style/mod.rs`
   (543 each — the two field lists, which grow by a line or two per property) and
   `property_dispatch/serialize.rs` (522, one arm per property).
-- 2026-10-08 — Phase 6 gates (with the C5G re-review: all 19 at the root; C5G-ATOM-BOX brought the
+- 2026-10-05 — Phase 6 gates (with the C5G re-review: all 19 at the root; C5G-ATOM-BOX brought the
   B3 cost below). Architect: 3 blocking — a `display: contents` element keeps stale `inline_layout` /
   anonymous boxes / scroll extents from its box days (caret, hit-test, Tab stop wrong after a toggle);
   a single-line `align-items: baseline` row with auto height is sized without the baseline shift;
@@ -2577,7 +2577,7 @@ row comes from.
   Phase 5 public helpers, module moves, scroll re-clamp, abspos `order: 0`, rounding toward main-start.
   Fix all as `C6G-*`, three batches: A correctness and cost, B flex spec / visibility / CSSOM,
   C API, docs and the CHANGELOG restructure.
-- 2026-10-08 — C6G-CONTENTS-STATE (AB1): a box-less element (`display: contents` / `none`, CSS
+- 2026-10-05 — C6G-CONTENTS-STATE (AB1): a box-less element (`display: contents` / `none`, CSS
   Display 3 §2.5) now drops every value it derived from having a box. Layout writes `inline_layout`,
   `anonymous_blocks`, `scroll_content_*` only on a node it lays out, and the contents reset
   (`zero_contents_children`) cleared only the rects and the margin-chain memo, so `<p><span
@@ -2594,7 +2594,7 @@ row comes from.
   gap); `a_root_child_turned_none_reads_zero` — `(0, 0, 10, 1)` for the zero rect. Green after.
   Mutation checks (each alone, reverted and touched): line boxes kept → the `Ifc` assertion; scroll
   height kept → the Tab-stop assertion; no root-fragment collapse → both tests. No snapshot changed.
-- 2026-10-08 — C6G-CONTENTS-BOXTREE (AN2–AN5, AN19's box-tree part): the walks that pair a box with
+- 2026-10-05 — C6G-CONTENTS-BOXTREE (AN2–AN5, AN19's box-tree part): the walks that pair a box with
   its children now read a box-less element (CSS Display 3 §2.5) as its children. Hit-testing (AN2):
   with an `order` sibling, `paint_order_children` hands back the items with box-less wrappers
   unwrapped, so the wrapper arm never ran and `<span contents><b>x</b></span>` beside `<i
@@ -2629,7 +2629,7 @@ row comes from.
   Mutation checks (each alone, reverted and touched): no ancestor insertion → the hit-path test; the
   `contents` clip kept → the extent test; direct-text-only leaf predicate → the flex test.
   No snapshot changed.
-- 2026-10-08 — C6G-INLINE-FLEX-ATOM (PB1): every inline-level box whose inner display type is not
+- 2026-10-05 — C6G-INLINE-FLEX-ATOM (PB1): every inline-level box whose inner display type is not
   `flow` is an atomic inline (CSS Display 3 §2.4, CSS 2.1 §9.2.2 / §10.8), decided in one place,
   `box_tree::is_atomic_inline` — `inline-block` (`inline flow-root`, which the parser maps to
   `Display::InlineBlock`), `inline-flex` (`Display::Inline` + `Flow::Flex`) and `Display::Inline` +
@@ -2651,7 +2651,7 @@ row comes from.
   path pack the atom alike) and survives; the predicate is shared for consistency. Noted, not
   changed: the max-content width of an IFC (`intrinsic::inline::inline_content_width`) sums an
   atom's text rather than its border box, for inline blocks as before. No snapshot changed.
-- 2026-10-08 — C6G-ATOM-HIT (AN6): `hit_content` resolved a point in an inline formatting context
+- 2026-10-05 — C6G-ATOM-HIT (AN6): `hit_content` resolved a point in an inline formatting context
   to its fragment's owner and stopped, so an atomic inline's fragment returned the atom itself —
   `<p><i>Go</i> <span inline-block><b>k</b></span></p>` hit the span, not `b` (beside bare text the
   anonymous-box path descends through the child list and worked) — and a hidden atom sent the point
@@ -2664,7 +2664,7 @@ row comes from.
   layouts. Mutation check (reverted and touched): the atom pushed and its content searched without
   its own visibility rules → the hidden atom's border cell hit the atom (5) for the paragraph (2).
   No snapshot changed.
-- 2026-10-08 — C6G-BASELINE-ROW (AB2): a flex container's `auto` cross size comes from intrinsic
+- 2026-10-05 — C6G-BASELINE-ROW (AB2): a flex container's `auto` cross size comes from intrinsic
   sizing (`children_size`), which for a single-line container took the plain largest outer cross
   contribution, while only the multi-line path (`lines_cross_size` → `line_cross_size`, §9.4 step 8)
   counted the baseline-aligned extent — so `.f { display: flex; align-items: baseline }` holding a
@@ -2684,7 +2684,7 @@ row comes from.
   its used width (31) it takes 4, so the card's fourth bullet (`• Unicode: …`) and its bottom
   padding row were clipped by its `overflow-y: hidden` — now shown, two rows taller, as a browser
   sizes the row. No other test expectation changed.
-- 2026-10-08 — C6G-ATOM-COST (AB3): the layout pass memoized intrinsic content sizes on the Row axis
+- 2026-10-05 — C6G-ATOM-COST (AB3): the layout pass memoized intrinsic content sizes on the Row axis
   only (C5G-PERF-AND-TESTS). An atom's rows in its line (`inline::vertical::atom_rows`: its height,
   `intrinsic_size`, and its baseline, `content_rows` → `content_max_size`) and a flex item's
   baseline box (`flex::cross::baseline_box`: `resolve_cross_size` and `content_rows`) are Column
@@ -2704,7 +2704,7 @@ row comes from.
   its own in its line and the containing block's, where the enclosing box's intrinsic block-flow
   estimate stacks an inline run's atom as a block child (an existing approximation of mixed-content
   intrinsic sizing, not changed here). No test expectation and no snapshot changed.
-- 2026-10-08 — C6G-ORDER-ALLOC (AN1): `box_tree::paint_order_children` (CSS Flexbox §5.4: `order`
+- 2026-10-05 — C6G-ORDER-ALLOC (AN1): `box_tree::paint_order_children` (CSS Flexbox §5.4: `order`
   reorders painting and hit-testing) returned a `Vec` for every node it was asked about — a flex
   container whose items are all `order: 0` built two, its items and then its child list — and its
   callers' other branch (the children of a box-less child or fragment) collected the child list too;
@@ -2718,7 +2718,7 @@ row comes from.
   (`test_alloc`) — 4 allocations for two walks of an all-`order: 0` flex container, for 0 (first
   observed as 5 with a test buffer that reallocated, fixed in the test); green after, both
   directions, the reordered case still in order-modified document order. No snapshot changed.
-- 2026-10-08 — C6G-FLEX-COST (AN10), no layout change. The §4.5 automatic minimum was resolved in
+- 2026-10-05 — C6G-FLEX-COST (AN10), no layout change. The §4.5 automatic minimum was resolved in
   `lines::break_lines` (hypothetical sizes for line breaking) and again in the §9.7 freeze loop,
   each with its own lookup, and for items it cannot affect: an item whose base is its specified main
   size (`flex-basis: auto` with a definite `width`) has an automatic minimum no larger than that size
@@ -2743,7 +2743,7 @@ row comes from.
   item and the container's), 2 allocations in one iteration and in three. Mutation checks (each
   alone, reverted and touched): the specified-base skip off → 8 resolutions; the Column memo off →
   13 Column measurements. No test expectation and no snapshot changed.
-- 2026-10-08 — C6G-BLOCK-ALIGN (AN11, AN12, AN13). AN11: `layout_children_aligned` laid a block
+- 2026-10-05 — C6G-BLOCK-ALIGN (AN11, AN12, AN13). AN11: `layout_children_aligned` laid a block
   container's content out, measured it, and laid it out again at the `align-content` offset — in
   the scrollbar second pass and the scroll-clamp re-layout too — so under k aligned ancestors the
   innermost box was laid out 2^k times. Decision: layout is translation-invariant, so the content is
@@ -2767,7 +2767,7 @@ row comes from.
   positioned box after the moved content, at row 6) was added with the shift. Mutation checks (each
   alone, reverted and touched): no shift → the two `align-content` tests; static positions not
   moved → row 2 for 6. No snapshot changed.
-- 2026-10-08 — C6G-LINEBOX-API (PB2, PN13): C5G-ATOM-BOX moved `LineBox` to `render/inline/boxes.rs`
+- 2026-10-05 — C6G-LINEBOX-API (PB2, PN13): C5G-ATOM-BOX moved `LineBox` to `render/inline/boxes.rs`
   and dropped its `Default` derive, which 0.5.0's own Breaking hint tells consumers to use
   (`..Default::default()` in a struct literal) — a silent second break. And both `LineBox` and
   `InlineFragment` grow again with C9-VERTICAL-ALIGN. Decision: both are `#[non_exhaustive]` (DESIGN's
@@ -2786,7 +2786,7 @@ row comes from.
   outside the crate) now use the constructors; a `compile_fail` doctest on `LineBox` pins that a
   struct literal no longer builds outside rdom-tui (its twin, `LineBox::default()` with a field set,
   compiles and runs). No snapshot changed.
-- 2026-10-08 — C6G-RERUN-BOUND (AN15): `cascade_element` re-ran an element's ladder with its own
+- 2026-10-05 — C6G-RERUN-BOUND (AN15): `cascade_element` re-ran an element's ladder with its own
   `direction` when a flow-relative inline property met an inherited direction that differs (CSS
   Logical 1 §4, C5-LOGICAL), in a `loop` whose only bound was `debug_assert!(runs < 2)` — a release
   build would spin if the invariant (a flow-relative property cannot set `direction`) ever broke.
@@ -2797,7 +2797,7 @@ row comes from.
   green after (a ladder that flips direction on every run is run twice and its second result kept;
   one that keeps it, once). Mutation check (reverted and touched): a third run → `(3, Ltr)` for
   `(2, Rtl)`. No test expectation and no snapshot changed.
-- 2026-10-08 — C6G-ANON-FLEX-ITEMS (batch A's DIVERGENCES §3 finding; closes C6G-CONTENTS-BOXTREE's
+- 2026-10-05 — C6G-ANON-FLEX-ITEMS (batch A's DIVERGENCES §3 finding; closes C6G-CONTENTS-BOXTREE's
   partial AN3): a flex container dropped every run of text beside an element item and its own
   `::before` / `::after` (`<div flex>ab<span>hello</span></div>` painted `hello`), because the flex
   algorithm took `NodeId` items. CSS Flexbox §4: each contiguous run of child text is an anonymous
@@ -2832,7 +2832,7 @@ row comes from.
   caret test (`(ab, 2)` for `(cd, 1)`); whitespace-only runs rendered → the pseudo / gap test (an
   extra gap); anonymous items measured as 0 in intrinsic sizing → width 4 for 7. No other test
   expectation and no snapshot changed.
-- 2026-10-08 — C6G-FLEX-SPEC (AN9), six fixes in the flex algorithm, each red first. (1) CSS
+- 2026-10-05 — C6G-FLEX-SPEC (AN9), six fixes in the flex algorithm, each red first. (1) CSS
   Flexbox §4.5, "in all cases, the size is clamped by the maximum main size if it's definite":
   `ChildMain::auto_min` clamps the resolved minimum by the item's `max-*`, so a `max-width: 3` item
   holding `abcdefgh` in a 2-wide row is 3, not 8. (2) §9.7 step 1 decides growing or shrinking by
@@ -2866,7 +2866,7 @@ row comes from.
   pre-C6G "OOTB" hug): the column-parent case now asserts the stretch (width 80) and the row-parent
   case the stretched height (24), renamed; the pseudo-chrome and relative-shift cases, which test
   the intrinsic width, now set `align-items: flex-start`. No snapshot changed.
-- 2026-10-08 — C6G-FLEX-BASIS-ZERO (PN15): `parse_flex_shorthand` gave an omitted
+- 2026-10-05 — C6G-FLEX-BASIS-ZERO (PN15): `parse_flex_shorthand` gave an omitted
   `<'flex-basis'>` `FlexBasis::Cells(0)`. CSS Flexbox §7.2's text says `0`, but Chromium, Gecko and
   WebKit take `0%` (the web-compat reading; Chromium serializes `flex: 1` as `1 1 0%` and
   `flex-basis` as `0%` — from its serialization, not re-checked in a live browser here), and §7.3.3
@@ -2882,7 +2882,7 @@ row comes from.
   `flex_shorthand_full_grammar`'s `2`, `2 3` and `1 0` rows (basis `Cells(0)` → `0%`), which
   encoded the old default. No snapshot changed (the showcase's `flex: 1` panes sit in definite
   containers).
-- 2026-10-08 — C6G-COLLAPSE (AN7): `visibility: collapse` on a flex item, against CSS Flexbox §4.4
+- 2026-10-05 — C6G-COLLAPSE (AN7): `visibility: collapse` on a flex item, against CSS Flexbox §4.4
   and §9.4 step 10 ("note the cross size of the line they're in as the item's strut size, and
   restart layout […] treat the collapsed items as having zero main size [when collecting lines] …
   ignore the collapsed items entirely (as if they were `display: none`) except that […] if any
@@ -2910,7 +2910,7 @@ row comes from.
   still holds. Mutation checks (each alone, restored and touched): the strut measured at main
   size 0 → height 3; the gap placed beside a strut → x 5; `justify-content` counting the strut →
   x 5. No snapshot changed.
-- 2026-10-08 — C6G-VISIBILITY-ONE-ANSWER (AN8): four answers to "is this element rendered and
+- 2026-10-05 — C6G-VISIBILITY-ONE-ANSWER (AN8): four answers to "is this element rendered and
   visible" disagreed. Tab (`collect`) pruned `display: none` subtrees and skipped hidden elements,
   but the public `tab_index` / `is_focusable` / `is_tab_focusable` checked only the element's own
   `display` — true for a `visibility: hidden` button and for a button inside a closed box — so
@@ -2940,7 +2940,7 @@ row comes from.
   checks (each alone, restored and touched): no ancestor walk → the `display: none` cases; no
   visibility check → all three focus tests; no fixup → the blur test; copy on the computed value →
   `"ac"`. No snapshot changed.
-- 2026-10-08 — C6G-CSSOM-EDGES (AN14). Verified first against CSSOM §6.6 `removeProperty` ("if
+- 2026-10-05 — C6G-CSSOM-EDGES (AN14). Verified first against CSSOM §6.6 `removeProperty` ("if
   property is a shorthand, for each longhand property longhand that property maps to … remove
   longhand"; `margin`'s longhands are the four physical sides, CSS Box 4 §3.2, and
   `margin-inline-start` is a property of its own in the same logical group, CSS Logical 1 §4 —
@@ -2975,7 +2975,7 @@ row comes from.
   the `var()` split back → (2); the subset's kept declarations cleared → (3). Keeping a declaration whose every field was
   removed, restricted to nothing, instead of dropping it is an equivalent mutation (it writes no
   field) and survives. No snapshot changed.
-- 2026-10-08 — C6G-DECLARED-COUNT (AN16): `TuiStyle::declared_count` was a hand copy of the
+- 2026-10-05 — C6G-DECLARED-COUNT (AN16): `TuiStyle::declared_count` was a hand copy of the
   field list (some 150 lines in `tui_style/mod.rs`) that had drifted — no `z-index`, `opacity`,
   `position`, insets, `box-shadow`, transition longhands, counters, and no flow-relative
   declaration (which writes no field until the cascade). Decision: derive it from `define_fields!`
@@ -2986,7 +2986,7 @@ row comes from.
   — 3 for 14 (the expected count from `property_mask(name).count()` per declared property, plus
   the directional, the `var()` and the custom one). Green after. Mutation check (restored and
   touched): flow-relative declarations not counted → 13. `tui_style/mod.rs` 566 → 396 lines.
-- 2026-10-08 — C6G-MINOR (AN19's parts outside the box tree). Behavioural, each red first: (1)
+- 2026-10-05 — C6G-MINOR (AN19's parts outside the box tree). Behavioural, each red first: (1)
   `flex::cross::baseline_box` took a scroll container's last baseline from its content rows; CSS
   Box Alignment 3 §9.1 ("for legacy reasons … a block-level or inline-level block container that
   is a scroll container always has a last baseline set, whose baselines all correspond to its
@@ -3008,7 +3008,7 @@ row comes from.
   `numeric::clamp_i32` (its range test unchanged); the `cell_sizer` doc says what it reads now (the
   computed style after a cascade — an app re-syncing — else the UA `<td>` / `<th>` padding with
   `content-box` or the cell's inline `box-sizing`, percentages against 0). No snapshot changed.
-- 2026-10-08 — C6G-SPLITS (AN18), ahead of grid; pure moves, no behaviour change, no test
+- 2026-10-05 — C6G-SPLITS (AN18), ahead of grid; pure moves, no behaviour change, no test
   changed. `rdom-style/src/computed.rs` 543 → 457: its tests to `computed_tests.rs` (`#[path]`).
   `tui_style/mod.rs` is 396 after C6G-DECLARED-COUNT, no split. `property_dispatch/serialize.rs`
   520 → `serialize/mod.rs` 62 (the substitution / flow-relative / CSS-wide prelude and the
@@ -3027,7 +3027,7 @@ row comes from.
   TECH_DEBT `SIZE-1`: `cascade/ladder.rs` 544, `block/mod.rs` 529, `layout/border.rs` 528,
   `inline_paint/mod.rs` 520, and from this batch `inline/mod.rs` 560, `property_dispatch/table.rs`
   531, `flex/mod.rs` 516.
-- 2026-10-08 — C6G-BLOCKIFY (C6G-FLEX-SPEC's DIVERGENCES §3 finding): a flex item's computed
+- 2026-10-05 — C6G-BLOCKIFY (C6G-FLEX-SPEC's DIVERGENCES §3 finding): a flex item's computed
   `display` is blockified (CSS Display 3 §2.7, CSS Flexbox §4) at computed-value time, so every
   reader of `ComputedStyle` and every layout path see one answer. `cascade::apply::blockify` maps an
   inline-level outer type to `block` and keeps the inner one — `inline` → `block`, `inline-flex` →
@@ -3054,7 +3054,7 @@ row comes from.
   entry removed. The two functions are `cascade/blockify.rs` (55 lines; `apply.rs` stays 464);
   `walk.rs` 564 → 575, recorded in TECH_DEBT `SIZE-1`. No other test expectation and no snapshot
   changed.
-- 2026-10-08 — C6G-PSEUDO-FLEX-ITEMS (C6G-ANON-FLEX-ITEMS' DIVERGENCES §3 finding): a `::before` /
+- 2026-10-05 — C6G-PSEUDO-FLEX-ITEMS (C6G-ANON-FLEX-ITEMS' DIVERGENCES §3 finding): a `::before` /
   `::after` flex item (CSS Flexbox §4: a child box of the flex container, or of its box-less child,
   blockified since C6G-BLOCKIFY) applies its own box properties. C6G-ANON-FLEX-ITEMS laid it out as
   an anonymous item with the anonymous box style, so its sizes, `flex`, `order`, margins, padding,
@@ -3086,7 +3086,7 @@ row comes from.
   (each alone, restored and touched): `order` back to 0 → the order test; the box paint call off →
   the box test (no border drawn). No other test expectation and no snapshot changed. DIVERGENCES
   §3's entry removed.
-- 2026-10-08 — C6G-SCROLL-API (PN1): the scroll docs named only `rtl` (for `scrollLeft`) and
+- 2026-10-05 — C6G-SCROLL-API (PN1): the scroll docs named only `rtl` (for `scrollLeft`) and
   `column-reverse` (for `scrollTop`) as origins at the right / bottom edge, but
   `scroll_extent::origin_at_end` reads `AxisFlip`: a flex row's main-start is its right edge under
   `row-reverse` XOR `rtl` (CSS Flexbox §5.1), a flex column's cross-start under `rtl` XOR
@@ -3103,7 +3103,7 @@ row comes from.
   (`css_phase6/scroll_range.rs`): failed to compile (no `ScrollRange`, no `scroll_range`). Green
   after: `0..=6` / `0..=0` for an `ltr` box, `-6..=0` for a `row-reverse` row, `-2..=0` for a
   `wrap-reverse` row's `scrollTop`, `None` for a text node. No snapshot changed.
-- 2026-10-08 — C6G-ALIGN-API (PN2, PN3, PN14). (1) The six alignment builders were `setter!`s typed
+- 2026-10-05 — C6G-ALIGN-API (PN2, PN3, PN14). (1) The six alignment builders were `setter!`s typed
   `Alignment`, so `.justify_content(Align::Center)` did not compile (the hints wrote `.into()`); they
   take `impl Into<Alignment>` (`align_setter!`), and a bare `Align::X.into()` argument no longer
   infers — dropped from the tests and the migration hints. (2) Out-of-grammar values
@@ -3135,7 +3135,7 @@ row comes from.
   `right` accepted by every grammar → `AlignContent: left` fails the agreement test. Existing test
   code changed: thirteen `Align::X.into()` builder arguments (no longer inferable) lost the `.into()`.
   No snapshot changed.
-- 2026-10-08 — C6G-SIDE-SETTERS (PN4, PN9, PN10). Since C6-MARGIN-SIDES a side is a longhand of its
+- 2026-10-05 — C6G-SIDE-SETTERS (PN4, PN9, PN10). Since C6-MARGIN-SIDES a side is a longhand of its
   own (CSS Box 3 §3.2 / §4.2), but the builders only wrote all four. Builder: `margin_top` / `_right`
   / `_bottom` / `_left` (`impl Into<MarginValue>`) and `padding_*` (`impl Into<PaddingValue>`), each
   with an `_important` twin that marks its side's bit alone (`side_setter!`, in the new
@@ -3160,7 +3160,7 @@ row comes from.
   container built only through node setters: `b` at (6, 4), `a` ordered after it at x 4). Mutation
   check (restored and touched): `set_order` writing nothing → `(0, Hidden)` for `(1, Hidden)`. No
   snapshot changed.
-- 2026-10-08 — C6G-FRONTEND-API (PN11). `property_dispatch::set_from_source(name, value, text)` had
+- 2026-10-05 — C6G-FRONTEND-API (PN11). `property_dispatch::set_from_source(name, value, text)` had
   no importance: rdom-css called `set_important` after it, a call-order protocol a second front end
   would have to rediscover (an inline-axis declaration's importance rides on its kept declaration,
   C5G-LOGICAL-IMPORTANT, so the order matters), while `set_custom_source` takes `important`.
@@ -3177,7 +3177,7 @@ row comes from.
   one, and a normal one left normal) and `tokenize_spans_names_its_parallel_lists`. Mutation check
   (restored and touched): the importance dropped for non-custom properties → `color` not important.
   No snapshot changed.
-- 2026-10-08 — C6G-DOCS (PN5, PN6, PN7, PN12). Stale docs fixed (PN5): `Margin`'s "rdom does not
+- 2026-10-05 — C6G-DOCS (PN5, PN6, PN7, PN12). Stale docs fixed (PN5): `Margin`'s "rdom does not
   collapse vertical margins" (it does, since BFC-1; M5-MARGIN-1 retired); `layout/keywords.rs`'s
   module doc (listed `align-items`, which lives in `alignment`; now the enums it holds);
   `Display::Block` ("Standalone flex item" — a block-level box, a flex item only in a flex
@@ -3215,7 +3215,7 @@ row comes from.
   8; one `auto` inset at x 4 for 17. `auto_margins_win_over_justify_self` passed before and after.
   Green after; the red runs are the mutation checks (each fix reverted fails its own tests). No
   other test expectation and no snapshot changed.
-- 2026-10-08 — C6G-CHANGELOG (PN8, AN17, the restructure): `[Unreleased]` was about 155 KB in 279
+- 2026-10-05 — C6G-CHANGELOG (PN8, AN17, the restructure): `[Unreleased]` was about 155 KB in 279
   bullets — most past three lines, the longest near 1,900 characters — which no consumer could use.
   Restructured: "Upgrading from 0.5" in two parts — **silent behaviour changes** ordered by impact
   (`display: flex` a row; content-box with what the border-box reset does not restore; the flex
@@ -3246,7 +3246,7 @@ row comes from.
   `ActiveAnimation` field, which no consumer builds) by a group. Red: the new groups ran green on
   first build bar a type-alias slip (`rdom_tui::Result` shadows `std::result::Result` under the
   glob import); they pin existing API, so there is no behaviour to fail first. Docs-only otherwise.
-- 2026-10-08 — C6G-CHANGELOG (narrative moved): the restructured CHANGELOG keeps a bullet of at most
+- 2026-10-05 — C6G-CHANGELOG (narrative moved): the restructured CHANGELOG keeps a bullet of at most
   about three lines per change; the items below had no Log entry of their own (their record was the
   item table and their CHANGELOG bullet), so their CHANGELOG bullets are kept here verbatim, as they
   stood before the restructure: C1-ALL, C1-CASE, C1-ESCAPES, C1-IMPORT, C1-INLINE-IMPORTANT,
@@ -3582,18 +3582,18 @@ row comes from.
     style="color: blue !important">` is blue against `p { color: red !important }` — the ladder
     applied author important after inline important. The style attribute also sorts above every
     cascade layer (Cascade 5 §6.1). (C1-INLINE-IMPORTANT)
-- 2026-10-08 — Phase 6 closed: 14 items + 28 gate fixes (batch A 11, batch B 9, batch C 8).
+- 2026-10-05 — Phase 6 closed: 14 items + 28 gate fixes (batch A 11, batch B 9, batch C 8).
   Gate-fix re-review folded into the Phase 7 gate. Carried, recorded: inline content is not aligned
   upward by `align-content` and an absolutely positioned box with both insets `auto` is not
   self-aligned (DIVERGENCES §4); a generated flex item's `aspect-ratio` (§9.2 step 3.B reads an
   element's); logical-side builders (a kept declaration, not a field); `SIZE-1` (TECH_DEBT) files,
   `walk.rs` and `layout_pass/mod.rs` added.
-- 2026-10-08 — C7-GRID-CORE, prep (no behaviour change, no test changed): the item model leaves
+- 2026-10-05 — C7-GRID-CORE, prep (no behaviour change, no test changed): the item model leaves
   `flex/`, so grid shares it without reaching into flex — `flex/item.rs` and `flex/anonymous.rs`
   are `layout_pass/items/{mod,anonymous}.rs`, `FlexItem` is `items::Item` and `flex_items`
   `items::items_of` (CSS Grid 2 §6.1 builds grid items exactly as CSS Flexbox §4 builds flex
   items). Moves and renames only.
-- 2026-10-08 — C7-GRID-CORE, found on the way (its first commit's two `ComputedStyle` fields tipped
+- 2026-10-05 — C7-GRID-CORE, found on the way (its first commit's two `ComputedStyle` fields tipped
   `scope_matching_is_bounded_per_pass`, a 41-deep chain, into a stack overflow): the cascade walk
   recursed once per tree level with every style an element computes in its frame — the element's,
   its six pseudo-elements' before the children and `::after`'s after them, moved through temporaries
@@ -3608,7 +3608,7 @@ row comes from.
   Split with it (walk.rs would have reached 685 lines): `compute_element_style` and
   `settle_direction` move to `cascade/element.rs` (155; `walk.rs` 548), the cut TECH_DEBT `SIZE-1`
   named, so `walk.rs` leaves that list. No other test expectation changed.
-- 2026-10-08 — C7-GRID-CORE, part 1 of 2 (the track lists; the grid container and its layout are
+- 2026-10-05 — C7-GRID-CORE, part 1 of 2 (the track lists; the grid container and its layout are
   part 2): `grid-template-columns` / `grid-template-rows` (CSS Grid 2 §7.2) parse, cascade, compute
   and serialize. Model — the specified grammar, kept as written so CSSOM serializes what the author
   wrote (`repeat(2, 1fr)` stays a repetition; layout expands it): `layout/grid.rs` —
@@ -3633,7 +3633,7 @@ row comes from.
   `viewport_units_in_a_track_list_compute_to_cells` and the debug-panic test added with the model.
   Changed expectations: the canonical-values table, the important-setter coverage and the C1
   `initial` perturbation gain the two properties. No layout yet: a track list is inert until part 2.
-- 2026-10-08 — C7-GRID-CORE, part 2 of 2: the grid container (CSS Grid 2; sections are Grid 1's
+- 2026-10-05 — C7-GRID-CORE, part 2 of 2: the grid container (CSS Grid 2; sections are Grid 1's
   numbers, which Level 2 keeps through §8 and shifts by one after its §9 "Subgrids"). Style:
   `Flow::Grid` (Breaking — rdom-style) with `Flow::is_flex_or_grid`; `display: grid | inline-grid |
   block grid | inline grid` (`grid list-item` invalid), serialized `grid` / `inline-grid`;
@@ -3703,7 +3703,7 @@ row comes from.
   snapshot changed. DIVERGENCES: §1 "Grid tracks are whole cells"; §2 the columns not re-sized after
   the rows, and `border-collapse` scoped to flex and block containers; §3's grid list loses the core
   and says what holds until each remaining item.
-- 2026-10-08 — C7-GRID-AUTO: `grid-auto-columns` / `grid-auto-rows` (CSS Grid 2 §7.6:
+- 2026-10-05 — C7-GRID-AUTO: `grid-auto-columns` / `grid-auto-rows` (CSS Grid 2 §7.6:
   `<track-size>+`, initial `auto`, not inherited) parse, cascade (viewport units absolutized per
   breadth), compute and serialize as written (`parse_track_sizes` / `serialize_track_sizes`; `TuiStyle`
   / `ComputedStyle::grid_auto_columns` / `grid_auto_rows: Vec<TrackSize>`, Breaking — rdom-style;
@@ -3718,7 +3718,7 @@ row comes from.
   track `auto` → three of the four (the flexible-rows test survives: three stretched `auto` rows share
   the height alike). Changed expectations: the canonical-values table, the important-setter coverage and
   the C1 `initial` perturbation gain the two properties. No snapshot changed.
-- 2026-10-08 — C7-GRID-PLACE, part 1 of 3 (the properties; the placement algorithm is part 2,
+- 2026-10-05 — C7-GRID-PLACE, part 1 of 3 (the properties; the placement algorithm is part 2,
   absolutely positioned grid children and item paint order part 3): `grid-row-start` / `-end`,
   `grid-column-start` / `-end` (CSS Grid 2 §8.3: `<grid-line> = auto | <custom-ident> | [ <integer>
   && <custom-ident>? ] | [ span && [ <integer [1,∞]> || <custom-ident> ] ]` — line 0, a span below one
@@ -3737,7 +3737,7 @@ row comes from.
   stubbed `parse_grid_line` / `parse_grid_auto_flow` failed the three parse tests; green after.
   Changed expectations: the canonical-values table, the important-setter coverage and the C1
   `initial` perturbation gain the eight names. Inert until part 2.
-- 2026-10-08 — C7-GRID-PLACE, part 2 of 3: the placement algorithm (CSS Grid 2 §8). Lines
+- 2026-10-05 — C7-GRID-PLACE, part 2 of 3: the placement algorithm (CSS Grid 2 §8). Lines
   (`grid/placement.rs::resolve`, numbered from 0 at the explicit grid's first line): a positive
   integer counts from the explicit grid's start, a negative one from its end (§8.3); `<n> <ident>`
   the nth line of that name from either end, every implicit line on that side counting when the
@@ -3764,7 +3764,7 @@ row comes from.
   new-row bump off → its test; named spans as plain spans → the named-lines test. No other test
   expectation and no snapshot changed. DIVERGENCES §3: the placement line goes; absolutely
   positioned grid children (part 3) are listed until then.
-- 2026-10-08 — C7-GRID-PLACE, part 3 of 4: absolutely positioned boxes in a grid (CSS Grid 2 §9.1).
+- 2026-10-05 — C7-GRID-PLACE, part 3 of 4: absolutely positioned boxes in a grid (CSS Grid 2 §9.1).
   A grid container keeps its lines after layout — `TuiExt::grid_lines` (crate-private; cleared by
   every other formatting context in `dispatch::layout_children`): per axis the explicit grid's size
   and line names, the implicit tracks before it, and each track's start- and end-side edge, absolute
@@ -3783,7 +3783,7 @@ row comes from.
   `auto`, as the test's own doc now says), and the `rtl` test added. Mutation checks (restored and
   touched): the hook off → all four; the `rtl` edges unmirrored → the `rtl` test; a missing line
   clamped instead of `auto` → its test. DIVERGENCES §3's abspos line goes.
-- 2026-10-08 — C7-GRID-PLACE, part 4 of 4: grid items in the stacking order (CSS Grid 2 §6.5: grid
+- 2026-10-05 — C7-GRID-PLACE, part 4 of 4: grid items in the stacking order (CSS Grid 2 §6.5: grid
   items "paint exactly the same as inline blocks, except that order-modified document order is used
   in place of raw document order, and `z-index` values other than `auto` create a stacking context even
   if `position` is `static`"). Order and atomic painting landed with C7-GRID-CORE; `z-index` was
@@ -3801,7 +3801,7 @@ row comes from.
   negative test's hit (asserted after it survived the first run). Consumer-visible for flex: listed
   among the CHANGELOG's silent behaviour changes. No other test expectation and no snapshot changed.
   DIVERGENCES §2's stacking-context entry names the items.
-- 2026-10-08 — C7-GRID-AREAS, part 1 of 2 (`grid-template-areas`; the `grid-template` / `grid`
+- 2026-10-05 — C7-GRID-AREAS, part 1 of 2 (`grid-template-areas`; the `grid-template` / `grid`
   shorthands are part 2): `grid-template-areas` (CSS Grid 2 §7.3: `none | <string>+`, initial `none`,
   not inherited) parses, cascades, computes and serializes (each string's tokens one space apart, a
   null cell token one `.`, as browsers give it). Model — decided, valid by construction:
@@ -3826,7 +3826,7 @@ row comes from.
   the four (the explicit-size test survives); the explicit grid not grown → that test. Changed
   expectations: the canonical-values table, the important-setter coverage and the C1 `initial`
   perturbation gain the property. No snapshot changed. DIVERGENCES §3's grid line keeps the shorthands.
-- 2026-10-08 — C7-GRID-AREAS, part 2 of 2: the shorthands. `grid-template` (CSS Grid 2 §7.4: `none |
+- 2026-10-05 — C7-GRID-AREAS, part 2 of 2: the shorthands. `grid-template` (CSS Grid 2 §7.4: `none |
   [ <'grid-template-rows'> / <'grid-template-columns'> ] | [ <line-names>? <string> <track-size>?
   <line-names>? ]+ [ / <explicit-track-list> ]?`) and `grid` (§7.8: `<'grid-template'> |
   <'grid-template-rows'> / [ auto-flow && dense? ] <'grid-auto-columns'>? | [ auto-flow && dense? ]
@@ -3852,7 +3852,7 @@ row comes from.
   off → the `cssText` test (`grid-row-start: a; …; grid-row: a / 3; grid-column: 2 / b; grid-area: a /
   2 / 3 / b;`). Changed expectations: the canonical-values table gains the two names. No snapshot
   changed. DIVERGENCES §3's grid list loses the line.
-- 2026-10-08 — C7-GRID-ALIGN, part 1 of 3 (self-alignment; baseline alignment is part 2, content
+- 2026-10-05 — C7-GRID-ALIGN, part 1 of 3 (self-alignment; baseline alignment is part 2, content
   distribution part 3): each grid item aligns in its grid area (CSS Grid 2 §10.2–§10.4, Box Alignment
   3 §6.1 / §6.2). `grid/arrange.rs::fit` now works in physical cells (the area mirrored for `rtl`
   first, no longer the item after) and reuses block layout's `block::justify_offset` — the one
@@ -3879,7 +3879,7 @@ row comes from.
   touched): `auto` margins never absorbing → the margins test; the aspect ratio ignored → its test;
   `auto` not taking `*-items` → the justify, align and margins tests. No other test expectation and no
   snapshot changed.
-- 2026-10-08 — C7-GRID-ALIGN, part 2 of 3: baseline self-alignment in grid rows (CSS Grid 2 §10.4,
+- 2026-10-05 — C7-GRID-ALIGN, part 2 of 3: baseline self-alignment in grid rows (CSS Grid 2 §10.4,
   CSS Box Alignment 3 §9.1 / §9.3; Grid §11.5 step 1). `grid/baseline.rs`: the items whose
   `align-self` (or the container's `align-items`) is `baseline` / `last baseline` and whose block
   margins are not `auto` form one group per row and preference — a spanning item in its first row's
@@ -3900,7 +3900,7 @@ row comes from.
   Mutation checks (restored and touched): no shims in the row contributions → the shim test; the
   first-baseline group keyed by the item's last row → the spanning test. No other test expectation and
   no snapshot changed (flex's baseline tests pass through the moved measurement).
-- 2026-10-08 — C7-GRID-ALIGN, part 3 of 3: aligning the grid (CSS Grid 2 §10.5, Box Alignment 3
+- 2026-10-05 — C7-GRID-ALIGN, part 3 of 3: aligning the grid (CSS Grid 2 §10.5, Box Alignment 3
   §5). `justify-content` / `align-content` distribute the content box's free space around the tracks
   once they are sized (`grid/content.rs::distribute`, applied in `arrange` before the areas and the
   abspos lines are read off the extents, so both see the aligned tracks): each track not collapsed by
@@ -3920,11 +3920,11 @@ row comes from.
   subjects → `[0, 4]`). Mutation checks (restored and touched): the rows not distributed → the
   `align-content` test. No other test expectation and no snapshot changed. DIVERGENCES: §3's interim
   grid alignment line goes; §1's whole-cell alignment entry names grid.
-- 2026-10-08 — C7-GRID-RERESOLVE, prep (no behaviour change, no test changed): the sizing run leaves
+- 2026-10-05 — C7-GRID-RERESOLVE, prep (no behaviour change, no test changed): the sizing run leaves
   `grid/mod.rs` (491 lines with C7-GRID-ALIGN, and §11.1 steps 3–4 grow it) for `grid/size.rs` —
   `size_grid`, `tracks_of`, `run`, `trim` and their records; `mod.rs` keeps the axes, `Grid`, the
   shared item helpers and `layout_grid_children` (225 / 288 lines). Moves only.
-- 2026-10-08 — C7-GRID-RERESOLVE (part 1 follow-up; row added to the Phase 7 table with the other two):
+- 2026-10-05 — C7-GRID-RERESOLVE (part 1 follow-up; row added to the Phase 7 table with the other two):
   CSS Grid 2 §11.1 steps 3–4. In a terminal an item's min-content width depends on its height only
   through a preferred aspect ratio (no orthogonal flows, no replaced content; text wrapping changes a
   height, never a min-content width), so that is the change step 3 detects. CSS Sizing 4 §5.1 first:
@@ -3947,7 +3947,7 @@ row comes from.
   definite, so §5.1 transfers it; the item overflows its fixed 10-cell column. No snapshot changed.
   DIVERGENCES: §2's "columns are not sized again after the rows" entry goes; §1's `aspect-ratio`
   entry names grid.
-- 2026-10-08 — C7-SUBGRID, part 1 of 2 (the value; the layout is part 2): `grid-template-columns` /
+- 2026-10-05 — C7-SUBGRID, part 1 of 2 (the value; the layout is part 2): `grid-template-columns` /
   `-rows: subgrid <line-name-list>?` (CSS Grid 2 §9: `<line-name-list> = [ <line-names> |
   <name-repeat> ]+`, `<name-repeat> = repeat( [ <integer [1,∞]> | auto-fill ], <line-names>+ )`)
   parse and serialize as written. Model: part 1's `#[non_exhaustive]` `GridTemplate` gains
@@ -3962,7 +3962,7 @@ row comes from.
   `None` parser stub; green after. Added green, then mutation-checked:
   `a_line_name_list_expands_over_the_subgrids_lines` (`auto-fill` repeated `fill` times rather than
   `fill / names` → `[…, "c", "d", "c"]`). No other test expectation and no snapshot changed.
-- 2026-10-08 — C7-SUBGRID, part 2 of 2: the subgrid layout (CSS Grid 2 §9, §9.5). Structure — the
+- 2026-10-05 — C7-SUBGRID, part 2 of 2: the subgrid layout (CSS Grid 2 §9, §9.5). Structure — the
   grid modules grow by concern, not into `size.rs`: `grid/places.rs` (new: a grid's explicit grids and
   its items placed — `place_grid` / `PlacedGrid`, moved out of `size_grid` with `trim`, plus §9's
   clamping), `grid/subgrid.rs` (new: which items subgrid (`axes`), what a subgrid takes from its parent
@@ -4007,7 +4007,7 @@ row comes from.
   ignored → the gap test; the pre-placement clamp off → the clamping test (`(3, 0)`: the auto item
   took the far item's cell); the auto span off → its test; the direction reversal off → the direction
   test. No other test expectation and no snapshot changed.
-- 2026-10-08 — C7-ABSPOS-PADDING-EDGE (part 1 follow-up): checked first whether the grid fallback alone
+- 2026-10-05 — C7-ABSPOS-PADDING-EDGE (part 1 follow-up): checked first whether the grid fallback alone
   was wrong — it was not: `positioning::containing_block` gave every absolutely positioned box its
   positioned ancestor's layout rect, the border box, and `positioned_pseudos::resolve_containing_block`
   the same for `::before` / `::after` (the host's or an ancestor's). CSS 2.1 §10.1: "the containing
@@ -4025,7 +4025,7 @@ row comes from.
   design is kept with `top: 5; left: 5`, the snapshot unchanged (with the old offsets the card moved one
   cell down and right, against the outer card's right border — the spec's result for that CSS). No
   test expectation changed. Consumer-visible: listed among the CHANGELOG's silent behaviour changes.
-- 2026-10-08 — C7-SPLIT (no behaviour change, no test changed): the file-size pass over
+- 2026-10-05 — C7-SPLIT (no behaviour change, no test changed): the file-size pass over
   `layout_pass/grid/*` and every production file Phase 7 touched. The grid directory was kept under
   500 lines a file as it grew (`size.rs` out of `mod.rs` for C7-GRID-RERESOLVE, `places.rs` and
   `subgrid.rs` for C7-SUBGRID, `tracks_of` into `track.rs`); largest now `subgrid.rs` 484,
@@ -4035,12 +4035,12 @@ row comes from.
   `layout_pass/mod.rs` 533 → 482 + `flow.rs` 63 (`flow_axis` / `resolve_gap` / `gap_along`, the cut
   `SIZE-1` named; re-exported). Moves only. TECH_DEBT `SIZE-1` drops both and lists what is left (none
   of it touched by Phase 7).
-- 2026-10-08 — Phase 7 items complete (C7-GRID-CORE, -AUTO, -PLACE, -AREAS, -ALIGN, C7-SUBGRID and the
+- 2026-10-05 — Phase 7 items complete (C7-GRID-CORE, -AUTO, -PLACE, -AREAS, -ALIGN, C7-SUBGRID and the
   part 1 follow-ups C7-GRID-RERESOLVE, C7-ABSPOS-PADDING-EDGE, C7-SPLIT); the phase's architect and API
   gates are next. CSS-COVERAGE §3.9: 9 of 10 rows *Supported* (`masonry` / `grid-lanes` the decided
   exclusion). ACID.md: grid is now usable for a tile — proposed as a new tile 18 (Grid layout), not an
   extension of tile 7 (the reasons are in its coverage note).
-- 2026-10-09 — Phase 7 gates (with the C6G re-review: all 28 at the root). Architect: 1 blocking —
+- 2026-10-05 — Phase 7 gates (with the C6G re-review: all 28 at the root). Architect: 1 blocking —
   grid line edges are stored absolute and not moved by `shift_subtree`, so an `align-content` shift
   leaves positioned grid children on the old edges. API: 2 blocking — no grid example in the doctested
   READMEs and two docs still say grid does not exist; DESIGN classifies none of the 17 new public types
@@ -4066,7 +4066,7 @@ row comes from.
   restriction model, `is_focusable_in_opened`, subgrid gap halving, z-index on items. Full reports:
   `target/claude-logs/c7_gate_{architect,api}.md`. Fix as `C7G-*`, two batches (A correctness and cost,
   B API and docs).
-- 2026-10-09 — C7G-LINES-SHIFT (architect B1): a grid's lines (`TuiExt::grid_lines`, CSS Grid 2
+- 2026-10-05 — C7G-LINES-SHIFT (architect B1): a grid's lines (`TuiExt::grid_lines`, CSS Grid 2
   §9.1) were stored in absolute cells, and `tree::shift_subtree` — C6G-BLOCK-ALIGN's `align-content`
   shift, run before `place_positioned` — moved the grid's rects but not its lines, so a positioned
   child's definite lines named the unshifted area. Decision: one source of truth — the edges are now
@@ -4083,7 +4083,7 @@ row comes from.
   align-content: end`, `grid-row: 2 / 3` at `(2, 1, 3, 1)` for `(2, 9, 3, 1)` (checked by stashing the
   fix after green, then restoring and touching it). Green after; no other test and no snapshot
   changed.
-- 2026-10-09 — C7G-INITIAL-ALLOC (architect N1): `ComputedStyle::initial()` — the start of every
+- 2026-10-05 — C7G-INITIAL-ALLOC (architect N1): `ComputedStyle::initial()` — the start of every
   element's, pseudo-element's and anonymous box's cascade — built `grid_auto_columns` /
   `grid_auto_rows` as `vec![TrackSize::AUTO]`, two allocations per call and per clone. Decision:
   the computed fields are `Cow<'static, [TrackSize]>`, the initial value the borrowed
@@ -4097,7 +4097,7 @@ row comes from.
   after. `grid_tests::viewport_units_in_an_auto_track_list_compute_to_cells` covers the owned path
   (mutation: never making the list owned → `50vw minmax(10vh, 1fr)` kept; reverted and touched).
   No test expectation or snapshot changed.
-- 2026-10-09 — C7G-TRACK-VALIDITY (architect N2, API N1): layout reads only valid grid values. Where
+- 2026-10-05 — C7G-TRACK-VALIDITY (architect N2, API N1): layout reads only valid grid values. Where
   a value has an in-range neighbour the builder clamps to it (DESIGN's clamp-or-panic rule):
   `TrackSize::fr` / `percent` keep `[0,∞]` through `valid_flex_factor` (CSS Grid 2 §7.2.1 / §7.2.4),
   `GridLine::span` / `span_named` and `TrackRepeat::new` (so `TrackList::repeat`) make a count of 0 one
@@ -4118,7 +4118,7 @@ row comes from.
   layout (`template.rs:93`, index out of bounds). Green after. Mutation: no validity check for the
   template in `apply_grid` → the index panic again (reverted, touched). DESIGN's clamp-or-panic
   paragraph names the grid builders and the cascade check.
-- 2026-10-09 — C7G-MEMO-PURITY (architect N3): the per-pass intrinsic memo (`intrinsic::memo`)
+- 2026-10-05 — C7G-MEMO-PURITY (architect N3): the per-pass intrinsic memo (`intrinsic::memo`)
   promised that what it holds is pure within a pass, but `grid::content_size` takes a subgrid's
   inherited tracks from its parent's `grid_lines` (`subgrid::from_parent`), which the parent's
   `arrange` writes during the pass; and `size_grid` measured every baseline-aligned item for a shim
@@ -4140,7 +4140,7 @@ row comes from.
   (the memo no longer keeps the shim's size); without (2) the memo test fails and the first-frame test
   passes (no early measurement). `nested_subgrids_are_sized_a_bounded_number_of_times` still pins 2 +
   2 × depth. No snapshot changed.
-- 2026-10-09 — C7G-SUBGRID-COST (architect N4). (1) The subgrid size memo's key was
+- 2026-10-05 — C7G-SUBGRID-COST (architect N4). (1) The subgrid size memo's key was
   `format!("{dimension:?} {area} {inherit:?}")`, a Debug string of every inherited name and extent per
   lookup; it is now structural (`grid::subgrid_memo`: `Inherit` / `Inherited` derive `Hash` / `Eq`, a
   lookup hashes the borrowed key and compares on a hit, so a hit copies nothing; the table is the
@@ -4167,7 +4167,7 @@ row comes from.
   `css_phase7/subgrid.rs::a_nested_subgrid_on_the_other_axis_sizes_its_ancestors_rows` — a columns
   subgrid inside a rows subgrid, the outer row 2 tall for 1 on the first frame (mutation: the plain-item
   path back → 2; restored and touched). No snapshot changed.
-- 2026-10-09 — C7G-FOCUS-FIXUP (architect N6, API upgrade-guide finding): `draw_if_dirty` ran the
+- 2026-10-05 — C7G-FOCUS-FIXUP (architect N6, API upgrade-guide finding): `draw_if_dirty` ran the
   focus fixup (HTML "update the rendering": a focused area that is no longer a focusable area is
   blurred) only on frames that cascaded, but the used `visibility` also changes when a running
   transition steps — a transition to `hidden` presents `visible` until it ends (CSS Display 3 §4), and
@@ -4186,7 +4186,7 @@ row comes from.
   of its own, recorded as TECH_DEBT `FOCUS-FLUSH-1`; DIVERGENCES keeps "Focusability reads the last
   cascade's styles", its fixup sentence now true, and names the debt. The upgrade-guide line for the
   refusal is batch B's.
-- 2026-10-09 — C7G-INLINE-ATOM-MAX (architect N7): max-content inline sizes summed the text of an
+- 2026-10-05 — C7G-INLINE-ATOM-MAX (architect N7): max-content inline sizes summed the text of an
   inline subtree (`intrinsic/inline.rs::inline_content_width`), atoms' text included, and a block
   container whose inline content is text and atoms only — not an IFC block by `is_ifc_block`, so laid
   out as an anonymous block box (CSS 2.1 §9.2.1.1) — was measured as its element children stacked and
@@ -4213,7 +4213,7 @@ row comes from.
   the three inline-block buttons; it is now its `<h3>` and one line, so the three blank rows after the
   buttons are one, as between every other section (glyphs moved up two rows, no cell changed
   otherwise). No other test changed.
-- 2026-10-09 — C7G-STACKING-ONE (architect N8): `is_layered` folded z-indexed flex and grid items in
+- 2026-10-05 — C7G-STACKING-ONE (architect N8): `is_layered` folded z-indexed flex and grid items in
   (CSS Flexbox §5.4, CSS Grid 2 §6.5) but `creates_stacking_context` did not, so each caller patched the
   gap — `collect_layers` with `|| !is_positioned(c)`, and the paint and hit walks by asking
   `is_layered` first. Decision: one rule, `is_z_indexed_item`, that both read; `creates_stacking_context`
@@ -4225,7 +4225,7 @@ row comes from.
   predicate (it could not know the item rule); green after, with `the_rule_is_the_items` pinning the
   block-flow, positioned and opacity answers. No behaviour change: no other test and no snapshot
   changed.
-- 2026-10-09 — C7G-MINOR (architect N9 and the gate's two ACCEPT records). (1) `tree::clear_box_state`
+- 2026-10-05 — C7G-MINOR (architect N9 and the gate's two ACCEPT records). (1) `tree::clear_box_state`
   reset every box value but the new `grid_lines`, against C6G-CONTENTS-STATE's one reset; it now
   clears them. Red: `layout_pass::tests::a_grid_turned_contents_keeps_no_grid_lines` (the lines kept);
   green after (not observable outside: a box-less element is never a containing block). (2) The
@@ -4254,7 +4254,7 @@ row comes from.
   only, a `column wrap` flex item's height-dependent min-content width not; and, found with
   C7G-MEMO-PURITY, that a subgrid stays out of its parent's baseline groups on its non-subgridded axis
   too. No snapshot changed.
-- 2026-10-09 — C7G-README-GRID (API B1): the doctested rdom-tui README had no grid example, and two
+- 2026-10-05 — C7G-README-GRID (API B1): the doctested rdom-tui README had no grid example, and two
   docs still said grid did not exist. The README gains a "Grid layout" section: what grid supports,
   and a complete page layout built from CSS (`rdom_css::from_css_strict`) — named areas, `auto 1fr
   auto` rows, a two-value `gap`, a `main` that is itself a grid of `repeat(auto-fill, minmax(4, 1fr))`
@@ -4267,7 +4267,7 @@ row comes from.
   `main` returned `Box<dyn Error>`, and `rdom_css::ParseError` does not implement `std::error::Error`
   (the example returns `ParseError` instead; the missing impl is a separate API finding, reported, not
   fixed here); then green, its painted rows as written. No test expectation or snapshot changed.
-- 2026-10-09 — C7G-DESIGN-TYPES (API B2): DESIGN's `#[non_exhaustive]` section classified none of
+- 2026-10-05 — C7G-DESIGN-TYPES (API B2): DESIGN's `#[non_exhaustive]` section classified none of
   the Phase 7 public types. Now: the grid values `TrackBreadth`, `TrackSize`, `RepeatCount`,
   `TrackRepeat`, `TrackListItem`, `TrackList`, `LineNameItem`, `LineNameList`, `GridLine`,
   `GridAutoFlow` and `NamedArea` join the closed CSS value types (a layout must size or place each
@@ -4286,7 +4286,7 @@ row comes from.
   the variants. Not behavioural (the arms return what the wildcard did). The C6G-FRONTEND-API entry,
   which said DESIGN listed `SpannedTokens` as closed, is corrected in place. No test or snapshot
   changed.
-- 2026-10-09 — C7G-GRID-SETTERS (API N2). (1) Every grid node setter now says what it does with a
+- 2026-10-05 — C7G-GRID-SETTERS (API N2). (1) Every grid node setter now says what it does with a
   value outside the grammar: `set_grid_template_columns` / `-rows` and `set_grid_auto_*` refuse it
   (a debug build panics, a release build keeps the earlier declaration, as CSSOM ignores an invalid
   `setProperty`) after the builders' clamps (`fr` / `%`, `span 0`, an empty list as `none`);
@@ -4312,7 +4312,7 @@ row comes from.
   1 / 3 / 1 and columns 6 / 13 of §11.7) and `display_grid_node_setters_compute_their_display`
   (`inline-grid` blockified to `grid` as a grid item, CSS Display 3 §2.7). No test expectation or
   snapshot changed.
-- 2026-10-09 — C7G-UPGRADE-GUIDE (API N3). The CHANGELOG's "Upgrading from 0.5": (a) a silent-change
+- 2026-10-05 — C7G-UPGRADE-GUIDE (API N3). The CHANGELOG's "Upgrading from 0.5": (a) a silent-change
   entry for `focus()` refusing a hidden element (C6G-VISIBILITY-ONE-ANSWER), with the "open panel,
   focus input" case and a workaround that was checked, not assumed: the obvious one,
   `request_animation_frame`, does not work — the event loop runs a handler's animation frame
@@ -4342,7 +4342,7 @@ row comes from.
   compile (no `flex_direction`); green after, all four values and the axis for each. (f) The eight
   Phase 7 bullets past ~340 characters are trimmed (the gate's six and two more at 347 / 414). No
   test expectation or snapshot changed.
-- 2026-10-09 — C7G-DOCS-TESTS (API N4, N5, N6, the ACID tile 18 additions). Stale docs (N4):
+- 2026-10-05 — C7G-DOCS-TESTS (API N4, N5, N6, the ACID tile 18 additions). Stale docs (N4):
   DIVERGENCES §3's empty "Flexbox and box alignment" and "Grid" headings are gone (nothing of either
   is left unshipped; `masonry` is a §2 decision); the static-position entry names grid beside flex
   (CSS Grid 2 §10.2 places the child as the sole item of an area that is the content box; rdom takes
@@ -4366,7 +4366,7 @@ row comes from.
   grid, and a block (`None`). ACID.md tile 18 gains the gate's five cases (`1fr` against
   `minmax(0, 1fr)`, two items in one cell by `z-index`, `inline-grid` in text, `rtl`, `1 / -1`) with
   their expected results. No test expectation or snapshot changed.
-- 2026-10-09 — C7G-SIZES (architect N10). TECH_DEBT `SIZE-1` was wrong against the tree: it said
+- 2026-10-05 — C7G-SIZES (architect N10). TECH_DEBT `SIZE-1` was wrong against the tree: it said
   `render/inline/mod.rs` was untouched by Phase 7 (dcbe040 touched it; C7G-INLINE-ATOM-MAX has since
   split it), left out files Phase 7 grew past 500 (`intrinsic/mod.rs`, `layout/sizing.rs`,
   `layout/keywords.rs`, `cascade/walk.rs`), and gave `grid/subgrid.rs` as 484 (491 at the gate, 520
@@ -4391,7 +4391,7 @@ row comes from.
   check is green, and with its limit lowered to 560 it fails on exactly the three files at 561–564
   (`mouse/mod.rs`, `dirty_tracker.rs`, `event_detail.rs`; restored). No test expectation or snapshot
   changed.
-- 2026-10-09 — Phase 7 closed: both gates run, 15 gate fixes (`C7G-*`: batch A — LINES-SHIFT,
+- 2026-10-05 — Phase 7 closed: both gates run, 15 gate fixes (`C7G-*`: batch A — LINES-SHIFT,
   INITIAL-ALLOC, TRACK-VALIDITY, MEMO-PURITY, SUBGRID-COST, FOCUS-FIXUP, INLINE-ATOM-MAX,
   STACKING-ONE, MINOR; batch B — README-GRID, DESIGN-TYPES, GRID-SETTERS, UPGRADE-GUIDE, DOCS-TESTS,
   SIZES). Carried: C8-CB-COMPLETE (the padding-edge containing block's remaining cases) and
@@ -4862,7 +4862,7 @@ row comes from.
   / 46, 103 rows Partial / Missing. ACID: tile 13 lists the new overflow and scrollbar features, a
   tile 19 for floats is proposed, and an interactive step I11 for snapping, overscroll and focus
   scrolling. Open: TECH_DEBT `SCROLLPORT-1` (found by C8-OVERSCROLL). The phase's gates are next.
-- 2026-10-10 — Phase 8 gates (with the C7G re-review: all 15 at the root). Architect: 3 blocking —
+- 2026-10-05 — Phase 8 gates (with the C7G re-review: all 15 at the root). Architect: 3 blocking —
   clearance does not stop parent / first-child top-margin collapsing (§8.3.1, §9.5.2); re-snap after
   layout undoes every scroll that bypasses `snap()` (smooth steps, thumb drag, autoscroll, caret
   reveal); SCROLLPORT-1 makes a scroller's end unreachable with block padding or a horizontal bar (four
@@ -4890,7 +4890,7 @@ row comes from.
   README; ACID gaps; README floats + ellipsis example wanted. Accepted: four float simplifications
   (tell consumers to wrap content in `<body>`), keyboard not chaining, abspos stale-state handling.
   Full reports: `target/claude-logs/c8_gate_{architect,api}.md`. Fix as `C8G-*`, two batches.
-- 2026-10-10 — C8G-SCROLLPORT (architect B3; closes TECH_DEBT `SCROLLPORT-1`) with C8G-ABSPOS-EXTENT's
+- 2026-10-05 — C8G-SCROLLPORT (architect B3; closes TECH_DEBT `SCROLLPORT-1`) with C8G-ABSPOS-EXTENT's
   extent half (API B3). Found: four notions of the scrollport (layout's clamp the content box, the
   runtime's the padding box with the gutters in it, `ClipEdges` the padding box, the containing block the
   padding box less the gutters) and an extent of the content union only, measured `max − min` — so the
@@ -4921,7 +4921,7 @@ row comes from.
   floor), `nested_scroll_overflow` (4 → 10). No snapshot changed. DIVERGENCES: the "gutter between the
   content box and the padding" entry is gone (now CSS's); new: a flex / grid item's margin is not in the
   area (§2.2 counts it).
-- 2026-10-10 — C8G-ABSPOS-EXTENT (API B3, architect N1). The extent half — a scroller holding only
+- 2026-10-05 — C8G-ABSPOS-EXTENT (API B3, architect N1). The extent half — a scroller holding only
   `top: 20` content measures from its scroll origin (`scrollHeight` 21, scrollable to 16) — landed with
   C8G-SCROLLPORT, whose scrollable overflow area grows only away from the origin (its two tests are
   `abspos_overflow.rs`'s). This entry is the convergence half. Found: `layout_dom` ran phases 1–2 at most
@@ -4940,7 +4940,7 @@ row comes from.
   runs phases 1–2 five times (3 rounds, the re-snap's, the reveal's), and at most 3 × `MAX_ROUNDS`. Red:
   `cost_tests::a_reach_its_own_scrollbar_changes_converges_in_one_layout` — `0..=1` for `0..=0` (2 runs);
   green after (3, then 1 on the next layout). No test expectation or snapshot changed.
-- 2026-10-10 — C8G-RESNAP (architect B2, N4, N10; split first, N9). Found: `resnap` ran after every
+- 2026-10-05 — C8G-RESNAP (architect B2, N4, N10; split first, N9). Found: `resnap` ran after every
   layout and wrote the recorded target's position whenever the offset differed from it, while only
   `snap()` set the record and nothing cleared it — so a smooth PageDown under `y mandatory` jumped to its
   destination on the first frame (the animation never showed; `scroll` fired twice a frame, back and
@@ -4966,7 +4966,7 @@ row comes from.
   `a_layout_that_does_not_move_the_target_leaves_the_offset` (mutation: re-snap regardless of the
   position → 6 for 8); each restored and touched. The frame layout-run pin (C8G-ABSPOS-EXTENT) is
   unchanged: 5. No existing test expectation or snapshot changed.
-- 2026-10-10 — C8G-SNAP-TALL (API B4, API N10). Found: `points` emitted each box's aligned position only
+- 2026-10-05 — C8G-SNAP-TALL (API B4, API N10). Found: `points` emitted each box's aligned position only
   and `select` jumped between them, so 30-row cards in a 10-row `y mandatory` list went 0 → 30 on a wheel
   tick or PageDown and rows 10–29 were never shown (a `scrollTo(15)` went back to 0). Decision: CSS Scroll
   Snap 1 §6.2.3 — each `SnapPoint` of an area longer than the snapport carries its covering range (from
@@ -4988,7 +4988,7 @@ row comes from.
   held mandatory tick chained (outer 1 for 0), `hidden` + `contain` chained (1 for 0). Green after; added
   while fixing: `a_resnap_keeps_the_place_inside_a_tall_card` (15 → 17 after a 2-row insertion). No
   existing test expectation or snapshot changed.
-- 2026-10-10 — C8G-CLEARANCE-COLLAPSE (architect B1). Found: `parent_collapses_top_with_first_child`
+- 2026-10-06 — C8G-CLEARANCE-COLLAPSE (architect B1). Found: `parent_collapses_top_with_first_child`
   had no clearance condition (its doc still said "`clear` isn't a property we model", and DIVERGENCES
   "there is no `float` / `clear` yet"), so in `<body><div><div style="float:left;height:3">F</div><div
   style="clear:left;margin-top:2">x</div></div></body>` the cleared div — the first in-flow child, the
@@ -5005,7 +5005,7 @@ row comes from.
   `place.rs` already stops. Red: `css_phase8/float/clear.rs::clearance_stops_the_parent_and_first_child_margins_collapsing`
   — `(2, 2, 5)` for `(0, 0, 3)`; the no-`clear` pin passed before and after. Green after; no other test
   or snapshot changed.
-- 2026-10-10 — C8G-PSEUDO-BOXES (API B1) — partial: block-level done; `inline-block` / `inline-flex`
+- 2026-10-06 — C8G-PSEUDO-BOXES (API B1) — partial: block-level done; `inline-block` / `inline-flex`
   atoms and floated pseudo-elements remain (DIVERGENCES §2). Found: a static `::before` / `::after` was
   always inline text — `static_pseudo_text` ignored `display` (even `none` showed), empty content made no
   box (`visible_inline_pseudos` drops it), clearance applied to elements only — so the clearfix
@@ -5037,7 +5037,7 @@ row comes from.
   mutation: no intrinsic hook → 2 × 1). CSS-COVERAGE: the `::before` / `::after` row Supported → Partial
   (it had claimed what `display` never did), §3.16 3 / 2 / 5 / 6, total 157 / 24 / 80 / 46. No existing
   test expectation or snapshot changed.
-- 2026-10-10 — C8G-WEBKIT-CLAMP (API B2, API N8 / N9, architect N5). Found: (1) `display: -webkit-box;
+- 2026-10-06 — C8G-WEBKIT-CLAMP (API B2, API N8 / N9, architect N5). Found: (1) `display: -webkit-box;
   -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3` — what autoprefixers and Tailwind
   emit — was not clamped: the later `line-clamp` set `continue: collapse`, the legacy test needed
   `-webkit-legacy`, and the box stayed a flex row; (2) `-webkit-box` parsed as plain `flex`, so a vertical
@@ -5064,7 +5064,7 @@ row comes from.
   `webkit_box` (PERTURB's vertical orient and `max-lines` would make it the legacy clamp and undo its
   `flow`; covered by the tests above), and `property_dispatch::tests`' `display` mask gains
   `WEBKIT_BOX`. No snapshot changed.
-- 2026-10-10 — C8G-CARET-RTL (architect N8). Found: `cell_of_position` clamped the caret's column and
+- 2026-10-06 — C8G-CARET-RTL (architect N8). Found: `cell_of_position` clamped the caret's column and
   row with `.max(0) as u16`, so a caret on the part of an `rtl` line overflowing left of the screen
   painted in column 0, and a caret scrolled above the screen read as row 0 — the caret reveal then
   scrolled a textarea at row 2 scrolled to 5 only by 2 (to 3), and Home / End / Up / Down computed their
@@ -5079,7 +5079,7 @@ row comes from.
   `css_phase8/rtl_line_overflow.rs::a_caret_left_of_the_screen_is_on_no_cell` — `Some((0, 0))` for
   `None`; `runtime/scrollbar/reveal_tests.rs` — `scrollTop` 3 for 0. Green after; no other test or
   snapshot changed.
-- 2026-10-10 — C8G-PSEUDO-ATOMS (API B1, the rest of C8G-PSEUDO-BOXES). Found: an `inline-block` /
+- 2026-10-06 — C8G-PSEUDO-ATOMS (API B1, the rest of C8G-PSEUDO-BOXES). Found: an `inline-block` /
   `inline flow-root` / `inline-flex` / `inline-grid` `::before` / `::after` was packed as inline text (no box:
   its `width`, padding, border and background never drawn), a floated one stayed inline text, and a `flex` /
   `grid` one — block-level or not — packed its text as an inline formatting context, ignoring its
@@ -5121,7 +5121,7 @@ row comes from.
   entry is now the two departures left (a block-level pseudo's margins do not collapse through its host;
   `display: table` waits for Phase 13); the floats entry no longer says pseudo-elements do not float. No
   existing test expectation or snapshot changed.
-- 2026-10-10 — C8G-PAINT-PHASES (architect N6; DIVERGENCES §2's older "a later block's background covers
+- 2026-10-06 — C8G-PAINT-PHASES (architect N6; DIVERGENCES §2's older "a later block's background covers
   earlier overflowing text", C4G-SHADOW-ORDER's gap). Found: each in-flow box painted whole — background,
   border, text, children — and the floats after the whole in-flow content, so a float covered inline content
   overflowing into it and a later block's background covered an earlier block's overflowing line; and a float
@@ -5145,7 +5145,7 @@ row comes from.
   float and atom-turn tests were guards (green before and after). Green after. Mutation (restored, touched):
   repainting a box whole in the content phase → the later-block test. No existing test expectation or snapshot
   changed.
-- 2026-10-10 — C8G-FLOAT-MEASURE (architect N3, N7, N10). Found: intrinsic block sizes of block containers
+- 2026-10-06 — C8G-FLOAT-MEASURE (architect N3, N7, N10). Found: intrinsic block sizes of block containers
   were two models beside layout's — `children_size` summed the children's outer contributions (no margin
   collapsing at all: two `margin: 1 0` paragraphs measured 6 for a laid-out 5, with floats or without) and
   `float/measure.rs` re-implemented the flow when a float was in it (its own chrome arithmetic: no
@@ -5185,7 +5185,7 @@ row comes from.
   DIVERGENCES: the clamped-item entry is gone (its `rtl` ellipsis note kept), simplification 2 says the
   exclusion settles after its run, and the once-only re-place is recorded. No existing test expectation or
   snapshot changed.
-- 2026-10-10 — C8G-IDLE-COST (architect N4, the remainder after C8G-RESNAP's snap walk). Found, by counting:
+- 2026-10-06 — C8G-IDLE-COST (architect N4, the remainder after C8G-RESNAP's snap walk). Found, by counting:
   every block container's inline-size measurement built its box sequence and float-run partition to learn it
   held no float (`float::measure::block_width`: 16 partitions for eight float-less flex items' paragraphs);
   every inline flow on every paint walked up its ancestors to the formatting root looking for a line-clamp
@@ -5207,7 +5207,7 @@ row comes from.
   paint with one). Red: 16 for 0; `(390, 0)` for `(0, 0)`; 24 for 0. Green after. Added while fixing:
   `css_phase8/line_clamp.rs::a_shifted_clamped_box_keeps_its_clamp_point` (mutation: rows kept absolute → it
   fails, the second line clipped). No existing test expectation or snapshot changed.
-- 2026-10-10 — C8G-FOCUS-SCROLL (architect N2, API N7). Found: `focus_node` scrolled the newly focused
+- 2026-10-06 — C8G-FOCUS-SCROLL (architect N2, API N7). Found: `focus_node` scrolled the newly focused
   element into view on every caller — the tree builtin's row click (a pointer press focuses a focusable row,
   the click then focuses the tree: `nearest` moved a tall tree from 4 to 3), a closing dialog returning focus
   (HTML §4.11.4 "close the dialog": "the viewport should not be scrolled by doing this step"; it scrolled to 6
@@ -5226,7 +5226,7 @@ row comes from.
   click passed at first — the press focused the tree, so the click's focus was a no-op — and was rewritten
   with focusable rows, 3 for 4). Green after. Mutation (restored, touched): never deferring → the handler
   test. No existing test expectation or snapshot changed.
-- 2026-10-10 — C8G-API-TYPES (API N12, N13, N6). Found: DESIGN's closed / open list did not name the eight
+- 2026-10-06 — C8G-API-TYPES (API N12, N13, N6). Found: DESIGN's closed / open list did not name the eight
   Phase 8 scroll types; two `Overflow` matches ended in a wildcard arm (`paint_pass/scrollbar.rs`
   `should_paint`, rdom-style `ComputedStyle::normalize_overflow`) on a closed type, where a new variant must
   fail to compile; the Phase 8 value types were reached only through `rdom_tui::layout`; `scroll-padding-*` /
@@ -5248,7 +5248,7 @@ row comes from.
   `migration_hints.rs::scroll_sides_and_root_hints` — 23 compile errors (the root types, `FocusOptions`,
   `TuiTimers`, the `Sides` fields); `cargo clippy` with the `deny` on the two functions — the wildcard arm.
   Green after. No test expectation or snapshot changed.
-- 2026-10-10 — C8G-DOCS (API N5, N11, N14, N15, N16; architect N9, N10, the accepted `<body>` note). Upgrade
+- 2026-10-06 — C8G-DOCS (API N5, N11, N14, N15, N16; architect N9, N10, the accepted `<body>` note). Upgrade
   guide: the silent changes it missed, ranked by impact into the list — focus scrolling into view (#6),
   an absolutely positioned box widening its scroller (#7), a `stable` gutter on `overflow: hidden` (#22),
   relative positioning laid out in flow and then shifted (#27), the `rtl` line overflowing left (#29) — and
@@ -5276,13 +5276,13 @@ row comes from.
   red, and rewritten: `.c` clips it away at its 0-row clip edge while it still excludes (CSS Overflow 3
   §3.1, the code right); a stuck sticky box carrying its absolutely positioned child; a `.truncate` flex
   item. No test expectation or snapshot changed.
-- 2026-10-10 — Phase 8 closed: both gates run, 15 gate fixes `C8G-*` (batch A: SCROLLPORT, ABSPOS-EXTENT,
+- 2026-10-06 — Phase 8 closed: both gates run, 15 gate fixes `C8G-*` (batch A: SCROLLPORT, ABSPOS-EXTENT,
   RESNAP, SNAP-TALL, CLEARANCE-COLLAPSE, PSEUDO-BOXES, WEBKIT-CLAMP, CARET-RTL; batch B: PSEUDO-ATOMS,
   PAINT-PHASES, FLOAT-MEASURE, IDLE-COST, FOCUS-SCROLL, API-TYPES, DOCS); their re-review rides with the
   Phase 9 gate. Open for that review: the re-place of a formatting context root beside floats is done once;
   a float's settled height reaches content after its run only; focus scrolling under an `App` is at the
   next layout (`FOCUS-FLUSH-1`).
-- 2026-10-11 — C9-WHITE-SPACE (CSS Text 4 §3, §4.1, §6.1; CSS Text 3 §3, §4.1.1–§4.1.3, §5.1; CSSOM
+- 2026-10-06 — C9-WHITE-SPACE (CSS Text 4 §3, §4.1, §6.1; CSS Text 3 §3, §4.1.1–§4.1.3, §5.1; CSSOM
   §6.7.2's shortest form). rdom-style: `white-space` is the shorthand of `white-space-collapse` (`collapse |
   preserve | preserve-breaks | preserve-spaces | break-spaces`) and `text-wrap-mode` (`wrap | nowrap`):
   `layout/text.rs` (`WhiteSpaceCollapse`, `TextWrapMode`, `WhiteSpace` moved there with `PreLine` /
@@ -5326,7 +5326,7 @@ row comes from.
   is one piece now, so CSS 2.1 §9.5 moves it below the float (`a_nowrap_line_too_wide_for_the_band_moves_
   below_the_float` pins that) — the marking test now reaches the band window through an atom and text after
   it that cannot wrap (`ab …   RRR`; mutation: the band window off → `ab XYZWcde`). No snapshot changed.
-- 2026-10-11 — C9-BREAKING (CSS Text 3 §5.2, §5.3, §5.5, §6.1; UAX #14 LB8, LB11–LB14, LB21, LB25, LB29–LB31;
+- 2026-10-06 — C9-BREAKING (CSS Text 3 §5.2, §5.3, §5.5, §6.1; UAX #14 LB8, LB11–LB14, LB21, LB25, LB29–LB31;
   HTML `<wbr>`). rdom-style: `word-break`, `overflow-wrap` (+ `word-wrap`, a legacy name alias: the same field,
   `fields_of` and set / serialize arms), `line-break`, `hyphens` in the `text` groups (`WordBreak`,
   `OverflowWrap`, `LineBreak`, `Hyphens`), all inherited; the cascade's CSS Text applicator moved to
@@ -5365,7 +5365,7 @@ row comes from.
   between ideographs, now documented) — the test asserts the next byte on line 2. Mutation (restored,
   touched): no emergency split → two tests; no shown hyphen → two; closing punctuation breakable → one;
   `anywhere` off → one. No existing test expectation or snapshot changed.
-- 2026-10-11 — C9-TAB-SIZE (CSS Text 3 §4.2, §4.1.1, §4.1.2). rdom-style: `tab-size: <number [0,∞]> | <length
+- 2026-10-06 — C9-TAB-SIZE (CSS Text 3 §4.2, §4.1.1, §4.1.2). rdom-style: `tab-size: <number [0,∞]> | <length
   [0,∞]>` (`TabSize::Number` / `Length`, `cells()` rounding onto the grid half to even — a space is one cell,
   so both are cells), inherited, initial 8; a percentage or a viewport length has no basis and is invalid;
   serialized as a number or `<n>ch`. rdom-tui — what rdom did: a preserved tab in `pre` / `pre-wrap` /
@@ -5387,7 +5387,7 @@ row comes from.
   first draft as above, green after the fix). Mutation (restored, touched): no tab layout → five; no re-layout
   in `fit_empty_line` or after a wrap → the float test; the line origin at 0 → the float test. Changed
   expectation: none. Collapsible tabs (`normal`) are still spaces (§4.1.1).
-- 2026-10-11 — C9-TEXT-TRANSFORM (CSS Text 3 §2.1 and its ordering note, CSS Text 4 §2.1, MathML Core §4.2 /
+- 2026-10-06 — C9-TEXT-TRANSFORM (CSS Text 3 §2.1 and its ordering note, CSS Text 4 §2.1, MathML Core §4.2 /
   Appendix C.1). rdom-style: `text-transform: none | [capitalize | uppercase | lowercase] || full-width ||
   full-size-kana | math-auto` as `TextTransform { case: TextCase, full_width, full_size_kana, math_auto }`
   (closed record, `NONE`), inherited, serialized in the grammar's order. rdom-tui: `render/inline/transform.rs`
@@ -5413,7 +5413,7 @@ row comes from.
   leading-apostrophe case added after a surviving mutation. Mutation (restored, touched): Final_Sigma off,
   the titlecase table entry gone, U+3000 off, an apostrophe always word-internal — each fails its test. No
   existing test expectation or snapshot changed.
-- 2026-10-11 — C9-TEXT-INDENT (CSS Text 3 §8.1, §4.2; CSS Sizing 3 §5.1 / §5.2.1; CSS Values 4 §6.1.2). rdom-style:
+- 2026-10-06 — C9-TEXT-INDENT (CSS Text 3 §8.1, §4.2; CSS Sizing 3 §5.1 / §5.2.1; CSS Values 4 §6.1.2). rdom-style:
   `text-indent: <length-percentage> && hanging? && each-line?` as `TextIndent { length: Length, hanging,
   each_line }` (initial `Cells(0)`; `Length::Auto` is outside the grammar and indents nothing, documented on the
   field), inherited; its viewport units resolve at computed-value time with the insets' (`absolute.rs` — found
@@ -5435,7 +5435,7 @@ row comes from.
   intrinsic 3 for 6); green after. Mutation (restored, touched): no `each-line` after a forced break → one;
   the `rtl` indent dropped → one; every run first-formatted → one; no indent in intrinsic sizes → one; tab
   origin without the indent → one. No existing test expectation or snapshot changed.
-- 2026-10-11 — C9-TEXT-ALIGN (CSS Text 3 §6.1–§6.4, §8.1; CSS Writing Modes 4 §2.1; CSS 2.1 §9.5). rdom-style: CSS
+- 2026-10-06 — C9-TEXT-ALIGN (CSS Text 3 §6.1–§6.4, §8.1; CSS Writing Modes 4 §2.1; CSS 2.1 §9.5). rdom-style: CSS
   Text 3 makes `text-align` a shorthand of `text-align-all` and `text-align-last` ("values other than
   justify-all or match-parent are assigned to text-align-all and reset text-align-last to auto") — followed
   as written, though engines keep `text-align` a longhand (DIVERGENCES §2): `TextAlign` (7 keywords,
@@ -5463,7 +5463,7 @@ row comes from.
   touched): `center` rounding up → two; no remainder → two; `text-align-last: auto` not falling back to
   `start` → two; `auto` without CJK gaps → one; overflow not start-aligned → one; no justified source map →
   one. No existing test expectation or snapshot changed.
-- 2026-10-11 — C9-TEXT-WRAP (CSS Text 4 "Joint Wrapping Control: the text-wrap shorthand", "Selecting How to
+- 2026-10-06 — C9-TEXT-WRAP (CSS Text 4 "Joint Wrapping Control: the text-wrap shorthand", "Selecting How to
   Wrap: the text-wrap-style property"; the current draft adds `avoid-short-last-line`, implemented with
   `pretty`'s rule). rdom-style: `text-wrap: <'text-wrap-mode'> || <'text-wrap-style'>` (omitted longhand
   initial, shortest serialization — `nowrap pretty`, `balance`), `TextWrapStyle`, inherited. rdom-tui —
@@ -5491,14 +5491,14 @@ row comes from.
   no six-line limit → the long-paragraph cost test; `pretty` keeping a layout with more lines → the revert
   test (added after this mutation survived); bisection accepting one extra line → two. No existing test
   expectation or snapshot changed.
-- 2026-10-11 — Phase 9 part 1 complete (C9-WHITE-SPACE, C9-BREAKING, C9-TAB-SIZE, C9-TEXT-TRANSFORM,
+- 2026-10-06 — Phase 9 part 1 complete (C9-WHITE-SPACE, C9-BREAKING, C9-TAB-SIZE, C9-TEXT-TRANSFORM,
   C9-TEXT-INDENT, C9-TEXT-ALIGN, C9-TEXT-WRAP). The inline packer now has a module per concern: white space
   processing (`white_space.rs`, `run_style.rs`), breaking (`breaking.rs`), text-transform (`transform.rs`),
   the indent (`indent.rs`), alignment and justification (`align.rs`), wrap styles (`wrap.rs`), and the
   source map every rendering that is not its source goes through (`source_map.rs`); `packer/` split into
   `intake.rs`, `emit.rs`, `fragments.rs`, `replay.rs`. Part 2 (C9-LINE-HEIGHT, C9-VERTICAL-ALIGN,
   C9-DECORATION, C9-FONT) is next; the Phase 9 gates run after it.
-- 2026-10-12 — C9-LINE-HEIGHT (CSS Inline 3 §5.1; CSS 2.1 §10.8, §10.8.1; CSS Values 4 §6.1.1), closing C2-LH.
+- 2026-10-06 — C9-LINE-HEIGHT (CSS Inline 3 §5.1; CSS 2.1 §10.8, §10.8.1; CSS Values 4 §6.1.1), closing C2-LH.
   rdom-style: `line-height: normal | <number [0,∞]> | <length-percentage [0,∞]>` as `LineHeight` (`Normal`,
   `Number`, `Rows` — a length known at parse time, serialized in `ch` — and `Calc`, a percentage or a length in
   a context unit, which computes to `Rows`), in the CSS Text group (`TextStyle::line_height`, inherited whole —
@@ -5542,7 +5542,7 @@ row comes from.
   for pseudo text → 1; none for `display: contents` text → 1; anonymous items' baselines from content rows → 1.
   Changed expectation: `numeric_tests::lh_units_parse_as_one_row` became `lh_units_wait_for_the_line_height`
   (`2lh` is an expression until the cascade). No snapshot changed.
-- 2026-10-12 — C9-VERTICAL-ALIGN (CSS 2.1 §10.8, §10.8.1; CSS Inline 3 §4; HTML §15.3.4). rdom-style:
+- 2026-10-06 — C9-VERTICAL-ALIGN (CSS 2.1 §10.8, §10.8.1; CSS Inline 3 §4; HTML §15.3.4). rdom-style:
   `vertical-align: baseline | sub | super | text-top | text-bottom | middle | top | bottom |
   <length-percentage>` as `VerticalAlign` (`Rows` a length of either sign, `Calc` a percentage or a context
   length, which computes to `Rows` against the element's own line height — `cascade/text.rs` after
@@ -5572,7 +5572,7 @@ row comes from.
   it → 1; generated text unplaced → 1; atoms ignoring their alignment → 2; the UA `sup` rule gone → 1. Changed
   expectation: `vertical.rs`'s unit test now places fragments from frame rows (the line arithmetic moved to
   `frames.rs`'s tests). No snapshot changed.
-- 2026-10-12 — C9-DECORATION (CSS Text Decoration 4 §2.1–§2.6, §3.2, §4.1, §4.2; Text Decoration 3 §2; ECMA-48 /
+- 2026-10-06 — C9-DECORATION (CSS Text Decoration 4 §2.1–§2.6, §3.2, §4.1, §4.2; Text Decoration 3 §2; ECMA-48 /
   ITU T.416 SGR; kitty's underline extensions). rdom-style: `text-decoration` is the Level 4 shorthand of
   `text-decoration-line` (`TextDecorationLine`: `underline || overline || line-through || blink`),
   `-style` (`TextDecorationStyle`), `-color` (a `TuiColor`, initial `currentcolor`) and `-thickness`
@@ -5618,7 +5618,7 @@ row comes from.
   underlined — CSS §2.1, where the old test pinned the opposite); `text_decoration_inherit_copies_parents_
   bits` reads the line; rdom-css's property tests read `text_decoration.line`; the inherited-set probe covers
   the eight names. No snapshot changed.
-- 2026-10-12 — C9-FONT (CSS Fonts 4 §2.1–§2.5, §3.7, §6.11's CSS 2.1 form). rdom-style: the font properties are a
+- 2026-10-06 — C9-FONT (CSS Fonts 4 §2.1–§2.5, §3.7, §6.11's CSS 2.1 form). rdom-style: the font properties are a
   group, `TuiStyle::font` (`FontDeclarations`) / `ComputedStyle::font` (`Font`), inherited whole: `font-weight`
   (`FontWeight`: `normal`, `bold`, `bolder`, `lighter`, `<number [1,1000]>` — a literal outside the range invalid,
   a math function clamped; computed to a number), `font-style` (`FontStyle`, `oblique <angle [-90deg,90deg]>?`),
@@ -5647,13 +5647,13 @@ row comes from.
   without its line height → 1. Changed expectations: the tests that read `style.bold` / `italic` read the font
   group (rdom-style UA and stylesheet tests, rdom-tui node tests, rdom-css property tests); the inherited-set probe
   and the `initial` test cover the group. No snapshot changed.
-- 2026-10-12 — Phase 9 part 2 complete (C9-LINE-HEIGHT closing C2-LH, C9-VERTICAL-ALIGN, C9-DECORATION, C9-FONT):
+- 2026-10-06 — Phase 9 part 2 complete (C9-LINE-HEIGHT closing C2-LH, C9-VERTICAL-ALIGN, C9-DECORATION, C9-FONT):
   all eleven Phase 9 rows done. The inline packer gained `packer/frames.rs` (the inline boxes: line heights,
   alignment, aligned subtrees) and `inline/baselines.rs`; the decorations are a derived used value in the cascade
   and capability-gated SGR in the backend (`render/sgr_capabilities.rs`); the font is a cascade group
   (`cascade/font.rs`). CSS-COVERAGE §3.12–§3.14 have no Partial or Missing row left; ACID tile 8 covers the
   Phase 9 text features. The Phase 9 gates (architect + API, with the C8G re-review) are next.
-- 2026-10-11 — Phase 9 gates (with the C8G re-review: 14 of 15 at the root; C8G-SNAP-TALL incomplete).
+- 2026-10-06 — Phase 9 gates (with the C8G re-review: 14 of 15 at the root; C8G-SNAP-TALL incomplete).
   Architect: 3 blocking — length-changing transforms classify the rendered grapheme (`ß`→`SS` taken as
   an ideograph, so uppercase words break mid-word and min-content shrinks); a covering snap range's end
   is never offered (25-row cards in a 10-row list skip rows 20–24); two baseline models (`content_rows`
@@ -5678,7 +5678,7 @@ row comes from.
   carries the font's line gap), so `1.5` is one row, `2.5` two — DIVERGENCES §1; `letter-spacing` is
   implemented in whole cells. Full reports: `target/claude-logs/c9_gate_{architect,api}.md`. Fix as
   `C9G-*`, two batches (A correctness and cost, B API and docs).
-- 2026-10-12 — C9G-TRANSFORM-BREAK (architect B1). Found: `push_text_grapheme` classed a grapheme for
+- 2026-10-06 — C9G-TRANSFORM-BREAK (architect B1). Found: `push_text_grapheme` classed a grapheme for
   line breaking by its rendered text's first character and *total* width (`class_of(first, w == 2)`), so a
   transform that renders one source grapheme as several — `ß` → `SS` under `uppercase` — read as a two-cell
   ideograph (ID) and opened a break on both sides: `<p style="width:5;text-transform:uppercase">straße</p>`
@@ -5695,7 +5695,7 @@ row comes from.
   and is kept as the pin for the multi-grapheme full-width piece. Green after. Mutation (restored,
   touched): `class_of_rendered` reading the whole rendering's width → the red test fails again. No
   existing expectation or snapshot changed.
-- 2026-10-12 — C9G-SNAP-COVER (architect B2; completes C8G-SNAP-TALL). Found: `pick` rested at a
+- 2026-10-06 — C9G-SNAP-COVER (architect B2; completes C8G-SNAP-TALL). Found: `pick` rested at a
   destination only inside a covering range, and `choose` saw only the aligned positions, so a page from
   inside a tall card to a destination past its range snapped to the next card: 25-row cards in a 10-row
   `y mandatory` list paged 0 → 10 → 25, rows 20–24 never shown (`tall_tests.rs` passed only because 30 is a
@@ -5713,7 +5713,7 @@ row comes from.
   wheel's pin. Green after. Mutation (each alone, restored, touched): no leaving-edge rest → the page test
   fails for 23-row cards (rows 20–22, 43–45, 66–68 unseen); no range ends among the positions → the
   `scrollTo` test fails (23). No existing expectation or snapshot changed.
-- 2026-10-12 — C9G-ONE-BASELINE (architect B3). Found: two baseline models — an atom's or a flex / grid
+- 2026-10-06 — C9G-ONE-BASELINE (architect B3). Found: two baseline models — an atom's or a flex / grid
   item's baselines were its content's first and last rows (`vertical::content_rows`, from the content
   height) moved by `baselines::insets`, which re-packed the content only when `has_tall_lines` saw a
   `line-height` above one row, and recursed through the first and last *element* children. A `sub` /
@@ -5741,7 +5741,7 @@ row comes from.
   `an_inline_block_aligns_by_each_keyword`); none in anonymous runs → the leading-line test; the
   baseline memo bypassed → the cost pin (20 walks at 4 levels). No existing expectation or snapshot
   changed.
-- 2026-10-12 — C9G-UA-LINE-HEIGHT (API B1). Confirmed first (the gate inferred it): with `html {
+- 2026-10-06 — C9G-UA-LINE-HEIGHT (API B1). Confirmed first (the gate inferred it): with `html {
   line-height: 2 }` a text `<input>` (one row, `overflow-x: hidden` pairing `overflow-y: auto`) had a
   `scrollHeight` of 2 — a scrollable second row — and a `<textarea>` of fixed height 4 showed two lines (`a`,
   blank, `b`, blank). Decision: HTML's UA sheets keep a control's own text layout — Chromium's `input,
@@ -5758,7 +5758,7 @@ row comes from.
   right`, `bold`, `italic` on `html` leave the controls alone). Mutation (each declaration dropped alone,
   restored, touched): each of the six fails the test. Changed expectation: `ua_total_rule_count` 163 → 167
   (the new 4-selector rule). No snapshot changed.
-- 2026-10-12 — C9G-LINE-HEIGHT-FLOOR (the Phase 9 gate's decision; architect N11, API N2). Found:
+- 2026-10-06 — C9G-LINE-HEIGHT-FLOOR (the Phase 9 gate's decision; architect N11, API N2). Found:
   `LineHeight::rows()` rounded ties to even, as fractional lengths do, so `line-height: 1.5` — Tailwind
   preflight's `html` value, and most resets' — was two rows and double-spaced a whole app. Decision (the
   gate's): a fractional used line height floors to whole rows, at least one — number, percentage and
@@ -5775,7 +5775,7 @@ row comes from.
   expectations: `rows_round_onto_the_grid_at_least_one` pinned `1.5` → 2 (now 1); `the_values_map_onto_whole_rows`
   pinned `1.5` / `150%` at 4 rows for two lines (now 2), with `1.9ch`, `2.5`, `250%` added. No snapshot
   changed (no demo uses a fractional line height).
-- 2026-10-12 — C9G-LETTER-SPACING (the Phase 9 gate's decision; API N8). Split first (`900571a`):
+- 2026-10-06 — C9G-LETTER-SPACING (the Phase 9 gate's decision; API N8). Split first (`900571a`):
   rdom-style `layout/text.rs` (586 lines, past the split-on-touch bar) into `white_space.rs` (white space
   processing, wrapping, line breaking, `tab-size`), `text_align.rs` (transform, indent, alignment) and
   `text.rs` (`TextStyle`). Then: `letter-spacing` / `word-spacing: normal | <length>` (CSS Text 3 §9.2,
@@ -5807,7 +5807,7 @@ row comes from.
   preserved-space spacing → 1; no UA `letter-spacing` reset → the form-control test. Changed expectations:
   the inherited-set probe and `PERTURB` / `initial` probe, the canonical-values table and the
   `!important`-setter test cover the two properties. No snapshot changed.
-- 2026-10-12 — C9G-PACKER-ALLOC (architect N1, N2, N3). Found, by counting (red first, each): (1) an
+- 2026-10-06 — C9G-PACKER-ALLOC (architect N1, N2, N3). Found, by counting (red first, each): (1) an
   inherited `font-family` list (`FontFamily::Names(Vec<String>)`) was cloned into every descendant's
   computed style — 12 more allocations per plain element under `.p { font-family: system-ui,
   -apple-system, "Segoe UI", Roboto, sans-serif }` (540 for 300 per 20 elements); (2) a `units` Vec built
@@ -5833,7 +5833,7 @@ row comes from.
   tests fail; a fresh extents Vec per line → the line test. Not done: a `Calc` inside `TextIndent` still
   clones a box per element when a `calc()` indent is inherited (rare; tracked in the gate report). No
   existing expectation or snapshot changed.
-- 2026-10-12 — C9G-CLEARANCE-COST (architect N4, N5). Found: (1) `first_child_has_clearance` built a
+- 2026-10-06 — C9G-CLEARANCE-COST (architect N4, N5). Found: (1) `first_child_has_clearance` built a
   `box_sequence` for every collapsible parent — 22 for six nested blocks with no float anywhere; (2) it
   returned `false` at a generated item, so a floated `::before` never gave the first child clearance; and,
   found while testing it, (3) `outer_edge_margin` stopped the parent / first-child chain at *any* generated
@@ -5856,7 +5856,7 @@ row comes from.
   restored, touched): no `may_hold_floats` gate → the scan test; floated pseudos ignored for clearance →
   the clearance test; the chain not skipping them → the collapse test. No existing expectation or snapshot
   changed.
-- 2026-10-12 — C9G-MISC-CORRECTNESS (architect N7, N8, N9, N10, N13's layering). Five fixes, each red
+- 2026-10-06 — C9G-MISC-CORRECTNESS (architect N7, N8, N9, N10, N13's layering). Five fixes, each red
   first. (1) Stale `rlh` (N8): a restyle (`walk::Mode::Restyle`) kept an element whose own style stayed and
   skipped its subtree, but `rlh` below reads the root's line height — `html { line-height: 1 → 3 }` over
   `.card { line-height: 1 } .card p { margin-top: 1rlh }` left `p` at 1. Fixed as viewport units are: a
@@ -5890,7 +5890,7 @@ row comes from.
   `focus_in_a_handler_scrolls_against_the_next_layout`. Changed expectation: the frame pin's 5 runs → 4
   with a focus scroll added (`a_frame_runs_layout_at_most_twice_the_round_cap`). DIVERGENCES §2's focus entry
   says the deferral is per document. No snapshot changed.
-- 2026-10-12 — C9G-PSEUDO-CLAMP (batch B; a probe of batch A's: a pseudo-element's `line-clamp: 2` showed
+- 2026-10-06 — C9G-PSEUDO-CLAMP (batch B; a probe of batch A's: a pseudo-element's `line-clamp: 2` showed
   all five lines). Found: a `::before` / `::after` box packs its generated text through its box-tree item
   (`items::AnonymousItem`), which never read the clamp; an element's clamp is a walk keyed by `NodeId`
   (`line_clamp::clamp_point`) that a pseudo-element has none of. Decision: the clamp at the generated
@@ -5909,7 +5909,7 @@ row comes from.
   and the test was corrected to assert that and the clamped box's clearance). Mutation (restored,
   touched): an atom's or float's lines painted with no marking → the atomic test fails. List markers'
   raw widths go to C10-LIST-ITEM (its row says so). No existing expectation or snapshot changed.
-- 2026-10-12 — C9G-SGR-CAPS (API N1, architect N6). Found: `App::new` hard-coded
+- 2026-10-06 — C9G-SGR-CAPS (API N1, architect N6). Found: `App::new` hard-coded
   `SgrCapabilities::from_env()` and the backends' `with_sgr_capabilities` takes them by value, so an app could
   not force `BASIC` (a log, a recording) or give a terminal the detection missed its extensions; the
   `#[non_exhaustive]` type had no way to build a custom set; and detection let an inherited
@@ -5938,7 +5938,7 @@ row comes from.
   touched); `the_builders_make_a_custom_set` and `css_phase9/text_decoration.rs::
   the_app_takes_a_capability_override` did not compile (no builders, no `App` method, no root export).
   Green after. No existing expectation or snapshot changed.
-- 2026-10-12 — C9G-UPGRADE-RANK (API N2, N3; docs). The upgrade guide's silent-change list was ranked by
+- 2026-10-06 — C9G-UPGRADE-RANK (API N2, N3; docs). The upgrade guide's silent-change list was ranked by
   impact only to item 29, items 30–38 appended in implementation order. Re-ranked whole (41 items), widest
   first: `line-height` (4) after the three flex / box-model changes — `line-height: 2` on `body` doubles every
   paragraph; the 0.5-dropped CSS Text properties now applying (5, new); decoration propagation (6) — the UA
@@ -5953,7 +5953,7 @@ row comes from.
   a note under "Inline formatting" on `<sup>` doubling a line, with the opt-out `sub, sup { vertical-align:
   baseline }` as a doctest (` 2 ` / `x  ` under the UA sheet, `x2 ` with the opt-out). No code changed; no
   expectation or snapshot changed.
-- 2026-10-12 — C9G-TYPES (API N4, N5, N6; architect N13's classification). (1) DESIGN's `#[non_exhaustive]`
+- 2026-10-06 — C9G-TYPES (API N4, N5, N6; architect N13's classification). (1) DESIGN's `#[non_exhaustive]`
   classification names every Phase 9 type. Closed (a value layout, paint or a serializer must handle whole):
   `LineHeight`, `VerticalAlign`, `FontWeight`, `FontStyle`, the inert `FontSize` / `FontSizeKeyword` /
   `FontFamily` / `SystemFont` / `FontStretch` / new `FontStretchKeyword` (fixed sets a serializer writes back
@@ -5977,7 +5977,7 @@ row comes from.
   `ImportantMask::WHITE_SPACE`. Red: `css_phase9/api_types.rs` (the prelude-only module, `justify-all`
   through the builder, the typed keywords, the mask) did not compile (21 errors: the prelude names, the
   new types, the mask); green after. No existing expectation or snapshot changed.
-- 2026-10-12 — C9G-DOCS (API N7, B2's `SIZE-1` refresh; architect N12, N13's comment). CSS-COVERAGE: priority
+- 2026-10-06 — C9G-DOCS (API N7, B2's `SIZE-1` refresh; architect N12, N13's comment). CSS-COVERAGE: priority
   rows 23 (`text-transform`) and 24 (`text-indent`) marked Shipped, row 23's "copy keeps the DOM text, as
   browsers do" corrected (§2.1 and Gecko keep it; Blink and WebKit copy the transformed text — DIVERGENCES
   §1); the "Inherited-property set" row lists the whole `inherits()` table (it named 7 and called that
@@ -5994,7 +5994,7 @@ row comes from.
   file: 21 between 500 and 575 (`tui_style/builder/mod.rs` 511 and `render/virtual_screen/tests/terminal.rs`
   524 added, `apply.rs` gone at 472, every figure current), none past 575, so no split. No snapshot changed
   (no demo has an `<abbr>`).
-- 2026-10-12 — Phase 9 closed. The 14 gate fixes landed in two batches — A (correctness and cost):
+- 2026-10-06 — Phase 9 closed. The 14 gate fixes landed in two batches — A (correctness and cost):
   C9G-TRANSFORM-BREAK, -SNAP-COVER, -ONE-BASELINE, -UA-LINE-HEIGHT, -LINE-HEIGHT-FLOOR, -LETTER-SPACING,
   -PACKER-ALLOC, -CLEARANCE-COST, -MISC-CORRECTNESS; B (API and docs): C9G-PSEUDO-CLAMP, -SGR-CAPS,
   -UPGRADE-RANK, -TYPES, -DOCS. Open for the Phase 10 gate's re-review: list markers riding a descendant's
@@ -6002,7 +6002,7 @@ row comes from.
   element; Windows Terminal is not detected (no version in its environment), so its SGR extensions need
   `App::with_sgr_capabilities`.
 
-- 2026-10-13 — C10-LEGACY-COLON. Found: `p:before` reached rdom-core's selector parser as an unknown
+- 2026-10-06 — C10-LEGACY-COLON. Found: `p:before` reached rdom-core's selector parser as an unknown
   pseudo-class, so the rule was dropped with a warning; `::first-line` / `::first-letter` were rejected as
   unsupported pseudo-elements; suffixes matched case-sensitively (`::BEFORE` dropped). Decision: the
   stylesheet's suffix stripper (`selector_text::extract_pseudo_suffix`) owns the mapping — Selectors 4 §15's
@@ -6016,7 +6016,7 @@ row comes from.
   passed before (a guard); `css_phase10/legacy_colon.rs` — both failed (the strict sheet warned). Green after.
   CSS-COVERAGE: the legacy row Missing → Supported, §3.16 5 / 1 / 4 / 6, total 183 / 18 / 61 / 45. No
   existing expectation changed (`extract_rejects_unsupported_pseudo_element` now uses `::grammar-error`).
-- 2026-10-13 — C10-CONTENT. Found: `content` took strings, `counter()` and (substituted) `attr()` only;
+- 2026-10-06 — C10-CONTENT. Found: `content` took strings, `counter()` and (substituted) `attr()` only;
   `counters()`, the `<quote>` keywords and alt text dropped the declaration; `var()` already worked (the
   general substitution runs first — the coverage row was stale; pinned now). Checked the engines for
   `content` on an element: none implements §2's `<content-list>` replacement (Chromium, Gecko and WebKit
@@ -6040,7 +6040,7 @@ row comes from.
   (restored, touched): no quote replay → the replay test; quotes left out of `note_ops` → the replay test.
   Changed expectation: `ua_total_rule_count` 168 → 170. CSS-COVERAGE: `content` Partial → Supported,
   `counters()` Missing → Supported, §3.15 3 / 2 / 5 / 2, total 185 / 17 / 60 / 45.
-- 2026-10-13 — C10-QUOTES. Found: `quotes` was an unknown property; C10-CONTENT's `<quote>` items used
+- 2026-10-06 — C10-QUOTES. Found: `quotes` was an unknown property; C10-CONTENT's `<quote>` items used
   fixed English marks. Decisions: `rdom_style::Quotes` (`Auto` / `None` / `MatchParent` / `Pairs`, an
   `Arc` so inheriting is a refcount) with `pair(level, lang)` — a level past the last pair repeats it — and
   the table `auto_quotes(lang)` (CLDR's quotation / alternate delimiters for 21 primary subtags, English
@@ -6055,7 +6055,7 @@ row comes from.
   Mutations (restored, touched): no `match-parent` computation → the match-parent test; no language →
   the language test. Changed expectations: `canonical_values` and `every_property_has_important_setter`
   gain `quotes`. CSS-COVERAGE: `quotes` Missing → Supported, §3.15 4 / 2 / 4 / 2, total 186 / 17 / 59 / 45.
-- 2026-10-13 — C10-COUNTERS, part 1 of 2 (the counter styles). Found: `CounterStyle` was a closed enum of
+- 2026-10-06 — C10-COUNTERS, part 1 of 2 (the counter styles). Found: `CounterStyle` was a closed enum of
   five styles formatted by hand-written arms; any other name dropped the declaration. Decision, table-driven
   and shared with C10-COUNTER-STYLE: every style is a `CounterStyleRule` — the descriptors of an
   `@counter-style` rule (`System`, symbols, additive symbols, `negative`, `prefix`, `suffix`, `range`, `pad`,
@@ -6077,7 +6077,7 @@ row comes from.
   (restored, touched): `pad` not counting the negative sign → `numeric_styles_write_positional_digits`
   (`-07`). No existing expectation changed (two cascade tests build `CounterStyle::named("upper-roman")` /
   `decimal()` for the old variants).
-- 2026-10-13 — C10-COUNTERS, part 2 of 2 (counter ops, scoping, the list-item counter). Found: `reversed()`
+- 2026-10-06 — C10-COUNTERS, part 2 of 2 (counter ops, scoping, the list-item counter). Found: `reversed()`
   and `counter-set` dropped the declaration; a sibling's reset nested in the previous sibling's counter
   instead of replacing it (§4.5), so `counters()` of a second list read `2.1`; `li` counted through an
   explicit UA `counter-increment`, `display: list-item` incremented nothing (§4.6), and `<ol start>`,
@@ -6108,7 +6108,7 @@ row comes from.
   `ua_total_rule_count` 170 → 171; `nested_lists_scope_and_resume` now asserts the second list replaces
   the first's counter (`values == [0]`). CSS-COVERAGE: `counter-reset` Partial → Supported, `counter-set`
   Missing → Supported, §3.15 7 / 0 / 3 / 2, total 189 / 15 / 58 / 45. No snapshot changed.
-- 2026-10-13 — C10-COUNTER-STYLE. Found: `@counter-style` was an unsupported at-rule (consumed and warned),
+- 2026-10-06 — C10-COUNTER-STYLE. Found: `@counter-style` was an unsupported at-rule (consumed and warned),
   and `symbols()` dropped the `content` declaration. Decisions: (1) Storage, as `@property`: the sheet keeps
   its definitions in source order (`Stylesheet::counter_styles`, `CounterStyleDefinition { name, rule,
   layer }`; `append` maps their layers), and the cascade orders all sheets' definitions once per run —
@@ -6134,7 +6134,7 @@ row comes from.
   it green — the early one bounds the allocation, the final one the text). No existing expectation
   changed. CSS-COVERAGE: `@counter-style` / `symbols()` Missing → Supported, §3.15 8 / 0 / 2 / 2, total
   190 / 15 / 57 / 45.
-- 2026-10-13 — C10-LIST-ITEM, part 1 of 2 (the list properties and the `::marker` cascade). Found:
+- 2026-10-06 — C10-LIST-ITEM, part 1 of 2 (the list properties and the `::marker` cascade). Found:
   `list-style-*`, `list-style` and `marker-side` were unknown properties; `::marker` an unsupported
   pseudo-element; `display: list-item` set a flag nothing read but the counters (C10-COUNTERS). Decisions:
   (1) The four longhands and the shorthand in rdom-style (`layout/list.rs`, `parse/values/list.rs`; the
@@ -6157,7 +6157,7 @@ row comes from.
   per element (a lowercased `String` and an `Arc`): predefined counter style names are now `'static`
   (`CounterStyleName`, matched case-insensitively against the table without allocating), `CounterStyle::disc()`
   / `decimal()` are `const`. The marker is not laid out yet; `li::before` still draws it (part 2).
-- 2026-10-13 — C10-LIST-ITEM, part 2 of 2 (laying the marker out). Found: the marker was the UA's
+- 2026-10-08 — C10-LIST-ITEM, part 2 of 2 (laying the marker out). Found: the marker was the UA's
   `li::before`, packed inside the line (never hung), riding a descendant's line through an `li`-only
   path (`marker_line_holder` / `deferred_markers`, keyed on the tag) that also kept an `li`'s `::before`
   from CSS 2.1 §9.2.1.1's own line; its intrinsic width was its raw `unicode-width` (C9G-MISC-CORRECTNESS's
@@ -6198,11 +6198,11 @@ row comes from.
   draws. DIVERGENCES: the `li::before` entry is gone; the outside-marker approximations are recorded.
   Not done: positioned `::before` / `::after` still lay out and paint on their own path
   (`positioned_pseudos`) — the one separate pseudo path left; the Phase 10 gate decides its unification.
-- 2026-10-13 — Phase 10 part 1 closed (C10-LEGACY-COLON, -CONTENT, -QUOTES, -COUNTERS, -COUNTER-STYLE,
+- 2026-10-08 — Phase 10 part 1 closed (C10-LEGACY-COLON, -CONTENT, -QUOTES, -COUNTERS, -COUNTER-STYLE,
   -LIST-ITEM): CSS-COVERAGE §3.15 10 / 0 / 0 / 2, §3.16 6 / 1 / 3 / 6, §3.7 8 / 0 / 1 / 2, total
   194 / 14 / 54 / 45; ACID tile 9 extended. Part 2 (C10-FIRST, -HIGHLIGHT, -DETAILS-CONTENT, -PSEUDO-CHAINS)
   is next.
-- 2026-10-13 — C10-PSEUDO-UNIFY (new row, from C10-LIST-ITEM's note). Found: positioned `::before` / `::after`
+- 2026-10-08 — C10-PSEUDO-UNIFY (new row, from C10-LIST-ITEM's note). Found: positioned `::before` / `::after`
   had a layout and paint path of their own (`positioned_pseudos`, two modules): one string on one line (every
   intrinsic keyword its width), painted in a flat pass after every stacking context ordered by the host's
   `z-index`, not hit-tested, not in any scroll container's overflow, an axis with both insets `auto` at the
@@ -6246,7 +6246,7 @@ row comes from.
   that read `after_layout` read `positioned_pseudos()`. DIVERGENCES: the flat-pass, not-in-overflow,
   not-hit-tested and one-string-width entries are gone; one entry records the moved pseudo-element's paint order.
   No snapshot changed.
-- 2026-10-13 — C10-FIRST, part 1 of 3 (the cascade). Found: `::first-line` / `::first-letter` rules were stored
+- 2026-10-08 — C10-FIRST, part 1 of 3 (the cascade). Found: `::first-line` / `::first-letter` rules were stored
   whole and matched nothing (C10-LEGACY-COLON). Decisions: (1) rdom-style cuts them when the rule is built, as
   `::marker`'s: `first_line_subset` (CSS Pseudo 4 §2.2.1 — the font, color, `opacity`, background and text
   decoration properties, `text-transform`, `letter-spacing`, `word-spacing`; `line-height`, which §2.2.1 also
@@ -6265,7 +6265,7 @@ row comes from.
   the block → the cascade test (green for red). No existing expectation changed. Split (SIZE-1): the subsets left
   `tui_style/mod.rs` (615) for `tui_style/subsets.rs`; the early pseudo-element styles left `cascade/walk.rs` (629) for
   `cascade/early_pseudos.rs` (a named struct for the nine-style tuple).
-- 2026-10-13 — C10-FIRST, part 2 of 3 (`::first-line` laid out and painted). Decisions: (1) Which line
+- 2026-10-08 — C10-FIRST, part 2 of 3 (`::first-line` laid out and painted). Decisions: (1) Which line
   (`inline/first_line.rs::hosts`): a flow packed for block `b` that holds its first formatted line is the first
   formatted line of `b` and of each ancestor whose first line-bearing box item is the block below it, with no
   inline `::before` line of its own before it (CSS Pseudo 4 §2.2; `generated::line_bearing_child` /
@@ -6290,7 +6290,7 @@ row comes from.
   → the transform / spacing and line-clamp tests (`CCC` / `c d`); no climb past the block → the descendant-block
   test; no paint overlay → the four color / background tests. No existing expectation or snapshot changed.
   CSS-COVERAGE: the row Missing → Partial (`::first-letter` remains), §3.16 6 / 2 / 2 / 6, total 194 / 15 / 53 / 45.
-- 2026-10-13 — C10-FIRST, part 3 of 3 (`::first-letter`). Decisions: (1) The letter is found before packing, in
+- 2026-10-08 — C10-FIRST, part 3 of 3 (`::first-letter`). Decisions: (1) The letter is found before packing, in
   the content (`inline/first_letter.rs::letter`): a walk of the flow's block in packing order — its inline
   `::before` text, its text and the inline boxes it holds (their `::before` / `::after`), out-of-flow and floated
   boxes skipped, an atom, a block or `<br>` ending it — scanning graphemes: leading white space skipped, then
@@ -6310,7 +6310,7 @@ row comes from.
   the letter never floating → the drop-cap test. No existing expectation or snapshot changed. CSS-COVERAGE: the row
   Partial → Supported, §3.16 7 / 1 / 2 / 6, total 195 / 14 / 53 / 45. DIVERGENCES: the §3 entry is gone; §2 records
   the non-floated letter's box properties, the punctuation table, nested letters and intrinsic sizes.
-- 2026-10-13 — C10-HIGHLIGHT, part 1 of 2 (the data model, rdom-core). Found: rdom-core had no live-range machinery
+- 2026-10-08 — C10-HIGHLIGHT, part 1 of 2 (the data model, rdom-core). Found: rdom-core had no live-range machinery
   — `Range` is a value, the selection is cleared when its node leaves the tree (DIVERGENCES §2) and text edits do not
   move it (the editor sets it after each edit) — so the brief's "existing Range boundary-update machinery" had to be
   built. Decisions: (1) `rdom_core::highlight` (renderer-free, it holds only `Range`s): `Highlight` (a set of ranges in
@@ -6327,7 +6327,7 @@ row comes from.
   not modelled (DIVERGENCES §2). Red: rdom-core `highlight_tests` (4, compile-red: no `Highlight`), and the
   registration test's record count first expected 6 for the 5 accesses it made (a test bug, fixed). Green after. No
   existing expectation changed.
-- 2026-10-13 — C10-HIGHLIGHT, part 2 of 2 (`::highlight()` styled and painted). Decisions: (1) rdom-style parses
+- 2026-10-08 — C10-HIGHLIGHT, part 2 of 2 (`::highlight()` styled and painted). Decisions: (1) rdom-style parses
   `::highlight(<custom-ident>)` in the suffix stripper (`selector_text::highlight_suffix`: the argument one
   identifier, through rdom-core's `css_syntax`); the name rides the target, `PseudoElementTarget::Highlight(Arc<str>)`,
   so the cascade's per-target matching needs no side channel — the enum loses `Copy` (Breaking). The highlight
@@ -6347,7 +6347,7 @@ row comes from.
   selection tests. No existing expectation or snapshot changed (no test styled `::selection` with a property the
   subset drops). TECH_DEBT: `HIGHLIGHT-COST-1` (fragments × ranges). CSS-COVERAGE: `::highlight()` Missing →
   Supported, `::selection`'s row rewritten, §3.16 8 / 1 / 1 / 6, total 196 / 14 / 52 / 45.
-- 2026-10-13 — C10-DETAILS-CONTENT — partial. Found: a closed `<details>` was hidden by a UA rule
+- 2026-10-08 — C10-DETAILS-CONTENT — partial. Found: a closed `<details>` was hidden by a UA rule
   `details:not([open]) > *:not(summary) { display: none }` — elements only, so text directly inside showed, and any
   `<summary>` (not just the first) stayed — and `::details-content` was rejected as unsupported. Decisions: (1)
   rdom-style parses `::details-content` (`PseudoElementTarget::DetailsContent`); the UA rule becomes
@@ -6368,7 +6368,7 @@ row comes from.
   touched): no slot inheritance and closed not hiding → all three. Changed expectation: the `TuiExt` size bound 456 →
   464 (one `Rc`; the item's other fields fit in what the removed `PseudoLayout`s freed). No snapshot changed.
   CSS-COVERAGE: Missing → Partial, §3.16 8 / 2 / 0 / 6, total 196 / 15 / 51 / 45.
-- 2026-10-13 — C10-PSEUDO-CHAINS — partial. Found: a selector with anything after its pseudo-element was
+- 2026-10-08 — C10-PSEUDO-CHAINS — partial. Found: a selector with anything after its pseudo-element was
   rejected (`::before:hover` an "unsupported pseudo-element"), save rdom's own `::scrollbar-thumb:vertical`;
   rdom-core's selectors reject every pseudo-element; nothing knew which pseudo-element the pointer was over
   (the hit test names a pseudo-element's host, C10-PSEUDO-UNIFY). The C5-BOX-SIZING entry's
@@ -6410,7 +6410,7 @@ row comes from.
   restyles the host); no unstyled first letter → the first-letter test. The marker test hovers an `inside`
   marker: an outside one is not in the hit-test set (DIVERGENCES §2, extended). No existing expectation or
   snapshot changed. CSS-COVERAGE: the row stays Partial (nested pseudo-elements), counts unchanged.
-- 2026-10-13 — C9-CARRY-INDENT (new row, from the Phase 9 close's open list). Found: `text-indent` is inherited
+- 2026-10-08 — C9-CARRY-INDENT (new row, from the Phase 9 close's open list). Found: `text-indent` is inherited
   (CSS Text 3 §8.1) and a `calc()` one keeps its percentage to the used value (CSS Values 4 §10.9), so every
   descendant's computed style held a copy of the expression tree — `Length::Calc(Box<CalcExpr>)` cloned per
   inheriting element (six allocations each for `calc(50% + 2)`). Decision: `Length::Calc` holds an
@@ -6424,7 +6424,7 @@ row comes from.
   (`text-indent: calc(50% + 2)` against `text-indent: 2`, `cascade_allocations` as the family-list test). Green
   after. Mutation: HEAD's `Box` is the reverse change (the red run). Changed expectations: three tests build a
   `Length::Calc` (`Length::calc(…)` / `.into()`); no behaviour or snapshot changed.
-- 2026-10-13 — Phase 10 part 2 closed (C10-PSEUDO-UNIFY, -FIRST in three parts, -HIGHLIGHT in two,
+- 2026-10-08 — Phase 10 part 2 closed (C10-PSEUDO-UNIFY, -FIRST in three parts, -HIGHLIGHT in two,
   -DETAILS-CONTENT, -PSEUDO-CHAINS, and C9-CARRY-INDENT from the Phase 9 close): every Phase 10 row is done but
   two, honestly partial — C10-DETAILS-CONTENT (the slot is no box) and C10-PSEUDO-CHAINS (nested
   pseudo-elements). CSS-COVERAGE §3.15 10 / 0 / 0 / 2, §3.16 8 / 2 / 0 / 6, total 196 / 15 / 51 / 45; ACID
@@ -6435,7 +6435,7 @@ row comes from.
   whether an inherited `calc()` `letter-spacing` / `word-spacing` / `line-height` clones per element as
   `text-indent` did (C9-CARRY-INDENT); and the re-review of the Phase 9 gate fixes (`C9G-*`) that rides with
   this gate.
-- 2026-10-13 — Phase 10 gates (with the C9G re-review: all 14 at the root). Architect: 2 blocking —
+- 2026-10-08 — Phase 10 gates (with the C9G re-review: all 14 at the root). Architect: 2 blocking —
   marker placement is quadratic in sibling count in every document (`line_markers` climbs and rebuilds
   the parent's `box_sequence` per flow; ~4M box visits for 2000 rows); two production files past 575
   (`inline_paint/mod.rs` 577, `computed.rs` 589) with SIZE-1 stale. API: 4 blocking — six reshaped
@@ -6467,7 +6467,7 @@ row comes from.
   `::details-content` as a real box, `::before::marker` / `::after::marker`. Full reports:
   `target/claude-logs/c10_gate_{architect,api}.md`. Fix as `C10G-*`, three batches: A correctness and
   cost, B finish the two partial items, C API and docs.
-- 2026-10-13 — C10G-SPLITS (architect B2). Two production files past the 575 split-on-touch bar, split by
+- 2026-10-08 — C10G-SPLITS (architect B2). Two production files past the 575 split-on-touch bar, split by
   concern with no code change: `rdom-tui/src/render/paint_pass/inline_paint/mod.rs` (578) → `mod.rs` 325
   (the three entry points and the anchor tagging) + `inline_paint/flow.rs` 271 (`FlowPlacement` and the
   shared line walker `paint_inline_layout`, which C10G-HIGHLIGHT-COST changes next); `rdom-style/src/computed.rs`
@@ -6475,7 +6475,7 @@ row comes from.
   `Default`) + `computed/queries.rs` 55 (`flex_direction`, `is_scroll_container`, `is_atomic_inline`,
   `clips_overflow`, `normalize_overflow`). TECH_DEBT `SIZE-1` recounted against the tree (21 files between
   500 and 575, none past). Public paths unchanged; no test or snapshot changed.
-- 2026-10-13 — C10G-MARKER-COST (architect B1). Found: `line_markers` (CSS Lists 3 §3.5: a marker rides the
+- 2026-10-08 — C10G-MARKER-COST (architect B1). Found: `line_markers` (CSS Lists 3 §3.5: a marker rides the
   first line of the block holding the item's first line box) climbed from every packed and measured flow,
   in every document, and each step's `line_bearing_child` built the parent's whole `box_sequence` Vec — a
   row among N siblings visited all N. Fixed at the root, two parts: (1) `box_tree::find_in_sequence` finds
@@ -6495,7 +6495,7 @@ row comes from.
   with). Mutation (each alone, restored, touched): the eager `box_sequence` lookup → the visit test fails
   (8 022 000 for the list-item rows); the gate removed → the climb test (6 steps for 0). No existing
   expectation or snapshot changed.
-- 2026-10-13 — C10G-MARKER-CLIP (API B4). Found: the UA gave `ul` / `menu` two cells of
+- 2026-10-08 — C10G-MARKER-CLIP (API B4). Found: the UA gave `ul` / `menu` two cells of
   `padding-inline-start` and `ol` three, so an outside marker (CSS Lists 3 §3.5: its end at the item's
   border edge) wider than that started left of a list at column 0 — "10. " painted "0. ", "III. " "I. ".
   Decision: HTML §15.3.8's 40px is 2.5em at the 16px default font, about five digits of text, so all three
@@ -6513,7 +6513,7 @@ row comes from.
   `pseudo_chains.rs` (the inside marker is two cells further right), three `paint_pass` list rows and the
   UA padding test; snapshots `lists_generated.snap` and `ua_chrome.snap` — the list rows only, one or two
   cells right; no background changed.
-- 2026-10-13 — C10G-MARKER-HIT (architect N5, N6, N12; API B4's DIVERGENCES line). Four parts, each red
+- 2026-10-08 — C10G-MARKER-HIT (architect N5, N6, N12; API B4's DIVERGENCES line). Four parts, each red
   first. (1) Outside markers are hit as their item (CSS Lists 3 §3.5: the marker is a box of the list item
   outside its principal box; browsers hit-test it to the `li`): the element hit test missed the item's box
   and stopped at the list whose padding the marker hangs in, so a click on a bullet targeted the `ul` and
@@ -6538,7 +6538,7 @@ row comes from.
   `"   *b   "` centered); green after. Mutation (the three code changes disabled together, each caught by its
   own tests, restored, touched): the marker branch → both hit tests; the `type` hint → the type test; the
   first-line start → the static-position test. No existing expectation or snapshot changed.
-- 2026-10-13 — C10G-SELECTION-PAIRED (API N2). Found: the UA's `*::selection { background-color: Highlight;
+- 2026-10-08 — C10G-SELECTION-PAIRED (API N2). Found: the UA's `*::selection { background-color: Highlight;
   color: white }` supplied `color` whatever the author set, and the overlay applies a `color` that differs
   from the text's, so `::selection { background-color: yellow }` painted white text on yellow. CSS
   Pseudo-Elements 4 §3.4's paired defaults: the UA's highlight colors are used as a pair — an author value
@@ -6552,7 +6552,7 @@ row comes from.
   `(red, yellow)`; green after (also `(red, blue)` with only `color` set, and the UA pair untouched with
   neither). Mutation (the background reset dropped, restored, touched): the `color`-only row fails with the
   UA's `Rgb(57, 75, 126)` background. No existing expectation or snapshot changed.
-- 2026-10-13 — C10G-HIGHLIGHT-COST (architect N1, N2, N3; API N3.5; closes TECH_DEBT `HIGHLIGHT-COST-1`).
+- 2026-10-08 — C10G-HIGHLIGHT-COST (architect N1, N2, N3; API N3.5; closes TECH_DEBT `HIGHLIGHT-COST-1`).
   Found, by counting (red first, each): (1) rdom-core walked every earlier sibling (`child_index`) on each
   insertion while a highlight was registered — 1 999 000 hops for 2000 appends under one search highlight
   — and each removal too; (2) inserting a `DocumentFragment` unlinked its children by hand, so a live range
@@ -6589,7 +6589,7 @@ row comes from.
   touched): no append fast path → 1 075 250 hops; no removal gate → 195 050 hops; the prepared index
   ignored → 15 000 copies; no node index → 15 000 range tests; no style sharing → 220 allocations for
   160; highlight matches never reloaded → 1 match. No existing expectation or snapshot changed.
-- 2026-10-13 — C10G-IDLE-SCANS (architect N4, N10, N11). Found, by counting (red first, each): (1)
+- 2026-10-08 — C10G-IDLE-SCANS (architect N4, N10, N11). Found, by counting (red first, each): (1)
   `first_line::hosts` climbed every ancestor of every packed and measured flow looking for a
   `::first-line` / `::first-letter` host — 84 steps for six nested blocks of text with no such rule
   anywhere; (2) every cascade run rescanned its sheets for `styles_first`, `highlight_names` and the
@@ -6613,7 +6613,7 @@ row comes from.
   green after. Mutation (restored, touched): no first-rules gate → 84 steps; every line read → 2001
   lines; never every line → the moved `::before` is missed (`None`). No existing expectation or snapshot
   changed.
-- 2026-10-13 — C10G-INHERIT-COST (architect N7; API N5). One table-driven test now covers the inherited set:
+- 2026-10-08 — C10G-INHERIT-COST (architect N7; API N5). One table-driven test now covers the inherited set:
   `cascade/cost_tests.rs::every_inherited_value_is_shared_not_copied` gives every property
   `property_dispatch::inherits` names a non-initial value — one holding heap data where the property can (a
   percentage, an expression, a string, a list, a custom counter-style name) — asserts the table covers the
@@ -6634,7 +6634,7 @@ row comes from.
   `migration_hints.rs::calc_payload_hints`. Mutation: HEAD's payload types are the reverse change (the red
   run). Changed expectations: construction sites in rdom-style's own tests (`Box::new` → `Arc::new` or
   `calc()`); no behaviour or snapshot changed.
-- 2026-10-13 — C10G-TUIEXT-SIDE (architect N8). Found: every element's `TuiExt` held twelve pseudo-element
+- 2026-10-08 — C10G-TUIEXT-SIDE (architect N8). Found: every element's `TuiExt` held twelve pseudo-element
   slots almost always `None` — `::marker`, `::first-line`, `::first-letter`, `::details-content`,
   `::backdrop`, the three scrollbar parts, and the `::before` / `::after` previous styles and transition
   overrides — 464 bytes per node. Fixed: they move into one `PseudoStyles` record
@@ -6655,7 +6655,7 @@ row comes from.
   `ext/tests.rs::the_pseudo_side_record_is_boxed_only_when_used` (none on a plain `div`, one on an `li`,
   gone when it stops being a list item). No other expectation or snapshot changed (the test reads rewrote
   field reads as accessor calls).
-- 2026-10-13 — C10G-MINOR (architect N13: the layering scan and the counter cap). Two fixes, each red first.
+- 2026-10-08 — C10G-MINOR (architect N13: the layering scan and the counter cap). Two fixes, each red first.
   (1) The layering test (`style/layering_tests.rs`, CLAUDE.md §Architecture Hygiene: `style/` reaches no
   `crate::render`) scanned lines for the text `crate::render`, so a grouped import — `use
   crate::{render::Rect, style::X};` — or a `super::super::super::render` path evaded it. It now reads paths
@@ -6676,13 +6676,13 @@ row comes from.
   (630 built for ≤ 60); green after (the fallback `2147483647`, nothing built, and two-digit values of 40
   code points still written). Mutation (each, restored, touched): the `use` trees ignored → the grouped
   import passes the scan; the cap check removed → 630 built. No existing expectation or snapshot changed.
-- 2026-10-13 — C10G-INHERIT-COST split. C10G-INHERIT-COST's `calc()` constructors left
+- 2026-10-08 — C10G-INHERIT-COST split. C10G-INHERIT-COST's `calc()` constructors left
   `rdom-style/src/layout/sizing.rs` at 600 production lines, past the 575 split-on-touch bar (found by the
   batch's closing recount; the gate's limit is 600, so the workspace check still passed): `aspect-ratio`
   (`AspectRatio`) moves to `layout/aspect_ratio.rs` (71) and `gap` (`GapValue`) to `layout/gap.rs` (65),
   `sizing.rs` 468; re-exports unchanged. `Size`'s doc no longer says its `Calc` clones the tree (it is an
   `Arc`). TECH_DEBT `SIZE-1` recounted (none past 575). No code or test changed.
-- 2026-10-13 — C10G-DETAILS-CONTENT-BOX (finishes C10-DETAILS-CONTENT). Found: `::details-content` was a
+- 2026-10-08 — C10G-DETAILS-CONTENT-BOX (finishes C10-DETAILS-CONTENT). Found: `::details-content` was a
   style with no box — its background, border, padding, sizes and `overflow` drew nothing, a closed element
   kept no box, and loose text in the slot took the `<details>`'s style. Decision (HTML §15.5.20: the second
   slot of the element's shadow tree is a block box): the slot's box is a node outside the document, kept by
@@ -6721,7 +6721,7 @@ row comes from.
   scroll and caret tests; `children` ignoring the link → 9 of 13. No existing expectation or snapshot
   changed. CSS-COVERAGE `::details-content` Partial → Supported, §3.16 9 / 1 / 0 / 6, total 197 / 14 / 51
   / 45. TECH_DEBT `SIZE-1` recounted for the touched files (none past 575).
-- 2026-10-13 — C10G-PSEUDO-MARKER (finishes C10-PSEUDO-CHAINS). Found: `li::before::marker` was an invalid
+- 2026-10-08 — C10G-PSEUDO-MARKER (finishes C10-PSEUDO-CHAINS). Found: `li::before::marker` was an invalid
   selector ("at most one pseudo-element"), and a `display: list-item` `::before` / `::after` — which already
   incremented `list-item` (CSS Lists 3 §4.6: `counters::enter` reads the flag on any box) — drew no marker.
   Decisions (CSS Pseudo-Elements 4 §4, CSS Lists 3 §3.1): (1) rdom-style parses the one nesting CSS defines,
@@ -6756,10 +6756,10 @@ row comes from.
   175). No snapshot changed. CSS-COVERAGE: the pseudo-element-chain row Partial → Supported, `::marker` and
   `display: list-item` rows extended, §3.16 10 / 0 / 0 / 6, total 198 / 13 / 51 / 45; DIVERGENCES §3's
   pseudo-element line removed. TECH_DEBT `SIZE-1`: `walk.rs` 527 / 541.
-- 2026-10-13 — C10G batch B closed (C10G-DETAILS-CONTENT-BOX, C10G-PSEUDO-MARKER): both Phase 10 partial
+- 2026-10-08 — C10G batch B closed (C10G-DETAILS-CONTENT-BOX, C10G-PSEUDO-MARKER): both Phase 10 partial
   items are done; §3.16 has no Partial row. Found on the way and recorded: geometry transitions never move
   layout (DIVERGENCES §3, C12-ANIMATABLE); an inline list item has no marker (DIVERGENCES §4).
-- 2026-10-13 — C10G-INLINE-LIST-ITEM (found by C10G-PSEUDO-MARKER). Found: `display: inline list-item` — on an
+- 2026-10-08 — C10G-INLINE-LIST-ITEM (found by C10G-PSEUDO-MARKER). Found: `display: inline list-item` — on an
   element, or on a `::before` / `::after` — incremented `list-item` but drew no marker, because markers were
   placed only on a block container's first line. CSS Display 3 §2.3 gives every list item a `::marker`, and
   CSS Lists 3 §3.5 says `outside` "is equivalent to `inside`" when the list item is an inline box. Fixed in the
@@ -6774,7 +6774,7 @@ row comes from.
   and so hangs its marker off-screen, which is correct, so the test wraps it in a `<div>`. DIVERGENCES §4's
   "inline list item has no marker" entry removed; CSS-COVERAGE `display: list-item` and `::marker` rows
   corrected (counts unchanged, both rows were already Supported). No existing expectation or snapshot changed.
-- 2026-10-13 — C10G-MIGRATION (API B1, N1). The six items Phase 10 reshaped from 0.5 had Breaking prose but no
+- 2026-10-08 — C10G-MIGRATION (API B1, N1). The six items Phase 10 reshaped from 0.5 had Breaking prose but no
   API-table row and no hint group. All six existed in `v0.5.0` (checked against the tag), so their rows go in
   the from-0.5 rdom-style table: `Length::Calc` (C9-CARRY-INDENT; `Box` → `Arc`, `Length::calc`), `CounterStyle`
   (a name, not a `Copy` enum), `CounterOp` (`#[non_exhaustive]`, `new` / `reversed`), `parse_counter_ops` (third
@@ -6789,7 +6789,7 @@ row comes from.
   `@counter-style` rule types (`System`, `CounterStyleRule`, …) stay off the root (generic names) and are reached
   as `rdom_tui::style::counters::…` (rdom-style's module, re-exported beside `style::parse`), so
   `CounterStyle::symbols(System::Cyclic, …)` works with `rdom-tui` alone; the hint builds one. No existing expectation changed.
-- 2026-10-13 — C10G-DESIGN-TYPES (API B2; the architect's DESIGN item). DESIGN listed `Content` as closed, but
+- 2026-10-08 — C10G-DESIGN-TYPES (API B2; the architect's DESIGN item). DESIGN listed `Content` as closed, but
   it is `#[non_exhaustive]` (C10-CONTENT), and it classified none of Phase 10's ~20 new public types. Every type
   is now decided. Open (`#[non_exhaustive]`): `Content` (Generated Content 3 / GCPM keep adding items; resolution
   lives in rdom-style, `Content::resolve`, where an unknown item resolves to nothing), `Quotes` (read through
@@ -6809,7 +6809,7 @@ row comes from.
   `css_phase10/list_item.rs::marker_and_quote_values_are_closed` (an exhaustive match outside rdom-style) failed
   to compile with 4 × E0004 (`_` not covered); green after. No wildcard arm in the workspace became unreachable
   (clippy clean). No existing expectation changed.
-- 2026-10-13 — C10G-UPGRADE (API B3). The upgrade guide's silent changes from Phase 10 were item 10 (no ids)
+- 2026-10-08 — C10G-UPGRADE (API B3). The upgrade guide's silent changes from Phase 10 were item 10 (no ids)
   and four batch-A/B items appended unranked at the end (43–46). Nine missing changes were added and Phase 10's
   entries ranked by impact among the rest (55 items). Item 10 now carries its ids (C10-LIST-ITEM,
   C10G-MARKER-CLIP) and both consequences: an `li::before { color }` no longer colours the bullet (use
@@ -6824,7 +6824,7 @@ row comes from.
   marker. The wider list padding is item 10's "four cells (two in 0.5)", so it gets no separate entry. "The
   357-character bullet" matched no bullet in the guide by characters or bytes, so the trim went to the longest
   Phase 10 one, item 43. Docs only, so no code or test changed.
-- 2026-10-13 — C10G-HIGHLIGHT-API (API N3). The search-highlight use case from Rust had four rough edges, each
+- 2026-10-08 — C10G-HIGHLIGHT-API (API N3). The search-highlight use case from Rust had four rough edges, each
   fixed. (1) No descendant walk existed under any name: rdom-core had only the crate-private
   `walk_descendants` / `walk_subtree` callbacks, and `query_selector_all` returns elements only. The new
   `Dom::descendants(root)` (`traversal.rs`, the `Descendants` iterator) walks in tree order, includes text nodes,
@@ -6852,7 +6852,7 @@ row comes from.
   `migration_hints.rs::highlight_hints` with an after-0.5 API-table row. Changed expectation: the existing
   registry test reads `len()` / `priority()` / `kind()` and `with_kind` (it still counts five records for
   five changes).
-- 2026-10-13 — C10G-API-SMALL (API N4, N6, N8; the architect's `Backend` note). Five parts, red first where code
+- 2026-10-08 — C10G-API-SMALL (API N4, N6, N8; the architect's `Backend` note). Five parts, red first where code
   changed. (1) `GeneratedFragment` gains `offset()` (a relative / sticky pseudo-element's shift, CSS 2.1 §9.4.3),
   `drawn_at()` (`(x, y)` moved by it — where paint draws and hit-testing finds it) and `is_outside_marker()`
   (CSS Lists 3 §3.5); the fields stay crate-private. Decision: accessors, not public fields, as the record's other
@@ -6878,7 +6878,7 @@ row comes from.
   invalid-rule test names each rule's reason (it matched any `InvalidCounterStyleRule`), and
   `css_phase8/containing_block.rs` reads `positioned_pseudos().next()` for the border box. CHANGELOG: the from-0.5
   `before_layout` row and two after-0.5 rows, hint group `generated_box_read_hints`.
-- 2026-10-13 — C10G-DOCS (API N7, N9). (1) The rdom-core README's mutation record list gains `HighlightsChanged`,
+- 2026-10-08 — C10G-DOCS (API N7, N9). (1) The rdom-core README's mutation record list gains `HighlightsChanged`,
   and `PreDetach`, which was also missing. A short "Custom highlights" section points to the rdom-tui README's
   example. (2) The rdom-tui README gains a "Lists, counters and generated content" section: what Phase 10 ships
   (markers, every predefined style, `@counter-style`, `counter()` / `counters()`, `::marker`, the HTML list
@@ -6894,7 +6894,7 @@ row comes from.
   search highlight built from Rust (overlap with the selection stays in tile 17). I12 points at 9a–9c. (4) The
   C12-ANIMATABLE row of the Phase 12 table now says, in bold, that geometry transitions never reach layout
   (found by C10G-DETAILS-CONTENT-BOX). Docs and a doctest only; no production code changed.
-- 2026-10-13 — Phase 10 closed: 19 gate fixes, all at the root — batch A (correctness and cost: C10G-SPLITS,
+- 2026-10-08 — Phase 10 closed: 19 gate fixes, all at the root — batch A (correctness and cost: C10G-SPLITS,
   -MARKER-COST, -MARKER-CLIP, -MARKER-HIT, -SELECTION-PAIRED, -HIGHLIGHT-COST, -IDLE-SCANS, -INHERIT-COST and its
   split, -TUIEXT-SIDE, -MINOR), batch B (the two partial items: -DETAILS-CONTENT-BOX, -PSEUDO-MARKER) and batch C
   (API, migration and docs: -INLINE-LIST-ITEM, -MIGRATION, -DESIGN-TYPES, -UPGRADE, -HIGHLIGHT-API, -API-SMALL,
@@ -6902,10 +6902,10 @@ row comes from.
   gate. Carried forward: geometry transitions reaching layout (C12-ANIMATABLE, flagged on its row),
   `interpolate-size` for `::details-content`, and closed `<details>` content computing `display: none` until
   C14-CONTAIN brings `content-visibility`.
-- 2026-10-14 — C11-SPLIT (before Phase 11): `rdom-core/src/query_selector.rs` (519 production lines) split by
+- 2026-10-08 — C11-SPLIT (before Phase 11): `rdom-core/src/query_selector.rs` (519 production lines) split by
   concern — `query_selector/mod.rs` (the query APIs), `matcher.rs`, `pseudo.rs`, `attribute.rs`, `tests.rs`.
   Pure move.
-- 2026-10-14 — C11-ATTR-FLAGS: attribute selector case flags (Selectors 4 §6.3). `SimpleSelector::Attribute`
+- 2026-10-08 — C11-ATTR-FLAGS: attribute selector case flags (Selectors 4 §6.3). `SimpleSelector::Attribute`
   gains `case: AttrCase` (`Default` / `AsciiInsensitive` / `Sensitive`, `#[non_exhaustive]`; a Breaking
   bullet); the parser reads an `i` / `s` identifier (ASCII case-insensitive) after the value — after a string
   or an identifier, white space optional between a string and the flag — and rejects any other identifier
@@ -6921,7 +6921,7 @@ row comes from.
   implementation was in). Mutation (both flags made to defer to the HTML list, restored, touched): the
   matcher test and the sheet test fail. Changed tests: the two parser tests that build or destructure
   `Attribute` gained `case` / `..` (API shape, no expectation). No snapshot changed.
-- 2026-10-14 — C11-NTH (Phase 11 cites Selectors 4 by the W3C WD of 2022-11-11, where child-indexed
+- 2026-10-08 — C11-NTH (Phase 11 cites Selectors 4 by the W3C WD of 2022-11-11, where child-indexed
   pseudo-classes are §13.3, typed ones §13.4, specificity §15; older citations in the code follow an earlier
   draft's numbering — §17 specificity, §14.x the structural pseudo-classes): `:nth-child(An+B [of S])`, `:nth-last-child()`, `:nth-of-type()`, `:nth-last-of-type()`
   (Selectors 4 §13.3–§13.4; `SimpleSelector::Nth(Box<NthSelector>)`, `NthKind`, specificity one pseudo-class
@@ -6951,7 +6951,7 @@ row comes from.
   `nth_of_s_reads_what_s_reads` and `css_phase11/nth.rs::a_sibling_matching_of_s_or_not_restyles_the_others`.
   The counting test's bound counts child nodes (the list interleaves text nodes): 4002 steps for 2000
   elements on first run, bound set to 3N. No existing expectation or snapshot changed.
-- 2026-10-14 — C11-LINK-LANG (with `:dir()`, deferred here by C5-WRITING). `:any-link` / `:link` (Selectors 4
+- 2026-10-08 — C11-LINK-LANG (with `:dir()`, deferred here by C5-WRITING). `:any-link` / `:link` (Selectors 4
   §8.1–§8.2) match `a` / `area` with `href` (HTML §4.16.3); `:visited` parses and never matches — rdom keeps
   no history (DIVERGENCES §1) — so `a:link, a:visited` keeps its `:link` half instead of dropping the rule.
   `:lang()` (§7.2; `SimpleSelector::Lang(Vec<String>)`) takes `<ident>` / `<string>` ranges (a bare `*` must
@@ -6981,7 +6981,7 @@ row comes from.
   after. Mutation (the auto host left unmarked, restored, touched): the editing test fails. Changed
   expectation: the UA rule count 175 → 178 (`ua_total_rule_count`: the two `dir` rules now hold five selectors).
   No snapshot changed.
-- 2026-10-14 — C11-SCOPE: the query methods match with the node they were called on as the scoping root
+- 2026-10-08 — C11-SCOPE: the query methods match with the node they were called on as the scoping root
   (DOM §4.2.6 "scope-match a selectors string", Selectors 4 §8.4): `query_selector_in` /
   `query_selector_all_in` with their root (the document's `query_selector` / `query_selector_all` with the
   document node, so `:scope > div` finds the top-level elements and `:scope` alone none), `matches` and
@@ -6991,7 +6991,7 @@ row comes from.
   `query_methods_scope_to_the_node_they_are_called_on` (`[]` for the two `span`s) and
   `matches_and_closest_scope_to_their_element` (`matches(em, ":scope")` was `false`); green after; the two
   cascade checks green as written. No existing expectation or snapshot changed.
-- 2026-10-14 — C11-COMBINATORS (found while designing C11-HAS, whose anchored matching needs it): two matcher
+- 2026-10-08 — C11-COMBINATORS (found while designing C11-HAS, whose anchored matching needs it): two matcher
   bugs. (1) `matches_complex` took the nearest candidate for each compound and never backtracked, so `div > p
   span` failed for a `span` whose nearest `p` sits in a `section` under the `div`'s `p` (Selectors 4 §3.1:
   some assignment must satisfy every combinator). Rewritten as `match_chain` with Servo's outcomes
@@ -7001,7 +7001,7 @@ row comes from.
   they step to the previous element sibling (§14.3 / §14.4 in the earlier draft's numbering). Red:
   `complex_selectors_backtrack_past_the_nearest_candidate` and `sibling_combinators_skip_text_and_comments`
   (`Ok(false)` for `Ok(true)`); green after. No existing expectation or snapshot changed.
-- 2026-10-14 — C11-HAS: `:has(<relative-selector-list>)` (Selectors 4 §4.5). rdom-core: `SimpleSelector::Has(Vec<
+- 2026-10-08 — C11-HAS: `:has(<relative-selector-list>)` (Selectors 4 §4.5). rdom-core: `SimpleSelector::Has(Vec<
   RelativeSelector>)` (`combinator` — `Descendant` without a leading one — and `selector`; `#[non_exhaustive]`),
   parsed unforgiving, `:has()` invalid anywhere inside another (`Parser::in_has`; inside a forgiving `:is()`
   the inner `:has()` argument is dropped, as for any invalid argument), specificity its most specific
@@ -7040,7 +7040,7 @@ row comes from.
   without the trigger check → the zero-cost test (it hung: the recursion above). Changed expectation:
   `tui_ext_size_tripwire` 376 → 384 (the anchor flag; the small fields had no padding left). No snapshot
   changed.
-- 2026-10-14 — Phase 11 part 1 docs: ACID tile 4 lists the selectors part 1 shipped (case flags, the `:nth-*`
+- 2026-10-08 — Phase 11 part 1 docs: ACID tile 4 lists the selectors part 1 shipped (case flags, the `:nth-*`
   family with `of S`, `:link` / `:any-link` / `:visited`, `:lang()`, `:dir()` on `dir=auto`, `:has()` in its
   four relations, `:scope`, the backtracking and text-skipping combinator cases) and a stage-2 step I13
   exercises their invalidation. C11-COLUMN moved to Phase 13 as C13-COLUMN (the column combinator selects
@@ -7048,7 +7048,7 @@ row comes from.
   say so. §3.17 now: 25 Supported, 1 Partial (`:indeterminate`, part 2), 8 Missing (the part 2 form and
   display states, `:blank`, the column combinator), 4 N/A. Part 2 (C11-FORM-STATES, C11-MODAL-POPOVER) is
   not started.
-- 2026-10-14 — C11-FORM-STATES, part 1 of 4: `:read-only` / `:read-write` (Selectors 4 §14.3.1, HTML §4.16.3;
+- 2026-10-08 — C11-FORM-STATES, part 1 of 4: `:read-only` / `:read-write` (Selectors 4 §14.3.1, HTML §4.16.3;
   `PseudoClass::ReadOnly` / `ReadWrite`). rdom-core answers it from attributes and tree shape
   (`form_pseudo.rs`, `Dom::is_read_write`): a mutable `<input>` that `readonly` applies to (the list
   `will_validate` already used), a mutable `<textarea>` (mutable: no `readonly`, not actually disabled — a
@@ -7061,7 +7061,7 @@ row comes from.
   implementation was in). Mutation (the inherited `contenteditable` walk cut to the element itself,
   restored, touched): `read_write_follows_htmls_mutability_rules` fails. No snapshot or existing
   expectation changed.
-- 2026-10-14 — C11-FORM-STATES, part 2 of 4: `:indeterminate` (Selectors 4 §14.4.3, HTML §4.16.3) on checkboxes
+- 2026-10-08 — C11-FORM-STATES, part 2 of 4: `:indeterminate` (Selectors 4 §14.4.3, HTML §4.16.3) on checkboxes
   and radio groups (the `<progress>` case was in). Decided — the checkbox's indeterminate flag stays reflected
   into an `indeterminate` attribute, the storage `TuiAccessorsMut::set_indeterminate` already used: it is
   rdom's model for live control state (`checked`, `value`, `selected` — DIVERGENCES §2, extended), and
@@ -7083,7 +7083,7 @@ row comes from.
   `checking_a_radio_restyles_its_whole_group` (its `:has()` anchor) and the custom-validity test; no radio
   tracking → the group test. Changed expectations: the UA rule count (one rule); the marks' one-walk test
   reads the validity bit. No snapshot changed.
-- 2026-10-14 — C11-FORM-STATES, part 3 of 4: `:default` (Selectors 4 §14.4.2) and `:in-range` / `:out-of-range`
+- 2026-10-08 — C11-FORM-STATES, part 3 of 4: `:default` (Selectors 4 §14.4.2) and `:in-range` / `:out-of-range`
   (§14.3.3–§14.3.4), with HTML §4.16.3's definitions. The defaults (`defaultChecked`, `defaultSelected`) and
   the range states live in rdom-tui, so rdom-core asks through a new hook in the validity hook's pattern:
   `ControlState` (`#[non_exhaustive]`: `DefaultChecked`, `DefaultSelected`, `RangeLimited`, `OutOfRange`),
@@ -7107,7 +7107,7 @@ row comes from.
   `value`). Mutations (each alone, restored, touched): no `:default` bit → both `:default` App tests; no
   reversed time range → the range test ("inside a reversed time range"). No snapshot or existing
   expectation changed.
-- 2026-10-14 — C11-FORM-STATES, part 4 of 4 (item done): `:user-valid` / `:user-invalid` (Selectors 4
+- 2026-10-08 — C11-FORM-STATES, part 4 of 4 (item done): `:user-valid` / `:user-invalid` (Selectors 4
   §14.4.4–§14.4.5, HTML §4.16.3: an `<input>` / `<textarea>` / `<select>` with its *user validity* set that is
   a candidate and valid / invalid; `Dom::user_validity_state`, `ControlState::UserValidity`). The flag lives
   in the form builtins (`FormControlState::user_validity`), set by HTML's rules: wherever a builtin fires
@@ -7128,7 +7128,7 @@ row comes from.
   the same; no user-validity bit in the marks → only the new `a_novalidate_submission_still_sets_user_validity`
   (the other tests' fields were restyled by focus moves) — added for it. No snapshot or existing expectation
   changed.
-- 2026-10-14 — C11-MODAL-POPOVER, part 1 of 3: the top layer and `:modal`. Found: rdom had no top layer — a
+- 2026-10-08 — C11-MODAL-POPOVER, part 1 of 3: the top layer and `:modal`. Found: rdom had no top layer — a
   modal dialog was marked with an rdom-internal `data-rdom-modal` attribute, painted in flow and again
   after a backdrop post-pass, and clicks outside it reached the page (DIVERGENCES). rdom-core now keeps the
   document's top layer (`top_layer.rs`: an ordered set with a `TopLayerKind` per member — `ModalDialog`,
@@ -7157,7 +7157,7 @@ row comes from.
   centred dialog (expectations moved with the UA's centring); three dialog form tests click the submit
   button where it is laid out — two of them clicked the dialog's border before and passed without
   submitting. No snapshot changed (the showcase's dialog is non-modal).
-- 2026-10-14 — C11-MODAL-POPOVER, part 2 of 3: the `popover` attribute and `:popover-open` (HTML §6.12).
+- 2026-10-08 — C11-MODAL-POPOVER, part 2 of 3: the `popover` attribute and `:popover-open` (HTML §6.12).
   rdom-core: `:popover-open` is a top-layer member as `TopLayerKind::Popover`; `DomError::NotSupported`
   (`NotSupportedError`); `ToggleDetail::source` (`ToggleEvent.source`). rdom-tui: `runtime::builtins::popover`
   (`mod.rs` the API and contract, `algorithms.rs` HTML §6.12.2's check popover validity, show / hide popover,
@@ -7182,7 +7182,7 @@ row comes from.
   invoker test; no attribute watch → the attribute test; hints ignoring the stack rules → the hint test; the
   UA hide rule broken → the integration test. No snapshot or existing expectation changed besides the UA
   count.
-- 2026-10-14 — C11-MODAL-POPOVER, part 3 of 3 (item done): popover light dismiss (HTML §6.12.2 "light dismiss
+- 2026-10-08 — C11-MODAL-POPOVER, part 3 of 3 (item done): popover light dismiss (HTML §6.12.2 "light dismiss
   open popovers", the close watchers of auto / hint popovers). `popover/light_dismiss.rs`: the mouse router
   reports every button's press and release (`pointer_down` / `pointer_up`, before the `mousedown` /
   `mouseup` dispatch, as Blink runs it with the pointer events); the release hides the popovers above the
@@ -7202,13 +7202,13 @@ row comes from.
   `one_esc_closes_one_watcher` (added for it); `showModal()` hiding nothing → the Esc order test; no
   release hook for the other buttons → `a_right_click_outside_dismisses_too`. Phase 11's items are done;
   its gates are pending.
-- 2026-10-14 — Phase 11 part 2 docs: ACID tile 15 lists the form states, the modal dialog's top layer and a
+- 2026-10-08 — Phase 11 part 2 docs: ACID tile 15 lists the form states, the modal dialog's top layer and a
   popover; stage-2 steps I14 (user validity: the blur commit, a submission attempt, a reset, a checkbox) and
   I15 (popover light dismiss: invokers, nested stacks, a drag out, a click outside, Esc against a modal
   dialog, a manual popover) exercise them. CSS-COVERAGE §3.17: 32 Supported, 0 Partial, 2 Missing (`:blank`,
   a decided exclusion; the column combinator, C13-COLUMN), 4 N/A. Phase 11: items done, gates pending (the
   Phase 10 fixes' re-review rides with them).
-- 2026-10-14 — Phase 11 gates (with the C10G re-review: all 19 at the root but one parent climb).
+- 2026-10-08 — Phase 11 gates (with the C10G re-review: all 19 at the root but one parent climb).
   Architect: 2 blocking — a modal dialog does not make the page inert to the keyboard (focusing steps
   focus nothing when the dialog has no focusable content; Enter activates the button underneath);
   popover hide loops (`close_entire_list`, `hide_stack_until`) have no progress bound, so ping-ponging
@@ -7235,7 +7235,7 @@ row comes from.
   requires silent changes, DESIGN classification, re-exports and migration rows in the same commit.
   Full reports: `target/claude-logs/c11_gate_{architect,api}.md`. Fix as `C11G-*`, two batches
   (A correctness and cost, B API and docs).
-- 2026-10-14 — C11G-MODAL-INERT (architect B1, N6's inertness gaps). Found: a modal dialog made the page
+- 2026-10-08 — C11G-MODAL-INERT (architect B1, N6's inertness gaps). Found: a modal dialog made the page
   inert to the pointer only — the dialog focusing steps focused nothing when the dialog had nothing
   focusable, `focus_node` accepted any target, and the `inert` attribute was reflected but did nothing.
   Decided — one computed notion, in rdom-core (renderer-free: attributes and the top layer):
@@ -7264,7 +7264,7 @@ row comes from.
   check in `is_unselectable` → `inert_text_is_not_selectable` (added for it); no subtree pruning in the
   descent → the `inert` subtree test; no `change_focus` guard → the `focus_node` test. No existing
   expectation changed.
-- 2026-10-14 — C11G-POPOVER-BOUND (architect B2, N5, N6; API N2). Found: `close_entire_list` and
+- 2026-10-08 — C11G-POPOVER-BOUND (architect B2, N5, N6; API N2). Found: `close_entire_list` and
   `hide_stack_until` looped while their list was non-empty, so two auto popovers whose closing
   `beforetoggle` listeners show each other hung the App (reproduced through light dismiss: the cap in the
   test's listener tripped) — the C11-MODAL-POPOVER log's "the walk always ends" was wrong. Decided —
@@ -7305,7 +7305,7 @@ row comes from.
   both direct ping-pong / nested-show tests (light dismiss alone stays bounded by the slice); no cleanup on
   a panic and no removal flush (two disjoint mutations in one run) → the panic test, and the removal and
   churn tests.
-- 2026-10-14 — C11G-CANVAS-FILL (API B2). Found: `Color::Reset` stood for two things — the terminal's
+- 2026-10-08 — C11G-CANVAS-FILL (API B2). Found: `Color::Reset` stood for two things — the terminal's
   default background, which `Canvas` and `reset` resolve to, and "no background", the initial value —
   and `fills()` treated it as the second everywhere, so the UA's `[popover] { background-color: Canvas }`
   painted nothing and a modal dialog over text showed the page's glyphs in its padding and beside its
@@ -7333,7 +7333,7 @@ row comes from.
   nothing in them specifies `Canvas` or `reset` as a background. Mutations (each alone, restored,
   touched): `fills` excluding `Reset` again → the three paint tests; no `background-color` in the UA's
   `dialog` rule → the modal dialog test; the paired default back to `Reset` → C10G's selection test.
-- 2026-10-14 — C11G-HAS-COST (architect N2, N3, N7, N8, N11; corrects TECH_DEBT `HAS-COST-1`). Found, by
+- 2026-10-08 — C11G-HAS-COST (architect N2, N3, N7, N8, N11; corrects TECH_DEBT `HAS-COST-1`). Found, by
   count: `div:has(p div)` over 1000 nested `div`s visited 499 500 candidates and took 333 333 000 chain
   steps (every candidate's climb ran to the root); a `div:has(+ i p)` miss under 1000 ancestors climbed
   1002 steps; one `li:has(+ .on)` / `li:has(~ .on)` rule made toggling a class on 5000 rows walk
@@ -7367,7 +7367,7 @@ row comes from.
   always → the `+` test (rewritten to one drain per change, since the dedupe alone also made the
   one-drain version linear). Existing expectation changed: `the_arguments_reads_fire` asserts reaches
   (`HasTriggers::siblings()` became `sibling_reach()`).
-- 2026-10-14 — C11G-DIR-AUTO-COST (architect N4). Found, by count: 100 appended rows (and clock ticks)
+- 2026-10-08 — C11G-DIR-AUTO-COST (architect N4). Found, by count: 100 appended rows (and clock ticks)
   under `<main dir=auto>` restyled `main`'s subtree 100 times, though its first strong character never
   moved — `mark_auto_direction_host` marked the host on every text or child-list change below it.
   Decided — a host remembers the directionality it was last styled with (`TuiExt::auto_direction`, set by
@@ -7379,7 +7379,7 @@ row comes from.
   restyles; green after (0, then one per flip ltr → rtl → ltr, none for an rtl → rtl edit). Mutations (each
   alone, restored, touched): marking unconditionally → the count; no cascade baseline (the first edit sees
   `None`) → the count (1).
-- 2026-10-14 — C11G-DETAILS-PARENT (architect N1). Found: two climbs that look for a box took DOM parents
+- 2026-10-08 — C11G-DETAILS-PARENT (architect N1). Found: two climbs that look for a box took DOM parents
   and skipped the `::details-content` box (C10G-DETAILS-CONTENT-BOX's `slot::parent` is the box tree's
   view): the pseudo hit test (`hit_test::pseudo::ancestors_or_self`) read the `<details>`'s line boxes
   for a slotted `<span>`'s `::before`, which are the slot box's, and found nothing (so `:hover` never
@@ -7405,7 +7405,7 @@ row comes from.
   `a_restyled_contents_slot_reblockifies_its_content` for the restyle path. Mutations (each alone,
   restored, touched): a DOM climb in the hit test → the hit test; the DOM parent passed to
   `children_are_items` → both blockify tests; a DOM climb inside it → both blockify tests.
-- 2026-10-14 — C11G-ENTER-COMMIT (API N4). Found: Enter in a single-line field fired no `change` and set no
+- 2026-10-08 — C11G-ENTER-COMMIT (API N4). Found: Enter in a single-line field fired no `change` and set no
   user validity — a one-field TUI prompt (`<input required pattern=…>`) never showed `:user-invalid` until
   a Tab it may never get — and implicit submission counted only rdom's text-family inputs as fields that
   block it. Decided — HTML §4.10.5.5 leaves the moment of a text control's commit to the user agent;
@@ -7421,7 +7421,7 @@ row comes from.
   `enter_commits_before_implicit_submission` (`["submit"]`, no `change`),
   `date_fields_block_implicit_submission` (a text + date form submitted); green after. Mutation (restored,
   touched): no commit → both Enter tests.
-- 2026-10-14 — C11G-MINOR (architect N11's remainder). Three parts. (1) Highlighted-node removal cost: the
+- 2026-10-08 — C11G-MINOR (architect N11's remainder). Three parts. (1) Highlighted-node removal cost: the
   removal hook (DOM §4.2.3 "remove" steps 4–7) asked of every boundary point whether it is inside the
   removed node with an ancestor walk each, twice (once to decide whether any boundary moves, once to move
   them) — 2 511 690 parent hops for 10 removed lines of a 60-deep log under a 1000-hit search. The answers
@@ -7441,7 +7441,7 @@ row comes from.
   `is_default_with_shares_the_pass_caches` pins the new API (one default-button walk for 50 buttons);
   part (2) changes no behaviour — the existing `:default` tests cover it. Mutation (restored, touched):
   memo lookups off → the hop count.
-- 2026-10-14 — C11G batch A split and SIZE-1 recount. C11G-MODAL-INERT left `runtime/hit_test/descend.rs` at
+- 2026-10-08 — C11G batch A split and SIZE-1 recount. C11G-MODAL-INERT left `runtime/hit_test/descend.rs` at
   592 production lines, past the 575 split-on-touch bar (it should have split in that item; done here,
   before closing the batch): the inline formatting context's half — the fragment owner under a point,
   atomic / transparent / hidden / inert inlines, the inline ancestors on the path — moves to
@@ -7451,7 +7451,7 @@ row comes from.
   recorded there. C11G batch A (C11G-MODAL-INERT, -POPOVER-BOUND, -CANVAS-FILL, -HAS-COST, -DIR-AUTO-COST,
   -DETAILS-PARENT, -ENTER-COMMIT, -MINOR) is done; batch B (API and docs: C11G-UPGRADE, -DESIGN-TYPES,
   -API, -DOCS) remains.
-- 2026-10-14 — C11G-UPGRADE (API B1). The upgrade guide held four batch-A items unranked in the middle
+- 2026-10-08 — C11G-UPGRADE (API B1). The upgrade guide held four batch-A items unranked in the middle
   (16–20: inertness, `Canvas`, `show()` focusing, Enter) and none of Phase 11's own silent changes. Ranked
   now (68 items), by the gate's order with batch A fitted in: 16 the modal dialog — centred in the top layer,
   covering content where it sat in flow, the page inert (the C11G-MODAL-INERT item merged into it, as one
@@ -7464,7 +7464,7 @@ row comes from.
   query methods, `showModal()` hiding open popovers, `dialog::show()` focusing into the dialog (19 → 66: it
   moves focus only for code that called `show()`), the `[-]` glyph, parentless `:first-child`. "Compile
   breaks" gains a Selectors line for `SimpleSelector::Attribute`'s `case`. Docs only: no test.
-- 2026-10-14 — C11G-DESIGN-TYPES (API B3, architect N9). DESIGN classified no Phase 11 type — the fourth
+- 2026-10-08 — C11G-DESIGN-TYPES (API B3, architect N9). DESIGN classified no Phase 11 type — the fourth
   phase running the rule was missed by review. Decided — make it mechanical, reading DESIGN as it is written:
   the classification section is wrapped in `<!-- type-classification: begin / end -->` markers, and
   `rdom-showcase`'s `design_types` test (the unpublished crate, as `file_sizes`, since it reads `specs/` and
@@ -7487,7 +7487,7 @@ row comes from.
   re-exports bring `AttrCase` and `PopoverState` into it. Red: the exhaustive matches of the three enums in
   `closed_by_spec_enums_match_exhaustively` (an external crate) failed to compile (`_` not covered); the
   check failed on the missing markers, then on 67 names. Green after both changes.
-- 2026-10-14 — C11G-API (API N1, N3, N8, N9). (1) Root re-exports: `TopLayerKind`, `Directionality` and
+- 2026-10-08 — C11G-API (API N1, N3, N8, N9). (1) Root re-exports: `TopLayerKind`, `Directionality` and
   `ControlState` from rdom-core's root, `AttrCase` from `rdom_core::selectors`, and
   `PopoverState` from the popover builtin — the types `top_layer_kind`, `directionality`, `control_state`,
   an attribute selector's `case` and `popover_state` return; all now inside `design_types`' surface and
@@ -7508,7 +7508,7 @@ row comes from.
   (`expected bool, found Option<bool>`); the three hint groups failed to compile without the re-exports
   (`TopLayerKind` … `ControlState` not found). Green after. Changed expectations: the three hooks in
   `form_state_tests.rs` return `Option<bool>` (`_ => false` → `_ => None`), with the same assertions.
-- 2026-10-14 — C11G-DIALOG-BEFORETOGGLE (left open by C11G-POPOVER-BOUND). HTML §4.11.4's current text (the
+- 2026-10-08 — C11G-DIALOG-BEFORETOGGLE (left open by C11G-POPOVER-BOUND). HTML §4.11.4's current text (the
   Living Standard of 2026-10-07) gives `<dialog>` a `beforetoggle`, which rdom did not fire. Followed: `show()`
   steps 3–4 — a cancelable `beforetoggle` (`closed` → `open`), then return when it was canceled or a listener
   opened the dialog; `showModal()` steps 6–9 — the same event (with the step-1–5 guards before it, so a refused
@@ -7525,7 +7525,7 @@ row comes from.
   outer close overwrote the inner's return value). Green after; no existing expectation changed. Mutations
   (each alone, restored, touched): no step-7 re-check → `show_modal_rechecks_after_beforetoggle`; no close
   step-3 re-check → `close_rechecks_after_beforetoggle`.
-- 2026-10-14 — C11G-HAS-IS-SIBLING (batch A's found gap: a sibling step nested in `:is()` inside `:has(+ …)`
+- 2026-10-08 — C11G-HAS-IS-SIBLING (batch A's found gap: a sibling step nested in `:is()` inside `:has(+ …)`
   can reach an element before the anchor, and the `:has()` walk visits only earlier siblings). Wrote the red
   test first — `a_nested_sibling_step_before_the_anchor_restyles_it`: under `.a:has(+ :is(.x ~ *))` (and
   `:hover` / `:empty` left compounds, `:not()`, `:nth-child(2 of .x)`, and an inserted `.x`), a change to an
@@ -7541,7 +7541,7 @@ row comes from.
   forward case costs the sibling marking's O(siblings)). The test is a pin; it fails when the sibling triggers
   stop walking `:has()` arguments (mutation, restored, touched: `arguments` returning nothing for `Has` → the
   `.x` case fails). No behaviour change, so no CHANGELOG bullet.
-- 2026-10-14 — C11G-FORM-BORDER (API N5). `input:user-invalid { border-color: red }` paints nothing: the UA text
+- 2026-10-08 — C11G-FORM-BORDER (API N5). `input:user-invalid { border-color: red }` paints nothing: the UA text
   field has no border (`padding: 0 1` and a `Field` background), so there is no border style for the colour to
   show on. Options: (a) a UA border — 2 rows and 2 columns on every field, a one-row prompt becoming three, and
   the user kept the input's `padding: 0 1` look; (b) document that authors add `border`; (c) map `border-color`
@@ -7553,7 +7553,7 @@ row comes from.
   background cue (one row, red), and `border: solid` + `border-color` (three rows, a red border) — and the
   root README's built-ins paragraph says so. Docs only: the doctest documents existing behaviour, green when
   written (rows and colours asserted exactly).
-- 2026-10-14 — C11G-DOCS (API N6, N7). The READMEs were silent on Phase 11's part 2. rdom-tui README: "Form
+- 2026-10-08 — C11G-DOCS (API N6, N7). The READMEs were silent on Phase 11's part 2. rdom-tui README: "Form
   states" (the section C11G-FORM-BORDER started, its border half now a subsection) lists the input
   pseudo-classes and when user validity is set, with a doctest driving a headless `App` with key events —
   an empty required field `:invalid` but not `:user-invalid`; an email field typed into stays unjudged until
@@ -7571,14 +7571,14 @@ row comes from.
   gains Phase 11's and the Selectors 4 structure; the built-ins list gains the `popover` attribute. ACID tile
   15 shows the dialog and the popover over page text, their boxes blank in `Canvas`. Docs only: the two
   doctests pass against existing behaviour.
-- 2026-10-14 — Phase 11 closed. Batch A (C11G-MODAL-INERT, -POPOVER-BOUND, -CANVAS-FILL, -HAS-COST,
+- 2026-10-08 — Phase 11 closed. Batch A (C11G-MODAL-INERT, -POPOVER-BOUND, -CANVAS-FILL, -HAS-COST,
   -DIR-AUTO-COST, -DETAILS-PARENT, -ENTER-COMMIT, -MINOR) and batch B (C11G-UPGRADE, -DESIGN-TYPES, -API,
   -DIALOG-BEFORETOGGLE, -HAS-IS-SIBLING, -FORM-BORDER, -DOCS): 15 gate fixes, every architect and API
   finding addressed (API N2 by C11G-POPOVER-BOUND, architect N10 by batch A's splits) or recorded (TECH_DEBT
   `HAS-COST-1`); API N7's "consider" — moving `<select>`'s dropdown (`data-rdom-open`) into the top layer —
   is not taken in Phase 11 and is left to C12's form-control work. The DESIGN classification of public types is now checked mechanically (`design_types`).
   The fixes' re-review rides with the Phase 12 gate.
-- 2026-10-15 — C12-ANIMATABLE (1/2). Found (C10G-DETAILS-CONTENT-BOX): the transition engine wrote running
+- 2026-10-08 — C12-ANIMATABLE (1/2). Found (C10G-DETAILS-CONTENT-BOX): the transition engine wrote running
   values into a sparse `PresentationStyle` that paint read field by field, so layout took a geometry
   transition's end value at once. Fixed at the root, as browsers composite the effect stack onto the
   computed value (CSS Transitions 1 §3, Web Animations 1 §5.4.5): each frame the running values are
@@ -7609,7 +7609,7 @@ row comes from.
   `descendants_inherit_the_running_value`. Cost: no running transition, no frame; one running, one whole-tree
   layout per frame (TECH_DEBT `ANIM-RELAYOUT-1`, no partial relayout exists), no cascade. `walk.rs` split
   (`finish.rs`). Remaining: `interpolate-size` / `calc-size()` (part 2/2).
-- 2026-10-15 — C12-ANIMATABLE (2/2) done. `interpolate-size: numeric-only | allow-keywords` (CSS Values 5
+- 2026-10-08 — C12-ANIMATABLE (2/2) done. `interpolate-size: numeric-only | allow-keywords` (CSS Values 5
   §11, inherited, not animatable) and `calc-size(<basis>, <sum>)` (§10) on `width` / `height`: `Size` gains
   `CalcSize(Arc<CalcSize>)` — `size * factor + offset` over an `auto` or intrinsic basis; an `any` or length
   basis folds to a plain size, a nested one composes. The parser takes sums linear in `size` (checked by
@@ -7627,7 +7627,7 @@ row comes from.
   animate: its content computes `display: none` at once, so the `auto` basis is 0 (a browser transitions
   `content-visibility` with `allow-discrete`; DIVERGENCES §2, C14-CONTAIN). `min-*` / `max-*` /
   `flex-basis` do not take `calc-size()` yet (DIVERGENCES §2). Item done.
-- 2026-10-15 — C12-TIMING. CSS Easing 2 §2.1 `linear(<linear-stop-list>)`: parsed and canonicalized
+- 2026-10-08 — C12-TIMING. CSS Easing 2 §2.1 `linear(<linear-stop-list>)`: parsed and canonicalized
   (§2.1.1 — missing first / last inputs 0% / 100%, an input below an earlier one raised to it, runs of
   missing inputs spread evenly, two percentages a hold; fewer than two stops invalid) into
   `TimingFunction::LinearStops(Arc<[LinearStop]>)`, evaluated by §2.1.2's algorithm exactly (point A the
@@ -7648,7 +7648,7 @@ row comes from.
   changing at once, `transitionrun` before the delay, the jump-start hold), the dispatch of
   `transitionrun`. Mutation-checked: starting the clock at registration fails the negative-delay test;
   `ease` for `ease_before` fails the jump-start one. Item done.
-- 2026-10-15 — C12-BEHAVIOR. CSS Transitions 2 §3.1 `transition-behavior: normal | allow-discrete` — a list
+- 2026-10-08 — C12-BEHAVIOR. CSS Transitions 2 §3.1 `transition-behavior: normal | allow-discrete` — a list
   longhand like the other `transition-*` (cycled to `transition-property`'s length) and a keyword of each
   `transition` piece (`TransitionBehavior`; the `transitions_important` group and the `::marker` subset
   carry it). The engine starts a transition for a pair that does not interpolate only under
@@ -7670,7 +7670,7 @@ row comes from.
   `an_overlay_transition_keeps_a_hidden_popover_in_the_top_layer` (left at once). Mutation-checked: a plain
   50 % step for `display` fails the display test; ignoring `overlay` in `finish_removals` fails the popover
   one. `content-visibility` does not exist yet (C14-CONTAIN); its discrete transition comes with it. The easing parsers moved out of `parse/values/transition.rs` (503 production lines) into `easing.rs`. Done.
-- 2026-10-15 — C12-STARTING. CSS Transitions 2 §3 `@starting-style`, stored as the C1 `@scope` / `@layer`
+- 2026-10-08 — C12-STARTING. CSS Transitions 2 §3 `@starting-style`, stored as the C1 `@scope` / `@layer`
   contexts are — on the rule, not in a sheet registry like `@property` / `@counter-style`, since its
   contents are style rules: `RuleContext::in_starting_style` / `Rule::starting_style`. rdom-css parses it
   at the top level (a rule list; `parse_rule_list` now carries the whole `RuleContext`) and nested in a
@@ -7691,7 +7691,7 @@ row comes from.
   inherits from its parent's computed style rather than its starting style (DIVERGENCES §4). ACID I6
   updated and I16 added (popover entry and exit). Phase 12 part 1 (C12-ANIMATABLE, -TIMING, -BEHAVIOR,
   -STARTING) done.
-- 2026-10-16 — C12-KEYFRAMES (1/2), the syntax. A split first: `rdom-core/src/event_detail.rs` (573
+- 2026-10-08 — C12-KEYFRAMES (1/2), the syntax. A split first: `rdom-core/src/event_detail.rs` (573
   production lines) became `event_detail/` (`mod.rs`, `form.rs`, `ui.rs`, tests), so the animation event
   payload fits. CSS Animations 1 §3 `@keyframes`: rdom-css `keyframes.rs` reads the name (a
   `<custom-ident>` other than `none`, a CSS-wide keyword or `default`, or a `<string>`; else
@@ -7714,7 +7714,7 @@ row comes from.
   fields. The builder gains `animation_*` setters and `animations_important` (`ImportantMask::ANIMATIONS`);
   `tui_style/builder/mod.rs` (580) split first — the positioning setters to `position.rs`, the transition
   and animation ones to `motion.rs`. Nothing runs yet: the engine is part 2/2.
-- 2026-10-16 — C12-KEYFRAMES (2/2) done, the engine. CSS animations run in the transitions' effect stack —
+- 2026-10-08 — C12-KEYFRAMES (2/2) done, the engine. CSS animations run in the transitions' effect stack —
   no second engine: `runtime::animation::css` keeps a `CssAnimation` per `animation-name` entry in the
   `AnimationRegistry` beside the transitions, and `composite` writes each element style's transitions
   onto its cascaded style first, then its CSS animations in `animation-name` order (Web Animations 1
@@ -7766,7 +7766,7 @@ row comes from.
   fails `colors_add_by_channel`. `prefers-reduced-motion` waits for `@media` (C14-MEDIA, noted in
   DIVERGENCES §3 and in `runtime::animation::css`): it is a media feature, so no engine hook is needed.
   `style/cascade/ladder.rs` is now 552 production lines (TECH_DEBT `SIZE-1`). Item done.
-- 2026-10-16 — C12-SCROLL-DRIVEN (1/2), the syntax (Scroll-driven Animations 1). rdom-style's
+- 2026-10-08 — C12-SCROLL-DRIVEN (1/2), the syntax (Scroll-driven Animations 1). rdom-style's
   `keyframes::timeline` holds the values — `TimelineAxis` (`block | inline | x | y`), `TimelineScroller`
   (`nearest | root | self`), `TimelineName` (`none | <dashed-ident>`), `TimelineInset` (start and end,
   each `auto` or a `<length-percentage>`), `TimelineScope` (`none | all | <dashed-ident>#`),
@@ -7784,7 +7784,7 @@ row comes from.
   `css_phase2_gates::every_length_property_resolves_viewport_units_in_the_cascade`).
   Red: `property_dispatch::timeline_tests` (7: `UnknownProperty`); green after. Nothing follows a
   timeline yet: the engine is part 2/2.
-- 2026-10-16 — C12-SCROLL-DRIVEN (2/3), the timelines. `runtime::animation::css::timeline` resolves an
+- 2026-10-08 — C12-SCROLL-DRIVEN (2/3), the timelines. `runtime::animation::css::timeline` resolves an
   animation's timeline each frame it steps: `scroll()` — the nearest box ancestor that is a scroll
   container, the document element for `root`, the element for `self` — `view()` — the element in its
   nearest scroll container — and a name — the nearest element at or above it declaring it (a scroll
@@ -7811,7 +7811,7 @@ row comes from.
   dropping the end-boundary rule fails `a_scroll_timeline_follows_the_scroll_offset`. `css/mod.rs` (585
   lines) split: the registry side — matching, retiming, building effects, stepping — to `css/update.rs`.
   Remaining (3/3): keyframe selectors naming a timeline range (§4.4).
-- 2026-10-16 — C12-SCROLL-DRIVEN (3/3) done: keyframe selectors naming a timeline range
+- 2026-10-08 — C12-SCROLL-DRIVEN (3/3) done: keyframe selectors naming a timeline range
   (Scroll-driven Animations 1 §4.4). `KeyframeSelector` gains its range (`in_range(name, fraction)`,
   any finite fraction; `range()`), rdom-css reads `<timeline-range-name> <percentage>` (a negative one
   too), and `KeyframesRule::resolve` keeps one keyframe per (range, offset). A longhand with such a
@@ -7823,7 +7823,7 @@ row comes from.
   `keyframe_selectors_may_name_a_timeline_range` (no `KeyframeSelector::range`; the selectors were
   invalid), `scroll_timeline_tests::keyframes_can_sit_on_a_named_range` (the sheet warned on them);
   green after. Mutation-checked: placing nothing fails the engine test. Item done.
-- 2026-10-16 — C12-ANIMATABLE leftover: `calc-size()` on `min-*` / `max-*` / `flex-basis` (CSS Values 5 §10)
+- 2026-10-08 — C12-ANIMATABLE leftover: `calc-size()` on `min-*` / `max-*` / `flex-basis` (CSS Values 5 §10)
   and their keywords under `interpolate-size: allow-keywords` (§11). `MinSize`, `MaxSize` and `FlexBasis`
   gain `CalcSize(Arc<CalcSize>)`, `CalcSizeBasis` gains `Content`; the parser takes, per property, the
   bases it allows (`min-*`: `auto` and the intrinsic keywords; `max-*`: the intrinsic keywords;
@@ -7837,7 +7837,7 @@ row comes from.
   `runtime::app::calc_size_tests` (the values were invalid; `min-width: 0` → `max-content` did not
   interpolate); green after. Mutation-checked: ignoring a `calc-size()` min fails the floor and
   transition tests. Breaking (rdom-style): the three enums' new variant (CHANGELOG, `calc_size_hints`).
-- 2026-10-16 — C12-STARTING leftover: starting styles for `::before` / `::after` (CSS Transitions 2 §3).
+- 2026-10-08 — C12-STARTING leftover: starting styles for `::before` / `::after` (CSS Transitions 2 §3).
   `cascade::starting_style` takes the slot: a pseudo-element's is computed through
   `compute_pseudo_style` over its originating element's computed style with the `@starting-style` rules
   applying, and exists when one of them matched it. The cascade hook treats a `::before` / `::after`
@@ -7849,14 +7849,14 @@ row comes from.
   no longer excluded; a starting style still inherits from the parent's computed style. The `<details>`
   closing animation still waits for C14's `content-visibility`. Phase 12 part 2 (C12-KEYFRAMES,
   C12-SCROLL-DRIVEN, the part 1 leftovers) done.
-- 2026-10-16 — Phase 12 part 2 docs: CSS-COVERAGE's priority table row 21 (`@keyframes` + `animation-*`)
+- 2026-10-08 — Phase 12 part 2 docs: CSS-COVERAGE's priority table row 21 (`@keyframes` + `animation-*`)
   marked shipped (the §3.18 and §3.11 rows and the §1 counts moved with each item: 3.18 is 10 / 0 / 0,
   3.11 14 / 0 / 0, the total 222 Supported, 8 Partial, 32 Missing). ACID gains I17 (a keyframe
   animation at fixed clock times: keyframe easing, directions, fills, `!important`, the order above
   transitions, `add`, the four events) and I18 (a scroll-driven progress bar: `scroll()` with no clock
   tick, `rtl`, a `view()` item with a range and a range keyframe, `timeline-scope`, an inactive
   timeline). Docs only.
-- 2026-10-17 — C12-FOCUS-FLUSH (TECH_DEBT `FOCUS-FLUSH-1` closed; HTML §6.6.3 focusing steps, §6.6.6
+- 2026-10-08 — C12-FOCUS-FLUSH (TECH_DEBT `FOCUS-FLUSH-1` closed; HTML §6.6.3 focusing steps, §6.6.6
   `focus()`). Found: `focus()` decided focusability on the last frame's styles, so "show the panel, focus its
   input" in one handler was refused (the upgrade guide's nested-rAF workaround). Decided — the cascade's
   inputs as document data, as the focus deferral is (C9G): `runtime::style_flush` keeps `StyleInputs` (the
@@ -7883,7 +7883,7 @@ row comes from.
   frame ignoring `flushed` fails the transition test; taking every root fails the count (68 for 13).
   Docs: DIVERGENCES §2's "Focusability reads the last cascade's styles" replaced by what a flush covers;
   the focus-scroll entry no longer names the debt; upgrade-guide item 20 loses the workaround.
-- 2026-10-17 — C12-OUTLINE (CSS UI 4 §5, CSS 2.1 Appendix E step 10). rdom-style: `outline-style` (`auto |
+- 2026-10-08 — C12-OUTLINE (CSS UI 4 §5, CSS 2.1 Appendix E step 10). rdom-style: `outline-style` (`auto |
   <outline-line-style>` — every `<line-style>` but `hidden`, rdom's `half-block` not taken), `outline-width` (a
   `<line-width>`, so a pixel width selects the glyph weight, DESIGN's rule), `outline-color` (`auto | <color>`,
   kept as a `TuiColor` and resolved at paint like `caret-color`), `outline-offset` (a `<length>` of either sign,
@@ -7912,7 +7912,7 @@ row comes from.
   fails the over-the-next-box, after-positioned and negative-offset tests. Changed tables: the property and
   important-setter contracts, the `initial` perturbation and the longhand interpolation samples gain the four
   longhands. CHANGELOG silent change 20 (outline declarations now draw).
-- 2026-10-17 — C12-CURSOR (CSS UI 4 §4.1; HTML §15.3.4). rdom-style: `cursor` — `[<url> [<x> <y>]?,]*
+- 2026-10-08 — C12-CURSOR (CSS UI 4 §4.1; HTML §15.3.4). rdom-style: `cursor` — `[<url> [<x> <y>]?,]*
   <cursor-predefined>`, the keyword required last — as `Cursor { images, keyword }` (`CursorImage`, the 36
   keywords and `auto` / `default` / `none` in `CursorKeyword`) in the `ui` group; inherited, discrete,
   paint-only for the animation table. The UA's `a[href]` takes `cursor: pointer` (HTML §15.3.4's `:link,
@@ -7935,7 +7935,7 @@ row comes from.
   dispatch by `ui_tests::cursor_takes_image_fallbacks_and_a_keyword`. `property_dispatch/outline.rs` became
   `ui.rs` (with its tests), the home of the CSS UI 4 arms. CHANGELOG silent change: the pointer changes shape
   in those terminals.
-- 2026-10-17 — C12-CARET (CSS UI 4 §6.1–§6.2). Checked first: rdom paints its own caret (the hardware cursor
+- 2026-10-08 — C12-CARET (CSS UI 4 §6.1–§6.2). Checked first: rdom paints its own caret (the hardware cursor
   is hidden at startup and never shown; `inline_paint/caret.rs`, a cell in `caret-color` / rdom's
   `caret-text-color`, its blink a phase the runtime writes, `runtime::caret_blink`), so `caret-shape` maps to
   the painted caret, not DECSCUSR. `caret-color` was already complete (`auto | transparent | <color>`,
@@ -7953,7 +7953,7 @@ row comes from.
   block; the manual caret hidden by the off phase; the shorthand's underline missing — `block_and_auto`
   passing, pinning the unchanged default), `caret_blink/tests.rs::caret_animation_manual_does_not_blink`
   failed (a flip still scheduled); green after. Dispatch: `ui_tests::the_caret_longhands_and_shorthand`.
-- 2026-10-17 — C12-CONTROLS (1/4), `accent-color` (CSS UI 4 §6.3). rdom-style: `auto | <color>`, inherited,
+- 2026-10-08 — C12-CONTROLS (1/4), `accent-color` (CSS UI 4 §6.3). rdom-style: `auto | <color>`, inherited,
   by computed value between two colors (`AccentColor`, kept as a `TuiColor` like `caret-color`, in the `ui`
   group). rdom-tui: `style/accent.rs` resolves an element's used accent (against its color and used scheme;
   `None` for `auto`), read by the chrome that a browser fills with it — the progress bar (`gauge`'s fg
@@ -7964,7 +7964,7 @@ row comes from.
   paint changes (`auto` everywhere). Red, by mutation of the finished code (an accent never resolving):
   both `css_phase12/controls.rs` tests fail at the checked checkbox and the progress bar; dispatch pinned by
   `ui_tests::accent_color_is_auto_or_a_color`. Remaining: `appearance`, `field-sizing`, `resize`.
-- 2026-10-17 — C12-CONTROLS (2/4), `appearance` (CSS UI 4 §7.1). rdom-style: `none | auto | base |
+- 2026-10-08 — C12-CONTROLS (2/4), `appearance` (CSS UI 4 §7.1). rdom-style: `none | auto | base |
   <compat-auto> | <compat-special>` (`Appearance`, not inherited, discrete) and the legacy alias
   `-webkit-appearance` on the same storage (as `word-wrap` is `overflow-wrap`'s). "Chrome", per built-in —
   defined because a browser's "native appearance" is a platform widget and rdom's is CSS and paint: the
@@ -7978,7 +7978,7 @@ row comes from.
   declarations under `none`). `base` and the compat keywords are `auto`. Red, by mutation of the finished
   code (no control counted as chrome, no `none` read by paint): both appearance tests in
   `css_phase12/controls.rs` fail; dispatch pinned by `ui_tests::appearance_keywords_and_the_legacy_name`.
-- 2026-10-17 — C12-CONTROLS (3/4), `field-sizing` (CSS UI 4 §7.2). rdom-style: `content | fixed` (`FieldSizing`,
+- 2026-10-08 — C12-CONTROLS (3/4), `field-sizing` (CSS UI 4 §7.2). rdom-style: `content | fixed` (`FieldSizing`,
   not inherited, discrete). The model: a browser's text field has an intrinsic size (`size`, `cols` /
   `rows`) that `content` replaces with the content's; rdom's UA writes fixed sizes instead, so the cascade's
   new `field_sizing::finalize` (after the ladder, with the element's matched rules and inline style in
@@ -7988,7 +7988,7 @@ row comes from.
   empty one to its padding and placeholder). `<select>` is left out (its size is its options'). Red, by
   mutation (the finalizer a no-op): `field_sizing_content_sizes_a_field_to_its_value` reads `(22, 1)` for
   `(7, 1)`; the fixed and author-width cases pin the rest. Dispatch: `ui_tests::field_sizing_is_content_or_fixed`.
-- 2026-10-17 — C12-CONTROLS (4/4) done, `resize` (CSS UI 4 §4.2). rdom-style: `none | both | horizontal |
+- 2026-10-08 — C12-CONTROLS (4/4) done, `resize` (CSS UI 4 §4.2). rdom-style: `none | both | horizontal |
   vertical | block | inline` (`Resize`, not inherited, discrete; `axes()` maps the flow-relative keywords onto
   the physical axes of a horizontal writing mode, closing CSS-COVERAGE §3.22's logical-keywords row); the UA
   sheet's `textarea` takes `both`, as HTML's rendering section and the engines' UA sheets do. Feasible, so
@@ -8002,7 +8002,7 @@ row comes from.
   Red, by mutation (no box counted resizable): `dragging_the_corner_resizes_the_box` reads `(6, 2)` for
   `(9, 4)` and the textarea test `(10, 4)` for `(6, 6)`. Dispatch: `ui_tests::resize_keywords_and_their_axes`.
   CHANGELOG silent change: a textarea's corner press now resizes it. C12-CONTROLS done.
-- 2026-10-17 — C12-SELECT-TOP-LAYER (Phase 11 API N7, left to C12 at Phase 11's close; HTML's select picker,
+- 2026-10-08 — C12-SELECT-TOP-LAYER (Phase 11 API N7, left to C12 at Phase 11's close; HTML's select picker,
   CSS Position 4 top layer, HTML §6.12.2 light dismiss). Found: an open drop-down set `data-rdom-open`, which
   the UA sheet answered with `height: auto` — the select grew in flow to list its options, pushing the page
   down, clipped by an `overflow` ancestor and under later stacking contexts. Decided — keep the look (the
@@ -8025,7 +8025,7 @@ row comes from.
   the dismiss test. Changed test: `open_dropdown_renders_options_inline_without_chrome` opens its select
   after inserting it (its comment said no top layer); its expectations stand. No snapshot changed.
   CHANGELOG silent change 21.
-- 2026-10-17 — Phase 12 part 3 docs and close: every Phase 12 row is done (C12-FOCUS-FLUSH, -OUTLINE, -CURSOR,
+- 2026-10-08 — Phase 12 part 3 docs and close: every Phase 12 row is done (C12-FOCUS-FLUSH, -OUTLINE, -CURSOR,
   -CARET, -CONTROLS in four commits, -SELECT-TOP-LAYER added as a row); the Phases table reads "items done,
   gates pending". CSS-COVERAGE: §3.19 is 9 Supported / 1 Partial (`pointer-events`) / 1 Missing (`nav-*`, the
   decided exclusion) / 1 N/A; §3.22's logical-keywords row closed with `resize: block / inline`; the total
@@ -8035,7 +8035,7 @@ row comes from.
   `caret-animation: manual` and the pointer shapes. TECH_DEBT `SIZE-1` recount of the files part 3 grew:
   `runtime/app/mod.rs` 562, `style/cascade/apply.rs` 518 and `runtime/router/mouse/mod.rs` 506 (new to the
   list), `property_dispatch/set.rs` 500 — none past 575. Docs only.
-- 2026-10-15 — Phase 12 gates (with the C11G re-review: all 15 hold; `Dom::is_inert` climbs DOM
+- 2026-10-08 — Phase 12 gates (with the C11G re-review: all 15 hold; `Dom::is_inert` climbs DOM
   parents, misjudging a positioned `::details-content` box). Architect: 2 blocking — an element
   detached by `remove_child` (not dropped) animates forever (pruning uses `contains`;
   `cancel_for_node` never called; 60 fps idle, no cancel events); a `::before` / `::after` that stops
@@ -8397,3 +8397,17 @@ row comes from.
   `tree/mod.rs` 421 (the public mutations and the insertion path) and `tree/detach.rs` 179 (the
   unlink, the interaction-state purge and the removing steps). No behaviour or public path changed.
   TECH_DEBT `SIZE-1` recounted.
+- 2026-10-08 — C12G-DATES (docs only). The Log and the Phases table carried dates the commits do not:
+  entries ran to 2026-10-17 while the work was committed 2026-10-04 … 10-08 (the program's first commit
+  is 2026-10-04's), and earlier ones drifted a day or more ahead. Every Log entry's date and every
+  Phases-table "done" date is now the author date (date part) of the commit that introduced its line:
+  `target/claude-logs/fix_dates.py` finds it with `git log --reverse -S` on the line's head as first
+  written (its date and opening words, so a tail edited later does not move it), falling back to the
+  date-free text for a line whose head changed — 332 lines corrected, none unresolved (Phase 2's row,
+  whose tail gained a clause on 10-06, keeps its 10-04). Checked by hand against the items' own
+  commits: C1G-README 10-04, C5G-DOCS-AND-SHOWCASE 10-05, C6-FLEX-DIRECTION-INITIAL 10-05,
+  C8G-PSEUDO-BOXES 10-06, C10-COUNTERS 10-06, C11-HAS 10-08, C12-CONTROLS 10-08. The Phase 12 row's
+  "gates run" date is 10-08. Elsewhere: TECH_DEBT's `SIZE-1` recount date was corrected with C12G-SPLITS'
+  recount; CHANGELOG, DIVERGENCES, ACID and the READMEs carry no date past today. Left as written: the
+  status line's "started 2026-10-03" (the audit commits of 10-03 that the program grew from) and the
+  "HTML Living Standard of 2026-10-07" citations (a spec snapshot's date, not a commit's).
