@@ -253,7 +253,6 @@ impl NthSelector {
 
 /// The siblings an [`NthSelector`] counts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 pub enum NthKind {
     /// `:nth-child()`: element siblings, from the first.
     Child,
@@ -284,7 +283,6 @@ pub enum AttrOp {
 /// How an attribute selector compares the attribute's value
 /// (Selectors 4 §6.3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[non_exhaustive]
 pub enum AttrCase {
     /// No flag: the document language decides — ASCII case-insensitive
     /// for the attributes HTML §4.16.2 lists (`type`, `lang`, …),

@@ -7463,3 +7463,26 @@ row comes from.
   query methods, `showModal()` hiding open popovers, `dialog::show()` focusing into the dialog (19 → 66: it
   moves focus only for code that called `show()`), the `[-]` glyph, parentless `:first-child`. "Compile
   breaks" gains a Selectors line for `SimpleSelector::Attribute`'s `case`. Docs only: no test.
+- 2026-10-14 — C11G-DESIGN-TYPES (API B3, architect N9). DESIGN classified no Phase 11 type — the fourth
+  phase running the rule was missed by review. Decided — make it mechanical, reading DESIGN as it is written:
+  the classification section is wrapped in `<!-- type-classification: begin / end -->` markers, and
+  `rdom-showcase`'s `design_types` test (the unpublished crate, as `file_sizes`, since it reads `specs/` and
+  every sibling's sources) collects every name each published crate's `lib.rs` exports (`pub use` items'
+  last segments and aliases; its own `pub struct` / `pub enum`), keeps those that a production source
+  defines as a struct or enum, and fails on any not named in backticks between the markers. A name in a
+  bullet is a classification because each bullet is a kind with its reason; a separate index would be a
+  second copy to drift. The rule is in CLAUDE.md §Contract First. Run against the old DESIGN, it named 67
+  unclassified types — Phase 11's `ControlState`, `Directionality`, `TopLayerKind`, `SelectorCaches`,
+  `CacheWork`, and 62 older ones (the DOM handles, the ids, the runtime and terminal types, the registration
+  syntax, `SystemColor`, `Flow` / `Visibility` / `UserSelect`, the sheet records…), each now in its kind.
+  Decisions: `Directionality`, `AttrCase` and `NthKind` closed — `#[non_exhaustive]` dropped (HTML
+  §3.2.6.4's two values; Selectors 4 §6.3's no flag / `i` / `s`; the four child-indexed forms —
+  `:nth-col()` indexes columns and lands as its own selector with C13-COLUMN, so the gate's "keep `NthKind`
+  open for it" does not apply); `TopLayerKind` (fullscreen), `PopoverState` (`hint` came once) and
+  `ControlState` (a hook answering `None` for an unknown question, C11G-API) open; `RelativeSelector` /
+  `NthSelector` open parser outputs with no constructor; `SelectorCaches` sealed by private fields;
+  `CacheWork` an outcome record. Types reached only through a public module (`selectors::NthKind`,
+  `popover::PopoverState`) are outside the test's surface and classified by review; C11G-API's root
+  re-exports bring `AttrCase` and `PopoverState` into it. Red: the exhaustive matches of the three enums in
+  `closed_by_spec_enums_match_exhaustively` (an external crate) failed to compile (`_` not covered); the
+  check failed on the missing markers, then on 67 names. Green after both changes.

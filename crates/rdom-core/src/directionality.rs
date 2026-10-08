@@ -24,7 +24,6 @@ use crate::node_id::NodeId;
 
 /// An element's directionality (HTML §3.2.6.4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 pub enum Directionality {
     /// Left to right.
     Ltr,

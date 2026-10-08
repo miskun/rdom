@@ -250,6 +250,10 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **Search highlighting from Rust** (CSS Custom Highlight API 1): `Dom::descendants(root)` walks a subtree in tree order (DOM §4.2, text nodes included; the `Descendants` iterator), `Dom::range_between(a, b)` builds a `Range` from two boundary points in either order, checked as DOM §5.5 checks `setStart` / `setEnd` (an offset past `Dom::node_length`, or inside a UTF-8 character, is `InvalidOffset`), and `Dom::highlights_mut()` returns a `HighlightsMut` guard that fires `Mutation::HighlightsChanged` once, after the change, only when a highlight was set or removed or a registered one changed. `Highlight`'s members are methods named for the web's (`priority()`, `kind()` for `type`, `with_kind`); `size` is `len()` on `Highlight` and `HighlightRegistry` alike. The rdom-tui README shows a search end to end. (C10G-HIGHLIGHT-API)
 - **Inertness** (HTML §6.3): `Dom::is_inert(id)` — a node outside the modal dialog the document is blocked by (`Dom::blocking_modal()`, the topmost modal dialog in the top layer), or in an `inert` subtree that no modal dialog escapes; one ancestor walk, the answer rdom-tui's focus, Tab, hit test and selection share. (C11G-MODAL-INERT)
 
+### Changed — `rdom-core`
+
+- **`Directionality`, `AttrCase` and `NthKind` are closed enums** (no `#[non_exhaustive]`): their specs fix them — `ltr` / `rtl` (HTML §3.2.6.4), no flag / `i` / `s` (Selectors 4 §6.3), the four child-indexed forms (§13.3–§13.4) — so a consumer matches them without a `_` arm. All three are new since 0.5. (C11G-DESIGN-TYPES)
+
 ### Fixed — `rdom-core`
 
 - **Removing a node under a large highlight costs a few hops per boundary point** (DOM §4.2.3 "remove" steps 4–7): each boundary's "inside the removed node?" walked to the root — 1000 search hits 60 levels deep cost 250 000 hops per removed log line; the answers now share their ancestors. (C11G-MINOR)
@@ -802,6 +806,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - The shell declares `box-sizing: border-box` for its own chrome only; demos that assumed border-box sizing scope the reset to their root class, `ua_chrome` shows the UA defaults, and the rAF demo uses `content-box` (a full bar is its track's 48-cell inside). (C5-BOX-SIZING, C5G-DOCS-AND-SHOWCASE)
 - The paint snapshots pin what the app shows: the harness seeds `style` attributes and cascades the shell's base sheet first, and a snapshot records cell backgrounds as a second layer when any cell has one. (C5G-DOCS-AND-SHOWCASE)
 - A workspace check (`tests/integration/file_sizes.rs`) fails `cargo test --workspace` when a production source file passes 600 lines; `cascade/walk.rs`, rdom-core's `dom.rs` and rdom-parser's `parser.rs` are split by concern to meet it (moves only). (C7G-SIZES)
+- A workspace check (`tests/integration/design_types.rs`) fails `cargo test --workspace` when a public struct or enum a published crate's `lib.rs` re-exports has no classification in `specs/DESIGN.md` (between its `type-classification` markers). (C11G-DESIGN-TYPES)
 
 
 ## [0.5.0] - 2026-09-29
