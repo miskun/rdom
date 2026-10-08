@@ -19,7 +19,16 @@ pub enum PaddingValue {
     /// `calc(...)` expression. Resolves at layout time against the
     /// containing-block width (CSS resolves both axes' padding
     /// percent against width).
-    Calc(Box<crate::calc::CalcExpr>),
+    Calc(std::sync::Arc<crate::calc::CalcExpr>),
+}
+
+impl PaddingValue {
+    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
+    /// shared by every style holding the value — an inherited or copied
+    /// one clones without allocating.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        PaddingValue::Calc(std::sync::Arc::new(expr))
+    }
 }
 
 impl Default for PaddingValue {
@@ -81,7 +90,16 @@ pub enum MarginValue {
     /// `calc(...)`. Resolves at layout time against the
     /// containing-block width (CSS resolves percent margins against
     /// width on all four sides). Result clamped to i16.
-    Calc(Box<crate::calc::CalcExpr>),
+    Calc(std::sync::Arc<crate::calc::CalcExpr>),
+}
+
+impl MarginValue {
+    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
+    /// shared by every style holding the value — an inherited or copied
+    /// one clones without allocating.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        MarginValue::Calc(std::sync::Arc::new(expr))
+    }
 }
 
 impl MarginValue {

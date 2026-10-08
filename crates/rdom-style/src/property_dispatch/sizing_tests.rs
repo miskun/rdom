@@ -78,12 +78,12 @@ fn sizes_take_the_intrinsic_keywords() {
         ("fit-content", IntrinsicSize::FitContent, "fit-content"),
         (
             "fit-content(20)",
-            IntrinsicSize::FitContentLimit(Box::new(CalcExpr::Length(20))),
+            IntrinsicSize::FitContentLimit(std::sync::Arc::new(CalcExpr::Length(20))),
             "fit-content(20)",
         ),
         (
             "Fit-Content(50%)",
-            IntrinsicSize::FitContentLimit(Box::new(CalcExpr::Percent(50.0))),
+            IntrinsicSize::FitContentLimit(std::sync::Arc::new(CalcExpr::Percent(50.0))),
             "fit-content(50%)",
         ),
     ];

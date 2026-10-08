@@ -344,7 +344,16 @@ pub enum PaintLength {
     Px(f32),
     /// A math function or a length that needs the viewport (`vw`, …)
     /// or a percentage basis; resolves to cells.
-    Calc(Box<crate::calc::CalcExpr>),
+    Calc(std::sync::Arc<crate::calc::CalcExpr>),
+}
+
+impl PaintLength {
+    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
+    /// shared by every style holding the value — an inherited or copied
+    /// one clones without allocating.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        PaintLength::Calc(std::sync::Arc::new(expr))
+    }
 }
 
 impl PaintLength {
@@ -486,7 +495,7 @@ mod tests {
         assert_eq!(PaintLength::Cells(2.5).offset_cells(), 2);
         assert_eq!(PaintLength::Px(-1e10).offset_cells(), -1);
         let calc = crate::calc::CalcExpr::Length(i32::MAX);
-        assert_eq!(PaintLength::Calc(Box::new(calc)).offset_cells(), max);
+        assert_eq!(PaintLength::calc(calc).offset_cells(), max);
     }
 
     /// The used border drops zero-width sides but keeps `hidden`.

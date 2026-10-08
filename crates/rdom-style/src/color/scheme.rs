@@ -69,9 +69,10 @@ impl ColorScheme {
 /// are kept for serialization — and the `only` flag. Inherited.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct ColorSchemeList {
-    /// Empty for `normal`. `light` / `dark` in lower case, custom
-    /// identifiers as written.
-    names: Vec<String>,
+    /// `None` for `normal`. `light` / `dark` in lower case, custom
+    /// identifiers as written — shared (`Arc`) by the elements that
+    /// inherit the value.
+    names: Option<std::sync::Arc<[String]>>,
     only: bool,
 }
 
@@ -84,7 +85,8 @@ impl ColorSchemeList {
     /// `[light | dark]+` from `schemes`, in order.
     pub fn of(schemes: &[ColorScheme]) -> Self {
         ColorSchemeList {
-            names: schemes.iter().map(|s| s.keyword().to_string()).collect(),
+            names: (!schemes.is_empty())
+                .then(|| schemes.iter().map(|s| s.keyword().to_string()).collect()),
             only: false,
         }
     }
@@ -96,7 +98,8 @@ impl ColorSchemeList {
         {
             return Some(Self::normal());
         }
-        let mut out = ColorSchemeList::default();
+        let mut only = false;
+        let mut names = Vec::new();
         for (i, token) in value.iter().enumerate() {
             let Token::Ident(name) = token else {
                 return None;
@@ -104,20 +107,28 @@ impl ColorSchemeList {
             let lower = name.to_ascii_lowercase();
             match lower.as_str() {
                 // `only` comes first or last, once.
-                "only" if !out.only && (i == 0 || i == value.len() - 1) => out.only = true,
-                "light" | "dark" => out.names.push(lower),
+                "only" if !only && (i == 0 || i == value.len() - 1) => only = true,
+                "light" | "dark" => names.push(lower),
                 // Not a `<custom-ident>` here (CSS Values 4 §6.2).
                 "only" | "normal" | "initial" | "inherit" | "unset" | "revert" | "revert-layer"
                 | "default" => return None,
-                _ => out.names.push(name.clone()),
+                _ => names.push(name.clone()),
             }
         }
-        (!out.names.is_empty()).then_some(out)
+        (!names.is_empty()).then(|| ColorSchemeList {
+            names: Some(names.into()),
+            only,
+        })
     }
 
     /// True for `normal`.
     pub fn is_normal(&self) -> bool {
-        self.names.is_empty()
+        self.names().is_empty()
+    }
+
+    /// The schemes, in order of preference; empty for `normal`.
+    fn names(&self) -> &[String] {
+        self.names.as_deref().unwrap_or_default()
     }
 
     /// The scheme the element uses (§2.1) when the document prefers
@@ -125,11 +136,11 @@ impl ColorSchemeList {
     /// `normal`, else the first scheme it supports; an element that
     /// names only custom schemes behaves as `normal`.
     pub fn used(&self, preferred: ColorScheme) -> ColorScheme {
-        let supported = |s: ColorScheme| self.names.iter().any(|n| n == s.keyword());
+        let supported = |s: ColorScheme| self.names().iter().any(|n| n == s.keyword());
         if supported(preferred) {
             return preferred;
         }
-        self.names
+        self.names()
             .iter()
             .find_map(|n| match n.as_str() {
                 "light" => Some(ColorScheme::Light),
@@ -144,7 +155,7 @@ impl ColorSchemeList {
         if self.is_normal() {
             return "normal".to_string();
         }
-        let mut out = self.names.join(" ");
+        let mut out = self.names().join(" ");
         if self.only {
             out.push_str(" only");
         }

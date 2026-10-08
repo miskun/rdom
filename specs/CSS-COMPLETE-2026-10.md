@@ -6611,3 +6611,24 @@ row comes from.
   green after. Mutation (restored, touched): no first-rules gate → 84 steps; every line read → 2001
   lines; never every line → the moved `::before` is missed (`None`). No existing expectation or snapshot
   changed.
+- 2026-10-13 — C10G-INHERIT-COST (architect N7; API N5). One table-driven test now covers the inherited set:
+  `cascade/cost_tests.rs::every_inherited_value_is_shared_not_copied` gives every property
+  `property_dispatch::inherits` names a non-initial value — one holding heap data where the property can (a
+  percentage, an expression, a string, a list, a custom counter-style name) — asserts the table covers the
+  set and that each value parses, and compares the per-element allocations of 20 plain elements under a
+  root setting it against a root setting none. Red on HEAD, seven copied per element (200 allocations for
+  160, `color-scheme` 280): `font-size: 62.5%` and the `font` shorthand carrying it
+  (`PaintLength::Calc(Box)`), `text-underline-offset: 10%` (the same), `list-style-type: '→ '`
+  (`String`), `list-style-image` (`String`), `color-scheme: light dark` (`Vec<String>`) and
+  `block-ellipsis` (`String`). Fixed at the payloads: `ListStyleType::String`, `ListStyleImage::Image` and
+  `BlockEllipsis::Str` hold `Arc<str>`; `ColorSchemeList` keeps its names as `Option<Arc<[String]>>` (`None`
+  for `normal`, so `initial()` allocates nothing); and every `calc()` payload is an `Arc<CalcExpr>`, as
+  `Length`'s became in C9-CARRY-INDENT — `Size`, `MinSize`, `MaxSize`, `GapValue`, `PaddingValue`,
+  `MarginValue`, `FlexBasis`, `Spacing`, `LineHeight`, `VerticalAlign`, `PaintLength`, `TrackBreadth` and
+  `IntrinsicSize::FitContentLimit` — each with a `calc()` constructor (API N5: no consumer spells the
+  pointer type). Green after: every row 160 = 160. Breaking: the CHANGELOG bullet with its migration
+  (`Size::Calc(Box::new(e))` → `Size::calc(e)`), API-table rows (from 0.5: `Size`, `MinSize`, `GapValue`,
+  `PaddingValue`, `MarginValue`; after 0.5: the rest and the three `Arc<str>` variants) and the hint group
+  `migration_hints.rs::calc_payload_hints`. Mutation: HEAD's payload types are the reverse change (the red
+  run). Changed expectations: construction sites in rdom-style's own tests (`Box::new` → `Arc::new` or
+  `calc()`); no behaviour or snapshot changed.

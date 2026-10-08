@@ -23,7 +23,7 @@ pub enum TrackBreadth {
     /// indefinite (§7.2.1).
     Percent(f32),
     /// A math function, resolved against the same basis as a percentage.
-    Calc(Box<CalcExpr>),
+    Calc(std::sync::Arc<CalcExpr>),
     /// `<flex>` (§7.2.4): a share of the leftover space, `1fr`.
     Fr(f32),
     /// `min-content` — the largest min-content contribution of the
@@ -35,6 +35,15 @@ pub enum TrackBreadth {
     /// (§6.6); as a maximum, `max-content`, stretched by
     /// `align-content` / `justify-content: normal` (§11.8).
     Auto,
+}
+
+impl TrackBreadth {
+    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
+    /// shared by every style holding the value — an inherited or copied
+    /// one clones without allocating.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        TrackBreadth::Calc(std::sync::Arc::new(expr))
+    }
 }
 
 impl TrackBreadth {

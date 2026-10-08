@@ -33,7 +33,7 @@ pub fn parse_size(value: &[Token]) -> Option<Size> {
             LengthPercentage::Expr(CalcExpr::Percent(p)) => {
                 Some(Size::Percent(percent_fraction(p)?))
             }
-            LengthPercentage::Expr(e) => Some(Size::Calc(Box::new(e))),
+            LengthPercentage::Expr(e) => Some(Size::calc(e)),
         },
     }
 }
@@ -98,7 +98,7 @@ pub fn parse_flex_shorthand(value: &[Token]) -> Option<FlexShorthand> {
     Some(FlexShorthand {
         grow: grow.unwrap_or(1.0),
         shrink: shrink.unwrap_or(1.0),
-        basis: basis.unwrap_or_else(|| FlexBasis::Calc(Box::new(CalcExpr::Percent(0.0)))),
+        basis: basis.unwrap_or_else(|| FlexBasis::calc(CalcExpr::Percent(0.0))),
     })
 }
 
@@ -115,7 +115,7 @@ pub fn parse_flex_basis(value: &[Token]) -> Option<FlexBasis> {
         _ => match length_percentage(value, Range::NonNegative)? {
             LengthPercentage::Integer(n) => u16::try_from(n).ok().map(FlexBasis::Cells),
             LengthPercentage::Cells(v) => Some(FlexBasis::Cells(cells_u16(v))),
-            LengthPercentage::Expr(e) => Some(FlexBasis::Calc(Box::new(e))),
+            LengthPercentage::Expr(e) => Some(FlexBasis::calc(e)),
         },
     }
 }
@@ -143,7 +143,7 @@ pub fn parse_min_size(value: &[Token]) -> Option<MinSize> {
             LengthPercentage::Expr(CalcExpr::Percent(p)) if percent_fraction(p).is_some() => {
                 Some(MinSize::Percent(p as f32))
             }
-            LengthPercentage::Expr(e) => Some(MinSize::Calc(Box::new(e))),
+            LengthPercentage::Expr(e) => Some(MinSize::calc(e)),
         },
     }
 }
@@ -163,7 +163,7 @@ pub fn parse_max_size(value: &[Token]) -> Option<MaxSize> {
         LengthPercentage::Expr(CalcExpr::Percent(p)) if percent_fraction(p).is_some() => {
             Some(MaxSize::Percent(p as f32))
         }
-        LengthPercentage::Expr(e) => Some(MaxSize::Calc(Box::new(e))),
+        LengthPercentage::Expr(e) => Some(MaxSize::calc(e)),
     }
 }
 
@@ -215,7 +215,7 @@ fn parse_intrinsic(value: &[Token]) -> Option<IntrinsicSize> {
                 LengthPercentage::Cells(v) => CalcExpr::Length(cells_i32(v)),
                 LengthPercentage::Expr(e) => e,
             };
-            Some(IntrinsicSize::FitContentLimit(Box::new(limit)))
+            Some(IntrinsicSize::FitContentLimit(std::sync::Arc::new(limit)))
         }
         _ => None,
     }

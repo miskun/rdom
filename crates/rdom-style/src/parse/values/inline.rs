@@ -20,7 +20,7 @@ pub fn parse_line_height(value: &[Token]) -> Option<LineHeight> {
     match length_percentage(value, Range::NonNegative)? {
         LengthPercentage::Integer(n) => Some(LineHeight::Rows(n as f32)),
         LengthPercentage::Cells(v) => v.is_finite().then_some(LineHeight::Rows(v as f32)),
-        LengthPercentage::Expr(e) => Some(LineHeight::Calc(Box::new(e))),
+        LengthPercentage::Expr(e) => Some(LineHeight::calc(e)),
     }
 }
 
@@ -57,7 +57,7 @@ pub fn parse_vertical_align(value: &[Token]) -> Option<VerticalAlign> {
     match length_percentage(value, Range::Any)? {
         LengthPercentage::Integer(n) => Some(VerticalAlign::Rows(n as f32)),
         LengthPercentage::Cells(v) => v.is_finite().then_some(VerticalAlign::Rows(v as f32)),
-        LengthPercentage::Expr(e) => Some(VerticalAlign::Calc(Box::new(e))),
+        LengthPercentage::Expr(e) => Some(VerticalAlign::calc(e)),
     }
 }
 

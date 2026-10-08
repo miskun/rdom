@@ -635,18 +635,13 @@ fn gap_accepts_calc_and_percent() {
     set("gap", "10%", &mut style).unwrap();
     assert_eq!(
         style.row_gap,
-        Some(Value::Specified(GapValue::Calc(Box::new(
-            CalcExpr::Percent(10.0)
-        ))))
+        Some(Value::Specified(GapValue::calc(CalcExpr::Percent(10.0))))
     );
     assert_eq!(
         set("gap", "-1", &mut style),
         Err(DispatchError::InvalidValue)
     );
-    assert_eq!(
-        GapValue::Calc(Box::new(CalcExpr::Percent(10.0))).resolve(30),
-        3
-    );
+    assert_eq!(GapValue::calc(CalcExpr::Percent(10.0)).resolve(30), 3);
 }
 
 #[test]
@@ -1064,7 +1059,7 @@ fn max_size_none_is_a_declared_value() {
 fn flex_shorthand_full_grammar() {
     use crate::calc::CalcExpr;
     use crate::layout::FlexBasis;
-    let pct = |p: f64| FlexBasis::Calc(Box::new(CalcExpr::Percent(p)));
+    let pct = |p: f64| FlexBasis::calc(CalcExpr::Percent(p));
     let cases: [(&str, f32, f32, FlexBasis); 14] = [
         ("none", 0.0, 0.0, FlexBasis::Auto),
         ("auto", 1.0, 1.0, FlexBasis::Auto),

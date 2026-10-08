@@ -13,8 +13,9 @@ pub enum ListStyleType {
     /// The `list-item` counter in a counter style, between the style's
     /// prefix and suffix.
     Style(CounterStyle),
-    /// A string, the marker's content as it is.
-    String(String),
+    /// A string, the marker's content as it is — shared (`Arc`) by the
+    /// elements that inherit it.
+    String(std::sync::Arc<str>),
 }
 
 impl Default for ListStyleType {
@@ -54,8 +55,9 @@ pub enum ListStylePosition {
 pub enum ListStyleImage {
     #[default]
     None,
-    /// An `<image>`, as its CSS text.
-    Image(String),
+    /// An `<image>`, as its CSS text — shared (`Arc`) by the elements
+    /// that inherit it.
+    Image(std::sync::Arc<str>),
 }
 
 impl ListStyleImage {
@@ -63,7 +65,7 @@ impl ListStyleImage {
     pub fn to_css(&self) -> String {
         match self {
             ListStyleImage::None => "none".to_string(),
-            ListStyleImage::Image(text) => text.clone(),
+            ListStyleImage::Image(text) => text.to_string(),
         }
     }
 }

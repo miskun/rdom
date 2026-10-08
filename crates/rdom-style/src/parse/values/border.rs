@@ -111,9 +111,7 @@ pub(crate) fn paint_length(value: &[Token], percent: bool, range: Range) -> Opti
     match length_percentage(value, range)? {
         LengthPercentage::Integer(n) => Some(PaintLength::Cells(n as f32)),
         LengthPercentage::Cells(c) => Some(PaintLength::Cells(c as f32)),
-        LengthPercentage::Expr(e) if percent || !e.contains_percent() => {
-            Some(PaintLength::Calc(Box::new(e)))
-        }
+        LengthPercentage::Expr(e) if percent || !e.contains_percent() => Some(PaintLength::calc(e)),
         LengthPercentage::Expr(_) => None,
     }
 }
@@ -289,7 +287,7 @@ pub fn parse_border_spacing(value: &[Token]) -> Option<crate::layout::BorderSpac
     let one = |c: &[Token]| match length_percentage(c, Range::NonNegative)? {
         LengthPercentage::Integer(n) => u16::try_from(n).ok().map(GapValue::Cells),
         LengthPercentage::Cells(v) => Some(GapValue::Cells(super::numeric::cells_u16(v))),
-        LengthPercentage::Expr(e) if !e.contains_percent() => Some(GapValue::Calc(Box::new(e))),
+        LengthPercentage::Expr(e) if !e.contains_percent() => Some(GapValue::calc(e)),
         LengthPercentage::Expr(_) => None,
     };
     let (horizontal, vertical) = match components(value)?.as_slice() {

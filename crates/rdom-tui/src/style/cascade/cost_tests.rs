@@ -365,3 +365,95 @@ fn a_sheet_set_is_scanned_once() {
     cascade_subtrees_all_with(&mut dom, &sheets, Some(registry), &[li]);
     assert_eq!(FACT_BUILDS.with(|c| c.get()), 3, "one scan per fact");
 }
+
+/// A non-initial value for every inherited property
+/// (`rdom_style::property_dispatch::inherits`), each value one that holds
+/// heap data where the property can: a percentage, an expression, a
+/// string, a list, a name.
+const INHERITED_VALUES: &[(&str, &str)] = &[
+    ("color", "red"),
+    ("font-weight", "bold"),
+    ("font-style", "italic"),
+    ("font", "italic bold 62.5%/2 serif"),
+    ("font-size", "62.5%"),
+    ("font-family", "system-ui, sans-serif"),
+    ("font-stretch", "condensed"),
+    ("font-width", "condensed"),
+    ("font-variant", "small-caps"),
+    ("white-space", "pre"),
+    ("white-space-collapse", "preserve"),
+    ("text-wrap-mode", "nowrap"),
+    ("word-break", "break-all"),
+    ("overflow-wrap", "anywhere"),
+    ("word-wrap", "break-word"),
+    ("line-break", "strict"),
+    ("hyphens", "none"),
+    ("tab-size", "4"),
+    ("text-transform", "uppercase"),
+    ("text-indent", "calc(50% + 2)"),
+    ("text-align", "center"),
+    ("text-align-all", "center"),
+    ("text-align-last", "right"),
+    ("text-justify", "inter-word"),
+    ("text-wrap", "balance"),
+    ("text-wrap-style", "pretty"),
+    ("letter-spacing", "1"),
+    ("word-spacing", "1"),
+    ("line-height", "calc(1 + 1)"),
+    ("text-underline-offset", "10%"),
+    ("text-underline-position", "under"),
+    ("text-decoration-skip-ink", "none"),
+    ("pointer-events", "none"),
+    ("visibility", "hidden"),
+    ("caret-color", "red"),
+    ("quotes", "'«' '»' '‹' '›'"),
+    ("list-style", "square inside"),
+    ("list-style-type", "'→ '"),
+    ("list-style-type", "thumbs"),
+    ("list-style-position", "inside"),
+    ("list-style-image", "url(a.png)"),
+    ("marker-side", "match-parent"),
+    ("caret-text-color", "red"),
+    ("color-scheme", "light dark"),
+    ("border-spacing", "1 2"),
+    ("direction", "rtl"),
+    ("writing-mode", "vertical-rl"),
+    ("block-ellipsis", "'…more'"),
+    ("scrollbar-color", "red blue"),
+];
+
+/// C10G-INHERIT-COST. Every inherited property's computed value is shared
+/// by the elements that inherit it, not copied: under a root that sets a
+/// non-initial value of it, a plain element cascades with the same
+/// allocations as under one that does not — for each property of the
+/// inherited set (the table must cover it), with the values that hold
+/// heap data. (C9G-PACKER-ALLOC and C9-CARRY-INDENT pinned two of them.)
+#[test]
+fn every_inherited_value_is_shared_not_copied() {
+    use rdom_style::property_dispatch::{inherits, property_names};
+    let missing: Vec<&str> = property_names()
+        .iter()
+        .copied()
+        .filter(|&p| inherits(p) && !INHERITED_VALUES.iter().any(|&(n, _)| n == p))
+        .collect();
+    assert!(missing.is_empty(), "no value for {missing:?}");
+    let invalid: Vec<String> = INHERITED_VALUES
+        .iter()
+        .map(|(name, value)| format!(".p {{ {name}: {value} }}"))
+        .filter(|css| !rdom_css::parse(css).warnings.is_empty())
+        .collect();
+    assert!(invalid.is_empty(), "invalid: {invalid:#?}");
+    let per_element = |css: &str| cascade_allocations(css, 40) - cascade_allocations(css, 20);
+    let plain = per_element(".p { color: red }");
+    let copied: Vec<String> = INHERITED_VALUES
+        .iter()
+        .filter_map(|(name, value)| {
+            let n = per_element(&format!(".p {{ color: red; {name}: {value} }}"));
+            (n != plain).then(|| format!("{name}: {value} — {n} for {plain}"))
+        })
+        .collect();
+    assert!(
+        copied.is_empty(),
+        "allocations per 20 elements: {copied:#?}"
+    );
+}

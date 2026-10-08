@@ -267,7 +267,7 @@ pub(super) fn marker_text(
             let value = counters.value("list-item");
             Some(counter_style.marker_text_with(value, rtl, styles))
         }
-        ListStyleType::String(s) => Some(s.clone()),
+        ListStyleType::String(s) => Some(s.to_string()),
         _ => None,
     }
 }

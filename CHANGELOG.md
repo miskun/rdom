@@ -85,7 +85,8 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `ContentContext for HashMap<String, String>` | `ContentContext for HashMap<String, CustomValue>` | C1G-VAR-COST | `cascade_hints` |
 | `parse::values::parse_var_args` | removed (`var()` declarations kept on `TuiStyle::pending`) | C1-VAR-ANY | `cascade_hints` |
 | `TuiStyle::max_width` / `max_height: Option<Value<u16>>`; `ComputedStyle::max_width: Option<u16>` | `Option<Value<MaxSize>>` (`MaxSize::Cells(n)`); `MaxSize` (`.cells(basis)`, initial `MaxSize::None`) | C2-PERCENT, C2G-MAX-NONE, C3G-API | `sizing_hints` |
-| `MinSize` (`Copy`) | `MinSize` + `Percent(f32)` / `Calc(Box<CalcExpr>)` (`.clone()`) | C2-PERCENT | `sizing_hints` |
+| `MinSize` (`Copy`) | `MinSize` + `Percent(f32)` / `Calc(Arc<CalcExpr>)` (`.clone()`, `MinSize::calc(e)`) | C2-PERCENT, C10G-INHERIT-COST | `sizing_hints`, `calc_payload_hints` |
+| `Size::Calc` / `GapValue::Calc` / `PaddingValue::Calc` / `MarginValue::Calc` holding a `Box<CalcExpr>` (`Size::Calc(Box::new(e))`) | an `Arc<CalcExpr>`: `Size::calc(e)` (each type has `calc()`) | C10G-INHERIT-COST | `calc_payload_hints` |
 | `Size::Flex(u16)`; `flex_shrink: u16` | `Size::Flex(f32)`; `flex_shrink: f32` | C2-NUMBER | `sizing_hints` |
 | `AspectRatio { numerator: u16, denominator: u16 }`; `AspectRatio::new(16, 9)` | private `f32` terms + `auto`: `numerator()`, `denominator()`, `auto()`, `value()`; `AspectRatio::new(16.0, 9.0)` | C2-RATIO, C2G-LAYOUT-SAFETY | `sizing_hints` |
 | `TuiStyle::aspect_ratio: Option<Value<AspectRatio>>`; `parse_aspect_ratio` → `Option<AspectRatio>` | `Option<Value<Option<AspectRatio>>>` (`None` = `auto`); `Option<Option<AspectRatio>>` | C2-RATIO | `sizing_hints` |
@@ -170,6 +171,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 | `TuiStyle::scroll_padding_top` … / `scroll_margin_left` fields; `ComputedStyle::scroll_padding_top` … / `scroll_margin_left` | `TuiStyle::scroll_padding` / `scroll_margin: Sides<Option<Value<…>>>` (`style.scroll_padding.top`), `ComputedStyle::scroll_padding: Sides<ScrollPadding>` / `scroll_margin: Sides<i16>`; the per-side builders unchanged | C8G-API-TYPES | `scroll_sides_and_root_hints` |
 | `App::register_property(…) -> Result<(), String>` | `-> Result<(), RegisterPropertyError>` | C1G-TYPED-ERRORS | `typed_error_hints` |
 | `FontFamily::Names(Vec<String>)` | `FontFamily::Names(Arc<[String]>)` (`vec![…].into()`), shared by the elements that inherit it | C9G-PACKER-ALLOC | — |
+| `MaxSize::Calc` / `FlexBasis::Calc` / `Spacing::Calc` / `LineHeight::Calc` / `VerticalAlign::Calc` / `PaintLength::Calc` / `TrackBreadth::Calc` / `IntrinsicSize::FitContentLimit` holding a `Box<CalcExpr>` | an `Arc<CalcExpr>`: `X::calc(e)` | C10G-INHERIT-COST | `calc_payload_hints` |
+| `ListStyleType::String(String)`, `ListStyleImage::Image(String)`, `BlockEllipsis::Str(String)` | `Arc<str>` (`"→ ".into()`), shared by the elements that inherit them | C10G-INHERIT-COST | `calc_payload_hints` |
 | `FontStretch::Keyword(&'static str)`; `FONT_STRETCH_KEYWORDS` | `FontStretch::Keyword(FontStretchKeyword)` (`FontStretchKeyword::Condensed`; `keyword()`, `percent()`, `from_keyword`); `FontStretchKeyword::ALL` | C9G-TYPES | `font_type_hints` |
 | exhaustive `match` on `FontVariant` | add a `_` arm (`#[non_exhaustive]`: Fonts 4 adds values) | C9G-TYPES | `font_type_hints` |
 | `TuiStyle::text_align(TextAlign)` | `text_align(impl Into<TextAlignKeyword>)`: a `TextAlign` as before, or `TextAlignKeyword::JustifyAll` | C9G-TYPES | `font_type_hints` |
@@ -266,6 +269,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **`TuiStyle` / `ComputedStyle` gain `grid_template_areas`** (CSS Grid 2 §7.3: `GridTemplateAreas`, valid by construction — `GridTemplateAreas::new` refuses non-rectangles) with a bit, a builder and a parser. Migration: build with `TuiStyle::new()` / `ComputedStyle::initial()`; a destructuring pattern adds it. (C7-GRID-AREAS)
 - **The alignment builders take `impl Into<Alignment>` and check the property's grammar; `Align` is `#[non_exhaustive]`**: an out-of-grammar value panics in a debug build and sets nothing in a release one. Migration: drop the `.into()` on an `Align` argument; add a `_` arm to a `match` on `Align`. (C6G-ALIGN-API)
 - **`property_dispatch::set_from_source` takes `text: Option<&str>` and `important: bool`** (one call per parsed declaration), and **`parse::token::SpannedTokens` is a struct** (`tokens`, `positions`, `spans`). Migration: see the API table. (C6G-FRONTEND-API)
+- **Every `calc()` payload is an `Arc<CalcExpr>`** (was a `Box`), as `Length`'s is: `Size`, `MinSize`, `MaxSize`, `GapValue`, `PaddingValue`, `MarginValue`, `FlexBasis`, `Spacing`, `LineHeight`, `VerticalAlign`, `PaintLength`, `TrackBreadth`. Migration: `Size::Calc(Box::new(e))` → `Size::calc(e)`; a `Calc(e)` match reads `e` as before. (C10G-INHERIT-COST)
 
 ### Added — `rdom-style`
 
@@ -686,6 +690,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **`::selection`'s UA colors apply as a pair** (CSS Pseudo-Elements 4 §3.4): an author `color` or `background-color` on `::selection` drops the UA's other half, so `::selection { background-color: yellow }` no longer paints white text. (C10G-SELECTION-PAIRED)
 - **Highlights cost what they touch**: the ranges are indexed by text node once per layout, not copied per inline flow per paint; a `*::highlight()` style is shared by elements that compute the same; a restyle reuses its matches; every element and pseudo-element cascades with two fewer allocations. (C10G-HIGHLIGHT-COST)
 - **Idle documents skip three scans**: a flow climbs for a first formatted line only when the sheets style `::first-line` or `::first-letter`; what a sheet set holds (those rules, `::highlight()` names, `@counter-style`s) is found once per set, not per cascade; the pseudo hit test reads the line at the row. (C10G-IDLE-SCANS)
+- **No inherited value is copied per element**: a `font-size` percentage, `text-underline-offset`, `color-scheme`, a `list-style-type` string, `list-style-image` and `block-ellipsis` set on an ancestor are shared by the descendants that inherit them (each copied a box, a string or a list per element). (C10G-INHERIT-COST)
 
 ### Changed — `rdom-showcase`
 

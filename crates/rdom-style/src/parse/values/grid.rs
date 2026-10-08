@@ -256,7 +256,7 @@ fn parse_breadth(value: &[Token]) -> Option<TrackBreadth> {
             LengthPercentage::Expr(CalcExpr::Percent(p)) => {
                 (p >= 0.0 && p <= f64::from(u16::MAX)).then_some(TrackBreadth::Percent(p as f32))?
             }
-            LengthPercentage::Expr(e) => TrackBreadth::Calc(Box::new(e)),
+            LengthPercentage::Expr(e) => TrackBreadth::calc(e),
         }),
     }
 }

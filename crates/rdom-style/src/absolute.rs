@@ -87,7 +87,7 @@ impl ComputedStyle {
             if let IntrinsicSize::FitContentLimit(expr) = limit
                 && expr.needs_context()
             {
-                **expr = expr.absolutize_in(vp);
+                *expr = std::sync::Arc::new(expr.absolutize_in(vp));
             }
         }
         let p = &mut self.padding;
@@ -165,12 +165,7 @@ impl ComputedStyle {
             &mut self.bottom,
             &mut self.left,
         ] {
-            absolutize(
-                inset,
-                vp,
-                |e| Length::Calc(e.into()),
-                |v| Length::Cells(cells_i32(v)),
-            );
+            absolutize(inset, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
         }
         // CSS Text Decoration 4 §2.5 / §4.2: the decoration lengths
         // (parsed and kept, not drawn).
@@ -201,12 +196,9 @@ impl ComputedStyle {
             });
         }
         // CSS Text 3 §8.1: `text-indent` is a length-percentage.
-        absolutize(
-            &mut self.text.text_indent.length,
-            vp,
-            |e| Length::Calc(e.into()),
-            |v| Length::Cells(cells_i32(v)),
-        );
+        absolutize(&mut self.text.text_indent.length, vp, Length::Calc, |v| {
+            Length::Cells(cells_i32(v))
+        });
     }
 }
 
@@ -334,7 +326,7 @@ impl HasExpr for BorderWidth {
 fn absolutize<T: HasExpr>(
     value: &mut T,
     cx: &UnitContext,
-    calc: fn(Box<CalcExpr>) -> T,
+    calc: fn(std::sync::Arc<CalcExpr>) -> T,
     fixed: impl FnOnce(f64) -> T,
 ) {
     let Some(expr) = value.expr().filter(|e| e.needs_context()) else {
@@ -342,7 +334,7 @@ fn absolutize<T: HasExpr>(
     };
     let expr = expr.absolutize_in(cx);
     *value = if expr.contains_percent() {
-        calc(Box::new(expr))
+        calc(std::sync::Arc::new(expr))
     } else {
         fixed(expr.resolve_f64(&crate::calc::ResolveCtx::new(0)))
     };

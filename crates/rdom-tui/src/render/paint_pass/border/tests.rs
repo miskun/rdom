@@ -20,7 +20,7 @@ fn bordered() -> (Buffer, ComputedStyle, LayoutRect, Rect) {
     );
     c.border_width = Sides::all(BorderWidth::Thick);
     let calc = crate::calc::CalcExpr::Length(1);
-    c.border_radius = Corners::all(BorderRadius::circle(PaintLength::Calc(Box::new(calc))));
+    c.border_radius = Corners::all(BorderRadius::circle(PaintLength::calc(calc)));
     (buf, c, LayoutRect::new(1, 1, 6, 4), Rect::new(1, 1, 6, 4))
 }
 

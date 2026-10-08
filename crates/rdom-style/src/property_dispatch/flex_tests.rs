@@ -87,11 +87,7 @@ fn flex_grow_and_flex_basis_longhands() {
         ("auto", FlexBasis::Auto, "auto"),
         ("content", FlexBasis::Content, "content"),
         ("4", FlexBasis::Cells(4), "4"),
-        (
-            "50%",
-            FlexBasis::Calc(Box::new(CalcExpr::Percent(50.0))),
-            "50%",
-        ),
+        ("50%", FlexBasis::calc(CalcExpr::Percent(50.0)), "50%"),
         (
             "min-content",
             FlexBasis::Intrinsic(IntrinsicSize::MinContent),
@@ -157,7 +153,7 @@ fn row_gap_column_gap_and_the_gap_shorthand() {
         (
             "normal 10%",
             GapValue::Normal,
-            GapValue::Calc(Box::new(CalcExpr::Percent(10.0))),
+            GapValue::calc(CalcExpr::Percent(10.0)),
             "normal 10%",
         ),
         ("2 2", GapValue::Cells(2), GapValue::Cells(2), "2"),
@@ -287,9 +283,7 @@ fn an_omitted_flex_basis_is_zero_percent() {
         set("flex", css, &mut style).unwrap_or_else(|e| panic!("{css}: {e:?}"));
         assert_eq!(
             style.flex_basis,
-            Some(Value::Specified(FlexBasis::Calc(Box::new(
-                CalcExpr::Percent(0.0)
-            )))),
+            Some(Value::Specified(FlexBasis::calc(CalcExpr::Percent(0.0)))),
             "{css}"
         );
         assert_eq!(serialize("flex", &style).as_deref(), Some(out), "{css}");

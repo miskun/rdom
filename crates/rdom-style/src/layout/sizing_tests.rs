@@ -3,8 +3,8 @@
 use super::sizing::*;
 use crate::calc::{CalcExpr, CalcOp};
 
-fn calc(lhs: CalcExpr, rhs: CalcExpr) -> Box<CalcExpr> {
-    Box::new(CalcExpr::binary(CalcOp::Sub, lhs, rhs))
+fn calc(lhs: CalcExpr, rhs: CalcExpr) -> std::sync::Arc<CalcExpr> {
+    std::sync::Arc::new(CalcExpr::binary(CalcOp::Sub, lhs, rhs))
 }
 
 /// `C2G-CELLS-CONVERSIONS`: the one conversion of a size or an
@@ -22,7 +22,7 @@ fn sizes_and_lengths_to_cells() {
     assert_eq!(Size::Auto.cells(Some(80)), None);
     assert_eq!(Size::Flex(1.0).cells(Some(80)), None);
     assert_eq!(Length::Cells(-3).cells(80), Some(-3));
-    assert_eq!(Length::Calc(minus.into()).cells(80), Some(-10));
+    assert_eq!(Length::Calc(minus).cells(80), Some(-10));
     assert_eq!(Length::Auto.cells(80), None);
 }
 
@@ -61,7 +61,7 @@ fn intrinsic_keywords_convert_into_every_size() {
     let limit = IntrinsicSize::fit_content(10);
     assert_eq!(
         limit,
-        IntrinsicSize::FitContentLimit(Box::new(CalcExpr::Length(10)))
+        IntrinsicSize::FitContentLimit(std::sync::Arc::new(CalcExpr::Length(10)))
     );
     assert_eq!(limit.limit_cells(None), Some(10));
     let half = IntrinsicSize::fit_content_percent(50.0);

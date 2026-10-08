@@ -26,7 +26,16 @@ pub enum LineHeight {
     /// A percentage of the font size, or a length in a unit that needs
     /// the context (`lh`, `rlh`, a viewport unit), as specified; it
     /// computes to [`Rows`](Self::Rows).
-    Calc(Box<CalcExpr>),
+    Calc(std::sync::Arc<CalcExpr>),
+}
+
+impl LineHeight {
+    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
+    /// shared by every style holding the value — an inherited or copied
+    /// one clones without allocating.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        LineHeight::Calc(std::sync::Arc::new(expr))
+    }
 }
 
 impl LineHeight {
@@ -97,14 +106,8 @@ mod tests {
         assert_eq!(LineHeight::Rows(2.7).rows(), 2);
         assert_eq!(LineHeight::Number(0.0).rows(), 1);
         assert_eq!(LineHeight::Number(0.6).rows(), 1);
-        assert_eq!(
-            LineHeight::Calc(Box::new(CalcExpr::Percent(200.0))).rows(),
-            2
-        );
-        assert_eq!(
-            LineHeight::Calc(Box::new(CalcExpr::Percent(150.0))).rows(),
-            1
-        );
+        assert_eq!(LineHeight::calc(CalcExpr::Percent(200.0)).rows(), 2);
+        assert_eq!(LineHeight::calc(CalcExpr::Percent(150.0)).rows(), 1);
     }
 
     /// Math on fractions lands a hair below a whole row; it is that row.
@@ -131,13 +134,11 @@ mod tests {
     #[test]
     fn a_context_length_computes_to_rows() {
         let cx = UnitContext::new(Viewport::new(80, 20)).with_line_heights(2.0, 3.0);
-        let lh = |unit| {
-            LineHeight::Calc(Box::new(CalcExpr::Dimension { value: 2.0, unit })).computed(&cx)
-        };
+        let lh = |unit| LineHeight::calc(CalcExpr::Dimension { value: 2.0, unit }).computed(&cx);
         assert_eq!(lh(CalcUnit::Lh), LineHeight::Rows(4.0));
         assert_eq!(lh(CalcUnit::Rlh), LineHeight::Rows(6.0));
         assert_eq!(
-            LineHeight::Calc(Box::new(CalcExpr::Percent(150.0))).computed(&cx),
+            LineHeight::calc(CalcExpr::Percent(150.0)).computed(&cx),
             LineHeight::Rows(1.5)
         );
         assert_eq!(

@@ -246,7 +246,7 @@ fn row_with_percent_gap_resolves_against_container_width() {
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .width(Size::Fixed(30))
-                .gap(GapValue::Calc(Box::new(CalcExpr::Percent(10.0)))),
+                .gap(GapValue::calc(CalcExpr::Percent(10.0))),
         )
         .rule_unchecked("a", TuiStyle::new().width(Size::Fixed(3)))
         .rule_unchecked("b", TuiStyle::new().width(Size::Fixed(4)));
@@ -992,10 +992,7 @@ fn calc_specified_caps_auto_min_per_css_4_5() {
                 .direction(Direction::Row)
                 .width(Size::Fixed(80)),
         )
-        .rule_unchecked(
-            "p",
-            TuiStyle::new().width(Size::Calc(Box::new(basis_50pct))),
-        );
+        .rule_unchecked("p", TuiStyle::new().width(Size::calc(basis_50pct)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 200, 5));
 
@@ -4136,7 +4133,7 @@ fn percent_padding_resolves_against_the_containing_block_width() {
                     top: PaddingValue::Cells(0),
                     right: PaddingValue::Cells(0),
                     bottom: PaddingValue::Cells(0),
-                    left: PaddingValue::Calc(Box::new(CalcExpr::Percent(10.0))),
+                    left: PaddingValue::calc(CalcExpr::Percent(10.0)),
                 }),
         );
     cascade(&mut dom, &sheet);
@@ -4162,7 +4159,7 @@ fn percent_margins_resolve_along_the_collapse_chain() {
     dom.append_child(outer, inner).unwrap();
     dom.append_child(wrap, outer).unwrap();
     dom.append_child(root, wrap).unwrap();
-    let pct = |p: f64| MarginValue::Calc(Box::new(CalcExpr::Percent(p)));
+    let pct = |p: f64| MarginValue::calc(CalcExpr::Percent(p));
     let sheet = Stylesheet::bare()
         // Top padding stops the chain at `wrap`.
         .rule_unchecked(
@@ -4227,7 +4224,7 @@ fn flex_item_natural_width_counts_percent_padding_against_the_container_width() 
                 top: PaddingValue::Cells(0),
                 right: PaddingValue::Cells(0),
                 bottom: PaddingValue::Cells(0),
-                left: PaddingValue::Calc(Box::new(CalcExpr::Percent(10.0))),
+                left: PaddingValue::calc(CalcExpr::Percent(10.0)),
             }),
         );
     cascade(&mut dom, &sheet);
@@ -4586,7 +4583,7 @@ fn inline_block_atom_percent_padding_resolves_against_the_ifc_width() {
                     top: PaddingValue::Cells(0),
                     right: PaddingValue::Cells(0),
                     bottom: PaddingValue::Cells(0),
-                    left: PaddingValue::Calc(Box::new(CalcExpr::Percent(10.0))),
+                    left: PaddingValue::calc(CalcExpr::Percent(10.0)),
                 }),
         );
     cascade(&mut dom, &sheet);

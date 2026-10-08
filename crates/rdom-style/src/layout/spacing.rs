@@ -21,7 +21,16 @@ pub enum Spacing {
     /// A length in a unit that needs the context (a viewport unit, `lh`,
     /// `rlh`), as specified; it computes to [`Cells`](Self::Cells)
     /// (`ComputedStyle::resolve_context_units`).
-    Calc(Box<CalcExpr>),
+    Calc(std::sync::Arc<CalcExpr>),
+}
+
+impl Spacing {
+    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
+    /// shared by every style holding the value — an inherited or copied
+    /// one clones without allocating.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        Spacing::Calc(std::sync::Arc::new(expr))
+    }
 }
 
 impl Spacing {

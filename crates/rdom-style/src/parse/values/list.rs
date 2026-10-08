@@ -11,7 +11,7 @@ use crate::parse::token::Token;
 pub fn parse_list_style_type(value: &[Token]) -> Option<ListStyleType> {
     match value {
         [Token::Ident(kw)] if kw.eq_ignore_ascii_case("none") => Some(ListStyleType::None),
-        [Token::String(s)] => Some(ListStyleType::String(s.clone())),
+        [Token::String(s)] => Some(ListStyleType::String(s.as_str().into())),
         _ => match parse_counter_style(value)? {
             (style, used) if used == value.len() => Some(ListStyleType::Style(style)),
             _ => None,
@@ -35,7 +35,7 @@ pub fn parse_list_style_position(value: &[Token]) -> Option<ListStylePosition> {
 pub fn parse_list_style_image(value: &[Token]) -> Option<ListStyleImage> {
     match image_text(value)?.as_str() {
         "none" => Some(ListStyleImage::None),
-        text => Some(ListStyleImage::Image(text.to_string())),
+        text => Some(ListStyleImage::Image(text.into())),
     }
 }
 

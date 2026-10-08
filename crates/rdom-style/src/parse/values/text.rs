@@ -151,7 +151,7 @@ pub fn parse_spacing(value: &[Token]) -> Option<Spacing> {
     match length_percentage(value, Range::Any)? {
         LengthPercentage::Integer(n) => Some(Spacing::Cells(n as f32)),
         LengthPercentage::Cells(v) => v.is_finite().then_some(Spacing::Cells(v as f32)),
-        LengthPercentage::Expr(e) => (!e.contains_percent()).then(|| Spacing::Calc(Box::new(e))),
+        LengthPercentage::Expr(e) => (!e.contains_percent()).then(|| Spacing::calc(e)),
     }
 }
 

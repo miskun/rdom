@@ -352,23 +352,23 @@ fn computed_viewport_units_become_cells() {
     use crate::calc::Viewport;
     use crate::layout::{Length, MarginValue, Size};
     let calc = |src: &str| match length_percentage(&t(src), Range::Any) {
-        Some(LengthPercentage::Expr(e)) => Box::new(e),
+        Some(LengthPercentage::Expr(e)) => std::sync::Arc::new(e),
         other => panic!("{src}: {other:?}"),
     };
     let mut c = ComputedStyle::initial();
     c.width = Size::Calc(calc("50vw"));
     c.height = Size::Calc(calc("calc(100% - 10vh)"));
     c.margin.left = MarginValue::Calc(calc("-2.5vmax"));
-    c.top = Length::Calc(calc("calc(10vmin + 1)").into());
+    c.top = Length::Calc(calc("calc(10vmin + 1)"));
     c.resolve_viewport_units(Viewport::new(80, 20));
     assert_eq!(c.width, Size::Fixed(40));
     assert_eq!(
         c.height,
-        Size::Calc(Box::new(crate::calc::CalcExpr::binary(
+        Size::calc(crate::calc::CalcExpr::binary(
             crate::calc::CalcOp::Sub,
             crate::calc::CalcExpr::Percent(100.0),
             crate::calc::CalcExpr::Number(2.0),
-        )))
+        ))
     );
     assert_eq!(c.margin.left, MarginValue::Cells(-2), "-2.5 × 0.8 = -2");
     assert_eq!(c.top, Length::Cells(3));

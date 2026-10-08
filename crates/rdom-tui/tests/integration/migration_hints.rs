@@ -1054,3 +1054,36 @@ fn font_hints() {
     let _: &Font = &computed.font;
     assert_eq!(computed.font.weight(), 400.0);
 }
+
+/// C10G-INHERIT-COST: every `calc()` payload is an `Arc<CalcExpr>` (was a
+/// `Box`), built with the value's `calc()` constructor — `Size`,
+/// `MinSize`, `MaxSize`, `GapValue`, `PaddingValue`, `MarginValue`,
+/// `Spacing`, `LineHeight`, `VerticalAlign`, `PaintLength`, `FlexBasis`,
+/// `TrackBreadth`, as `Length` already was — and a match on `Calc(e)` reads
+/// `e` as before. The list strings and `block-ellipsis` hold `Arc<str>`.
+#[test]
+fn calc_payload_hints() {
+    use calc::{CalcExpr, CalcOp};
+    let e = || CalcExpr::binary(CalcOp::Sub, CalcExpr::Percent(50.0), CalcExpr::Length(2));
+    let size = Size::calc(e());
+    assert!(matches!(&size, Size::Calc(expr) if expr.contains_percent()));
+    let _ = (MinSize::calc(e()), MaxSize::calc(e()), GapValue::calc(e()));
+    let _ = (
+        PaddingValue::calc(e()),
+        MarginValue::calc(e()),
+        Spacing::calc(e()),
+    );
+    let _ = (
+        LineHeight::calc(e()),
+        VerticalAlign::calc(e()),
+        PaintLength::calc(e()),
+    );
+    let _ = (
+        FlexBasis::calc(e()),
+        TrackBreadth::calc(e()),
+        layout::Length::calc(e()),
+    );
+    let _ = layout::ListStyleType::String("→ ".into());
+    let _ = layout::ListStyleImage::Image("url(a.png)".into());
+    let _ = BlockEllipsis::Str("…".into());
+}

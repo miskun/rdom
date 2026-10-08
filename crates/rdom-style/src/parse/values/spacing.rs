@@ -21,7 +21,7 @@ pub fn parse_gap(value: &[Token]) -> Option<GapValue> {
     match length_percentage(value, Range::NonNegative)? {
         LengthPercentage::Integer(n) => u16::try_from(n).ok().map(GapValue::Cells),
         LengthPercentage::Cells(v) => Some(GapValue::Cells(cells_u16(v))),
-        LengthPercentage::Expr(e) => Some(GapValue::Calc(Box::new(e))),
+        LengthPercentage::Expr(e) => Some(GapValue::calc(e)),
     }
 }
 
@@ -75,7 +75,7 @@ pub fn parse_padding_value(value: &[Token]) -> Option<PaddingValue> {
     match length_percentage(value, Range::NonNegative)? {
         LengthPercentage::Integer(n) => u16::try_from(n).ok().map(PaddingValue::Cells),
         LengthPercentage::Cells(v) => Some(PaddingValue::Cells(cells_u16(v))),
-        LengthPercentage::Expr(e) => Some(PaddingValue::Calc(Box::new(e))),
+        LengthPercentage::Expr(e) => Some(PaddingValue::calc(e)),
     }
 }
 
@@ -91,7 +91,7 @@ fn parse_margin_value(value: &[Token]) -> Option<MarginValue> {
             LengthPercentage::Cells(v) => Some(MarginValue::Cells(
                 cells_i32(v).clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16,
             )),
-            LengthPercentage::Expr(e) => Some(MarginValue::Calc(Box::new(e))),
+            LengthPercentage::Expr(e) => Some(MarginValue::calc(e)),
         },
     }
 }

@@ -19,17 +19,13 @@ fn line_height_takes_normal_a_number_or_a_length() {
         ("0", LineHeight::Number(0.0), "0"),
         ("calc(1 + 1)", LineHeight::Number(2.0), "2"),
         ("3ch", LineHeight::Rows(3.0), "3ch"),
-        (
-            "150%",
-            LineHeight::Calc(Box::new(CalcExpr::Percent(150.0))),
-            "150%",
-        ),
+        ("150%", LineHeight::calc(CalcExpr::Percent(150.0)), "150%"),
         (
             "2lh",
-            LineHeight::Calc(Box::new(CalcExpr::Dimension {
+            LineHeight::calc(CalcExpr::Dimension {
                 value: 2.0,
                 unit: CalcUnit::Lh,
-            })),
+            }),
             "2lh",
         ),
     ] {
@@ -77,11 +73,7 @@ fn vertical_align_takes_its_keywords_and_a_length() {
         ("bottom", VerticalAlign::Bottom, "bottom"),
         ("2", VerticalAlign::Rows(2.0), "2"),
         ("-1", VerticalAlign::Rows(-1.0), "-1"),
-        (
-            "50%",
-            VerticalAlign::Calc(Box::new(CalcExpr::Percent(50.0))),
-            "50%",
-        ),
+        ("50%", VerticalAlign::calc(CalcExpr::Percent(50.0)), "50%"),
     ] {
         let mut style = TuiStyle::new();
         set("vertical-align", text, &mut style).unwrap_or_else(|e| panic!("{text}: {e:?}"));

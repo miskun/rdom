@@ -18,7 +18,7 @@ pub fn parse_max_lines(value: &[Token]) -> Option<Option<u32>> {
 /// `block-ellipsis: no-ellipsis | auto | <string>` (§4.3).
 pub fn parse_block_ellipsis(value: &[Token]) -> Option<BlockEllipsis> {
     match value {
-        [Token::String(s)] => Some(BlockEllipsis::Str(s.clone())),
+        [Token::String(s)] => Some(BlockEllipsis::Str(s.as_str().into())),
         _ => parse_keyword(
             value,
             &[

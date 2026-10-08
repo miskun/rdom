@@ -300,7 +300,7 @@ fn flex_basis_reaches_the_computed_style() {
     lay_out(&mut dom, ".a { flex: 2 30% }", 40, 5);
     assert_eq!(
         computed_of(&dom, a).flex_basis,
-        rdom_tui::layout::FlexBasis::Calc(Box::new(rdom_style::calc::CalcExpr::Percent(30.0)))
+        rdom_tui::layout::FlexBasis::calc(rdom_style::calc::CalcExpr::Percent(30.0))
     );
 }
 
@@ -435,11 +435,11 @@ fn max_width_percent_from_rdom_tui_paths() {
     // the `calc()` form of the same percentage resolves the same.
     assert_eq!(MaxSize::percent(50.0), MaxSize::Percent(50.0));
     assert_eq!(
-        MaxSize::Calc(Box::new(CalcExpr::Percent(50.0))).cells(Some(80)),
+        MaxSize::calc(CalcExpr::Percent(50.0)).cells(Some(80)),
         MaxSize::percent(50.0).cells(Some(80))
     );
     assert_eq!(
-        MinSize::Calc(Box::new(CalcExpr::Percent(25.0))).cells(Some(80)),
+        MinSize::calc(CalcExpr::Percent(25.0)).cells(Some(80)),
         MinSize::percent(25.0).cells(Some(80))
     );
     let mut dom = TuiDom::new();

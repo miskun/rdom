@@ -11,8 +11,8 @@ pub enum BlockEllipsis {
     NoEllipsis,
     /// `…` (U+2026).
     Auto,
-    /// The string.
-    Str(String),
+    /// The string — shared (`Arc`) by the elements that inherit it.
+    Str(std::sync::Arc<str>),
 }
 
 impl BlockEllipsis {

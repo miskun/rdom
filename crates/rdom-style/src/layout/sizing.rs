@@ -32,7 +32,7 @@ pub enum Size {
     /// `height` → parent height). See [`crate::calc::CalcExpr`].
     /// Negative results clamp to 0; positive results clamp to
     /// `u16::MAX`.
-    Calc(Box<crate::calc::CalcExpr>),
+    Calc(std::sync::Arc<crate::calc::CalcExpr>),
     /// `min-content` / `max-content` / `fit-content` /
     /// `fit-content(<length-percentage>)` (CSS Sizing 3 §3.1): a size
     /// from the box's content, which layout measures.
@@ -40,6 +40,15 @@ pub enum Size {
     /// Child determines its own size (default: content-driven).
     #[default]
     Auto,
+}
+
+impl Size {
+    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
+    /// shared by every style holding the value — an inherited or copied
+    /// one clones without allocating.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        Size::Calc(std::sync::Arc::new(expr))
+    }
 }
 
 /// An intrinsic size keyword (CSS Sizing 3 §3.1–§3.3), valid in `width`
@@ -61,20 +70,24 @@ pub enum IntrinsicSize {
     /// max(min-content, limit))`. The limit is cells
     /// ([`CalcExpr::Length`](crate::calc::CalcExpr::Length)), a
     /// percentage of the containing block, or a math function.
-    FitContentLimit(Box<crate::calc::CalcExpr>),
+    FitContentLimit(std::sync::Arc<crate::calc::CalcExpr>),
 }
 
 impl IntrinsicSize {
     /// `fit-content(<cells>)`: a limit of `cells` columns (rows on the
     /// block axis).
     pub fn fit_content(cells: u16) -> Self {
-        IntrinsicSize::FitContentLimit(Box::new(crate::calc::CalcExpr::Length(i32::from(cells))))
+        IntrinsicSize::FitContentLimit(std::sync::Arc::new(crate::calc::CalcExpr::Length(
+            i32::from(cells),
+        )))
     }
 
     /// `fit-content(<percent>%)`: a limit of `percent` of the containing
     /// block's size on the axis.
     pub fn fit_content_percent(percent: f32) -> Self {
-        IntrinsicSize::FitContentLimit(Box::new(crate::calc::CalcExpr::Percent(f64::from(percent))))
+        IntrinsicSize::FitContentLimit(std::sync::Arc::new(crate::calc::CalcExpr::Percent(
+            f64::from(percent),
+        )))
     }
 
     /// `fit-content()`'s limit in cells against `basis` (the containing
@@ -180,9 +193,18 @@ pub enum MinSize {
     Percent(f32),
     /// A math function. Resolves at layout time against the containing
     /// block's size on the same axis.
-    Calc(Box<crate::calc::CalcExpr>),
+    Calc(std::sync::Arc<crate::calc::CalcExpr>),
     /// An intrinsic keyword (CSS Sizing 3 §3.2), which layout measures.
     Intrinsic(IntrinsicSize),
+}
+
+impl MinSize {
+    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
+    /// shared by every style holding the value — an inherited or copied
+    /// one clones without allocating.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        MinSize::Calc(std::sync::Arc::new(expr))
+    }
 }
 
 impl From<u16> for Size {
@@ -258,9 +280,18 @@ pub enum MaxSize {
     /// as [`Size::Percent`] holds it.
     Percent(f32),
     /// A math function.
-    Calc(Box<crate::calc::CalcExpr>),
+    Calc(std::sync::Arc<crate::calc::CalcExpr>),
     /// An intrinsic keyword (CSS Sizing 3 §3.3), which layout measures.
     Intrinsic(IntrinsicSize),
+}
+
+impl MaxSize {
+    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
+    /// shared by every style holding the value — an inherited or copied
+    /// one clones without allocating.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        MaxSize::Calc(std::sync::Arc::new(expr))
+    }
 }
 
 impl MaxSize {
@@ -346,10 +377,19 @@ pub enum FlexBasis {
     Cells(u16),
     /// `<percentage>` or a math function holding one, against the flex
     /// container's inner main size.
-    Calc(Box<crate::calc::CalcExpr>),
+    Calc(std::sync::Arc<crate::calc::CalcExpr>),
     /// An intrinsic size keyword (CSS Sizing 3 §3.1): `min-content`,
     /// `max-content`, `fit-content`, `fit-content(<l>)`.
     Intrinsic(IntrinsicSize),
+}
+
+impl FlexBasis {
+    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
+    /// shared by every style holding the value — an inherited or copied
+    /// one clones without allocating.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        FlexBasis::Calc(std::sync::Arc::new(expr))
+    }
 }
 
 /// One axis of `contain-intrinsic-size` (CSS Sizing 4 §6.1): `auto?
@@ -457,7 +497,7 @@ impl AspectRatio {
 #[derive(Debug, Clone, PartialEq)]
 pub enum GapValue {
     Cells(u16),
-    Calc(Box<crate::calc::CalcExpr>),
+    Calc(std::sync::Arc<crate::calc::CalcExpr>),
     /// `normal`: 0 in flex layout (§8.1; a multi-column `1em`, which
     /// rdom has no layout for yet).
     Normal,
@@ -477,11 +517,18 @@ impl From<u16> for GapValue {
 
 impl From<crate::calc::CalcExpr> for GapValue {
     fn from(expr: crate::calc::CalcExpr) -> Self {
-        GapValue::Calc(Box::new(expr))
+        GapValue::calc(expr)
     }
 }
 
 impl GapValue {
+    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
+    /// shared by every style holding the value — an inherited or copied
+    /// one clones without allocating.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        GapValue::Calc(std::sync::Arc::new(expr))
+    }
+
     /// Resolve against `basis` (the container's content size on the
     /// gap's axis; `0` when that size is indefinite).
     pub fn resolve(&self, basis: u16) -> u16 {

@@ -32,7 +32,16 @@ pub enum VerticalAlign {
     /// A percentage of the element's line height, or a length in a unit
     /// that needs the context, as specified; it computes to
     /// [`Rows`](Self::Rows).
-    Calc(Box<CalcExpr>),
+    Calc(std::sync::Arc<CalcExpr>),
+}
+
+impl VerticalAlign {
+    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
+    /// shared by every style holding the value — an inherited or copied
+    /// one clones without allocating.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        VerticalAlign::Calc(std::sync::Arc::new(expr))
+    }
 }
 
 impl VerticalAlign {
@@ -86,7 +95,7 @@ mod tests {
     #[test]
     fn a_percentage_computes_against_the_line_height() {
         let cx = UnitContext::new(Viewport::new(80, 20));
-        let half = VerticalAlign::Calc(Box::new(CalcExpr::Percent(50.0)));
+        let half = VerticalAlign::calc(CalcExpr::Percent(50.0));
         assert_eq!(half.computed(4, &cx), VerticalAlign::Rows(2.0));
         assert_eq!(half.computed(4, &cx).raise(), Some(2));
         assert_eq!(VerticalAlign::Rows(-1.0).raise(), Some(-1));
