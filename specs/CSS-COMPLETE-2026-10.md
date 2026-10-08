@@ -41,7 +41,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 9 | Inline text and decoration | done 2026-10-12 (both gates; 14 gate fixes `C9G-*`; their re-review rides with the Phase 10 gate) |
 | 10 | Lists, counters, generated content, pseudo-elements | done 2026-10-13 (both gates; 19 gate fixes `C10G-*`; their re-review rides with the Phase 11 gate) |
 | 11 | Selectors | done 2026-10-14 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
-| 12 | Transitions, animations, user interface | |
+| 12 | Transitions, animations, user interface | items done, gates pending |
 | 13 | Tables (real table formatting context) | |
 | 14 | Conditional rules, containment | |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | |
@@ -8025,3 +8025,13 @@ row comes from.
   the dismiss test. Changed test: `open_dropdown_renders_options_inline_without_chrome` opens its select
   after inserting it (its comment said no top layer); its expectations stand. No snapshot changed.
   CHANGELOG silent change 21.
+- 2026-10-17 — Phase 12 part 3 docs and close: every Phase 12 row is done (C12-FOCUS-FLUSH, -OUTLINE, -CURSOR,
+  -CARET, -CONTROLS in four commits, -SELECT-TOP-LAYER added as a row); the Phases table reads "items done,
+  gates pending". CSS-COVERAGE: §3.19 is 9 Supported / 1 Partial (`pointer-events`) / 1 Missing (`nav-*`, the
+  decided exclusion) / 1 N/A; §3.22's logical-keywords row closed with `resize: block / inline`; the total
+  230 / 8 / 24 / 45; the priority rows 10, 42–45, 67, 68 marked shipped. ACID: tile 15 gains the controls
+  (`accent-color`, `appearance: none`, `field-sizing`), the open picker over the page and the outline
+  rings; I3 the `outline: auto` focus ring and the flushed "open panel, focus input"; I9 the caret shapes,
+  `caret-animation: manual` and the pointer shapes. TECH_DEBT `SIZE-1` recount of the files part 3 grew:
+  `runtime/app/mod.rs` 562, `style/cascade/apply.rs` 518 and `runtime/router/mouse/mod.rs` 506 (new to the
+  list), `property_dispatch/set.rs` 500 — none past 575. Docs only.

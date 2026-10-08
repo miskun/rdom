@@ -149,10 +149,10 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 39 | Color syntax completeness: `rgb()` space syntax / `%` channels / `/ alpha`; `color-mix()`; relative color syntax; system colors (`Canvas`, `CanvasText`, …); `light-dark()` + `color-scheme` | Shipped (C3-RGB, C3-MIX, C3-RELATIVE, C3-SYSTEM, C3-SCHEME; §3.4) — system colors map onto the terminal's default fg / bg and the UA palette; `light-dark()` picks by the terminal's reported background and follows its theme changes (mode 2031). | S–M | No |
 | 40 | `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default`, `:user-valid` / `:user-invalid`, `:modal`, `:link` / `:any-link`, `:lang()`, `:scope`, `:popover-open` | Shipped (§3.17): `:link` / `:any-link`, `:lang()`, `:scope` (C11-LINK-LANG, C11-SCOPE), the form states (C11-FORM-STATES), `:modal` with a top layer and `:popover-open` with the `popover` attribute (C11-MODAL-POPOVER). | S each | Partial — `:read-*`, `:user-*`, `:modal` Yes; rest No |
 | 41 | `float` / `clear` | Line-box exclusion beside a floated box; sidebars and drop-caps. Deliberately out of scope today. | L | Yes | *Shipped: C8-FLOAT.*
-| 42 | `cursor` | OSC 22 pointer-shape request (`pointer`, `text`, `default`, `move`, resize shapes) on terminals that honor it (kitty, foot, ghostty, WezTerm); ignored elsewhere. | S | No |
-| 43 | `accent-color` | Color of checkbox / radio / range / progress glyphs in the UA chrome. | S | No |
-| 44 | `appearance` | `none` drops the UA control chrome (brackets, glyphs) so authors can restyle controls; `auto` restores it. | M | No |
-| 45 | `caret-shape` / `caret-animation` / `caret` | `bar` / `block` / `underscore` for the painted caret (or DECSCUSR on the hardware cursor); `manual` disables blink. | S | No |
+| 42 | `cursor` | Shipped (C12-CURSOR; §3.19): the keyword under the pointer sent as an OSC 22 shape to kitty, foot, Ghostty and WezTerm (detected; `App::with_pointer_shapes`), nothing elsewhere; `default` restored on exit. | S | No |
+| 43 | `accent-color` | Shipped (C12-CONTROLS; §3.19): a checked toggle's mark, the range slider and the progress bar in the accent. | S | No |
+| 44 | `appearance` | Shipped (C12-CONTROLS; §3.19): `none` drops the UA chrome — the controls' UA `::before` / `::after`, the gauges' bar and the range track. | M | No |
+| 45 | `caret-shape` / `caret-animation` / `caret` | Shipped (C12-CARET; §3.19): the painted caret as a block, an underline or a `▏` bar; `manual` stops the blink. | S | No |
 | 46 | `scrollbar-width` / `scrollbar-color` | `scrollbar-width: none` hides the bar while keeping the box scrollable (`thin` = `auto`, already one cell); `scrollbar-color: <thumb> <track>` = the standard spelling of `::scrollbar-thumb` / `::scrollbar` colors. | S | Yes |
 | 47 | `overscroll-behavior` (+ `-x`, `-y`, logical) | `contain` / `none` stop wheel scroll chaining into the ancestor at the scroll limit (keyboard scrolling never chains: DIVERGENCES). | S | No | *Shipped: C8-OVERSCROLL.*
 | 48 | `scroll-padding*` / `scroll-margin*` / `scroll-snap-type` / `scroll-snap-align` / `scroll-snap-stop` | Insets for `scrollIntoView` / keyboard scrolling; snap scroll offsets to item edges (row-snapped lists). | S / M | Partial — padding / margin Yes; snap No | *Shipped: C8-SCROLL-PADDING, C8-SNAP.*
@@ -174,8 +174,8 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 64 | `transition-timing-function: linear()`; negative `transition-delay`; more animatable properties | `linear()` piecewise easing; a negative delay starts mid-way; `opacity`, `margin`, `min-*` / `max-*`, `border-width` interpolable. | S | No |
 | 65 | `round()` / `mod()` / `rem()` / `abs()` / `sign()`; trig / exponential functions | Cell math (`round(down, 50%, 1)`); trig rarely needed but cheap once `calc()` has a numeric evaluator. | S | No |
 | 66 | Multi-column (`columns`, `column-count`, `column-width`, `column-rule*`, `column-span`, `column-fill`) | Newspaper columns of whole cells, rules drawn with `│`. | M | No |
-| 67 | `field-sizing` | `content`: a textarea / input grows with its value. | S | No |
-| 68 | `resize` | Drag a textarea's bottom-right cell to resize. | M | No |
+| 67 | `field-sizing` | Shipped (C12-CONTROLS; §3.19): `content` sizes a text input / textarea to its value. | S | No |
+| 68 | `resize` | Shipped (C12-CONTROLS; §3.19): a drag on a resizable scroll container's corner cell resizes it; `textarea` is `resize: both`. | M | No |
 | 69 | `translate` (+ `transform: translate()` with cell lengths) | Paint-time offset in whole cells without affecting layout (like `position: relative`); establishes a stacking context. Rotation / scale stay N/A. | S | Yes |
 | 70 | `clip-path: inset()` | Rectangular clip in cells; other shapes N/A. | S | No |
 | 71 | `nav-up` / `nav-down` / `nav-left` / `nav-right` (UI 4, at risk) | Directional focus navigation targets — arrow-key navigation is native to TUIs. | M | No |
