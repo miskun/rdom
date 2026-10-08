@@ -217,6 +217,7 @@ row comes from.
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | done |
 | C10-DETAILS-CONTENT | `::details-content` | partial — the slot is no box: its box properties (background, border, padding, sizes, `overflow`) draw nothing, so it cannot be sized or animated (needs a generated block box holding element content in the box tree) |
 | C10-PSEUDO-CHAINS | Pseudo-element followed by user-action pseudo-classes (`::before:hover`) and nested pseudo-elements where defined | partial — nested pseudo-elements (`::before::marker` / `::after::marker`, CSS Lists 3 §3.1) remain: a marker on a generated box needs a marker slot per pseudo-element, the `list-item` counter on a `::before` / `::after`, and marker placement in a generated box's lines |
+| C9-CARRY-INDENT | A `calc()` `text-indent` shared by the elements that inherit it, not cloned per element (from the Phase 9 close) | done |
 | C10-PSEUDO-UNIFY | Positioned `::before` / `::after` on the generated-box path: the positioning layer places, stacks, hit-tests and scrolls them as elements (from C10-LIST-ITEM's note; `positioned_pseudos` gone) | done |
 
 ### Phase 11 — Selectors (audit §3.17)
@@ -6407,3 +6408,17 @@ row comes from.
   restyles the host); no unstyled first letter → the first-letter test. The marker test hovers an `inside`
   marker: an outside one is not in the hit-test set (DIVERGENCES §2, extended). No existing expectation or
   snapshot changed. CSS-COVERAGE: the row stays Partial (nested pseudo-elements), counts unchanged.
+- 2026-10-13 — C9-CARRY-INDENT (new row, from the Phase 9 close's open list). Found: `text-indent` is inherited
+  (CSS Text 3 §8.1) and a `calc()` one keeps its percentage to the used value (CSS Values 4 §10.9), so every
+  descendant's computed style held a copy of the expression tree — `Length::Calc(Box<CalcExpr>)` cloned per
+  inheriting element (six allocations each for `calc(50% + 2)`). Decision: `Length::Calc` holds an
+  `Arc<CalcExpr>`, as `Quotes` and the font family list are shared — one change for the indent and the insets
+  (`Length`'s other users), every `Length` clone allocation-free; `Length::calc(expr)` builds one (Breaking —
+  the variant's payload). The other `Calc(Box<…>)` payloads stay boxed; of them `Spacing` (`letter-spacing` /
+  `word-spacing`) and `LineHeight` are inherited, and whether a `calc()` of theirs reaches the computed style
+  unresolved — and so clones per element — is open for the Phase 10 gate. The viewport absolutizer wraps its
+  result (`|e| Length::Calc(e.into())`). Red: rdom-tui
+  `cost_tests::an_inherited_calc_text_indent_is_shared_not_copied` — 420 allocations for 300 over 20 elements
+  (`text-indent: calc(50% + 2)` against `text-indent: 2`, `cascade_allocations` as the family-list test). Green
+  after. Mutation: HEAD's `Box` is the reverse change (the red run). Changed expectations: three tests build a
+  `Length::Calc` (`Length::calc(…)` / `.into()`); no behaviour or snapshot changed.

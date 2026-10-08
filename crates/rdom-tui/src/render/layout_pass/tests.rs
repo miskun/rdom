@@ -4695,7 +4695,7 @@ fn relative_percent_top_is_auto_under_an_indefinite_height() {
                 "child",
                 TuiStyle::new()
                     .position(Position::Relative)
-                    .top(Length::Calc(Box::new(CalcExpr::Percent(50.0))))
+                    .top(Length::calc(CalcExpr::Percent(50.0)))
                     .height(Size::Fixed(1)),
             )
             .rule_unchecked("filler", TuiStyle::new().height(Size::Fixed(3)));

@@ -262,7 +262,7 @@ pub fn parse_text_indent(value: &[Token]) -> Option<TextIndent> {
     let length = match length_percentage(&rest, Range::Any)? {
         LengthPercentage::Integer(n) => crate::layout::Length::Cells(n),
         LengthPercentage::Cells(v) => crate::layout::Length::Cells(crate::calc::to_cells(v)),
-        LengthPercentage::Expr(e) => crate::layout::Length::Calc(Box::new(e)),
+        LengthPercentage::Expr(e) => crate::layout::Length::calc(e),
     };
     Some(TextIndent {
         length,

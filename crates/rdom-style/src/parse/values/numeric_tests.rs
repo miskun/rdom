@@ -359,7 +359,7 @@ fn computed_viewport_units_become_cells() {
     c.width = Size::Calc(calc("50vw"));
     c.height = Size::Calc(calc("calc(100% - 10vh)"));
     c.margin.left = MarginValue::Calc(calc("-2.5vmax"));
-    c.top = Length::Calc(calc("calc(10vmin + 1)"));
+    c.top = Length::Calc(calc("calc(10vmin + 1)").into());
     c.resolve_viewport_units(Viewport::new(80, 20));
     assert_eq!(c.width, Size::Fixed(40));
     assert_eq!(

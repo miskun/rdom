@@ -283,3 +283,17 @@ fn an_inherited_family_list_is_shared_not_copied() {
         "20 elements: {family} allocations for {plain}"
     );
 }
+
+/// C9-CARRY-INDENT. `text-indent` is inherited (CSS Text 3 §8.1), so every
+/// descendant's computed style carries its value: a `calc()` indent —
+/// `calc(50% + 2)` keeps its percentage to the used value, resolved against
+/// each block's width (CSS Values 4 §10.9) — is shared by them, not copied,
+/// so a plain element cascades with the same allocations whether the
+/// expression is there or not (it cloned the expression tree per element).
+#[test]
+fn an_inherited_calc_text_indent_is_shared_not_copied() {
+    let per_element = |css: &str| cascade_allocations(css, 40) - cascade_allocations(css, 20);
+    let plain = per_element(".p { color: red; text-indent: 2 }");
+    let calc = per_element(".p { color: red; text-indent: calc(50% + 2) }");
+    assert_eq!(calc, plain, "20 elements: {calc} allocations for {plain}");
+}

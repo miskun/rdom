@@ -229,7 +229,7 @@ pub fn parse_length(value: &[Token]) -> Option<Length> {
         _ => Some(match length_percentage(value, Range::Any)? {
             LengthPercentage::Integer(n) => Length::Cells(n),
             LengthPercentage::Cells(v) => Length::Cells(cells_i32(v)),
-            LengthPercentage::Expr(e) => Length::Calc(Box::new(e)),
+            LengthPercentage::Expr(e) => Length::calc(e),
         }),
     }
 }

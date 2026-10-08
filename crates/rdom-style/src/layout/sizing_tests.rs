@@ -22,7 +22,7 @@ fn sizes_and_lengths_to_cells() {
     assert_eq!(Size::Auto.cells(Some(80)), None);
     assert_eq!(Size::Flex(1.0).cells(Some(80)), None);
     assert_eq!(Length::Cells(-3).cells(80), Some(-3));
-    assert_eq!(Length::Calc(minus).cells(80), Some(-10));
+    assert_eq!(Length::Calc(minus.into()).cells(80), Some(-10));
     assert_eq!(Length::Auto.cells(80), None);
 }
 

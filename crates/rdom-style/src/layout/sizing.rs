@@ -505,10 +505,13 @@ impl GapValue {
     }
 }
 
-/// Offset value for `top` / `right` / `bottom` / `left`.
+/// Offset value for `top` / `right` / `bottom` / `left`, and
+/// `text-indent`'s length.
 ///
-/// **Not `Copy`** — the `Calc` variant carries a boxed expression
-/// tree. The simple variants clone in O(1); `Calc` clones the AST.
+/// **Not `Copy`** — the `Calc` variant carries an expression tree,
+/// shared behind an `Arc`: every variant clones in O(1) without
+/// allocating, so an inherited `calc()` `text-indent` costs its
+/// descendants a reference count, not a copy (C9-CARRY-INDENT).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum Length {
     /// `auto`. Resolution depends on context — phase-2 placement.
@@ -521,10 +524,15 @@ pub enum Length {
     /// `calc(<expr>)`. Resolves at layout time against the
     /// parent's matching-axis content dimension (`top`/`bottom` →
     /// height, `left`/`right` → width).
-    Calc(Box<crate::calc::CalcExpr>),
+    Calc(std::sync::Arc<crate::calc::CalcExpr>),
 }
 
 impl Length {
+    /// `calc(<expr>)`: [`Length::Calc`] of `expr`.
+    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
+        Length::Calc(std::sync::Arc::new(expr))
+    }
+
     /// This length in cells, a `calc()` resolved against `basis` (the
     /// containing block's extent on this axis); `None` for `auto`.
     pub fn cells(&self, basis: i32) -> Option<i32> {

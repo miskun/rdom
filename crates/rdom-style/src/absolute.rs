@@ -165,7 +165,12 @@ impl ComputedStyle {
             &mut self.bottom,
             &mut self.left,
         ] {
-            absolutize(inset, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
+            absolutize(
+                inset,
+                vp,
+                |e| Length::Calc(e.into()),
+                |v| Length::Cells(cells_i32(v)),
+            );
         }
         // CSS Text Decoration 4 §2.5 / §4.2: the decoration lengths
         // (parsed and kept, not drawn).
@@ -196,9 +201,12 @@ impl ComputedStyle {
             });
         }
         // CSS Text 3 §8.1: `text-indent` is a length-percentage.
-        absolutize(&mut self.text.text_indent.length, vp, Length::Calc, |v| {
-            Length::Cells(cells_i32(v))
-        });
+        absolutize(
+            &mut self.text.text_indent.length,
+            vp,
+            |e| Length::Calc(e.into()),
+            |v| Length::Cells(cells_i32(v)),
+        );
     }
 }
 

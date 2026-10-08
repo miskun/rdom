@@ -188,6 +188,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Breaking — `rdom-style`
 
+- **`Length::Calc` holds an `Arc<CalcExpr>`** (was a `Box`): an inherited `calc()` `text-indent` is shared by its descendants' computed styles, not copied per element, and every `Length` clones without allocating. Migration: `Length::Calc(Box::new(e))` → `Length::calc(e)` (or `Length::Calc(Arc::new(e))`); a match on `Length::Calc(e)` reads `e` as before. (C9-CARRY-INDENT)
 - **`PseudoElementTarget` is no longer `Copy`**: its new `Highlight(Arc<str>)` variant names a `::highlight()`'s highlight. Migration: `rule.pseudo.clone()` where a copy was taken; a `match` adds `Highlight(_)` (the enum is `#[non_exhaustive]`). (C10-HIGHLIGHT)
 - **`CounterOp` is `#[non_exhaustive]`** and gains `reversed` and `value_given` (`counter-reset: reversed(c)`, CSS Lists 3 §4.2); `parse_counter_ops` takes a third argument, whether `reversed()` is allowed. Migration: `CounterOp { name, value }` → `CounterOp::new(name, value)`; `CounterOp::reversed(name, Some(n))` for a reversed reset. (C10-COUNTERS)
 - **`ComputedStyle` gains `counter_set`**. Migration: a destructuring pattern adds `counter_set: _`. (C10-COUNTERS)
