@@ -150,6 +150,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("grid-auto-flow", "column"),
     ("grid-area", "1 / 2 / span 2 / a"),
     ("border-spacing", "1"),
+    ("interpolate-size", "allow-keywords"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly
@@ -191,6 +192,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         max_height,
         aspect_ratio,
         box_sizing,
+        interpolate_size,
         contain_intrinsic_width,
         contain_intrinsic_height,
         padding,
@@ -325,6 +327,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         max_height,
         aspect_ratio,
         box_sizing,
+        interpolate_size,
         contain_intrinsic_width,
         contain_intrinsic_height,
         padding,

@@ -301,6 +301,9 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         "aspect-ratio" => parse_aspect_ratio(value).map(|r| {
             style.aspect_ratio = Some(Value::Specified(r));
         }),
+        "interpolate-size" => crate::parse::values::parse_interpolate_size(value).map(|v| {
+            style.interpolate_size = Some(Value::Specified(v));
+        }),
         "box-sizing" => parse_keyword(
             value,
             &[

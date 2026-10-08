@@ -19,8 +19,12 @@ fn percent_fraction(p: f64) -> Option<f32> {
 
 pub fn parse_size(value: &[Token]) -> Option<Size> {
     // `auto` | `<n>fr` | `<length-percentage [0,∞]>` | an intrinsic keyword
+    // | `calc-size()` (CSS Values 5 §10)
     if let Some(k) = parse_intrinsic(value) {
         return Some(Size::Intrinsic(k));
+    }
+    if let Some(s) = super::calc_size::parse_calc_size(value) {
+        return Some(s);
     }
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(Size::Auto),

@@ -298,7 +298,13 @@ impl AnimationRegistry {
         };
         let reaches = running.iter().any(|a| a.property.reaches_descendants());
         let animated = running.iter().map(|a| a.property).collect();
+        let calc_size = style
+            .as_ref()
+            .is_some_and(crate::style::doc_flags::is_calc_sized);
         ext.composite(slot, animated, style);
+        if calc_size {
+            crate::style::doc_flags::note_calc_size(dom);
+        }
         if reaches && slot == StyleSlot::Host {
             self.restyle_children(dom, node);
         }

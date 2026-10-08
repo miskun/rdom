@@ -56,6 +56,9 @@ pub struct ComputedStyle {
     /// `box-sizing` (CSS UI 3 §3.1): which box `width` / `height` and
     /// `min-*` / `max-*` measure. Initial `content-box`.
     pub box_sizing: crate::layout::BoxSizing,
+    /// `interpolate-size` (CSS Values 5 §11): whether a sizing keyword
+    /// interpolates with a length. Inherited; initial `numeric-only`.
+    pub interpolate_size: crate::layout::InterpolateSize,
     /// `contain-intrinsic-width` / `-height` (CSS Sizing 4 §6.1), viewport
     /// units resolved. Initial `none`. Used under size containment (C14).
     pub contain_intrinsic_width: crate::layout::ContainIntrinsicSize,

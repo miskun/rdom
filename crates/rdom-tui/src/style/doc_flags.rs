@@ -26,6 +26,10 @@ struct DocumentFlags {
     /// The sheets of the last cascade style `::first-line` or
     /// `::first-letter` (CSS Pseudo-Elements 4 §2.2, §2.3).
     first_rules: bool,
+    /// An element's `width` or `height` has computed as a `calc-size()`
+    /// (CSS Values 5 §10), authored or a running transition's value: layout
+    /// sizes such boxes in a second pass (`layout_pass::calc_size`).
+    calc_sizes: bool,
 }
 
 fn flags(dom: &Dom<TuiExt>) -> DocumentFlags {
@@ -41,6 +45,27 @@ pub(crate) fn note_list_item(dom: &mut Dom<TuiExt>) {
         next.list_items = true;
         dom.set_document_data(next);
     }
+}
+
+/// Whether `style`'s `width` or `height` is a `calc-size()`.
+pub(crate) fn is_calc_sized(style: &crate::style::ComputedStyle) -> bool {
+    use crate::layout::Size;
+    matches!(style.width, Size::CalcSize(_)) || matches!(style.height, Size::CalcSize(_))
+}
+
+/// Record that an element's `width` or `height` is a `calc-size()`.
+pub(crate) fn note_calc_size(dom: &mut Dom<TuiExt>) {
+    if !flags(dom).calc_sizes {
+        let mut next = flags(dom);
+        next.calc_sizes = true;
+        dom.set_document_data(next);
+    }
+}
+
+/// Whether an element's `width` or `height` may be a `calc-size()`
+/// ([`note_calc_size`] since the document was first cascaded).
+pub(crate) fn has_calc_sizes(dom: &Dom<TuiExt>) -> bool {
+    flags(dom).calc_sizes
 }
 
 /// Whether an element of the document may be a list item ([`note_list_item`]

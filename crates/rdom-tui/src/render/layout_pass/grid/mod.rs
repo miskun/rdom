@@ -325,7 +325,7 @@ fn rows_are_definite(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedStyle) ->
         Size::Percent(_) | Size::Calc(_) => {
             crate::render::layout_pass::block::nearest_block_ancestor_height_is_definite(dom, id)
         }
-        Size::Auto | Size::Intrinsic(_) | Size::Flex(_) => {
+        Size::Auto | Size::Intrinsic(_) | Size::CalcSize(_) | Size::Flex(_) => {
             crate::render::box_tree::box_parent(dom, id)
                 .is_some_and(|p| crate::render::box_tree::is_flex_or_grid_container(dom, p))
         }

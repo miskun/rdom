@@ -143,6 +143,8 @@ const SPEC: &[(&str, Spec)] = &[
     ("max-height", L(V)),
     ("aspect-ratio", L(V)),
     ("box-sizing", L(D)),
+    // CSS Values 5 §11
+    ("interpolate-size", L(N)),
     ("contain-intrinsic-size", S),
     ("contain-intrinsic-width", L(V)),
     ("contain-intrinsic-height", L(V)),
@@ -453,4 +455,44 @@ fn not_animatable_longhands_never_transition() {
             .unwrap()
             .has_computed_value()
     );
+}
+
+/// CSS Values 5 §11: under `interpolate-size: allow-keywords` a sizing
+/// keyword and a length interpolate as
+/// `calc-size(keyword, size * (1 - p) + length * p)`; under `numeric-only`
+/// (the initial value) they do not. Two different keywords never do; a
+/// `calc-size()` and a length always do.
+#[test]
+fn interpolate_size_lets_auto_interpolate_through_calc_size() {
+    use crate::layout::{CalcSize, CalcSizeBasis, InterpolateSize};
+    let w = Longhand::from_name("width").unwrap();
+    let (mut a, mut b) = (style(), style());
+    a.width = Size::Auto;
+    b.width = Size::Fixed(10);
+    assert!(!w.interpolable(&a, &b), "numeric-only");
+    b.interpolate_size = InterpolateSize::AllowKeywords;
+    assert!(w.interpolable(&a, &b));
+    let Size::CalcSize(c) = at("width", &a, &b, 0.5).width else {
+        panic!("{:?}", at("width", &a, &b, 0.5).width)
+    };
+    assert_eq!((c.basis.clone(), c.factor), (CalcSizeBasis::Auto, 0.5));
+    assert_eq!(c.resolve(40, 0), 25, "half of 40 and half of 10");
+    assert_eq!(
+        at("width", &a, &b, 0.0).width,
+        Size::Auto,
+        "the ends are themselves"
+    );
+    assert_eq!(at("width", &a, &b, 1.0).width, Size::Fixed(10));
+
+    b.width = Size::Intrinsic(crate::layout::IntrinsicSize::MinContent);
+    assert!(!w.interpolable(&a, &b), "two keywords");
+
+    b.interpolate_size = InterpolateSize::NumericOnly;
+    a.width = Size::CalcSize(std::sync::Arc::new(CalcSize::new(
+        CalcSizeBasis::Auto,
+        1.0,
+        crate::calc::CalcExpr::Number(2.0),
+    )));
+    b.width = Size::Fixed(10);
+    assert!(w.interpolable(&a, &b), "a calc-size() with a length");
 }

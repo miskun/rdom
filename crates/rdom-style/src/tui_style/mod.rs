@@ -87,6 +87,8 @@ pub struct TuiStyle {
     pub max_height: Option<Value<crate::layout::MaxSize>>,
     /// `box-sizing` (CSS UI 3 §3.1): the box the sizes above measure.
     pub box_sizing: Option<Value<crate::layout::BoxSizing>>,
+    /// `interpolate-size` (CSS Values 5 §11).
+    pub interpolate_size: Option<Value<crate::layout::InterpolateSize>>,
     /// `contain-intrinsic-width` (CSS Sizing 4 §6.1; also
     /// `contain-intrinsic-inline-size` in horizontal-tb).
     pub contain_intrinsic_width: Option<Value<crate::layout::ContainIntrinsicSize>>,

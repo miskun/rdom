@@ -51,7 +51,7 @@ pub(crate) fn mix(a: &CalcExpr, b: &CalcExpr, p: f64) -> Mixed {
 }
 
 impl Mixed {
-    fn into_expr(self) -> CalcExpr {
+    pub(crate) fn into_expr(self) -> CalcExpr {
         match self {
             Mixed::Cells(c) => CalcExpr::Number(c),
             Mixed::Percent(p) => CalcExpr::Percent(p),

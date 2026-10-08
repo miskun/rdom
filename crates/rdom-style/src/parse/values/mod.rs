@@ -42,6 +42,7 @@ mod align;
 mod background;
 mod border;
 mod calc;
+mod calc_size;
 mod color;
 mod content;
 mod display;
@@ -92,6 +93,7 @@ pub use border::{
 };
 pub(crate) use calc::parse_pixel_calc;
 pub use calc::{MAX_CALC_DEPTH, MAX_CALC_NESTING, looks_like_calc, parse_calc};
+pub use calc_size::{parse_calc_size, parse_interpolate_size};
 pub(crate) use color::{ColorExpr, compute_function as compute_color_function};
 pub use color::{MAX_COLOR_NESTING, parse_color, parse_color_at, parse_rgb_args, parse_rgba_args};
 pub use content::{parse_content, parse_counter_ops, parse_quotes};

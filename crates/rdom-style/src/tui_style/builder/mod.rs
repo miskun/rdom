@@ -369,6 +369,14 @@ impl TuiStyle {
         crate::layout::BoxSizing
     );
     setter!(
+        "interpolate-size",
+        interpolate_size,
+        interpolate_size,
+        interpolate_size_important,
+        INTERPOLATE_SIZE,
+        crate::layout::InterpolateSize
+    );
+    setter!(
         "user-select",
         user_select,
         user_select,

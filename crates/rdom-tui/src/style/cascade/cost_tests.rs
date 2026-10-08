@@ -420,6 +420,7 @@ const INHERITED_VALUES: &[(&str, &str)] = &[
     ("writing-mode", "vertical-rl"),
     ("block-ellipsis", "'…more'"),
     ("scrollbar-color", "red blue"),
+    ("interpolate-size", "allow-keywords"),
 ];
 
 /// C10G-INHERIT-COST. Every inherited property's computed value is shared

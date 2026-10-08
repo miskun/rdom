@@ -90,7 +90,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 - **Opaque `ImportantMask`**: `contains` / `|` / `&` instead of `bits()` and matching.
 - **Per-side longhand fields**: `TuiStyle::margin` / `padding` / `border_style` / `border_color` / `border_width` / `border_radius` are `Sides` / `Corners` of `Option<Value<…>>`; build with `.margin(m)` / `.margin_left(v)`, test with `.each()`.
 - **Typed values**: `MinSize` / `MaxSize` for `min-*` / `max-*`, `f32` flex factors, `i64` integer tokens, `AspectRatio` behind accessors, `row_gap` / `column_gap`, `FlexBasis`.
-- **New variants to match**: `Value` (`Revert`, `RevertLayer`), `Overflow::Clip`, `Color::Rgba`, `TuiColor` (`CurrentColor`, `Function`, `System`), `Display::Contents`, `Flow::FlowRoot`, `Flow::Grid`, `WhiteSpace::{PreLine, BreakSpaces}`, the `Align` keywords — and `Align` is `#[non_exhaustive]` (a `_` arm).
+- **New variants to match**: `Size::CalcSize`, `Value` (`Revert`, `RevertLayer`), `Overflow::Clip`, `Color::Rgba`, `TuiColor` (`CurrentColor`, `Function`, `System`), `Display::Contents`, `Flow::FlowRoot`, `Flow::Grid`, `WhiteSpace::{PreLine, BreakSpaces}`, the `Align` keywords — and `Align` is `#[non_exhaustive]` (a `_` arm).
 - **New fields on style records**: build `TuiStyle` / `ComputedStyle` with `TuiStyle::new()` / `ComputedStyle::initial()`; a destructuring pattern adds `..`.
 - **Layout records are `#[non_exhaustive]`**: `LineBox`, `InlineFragment`, `GeneratedFragment` and `AnonymousIfc` are built by constructor.
 - **Counters and generated content**: `CounterStyle` is a counter style name (`CounterStyle::named("upper-roman")`, no longer `Copy`), `CounterOp` is built by `CounterOp::new` / `reversed`, `parse_counter_ops` takes a third argument, `Content` (`content: normal` is `Content::Normal`) and `PseudoElementTarget` (no longer `Copy`) take a `_` arm, and `Length::Calc` holds an `Arc`.
@@ -158,6 +158,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `CounterOp { name, value }` literal | `CounterOp::new(name, value)`; `CounterOp::reversed(name, Some(n))` (`#[non_exhaustive]`, at the root) | C10-COUNTERS | `counter_op_hints` |
 | `parse::values::parse_counter_ops(tokens, default)` | `parse_counter_ops(tokens, default, reversed)` (`true` for `counter-reset` only) | C10-COUNTERS | `counter_op_hints` |
 | exhaustive `match` on `Content`; `content: normal` as `Content::None` | `#[non_exhaustive]` (a `_` arm; new `Counters`, `Quote`, `WithAlt`); `Content::Normal` | C10-CONTENT, C10-LIST-ITEM | `generated_content_hints` |
+| exhaustive `match` on `Size` | add a `Size::CalcSize(c)` arm (`calc-size()`; `c.basis_size()`, `c.resolve(basis, percent_basis)`) | C12-ANIMATABLE | `calc_size_hints` |
 | `AnimatableProperty` (`TransitionProperty::Named(AnimatableProperty::Color)`); `parse::values::parse_animatable_property`; `TransitionProperty::Discrete(name)` | `TransitionProperty::Named("color")` — any property's canonical name, built by `TransitionProperty::named(name)`; `Other(name)` for a custom or unknown one | C12-ANIMATABLE | `transition_property_hints` |
 | `PseudoElementTarget` (`Copy`) | `.clone()`; a match adds `Highlight(_)` under its `_` arm | C10-HIGHLIGHT | `pseudo_element_target_hints` |
 
@@ -275,6 +276,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Breaking — `rdom-style`
 
+- **`Size` gains `CalcSize`** (`calc-size()`, CSS Values 5 §10), the value an `auto` ↔ length transition runs through. Migration: add a `Size::CalcSize(c)` arm — size it as `c.basis_size()`, or `c.resolve(basis, percent_basis)` once the basis is known. (C12-ANIMATABLE)
 - **`transition-property` names any property**: `TransitionProperty::Named` holds the property's canonical name (`Named("padding")`); `AnimatableProperty` and `parse_animatable_property` are gone, and `Discrete(name)` is `Other(name)`. Migration: `TransitionProperty::named("color")`; match `Named(name)`. (C12-ANIMATABLE)
 - **`Length::Calc` holds an `Arc<CalcExpr>`** (was a `Box`): an inherited `calc()` `text-indent` is shared by its descendants' computed styles, not copied per element, and every `Length` clones without allocating. Migration: `Length::Calc(Box::new(e))` → `Length::calc(e)` (or `Length::Calc(Arc::new(e))`); a match on `Length::Calc(e)` reads `e` as before. (C9-CARRY-INDENT)
 - **`PseudoElementTarget` is no longer `Copy`**: its new `Highlight(Arc<str>)` variant names a `::highlight()`'s highlight. Migration: `rule.pseudo.clone()` where a copy was taken; a `match` adds `Highlight(_)` (the enum is `#[non_exhaustive]`). (C10-HIGHLIGHT)
@@ -354,6 +356,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`interpolate-size` and `calc-size()`** (CSS Values 5 §10–§11): `width` / `height` take `calc-size(<basis>, <sum>)` (`Size::CalcSize`, a sum linear in `size`), and under `interpolate-size: allow-keywords` (inherited) `auto` and the intrinsic keywords interpolate with lengths. (C12-ANIMATABLE)
 - **`animation`**: each longhand's animation type from its spec (`AnimationType`, `Longhand`, `animation_type`), the longhands a `transition-property` name covers (`transition_longhands`, flow-relative names by direction), and how each computed value interpolates — whole cells, `calc()` mixes, Oklab colors, discrete steps. (C12-ANIMATABLE)
 - **User-action pseudo-classes after a pseudo-element** (Selectors 4 §3.6.3): `::before:hover`, `::after:active`, `li::marker:hover`, `p::first-letter:hover`, and the legacy `p:before:hover`, parse (each trailing pseudo-class through rdom-core's parser) into `Rule::pseudo_state`, a `UserActionState` set counted in the rule's specificity as pseudo-classes; `:focus`, `:focus-visible` and `:focus-within` parse and never match a pseudo-element. A pseudo-class after another pseudo-element, or a logical combination there, drops the rule. (C10-PSEUDO-CHAINS)
 - **`::details-content`** (HTML §15.5.20): `PseudoElementTarget::DetailsContent`; the UA sheet's `details::details-content { display: block }` replaces `details:not([open]) > *:not(summary) { display: none }`. (C10-DETAILS-CONTENT)
@@ -553,6 +556,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **`height: auto` animates**: under `interpolate-size: allow-keywords` a `height: 0` → `auto` transition — a `<details>` opening, on `::details-content` — grows the box toward its content's height; layout sizes a `calc-size()` box in a second pass, from its basis. (C12-ANIMATABLE)
 - **README: "Form states" — a text field has no border**, a doctested example: a text field has no UA border (a terminal border costs a row each side), so `input:invalid { border-color: red }` paints nothing; a background cue keeps the field one row, and an author `border: solid` gives the red border its three rows. (C11G-FORM-BORDER)
 - **README: user validity and popovers**, doctested: `:user-invalid` after an edit only once the field loses focus, and on every field after a submission attempt; a `popovertarget` menu placed under its invoker from `beforetoggle`'s `source`, its `Canvas` fill hiding the page, closed by a click outside. (C11G-DOCS)
 - **Phase 11's vocabularies at the root**: `TopLayerKind`, `Directionality`, `ControlState`, `AttrCase` and `PopoverState` are re-exported from `rdom_tui`, so `use rdom_tui::*;` names what `top_layer_kind`, `directionality`, `control_state`, an attribute selector's `case` and `popover_state` return. (C11G-API)

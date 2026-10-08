@@ -94,7 +94,8 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 - **Sizing and box** — `width`, `height`, `min-width`, `max-width`,
   `min-height`, `max-height` (cells, `%`, `calc()`, `none` for `max-*`,
   and the intrinsic keywords `min-content` / `max-content` /
-  `fit-content` / `fit-content()`), `box-sizing` (initial `content-box`),
+  `fit-content` / `fit-content()`, `calc-size()` on `width` / `height`),
+  `interpolate-size`, `box-sizing` (initial `content-box`),
   `aspect-ratio`, `contain-intrinsic-size` (+ `-width` / `-height` /
   `-inline-size` / `-block-size`), `gap` (+ `row-gap` / `column-gap`), `padding` and
   `margin` (+ four longhands each, `margin: auto`), `margin-trim`, `border` and

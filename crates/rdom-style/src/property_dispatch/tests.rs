@@ -100,6 +100,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("max-height", "50"),
         ("aspect-ratio", "16/9"),
         ("box-sizing", "border-box"),
+        ("interpolate-size", "allow-keywords"),
         ("contain-intrinsic-size", "auto 10 none"),
         ("contain-intrinsic-width", "4"),
         ("contain-intrinsic-height", "auto 2"),

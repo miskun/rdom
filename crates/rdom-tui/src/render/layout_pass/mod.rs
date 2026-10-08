@@ -86,6 +86,7 @@ mod block;
 mod block_tests;
 mod border_collapse;
 pub(crate) mod box_sizing;
+mod calc_size;
 mod clip_edge;
 mod dispatch;
 mod distribution;
@@ -157,60 +158,66 @@ pub trait LayoutExt: crate::sealed::Sealed {
 
 impl LayoutExt for Dom<TuiExt> {
     fn layout_dom(&mut self, viewport: Rect) {
-        // Intrinsic sizes are memoized for this pass only, and its clamp
-        // points kept until the next.
-        intrinsic::begin_pass(self);
-        line_clamp::begin_pass(self);
-        crate::style::cascade::set_document_viewport(
-            self,
-            rdom_style::calc::Viewport::new(viewport.width, viewport.height),
-        );
-        let root = self.root();
-        let root_rect = LayoutRect::new(
-            viewport.x as i32,
-            viewport.y as i32,
-            viewport.width,
-            viewport.height,
-        );
-        // Passes 1–2 run again while the absolutely positioned boxes'
-        // reach into their scroll containers changes
-        // (`positioned_overflow`): pass 1 records scroll extents with
-        // the reach the last settle measured. Run 2 sees a new reach;
-        // run 3 the reach of boxes whose containing block run 2's
-        // scrollbar narrowed. A reach still moving after that toggles a
-        // scrollbar back and forth and is kept for the next layout.
-        for round in 0..positioned_overflow::MAX_ROUNDS {
-            if round > 0 {
-                intrinsic::end_pass(self);
-                intrinsic::begin_pass(self);
-            }
-            #[cfg(test)]
-            ROUNDS.with(|c| c.set(c.get() + 1));
-            // Pass 1 — flex / inline flow. Skips position: absolute /
-            // fixed children at every container (see flex.rs filter).
-            layout_node(self, root, root_rect, root_rect.width);
-            // Pass 2 — place absolute / fixed elements against their
-            // containing blocks.
-            let placed = positioning::place_positioned(self, root_rect);
-            if !positioned_overflow::settle(self, &placed) {
-                break;
-            }
-        }
-        // Pass 2.5 — place position: sticky elements. They stayed
-        // in flow during pass 1; this pass adjusts their rect based
-        // on the nearest scrollable ancestor's scroll position.
-        sticky::place_sticky(self);
-        #[cfg(debug_assertions)]
-        block::debug_assert_no_margin_chain_memo(self, root);
-        // Pass 3 — move relatively positioned and sticky `::before` /
-        // `::after` from their in-flow places (phase 2 placed the
-        // absolute and fixed ones with the elements).
-        positioning::offset_in_flow_pseudos(self);
-        intrinsic::end_pass(self);
-        // The highlight layers the paints after this layout read, indexed
-        // once (`highlight_index`).
-        crate::render::highlight_index::prepare(self);
+        // A `calc-size()`d box takes a second pass (`calc_size`).
+        calc_size::lay_out(self, viewport, layout_once);
     }
+}
+
+/// One whole-tree layout pass.
+fn layout_once(dom: &mut Dom<TuiExt>, viewport: Rect) {
+    // Intrinsic sizes are memoized for this pass only, and its clamp
+    // points kept until the next.
+    intrinsic::begin_pass(dom);
+    line_clamp::begin_pass(dom);
+    crate::style::cascade::set_document_viewport(
+        dom,
+        rdom_style::calc::Viewport::new(viewport.width, viewport.height),
+    );
+    let root = dom.root();
+    let root_rect = LayoutRect::new(
+        viewport.x as i32,
+        viewport.y as i32,
+        viewport.width,
+        viewport.height,
+    );
+    // Passes 1–2 run again while the absolutely positioned boxes'
+    // reach into their scroll containers changes
+    // (`positioned_overflow`): pass 1 records scroll extents with
+    // the reach the last settle measured. Run 2 sees a new reach;
+    // run 3 the reach of boxes whose containing block run 2's
+    // scrollbar narrowed. A reach still moving after that toggles a
+    // scrollbar back and forth and is kept for the next layout.
+    for round in 0..positioned_overflow::MAX_ROUNDS {
+        if round > 0 {
+            intrinsic::end_pass(dom);
+            intrinsic::begin_pass(dom);
+        }
+        #[cfg(test)]
+        ROUNDS.with(|c| c.set(c.get() + 1));
+        // Pass 1 — flex / inline flow. Skips position: absolute /
+        // fixed children at every container (see flex.rs filter).
+        layout_node(dom, root, root_rect, root_rect.width);
+        // Pass 2 — place absolute / fixed elements against their
+        // containing blocks.
+        let placed = positioning::place_positioned(dom, root_rect);
+        if !positioned_overflow::settle(dom, &placed) {
+            break;
+        }
+    }
+    // Pass 2.5 — place position: sticky elements. They stayed
+    // in flow during pass 1; this pass adjusts their rect based
+    // on the nearest scrollable ancestor's scroll position.
+    sticky::place_sticky(dom);
+    #[cfg(debug_assertions)]
+    block::debug_assert_no_margin_chain_memo(dom, root);
+    // Pass 3 — move relatively positioned and sticky `::before` /
+    // `::after` from their in-flow places (phase 2 placed the
+    // absolute and fixed ones with the elements).
+    positioning::offset_in_flow_pseudos(dom);
+    intrinsic::end_pass(dom);
+    // The highlight layers the paints after this layout read, indexed
+    // once (`highlight_index`).
+    crate::render::highlight_index::prepare(dom);
 }
 
 // ─── Per-node layout ────────────────────────────────────────────────

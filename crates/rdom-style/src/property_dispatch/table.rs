@@ -198,6 +198,7 @@ define_fields! {
     MaxHeight => max_height : MAX_HEIGHT,
     AspectRatio => aspect_ratio : ASPECT_RATIO,
     BoxSizing => box_sizing : BOX_SIZING,
+    InterpolateSize => interpolate_size : INTERPOLATE_SIZE,
     ContainIntrinsicWidth => contain_intrinsic_width : CONTAIN_INTRINSIC_WIDTH,
     ContainIntrinsicHeight => contain_intrinsic_height : CONTAIN_INTRINSIC_HEIGHT,
     RowGap => row_gap : ROW_GAP,
@@ -418,6 +419,7 @@ pub fn inherits(name: &str) -> bool {
             | "list-style-position"
             | "list-style-image"
             | "marker-side"
+            | "interpolate-size"
             | "caret-text-color"
             | "color-scheme"
             | "border-spacing"

@@ -184,6 +184,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "max-height" => &[MaxHeight],
         "aspect-ratio" => &[AspectRatio],
         "box-sizing" => &[BoxSizing],
+        "interpolate-size" => &[InterpolateSize],
         // CSS Sizing 4 §6.1; the logical longhands are the physical ones
         // in horizontal-tb (CSS Logical 1 §4), sharing their storage.
         "contain-intrinsic-size" => &[ContainIntrinsicWidth, ContainIntrinsicHeight],

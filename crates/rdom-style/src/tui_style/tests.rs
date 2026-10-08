@@ -362,6 +362,7 @@ fn every_property_has_important_setter() {
         .opacity_important(0.5)
         .aspect_ratio_important(16, 9)
         .box_sizing_important(crate::layout::BoxSizing::BorderBox)
+        .interpolate_size_important(crate::layout::InterpolateSize::AllowKeywords)
         .margin_trim_important(crate::layout::MarginTrim::BLOCK)
         .text_direction_important(crate::layout::TextDirection::Rtl)
         .writing_mode_important(crate::layout::WritingMode::VerticalRl)

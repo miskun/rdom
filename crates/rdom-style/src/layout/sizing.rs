@@ -37,6 +37,11 @@ pub enum Size {
     /// `fit-content(<length-percentage>)` (CSS Sizing 3 §3.1): a size
     /// from the box's content, which layout measures.
     Intrinsic(IntrinsicSize),
+    /// `calc-size()` (CSS Values 5 §10): a size computed from a sizing
+    /// keyword's resolved value — what an interpolation between `auto` and
+    /// a length gives under `interpolate-size: allow-keywords`. Layout
+    /// sizes the box by its basis, then by the sum.
+    CalcSize(std::sync::Arc<super::CalcSize>),
     /// Child determines its own size (default: content-driven).
     #[default]
     Auto,
@@ -141,7 +146,7 @@ impl Size {
                 None if expr.contains_percent() => None,
                 None => Some(resolve_u16(expr, 0)),
             },
-            Size::Flex(_) | Size::Auto | Size::Intrinsic(_) => None,
+            Size::Flex(_) | Size::Auto | Size::Intrinsic(_) | Size::CalcSize(_) => None,
         }
     }
 

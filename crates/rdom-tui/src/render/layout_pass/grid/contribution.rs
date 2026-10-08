@@ -169,7 +169,7 @@ impl<'a> Measured<'a> {
         let behaves_auto = match preferred {
             Size::Auto | Size::Flex(_) | Size::Percent(_) => true,
             Size::Calc(e) => e.contains_percent(),
-            Size::Fixed(_) | Size::Intrinsic(_) => false,
+            Size::Fixed(_) | Size::Intrinsic(_) | Size::CalcSize(_) => false,
         };
         if !behaves_auto || self.placed[i].size.is_some() {
             return self.cached(i, 0);

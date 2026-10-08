@@ -40,6 +40,7 @@ impl ComputedStyle {
             min_height: crate::layout::MinSize::Auto,
             max_height: crate::layout::MaxSize::None,
             box_sizing: crate::layout::BoxSizing::ContentBox,
+            interpolate_size: crate::layout::InterpolateSize::NumericOnly,
             contain_intrinsic_width: crate::layout::ContainIntrinsicSize::default(),
             contain_intrinsic_height: crate::layout::ContainIntrinsicSize::default(),
             aspect_ratio: None,

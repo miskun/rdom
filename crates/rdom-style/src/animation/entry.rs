@@ -68,6 +68,22 @@ macro_rules! steps {
 
 pub(super) use {steps, value};
 
+/// `width` / `height`: by computed value, a sizing keyword through
+/// `calc-size()` under the element's `interpolate-size` (CSS Values 5
+/// §11, read on the after-change style).
+macro_rules! size {
+    ($f:ident) => {
+        Some(Ops {
+            differs: |a, b| a.$f != b.$f,
+            interpolable: |a, b| super::size::size_interpolable(&a.$f, &b.$f, b.interpolate_size),
+            blend: |a, b, p, cx, out| {
+                out.$f = super::size::blend_size(&a.$f, &b.$f, p, b.interpolate_size, cx)
+            },
+        })
+    };
+}
+pub(super) use size;
+
 pub(super) const fn e(name: &'static str, kind: AnimationType, ops: Option<Ops>) -> Entry {
     Entry {
         name,

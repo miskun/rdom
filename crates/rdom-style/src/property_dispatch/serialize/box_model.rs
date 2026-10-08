@@ -89,6 +89,17 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             }
             .to_string()
         }),
+        "interpolate-size" => style
+            .interpolate_size
+            .as_ref()
+            .and_then(specified)
+            .map(|v| {
+                match v {
+                    crate::layout::InterpolateSize::NumericOnly => "numeric-only",
+                    crate::layout::InterpolateSize::AllowKeywords => "allow-keywords",
+                }
+                .to_string()
+            }),
         "box-sizing" => style.box_sizing.as_ref().and_then(specified).map(|b| {
             match b {
                 crate::layout::BoxSizing::ContentBox => "content-box",

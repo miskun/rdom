@@ -2323,6 +2323,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.min_height = MinSize::Cells(1);
     parent.max_height = crate::layout::MaxSize::Cells(9);
     parent.aspect_ratio = AspectRatio::new(4.0, 3.0);
+    parent.interpolate_size = rdom_style::layout::InterpolateSize::AllowKeywords;
     parent.padding = Padding::all(1);
     parent.margin = Margin::all_cells(1);
     parent.row_gap = rdom_style::layout::GapValue::Cells(2);
@@ -2691,6 +2692,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ("direction", child.text_direction == parent.text_direction),
         ("writing-mode", child.writing_mode == parent.writing_mode),
         ("box-sizing", child.box_sizing == parent.box_sizing),
+        (
+            "interpolate-size",
+            child.interpolate_size == parent.interpolate_size,
+        ),
         ("margin-trim", child.margin_trim == parent.margin_trim),
         ("text-overflow", child.text_overflow == parent.text_overflow),
         ("max-lines", child.max_lines == parent.max_lines),

@@ -34,6 +34,16 @@ impl ComputedStyle {
         absolutize(&mut self.height, vp, Size::Calc, |v| {
             Size::Fixed(cells_u16(v))
         });
+        // A `calc-size()` offset's viewport and line-height units.
+        for size in [&mut self.width, &mut self.height] {
+            if let Size::CalcSize(c) = size
+                && c.offset.needs_context()
+            {
+                let mut absolute = (**c).clone();
+                absolute.offset = absolute.offset.absolutize_in(vp);
+                *size = Size::CalcSize(std::sync::Arc::new(absolute));
+            }
+        }
         for min in [&mut self.min_width, &mut self.min_height] {
             absolutize(min, vp, MinSize::Calc, |v| MinSize::Cells(cells_u16(v)));
         }

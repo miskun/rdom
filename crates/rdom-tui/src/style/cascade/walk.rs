@@ -339,6 +339,9 @@ fn style_element<'a>(
     if computed.list_item {
         crate::style::doc_flags::note_list_item(dom);
     }
+    if crate::style::doc_flags::is_calc_sized(overlaid.as_ref().unwrap_or(&computed)) {
+        crate::style::doc_flags::note_calc_size(dom);
+    }
 
     // Compute under a shared borrow. `::after` is computed after the
     // children (`finish_element`): it sits after them in tree order, so

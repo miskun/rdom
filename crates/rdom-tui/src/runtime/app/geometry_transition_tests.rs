@@ -228,3 +228,91 @@ fn a_change_mid_transition_applies_to_the_other_properties() {
     let r = rect(&app, div);
     assert_eq!((r.width, r.height), (12, 10));
 }
+
+/// CSS Values 5 §11 (`interpolate-size: allow-keywords`): a size keyword
+/// interpolates with a length through `calc-size()` — `height: 0` → `auto`
+/// grows the box toward its content's height — the `<details>`
+/// opening animation, on `::details-content`.
+#[test]
+fn interpolate_size_animates_details_content_to_auto() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("details");
+    let s = dom.create_element("summary");
+    let st = dom.create_text_node("S");
+    dom.append_child(s, st).unwrap();
+    dom.append_child(d, s).unwrap();
+    for _ in 0..6 {
+        let p = dom.create_element("p");
+        let t = dom.create_text_node("line");
+        dom.append_child(p, t).unwrap();
+        dom.append_child(d, p).unwrap();
+    }
+    dom.append_child(root, d).unwrap();
+    let sheet = rdom_css::parse(
+        "details { interpolate-size: allow-keywords } \
+         details::details-content { display: block; height: 0; overflow: hidden; \
+         transition: height 100ms linear } \
+         details[open]::details-content { height: auto }",
+    );
+    assert!(sheet.warnings.is_empty(), "{:?}", sheet.warnings);
+    let terminal = Terminal::new(TestBackend::new(20, 12)).unwrap();
+    let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
+    app.push_stylesheet(sheet.stylesheet);
+    app.advance(0).unwrap();
+    app.dom_mut().set_attribute(d, "open", "").unwrap();
+    app.advance(0).unwrap();
+    let content = crate::render::box_tree::slot::content_box(app.dom(), d).expect("a slot box");
+    assert_eq!(rect(&app, content).height, 0, "the start value");
+    app.advance(50).unwrap();
+    assert_eq!(
+        rect(&app, content).height,
+        3,
+        "half-way to its content's 6 rows"
+    );
+    app.advance(60).unwrap();
+    assert_eq!(rect(&app, content).height, 6, "auto");
+    // Closing hides the content at once (the closed slot's content
+    // computes `display: none`, DIVERGENCES §2 — a browser keeps it with
+    // `content-visibility` under `allow-discrete`, C14-CONTAIN), so the
+    // `auto` basis is 0 and the height goes with it.
+}
+
+/// `interpolate-size: numeric-only` (the initial value): a keyword and a
+/// length do not interpolate (CSS Values 5 §11), so `width: auto` → `10`
+/// takes the end value at once and starts no transition.
+#[test]
+fn numeric_only_keeps_auto_discrete() {
+    let (mut app, div, _) = app("#a { width: auto; transition: width 100ms linear } \
+         #a.on { width: 10 }");
+    app.dom_mut().set_attribute(div, "class", "on").unwrap();
+    app.advance(0).unwrap();
+    assert_eq!(rect(&app, div).width, 10);
+    assert!(app.animations.is_empty());
+}
+
+/// `allow-keywords` on the root reaches every element (it inherits): a
+/// block's `width: auto` (its containing block's 40 columns) → `10` is 25
+/// half-way.
+#[test]
+fn allow_keywords_animates_an_auto_width() {
+    let (mut app, div, _) = app(
+        "#a { interpolate-size: allow-keywords; width: auto; transition: width 100ms linear } \
+         #a.on { width: 10 }",
+    );
+    assert_eq!(rect(&app, div).width, 40);
+    app.dom_mut().set_attribute(div, "class", "on").unwrap();
+    app.advance(0).unwrap();
+    app.advance(50).unwrap();
+    assert_eq!(rect(&app, div).width, 25);
+    app.advance(60).unwrap();
+    assert_eq!(rect(&app, div).width, 10);
+}
+
+/// `calc-size()` as authored (CSS Values 5 §10): `calc-size(auto, size + 2)`
+/// is two rows taller than the content.
+#[test]
+fn calc_size_sizes_from_its_basis() {
+    let (app, div, _) = app("#a { height: calc-size(auto, size + 2) }");
+    assert_eq!(rect(&app, div).height, 3, "one row of content + 2");
+}

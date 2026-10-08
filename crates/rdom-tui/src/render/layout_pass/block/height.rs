@@ -159,12 +159,13 @@ pub(crate) fn height_is_definite_below(dom: &Dom<TuiExt>, parent: Option<NodeId>
             // stretches every item without an `auto` cross margin)
             // definite when its flex container's size is, so chain up
             // to the container. An intrinsic keyword is the content
-            // height too (CSS Sizing 3 §3.1).
+            // height too (CSS Sizing 3 §3.1), and a `calc-size()` from
+            // one (`calc_size`, whose second pass makes it a length).
             //
             // The document root's children are items of rdom's viewport
             // column (DIVERGENCES): only one that grows has a size the
             // viewport fixes — definite, as a `<n>fr` one is below.
-            Size::Auto | Size::Intrinsic(_) => {
+            Size::Auto | Size::Intrinsic(_) | Size::CalcSize(_) => {
                 match crate::render::box_tree::box_parent(dom, parent_id) {
                     Some(gp) if crate::render::box_tree::is_flex_container(dom, gp) => {
                         next = crate::render::box_tree::box_parent(dom, parent_id);

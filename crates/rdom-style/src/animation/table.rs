@@ -7,7 +7,7 @@
 use super::AnimationType::{ByComputedValue, Discrete, NotAnimatable, RepeatableList, ShadowList};
 use super::entry::{
     Entry, Ops, Role, VISIBILITY, e, fix_border, fix_decorations, fix_flex, fix_font, fix_opacity,
-    steps, value,
+    size, steps, value,
 };
 use super::value::{blend, discrete, interpolable};
 
@@ -193,14 +193,15 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("scroll-snap-stop", Discrete, steps!(scroll_snap_stop)),
     e("scroll-behavior", NotAnimatable, None),
     // CSS Sizing 3 / 4
-    e("width", ByComputedValue, value!(width)),
-    e("height", ByComputedValue, value!(height)),
+    e("width", ByComputedValue, size!(width)),
+    e("height", ByComputedValue, size!(height)),
     e("min-width", ByComputedValue, value!(min_width)),
     e("max-width", ByComputedValue, value!(max_width)),
     e("min-height", ByComputedValue, value!(min_height)),
     e("max-height", ByComputedValue, value!(max_height)),
     e("aspect-ratio", ByComputedValue, value!(aspect_ratio)),
     e("box-sizing", Discrete, steps!(box_sizing)),
+    e("interpolate-size", NotAnimatable, None),
     e(
         "contain-intrinsic-width",
         ByComputedValue,

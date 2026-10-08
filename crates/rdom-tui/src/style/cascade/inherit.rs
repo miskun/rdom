@@ -40,6 +40,8 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     working.list_style_position = parent.list_style_position;
     working.list_style_image = parent.list_style_image.clone();
     working.marker_side = parent.marker_side;
+    // CSS Values 5 §11: `interpolate-size` inherits.
+    working.interpolate_size = parent.interpolate_size;
     working.visibility = parent.visibility;
     // CSS UI 4 §7.1: `caret-color` inherits; rdom's `caret-text-color`
     // mirrors it.

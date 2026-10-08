@@ -80,7 +80,41 @@ pub(super) fn serialize_size(s: &Size) -> String {
         Size::Percent(p) => format!("{p}%"),
         Size::Calc(expr) => serialize_math(expr),
         Size::Intrinsic(k) => serialize_intrinsic(k),
+        Size::CalcSize(c) => serialize_calc_size(c),
     }
+}
+
+/// `calc-size(<basis>, <sum>)` (CSS Values 5 §10) in canonical form:
+/// `size`, scaled when its factor is not 1, plus the offset's cells and
+/// percentage — or the offset's math function when it is not linear.
+fn serialize_calc_size(c: &crate::layout::CalcSize) -> String {
+    use crate::layout::CalcSizeBasis;
+    let basis = match &c.basis {
+        CalcSizeBasis::Intrinsic(k) => serialize_intrinsic(k),
+        _ => "auto".to_string(),
+    };
+    let num = |v: f64| {
+        let v = (v * 1000.0).round() / 1000.0;
+        format!("{v}")
+    };
+    let mut sum = if c.factor == 1.0 {
+        "size".to_string()
+    } else {
+        format!("size * {}", num(c.factor))
+    };
+    match c.offset.linear_parts() {
+        Some((cells, percent)) => {
+            for (v, unit) in [(cells, ""), (percent, "%")] {
+                if v > 0.0 {
+                    sum.push_str(&format!(" + {}{unit}", num(v)));
+                } else if v < 0.0 {
+                    sum.push_str(&format!(" - {}{unit}", num(-v)));
+                }
+            }
+        }
+        None => sum.push_str(&format!(" + {}", serialize_math(&c.offset))),
+    }
+    format!("calc-size({basis}, {sum})")
 }
 
 /// An intrinsic size keyword (CSS Sizing 3 §3.1) in canonical form.

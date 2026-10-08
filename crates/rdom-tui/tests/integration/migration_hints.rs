@@ -1385,3 +1385,28 @@ fn transition_property_hints() {
     let ext = TuiExt::default();
     assert!(ext.cascaded_for(ext::StyleSlot::Host).is_none());
 }
+
+/// C12-ANIMATABLE: `Size` gains `CalcSize` (`calc-size()`, CSS Values 5
+/// §10) — a match adds an arm, sizing it by `basis_size()` or `resolve()`
+/// — and `interpolate-size` is a property (`InterpolateSize`).
+#[test]
+fn calc_size_hints() {
+    let c = CalcSize::new(CalcSizeBasis::Auto, 0.5, calc::CalcExpr::Number(2.0));
+    assert_eq!(c.basis_size(), Size::Auto);
+    assert_eq!(c.resolve(10, 0), 7);
+    let size = Size::CalcSize(std::sync::Arc::new(c));
+    let described = match size {
+        Size::CalcSize(c) => c.resolve(4, 0),
+        _ => 0,
+    };
+    assert_eq!(described, 4);
+    let s = TuiStyle::new().interpolate_size(InterpolateSize::AllowKeywords);
+    assert_eq!(
+        s.interpolate_size,
+        Some(Value::Specified(InterpolateSize::AllowKeywords))
+    );
+    assert_eq!(
+        ComputedStyle::initial().interpolate_size,
+        InterpolateSize::NumericOnly
+    );
+}

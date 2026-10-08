@@ -17,6 +17,7 @@
 
 mod entry;
 mod length;
+mod size;
 mod table;
 #[cfg(test)]
 mod tests;

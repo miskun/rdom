@@ -97,6 +97,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "max-height",
     "aspect-ratio",
     "box-sizing",
+    "interpolate-size",
     "contain-intrinsic-size",
     "contain-intrinsic-width",
     "contain-intrinsic-height",

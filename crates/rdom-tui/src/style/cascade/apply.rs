@@ -170,6 +170,7 @@ pub(super) fn apply_style(
     // (`none` is `None`).
     value!(max_width: MAX_WIDTH, max_height: MAX_HEIGHT);
     value!(box_sizing: BOX_SIZING);
+    value!(interpolate_size: INTERPOLATE_SIZE);
     value!(
         contain_intrinsic_width: CONTAIN_INTRINSIC_WIDTH,
         contain_intrinsic_height: CONTAIN_INTRINSIC_HEIGHT,

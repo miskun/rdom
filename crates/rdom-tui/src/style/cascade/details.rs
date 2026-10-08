@@ -87,6 +87,9 @@ pub(super) fn sync_content_box(dom: &mut Dom<TuiExt>, host: NodeId) {
             // The box's own transitions (it is diffed as an element) run
             // over the slot's style.
             let slot = crate::ext::StyleSlot::Host;
+            if crate::style::doc_flags::is_calc_sized(&style) {
+                crate::style::doc_flags::note_calc_size(dom);
+            }
             if let Some(e) = dom.node_mut(b).ext_mut()
                 && !e.cascaded_for(slot).is_some_and(|c| Rc::ptr_eq(c, &style))
             {

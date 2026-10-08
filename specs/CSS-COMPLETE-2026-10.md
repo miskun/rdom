@@ -240,7 +240,7 @@ row comes from.
 |---|---|---|
 | C12-TIMING | `transition-timing-function` full (`linear()`, `steps()` positions), negative `transition-delay` | |
 | C12-BEHAVIOR | `transition-behavior: allow-discrete` | |
-| C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) || partial — `interpolate-size` / `calc-size()` (to and from `auto`) remain |
+| C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) || done |
 | C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | |
 | C12-STARTING | `@starting-style` | |
 | C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | |
@@ -7608,3 +7608,21 @@ row comes from.
   `descendants_inherit_the_running_value`. Cost: no running transition, no frame; one running, one whole-tree
   layout per frame (TECH_DEBT `ANIM-RELAYOUT-1`, no partial relayout exists), no cascade. `walk.rs` split
   (`finish.rs`). Remaining: `interpolate-size` / `calc-size()` (part 2/2).
+- 2026-10-15 — C12-ANIMATABLE (2/2) done. `interpolate-size: numeric-only | allow-keywords` (CSS Values 5
+  §11, inherited, not animatable) and `calc-size(<basis>, <sum>)` (§10) on `width` / `height`: `Size` gains
+  `CalcSize(Arc<CalcSize>)` — `size * factor + offset` over an `auto` or intrinsic basis; an `any` or length
+  basis folds to a plain size, a nested one composes. The parser takes sums linear in `size` (checked by
+  parsing at `size` = 0, 1, 2 against two percentage bases), which every interpolation produces
+  (DIVERGENCES §2). Interpolation (`rdom_style::animation::size`): a keyword is `calc-size(k, size)` and a
+  length `calc-size(any, L)` under `allow-keywords` read on the after-change style; two `calc-size()`s of
+  one basis, or one with a length, interpolate whatever it says; two different keywords never do. Layout
+  (`layout_pass::calc_size`): a document that ever computed a `calc-size()` (`doc_flags`) lays out once with
+  each such property at its basis, sizes it from the box that pass gave (`box-sizing`'s box; a percentage in
+  the offset against the box parent's content box), and lays out again — every layout mode and every parent
+  measuring the box sees a length; the computed styles are put back. Red: `interpolate_size_animates_
+  details_content_to_auto`, `allow_keywords_animates_an_auto_width`, `calc_size_sizes_from_its_basis` (all
+  three: `interpolate-size` unknown / `calc-size()` invalid); `numeric_only_keeps_auto_discrete` pins the
+  initial value. Mutation-checked: skipping the second pass fails the three. Closing a `<details>` does not
+  animate: its content computes `display: none` at once, so the `auto` basis is 0 (a browser transitions
+  `content-visibility` with `allow-discrete`; DIVERGENCES §2, C14-CONTAIN). `min-*` / `max-*` /
+  `flex-basis` do not take `calc-size()` yet (DIVERGENCES §2). Item done.

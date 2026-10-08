@@ -35,6 +35,7 @@ mod aspect_ratio;
 mod background;
 mod border;
 mod box_model;
+mod calc_size;
 mod float;
 mod font;
 mod gap;
@@ -68,6 +69,7 @@ pub use border::{
     CornerStyle, PaintLength,
 };
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
+pub use calc_size::{CalcSize, CalcSizeBasis, InterpolateSize};
 pub use float::{Clear, Float, FloatSide};
 pub use font::{
     Font, FontFamily, FontSize, FontSizeKeyword, FontStretch, FontStretchKeyword, FontStyle,
