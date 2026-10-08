@@ -15,7 +15,8 @@
 //! - `rect` — `LayoutRect`
 //! - `alignment` — the Box Alignment keywords (`Align`, `Alignment`)
 //! - `keywords` — keyword-valued properties
-//! - `sizing` — `Size`, `MinSize`, `MaxSize`, `AspectRatio`, `GapValue`, `Length`
+//! - `sizing` — `Size`, `MinSize`, `MaxSize`, `FlexBasis`, `Length`
+//! - `aspect_ratio` — `AspectRatio`; `gap` — `GapValue`
 //! - `border` — border styles, widths, `border-collapse`
 //! - `box_model` — padding, margin
 //! - `grid` — the grid track lists (`GridTemplate`, `TrackSize`)
@@ -30,11 +31,13 @@
 //! - `text` — `TextStyle`, the computed CSS Text group
 
 pub(crate) mod alignment;
+mod aspect_ratio;
 mod background;
 mod border;
 mod box_model;
 mod float;
 mod font;
+mod gap;
 mod grid;
 mod grid_areas;
 mod grid_placement;
@@ -58,6 +61,7 @@ mod vertical_align;
 mod white_space;
 
 pub use alignment::{Align, AlignProperty, Alignment, OverflowAlign};
+pub use aspect_ratio::AspectRatio;
 pub use background::{BackgroundAttachment, BackgroundRepeat, BoxShadow, RepeatStyle, VisualBox};
 pub use border::{
     Border, BorderCollapse, BorderRadius, BorderSpacing, BorderStyle, BorderWeight, BorderWidth,
@@ -69,6 +73,7 @@ pub use font::{
     Font, FontFamily, FontSize, FontSizeKeyword, FontStretch, FontStretchKeyword, FontStyle,
     FontVariant, FontWeight, SystemFont,
 };
+pub use gap::GapValue;
 pub use grid::{
     GridTemplate, LineNameItem, LineNameList, RepeatCount, TrackBreadth, TrackList, TrackListItem,
     TrackRepeat, TrackSize,
@@ -94,8 +99,8 @@ pub use scrollbar::{
 };
 pub use sides::{Corners, Sides};
 pub use sizing::{
-    AspectRatio, ContainIntrinsicSize, FlexBasis, GapValue, IntrinsicSize, Length, MaxSize,
-    MinSize, Size, valid_flex_factor,
+    ContainIntrinsicSize, FlexBasis, IntrinsicSize, Length, MaxSize, MinSize, Size,
+    valid_flex_factor,
 };
 pub use spacing::Spacing;
 pub use text::TextStyle;

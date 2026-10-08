@@ -1,14 +1,14 @@
 //! Sizing values: `width` / `height` ([`Size`]), `min-*` ([`MinSize`]),
-//! `max-*` ([`MaxSize`]),
-//! `aspect-ratio`, `gap` and the positioning offsets ([`Length`]),
-//! each with its resolution against a basis.
+//! `max-*` ([`MaxSize`]), `flex-basis`, `contain-intrinsic-size` and the
+//! positioning offsets ([`Length`]), each with its resolution against a
+//! basis. (`aspect-ratio` is `aspect_ratio.rs`, `gap` `gap.rs`.)
 
 /// Sizing for width or height — CSS-like sizing modes.
 ///
-/// **Not `Copy`** — the `Calc` variant carries a boxed expression
-/// tree. The simple variants (`Fixed` / `Flex` / `Percent` /
-/// `Auto`) clone in O(1); `Calc` clones the AST. Move boundaries
-/// where the previous `Copy` was implicit need `.clone()`.
+/// **Not `Copy`** — the `Calc` variant carries an expression tree,
+/// shared behind an `Arc`: every variant clones in O(1) without
+/// allocating. Move boundaries where the previous `Copy` was implicit
+/// need `.clone()`.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum Size {
     /// Exact number of cells.
@@ -418,138 +418,6 @@ impl ContainIntrinsicSize {
 pub(super) fn resolve_u16(expr: &crate::calc::CalcExpr, basis: u16) -> u16 {
     let v = expr.resolve(&crate::calc::ResolveCtx::new(i32::from(basis)));
     v.clamp(0, i32::from(u16::MAX)) as u16
-}
-
-/// An `aspect-ratio` ratio (CSS Sizing 4 §5.1): `<ratio>` (CSS Values 4
-/// §5.7, two non-negative numbers, the second 1 when omitted) and
-/// whether `auto` came with it. The `auto` keyword alone is no ratio —
-/// `None` where the style holds an `Option<AspectRatio>`.
-///
-/// A ratio with a zero term is *degenerate* and behaves as `auto`
-/// ([`AspectRatio::value`] is `None`).
-///
-/// The terms are private: [`AspectRatio::new`] is the only way to build
-/// one, so a non-finite or negative term never reaches layout.
-///
-/// ```compile_fail
-/// let r = rdom_style::layout::AspectRatio { numerator: f32::NAN, denominator: 1.0, auto: false };
-/// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct AspectRatio {
-    numerator: f32,
-    denominator: f32,
-    auto: bool,
-}
-
-impl AspectRatio {
-    /// `numerator / denominator`, without `auto`. `None` when a term is
-    /// negative or not finite (CSS Values 4 §5.7: `<number [0,∞]>`).
-    pub fn new(numerator: f32, denominator: f32) -> Option<Self> {
-        let valid = |v: f32| v.is_finite() && v >= 0.0;
-        (valid(numerator) && valid(denominator)).then_some(Self {
-            numerator,
-            denominator,
-            auto: false,
-        })
-    }
-
-    /// This ratio with `auto` (the `auto && <ratio>` form) or without.
-    pub fn with_auto(mut self, auto: bool) -> Self {
-        self.auto = auto;
-        self
-    }
-
-    /// The width term.
-    pub fn numerator(self) -> f32 {
-        self.numerator
-    }
-
-    /// The height term.
-    pub fn denominator(self) -> f32 {
-        self.denominator
-    }
-
-    /// `auto && <ratio>`: a replaced element's natural ratio would win
-    /// (rdom has none), and the ratio sizes the content box rather than
-    /// the border box.
-    pub fn auto(self) -> bool {
-        self.auto
-    }
-
-    /// The ratio `numerator / denominator`, `None` when degenerate (a
-    /// zero term), which behaves as `auto` (CSS Sizing 4 §5.1).
-    pub fn value(self) -> Option<f32> {
-        (self.numerator > 0.0 && self.denominator > 0.0).then(|| self.numerator / self.denominator)
-    }
-
-    /// The ratio as a single `f32` — `numerator / denominator` (infinite
-    /// or NaN when degenerate; see [`Self::value`]).
-    pub fn as_f32(self) -> f32 {
-        self.numerator / self.denominator
-    }
-}
-
-/// A `row-gap` / `column-gap` value (CSS Box Alignment 3 §8.1), also
-/// `border-spacing`'s: whole cells, or a `calc()` / percentage that
-/// resolves at layout time against the container's content size on the
-/// gap's axis (indefinite → 0; `CALC-GAP-1`), or `normal` — the initial
-/// value, 0 in flex (and grid) layout.
-#[derive(Debug, Clone, PartialEq)]
-pub enum GapValue {
-    Cells(u16),
-    Calc(std::sync::Arc<crate::calc::CalcExpr>),
-    /// `normal`: 0 in flex layout (§8.1; a multi-column `1em`, which
-    /// rdom has no layout for yet).
-    Normal,
-}
-
-impl Default for GapValue {
-    fn default() -> Self {
-        GapValue::Cells(0)
-    }
-}
-
-impl From<u16> for GapValue {
-    fn from(cells: u16) -> Self {
-        GapValue::Cells(cells)
-    }
-}
-
-impl From<crate::calc::CalcExpr> for GapValue {
-    fn from(expr: crate::calc::CalcExpr) -> Self {
-        GapValue::calc(expr)
-    }
-}
-
-impl GapValue {
-    /// A `calc()` value (CSS Values 4 §10): the expression behind an `Arc`,
-    /// shared by every style holding the value — an inherited or copied
-    /// one clones without allocating.
-    pub fn calc(expr: crate::calc::CalcExpr) -> Self {
-        GapValue::Calc(std::sync::Arc::new(expr))
-    }
-
-    /// Resolve against `basis` (the container's content size on the
-    /// gap's axis; `0` when that size is indefinite).
-    pub fn resolve(&self, basis: u16) -> u16 {
-        match self {
-            GapValue::Cells(n) => *n,
-            GapValue::Calc(expr) => {
-                let v = expr.resolve(&crate::calc::ResolveCtx::new(i32::from(basis)));
-                v.clamp(0, i32::from(u16::MAX)) as u16
-            }
-            GapValue::Normal => 0,
-        }
-    }
-
-    /// The value as whole cells when it needs no basis.
-    pub fn as_cells(&self) -> Option<u16> {
-        match self {
-            GapValue::Cells(n) => Some(*n),
-            GapValue::Calc(_) => None,
-            GapValue::Normal => Some(0),
-        }
-    }
 }
 
 /// Offset value for `top` / `right` / `bottom` / `left`, and

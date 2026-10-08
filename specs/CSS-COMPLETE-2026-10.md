@@ -6674,3 +6674,9 @@ row comes from.
   (630 built for ≤ 60); green after (the fallback `2147483647`, nothing built, and two-digit values of 40
   code points still written). Mutation (each, restored, touched): the `use` trees ignored → the grouped
   import passes the scan; the cap check removed → 630 built. No existing expectation or snapshot changed.
+- 2026-10-13 — C10G-INHERIT-COST split. C10G-INHERIT-COST's `calc()` constructors left
+  `rdom-style/src/layout/sizing.rs` at 600 production lines, past the 575 split-on-touch bar (found by the
+  batch's closing recount; the gate's limit is 600, so the workspace check still passed): `aspect-ratio`
+  (`AspectRatio`) moves to `layout/aspect_ratio.rs` (71) and `gap` (`GapValue`) to `layout/gap.rs` (65),
+  `sizing.rs` 468; re-exports unchanged. `Size`'s doc no longer says its `Calc` clones the tree (it is an
+  `Arc`). TECH_DEBT `SIZE-1` recounted (none past 575). No code or test changed.
