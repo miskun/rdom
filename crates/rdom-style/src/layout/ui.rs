@@ -107,6 +107,8 @@ pub struct UiStyle {
     pub caret_shape: CaretShape,
     /// `caret-animation` (§6.2.1). Inherited.
     pub caret_animation: CaretAnimation,
+    /// `accent-color` (§6.3). Inherited.
+    pub accent_color: AccentColor,
 }
 
 impl Default for UiStyle {
@@ -119,6 +121,7 @@ impl Default for UiStyle {
             cursor: Cursor::default(),
             caret_shape: CaretShape::Auto,
             caret_animation: CaretAnimation::Auto,
+            accent_color: AccentColor::Auto,
         }
     }
 }
@@ -313,4 +316,18 @@ impl CaretAnimation {
             CaretAnimation::Manual => "manual",
         }
     }
+}
+
+/// `accent-color` (CSS UI 4 §6.3): `auto | <color>` — the accent of the
+/// form controls' UA chrome (a checked checkbox's or radio's mark, a
+/// range slider, a progress bar). `auto` keeps the UA's own colors; a
+/// color stays a [`TuiColor`](crate::TuiColor) and resolves at use
+/// against the element, as `caret-color` does. Inherited; initial `auto`.
+///
+/// Closed (DESIGN): a color or the keyword.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum AccentColor {
+    #[default]
+    Auto,
+    Color(crate::TuiColor),
 }

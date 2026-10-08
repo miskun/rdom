@@ -116,8 +116,8 @@ pub use text_decoration::{
     TextUnderlinePosition,
 };
 pub use ui::{
-    CaretAnimation, CaretShape, Cursor, CursorImage, CursorKeyword, OutlineColor, OutlineStyle,
-    UiStyle,
+    AccentColor, CaretAnimation, CaretShape, Cursor, CursorImage, CursorKeyword, OutlineColor,
+    OutlineStyle, UiStyle,
 };
 pub use vertical_align::VerticalAlign;
 pub use white_space::{

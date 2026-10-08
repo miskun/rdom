@@ -100,6 +100,12 @@ const SAMPLES: &[(&str, &str, &str, Mid)] = &[
     ("cursor", "pointer", "help", Flips),
     ("caret-shape", "bar", "block", Flips),
     ("caret-animation", "auto", "manual", Flips),
+    (
+        "accent-color",
+        "rgb(0, 0, 0)",
+        "rgb(200, 200, 200)",
+        Between,
+    ),
     ("overscroll-behavior-x", "auto", "contain", Flips),
     ("overscroll-behavior-y", "auto", "contain", Flips),
     ("scroll-padding-top", "2", "4", Is("3")),

@@ -6,12 +6,13 @@
 use super::border::{serialize_line_width, serialize_paint_length};
 use super::value_serializers::{serialize_color, specified};
 use crate::layout::{
-    BorderWidth, CaretAnimation, CaretColor, CaretShape, OutlineColor, OutlineStyle,
+    AccentColor, BorderWidth, CaretAnimation, CaretColor, CaretShape, OutlineColor, OutlineStyle,
 };
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_caret, parse_caret_animation, parse_caret_shape, parse_cursor, parse_line_width,
-    parse_outline, parse_outline_color, parse_outline_offset, parse_outline_style,
+    parse_accent_color, parse_caret, parse_caret_animation, parse_caret_shape, parse_cursor,
+    parse_line_width, parse_outline, parse_outline_color, parse_outline_offset,
+    parse_outline_style,
 };
 use crate::{TuiStyle, Value};
 
@@ -53,6 +54,9 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "caret-animation" => parse_caret_animation(value).map(|a| {
             ui.caret_animation = Some(Value::Specified(a));
         }),
+        "accent-color" => parse_accent_color(value).map(|a| {
+            ui.accent_color = Some(Value::Specified(a));
+        }),
         _ => return None,
     })
 }
@@ -90,6 +94,14 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .as_ref()
             .and_then(specified)
             .map(|a| a.keyword().to_string()),
+        "accent-color" => ui
+            .accent_color
+            .as_ref()
+            .and_then(specified)
+            .map(|a| match a {
+                AccentColor::Auto => "auto".to_string(),
+                AccentColor::Color(c) => serialize_color(c),
+            }),
         // The shortest form: the components off their initial `auto`, in
         // grammar order; `auto` when all are.
         "caret" => {

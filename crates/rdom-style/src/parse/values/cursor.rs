@@ -5,7 +5,9 @@
 use super::color::parse_color;
 use super::keyword::parse_keyword;
 use super::numeric::{components, split_commas};
-use crate::layout::{CaretAnimation, CaretColor, CaretShape, Cursor, CursorImage, CursorKeyword};
+use crate::layout::{
+    AccentColor, CaretAnimation, CaretColor, CaretShape, Cursor, CursorImage, CursorKeyword,
+};
 use crate::parse::token::Token;
 
 /// `cursor`: image fallbacks, each a URL with an optional hotspot of two
@@ -104,4 +106,10 @@ pub fn parse_caret(value: &[Token]) -> Option<(CaretColor, CaretAnimation, Caret
         animation.unwrap_or_default(),
         shape.unwrap_or_default(),
     ))
+}
+
+/// `accent-color` (§6.3): `auto | <color>`.
+pub fn parse_accent_color(value: &[Token]) -> Option<AccentColor> {
+    parse_keyword(value, &[("auto", AccentColor::Auto)])
+        .or_else(|| parse_color(value).map(AccentColor::Color))
 }

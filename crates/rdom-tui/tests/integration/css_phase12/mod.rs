@@ -6,6 +6,7 @@
 use rdom_tui::render::{Buffer, Cell, Rect};
 use rdom_tui::{CascadeExt, LayoutExt, NodeId, PaintExt, TuiDom};
 
+mod controls;
 mod outline;
 
 /// A `div` with `class` (and `text`, if any) appended to `parent`.

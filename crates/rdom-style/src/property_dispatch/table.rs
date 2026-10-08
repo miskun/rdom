@@ -183,6 +183,7 @@ define_fields! {
     Cursor => ui.cursor : CURSOR,
     CaretShape => ui.caret_shape : CARET_SHAPE,
     CaretAnimation => ui.caret_animation : CARET_ANIMATION,
+    AccentColor => ui.accent_color : ACCENT_COLOR,
     OverscrollBehaviorX => overscroll_behavior_x : OVERSCROLL_BEHAVIOR_X,
     OverscrollBehaviorY => overscroll_behavior_y : OVERSCROLL_BEHAVIOR_Y,
     ScrollPaddingTop => scroll_padding.top : SCROLL_PADDING_TOP,
@@ -458,6 +459,7 @@ pub fn inherits(name: &str) -> bool {
             | "caret-shape"
             | "caret-animation"
             | "caret"
+            | "accent-color"
     )
 }
 

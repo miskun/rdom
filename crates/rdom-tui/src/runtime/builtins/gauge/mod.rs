@@ -77,7 +77,8 @@ fn progress_text(dom: &TuiDom, id: NodeId, width: u16) -> (String, Option<Color>
         }
         None => indeterminate_bar(width),
     };
-    (bar, None)
+    // CSS UI 4 §6.3: a progress bar draws in the element's accent.
+    (bar, crate::style::accent::of(dom, id))
 }
 
 /// Render a `<meter>` bar with zone color.

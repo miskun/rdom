@@ -4,7 +4,8 @@
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
 use crate::layout::{
-    BorderWidth, CaretAnimation, CaretShape, Cursor, OutlineColor, OutlineStyle, PaintLength,
+    AccentColor, BorderWidth, CaretAnimation, CaretShape, Cursor, OutlineColor, OutlineStyle,
+    PaintLength,
 };
 
 /// A setter for one [`UiDeclarations`](crate::UiDeclarations) field and
@@ -68,5 +69,12 @@ impl TuiStyle {
         caret_animation_important,
         CARET_ANIMATION,
         CaretAnimation
+    );
+    ui_setter!(
+        "accent-color",
+        accent_color,
+        accent_color_important,
+        ACCENT_COLOR,
+        AccentColor
     );
 }

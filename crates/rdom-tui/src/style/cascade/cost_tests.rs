@@ -410,6 +410,7 @@ const INHERITED_VALUES: &[(&str, &str)] = &[
     ("caret-shape", "bar"),
     ("caret-animation", "manual"),
     ("caret", "red manual underscore"),
+    ("accent-color", "red"),
     ("quotes", "'«' '»' '‹' '›'"),
     ("list-style", "square inside"),
     ("list-style-type", "'→ '"),

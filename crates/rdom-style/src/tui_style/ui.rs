@@ -3,7 +3,8 @@
 
 use crate::Value;
 use crate::layout::{
-    BorderWidth, CaretAnimation, CaretShape, Cursor, OutlineColor, OutlineStyle, PaintLength,
+    AccentColor, BorderWidth, CaretAnimation, CaretShape, Cursor, OutlineColor, OutlineStyle,
+    PaintLength,
 };
 
 /// The CSS Basic User Interface 4 properties a
@@ -29,4 +30,6 @@ pub struct UiDeclarations {
     pub caret_shape: Option<Value<CaretShape>>,
     /// `caret-animation` (§6.2.1); the `caret` shorthand writes it.
     pub caret_animation: Option<Value<CaretAnimation>>,
+    /// `accent-color` (§6.3).
+    pub accent_color: Option<Value<AccentColor>>,
 }

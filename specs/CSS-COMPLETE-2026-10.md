@@ -248,7 +248,7 @@ row comes from.
 | C12-CURSOR | `cursor` (OSC 22 pointer shapes) | done |
 | C12-CARET | `caret-shape` / `caret-animation` / `caret` | done |
 | C12-FOCUS-FLUSH | `focus()` (and other style-reading DOM calls) flushes pending style for the element first, as browsers do — TECH_DEBT `FOCUS-FLUSH-1`; needs the sheet set / transition registry / dirty tracker reachable from a handler's `Dom` | done |
-| C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | |
+| C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | partial — `accent-color` done; `appearance`, `field-sizing`, `resize` next |
 
 ### Phase 13 — Tables (audit §3.20)
 
@@ -7952,3 +7952,14 @@ row comes from.
   block; the manual caret hidden by the off phase; the shorthand's underline missing — `block_and_auto`
   passing, pinning the unchanged default), `caret_blink/tests.rs::caret_animation_manual_does_not_blink`
   failed (a flip still scheduled); green after. Dispatch: `ui_tests::the_caret_longhands_and_shorthand`.
+- 2026-10-17 — C12-CONTROLS (1/4), `accent-color` (CSS UI 4 §6.3). rdom-style: `auto | <color>`, inherited,
+  by computed value between two colors (`AccentColor`, kept as a `TuiColor` like `caret-color`, in the `ui`
+  group). rdom-tui: `style/accent.rs` resolves an element's used accent (against its color and used scheme;
+  `None` for `auto`), read by the chrome that a browser fills with it — the progress bar (`gauge`'s fg
+  override; `<meter>` keeps its zone colors, as CSS UI 4 leaves it out), the range slider's track and thumb
+  (its canvas paint), and a checked or indeterminate checkbox's or checked radio's mark: the cascade sets
+  the toggle's `::before` color to the accent right after computing it (`early_pseudos`), so the mark is
+  restyled with `:checked` and inherits nothing odd; an unchecked toggle keeps the text color. No default
+  paint changes (`auto` everywhere). Red, by mutation of the finished code (an accent never resolving):
+  both `css_phase12/controls.rs` tests fail at the checked checkbox and the progress bar; dispatch pinned by
+  `ui_tests::accent_color_is_auto_or_a_color`. Remaining: `appearance`, `field-sizing`, `resize`.

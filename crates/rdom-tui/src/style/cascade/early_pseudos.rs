@@ -83,7 +83,11 @@ pub(super) fn compute(
     } else {
         None
     };
-    let before = pseudo(cx, Slot::Before, computed, before_targets(dom, id));
+    let mut before = pseudo(cx, Slot::Before, computed, before_targets(dom, id));
+    // CSS UI 4 §6.3: a checked toggle's mark in its accent.
+    if let Some(b) = before.as_mut() {
+        crate::style::accent::tint_mark(dom, id, computed, b);
+    }
     // Its own marker, when it is a list item: after its counter ops.
     let before_marker = before.as_ref().filter(|b| has_marker(b)).and_then(|b| {
         pseudo(

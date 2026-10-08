@@ -2640,6 +2640,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ),
         ("caret", child.ui.caret_shape == parent.ui.caret_shape),
         (
+            "accent-color",
+            child.ui.accent_color == parent.ui.accent_color,
+        ),
+        (
             "caret-text-color",
             child.caret_text_color == parent.caret_text_color,
         ),

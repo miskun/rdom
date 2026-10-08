@@ -207,3 +207,26 @@ fn the_caret_longhands_and_shorthand() {
         assert!(inherits(name), "{name}");
     }
 }
+
+/// §6.3: `accent-color: auto | <color>`, inherited.
+#[test]
+fn accent_color_is_auto_or_a_color() {
+    use crate::layout::AccentColor;
+    let mut style = TuiStyle::new();
+    set("accent-color", "rebeccapurple", &mut style).unwrap();
+    assert!(matches!(
+        spec(&style.ui.accent_color),
+        Some(AccentColor::Color(_))
+    ));
+    set("accent-color", "AUTO", &mut style).unwrap();
+    assert_eq!(spec(&style.ui.accent_color), Some(AccentColor::Auto));
+    assert_eq!(serialize("accent-color", &style).as_deref(), Some("auto"));
+    for bad in ["none", "red blue", "1"] {
+        assert_eq!(
+            set("accent-color", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+    assert!(inherits("accent-color"));
+}

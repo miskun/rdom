@@ -76,7 +76,7 @@ pub use tui_event::{TuiDispatchExt, TuiEvent};
 
 pub use ext::{StaticPosition, TuiExt};
 pub use layout::{
-    Align, AlignProperty, Alignment, AppliedDecorations, AppliedLine, AspectRatio,
+    AccentColor, Align, AlignProperty, Alignment, AppliedDecorations, AppliedLine, AspectRatio,
     BackgroundAttachment, BackgroundRepeat, BlockEllipsis, Border, BorderRadius, BorderSpacing,
     BorderStyle, BorderWeight, BorderWidth, BoxOrient, BoxShadow, BoxSizing, CalcSize,
     CalcSizeBasis, CaretAnimation, CaretShape, Clear, ContainIntrinsicSize, Continue, CornerStyle,

@@ -195,12 +195,14 @@ fn paint_track(dom: &Dom<TuiExt>, input: NodeId, ctx: &mut canvas::RenderContext
 }
 
 fn style_from_dom(dom: &Dom<TuiExt>, id: NodeId) -> Style {
-    let fg = dom
-        .node(id)
-        .ext()
-        .and_then(|e| e.computed.as_ref())
-        .map(|c| c.fg)
-        .unwrap_or(Color::Reset);
+    // CSS UI 4 §6.3: the slider draws in the element's accent, else its
+    // color.
+    let fg = crate::style::accent::of(dom, id).unwrap_or_else(|| {
+        dom.node(id)
+            .ext()
+            .and_then(|e| e.computed.as_ref())
+            .map_or(Color::Reset, |c| c.fg)
+    });
     if fg == Color::Reset {
         Style::new()
     } else {

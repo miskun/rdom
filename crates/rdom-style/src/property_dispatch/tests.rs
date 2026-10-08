@@ -64,6 +64,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("caret-shape", "underscore"),
         ("caret-animation", "manual"),
         ("caret", "rgb(1, 2, 3) manual bar"),
+        ("accent-color", "rgb(4, 5, 6)"),
         ("overflow", "scroll"),
         ("overflow-x", "auto"),
         ("overflow-y", "hidden"),

@@ -191,6 +191,7 @@ impl Longhand {
                 | "caret-text-color"
                 | "caret-shape"
                 | "caret-animation"
+                | "accent-color"
                 | "scrollbar-color"
                 | "box-shadow"
                 // CSS UI 4 §5: an outline takes no room.

@@ -24,6 +24,7 @@
 //! `!important` inverts origin priority; the `style` attribute beats
 //! the author's rules at both importances (Cascade 4 §6.1).
 
+pub(crate) mod accent;
 pub mod cascade;
 pub(crate) mod dir_auto;
 pub mod dirty_tracker;

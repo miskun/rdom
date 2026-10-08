@@ -427,6 +427,20 @@ impl Animate for crate::layout::OutlineColor {
     }
 }
 
+/// CSS UI 4 §6.3: by computed value — two colors interpolate; `auto`
+/// does not.
+impl Animate for crate::layout::AccentColor {
+    fn animate(&self, to: &Self, p: f64, cx: &Cx) -> Option<Self> {
+        use crate::layout::AccentColor;
+        match (self, to) {
+            (AccentColor::Color(a), AccentColor::Color(b)) => {
+                Some(AccentColor::Color(a.animate(b, p, cx)?))
+            }
+            _ => None,
+        }
+    }
+}
+
 impl Animate for CaretTextColor {
     fn animate(&self, to: &Self, p: f64, cx: &Cx) -> Option<Self> {
         match (self, to) {
