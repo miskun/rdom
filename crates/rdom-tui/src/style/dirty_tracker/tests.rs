@@ -768,3 +768,68 @@ fn a_dir_auto_host_restyles_only_when_its_direction_flips() {
     dom.node_mut(first_text).set_node_value("hello").unwrap();
     assert!(tracker.take_roots().contains(&main), "rtl → ltr restyles");
 }
+
+/// C11G-HAS-IS-SIBLING: a sibling step nested in `:is()` inside a `:has()`
+/// argument relates elements the relative selector's own `+` / `~` does
+/// not bound — in `.a:has(+ :is(.x ~ *))` the `.x` is any earlier sibling
+/// of the anchor's next sibling, so it can stand *before* the anchor
+/// (Selectors 4 §4.2, §4.5: `:is()` is not scoped to the anchor). A change
+/// there must restyle the anchor, a *later* sibling, which the `:has()`
+/// walk (earlier siblings only) does not reach. With the App's triggers
+/// (both computed from the sheet): a class toggled on, the pointer moved
+/// into, and a child appended to a `.x` two elements before the anchor,
+/// and a `.x` inserted there. The reach is covered by `SiblingTriggers`,
+/// not the `:has()` walk (`has_triggers` module doc): this pins it.
+#[test]
+fn a_nested_sibling_step_before_the_anchor_restyles_it() {
+    use crate::CascadeExt;
+    use crate::style::has_triggers::HasTriggers;
+    use crate::style::sibling_triggers::SiblingTriggers;
+    for (css, change) in [
+        (".a:has(+ :is(.x ~ *)) { color: red }", "class"),
+        (".a:has(+ :is(i:hover ~ *)) { color: red }", "hover"),
+        (".a:has(+ :is(i:empty ~ *)) { color: red }", "child"),
+        (".a:has(+ :not(.x ~ *)) { color: red }", "class"),
+        (".a:has(+ :nth-child(2 of .x)) { color: red }", "class"),
+        (".a:has(+ :is(.x ~ *)) { color: red }", "insert"),
+    ] {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let p = dom.create_element("p");
+        dom.append_child(root, p).unwrap();
+        let x = dom.create_element("i");
+        let other = dom.create_element("i");
+        let anchor = dom.create_element("b");
+        let next = dom.create_element("u");
+        for e in [x, other, anchor, next] {
+            dom.append_child(p, e).unwrap();
+        }
+        dom.add_class(other, "x").unwrap();
+        dom.add_class(anchor, "a").unwrap();
+        let child = dom.create_element("s");
+        if change == "hover" {
+            dom.append_child(x, child).unwrap();
+        }
+        let sheet = rdom_css::parse(css).stylesheet;
+        dom.cascade(&sheet);
+        assert!(
+            dom.node(anchor).ext().is_some_and(|e| e.has_anchor),
+            "{css}: flagged"
+        );
+        let tracker = DirtyTracker::install(&mut dom);
+        tracker.set_sibling_triggers(SiblingTriggers::of_sheets([&sheet]));
+        tracker.set_has_triggers(HasTriggers::of_sheets([&sheet]));
+        match change {
+            "class" => dom.add_class(x, "x").unwrap(),
+            "hover" => dom.set_hovered(Some(child)),
+            "insert" => {
+                let new = dom.create_element("i");
+                dom.add_class(new, "x").unwrap();
+                dom.insert_before(p, new, Some(x)).unwrap();
+            }
+            _ => dom.append_child(x, child).unwrap(),
+        }
+        let roots = tracker.take_roots();
+        assert!(covered(&dom, &roots, anchor), "{css}: {roots:?}");
+    }
+}

@@ -7524,3 +7524,19 @@ row comes from.
   outer close overwrote the inner's return value). Green after; no existing expectation changed. Mutations
   (each alone, restored, touched): no step-7 re-check → `show_modal_rechecks_after_beforetoggle`; no close
   step-3 re-check → `close_rechecks_after_beforetoggle`.
+- 2026-10-14 — C11G-HAS-IS-SIBLING (batch A's found gap: a sibling step nested in `:is()` inside `:has(+ …)`
+  can reach an element before the anchor, and the `:has()` walk visits only earlier siblings). Wrote the red
+  test first — `a_nested_sibling_step_before_the_anchor_restyles_it`: under `.a:has(+ :is(.x ~ *))` (and
+  `:hover` / `:empty` left compounds, `:not()`, `:nth-child(2 of .x)`, and an inserted `.x`), a change to an
+  `<i>` two elements before the anchor, with both triggers computed from the sheet as the App computes them
+  — and it was green. The reach is bounded, and already handled, by the sibling marking: every combinator
+  nested in an argument leads up or back from its subject, so an element an anchor's match reads is in its
+  subtree or a later sibling's (the walk's), an ancestor of it (whose change restyles its subtree), inside it,
+  or reached by a back step — and such an element matches a compound left of a sibling combinator, which
+  `SiblingTriggers` records inside `:has()` arguments (`selector_walk::arguments` walks them), so its change
+  marks every one of its siblings: the anchor or one of its ancestors. `of S` is recorded the same way. Decided
+  — keep one mechanism per direction, and write the argument where the next reader looks: the `has_triggers`
+  module doc ("Why earlier siblings are enough"), `mark_has_anchors`' doc, TECH_DEBT `HAS-COST-1` (the
+  forward case costs the sibling marking's O(siblings)). The test is a pin; it fails when the sibling triggers
+  stop walking `:has()` arguments (mutation, restored, touched: `arguments` returning nothing for `Has` → the
+  `.x` case fails). No behaviour change, so no CHANGELOG bullet.

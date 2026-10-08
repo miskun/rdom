@@ -190,7 +190,9 @@ pub(super) fn mark_auto_direction_host(
 /// (`DirtyState::has_walked`) — its ancestors' walks, and with unbounded
 /// reach its earlier siblings', are then done too — so many changes under
 /// one parent cost one walk of it. O(depth + reach) per change; nothing
-/// before any cascade flagged an anchor.
+/// before any cascade flagged an anchor. An anchor *after* `from` (a
+/// sibling step nested in an argument, `.a:has(+ :is(.x ~ *))`) is the
+/// sibling marking's (`mark_state_dirty`; `has_triggers` module doc).
 pub(super) fn mark_has_anchors(
     dom: &mut Dom<TuiExt>,
     state: &mut DirtyState,

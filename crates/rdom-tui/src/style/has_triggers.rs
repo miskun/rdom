@@ -23,6 +23,21 @@
 //!   siblings, along each one's earlier siblings — and restyles the
 //!   flagged ones only.
 //!
+//! **Why earlier siblings are enough** (C11G-HAS-IS-SIBLING). Every
+//! combinator nested in an argument leads up (to an ancestor) or back (to
+//! an earlier sibling) from its subject, so the elements an anchor's match
+//! reads are its subtree, its later siblings' subtrees — which this walk
+//! reaches — and what up and back steps from those lead to. An up step
+//! lands on an ancestor of the anchor (whose own change restyles its
+//! subtree, the anchor in it) or inside the anchor's subtree. A back step
+//! can land *before* the anchor: in `.a:has(+ :is(.x ~ *))` the `.x` is any
+//! earlier sibling of the anchor's next sibling. Such an element matches a
+//! compound left of a sibling combinator, which `SiblingTriggers` records
+//! inside `:has()` arguments too (`selector_walk::arguments`), so its
+//! change marks every one of its siblings — the anchor, or the anchor's
+//! ancestor, among them. `:nth-child(… of S)` reads its siblings the same
+//! way and is recorded the same way.
+//!
 //! Without a `:has()` rule the triggers are empty and the tracker does
 //! no walk at all; without a flagged element (no cascade met a `:has()`)
 //! neither (`doc_flags::has_has_anchors`).
