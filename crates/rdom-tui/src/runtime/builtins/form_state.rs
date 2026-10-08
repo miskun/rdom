@@ -19,6 +19,7 @@ pub(crate) fn control_state(dom: &TuiDom, id: NodeId, state: ControlState) -> bo
         ControlState::DefaultChecked => dom.node(id).default_checked().unwrap_or(false),
         ControlState::DefaultSelected => dom.node(id).default_selected().unwrap_or(false),
         ControlState::RangeLimited => validation::range_limited(dom, id),
+        ControlState::UserValidity => user_validity(dom, id),
         ControlState::OutOfRange => {
             let v = validation::validity(dom, id);
             v.range_underflow || v.range_overflow
@@ -44,12 +45,75 @@ pub(crate) struct FormControlState {
     /// clears it. Only such a value is subject to `maxlength` /
     /// `minlength`.
     pub(crate) value_user_edited: bool,
+    /// The user changed the value since it was last committed (HTML
+    /// §4.10.5.5: a text control commits on losing focus, firing
+    /// `change`). Set with `value_user_edited`; cleared by the commit, a
+    /// programmatic value and a reset.
+    pub(crate) change_pending: bool,
+    /// HTML §4.10.18.1 *user validity*: set when the user commits a
+    /// change (wherever a builtin fires `change`) or the form owner's
+    /// submission is attempted, cleared by a form reset — what
+    /// `:user-valid` / `:user-invalid` read.
+    pub(crate) user_validity: bool,
     /// A `<form>`'s "firing submission events" flag (HTML §4.10.21.3
     /// step 6): set while its submission runs interactive validation and
     /// fires `submit`, so a listener's nested submission returns early.
     pub(crate) firing_submission_events: bool,
     /// The compiled `pattern` attribute (`validation::pattern`).
     pub(crate) pattern_cache: PatternCache,
+}
+
+/// `id`'s user validity (HTML §4.10.18.1).
+pub(crate) fn user_validity(dom: &TuiDom, id: NodeId) -> bool {
+    dom.node(id)
+        .ext()
+        .and_then(|e| e.form_state.get())
+        .is_some_and(|f| f.user_validity)
+}
+
+/// Set `id`'s user validity. Nothing reports it as a mutation, so the
+/// App's form-state marks are told a state write happened; clearing a
+/// flag never set allocates nothing.
+pub(crate) fn set_user_validity(dom: &mut TuiDom, id: NodeId, value: bool) {
+    let mut node = dom.node_mut(id);
+    let Some(ext) = node.ext_mut() else {
+        return;
+    };
+    let state = if value {
+        Some(ext.form_state.get_mut())
+    } else {
+        ext.form_state.existing_mut()
+    };
+    if let Some(state) = state
+        && state.user_validity != value
+    {
+        state.user_validity = value;
+        crate::runtime::state_writes::note();
+    }
+}
+
+/// The user committed a change to `id`: set its user validity, then
+/// fire a bubbling `change` at it — the order HTML gives every control's
+/// commit (§4.10.5.5, the checkbox and radio activation behavior, the
+/// select update notifications).
+pub(crate) fn fire_change(dom: &mut TuiDom, id: NodeId) {
+    set_user_validity(dom, id, true);
+    let mut change = crate::TuiEvent::new("change");
+    crate::tui_event::dispatch_to_live(dom, id, &mut change);
+}
+
+/// A text control is losing focus (HTML §4.10.5.5 "commits"): when the
+/// user changed its value since the last commit, fire `change` through
+/// [`fire_change`]. Called before `blur`, as browsers order them.
+pub(crate) fn commit_pending_change(dom: &mut TuiDom, id: NodeId) {
+    let pending = dom
+        .node_mut(id)
+        .ext_mut()
+        .and_then(|e| e.form_state.existing_mut())
+        .is_some_and(|f| std::mem::take(&mut f.change_pending));
+    if pending {
+        fire_change(dom, id);
+    }
 }
 
 /// Equality is over the state; the pattern cache is left out — it is
@@ -60,6 +124,8 @@ impl PartialEq for FormControlState {
     fn eq(&self, other: &Self) -> bool {
         self.custom_validity == other.custom_validity
             && self.value_user_edited == other.value_user_edited
+            && self.change_pending == other.change_pending
+            && self.user_validity == other.user_validity
             && self.firing_submission_events == other.firing_submission_events
     }
 }

@@ -164,8 +164,7 @@ pub fn set_value(dom: &mut TuiDom, input: NodeId, v: f64) {
     // convention for synthetic value-update events.
     let mut input_ev = TuiEvent::input(rdom_core::InputType::InsertReplacementText, None);
     crate::tui_event::dispatch_to_live(dom, input, &mut input_ev);
-    let mut change_ev = TuiEvent::new("change");
-    crate::tui_event::dispatch_to_live(dom, input, &mut change_ev);
+    super::form_state::fire_change(dom, input);
 }
 
 // ── Paint ─────────────────────────────────────────────────────────

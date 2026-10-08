@@ -336,3 +336,68 @@ fn in_range_asks_the_backend_about_limits_and_the_value() {
         );
     }
 }
+
+// ─── :user-valid / :user-invalid ────────────────────────────────────
+
+/// Selectors 4 §14.4.4–§14.4.5, HTML §4.16.3: `:user-valid` matches an
+/// `input`, `textarea` or `select` whose *user validity* is true (the
+/// backend's flag: the user committed a change, or a submission was
+/// attempted), that is a candidate for constraint validation and
+/// satisfies its constraints; `:user-invalid` one that does not. Without
+/// a backend no element has interacted with the user.
+#[test]
+fn user_validity_combines_the_backends_flag_with_validity() {
+    use crate::ControlState;
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let fresh = el(&mut dom, root, "input", &[("data-bad", "")]);
+    let good = el(&mut dom, root, "input", &[("data-user", "")]);
+    let bad = el(
+        &mut dom,
+        root,
+        "textarea",
+        &[("data-user", ""), ("data-bad", "")],
+    );
+    let select = el(
+        &mut dom,
+        root,
+        "select",
+        &[("data-user", ""), ("data-bad", "")],
+    );
+    let button = el(
+        &mut dom,
+        root,
+        "button",
+        &[("data-user", ""), ("data-bad", "")],
+    );
+    let barred = el(
+        &mut dom,
+        root,
+        "input",
+        &[("data-user", ""), ("data-bad", ""), ("disabled", "")],
+    );
+    let div = el(&mut dom, root, "div", &[("data-user", "")]);
+    let probe = [fresh, good, bad, select, button, barred, div];
+    for id in probe {
+        assert!(
+            !is(&dom, id, ":user-valid") && !is(&dom, id, ":user-invalid"),
+            "no hook: {id:?}"
+        );
+    }
+    dom.set_validity_hook(Some(|dom, id| !dom.has_attribute(id, "data-bad")));
+    dom.set_control_state_hook(Some(|dom, id, state| {
+        state == ControlState::UserValidity && dom.has_attribute(id, "data-user")
+    }));
+    for (id, user) in [
+        (fresh, None),
+        (good, Some(true)),
+        (bad, Some(false)),
+        (select, Some(false)),
+        (button, None),
+        (barred, None),
+        (div, None),
+    ] {
+        assert_eq!(is(&dom, id, ":user-valid"), user == Some(true), "{id:?}");
+        assert_eq!(is(&dom, id, ":user-invalid"), user == Some(false), "{id:?}");
+    }
+}

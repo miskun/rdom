@@ -229,7 +229,7 @@ row comes from.
 | C11-HAS | `:has()` with invalidation | done |
 | C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | done |
 | C11-SCOPE | `:scope` (query APIs and `@scope`) | done |
-| C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | partial — `:read-only` / `:read-write`, `:indeterminate`, `:default`, `:in-range` / `:out-of-range` done; `:user-valid` / `:user-invalid` remain |
+| C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | done |
 | C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | |
 | C11-LINK-LANG | `:link` / `:any-link`, `:lang()` | done (with `:dir()`, deferred here by C5-WRITING, and `:visited` never matching) |
 | C11-COLUMN | Column combinator `\|\|` | moved to Phase 13 as C13-COLUMN: it selects the cells a column spans, which needs C13-TFC's real table columns |
@@ -7106,3 +7106,24 @@ row comes from.
   `value`). Mutations (each alone, restored, touched): no `:default` bit → both `:default` App tests; no
   reversed time range → the range test ("inside a reversed time range"). No snapshot or existing
   expectation changed.
+- 2026-10-14 — C11-FORM-STATES, part 4 of 4 (item done): `:user-valid` / `:user-invalid` (Selectors 4
+  §14.4.4–§14.4.5, HTML §4.16.3: an `<input>` / `<textarea>` / `<select>` with its *user validity* set that is
+  a candidate and valid / invalid; `Dom::user_validity_state`, `ControlState::UserValidity`). The flag lives
+  in the form builtins (`FormControlState::user_validity`), set by HTML's rules: wherever a builtin fires
+  `change` (`form_state::fire_change` sets it first — the toggle, number step, slider and `<select>` paths
+  now share it), and on a submission attempt for every submittable element the form owns, before the
+  no-validate check (HTML §4.10.21.3); the reset algorithm clears it. Text controls had no commit at all
+  (DIVERGENCES: "`change` … not on text-input blur"): a user edit or undo / redo now marks a pending change
+  (`change_pending`, beside `value_user_edited`), and losing focus commits it — `change` before `blur`, as
+  browsers order them (`focus::change_focus` → `form_state::commit_pending_change`); a programmatic value
+  cancels it. Decided — Enter in a single-line field does not commit (browsers do); the DIVERGENCES line now
+  says exactly that. Invalidation: `FormStateMarks` gained a user-validity bit (and computes validity when a
+  sheet reads only `:user-*`), marked through the state path so `:has(:user-invalid)` follows. Red: the App
+  tests failed on "invalid selector `input:user-invalid`" (the core test was written before the core change
+  but first run after it — its red was shown by mutation: `user_validity_state` returning `None` fails it);
+  green after (test fixes: the anchor's color inherited into the fields, so it is checked by background; a
+  re-focused field's caret is at its start, so the test presses End). Mutations (each alone, restored,
+  touched): no commit on blur → the blur test; no submission flag → the submission test; no reset clear →
+  the same; no user-validity bit in the marks → only the new `a_novalidate_submission_still_sets_user_validity`
+  (the other tests' fields were restyled by focus moves) — added for it. No snapshot or existing expectation
+  changed.

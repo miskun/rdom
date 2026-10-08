@@ -30,6 +30,11 @@ pub enum ControlState {
     /// §4.10.20.1 `rangeUnderflow` / `rangeOverflow`). Without a hook:
     /// never.
     OutOfRange,
+    /// The control's *user validity* (HTML §4.10.18.1): set when the
+    /// user commits a change to it or its form's submission is
+    /// attempted, cleared by a form reset (`:user-valid` /
+    /// `:user-invalid`). Without a hook: never.
+    UserValidity,
 }
 
 /// A backend's answer to a [`ControlState`] question about control `id`.
@@ -51,8 +56,8 @@ impl<Ext: 'static> std::fmt::Debug for ControlStateSlot<Ext> {
 
 impl<Ext: 'static> Dom<Ext> {
     /// Install (or remove, with `None`) the backend's answers to
-    /// [`ControlState`] questions, behind `:default`, `:in-range` and
-    /// `:out-of-range`. Without one, each question has the answer its
+    /// [`ControlState`] questions, behind `:default`, `:in-range`,
+    /// `:out-of-range`, `:user-valid` and `:user-invalid`. Without one, each question has the answer its
     /// variant documents: the defaults are the content attributes and no
     /// control has range limitations. rdom-tui's `App` installs its hook
     /// at construction; a bare `TuiDom` cascaded without an `App` calls
@@ -72,7 +77,9 @@ impl<Ext> Dom<Ext> {
         match state {
             ControlState::DefaultChecked => self.has_attribute(id, "checked"),
             ControlState::DefaultSelected => self.has_attribute(id, "selected"),
-            ControlState::RangeLimited | ControlState::OutOfRange => false,
+            ControlState::RangeLimited | ControlState::OutOfRange | ControlState::UserValidity => {
+                false
+            }
         }
     }
 }

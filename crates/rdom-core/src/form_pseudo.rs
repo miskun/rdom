@@ -131,6 +131,26 @@ impl<Ext> Dom<Ext> {
             .then(|| !self.control_state(id, ControlState::OutOfRange))
     }
 
+    /// `:user-valid` / `:user-invalid` (HTML §4.16.3): for an `<input>`,
+    /// `<textarea>` or `<select>` whose user validity is set
+    /// ([`ControlState::UserValidity`]) and that is a [candidate for
+    /// constraint validation](Self::will_validate), `Some(true)` when it
+    /// satisfies its constraints, `Some(false)` when it does not; `None`
+    /// — neither pseudo-class — for every other element.
+    pub fn user_validity_state(&self, id: NodeId) -> Option<bool>
+    where
+        Ext: 'static,
+    {
+        if !matches!(
+            self.get_node(id).and_then(|n| n.tag_name()),
+            Some("input" | "textarea" | "select")
+        ) || !self.control_state(id, ControlState::UserValidity)
+        {
+            return None;
+        }
+        self.constraint_validity(id)
+    }
+
     /// No `readonly` attribute and not actually disabled.
     fn is_mutable(&self, id: NodeId) -> bool {
         !self.has_attribute(id, "readonly") && !self.is_actually_disabled(id)

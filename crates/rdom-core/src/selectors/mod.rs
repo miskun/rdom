@@ -418,6 +418,13 @@ pub enum PseudoClass {
     InRange,
     /// `:out-of-range` (Selectors 4 §14.3.4): one whose value is not.
     OutOfRange,
+    /// `:user-valid` (Selectors 4 §14.4.4, HTML §4.16.3): an `<input>`,
+    /// `<textarea>` or `<select>` the user has interacted with — its user
+    /// validity is set — that satisfies its constraints
+    /// ([`Dom::user_validity_state`](crate::Dom::user_validity_state)).
+    UserValid,
+    /// `:user-invalid` (Selectors 4 §14.4.5): one that does not.
+    UserInvalid,
     /// `:scope` (Selectors 4 §14.3) — the scoping root: an `@scope`
     /// rule's root (CSS Cascade 6 §2.5) when matched through
     /// [`Dom::matches_list_in_scope`](crate::Dom::matches_list_in_scope),

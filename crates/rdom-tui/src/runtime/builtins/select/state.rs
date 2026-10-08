@@ -118,8 +118,7 @@ pub(super) fn extend_selection_to(dom: &mut TuiDom, select: NodeId, target: Node
 pub(super) fn fire_input_and_change(dom: &mut TuiDom, select: NodeId) {
     let mut input_ev = TuiEvent::new("input");
     crate::tui_event::dispatch_to_live(dom, select, &mut input_ev);
-    let mut change_ev = TuiEvent::new("change");
-    crate::tui_event::dispatch_to_live(dom, select, &mut change_ev);
+    crate::runtime::builtins::form_state::fire_change(dom, select);
 }
 
 // ── Highlight / anchor attribute helpers ───────────────────────────

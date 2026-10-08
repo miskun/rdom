@@ -376,3 +376,185 @@ fn an_earlier_submit_button_takes_default_from_the_old_one() {
     assert_eq!(app_fg(&app, new), RED);
     assert_ne!(app_fg(&app, old), RED);
 }
+
+// ─── :user-valid / :user-invalid ────────────────────────────────────
+
+mod user {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use crossterm::event::{Event as CtEvent, KeyCode, KeyEvent, KeyModifiers};
+    use rdom_core::ListenerOptions;
+    use rdom_tui::render::TestBackend;
+    use rdom_tui::{App, NodeId, TuiDom};
+
+    use super::super::{BLUE, RED, app, app_fg};
+    use super::node;
+
+    /// `id`'s computed background (the `:has()` anchor's, which does not
+    /// inherit into the fields).
+    fn bg(app: &App<TestBackend>, id: NodeId) -> rdom_tui::Color {
+        use rdom_tui::TuiNodeExt;
+        app.dom().node(id).computed().expect("cascaded").bg
+    }
+
+    fn press(app: &mut App<TestBackend>, code: KeyCode) {
+        app.handle_event(CtEvent::Key(KeyEvent::new(code, KeyModifiers::empty())));
+        app.advance(0).unwrap();
+    }
+
+    fn type_text(app: &mut App<TestBackend>, text: &str) {
+        for c in text.chars() {
+            press(app, KeyCode::Char(c));
+        }
+    }
+
+    fn focus(app: &mut App<TestBackend>, id: NodeId) {
+        rdom_tui::runtime::focus::focus_node(app.dom_mut(), Some(id));
+        app.advance(0).unwrap();
+    }
+
+    /// A form with a `pattern` field, a second field, a submit and a
+    /// reset button, styled by `:user-invalid` / `:user-valid`.
+    fn form_app() -> (App<TestBackend>, [NodeId; 5]) {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let form = node(&mut dom, root, "form", &[]);
+        let digits = node(&mut dom, form, "input", &[("pattern", "[0-9]+")]);
+        let other = node(&mut dom, form, "input", &[("required", "")]);
+        let go = node(&mut dom, form, "button", &[]);
+        let undo = node(&mut dom, form, "button", &[("type", "reset")]);
+        let app = app(
+            dom,
+            "input:user-invalid { color: red } input:user-valid { color: blue } \
+             form:has(:user-invalid) { background-color: red }",
+        );
+        (app, [form, digits, other, go, undo])
+    }
+
+    /// HTML §4.16.3 / §4.10.5.5: typing does not yet make a field
+    /// `:user-invalid` — committing the change does: leaving the field
+    /// fires `change` (before `blur`) and sets its user validity. A
+    /// `:has(:user-invalid)` anchor follows; the untouched field stays
+    /// out of both pseudo-classes though it is invalid.
+    #[test]
+    fn committing_a_typed_value_on_blur_sets_user_validity() {
+        let (mut app, [form, digits, other, _, _]) = form_app();
+        let events = Rc::new(RefCell::new(Vec::new()));
+        for ty in ["change", "blur"] {
+            let log = events.clone();
+            app.dom_mut()
+                .add_event_listener(digits, ty, ListenerOptions::default(), move |_| {
+                    log.borrow_mut().push(ty)
+                })
+                .unwrap();
+        }
+        focus(&mut app, digits);
+        type_text(&mut app, "x");
+        assert_ne!(app_fg(&app, digits), RED, "not committed yet");
+        assert!(events.borrow().is_empty());
+        focus(&mut app, other);
+        assert_eq!(*events.borrow(), ["change", "blur"]);
+        assert_eq!(app_fg(&app, digits), RED);
+        assert_eq!(bg(&app, form), RED);
+        assert_ne!(app_fg(&app, other), RED, "never changed by the user");
+        // Fix it: valid once committed again.
+        focus(&mut app, digits);
+        press(&mut app, KeyCode::End);
+        press(&mut app, KeyCode::Backspace);
+        type_text(&mut app, "7");
+        focus(&mut app, other);
+        assert_eq!(app_fg(&app, digits), BLUE);
+        assert_ne!(bg(&app, form), RED);
+        // Leaving without an edit fires no `change`.
+        focus(&mut app, digits);
+        focus(&mut app, other);
+        assert_eq!(
+            events.borrow().iter().filter(|e| **e == "change").count(),
+            2
+        );
+    }
+
+    /// A value the script sets is no user edit: no `change` on blur, no
+    /// user validity — even right after the user typed.
+    #[test]
+    fn a_scripted_value_is_not_a_user_change() {
+        let (mut app, [_, digits, other, _, _]) = form_app();
+        focus(&mut app, digits);
+        type_text(&mut app, "x");
+        rdom_tui::runtime::builtins::input::set_value(app.dom_mut(), digits, "y");
+        focus(&mut app, other);
+        assert_ne!(app_fg(&app, digits), RED);
+    }
+
+    /// HTML §4.10.21.3: a submission attempt sets the user validity of
+    /// every submittable element the form owns — the untouched required
+    /// field is `:user-invalid` now; the reset algorithm (§4.10.21.5)
+    /// clears it again.
+    #[test]
+    fn a_submission_attempt_and_a_reset() {
+        use rdom_tui::TuiAccessorsMut;
+        let (mut app, [form, digits, other, go, undo]) = form_app();
+        app.dom_mut().node_mut(go).click();
+        app.advance(0).unwrap();
+        assert_eq!(app_fg(&app, other), RED);
+        assert_eq!(app_fg(&app, digits), BLUE, "empty and patterned: valid");
+        assert_eq!(bg(&app, form), RED);
+        app.dom_mut().node_mut(undo).click();
+        app.advance(0).unwrap();
+        assert_ne!(app_fg(&app, other), RED);
+        assert_ne!(app_fg(&app, digits), BLUE);
+        assert_ne!(bg(&app, form), RED);
+    }
+
+    /// HTML §4.10.21.3 sets the user validity before it looks at the
+    /// no-validate state: a `novalidate` form's attempt marks its fields
+    /// too, though nothing is validated, focused or otherwise changed.
+    #[test]
+    fn a_novalidate_submission_still_sets_user_validity() {
+        use rdom_tui::TuiAccessorsMut;
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let form = node(&mut dom, root, "form", &[("novalidate", "")]);
+        let field = node(&mut dom, form, "input", &[("required", "")]);
+        let go = node(&mut dom, form, "button", &[]);
+        let mut app = app(dom, "input:user-invalid { color: red }");
+        app.dom_mut()
+            .add_event_listener(form, "submit", ListenerOptions::default(), |ctx| {
+                ctx.event.prevent_default()
+            })
+            .unwrap();
+        assert_ne!(app_fg(&app, field), RED);
+        app.dom_mut().node_mut(go).click();
+        app.advance(0).unwrap();
+        assert_eq!(app.dom().focused(), None, "nothing was reported");
+        assert_eq!(app_fg(&app, field), RED);
+    }
+
+    /// A checkbox's activation fires `change` at once: a required box
+    /// is `:user-valid` checked and `:user-invalid` unchecked from its
+    /// first click.
+    #[test]
+    fn a_checkbox_click_sets_user_validity() {
+        use rdom_tui::TuiAccessorsMut;
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let cb = node(
+            &mut dom,
+            root,
+            "input",
+            &[("type", "checkbox"), ("required", "")],
+        );
+        let mut app = app(
+            dom,
+            "input:user-invalid { color: red } input:user-valid { color: blue }",
+        );
+        assert!(![RED, BLUE].contains(&app_fg(&app, cb)));
+        app.dom_mut().node_mut(cb).click();
+        app.advance(0).unwrap();
+        assert_eq!(app_fg(&app, cb), BLUE);
+        app.dom_mut().node_mut(cb).click();
+        app.advance(0).unwrap();
+        assert_eq!(app_fg(&app, cb), RED);
+    }
+}

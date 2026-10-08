@@ -330,6 +330,17 @@ pub(crate) fn submit(dom: &mut TuiDom, form: NodeId, submitter: Option<NodeId>) 
             return SubmitOutcome::AlreadySubmitting;
         };
         let dom = &mut *firing.dom;
+        // HTML §4.10.21.3: a submission attempt sets the user validity of
+        // every submittable element the form owns (`:user-invalid`),
+        // whether or not it then validates.
+        for field in dom.form_listed_elements(form) {
+            if matches!(
+                dom.node(field).tag_name(),
+                Some("button" | "input" | "select" | "textarea")
+            ) {
+                super::form_state::set_user_validity(dom, field, true);
+            }
+        }
         let detail = dom.submit_detail(form, submitter);
         if !detail.no_validate
             && !crate::runtime::builtins::validation::interactively_validate(dom, form)
@@ -429,12 +440,14 @@ pub(crate) fn request_submit(
 }
 
 /// HTML §4.10.21.5 reset algorithm: every control whose form owner is
-/// `form` goes back to its default — text controls and ranges to `defaultValue`,
+/// `form` loses its user validity and goes back to its default — text controls and ranges to `defaultValue`,
 /// checkboxes and radios to `defaultChecked` (`FORM-DEFAULTS-1`), a
 /// `<select>`'s options to `defaultSelected` (`P6G-FORM-RESET-1`). No
 /// `input` / `change` events fire, as on the web.
 fn reset_controls(dom: &mut TuiDom, form: NodeId) {
     for id in dom.form_listed_elements(form) {
+        // Each control's reset algorithm sets its user validity to false.
+        super::form_state::set_user_validity(dom, id, false);
         match dom.node(id).tag_name() {
             Some("input") if crate::runtime::builtins::toggle::is_toggle(dom, id) => {
                 crate::runtime::builtins::toggle::reset_to_default(dom, id);

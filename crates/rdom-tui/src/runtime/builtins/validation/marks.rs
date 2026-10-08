@@ -1,6 +1,6 @@
 //! Keeps the form-state pseudo-classes current in the App's incremental
-//! cascade: `:valid` / `:invalid`, a radio group's `:indeterminate`, and
-//! `:default`.
+//! cascade: `:valid` / `:invalid`, a radio group's `:indeterminate`,
+//! `:default`, and `:user-valid` / `:user-invalid`.
 //!
 //! The selector engine asks the validity hook at match time, so a query
 //! is always current. The cascade, though, only re-matches the subtrees
@@ -20,7 +20,9 @@
 //! does not; radio `:indeterminate` when an author sheet uses
 //! `:indeterminate` (the UA's own rule is for checkboxes, whose flag is
 //! an attribute — pinned by `the_uas_indeterminate_rules_are_checkbox_only`);
-//! `:default` when a sheet uses it.
+//! `:default` when a sheet uses it; a control's user validity (a flag
+//! the form builtins set without a mutation) with the validity it
+//! qualifies, when a sheet uses `:user-valid` / `:user-invalid`.
 //!
 //! Cost (`P7G-IDLE-WALKS-1`): the App flushes only after code that can
 //! change a state ran (an event, a timer, an injected closure,
@@ -53,6 +55,8 @@ const VALID: States = 1 << 1;
 const INDETERMINATE: States = 1 << 2;
 /// `:default` matches it.
 const DEFAULT: States = 1 << 3;
+/// Its user validity is set (`:user-valid` / `:user-invalid`).
+const USER: States = 1 << 4;
 
 /// Which tracked states the stylesheets read.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -60,11 +64,12 @@ struct Reads {
     validity: bool,
     indeterminate: bool,
     default: bool,
+    user: bool,
 }
 
 impl Reads {
     fn any(self) -> bool {
-        self.validity || self.indeterminate || self.default
+        self.validity || self.indeterminate || self.default || self.user
     }
 }
 
@@ -135,6 +140,11 @@ fn reads_of<'s>(sheets: impl IntoIterator<Item = &'s Stylesheet>) -> Reads {
         reads.validity |= uses_validity(sheet);
         reads.indeterminate |= uses_radio_indeterminate(sheet);
         reads.default |= uses_pseudo(sheet, PseudoClass::Default);
+        let user = uses_pseudo(sheet, PseudoClass::UserValid)
+            || uses_pseudo(sheet, PseudoClass::UserInvalid);
+        reads.user |= user;
+        // `:user-valid` / `:user-invalid` read the validity too.
+        reads.validity |= user;
     }
     reads
 }
@@ -181,6 +191,9 @@ fn current(
             && groups.unchecked(dom, id)
         {
             states |= INDETERMINATE;
+        }
+        if reads.user && crate::runtime::builtins::form_state::user_validity(dom, id) {
+            states |= USER;
         }
         if reads.default
             && matches!(node.tag_name(), Some("button" | "input" | "option"))

@@ -190,6 +190,18 @@ fn change_focus(dom: &mut TuiDom, new_focus: Option<NodeId>, visible: Option<boo
         return;
     }
 
+    // A text control the user edited commits first: `change` fires
+    // before `blur` (HTML §4.10.5.5, browsers' order). A `change`
+    // listener that moved focus itself has run the focus change already.
+    if let Some(old_id) = old
+        && dom.contains(old_id)
+    {
+        crate::runtime::builtins::form_state::commit_pending_change(dom, old_id);
+        if dom.focused() != old {
+            return;
+        }
+    }
+
     // blur + focusout on the old target; a `blur` listener that dropped
     // it leaves no target for `focusout`.
     if let Some(old_id) = old {

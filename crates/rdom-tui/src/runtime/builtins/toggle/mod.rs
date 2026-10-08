@@ -292,8 +292,7 @@ fn revert(dom: &mut TuiDom, widget: NodeId, undo: ToggleUndo) {
 fn fire_input_and_change(dom: &mut TuiDom, widget: NodeId) {
     let mut input_ev = TuiEvent::new("input");
     crate::tui_event::dispatch_to_live(dom, widget, &mut input_ev);
-    let mut change_ev = TuiEvent::new("change");
-    crate::tui_event::dispatch_to_live(dom, widget, &mut change_ev);
+    super::form_state::fire_change(dom, widget);
 }
 
 // ── Radio group navigation ─────────────────────────────────────────

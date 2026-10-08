@@ -91,6 +91,8 @@ impl<Ext> Dom<Ext> {
             PseudoClass::Default => self.default_with(id, cx.caches),
             PseudoClass::InRange => self.range_state(id) == Some(true),
             PseudoClass::OutOfRange => self.range_state(id) == Some(false),
+            PseudoClass::UserValid => self.user_validity_state(id) == Some(true),
+            PseudoClass::UserInvalid => self.user_validity_state(id) == Some(false),
             PseudoClass::ReadOnly => node.tag_name().is_some() && !self.is_read_write(id),
         }
     }
