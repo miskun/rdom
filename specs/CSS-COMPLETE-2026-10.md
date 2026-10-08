@@ -8728,3 +8728,26 @@ row comes from.
   `only_structure_changes_restyle_the_table_for_columns` (failed at "text in a cell"),
   `has_triggers::tests::a_column_combinator_in_has_reads_the_spans` (failed at `span`); green after.
   Mutation: the reds are the old paths.
+- 2026-10-08 — C13G-SPEC-GAPS (architect N4; CSS 2.1 §17.2.1 rule 3.2, §17.5.2.1, §17.5.3; CSS Tables 3
+  "intrinsic percentage width of a column", "distributing excess width to columns"). All implemented,
+  none left as a divergence: (1) fixed layout with every column fixed and the table wider — "the extra
+  space should be distributed over the columns" — gives the extra to them by their widths, equally when
+  all are 0 (`width::spread_extra`; the automatic algorithm's excess loop and it now share
+  `width::spread_by`); (2) `columns::clamp_percentages` — each column's percentage at most what the
+  columns before it leave of 100%, one left with nothing no percent column; (3) past every guess, the
+  excess goes to the unconstrained columns by max-content, else the constrained ones, else the percent
+  ones *by their percentages* (was by max-content), else every column; (4) `rows::heights` adds a
+  `baseline` cell's shift down to its first row's baseline to its height whether it spans rows or not
+  (the spanning one's need was its bare height, so `align::offset` capped its shift and it sat above the
+  baseline); (5) an anonymous cell's run of table parts other than cells (rows, row groups, columns,
+  captions, white space between them dropped) is a `Segment::Table`, measured and laid out as the
+  anonymous table around them (`stray::anonymous_width` / `anonymous_height` / `layout_anonymous`, keyed
+  in the pass memo by the cell's container and first part) — each row was laid out as a block of its own
+  whose stray cells got a table each, so two rows inside a row did not share columns. DIVERGENCES' table
+  entry said "Three departures" and listed four: now "Four departures". Red (`css_phase13/gaps.rs`, new):
+  `fixed_layout_spreads_the_extra_width_over_fixed_columns` ([5, 15] for [10, 30]),
+  `percentages_past_100_are_clamped_in_column_order` ([10, 10, 1] for [16, 4, 1]),
+  `excess_width_goes_to_percent_columns_by_percentage` ([13, 17] for [10, 20]),
+  `a_rowspanning_baseline_cell_gets_the_rows_it_needs` (x at row 1 for 2),
+  `rows_inside_a_row_share_an_anonymous_table` (`["ab", "cccd"]` for `["a  b", "cccd"]`); green after.
+  Mutation: each red is the old path.

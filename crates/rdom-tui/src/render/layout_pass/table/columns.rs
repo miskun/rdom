@@ -4,7 +4,8 @@
 //! length constrains it — from its `table-column` / `table-column-group`
 //! boxes and the cells that span it alone, then the cells that span more
 //! than one column, fewest columns first, spreading what their columns
-//! lack over them.
+//! lack over them; the percentages are then clamped, in column order,
+//! to 100% together.
 //!
 //! A cell's measures are its border box's (CSS Tables 3: the outer
 //! min-content width is `max(min-width, min-content)`; the outer
@@ -166,7 +167,23 @@ pub(super) fn measures(
     for c in &mut columns {
         c.max = c.max.max(c.min);
     }
+    clamp_percentages(&mut columns);
     columns
+}
+
+/// CSS Tables 3 ("intrinsic percentage width of a column"): each column's
+/// percentage is at most what the columns before it leave of 100%, so the
+/// percentages never claim more than the table; one left with nothing is
+/// no percent column.
+fn clamp_percentages(columns: &mut [ColumnMeasure]) {
+    let mut taken = 0.0f32;
+    for c in columns {
+        if let Some(p) = c.percent {
+            let p = p.min(100.0 - taken).max(0.0);
+            taken += p;
+            c.percent = (p > 0.0).then_some(p);
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]

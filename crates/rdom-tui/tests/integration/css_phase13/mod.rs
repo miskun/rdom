@@ -9,6 +9,7 @@ use rdom_tui::{CascadeExt, LayoutExt, NodeId, PaintExt, TuiDom};
 
 mod columns;
 mod display;
+mod gaps;
 mod html;
 mod props;
 mod tfc;

@@ -5,7 +5,8 @@
 //! none — CSS Tables 3); a `visibility: collapse` row is 0 tall (§17.5.5).
 //! A cell's height is its border box's at its width — its content's, at
 //! least its own `height` — less, in the collapsing model, its borders on
-//! the lines.
+//! the lines — and, for a `baseline` cell, the rows it moves down to its
+//! first row's baseline (spanning or not).
 
 use rdom_core::Dom;
 
@@ -118,20 +119,20 @@ pub(super) fn heights(
     let baselines = super::align::row_baselines(dom, grid, lines, model, &widths, cb);
     let mut spanning = Vec::new();
     for (cell, &width) in grid.cells.iter().zip(&widths) {
-        let h = cell_height(dom, cell, model, width, cb);
-        if cell.rows > 1 {
-            spanning.push((cell, h));
-            continue;
-        }
-        // A `baseline` cell needs its row deep enough to hold it moved
-        // down to the row's baseline.
+        // A `baseline` cell needs its rows deep enough to hold it moved
+        // down to its first row's baseline — a spanning one too.
         let shift = match baselines[cell.row] {
             Some(b) if super::align::of(dom, cell) == super::align::CellAlign::Baseline => {
                 b.saturating_sub(super::align::baseline(dom, cell, lines, model, width, cb))
             }
             _ => 0,
         };
-        rows[cell.row] = rows[cell.row].max(h.saturating_add(shift));
+        let h = cell_height(dom, cell, model, width, cb).saturating_add(shift);
+        if cell.rows > 1 {
+            spanning.push((cell, h));
+            continue;
+        }
+        rows[cell.row] = rows[cell.row].max(h);
     }
     spanning.sort_by_key(|(cell, _)| cell.rows);
     for (cell, h) in spanning {

@@ -3,9 +3,10 @@
 //! parent's children. It is a block container: each run of inline-level
 //! content is one inline formatting context — stored on the parent as an
 //! `AnonymousIfc`, which paint, hit-testing, the caret and selection read
-//! as they read a block container's anonymous block boxes — and each
+//! as they read a block container's anonymous block boxes — each
 //! block-level child a block box below the one before (no margins: they
-//! do not collapse through the cell, DIVERGENCES §2).
+//! do not collapse through the cell, DIVERGENCES §2), and each run of
+//! misparented table parts an anonymous table (rule 3.2, `stray`).
 
 use rdom_core::{Dom, NodeId};
 
@@ -23,32 +24,87 @@ use crate::render::layout_pass::layout_node;
 enum Piece {
     Inline(Vec<(usize, BoxItem)>),
     Block(NodeId),
+    Table(Vec<BoxItem>),
 }
 
 /// A piece of the cell's content: an inline run (its items, with their
-/// indices in the parent's item sequence) or a block-level element.
+/// indices in the parent's item sequence), a block-level element, or a
+/// run of misparented table parts — rows, row groups, columns, captions —
+/// in the anonymous table CSS 2.1 §17.2.1 rule 3.2 generates around them.
 enum Segment<'a> {
     Inline(&'a [(usize, BoxItem)]),
     Block(NodeId),
+    Table(Vec<BoxItem>),
+}
+
+/// Whether `item` is a table part other than a cell: a proper table child
+/// misparented in a cell (§17.2.1 rule 3.2).
+fn is_table_part(dom: &Dom<TuiExt>, item: BoxItem) -> bool {
+    use crate::layout::{Display, TablePart};
+    use crate::node::TuiNodeExt;
+    item.node().is_some_and(|id| {
+        dom.node(id)
+            .computed()
+            .is_some_and(|c| matches!(c.display, Display::TablePart(p) if p != TablePart::Cell))
+    })
+}
+
+/// Whether `item` is a text node of white space alone.
+fn is_blank(dom: &Dom<TuiExt>, item: BoxItem) -> bool {
+    item.node().is_some_and(|id| {
+        let n = dom.node(id);
+        n.node_type() == rdom_core::NodeType::Text
+            && n.node_value().is_none_or(|t| {
+                t.chars()
+                    .all(|c| matches!(c, ' ' | '\t' | '\n' | '\r' | '\u{c}'))
+            })
+    })
 }
 
 fn segments<'a>(dom: &Dom<TuiExt>, cell: &'a AnonymousCell) -> Vec<Segment<'a>> {
+    let content = &cell.content;
     let mut out = Vec::new();
-    let mut start = 0;
-    for (i, &(_, item)) in cell.content.iter().enumerate() {
+    let (mut start, mut i) = (0, 0);
+    while i < content.len() {
+        let item = content[i].1;
+        if is_table_part(dom, item) {
+            // The run of parts, white space between them its own
+            // (§17.2.1 rules 1.4–1.5: no box).
+            let (mut end, mut j) = (i + 1, i + 1);
+            while j < content.len() {
+                if is_table_part(dom, content[j].1) {
+                    end = j + 1;
+                } else if !is_blank(dom, content[j].1) {
+                    break;
+                }
+                j += 1;
+            }
+            if start < i {
+                out.push(Segment::Inline(&content[start..i]));
+            }
+            let parts = content[i..end]
+                .iter()
+                .map(|&(_, it)| it)
+                .filter(|&it| is_table_part(dom, it))
+                .collect();
+            out.push(Segment::Table(parts));
+            (start, i) = (end, end);
+            continue;
+        }
         if let BoxItem::Node(id) = item
             && dom.node(id).node_type() == rdom_core::NodeType::Element
             && is_block_level(dom, id)
         {
             if start < i {
-                out.push(Segment::Inline(&cell.content[start..i]));
+                out.push(Segment::Inline(&content[start..i]));
             }
             out.push(Segment::Block(id));
             start = i + 1;
         }
+        i += 1;
     }
-    if start < cell.content.len() {
-        out.push(Segment::Inline(&cell.content[start..]));
+    if start < content.len() {
+        out.push(Segment::Inline(&content[start..]));
     }
     out
 }
@@ -95,6 +151,9 @@ pub(super) fn width(dom: &Dom<TuiExt>, cell: &AnonymousCell, max_content: bool, 
                         .unwrap_or(0)
                 }
                 Segment::Block(id) => contribution(dom, id, Direction::Row, 0, cb, max_content),
+                Segment::Table(parts) => {
+                    super::anonymous_width(dom, cell.container, &parts, max_content)
+                }
             })
             .max()
             .unwrap_or(0);
@@ -125,6 +184,9 @@ fn at_width(dom: &Dom<TuiExt>, cell: &AnonymousCell, width: u16, cb: u16) -> (u1
                     il.height()
                 }
                 Segment::Block(id) => intrinsic_size(dom, id, Direction::Column, width, cb),
+                Segment::Table(parts) => {
+                    super::anonymous_height(dom, cell.container, &parts, width)
+                }
             };
             height = height.saturating_add(h);
         }
@@ -165,6 +227,7 @@ pub(super) fn lay_out(
         .map(|s| match s {
             Segment::Inline(run) => Piece::Inline(run.to_vec()),
             Segment::Block(id) => Piece::Block(id),
+            Segment::Table(parts) => Piece::Table(parts),
         })
         .collect();
     for piece in pieces {
@@ -188,6 +251,10 @@ pub(super) fn lay_out(
                 layout_node(dom, id, LayoutRect::new(rect.x, y, rect.width, h), cb);
                 let got = dom.node(id).ext().map_or(h, |e| e.layout.height);
                 y += i32::from(got);
+            }
+            Piece::Table(parts) => {
+                let at = LayoutRect::new(rect.x, y, rect.width, 0);
+                y += i32::from(super::layout_anonymous(dom, cell.container, &parts, at));
             }
         }
     }

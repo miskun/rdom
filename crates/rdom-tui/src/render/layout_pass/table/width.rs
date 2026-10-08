@@ -10,12 +10,16 @@
 //! column keeps its min-content width (the table overflows its box, which
 //! `layout_table` widens to it); past the last, the extra goes to the
 //! unconstrained columns by their max-content widths (equally when they
-//! have none), else to the constrained ones, else to the percent ones.
+//! have none), else to the constrained ones, else to the percent ones by
+//! their percentages (CSS Tables 3 "distributing excess width"). A
+//! column's percentage is at most what the columns before it leave of
+//! 100% (`columns`).
 //!
 //! **Fixed layout** (§17.5.2.1): a column's width is its `table-column`
 //! box's `width`, else its share of the first row's cell with a `width`;
-//! the columns left share what remains equally. The cells' content plays
-//! no part.
+//! the columns left share what remains equally — or, with every column
+//! fixed, the extra goes to them by their widths. The cells' content
+//! plays no part.
 //!
 //! A `visibility: collapse` column is 0 wide (§17.5.5). Whole cells.
 
@@ -99,41 +103,35 @@ pub(super) fn distribute(columns: &[ColumnMeasure], collapsed: &[bool], space: u
                 .collect();
         }
     }
-    // Past every guess: the extra to the unconstrained columns, else the
-    // constrained ones, else the percent ones.
+    // Past every guess (CSS Tables 3, "distributing excess width to
+    // columns"): the extra to the unconstrained columns by their
+    // max-content widths, else the constrained ones by theirs, else the
+    // percent ones by their percentages, else every column.
     let widths = guesses[3].clone();
     let extra = space32 - sum(&widths);
     let live = |i: usize| !collapsed.get(i).copied().unwrap_or(false);
-    // 0: unconstrained, 1: no percentage, 2: any live column.
+    // 0: unconstrained, 1: no percentage, 2: a percentage, 3: any.
     let in_group = |group: u8, i: usize, c: &ColumnMeasure| {
         live(i)
             && match group {
                 0 => c.percent.is_none() && !c.constrained,
                 1 => c.percent.is_none(),
+                2 => c.percent.is_some_and(|p| p > 0.0),
                 _ => true,
             }
     };
-    for group in 0..3u8 {
+    for group in 0..4u8 {
         let members: Vec<usize> = (0..columns.len())
             .filter(|&i| in_group(group, i, &columns[i]))
             .collect();
         if members.is_empty() {
             continue;
         }
-        let weights: Vec<f64> = members.iter().map(|&i| f64::from(columns[i].max)).collect();
-        let equal = weights.iter().all(|&w| w == 0.0);
-        let total = if equal {
-            members.len() as f64
-        } else {
-            weights.iter().sum()
+        let weight = |i: usize| match group {
+            2 => f64::from(columns[i].percent.unwrap_or(0.0)),
+            _ => f64::from(columns[i].max),
         };
-        let mut shares = Rolling::new(f64::from(extra), total);
-        let mut out = widths;
-        for (k, &i) in members.iter().enumerate() {
-            let w = if equal { 1.0 } else { weights[k] };
-            out[i] = out[i].saturating_add(shares.share(w).min(u32::from(u16::MAX)) as u16);
-        }
-        return out;
+        return spread_by(widths, extra, &members, weight);
     }
     widths
 }
@@ -234,20 +232,68 @@ pub(super) fn fixed(
             widths[i] = Some(shares.share(1.0) as u16);
         }
     }
-    let used: u32 = widths.iter().flatten().map(|&w| u32::from(w)).sum();
-    let open = widths.iter().filter(|w| w.is_none()).count();
-    let mut shares = Rolling::new(
-        f64::from(u32::from(space).saturating_sub(used)),
-        open as f64,
-    );
+    let live = |i: usize| !grid.collapsed_columns.get(i).copied().unwrap_or(false);
+    let used: u32 = widths
+        .iter()
+        .enumerate()
+        .filter(|&(i, _)| live(i))
+        .filter_map(|(_, w)| w.map(u32::from))
+        .sum();
+    let rest = u32::from(space).saturating_sub(used);
+    let open = (0..n).filter(|&i| live(i) && widths[i].is_none()).count();
+    if open == 0 {
+        // §17.5.2.1: every column fixed and the table wider — "the extra
+        // space should be distributed over the columns": by their widths
+        // (CSS Tables 3), equally when they are all 0.
+        let fixed: Vec<u16> = (0..n)
+            .map(|i| if live(i) { widths[i].unwrap_or(0) } else { 0 })
+            .collect();
+        return spread_extra(fixed, rest, live);
+    }
+    let mut shares = Rolling::new(f64::from(rest), open as f64);
     widths
         .into_iter()
         .enumerate()
         .map(|(i, w)| {
-            if grid.collapsed_columns.get(i).copied().unwrap_or(false) {
+            if !live(i) {
                 return 0;
             }
             w.unwrap_or_else(|| shares.share(1.0) as u16)
         })
         .collect()
+}
+
+/// `widths` grown by `extra` cells over the columns `member` admits, in
+/// proportion to their widths — equally when they are all 0.
+fn spread_extra(widths: Vec<u16>, extra: u32, member: impl Fn(usize) -> bool) -> Vec<u16> {
+    let members: Vec<usize> = (0..widths.len()).filter(|&i| member(i)).collect();
+    let current = widths.clone();
+    spread_by(widths, extra, &members, |i| f64::from(current[i]))
+}
+
+/// `widths` grown by `extra` cells over `members`, in proportion to
+/// `weight` — equally when every weight is 0. Whole cells, the rolling
+/// floor (`shares::Rolling`).
+fn spread_by(
+    mut widths: Vec<u16>,
+    extra: u32,
+    members: &[usize],
+    weight: impl Fn(usize) -> f64,
+) -> Vec<u16> {
+    if extra == 0 || members.is_empty() {
+        return widths;
+    }
+    let weights: Vec<f64> = members.iter().map(|&i| weight(i)).collect();
+    let equal = weights.iter().all(|&w| w == 0.0);
+    let total = if equal {
+        members.len() as f64
+    } else {
+        weights.iter().sum()
+    };
+    let mut shares = Rolling::new(f64::from(extra), total);
+    for (k, &i) in members.iter().enumerate() {
+        let w = if equal { 1.0 } else { weights[k] };
+        widths[i] = widths[i].saturating_add(shares.share(w).min(u32::from(u16::MAX)) as u16);
+    }
+    widths
 }

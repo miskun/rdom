@@ -787,6 +787,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **Table spec gaps** (CSS 2.1 §17.2.1, §17.5.2.1, §17.5.3; CSS Tables 3): fixed layout spreads a wider table's extra width over all-fixed columns; column percentages are clamped to 100% in column order; excess width goes to percent columns by percentage; a rowspanning `baseline` cell gets the rows it needs; rows misparented in a cell share an anonymous table. (C13G-SPEC-GAPS)
 - **Column selectors restyle a table only when its columns can move**: with `||` or `:nth-col()` in a sheet, any text or element change inside a `<td>` restyled every cell of its table; now only rows, cells or columns coming or going and span attributes do. `||` inside `:has()` now reacts to span changes. (C13G-COLUMN-INVALIDATION)
 - **A clipping table clips its table box, not its captions** (CSS 2.1 §17.4): with `overflow` other than `visible`, a caption was clipped by the scrollport (taken from the wrapper around the captions), and scrollbars ran down beside it; the border, background, scrollport, clip, resizer and hit test now read one table box, kept by layout. (C13G-TABLE-GEOMETRY)
 - **A table costs one build a layout pass**: its structure, grid, lines and column measures are kept for the pass (they were rebuilt for each of its min-, max-content, height, baseline and layout questions), it is solved once per width, an anonymous cell's runs are packed once per question, and row groups' rows are found once — a `<tbody>` per row was quadratic. (C13G-TABLE-COST)
