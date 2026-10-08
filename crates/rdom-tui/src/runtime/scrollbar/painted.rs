@@ -38,7 +38,7 @@ pub(crate) fn moved_since_paint(dom: &TuiDom) -> bool {
         {
             return true;
         }
-        stack.extend(node.child_nodes().map(|c| c.id()));
+        stack.extend(crate::render::box_tree::children(dom, id));
     }
     false
 }
@@ -49,7 +49,7 @@ pub(crate) fn moved_since_paint(dom: &TuiDom) -> bool {
 pub(crate) fn note_painted(dom: &mut TuiDom) {
     let mut stack: Vec<NodeId> = vec![dom.root()];
     while let Some(id) = stack.pop() {
-        stack.extend(dom.node(id).child_nodes().map(|c| c.id()));
+        stack.extend(crate::render::box_tree::children(dom, id));
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             super::state::note_painted(ext);
         }

@@ -279,6 +279,7 @@ pub(crate) fn cascade_all_with(
         document_color_scheme(dom),
     );
     note_first_rules(dom, &sheets);
+    details::reclaim_content_boxes(dom);
     let merged_vars = walk::merge_root_vars(dom, &sheets);
     let root = dom.root();
     // The root's parent carries the sheet-level (`define_var` /

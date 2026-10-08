@@ -36,7 +36,8 @@ pub(in crate::render::layout_pass) fn offset_in_flow_pseudos(dom: &mut Dom<TuiEx
 /// moved pseudo-element: those in a flagged subtree, outside any
 /// `display: none` one.
 fn collect(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
-    for child in dom.node(id).child_nodes() {
+    for child in crate::render::box_tree::children(dom, id) {
+        let child = dom.node(child);
         match child.node_type() {
             NodeType::Fragment => collect(dom, child.id(), out),
             NodeType::Element => {

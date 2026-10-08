@@ -223,3 +223,51 @@ fn find_in_sequence_agrees_with_box_sequence() {
         }
     }
 }
+
+// ── The `::details-content` box (C10G-DETAILS-CONTENT-BOX) ──────────
+
+/// HTML §15.5.20: the first slot takes the first `<summary>`, the second
+/// everything else — so the `<details>`'s box-tree children are the
+/// summary and the slot's box, in that order wherever the summary is,
+/// and the box's are the other children in tree order; the climb from
+/// slotted content goes through the box to the `<details>`.
+#[test]
+fn a_details_box_tree_is_its_summary_and_its_slots_box() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("details");
+    dom.append_child(root, d).unwrap();
+    let loose = dom.create_text_node("loose");
+    dom.append_child(d, loose).unwrap();
+    let summary = dom.create_element("summary");
+    dom.append_child(d, summary).unwrap();
+    let p = dom.create_element("p");
+    dom.append_child(d, p).unwrap();
+    let second = dom.create_element("summary");
+    dom.append_child(d, second).unwrap();
+    dom.cascade(&rdom_style::Stylesheet::new());
+    let slot = super::slot::content_box(&dom, d).expect("a `<details>` has a slot box");
+    assert_eq!(
+        super::children(&dom, d).collect::<Vec<_>>(),
+        [summary, slot]
+    );
+    assert_eq!(
+        super::children(&dom, d).rev().collect::<Vec<_>>(),
+        [slot, summary]
+    );
+    let content = [loose, p, second];
+    assert_eq!(super::children(&dom, slot).collect::<Vec<_>>(), content);
+    assert_eq!(
+        super::children(&dom, slot).rev().collect::<Vec<_>>(),
+        [second, p, loose]
+    );
+    assert_eq!(super::box_parent(&dom, p), Some(slot));
+    assert_eq!(super::box_parent(&dom, slot), Some(d));
+    assert_eq!(super::box_parent(&dom, summary), Some(d));
+    assert_eq!(super::slot::host_of(&dom, slot), Some(d));
+    assert_eq!(
+        dom.node(slot).parent_node().map(|n| n.id()),
+        None,
+        "not in the DOM"
+    );
+}

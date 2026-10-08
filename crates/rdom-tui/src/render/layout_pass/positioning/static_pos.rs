@@ -53,7 +53,7 @@ pub(in crate::render::layout_pass) fn out_of_flow_positioned_children(
     // Through `display: contents` children, whose children are
     // `parent`'s in the box tree (CSS Display 3 §2.5).
     fn walk(dom: &Dom<TuiExt>, parent: NodeId, out: &mut Vec<NodeId>) {
-        for c in dom.node(parent).child_nodes().map(|c| c.id()) {
+        for c in crate::render::box_tree::children(dom, parent) {
             if crate::render::box_tree::is_contents(dom, c) {
                 walk(dom, c, out);
             } else if is_out_of_flow_positioned(dom, c) {
@@ -116,7 +116,7 @@ pub(in crate::render::layout_pass) fn static_position_in_ifc(
             if let Some(span) = order.span(node) {
                 return Some(span);
             }
-            node = dom.node(node).parent_node()?.id();
+            node = crate::render::box_tree::slot::parent(dom, node)?;
         }
     };
     // The end of the preceding content: the furthest `(line, x)` any
@@ -175,7 +175,7 @@ struct BoxOrder(HashMap<NodeId, (usize, usize)>);
 impl BoxOrder {
     fn of(dom: &Dom<TuiExt>, parent: NodeId) -> Self {
         fn walk(dom: &Dom<TuiExt>, id: NodeId, next: &mut usize, out: &mut BoxOrder) {
-            for c in dom.node(id).child_nodes().map(|c| c.id()) {
+            for c in crate::render::box_tree::children(dom, id) {
                 let start = *next;
                 *next += 1;
                 if crate::render::box_tree::is_contents(dom, c) {

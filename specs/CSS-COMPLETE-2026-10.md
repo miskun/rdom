@@ -215,7 +215,7 @@ row comes from.
 | C10-FIRST | `::first-line` / `::first-letter` | done |
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | done |
-| C10-DETAILS-CONTENT | `::details-content` | partial — the slot is no box: its box properties (background, border, padding, sizes, `overflow`) draw nothing, so it cannot be sized or animated (needs a generated block box holding element content in the box tree) |
+| C10-DETAILS-CONTENT | `::details-content` | done |
 | C10-PSEUDO-CHAINS | Pseudo-element followed by user-action pseudo-classes (`::before:hover`) and nested pseudo-elements where defined | partial — nested pseudo-elements (`::before::marker` / `::after::marker`, CSS Lists 3 §3.1) remain: a marker on a generated box needs a marker slot per pseudo-element, the `list-item` counter on a `::before` / `::after`, and marker placement in a generated box's lines |
 | C9-CARRY-INDENT | A `calc()` `text-indent` shared by the elements that inherit it, not cloned per element (from the Phase 9 close) | done |
 | C10-PSEUDO-UNIFY | Positioned `::before` / `::after` on the generated-box path: the positioning layer places, stacks, hit-tests and scrolls them as elements (from C10-LIST-ITEM's note; `positioned_pseudos` gone) | done |
@@ -6680,3 +6680,42 @@ row comes from.
   (`AspectRatio`) moves to `layout/aspect_ratio.rs` (71) and `gap` (`GapValue`) to `layout/gap.rs` (65),
   `sizing.rs` 468; re-exports unchanged. `Size`'s doc no longer says its `Calc` clones the tree (it is an
   `Arc`). TECH_DEBT `SIZE-1` recounted (none past 575). No code or test changed.
+- 2026-10-13 — C10G-DETAILS-CONTENT-BOX (finishes C10-DETAILS-CONTENT). Found: `::details-content` was a
+  style with no box — its background, border, padding, sizes and `overflow` drew nothing, a closed element
+  kept no box, and loose text in the slot took the `<details>`'s style. Decision (HTML §15.5.20: the second
+  slot of the element's shadow tree is a block box): the slot's box is a node outside the document, kept by
+  the cascade (`style::cascade::details::sync_content_box`: created with the first slot style, given each new
+  one as the same `Rc`, dropped with the last; linked both ways through `PseudoStyles`'
+  `ContentBoxLink`; the bottom-up `tree_has_*` flags mirrored onto it; a box whose `<details>` left the
+  arena reclaimed by each cascade, document data), and the box tree puts it between the element and its
+  content (`render::box_tree::slot`): `box_tree::children` — the one child walk, `PaintOrder::tree` — gives
+  a `<details>` its first `<summary>` and the box, in that order wherever the summary is, and the box the
+  other children in tree order; `slot::parent` climbs from slotted content to the box and from the box to
+  the `<details>`, and `box_parent` reads it. Every walk that read `child_nodes()` / `first_child()` for
+  boxes now reads `children` (layout's element children, IFC detection, shifts, positioned and sticky
+  collection, static positions, scroll extents, float detection, the inline feed and first letter, paint's
+  row bounds and text, the scroll / snap / smooth-scroll / animation walks, the nearest-flow search) and every
+  climb for a box reads `slot::parent` (inline flow lookup, hit-test chains, scroll containers for the
+  wheel / reveal / `scrollIntoView`, sticky scrollports, margin-collapse's formatting context, border
+  priority, highlight styles). Rejected: a `BoxItem::Generated` slot laid out by its own code — every element
+  path keyed by `NodeId` (rects, scroll offsets, gutters, line boxes, `layout_node`'s two-pass scrollbar,
+  transitions) would have needed a second copy. What faces the DOM never names the node: `hit_test_path`
+  (and `hit_test`, `elements_from_point`) leave it out — a hit on its border or padding is the `<details>`'s
+  — while `position_at` reads the internal path, whose line boxes are the box's; transition events of the
+  box fire on the `<details>` with `pseudoElement` `"::details-content"` (CSS Transitions 1 §6.1). Closed:
+  the box stays, empty (the UA's `content-visibility: hidden`, whose content-skipping is still the content
+  computing `display: none` — DIVERGENCES §2 rewritten to that). What animates: the box transitions as an
+  element — paint properties interpolate; a `height` transition runs and fires events but layout reads the
+  end value, as for every element (found here: geometry transitions never reached layout; DIVERGENCES §3
+  under C12-ANIMATABLE), and there is no `interpolate-size`. Red: `css_phase10/details_content.rs` — 8 new
+  tests failed on HEAD (no border drawn, `after` under an unclipped `two`, no closed box, (5, 3) for the
+  inline-block, a border hit naming the `<p>`, no wheel scroll, no transition event); the margin test's
+  first half (collapse through an unstyled slot) passed before, a guard. Green after, with
+  `the_slots_content_keeps_its_tab_order_and_caret` (Tab order summary → slotted button → after, caret cell
+  inside border and padding), `a_dropped_details_takes_its_slots_box_with_it` (the arena back to its size)
+  and `box_tree_tests::a_details_box_tree_is_its_summary_and_its_slots_box`. Mutations (restored,
+  touched): no reclaim → the drop test; `hit_test_path` keeping the box → the hit test; events left on the
+  box → the transition test (together, each caught by its own); `slot::parent` ignoring the box → the
+  scroll and caret tests; `children` ignoring the link → 9 of 13. No existing expectation or snapshot
+  changed. CSS-COVERAGE `::details-content` Partial → Supported, §3.16 9 / 1 / 0 / 6, total 197 / 14 / 51
+  / 45. TECH_DEBT `SIZE-1` recounted for the touched files (none past 575).

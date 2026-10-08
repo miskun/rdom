@@ -327,7 +327,7 @@ fn in_flight(dom: &TuiDom) -> Vec<NodeId> {
             found.push(id);
         }
         let first = stack.len();
-        stack.extend(node.child_nodes().map(|c| c.id()));
+        stack.extend(crate::render::box_tree::children(dom, id));
         stack[first..].reverse();
     }
     found

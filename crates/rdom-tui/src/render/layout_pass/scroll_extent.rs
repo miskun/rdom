@@ -330,7 +330,8 @@ pub(super) fn extend_box_overflow(
             }
         }
     }
-    for child in dom.node(id).child_nodes() {
+    for child in crate::render::box_tree::children(dom, id) {
+        let child = dom.node(child);
         match child.node_type() {
             NodeType::Element => extend_scrollable_overflow(dom, child.id(), inner, extend),
             // A fragment has no box; its element children count as ours.

@@ -62,7 +62,8 @@ pub(crate) fn is_ifc_block(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     }
 
     let mut has_inline = false;
-    for child in dom.node(id).child_nodes() {
+    for child in crate::render::box_tree::children(dom, id) {
+        let child = dom.node(child);
         if child.node_type() != NodeType::Element {
             continue;
         }

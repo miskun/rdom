@@ -108,13 +108,13 @@ fn reveal_caret_with(dom: &mut TuiDom, clamp: ClampTo, mark_pending: bool) {
 /// Reuses the shared scroll writer, so the clamp to `[0, max]` and the
 /// `scroll` event dispatch are shared with wheel / scrollbar interaction.
 pub(crate) fn scroll_into_view(dom: &mut TuiDom, node: NodeId, reveal: LayoutRect) {
-    let mut cur = dom.node(node).parent_node().map(|p| p.id());
+    let mut cur = crate::render::box_tree::slot::parent(dom, node);
     while let Some(id) = cur {
         if is_vertical_scroll_container(dom, id) {
             ensure_visible_vertical(dom, id, reveal);
             return;
         }
-        cur = dom.node(id).parent_node().map(|p| p.id());
+        cur = crate::render::box_tree::slot::parent(dom, id);
     }
 }
 

@@ -8,7 +8,9 @@ use rdom_core::{Dom, NodeId, NodeType};
 use crate::ext::TuiExt;
 use crate::layout::LayoutRect;
 
-/// Direct *element* children of `id`, document order. Text/Comment
+/// Direct *element* children of `id` in the box tree
+/// (`box_tree::children`: a `<details>`'s `::details-content` box among
+/// them), document order. Text/Comment
 /// are skipped (they have no TuiExt and flow inline via intrinsic
 /// measurement). Fragment children and `display: contents` children
 /// (CSS Display 3 §2.5: no box of their own) are unwrapped — their
@@ -108,7 +110,7 @@ fn collapse_subtree_geometry(dom: &mut Dom<TuiExt>, id: NodeId) {
 /// Give every `display: contents` child of `id` (through nested ones) a
 /// zero rect at `origin`.
 fn zero_contents_children(dom: &mut Dom<TuiExt>, id: NodeId, origin: LayoutRect) {
-    let children: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
+    let children: Vec<NodeId> = crate::render::box_tree::children(dom, id).collect();
     for child in children {
         if crate::render::box_tree::is_contents(dom, child) {
             if let Some(ext) = dom.node_mut(child).ext_mut() {
@@ -266,21 +268,20 @@ pub(super) fn shift_lines(dom: &mut Dom<TuiExt>, id: NodeId, dy: i32) {
 }
 
 fn shift_children(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32, keep: Keep) {
-    let mut child = dom.node(id).first_child().map(|c| c.id());
-    while let Some(c) = child {
+    let children: Vec<NodeId> = crate::render::box_tree::children(dom, id).collect();
+    for c in children {
         shift(dom, c, dx, dy, keep);
-        child = dom.node(c).next_sibling().map(|n| n.id());
     }
 }
 
 fn collect_element_children(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
-    for child in dom.node(id).child_nodes() {
-        match child.node_type() {
-            NodeType::Element if crate::render::box_tree::is_contents(dom, child.id()) => {
-                collect_element_children(dom, child.id(), out)
+    for child in crate::render::box_tree::children(dom, id) {
+        match dom.node(child).node_type() {
+            NodeType::Element if crate::render::box_tree::is_contents(dom, child) => {
+                collect_element_children(dom, child, out)
             }
-            NodeType::Element => out.push(child.id()),
-            NodeType::Fragment => collect_element_children(dom, child.id(), out),
+            NodeType::Element => out.push(child),
+            NodeType::Fragment => collect_element_children(dom, child, out),
             // Text, comments, and any later node kind (`NodeType` is
             // `#[non_exhaustive]`) are not element children.
             _ => {}

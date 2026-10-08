@@ -8,6 +8,11 @@
 //! inline-fragment owner lookup inside an IFC (`hit_fragment`,
 //! `append_inline_ancestors`), and `pointer-events` transparency.
 //! Nothing here knows about text positions; that is `fragment.rs`.
+//!
+//! The walk is over the box tree: a `<details>`'s `::details-content` box
+//! is on the path it builds, between the element and its content
+//! (`box_tree::slot`); [`HitTestExt::hit_test_path`](super::HitTestExt::hit_test_path)
+//! leaves it out.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -15,6 +20,7 @@ use crate::ext::TuiExt;
 use crate::layout::LayoutRect;
 use crate::node::TuiNodeExt;
 use crate::render::Rect;
+use crate::render::box_tree::slot::parent;
 use crate::render::inline::has_inline_layout;
 use crate::render::stacking::{
     LayerEntry, children_clip, collect_layers, creates_stacking_context, is_layered,
@@ -122,7 +128,7 @@ fn hit_layers(
         };
         if hit {
             let mut chain = Vec::new();
-            let mut cur = dom.node(e.id).parent_node().map(|p| p.id());
+            let mut cur = parent(dom, e.id);
             while let Some(id) = cur {
                 if id == root {
                     break;
@@ -130,7 +136,7 @@ fn hit_layers(
                 if dom.node(id).node_type() == NodeType::Element {
                     chain.push(id);
                 }
-                cur = dom.node(id).parent_node().map(|p| p.id());
+                cur = parent(dom, id);
             }
             chain.reverse();
             path.splice(mark..mark, chain);
@@ -282,8 +288,8 @@ fn hit_content(
         if atomic {
             let mark = path.len();
             let hit = hit_in_flow_element(dom, owner, x, y, content_clip, viewport, path);
-            if hit && let Some(parent) = dom.node(owner).parent_node() {
-                let chain = inline_ancestors(dom, id, parent.id());
+            if hit && let Some(parent) = parent(dom, owner) {
+                let chain = inline_ancestors(dom, id, parent);
                 path.splice(mark..mark, chain);
             }
             return hit;
@@ -300,8 +306,8 @@ fn hit_content(
             if target == id {
                 return false;
             }
-            target = match dom.node(target).parent_node() {
-                Some(p) => p.id(),
+            target = match parent(dom, target) {
+                Some(p) => p,
                 None => return false,
             };
         }
@@ -387,7 +393,7 @@ fn hit_in_flow_element(
     viewport: Rect,
     path: &mut Vec<NodeId>,
 ) -> bool {
-    let parent = dom.node(id).parent_node().map_or(id, |p| p.id());
+    let parent = parent(dom, id).unwrap_or(id);
     match dom.node(id).ext().and_then(|e| e.computed.as_ref()) {
         Some(c) if is_layered(dom, id, parent, c) => false,
         Some(c) if creates_stacking_context(dom, parent, c) => {
@@ -407,14 +413,14 @@ fn insert_box_less_ancestors(
     mark: usize,
     path: &mut Vec<NodeId>,
 ) {
-    let mut cur = dom.node(child).parent_node();
+    let mut cur = parent(dom, child);
     while let Some(p) = cur
-        && p.id() != id
+        && p != id
     {
-        if p.node_type() == NodeType::Element {
-            path.insert(mark, p.id());
+        if dom.node(p).node_type() == NodeType::Element {
+            path.insert(mark, p);
         }
-        cur = p.parent_node();
+        cur = parent(dom, p);
     }
 }
 
@@ -488,12 +494,12 @@ fn hit_fragment(
 
 /// `id` is a strict descendant of `ancestor`.
 fn is_descendant(dom: &Dom<TuiExt>, id: NodeId, ancestor: NodeId) -> bool {
-    let mut cur = dom.node(id).parent_node().map(|p| p.id());
+    let mut cur = parent(dom, id);
     while let Some(n) = cur {
         if n == ancestor {
             return true;
         }
-        cur = dom.node(n).parent_node().map(|p| p.id());
+        cur = parent(dom, n);
     }
     false
 }
@@ -528,8 +534,8 @@ fn inline_ancestors(dom: &Dom<TuiExt>, ifc_block: NodeId, owner: NodeId) -> Vec<
         if !is_pointer_transparent(dom, cur) {
             chain.push(cur);
         }
-        match dom.node(cur).parent_node() {
-            Some(parent) => cur = parent.id(),
+        match parent(dom, cur) {
+            Some(parent) => cur = parent,
             None => break, // defensive — should never trigger in a well-formed tree
         }
     }

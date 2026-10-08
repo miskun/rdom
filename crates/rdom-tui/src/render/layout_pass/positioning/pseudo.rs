@@ -271,7 +271,7 @@ fn within(dom: &Dom<TuiExt>, host: NodeId, node: NodeId) -> bool {
         if n == host {
             return true;
         }
-        cur = dom.node(n).parent_node().map(|p| p.id());
+        cur = crate::render::box_tree::slot::parent(dom, n);
     }
     false
 }

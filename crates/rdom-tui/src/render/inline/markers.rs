@@ -137,9 +137,8 @@ pub(crate) fn hangs_right(dom: &Dom<TuiExt>, item: NodeId) -> bool {
         return false;
     };
     let direction = match computed.marker_side {
-        MarkerSide::MatchParent => node
-            .parent_node()
-            .and_then(|p| p.computed().map(|c| c.text_direction))
+        MarkerSide::MatchParent => crate::render::box_tree::slot::parent(dom, node.id())
+            .and_then(|p| dom.node(p).computed().map(|c| c.text_direction))
             .unwrap_or(TextDirection::Ltr),
         _ => computed.text_direction,
     };

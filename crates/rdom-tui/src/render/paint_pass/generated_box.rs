@@ -92,10 +92,10 @@ pub(super) fn paint_box(
     if !style.border.is_empty() {
         // One level below its host, as a child box.
         let mut depth: u16 = 1;
-        let mut cur = dom.node(g.host).parent_node();
+        let mut cur = crate::render::box_tree::slot::parent(dom, g.host);
         while let Some(node) = cur {
             depth = depth.saturating_add(1);
-            cur = node.parent_node();
+            cur = crate::render::box_tree::slot::parent(dom, node);
         }
         let priority = BorderContribution::pack_priority(depth, g.host.as_u32());
         paint_border_sides(buf, &style, outer, outer_grid, clip, priority);

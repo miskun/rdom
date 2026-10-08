@@ -143,10 +143,11 @@ impl Scan {
     /// children, its `::after` text.
     fn element(&mut self, dom: &Dom<TuiExt>, id: NodeId) -> Stop {
         self.pseudo(dom, id, PseudoSlot::Before)?;
-        for child in dom.node(id).child_nodes() {
+        for child in crate::render::box_tree::children(dom, id) {
+            let child = dom.node(child);
             match child.node_type() {
                 NodeType::Text => {
-                    let hidden = crate::render::box_tree::is_hidden_text(dom, id, child.id());
+                    let hidden = crate::render::box_tree::is_hidden_text(dom, child.id());
                     if !hidden && let Some(data) = child.node_value() {
                         self.text(LetterSource::Text(child.id()), data)?;
                     }

@@ -114,8 +114,7 @@ pub(in crate::render::layout_pass) fn may_hold_floats(dom: &Dom<TuiExt>, id: Nod
             || is_float_pseudo(dom, host, StyleSlot::After)
     };
     fn children(dom: &Dom<TuiExt>, id: NodeId, pseudo: &dyn Fn(NodeId) -> bool) -> bool {
-        dom.node(id).child_nodes().any(|c| {
-            let c = c.id();
+        crate::render::box_tree::children(dom, id).any(|c| {
             if crate::render::box_tree::is_contents(dom, c) {
                 pseudo(c) || children(dom, c, pseudo)
             } else {

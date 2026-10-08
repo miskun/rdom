@@ -172,12 +172,14 @@ fn collect_element_ids(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {
     out
 }
 
+/// The elements of the box tree under `id` (`box_tree::children`): a
+/// `<details>`'s `::details-content` box transitions as an element does.
 fn walk(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
     if dom.node(id).node_type() == NodeType::Element {
         out.push(id);
     }
-    for child in dom.node(id).child_nodes() {
-        walk(dom, child.id(), out);
+    for child in crate::render::box_tree::children(dom, id) {
+        walk(dom, child, out);
     }
 }
 

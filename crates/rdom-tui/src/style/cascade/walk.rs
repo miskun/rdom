@@ -372,6 +372,7 @@ fn style_element<'a>(
             ext.layout_dirty = true;
         }
     }
+    super::details::sync_content_box(dom, id);
     Styled::Fresh(FreshElement {
         computed,
         computed_before: before.map(Rc::new),
@@ -512,6 +513,7 @@ fn finish_element<'a>(
         ext.reads_counters = reads_counters;
         ext.matched = Some(recorder.finish(sheets));
     }
+    super::details::mirror_flags(dom, id);
     flags
 }
 

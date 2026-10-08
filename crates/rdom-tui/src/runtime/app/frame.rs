@@ -162,12 +162,24 @@ impl<B: Backend> App<B> {
                 TransitionEventKind::End => "transitionend",
                 TransitionEventKind::Cancel => "transitioncancel",
             };
+            // A `::details-content` box's transitions are its
+            // `<details>`'s, for that pseudo-element (CSS Transitions 1
+            // §6.1).
+            let (node, pseudo_element) = match self
+                .dom
+                .contains(node)
+                .then(|| crate::render::box_tree::slot::host_of(&self.dom, node))
+                .flatten()
+            {
+                Some(host) => (host, Some("::details-content")),
+                None => (node, slot.pseudo_element()),
+            };
             let mut ev = rdom_core::Event::new(event_name);
             ev.detail =
                 rdom_core::EventDetail::Transition(Box::new(rdom_core::TransitionDetail::new(
                     property.css_name(),
                     elapsed_seconds.into(),
-                    slot.pseudo_element().map(str::to_string),
+                    pseudo_element.map(str::to_string),
                 )));
             // A listener of an earlier event in the batch may have dropped
             // `node`; a dropped element's transition events go nowhere.

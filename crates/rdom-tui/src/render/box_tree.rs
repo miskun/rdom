@@ -21,6 +21,12 @@
 //! ([`item_sequence`]): each element and pseudo-element there is an item,
 //! and each run of text an anonymous one (CSS Flexbox §4, CSS Grid 2
 //! §6.1).
+//!
+//! A `<details>` element's `::details-content` slot is a box between it
+//! and its content ([`slot`]): [`children`] and [`box_parent`] see it, so
+//! every walk here does.
+
+pub(crate) mod slot;
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -51,13 +57,21 @@ pub(crate) fn is_contents(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 /// box `id`'s box is laid out in (its containing block for in-flow
 /// content, CSS 2.1 §10.1).
 pub(crate) fn box_parent(dom: &Dom<TuiExt>, id: NodeId) -> Option<NodeId> {
-    let mut parent = dom.node(id).parent_node().map(|p| p.id());
+    let mut parent = slot::parent(dom, id);
     while let Some(p) = parent
         && is_contents(dom, p)
     {
-        parent = dom.node(p).parent_node().map(|n| n.id());
+        parent = slot::parent(dom, p);
     }
     parent
+}
+
+/// `id`'s children in the box tree, in tree order: its child nodes — or,
+/// for a `<details>` with a `::details-content` box, its first `<summary>`
+/// and that box; for the box, the `<details>`'s other children
+/// ([`slot`]). Walked in place, both ways.
+pub(crate) fn children(dom: &Dom<TuiExt>, id: NodeId) -> PaintOrder<'_> {
+    PaintOrder::tree(dom, id)
 }
 
 /// One item of a block container's inline or block content: a child
@@ -137,7 +151,7 @@ fn find_framed(
     }
     let mut each = |child: NodeId| {
         visit();
-        if is_hidden_text(dom, id, child) {
+        if is_hidden_text(dom, child) {
             return None;
         }
         // A box-less child holding a block-level box is its items in its
@@ -166,10 +180,9 @@ fn find_framed(
 /// however deeply box-less elements nest.
 fn push_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) -> bool {
     let mut holds = false;
-    for child in dom.node(id).child_nodes() {
-        let child = child.id();
+    for child in children(dom, id) {
         visit();
-        if is_hidden_text(dom, id, child) {
+        if is_hidden_text(dom, child) {
             continue;
         }
         if is_contents(dom, child) {
@@ -226,10 +239,9 @@ fn generates_static_pseudo(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) ->
 }
 
 fn push_item_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) {
-    for child in dom.node(id).child_nodes() {
-        let child = child.id();
+    for child in children(dom, id) {
         visit();
-        if is_hidden_text(dom, id, child) {
+        if is_hidden_text(dom, child) {
             continue;
         }
         match dom.node(child).node_type() {
@@ -248,12 +260,15 @@ fn push_item_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) {
     }
 }
 
-/// `child` of `parent` is text a `<details>` element's closed content
-/// slot hides (`style::cascade::details`): it generates no box. (Hidden
-/// element content is `display: none`.)
-pub(crate) fn is_hidden_text(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool {
-    dom.node(child).node_type() == NodeType::Text
-        && crate::style::cascade::details::hidden(dom, parent, child)
+/// `child` is text a `<details>` element's closed content slot hides
+/// (`style::cascade::details`): it generates no box. (Hidden element
+/// content is `display: none`.)
+pub(crate) fn is_hidden_text(dom: &Dom<TuiExt>, child: NodeId) -> bool {
+    let node = dom.node(child);
+    node.node_type() == NodeType::Text
+        && node
+            .parent_node()
+            .is_some_and(|p| crate::style::cascade::details::hidden(dom, p.id(), child))
 }
 
 /// `id` is an in-flow `display: block` element.
@@ -270,8 +285,7 @@ fn is_block_level_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 /// in-flow `display: block` element child, or a box-less child holding
 /// one.
 pub(crate) fn holds_block_box(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    dom.node(id).child_nodes().any(|c| {
-        let c = c.id();
+    children(dom, id).any(|c| {
         visit();
         if is_contents(dom, c) {
             holds_block_box(dom, c)
@@ -292,11 +306,11 @@ pub(crate) fn holds_loose_text(
     id: NodeId,
     text: &impl Fn(&str) -> bool,
 ) -> bool {
-    dom.node(id).child_nodes().any(|c| match c.node_type() {
-        NodeType::Text => !is_hidden_text(dom, id, c.id()) && c.node_value().is_some_and(text),
-        NodeType::Element if is_contents(dom, c.id()) => {
-            let p = crate::render::inline::generated::visible_inline_pseudos(dom, c.id());
-            p.before || p.after || holds_loose_text(dom, c.id(), text)
+    children(dom, id).any(|c| match dom.node(c).node_type() {
+        NodeType::Text => !is_hidden_text(dom, c) && dom.node(c).node_value().is_some_and(text),
+        NodeType::Element if is_contents(dom, c) => {
+            let p = crate::render::inline::generated::visible_inline_pseudos(dom, c);
+            p.before || p.after || holds_loose_text(dom, c, text)
         }
         _ => false,
     })
@@ -367,35 +381,60 @@ pub(crate) fn paint_order_children(dom: &Dom<TuiExt>, id: NodeId) -> PaintOrder<
 /// and box-less children) has an `order` other than 0. Allocates
 /// nothing.
 fn any_reordered(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    dom.node(id).child_nodes().any(|c| match c.node_type() {
-        NodeType::Element if is_contents(dom, c.id()) => any_reordered(dom, c.id()),
-        NodeType::Element => order_of(dom, c.id()) != 0,
-        NodeType::Fragment => any_reordered(dom, c.id()),
+    children(dom, id).any(|c| match dom.node(c).node_type() {
+        NodeType::Element if is_contents(dom, c) => any_reordered(dom, c),
+        NodeType::Element => order_of(dom, c) != 0,
+        NodeType::Fragment => any_reordered(dom, c),
         _ => false,
     })
 }
 
-/// [`paint_order_children`]: a node's children, walked in place from
-/// either end, or a flex container's reordered items.
+/// [`children`] and [`paint_order_children`]: a node's box-tree
+/// children, walked in place from either end, or a list of them (a flex
+/// container's reordered items; a `<details>`'s summary and slot box).
 pub(crate) enum PaintOrder<'a> {
-    /// The child list between `front` and `back`, inclusive.
+    /// The child list between `front` and `back`, inclusive, without
+    /// `skip` (the summary a `::details-content` box leaves out).
     Tree {
         dom: &'a Dom<TuiExt>,
         front: Option<NodeId>,
         back: Option<NodeId>,
+        skip: Option<NodeId>,
     },
     /// Items in order-modified document order.
     Sorted(std::vec::IntoIter<NodeId>),
 }
 
 impl<'a> PaintOrder<'a> {
-    /// `id`'s child nodes in tree order.
+    /// `id`'s box-tree children in tree order ([`children`]).
     pub(crate) fn tree(dom: &'a Dom<TuiExt>, id: NodeId) -> Self {
-        let node = dom.node(id);
+        use crate::ext::ContentBoxLink;
+        let link = dom
+            .node(id)
+            .ext()
+            .map_or(ContentBoxLink::None, |e| e.content_box_link());
+        let (list, skip) = match link {
+            ContentBoxLink::None => (id, None),
+            ContentBoxLink::Box(slot) => {
+                let summary = crate::style::cascade::details::summary(dom, id);
+                return PaintOrder::Sorted(
+                    summary
+                        .into_iter()
+                        .chain([slot])
+                        .collect::<Vec<_>>()
+                        .into_iter(),
+                );
+            }
+            ContentBoxLink::HostedBy(host) => {
+                (host, crate::style::cascade::details::summary(dom, host))
+            }
+        };
+        let node = dom.node(list);
         PaintOrder::Tree {
             dom,
             front: node.first_child().map(|c| c.id()),
             back: node.last_child().map(|c| c.id()),
+            skip,
         }
     }
 }
@@ -405,7 +444,12 @@ impl Iterator for PaintOrder<'_> {
 
     fn next(&mut self) -> Option<NodeId> {
         match self {
-            PaintOrder::Tree { dom, front, back } => {
+            PaintOrder::Tree {
+                dom,
+                front,
+                back,
+                skip,
+            } => loop {
                 let cur = (*front)?;
                 if Some(cur) == *back {
                     *front = None;
@@ -413,8 +457,10 @@ impl Iterator for PaintOrder<'_> {
                 } else {
                     *front = dom.node(cur).next_sibling().map(|n| n.id());
                 }
-                Some(cur)
-            }
+                if Some(cur) != *skip {
+                    return Some(cur);
+                }
+            },
             PaintOrder::Sorted(items) => items.next(),
         }
     }
@@ -423,7 +469,12 @@ impl Iterator for PaintOrder<'_> {
 impl DoubleEndedIterator for PaintOrder<'_> {
     fn next_back(&mut self) -> Option<NodeId> {
         match self {
-            PaintOrder::Tree { dom, front, back } => {
+            PaintOrder::Tree {
+                dom,
+                front,
+                back,
+                skip,
+            } => loop {
                 let cur = (*back)?;
                 if Some(cur) == *front {
                     *front = None;
@@ -431,8 +482,10 @@ impl DoubleEndedIterator for PaintOrder<'_> {
                 } else {
                     *back = dom.node(cur).previous_sibling().map(|n| n.id());
                 }
-                Some(cur)
-            }
+                if Some(cur) != *skip {
+                    return Some(cur);
+                }
+            },
             PaintOrder::Sorted(items) => items.next_back(),
         }
     }

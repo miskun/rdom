@@ -75,6 +75,7 @@ fn walk_subtrees(
         document_color_scheme(dom),
     );
     super::note_first_rules(dom, &sheets);
+    super::details::reclaim_content_boxes(dom);
     let merged_vars = merge_root_vars(dom, &sheets);
     let mut scratch = Scratch::default();
     let mut cascade_alone = |dom: &mut Dom<TuiExt>, root: NodeId| {

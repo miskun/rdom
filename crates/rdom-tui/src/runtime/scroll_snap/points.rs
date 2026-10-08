@@ -123,7 +123,8 @@ fn collect(
     id: NodeId,
     f: &mut dyn FnMut(NodeId, LayoutRect, crate::layout::ScrollSnapAlign, ScrollSnapStop),
 ) {
-    for child in dom.node(id).child_nodes() {
+    for child in crate::render::box_tree::children(dom, id) {
+        let child = dom.node(child);
         match child.node_type() {
             NodeType::Fragment => collect(dom, child.id(), f),
             NodeType::Element => {

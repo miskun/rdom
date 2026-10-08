@@ -71,7 +71,9 @@ pub(crate) fn nearest_inline_target_in_subtree(
             }
         }
         // Push children reversed so they pop in document order.
-        let kids: Vec<NodeId> = dom.node(id).children().map(|c| c.id()).collect();
+        let kids: Vec<NodeId> = crate::render::box_tree::children(dom, id)
+            .filter(|&c| dom.node(c).node_type() == rdom_core::NodeType::Element)
+            .collect();
         stack.extend(kids.into_iter().rev());
     }
     best.map(|(_, t)| t)

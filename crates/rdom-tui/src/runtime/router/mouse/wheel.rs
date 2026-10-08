@@ -74,7 +74,7 @@ pub(super) fn handle_wheel(
             .computed_rc()
             .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
         if !computed.is_scroll_container() {
-            cur = dom.node(id).parent_node().map(|p| p.id());
+            cur = crate::render::box_tree::slot::parent(dom, id);
             continue;
         }
         let y_scrollable = matches!(computed.overflow_y, Overflow::Scroll | Overflow::Auto);
@@ -88,7 +88,7 @@ pub(super) fn handle_wheel(
             // `scrollLeft` and a `column-reverse` box's `scrollTop` run
             // negative, so the wheel reaches that overflow (CSSOM View §4).
             let Some(bounds) = crate::runtime::scrollbar::scroll_bounds(dom, id) else {
-                cur = dom.node(id).parent_node().map(|p| p.id());
+                cur = crate::render::box_tree::slot::parent(dom, id);
                 continue;
             };
             let (old_x, old_y) = dom
@@ -153,7 +153,7 @@ pub(super) fn handle_wheel(
         if !behavior.chains() {
             return RouteOutcome::default();
         }
-        cur = dom.node(id).parent_node().map(|p| p.id());
+        cur = crate::render::box_tree::slot::parent(dom, id);
     }
 
     // No scrollable ancestor — event bubbled but nothing scrolled.

@@ -15,6 +15,7 @@ mod tests;
 pub(crate) use layout_cache::MarginChainMemo;
 pub use layout_cache::{AnonymousIfc, GeneratedBox, StaticPosition};
 pub use presentation::{PresentationStyle, PseudoSlot, StyleSlot};
+pub(crate) use pseudo_styles::ContentBoxLink;
 pub use pseudo_styles::PseudoStyles;
 
 use crate::layout::LayoutRect;

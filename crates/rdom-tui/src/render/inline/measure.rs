@@ -92,7 +92,7 @@ pub(crate) fn widest_marker_line(dom: &Dom<TuiExt>, holder: NodeId, available: u
 /// The widest line of the text node `text` packed alone `available` wide,
 /// by its parent's CSS Text values; and the rows it packs to.
 pub(crate) fn text_node_extent(dom: &Dom<TuiExt>, text: NodeId, available: u16) -> (u16, u16) {
-    let parent = dom.node(text).parent_node().map_or(text, |p| p.id());
+    let parent = crate::render::box_tree::slot::parent(dom, text).unwrap_or(text);
     let mut packer = LinePacker::measuring(available);
     fill_run(
         dom,

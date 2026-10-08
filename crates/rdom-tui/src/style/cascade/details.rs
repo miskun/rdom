@@ -1,9 +1,12 @@
 //! `::details-content` (HTML §4.11.1, §15.5.20; CSS Pseudo-Elements 4):
 //! the slot of a `<details>` element holding its content — every child
-//! but its first `<summary>` element child. The slot is no box in rdom
-//! (DIVERGENCES §2); it is the content's parent for inheritance, and it
-//! hides the content while the element is closed (the UA's
-//! `content-visibility: hidden`) or while the slot is `display: none`.
+//! but its first `<summary>` element child. It is the content's parent
+//! for inheritance; it hides the content while the element is closed (the
+//! UA's `content-visibility: hidden`: its box stays, empty) or while the
+//! slot is `display: none`; and its box is a node outside the document
+//! that this module keeps in step with the style
+//! ([`sync_content_box`]; the box tree's view of it is
+//! `render::box_tree::slot`).
 
 use std::rc::Rc;
 
@@ -20,11 +23,122 @@ pub(crate) fn slotted(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool 
     if p.node_type() != NodeType::Element || p.tag_name() != Some("details") {
         return false;
     }
-    let summary = p
+    summary(dom, parent) != Some(child)
+}
+
+/// The `<details>` `details`'s first `<summary>` element child: the one
+/// its first slot takes (HTML §15.5.20).
+pub(crate) fn summary(dom: &Dom<TuiExt>, details: NodeId) -> Option<NodeId> {
+    dom.node(details)
         .child_nodes()
         .find(|c| c.node_type() == NodeType::Element && c.tag_name() == Some("summary"))
-        .map(|c| c.id());
-    summary != Some(child)
+        .map(|c| c.id())
+}
+
+/// Keep the `<details>` `host`'s `::details-content` box in step with its
+/// slot's style, after the cascade wrote it: created with the first style
+/// (a node outside the document, linked both ways — `ContentBoxLink`),
+/// given each new one (the same `Rc`), and dropped with the last. A box
+/// whose `<details>` was dropped from the arena is reclaimed by
+/// [`reclaim_content_boxes`].
+pub(super) fn sync_content_box(dom: &mut Dom<TuiExt>, host: NodeId) {
+    use crate::ext::ContentBoxLink;
+    let Some(ext) = dom.node(host).ext() else {
+        return;
+    };
+    let style = ext.computed_details_content().cloned();
+    let existing = match ext.content_box_link() {
+        ContentBoxLink::Box(b) if dom.contains(b) => Some(b),
+        _ => None,
+    };
+    match (style, existing) {
+        (None, None) => {}
+        (None, Some(b)) => {
+            unlink(dom, host);
+            let _ = dom.drop_subtree(b);
+        }
+        (Some(style), existing) => {
+            let b = existing.unwrap_or_else(|| {
+                let b = dom.create_element("details-content");
+                if let Some(e) = dom.node_mut(b).ext_mut() {
+                    e.set_content_box_link(ContentBoxLink::HostedBy(host));
+                }
+                if let Some(e) = dom.node_mut(host).ext_mut() {
+                    e.set_content_box_link(ContentBoxLink::Box(b));
+                }
+                note_content_box(dom, host, b);
+                b
+            });
+            if let Some(e) = dom.node_mut(b).ext_mut()
+                && !e.computed.as_ref().is_some_and(|c| Rc::ptr_eq(c, &style))
+            {
+                e.layout_dirty = true;
+                e.computed = Some(style);
+            }
+        }
+    }
+}
+
+/// Give `host`'s `::details-content` box the bottom-up subtree flags
+/// `host` just took (`TuiExt::tree_has_*`): the box holds the subtree
+/// they describe, and walks that skip unflagged subtrees reach the
+/// content through it.
+pub(super) fn mirror_flags(dom: &mut Dom<TuiExt>, host: NodeId) {
+    let Some(ext) = dom.node(host).ext() else {
+        return;
+    };
+    let crate::ext::ContentBoxLink::Box(b) = ext.content_box_link() else {
+        return;
+    };
+    let flags = (ext.tree_has_positioned_pseudo, ext.tree_has_collapse);
+    if let Some(e) = dom.node_mut(b).ext_mut() {
+        (e.tree_has_positioned_pseudo, e.tree_has_collapse) = flags;
+    }
+}
+
+/// Forget `host`'s link to its box.
+fn unlink(dom: &mut Dom<TuiExt>, host: NodeId) {
+    if let Some(e) = dom.node_mut(host).ext_mut() {
+        e.set_content_box_link(crate::ext::ContentBoxLink::None);
+    }
+}
+
+/// The `::details-content` boxes of the document: `(details, box)` pairs
+/// (document data).
+#[derive(Debug, Default, Clone)]
+struct ContentBoxes(Vec<(NodeId, NodeId)>);
+
+fn note_content_box(dom: &mut Dom<TuiExt>, host: NodeId, b: NodeId) {
+    let mut boxes = dom
+        .document_data::<ContentBoxes>()
+        .cloned()
+        .unwrap_or_default();
+    boxes.0.push((host, b));
+    dom.set_document_data(boxes);
+}
+
+/// Drop the boxes whose `<details>` left the arena (`drop_subtree`, a
+/// dropping removal) or no longer links them, so a dropped element's box
+/// does not outlive it. Run by each cascade.
+pub(super) fn reclaim_content_boxes(dom: &mut Dom<TuiExt>) {
+    let Some(boxes) = dom.document_data::<ContentBoxes>() else {
+        return;
+    };
+    let linked = |dom: &Dom<TuiExt>, (host, b): (NodeId, NodeId)| {
+        dom.contains(host)
+            && dom.node(host).ext().map(|e| e.content_box_link())
+                == Some(crate::ext::ContentBoxLink::Box(b))
+    };
+    if boxes.0.iter().all(|&pair| linked(dom, pair)) {
+        return;
+    }
+    let (keep, stale): (Vec<_>, Vec<_>) = boxes.0.iter().partition(|&&pair| linked(dom, pair));
+    dom.set_document_data(ContentBoxes(keep));
+    for (_, b) in stale {
+        if dom.contains(b) {
+            let _ = dom.drop_subtree(b);
+        }
+    }
 }
 
 /// The style `child` of `parent` inherits from when it is slotted: the

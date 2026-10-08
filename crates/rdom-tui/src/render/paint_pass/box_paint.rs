@@ -279,10 +279,10 @@ pub(super) fn paint_content(
 fn compute_border_priority(dom: &Dom<TuiExt>, id: NodeId) -> u64 {
     use crate::render::buffer::BorderContribution;
     let mut depth: u16 = 0;
-    let mut cur = dom.node(id).parent_node();
+    let mut cur = crate::render::box_tree::slot::parent(dom, id);
     while let Some(node) = cur {
         depth = depth.saturating_add(1);
-        cur = node.parent_node();
+        cur = crate::render::box_tree::slot::parent(dom, node);
     }
     BorderContribution::pack_priority(depth, id.as_u32())
 }

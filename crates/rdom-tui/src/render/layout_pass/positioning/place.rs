@@ -85,15 +85,14 @@ fn walk_for_positioned(dom: &mut Dom<TuiExt>, id: NodeId, hidden: bool, out: &mu
             .then_some(BoxItem::Generated(id, slot))
     };
     out.extend(pseudo(dom, PseudoSlot::Before));
-    let mut child = dom.node(id).first_child().map(|c| c.id());
-    while let Some(c) = child {
+    let children: Vec<NodeId> = crate::render::box_tree::children(dom, id).collect();
+    for c in children {
         if matches!(
             dom.node(c).node_type(),
             NodeType::Element | NodeType::Fragment
         ) {
             walk_for_positioned(dom, c, hidden, out);
         }
-        child = dom.node(c).next_sibling().map(|n| n.id());
     }
     out.extend(pseudo(dom, PseudoSlot::After));
 }

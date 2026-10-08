@@ -131,7 +131,7 @@ pub fn inline_flow_container(dom: &Dom<TuiExt>, node_id: NodeId) -> Option<NodeI
         if has_inline_layout(dom, id) {
             return Some(id);
         }
-        cur = dom.node(id).parent_node().map(|p| p.id());
+        cur = crate::render::box_tree::slot::parent(dom, id);
     }
     None
 }
@@ -148,7 +148,9 @@ pub fn inline_flow_container(dom: &Dom<TuiExt>, node_id: NodeId) -> Option<NodeI
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InlineFlow {
     /// Singular IFC — `block` owns `inline_layout`. Content rect is
-    /// `block`'s `content_layout`.
+    /// `block`'s `content_layout`. For text a `<details>` element's
+    /// `::details-content` box lays out, `block` is that box: a node
+    /// outside the document, compared by identity like any other.
     Ifc { block: NodeId },
     /// Anonymous block box — slot `index` in `container`'s
     /// `anonymous_blocks` Vec.
@@ -180,7 +182,7 @@ pub fn inline_flow_for_text(dom: &Dom<TuiExt>, text_node: NodeId) -> Option<Inli
     // boxes, the box wrapping the text is the one whose `child_range`
     // covers the direct child the text sits under — no fragment scan.
     let mut child = text_node;
-    let mut cur = dom.node(text_node).parent_node().map(|p| p.id());
+    let mut cur = crate::render::box_tree::slot::parent(dom, text_node);
     while let Some(id) = cur {
         if has_inline_layout(dom, id) {
             return Some(InlineFlow::Ifc { block: id });
@@ -199,7 +201,7 @@ pub fn inline_flow_for_text(dom: &Dom<TuiExt>, text_node: NodeId) -> Option<Inli
             });
         }
         child = id;
-        cur = dom.node(id).parent_node().map(|p| p.id());
+        cur = crate::render::box_tree::slot::parent(dom, id);
     }
     None
 }
@@ -222,15 +224,9 @@ fn box_index(dom: &Dom<TuiExt>, container: NodeId, node: NodeId, child: NodeId) 
     // block-level or floated one) the sequence is the child nodes.
     if !items_of
         && !crate::render::inline::generated::sequence_pseudos(dom, container).before
-        && !dom
-            .node(container)
-            .child_nodes()
-            .any(|c| is_contents(dom, c.id()))
+        && !crate::render::box_tree::children(dom, container).any(|c| is_contents(dom, c))
     {
-        return dom
-            .node(container)
-            .child_nodes()
-            .position(|c| c.id() == child);
+        return crate::render::box_tree::children(dom, container).position(|c| c == child);
     }
     // The item is `node` or its nearest ancestor in the sequence.
     let items = if items_of {
@@ -246,7 +242,7 @@ fn box_index(dom: &Dom<TuiExt>, container: NodeId, node: NodeId, child: NodeId) 
         if n == child {
             return None;
         }
-        cur = dom.node(n).parent_node().map(|p| p.id());
+        cur = crate::render::box_tree::slot::parent(dom, n);
     }
     None
 }

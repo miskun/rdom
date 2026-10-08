@@ -136,12 +136,11 @@ impl HitTestExt for Dom<TuiExt> {
     }
 
     fn hit_test_path(&self, x: u16, y: u16) -> Vec<NodeId> {
-        let mut path = Vec::new();
-        // Reverse paint order through the stacking contexts (CSS 2.1
-        // Appendix E; `render::stacking`). Hit-testing has no viewport
-        // of its own: overflow ancestors are the only clips.
-        let unclipped = Rect::new(0, 0, u16::MAX, u16::MAX);
-        hit_stacking_context(self, self.root(), x, y, unclipped, unclipped, &mut path);
+        // The nodes of the document only: a `::details-content` box is
+        // part of its `<details>` (CSS Pseudo-Elements 4 §2), which is on
+        // the path above it.
+        let mut path = box_path(self, x, y);
+        path.retain(|&id| crate::render::box_tree::slot::host_of(self, id).is_none());
         path
     }
 
@@ -159,7 +158,7 @@ impl HitTestExt for Dom<TuiExt> {
         // reverse-document-order
         // stacking; we just need to find the first IFC ancestor
         // on the path.
-        let path = self.hit_test_path(x, y);
+        let path = box_path(self, x, y);
 
         // Walk path *innermost-first* — deepest match wins. A
         // singular IFC block (its own `inline_layout`) is the
@@ -209,7 +208,7 @@ impl HitTestExt for Dom<TuiExt> {
         // landing in an empty sibling spacer, or on a `user-select: none` bar,
         // climbs to the parent that also holds the prose. The search skips
         // `user-select: none` candidates, so the snap never lands on chrome.
-        let path = self.hit_test_path(x, y);
+        let path = box_path(self, x, y);
         let mut scope = path.last().copied();
         loop {
             let id = scope.unwrap_or_else(|| self.root());
@@ -219,9 +218,23 @@ impl HitTestExt for Dom<TuiExt> {
             if id == self.root() {
                 return None;
             }
-            scope = self.node(id).parent_node().map(|p| p.id());
+            scope = crate::render::box_tree::slot::parent(self, id);
         }
     }
+}
+
+/// The boxes from the root to the deepest hit at `(x, y)`: the document's
+/// nodes and any `::details-content` box between a `<details>` and its
+/// content (`render::box_tree::slot`), which the text lookups need — its
+/// line boxes are its own.
+fn box_path(dom: &Dom<TuiExt>, x: u16, y: u16) -> Vec<NodeId> {
+    let mut path = Vec::new();
+    // Reverse paint order through the stacking contexts (CSS 2.1
+    // Appendix E; `render::stacking`). Hit-testing has no viewport
+    // of its own: overflow ancestors are the only clips.
+    let unclipped = Rect::new(0, 0, u16::MAX, u16::MAX);
+    hit_stacking_context(dom, dom.root(), x, y, unclipped, unclipped, &mut path);
+    path
 }
 
 #[cfg(test)]

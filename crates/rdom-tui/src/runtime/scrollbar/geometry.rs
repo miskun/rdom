@@ -50,7 +50,7 @@ pub(super) fn nearest_scroll_container(dom: &TuiDom, id: NodeId) -> Option<NodeI
         if is_vertical_scroll_container(dom, id) || is_horizontal_scroll_container(dom, id) {
             return Some(id);
         }
-        cur = dom.node(id).parent_node().map(|p| p.id());
+        cur = crate::render::box_tree::slot::parent(dom, id);
     }
     None
 }

@@ -158,7 +158,7 @@ pub(super) fn fill_run<'a>(
         let child = dom.node(child_id);
         // A text node directly in a box-less child that holds a block
         // box is owned by that child (its parent), not by `parent`.
-        let owner = child.parent_node().map_or(parent, |p| p.id());
+        let owner = crate::render::box_tree::slot::parent(dom, child_id).unwrap_or(parent);
         match child.node_type() {
             NodeType::Text => {
                 if let Some(data) = child.node_value() {
@@ -215,13 +215,14 @@ pub(super) fn fill_run<'a>(
 /// their descendant element walk.
 fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a>) {
     use crate::layout::Display;
-    for child in dom.node(id).child_nodes() {
+    for child in crate::render::box_tree::children(dom, id) {
+        let child = dom.node(child);
         match child.node_type() {
             NodeType::Text => {
                 // Owner is `id` — the direct element parent. Text
                 // node's id goes in too for source-offset tracking. Text
                 // a closed `<details>` hides has no box.
-                if crate::render::box_tree::is_hidden_text(dom, id, child.id()) {
+                if crate::render::box_tree::is_hidden_text(dom, child.id()) {
                     continue;
                 }
                 if let Some(data) = child.node_value() {

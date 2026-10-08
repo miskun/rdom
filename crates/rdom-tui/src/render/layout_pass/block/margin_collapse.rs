@@ -202,7 +202,10 @@ pub(in crate::render::layout_pass) fn establishes_independent_formatting_context
     if computed.establishes_new_bfc || id == dom.root() {
         return true;
     }
-    let mut parent = dom.node(id).parent_node();
+    let up = |p: rdom_core::NodeRef<'_, TuiExt>| {
+        crate::render::box_tree::slot::parent(dom, p.id()).map(|n| dom.node(n))
+    };
+    let mut parent = up(dom.node(id));
     while let Some(p) = parent {
         if p.id() == dom.root() {
             // A Fragment root lays its children out as flex items; an
@@ -213,10 +216,10 @@ pub(in crate::render::layout_pass) fn establishes_independent_formatting_context
                     .is_some_and(|c| c.flow.is_flex_or_grid());
         }
         match p.node_type() {
-            NodeType::Fragment => parent = p.parent_node(),
+            NodeType::Fragment => parent = up(p),
             // A box-less element is transparent too (CSS Display 3 §2.5).
             NodeType::Element if crate::render::box_tree::is_contents(dom, p.id()) => {
-                parent = p.parent_node()
+                parent = up(p)
             }
             _ => {
                 return p
@@ -523,7 +526,7 @@ pub(crate) fn debug_assert_no_margin_chain_memo(dom: &Dom<TuiExt>, id: NodeId) {
             "margin-chain memo survived the layout pass on {id:?}"
         );
     }
-    for child in dom.node(id).child_nodes() {
-        debug_assert_no_margin_chain_memo(dom, child.id());
+    for child in crate::render::box_tree::children(dom, id) {
+        debug_assert_no_margin_chain_memo(dom, child);
     }
 }

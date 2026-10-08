@@ -44,6 +44,22 @@ pub struct PseudoStyles {
     /// The running transitions' overrides of `::before` / `::after`.
     pub presentation_before: Option<Box<PresentationStyle>>,
     pub presentation_after: Option<Box<PresentationStyle>>,
+    /// The two ends of a `::details-content` box (`render::box_tree::slot`):
+    /// on a `<details>`, the node that is its box; on that node, its
+    /// `<details>`.
+    pub(crate) content_box: ContentBoxLink,
+}
+
+/// Which end of a `::details-content` box an element is
+/// ([`PseudoStyles::content_box`]).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ContentBoxLink {
+    #[default]
+    None,
+    /// The element is a `<details>`; this node is its slot's box.
+    Box(rdom_core::NodeId),
+    /// The element is the box of this `<details>`'s slot.
+    HostedBy(rdom_core::NodeId),
 }
 
 impl PseudoStyles {
@@ -101,6 +117,18 @@ impl TuiExt {
     /// `::details-content`'s computed style (HTML §15.5.20).
     pub fn computed_details_content(&self) -> Option<&Rc<ComputedStyle>> {
         self.pseudo.as_ref()?.details_content.as_ref()
+    }
+
+    /// Which end of a `::details-content` box this element is.
+    pub(crate) fn content_box_link(&self) -> ContentBoxLink {
+        self.pseudo
+            .as_ref()
+            .map_or(ContentBoxLink::None, |p| p.content_box)
+    }
+
+    /// Set which end of a `::details-content` box this element is.
+    pub(crate) fn set_content_box_link(&mut self, link: ContentBoxLink) {
+        self.update_pseudo(link != ContentBoxLink::None, |p| p.content_box = link);
     }
 
     /// `::backdrop`'s computed style.

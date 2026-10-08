@@ -54,9 +54,9 @@ fn walk(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
             out.push(id);
         }
     }
-    for child in dom.node(id).child_nodes() {
-        match child.node_type() {
-            NodeType::Element | NodeType::Fragment => walk(dom, child.id(), out),
+    for child in crate::render::box_tree::children(dom, id) {
+        match dom.node(child).node_type() {
+            NodeType::Element | NodeType::Fragment => walk(dom, child, out),
             _ => {}
         }
     }
@@ -73,8 +73,8 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
     };
 
     // Find the nearest scroll container ancestor.
-    let Some(scrollport) = nearest_scrollport(dom, dom.node(id).parent_node().map(|p| p.id()))
-    else {
+    let parent = crate::render::box_tree::slot::parent(dom, id);
+    let Some(scrollport) = nearest_scrollport(dom, parent) else {
         // CSS rule: no scrollable ancestor → sticky behaves as
         // relative (position-as-laid-out, no pin). Nothing to do.
         return;
@@ -83,10 +83,8 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
     // Containing block (post-stick clamp): parent element's
     // `content_layout`. CSS uses the sticky's containing block,
     // which for v1 we approximate by the parent.
-    let cb_rect = dom
-        .node(id)
-        .parent_node()
-        .and_then(|p| p.ext().map(|e| e.content_layout))
+    let cb_rect = parent
+        .and_then(|p| dom.node(p).ext().map(|e| e.content_layout))
         .unwrap_or(scrollport);
 
     let (dx, dy) = sticky_offset(&computed, natural, scrollport, cb_rect);
@@ -203,7 +201,7 @@ pub(super) fn nearest_scrollport(dom: &Dom<TuiExt>, from: Option<NodeId>) -> Opt
                 return Some(crate::render::layout_pass::scrollport_of(ext, c));
             }
         }
-        cursor = p.parent_node();
+        cursor = crate::render::box_tree::slot::parent(dom, p.id()).map(|n| dom.node(n));
     }
     None
 }

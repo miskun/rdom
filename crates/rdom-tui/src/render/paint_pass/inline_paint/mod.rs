@@ -140,10 +140,8 @@ pub(super) fn paint_inline_content(
     // descendant's first line — `inline::generated`). Painting them
     // again at its first row would draw them under its first child.
     if computed.flow.is_block_flow()
-        && dom
-            .node(id)
-            .child_nodes()
-            .any(|c| crate::render::layout_pass::is_in_flow(dom, c.id()))
+        && crate::render::box_tree::children(dom, id)
+            .any(|c| crate::render::layout_pass::is_in_flow(dom, c))
     {
         return;
     }
@@ -314,7 +312,8 @@ pub(super) fn paint_anonymous_blocks(
 /// separately at their own layout positions.
 fn own_text_content(dom: &Dom<TuiExt>, id: NodeId) -> String {
     let mut out = String::new();
-    for child in dom.node(id).child_nodes() {
+    for child in crate::render::box_tree::children(dom, id) {
+        let child = dom.node(child);
         if child.node_type() == NodeType::Text
             && let Some(data) = child.node_value()
         {

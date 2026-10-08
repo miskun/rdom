@@ -156,14 +156,14 @@ fn nearest<'d>(
     text_node: NodeId,
     of: impl Fn(&'d TuiExt) -> Option<&'d ComputedStyle>,
 ) -> Option<(&'d ComputedStyle, &'d ComputedStyle)> {
-    let mut cur = dom.node(text_node).parent_node().map(|p| p.id());
+    let mut cur = crate::render::box_tree::slot::parent(dom, text_node);
     while let Some(id) = cur {
         if let Some(ext) = dom.node(id).ext()
             && let Some(style) = of(ext)
         {
             return Some((style, ext.computed.as_deref()?));
         }
-        cur = dom.node(id).parent_node().map(|p| p.id());
+        cur = crate::render::box_tree::slot::parent(dom, id);
     }
     None
 }

@@ -113,9 +113,12 @@ fn collect_rows(dom: &Dom<TuiExt>, id: NodeId, rows: &mut Option<(i64, i64)>) {
             extend(rows, y, y + i64::from(layout.height()));
         }
     }
-    for child in node.child_nodes() {
-        if matches!(child.node_type(), NodeType::Element | NodeType::Fragment) {
-            collect_rows(dom, child.id(), rows);
+    for child in crate::render::box_tree::children(dom, id) {
+        if matches!(
+            dom.node(child).node_type(),
+            NodeType::Element | NodeType::Fragment
+        ) {
+            collect_rows(dom, child, rows);
         }
     }
 }

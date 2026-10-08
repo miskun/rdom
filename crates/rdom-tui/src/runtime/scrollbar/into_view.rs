@@ -50,12 +50,12 @@ pub(crate) fn scroll_element_into_view(
     if let Some(c) = dom.node(element).computed() {
         rect = outset(rect, c);
     }
-    let mut cur = dom.node(element).parent_node().map(|p| p.id());
+    let mut cur = crate::render::box_tree::slot::parent(dom, element);
     while let Some(container) = cur {
         if establishes_scrolling_box(dom, container) {
             rect = scroll_container(dom, container, rect, options);
         }
-        cur = dom.node(container).parent_node().map(|p| p.id());
+        cur = crate::render::box_tree::slot::parent(dom, container);
     }
 }
 
