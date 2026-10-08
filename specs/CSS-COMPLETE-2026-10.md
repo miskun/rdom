@@ -7450,3 +7450,16 @@ row comes from.
   recorded there. C11G batch A (C11G-MODAL-INERT, -POPOVER-BOUND, -CANVAS-FILL, -HAS-COST, -DIR-AUTO-COST,
   -DETAILS-PARENT, -ENTER-COMMIT, -MINOR) is done; batch B (API and docs: C11G-UPGRADE, -DESIGN-TYPES,
   -API, -DOCS) remains.
+- 2026-10-14 — C11G-UPGRADE (API B1). The upgrade guide held four batch-A items unranked in the middle
+  (16–20: inertness, `Canvas`, `show()` focusing, Enter) and none of Phase 11's own silent changes. Ranked
+  now (68 items), by the gate's order with batch A fitted in: 16 the modal dialog — centred in the top layer,
+  covering content where it sat in flow, the page inert (the C11G-MODAL-INERT item merged into it, as one
+  consequence of `showModal()`); 17 `Canvas` / `reset` painting and `dialog`'s HTML background (the reader
+  half of that item split out); 18 the hidden-focus refusal (C6G, kept in place); 19 `change` on blur; 20
+  Enter committing; 21 `dir=auto` / `<bdi>` setting `direction`; 22 backtracking combinators and 23 `+` / `~`
+  skipping text and comments (two items: different selectors start matching, for different reasons); then
+  the reader changes, with 26 a computed `bg` starting `Color::TRANSPARENT` (code testing `bg ==
+  Color::Reset` for "no background" tests `bg.alpha() == 0`). At the tail, narrowest last: `:scope` in the
+  query methods, `showModal()` hiding open popovers, `dialog::show()` focusing into the dialog (19 → 66: it
+  moves focus only for code that called `show()`), the `[-]` glyph, parentless `:first-child`. "Compile
+  breaks" gains a Selectors line for `SimpleSelector::Attribute`'s `case`. Docs only: no test.
