@@ -31,6 +31,14 @@
 //! open modal dialog the document is inert: a point that misses the
 //! dialog lands on its `::backdrop`, and the dialog is the target.
 //!
+//! ## Inertness
+//!
+//! An inert node (`Dom::is_inert`, HTML §6.3) is hit-tested "as if
+//! `pointer-events: none`" — and so is its whole subtree, which no
+//! descendant escapes but a modal dialog (top layer, tried above): a
+//! top-layer member outside the blocking modal dialog is passed over,
+//! and the stacking walk skips every `inert` subtree.
+//!
 //! ## `pointer-events`
 //!
 //! `pointer-events: none` makes an element transparent: it is never
@@ -240,22 +248,29 @@ fn box_path(dom: &Dom<TuiExt>, x: u16, y: u16) -> Vec<NodeId> {
     // only clips.
     let unclipped = Rect::new(0, 0, u16::MAX, u16::MAX);
     // The top layer paints last, so it is tried first, topmost first
-    // (CSS Position 4).
+    // (CSS Position 4). An inert member — outside the modal dialog the
+    // document is blocked by, or in an `inert` subtree (HTML §6.3) — is
+    // passed through, "as if `pointer-events: none`".
+    let blocker = dom.blocking_modal();
     for &id in dom.top_layer().iter().rev() {
-        if !crate::render::paint_pass::top_layer::is_rendered(dom, id) {
+        if dom.is_inert(id) {
             continue;
         }
-        if hit_stacking_context(dom, id, x, y, unclipped, unclipped, &mut path) {
+        let rendered = crate::render::paint_pass::top_layer::is_rendered(dom, id);
+        if rendered && hit_stacking_context(dom, id, x, y, unclipped, unclipped, &mut path) {
             prepend_ancestors(dom, id, &mut path);
             return path;
         }
-        // Below a modal dialog the document is inert (HTML §6.3:
-        // "blocked by a modal dialog"): the point is on the dialog's
-        // `::backdrop`, which covers the viewport, and a pseudo-element's
-        // events go to its originating element.
-        if dom.top_layer_kind(id) == Some(rdom_core::TopLayerKind::ModalDialog) {
-            path.push(id);
-            prepend_ancestors(dom, id, &mut path);
+        // Below the blocking modal dialog the document is inert (HTML
+        // §6.3.2): the point is on the dialog's `::backdrop`, which
+        // covers the viewport, and a pseudo-element's events go to its
+        // originating element. An unrendered dialog has no backdrop, and
+        // the inert page beneath it takes nothing either.
+        if Some(id) == blocker {
+            if rendered {
+                path.push(id);
+                prepend_ancestors(dom, id, &mut path);
+            }
             return path;
         }
     }

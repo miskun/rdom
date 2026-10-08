@@ -148,6 +148,9 @@ fn scroll_into_view(dom: &mut TuiDom, id: NodeId) {
 ///
 /// Pass `None` to clear focus (fires only blur + focusout).
 ///
+/// An inert element (`Dom::is_inert`: outside an open modal dialog, or in
+/// an `inert` subtree — HTML §6.3) is refused: nothing changes.
+///
 /// Keyboard and script focus: the element is scrolled into view
 /// ([`focus_node_with_options`]). Focus a pointer moved does not scroll
 /// (`focus_node_by_pointer`), nor does
@@ -159,12 +162,14 @@ pub fn focus_node(dom: &mut TuiDom, new_focus: Option<NodeId>) {
 /// The focus fixup (HTML "update the rendering", after style and
 /// layout): when the focused element is no longer rendered and visible
 /// ([`tabindex::is_rendered_and_visible`] — it or an ancestor became
-/// `display: none`, or its used `visibility` is not `visible`), it is no
-/// focusable area, so the focusing steps run for the viewport: `blur` /
-/// `focusout` fire and nothing is focused. Returns whether it blurred.
+/// `display: none`, or its used `visibility` is not `visible`) or has
+/// become inert (`Dom::is_inert`: a modal dialog opened elsewhere, an
+/// `inert` ancestor — HTML §6.3), it is no focusable area, so the
+/// focusing steps run for the viewport: `blur` / `focusout` fire and
+/// nothing is focused. Returns whether it blurred.
 pub(crate) fn fix_up(dom: &mut TuiDom) -> bool {
     match dom.focused() {
-        Some(f) if !tabindex::is_rendered_and_visible(dom, f) => {
+        Some(f) if !tabindex::is_rendered_and_visible(dom, f) || dom.is_inert(f) => {
             focus_node(dom, None);
             true
         }
@@ -187,6 +192,11 @@ pub(crate) fn focus_node_by_pointer(dom: &mut TuiDom, new_focus: Option<NodeId>)
 fn change_focus(dom: &mut TuiDom, new_focus: Option<NodeId>, visible: Option<bool>) {
     let old = dom.focused();
     if old == new_focus {
+        return;
+    }
+    // HTML §6.3: an inert node is no focusable area, so the focusing
+    // steps find nothing to focus and change nothing — whoever asks.
+    if new_focus.is_some_and(|id| dom.contains(id) && dom.is_inert(id)) {
         return;
     }
 

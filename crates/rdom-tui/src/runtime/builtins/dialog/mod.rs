@@ -19,10 +19,13 @@
 //!
 //! ## v1 deliberate simplifications
 //!
-//! - The document outside an open modal is inert: Tab cycles inside the
+//! - The document outside an open modal is inert (HTML §6.3.2,
+//!   `Dom::is_inert`): nothing outside can take the focus (`focus_node`
+//!   refuses it, and the focus fixup moves it off), Tab cycles inside the
 //!   modal, Esc cancels it wherever focus sits, and the pointer outside
 //!   it hits its `::backdrop`, whose events go to the dialog
-//!   (`hit_test`).
+//!   (`hit_test`) — or nothing, when the dialog is not rendered. A
+//!   popover above it from outside it is inert too.
 //! - No `closedby` attribute (defaults are baked: modal closes
 //!   on Esc, non-modal doesn't).
 //!
@@ -85,16 +88,19 @@ pub fn show_modal(dom: &mut TuiDom, dialog: NodeId) {
 }
 
 /// The dialog focusing steps (HTML §4.11.4): the first `[autofocus]`
-/// descendant, else the first focusable descendant, else the dialog
-/// itself when it is focusable. `showModal()` runs them, and so does a
-/// `<dialog popover>` shown as a popover (the popover focusing steps).
-/// The dialog was closed (`display: none`) when last cascaded; it is
-/// rendered now (`tabindex::is_focusable_in_opened`).
+/// descendant, else the focus delegate (the first focusable
+/// descendant), else the dialog itself — step 4, "set control to
+/// subject": a dialog with nothing focusable in it takes the focus, so
+/// none is left on the page it makes inert. `showModal()` runs them, and
+/// so does a `<dialog popover>` shown as a popover (the popover focusing
+/// steps). The dialog was closed (`display: none`) when last cascaded; it
+/// is rendered now (`tabindex::is_focusable_in_opened`). A dialog that
+/// is still not rendered (a `display: none` ancestor) takes nothing.
 pub(crate) fn focusing_steps(dom: &mut TuiDom, dialog: NodeId) {
     crate::runtime::autofocus::focus_within_opened(dom, dialog);
     if !dom.focused().is_some_and(|f| is_inside(dom, f, dialog)) {
         let target = first_focusable_in(dom, dialog).or_else(|| {
-            crate::runtime::focus::tabindex::is_focusable_in_opened(dom, dialog, dialog)
+            crate::runtime::focus::tabindex::renders_in_opened(dom, dialog, dialog)
                 .then_some(dialog)
         });
         if let Some(t) = target {
@@ -136,13 +142,10 @@ fn first_focusable_in(dom: &TuiDom, root: NodeId) -> Option<NodeId> {
 /// The open modal dialog that currently owns interaction, if any:
 /// with a modal open, the rest of the document is inert, so Tab
 /// cycles inside it and Esc cancels it wherever focus sits. The
-/// topmost modal dialog in the top layer — the one opened last.
+/// topmost modal dialog in the top layer — the one opened last; the
+/// dialog the document is blocked by (`Dom::blocking_modal`).
 pub fn top_modal(dom: &TuiDom) -> Option<NodeId> {
-    dom.top_layer()
-        .iter()
-        .rev()
-        .copied()
-        .find(|&d| is_modal(dom, d))
+    dom.blocking_modal()
 }
 
 /// Take a modal dialog out of the top layer (no-op for any other).

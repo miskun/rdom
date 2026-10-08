@@ -30,6 +30,9 @@ use crate::node::TuiNodeExt;
 /// "focusable area" rules — not just the literal `tabindex`
 /// attribute:
 ///
+/// 0. An inert element (`Dom::is_inert`: outside an open modal dialog, or
+///    in an `inert` subtree — HTML §6.3) is not a focusable area and
+///    returns `None`.
 /// 1. An element that is not rendered and visible
 ///    ([`is_rendered_and_visible`]: it or an ancestor `display: none`, or
 ///    its used `visibility` not `visible`) is not a focusable area (HTML
@@ -52,7 +55,7 @@ pub fn tab_index(dom: &TuiDom, id: NodeId) -> Option<i32> {
     // HTML §6.6.2: an element that is not being rendered is not a
     // focusable area (a button inside a closed `<dialog>`, a `[hidden]`
     // box), nor — as the engines read it — a hidden one.
-    if !is_rendered_and_visible(dom, id) {
+    if !is_rendered_and_visible(dom, id) || dom.is_inert(id) {
         return None;
     }
     rendered_tab_index(dom, id)
@@ -78,6 +81,14 @@ pub fn is_rendered_and_visible(dom: &TuiDom, id: NodeId) -> bool {
 /// other box on the way up, and `id`'s visibility, are read as
 /// [`is_rendered_and_visible`] reads them.
 pub(crate) fn is_focusable_in_opened(dom: &TuiDom, id: NodeId, opened: NodeId) -> bool {
+    renders_in_opened(dom, id, opened) && rendered_tab_index(dom, id).is_some()
+}
+
+/// Whether `id` — `opened` or a descendant of it, `opened` just made
+/// rendered — is rendered, visible and not inert: the rendering half of
+/// [`is_focusable_in_opened`], and what the dialog focusing steps ask of
+/// the dialog itself when it is the control (HTML §4.11.4).
+pub(crate) fn renders_in_opened(dom: &TuiDom, id: NodeId, opened: NodeId) -> bool {
     let mut cur = Some(id);
     while let Some(n) = cur {
         if n != opened && !is_rendered(dom, n) {
@@ -85,8 +96,7 @@ pub(crate) fn is_focusable_in_opened(dom: &TuiDom, id: NodeId, opened: NodeId) -
         }
         cur = dom.node(n).parent_node().map(|p| p.id());
     }
-    crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host)
-        && rendered_tab_index(dom, id).is_some()
+    crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host) && !dom.is_inert(id)
 }
 
 /// [`is_rendered_and_visible`] for an element whose ancestors are known
@@ -226,8 +236,11 @@ pub fn focusable_elements(dom: &TuiDom) -> Vec<NodeId> {
     let mut zero: Vec<(usize, NodeId)> = Vec::new();
     let mut order: usize = 0;
     // An open modal dialog makes the rest of the document inert
-    // (HTML §4.11.4): sequential focus navigation is scoped to it.
-    let scope = crate::runtime::builtins::dialog::top_modal(dom).unwrap_or(dom.root());
+    // (HTML §6.3.2): sequential focus navigation is scoped to it — popovers
+    // above it from outside it are inert too. `collect` prunes the
+    // `inert` subtrees below the scope (HTML §6.3.1; the scope itself, a
+    // modal dialog, escapes an `inert` ancestor or attribute).
+    let scope = dom.blocking_modal().unwrap_or(dom.root());
     collect(dom, scope, &mut positive, &mut zero, &mut order);
 
     positive.sort_by_key(|(ti, ord, _)| (*ti, *ord));
@@ -304,8 +317,10 @@ fn collect(
     order: &mut usize,
 ) {
     // A `display: none` subtree is not rendered: nothing in it is a
-    // focusable area, however the descendants are styled.
-    if !is_rendered(dom, id) {
+    // focusable area, however the descendants are styled. An `inert` one
+    // has none either (HTML §6.3.1) — the walk's root, a modal dialog,
+    // escapes its own attribute.
+    if !is_rendered(dom, id) || (*order > 0 && dom.node(id).has_attribute("inert")) {
         return;
     }
     *order += 1;

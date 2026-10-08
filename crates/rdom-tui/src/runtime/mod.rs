@@ -36,6 +36,8 @@ pub mod editing;
 pub mod focus;
 pub mod hit_test;
 pub(crate) mod implicit_events;
+#[cfg(test)]
+mod inert_tests;
 pub(crate) mod input;
 pub mod router;
 pub(crate) mod scroll_snap;

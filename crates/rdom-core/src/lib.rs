@@ -54,6 +54,9 @@ mod highlight;
 mod highlight_tests;
 mod html_collection;
 mod indexes;
+mod inert;
+#[cfg(test)]
+mod inert_tests;
 mod input_type;
 mod insert_adjacent;
 mod interaction_state;

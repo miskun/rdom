@@ -7234,3 +7234,32 @@ row comes from.
   requires silent changes, DESIGN classification, re-exports and migration rows in the same commit.
   Full reports: `target/claude-logs/c11_gate_{architect,api}.md`. Fix as `C11G-*`, two batches
   (A correctness and cost, B API and docs).
+- 2026-10-14 — C11G-MODAL-INERT (architect B1, N6's inertness gaps). Found: a modal dialog made the page
+  inert to the pointer only — the dialog focusing steps focused nothing when the dialog had nothing
+  focusable, `focus_node` accepted any target, and the `inert` attribute was reflected but did nothing.
+  Decided — one computed notion, in rdom-core (renderer-free: attributes and the top layer):
+  `Dom::is_inert(id)` (HTML §6.3) is true outside the dialog the document is *blocked by*
+  (`Dom::blocking_modal()`: the topmost *modal* dialog in the top layer, as the engines read §6.3.2's
+  "topmost dialog") or under an `inert` attribute that no modal dialog escapes (§6.3.1's "such as modal
+  dialogs"; CSS UI 4's `[inert] { interactivity: inert } dialog:modal { interactivity: auto }`) — one
+  ancestor walk. rdom-tui reads it everywhere a focusable area or a hit is decided: `tab_index` (so
+  `is_focusable`, `focus()` and the click-focus climb), `change_focus` (`focus_node` and the pointer
+  path refuse an inert target, changing nothing — the focusing steps find no focusable area), the focus
+  fixup (an element made inert is blurred at the next frame, as one made hidden is), sequential navigation
+  (scoped to the blocking modal, pruning `inert` subtrees), `is_unselectable` (HTML: selection "as if
+  `user-select: none`") and the hit test (top-layer members that are inert are passed over; the stacking
+  walk prunes `inert` subtrees, checks layered boxes and pseudo hosts with the full walk, and resolves an
+  inert inline to its block). The dialog focusing steps follow §4.11.4 step 4: with no autofocus and no
+  delegate the dialog itself is the control — focused when rendered. Checked the gate's two readings
+  against the spec text: an unrendered modal still blocks (§6.3.2 names no rendering), so the hit test
+  returns nothing instead of skipping to the page; and a popover shown above a modal from outside it is
+  inert (only the subject's flat-tree descendants are excepted) — the gate was right, the hit test now
+  passes it over. Keyboard activation needs no guard of its own: the builtins act on the focus, which can
+  no longer be inert after the focusing steps or a frame. `dialog::top_modal` is `blocking_modal`. Red:
+  rdom-core's five `inert_tests` failed on the stubbed `false` / `None`; rdom-tui's six `inert_tests`
+  failed for the stated reasons (the focus stayed on `del`; `focus_node` moved into the inert page; the
+  unrendered modal's page was hit; the outside popover was hit; Tab and the pointer reached the `inert`
+  button; the inert focus stayed). Green after. Mutations (each alone, restored, touched): no inert
+  check in `is_unselectable` → `inert_text_is_not_selectable` (added for it); no subtree pruning in the
+  descent → the `inert` subtree test; no `change_focus` guard → the `focus_node` test. No existing
+  expectation changed.

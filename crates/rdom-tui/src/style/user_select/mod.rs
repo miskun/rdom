@@ -79,9 +79,11 @@ pub(crate) fn used_value(dom: &TuiDom, id: NodeId) -> UserSelect {
 
 /// True iff the used `user-select` of `id` is `none` — the skip-list
 /// for the selection algorithm (hit-test, drag, keyboard extension,
-/// the highlight, clipboard serialize).
+/// the highlight, clipboard serialize) — or `id` is inert, whose text
+/// selection "must act as if `user-select` was `none`" (HTML §6.3,
+/// `Dom::is_inert`).
 pub(crate) fn is_unselectable(dom: &TuiDom, id: NodeId) -> bool {
-    used_value(dom, id) == UserSelect::None
+    used_value(dom, id) == UserSelect::None || dom.is_inert(id)
 }
 
 /// The `user-select: all` host of `id`: the outermost ancestor

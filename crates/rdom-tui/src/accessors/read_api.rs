@@ -72,9 +72,10 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// to match Rust convention; HTML attribute is `readonly`.
     fn read_only(&self) -> bool;
 
-    /// `[inert]` attribute presence. v1 surfaces the bit but does
-    /// not yet implement the subtree-disabling semantics (modal
-    /// dialog focus trap is deferred).
+    /// `[inert]` attribute presence (HTML §6.3.1) — the element's own
+    /// attribute. Whether a node *is* inert (an `inert` ancestor, or
+    /// outside an open modal dialog) is `Dom::is_inert`, which focus,
+    /// sequential navigation, hit-testing and selection honour.
     fn inert(&self) -> bool;
 
     /// `HTMLElement.isContentEditable` — effective value with

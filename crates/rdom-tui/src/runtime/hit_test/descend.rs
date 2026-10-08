@@ -118,6 +118,12 @@ fn hit_layers(
     path: &mut Vec<NodeId>,
 ) -> bool {
     for e in entries.iter().rev() {
+        // A layered box inside an `inert` subtree is inert with it (HTML
+        // §6.3.1): its context's walk reaches it without passing the
+        // ancestor that carries the attribute.
+        if dom.is_inert(e.id) {
+            continue;
+        }
         let mark = path.len();
         let hit = if let Some(generated) = e.generated {
             hit_generated(dom, e.id, generated, x, y, e.clip, path)
@@ -172,6 +178,9 @@ fn hit_generated(
     let Some(g) = anon.and_then(|a| a.generated) else {
         return false;
     };
+    if g.host != owner && dom.is_inert(g.host) {
+        return false;
+    }
     let pseudo = dom.node(g.host).computed_pseudo(g.slot);
     let targets = pseudo.is_some_and(|c| c.pointer_events != crate::layout::PointerEvents::None)
         && crate::render::visibility::shows(dom, g.host, g.slot.into());
@@ -282,6 +291,13 @@ fn hit_content(
         let Some((owner, atomic)) = hit_fragment(dom, id, inner, x, y) else {
             return false;
         };
+        // An inline in an `inert` subtree below the block is inert (HTML
+        // §6.3.1): the point is on the block's own line, as for a
+        // `pointer-events: none` inline.
+        let (owner, atomic) = match outermost_inert_below(dom, id, owner) {
+            Some(inert) => (parent(dom, inert).unwrap_or(id), false),
+            None => (owner, atomic),
+        };
         // An atomic inline is a box (CSS 2.1 §9.2.2): it is hit as one —
         // its content searched, its own `visibility` / `pointer-events`
         // applied — under the inline ancestors it sits in.
@@ -341,6 +357,10 @@ fn descend_children_reverse(
     // document order (CSS Flexbox §5.4).
     for child in crate::render::box_tree::paint_order_children(dom, id).rev() {
         let node = dom.node(child);
+        // An `inert` subtree is out of hit-testing whole (HTML §6.3.1).
+        if has_inert_attribute(dom, child) {
+            continue;
+        }
         let mark = path.len();
         let hit = match node.node_type() {
             NodeType::Fragment => descend_children_reverse(dom, child, x, y, clip, viewport, path),
@@ -502,6 +522,27 @@ fn is_descendant(dom: &Dom<TuiExt>, id: NodeId, ancestor: NodeId) -> bool {
         cur = parent(dom, n);
     }
     false
+}
+
+/// `id` carries the `inert` attribute (HTML §6.3.1).
+fn has_inert_attribute(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    dom.node(id).has_attribute("inert")
+}
+
+/// The outermost element from `owner` (inclusive) up to `block`
+/// (exclusive) that carries the `inert` attribute, if any.
+fn outermost_inert_below(dom: &Dom<TuiExt>, block: NodeId, owner: NodeId) -> Option<NodeId> {
+    let mut found = None;
+    let mut cur = Some(owner);
+    while let Some(n) = cur
+        && n != block
+    {
+        if has_inert_attribute(dom, n) {
+            found = Some(n);
+        }
+        cur = parent(dom, n);
+    }
+    found
 }
 
 /// `id` is `pointer-events: none`.
