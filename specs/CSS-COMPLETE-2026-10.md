@@ -8889,3 +8889,23 @@ row comes from.
   `cost_tests.rs`' `table_tracks_read_the_kept_layout_without_solving` (0 structures, 0 solves). Mutation:
   `mark` without the swap → the `td { border-right: solid }` rtl case gives `[(7, 10), (1, 6)]` for
   `[(6, 9), (0, 5)]`.
+- 2026-10-09 — C13G-UPGRADE (API N2 and the rdom-virtualtable notes; docs and pins). Found: the tables entry was
+  silent change 8, below four changes that only touch sheets declaring a property, though it re-renders every
+  `<table>` with no author CSS; its `width: 100%` migration missed the border (fixed by C13G-TABLE-UA), the
+  spread of extra width, wrapping, a cell `width` being a minimum, and the CSS that stops applying. Decided:
+  (1) ranked 4th (after `display: flex` rows, `content-box` and flex base sizes, which reach more boxes; above
+  `appearance: none`, the old 4th) — 4–7 move to 5–8; (2) its migration lists (a) `width: 100%` with the UA's
+  new `border-box`, (b) the extra spread by max-content (0.5's content-wide left-packed columns do not come
+  back), (c) `td, th { white-space: nowrap }` for one-line rows, (d) a cell `width` as a minimum in the
+  automatic layout and exact only under `table-layout: fixed` with a table width, (e) no `flex` on cells,
+  `gap` on the table or cell margins, and `table_tracks()` for column widths, and folds in C13G-TH-CAPTION's,
+  C13G-TABLE-UA's and C13G-TABLE-TRACKS' table changes; (3) a "Porting a column-synced table" block after the
+  silent list — rdom-virtualtable's shape (header widths exact under `table-layout: fixed; width: 100%`, the
+  header being the first row so materializing rows cannot move the columns; `column_width(i)` as
+  `table_tracks()?.columns()[i].len()`; the overflow chip out of the table, absolutely positioned in the
+  pane). rdom-virtualtable itself is untouched. Pins (`css_phase13/upgrade.rs`, new; each claim held on first
+  run, so no red — a docs item): `a_full_width_table_spreads_its_extra_width`, `cells_wrap_unless_nowrap`,
+  `a_cell_width_is_a_minimum_unless_fixed` (10 auto, `[5, 3]` fixed), `flex_gap_and_cell_margins_do_not_apply`,
+  `a_virtual_table_ports_to_css_tables` (columns `[12, 6, 12]`, the long cell clipped at its padding edge,
+  the chip at (28, 0)). The first draft of the last expected the clip at the content edge; `overflow: hidden`
+  clips at the padding box (CSS Overflow 3 §3), so the pin and the example say so.

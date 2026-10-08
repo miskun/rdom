@@ -15,6 +15,7 @@ mod props;
 mod tfc;
 mod tracks;
 mod ua;
+mod upgrade;
 
 /// A document holding `markup` under its root.
 pub(crate) fn doc(markup: &str) -> TuiDom {
