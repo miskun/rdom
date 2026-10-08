@@ -787,6 +787,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **Tearing down moved rows costs linear time**: a frame's removals checked every running animation against every removed root (sorting a list with a spinner per row: ~n²/2 climbs); each running element now climbs once against all removed roots. (C13G-TEARDOWN-COST)
 - **An authored `calc-size(auto, size)` costs no extra layout pass**: nested `calc-size()` boxes laid the page out `d + 2` times on every layout while one was authored; a level is now laid out again only when one of its boxes changes size, so Chrome's `details[open]::details-content` accordion at rest lays out once. (C13G-CALC-SIZE-AUTHORED)
 - **Table spec gaps** (CSS 2.1 §17.2.1, §17.5.2.1, §17.5.3; CSS Tables 3): fixed layout spreads a wider table's extra width over all-fixed columns; column percentages are clamped to 100% in column order; excess width goes to percent columns by percentage; a rowspanning `baseline` cell gets the rows it needs; rows misparented in a cell share an anonymous table. (C13G-SPEC-GAPS)
 - **Column selectors restyle a table only when its columns can move**: with `||` or `:nth-col()` in a sheet, any text or element change inside a `<td>` restyled every cell of its table; now only rows, cells or columns coming or going and span attributes do. `||` inside `:has()` now reacts to span changes. (C13G-COLUMN-INVALIDATION)

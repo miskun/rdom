@@ -11,6 +11,7 @@
 //! ([`AnimationRegistry::cancel_disconnected`]) catches a node that left
 //! by a path no record names.
 
+use std::collections::HashSet;
 use std::time::Instant;
 
 use rdom_core::{Dom, NodeId, NodeType};
@@ -25,17 +26,34 @@ impl AnimationRegistry {
     /// frame's cascade, so a subtree inserted again in the same task is
     /// diffed as newly rendered.
     pub(crate) fn detach(&mut self, dom: &mut Dom<TuiExt>, roots: &[NodeId], now: Instant) {
-        for &root in roots {
-            if !dom.contains(root) {
+        let removed: HashSet<NodeId> = roots.iter().copied().filter(|&r| dom.contains(r)).collect();
+        if removed.is_empty() {
+            return;
+        }
+        // One climb per running element against every removed root at
+        // once: O(entries × depth), whatever the number of roots (a sort
+        // moves every row).
+        for node in self.nodes() {
+            if !dom.contains(node) {
                 continue;
             }
-            for node in self.nodes() {
-                if dom.contains(node) && dom.node(root).contains(subject(dom, node)) {
+            let mut cur = Some(subject(dom, node));
+            while let Some(n) = cur {
+                #[cfg(test)]
+                TEARDOWN_STEPS.with(|c| c.set(c.get() + 1));
+                if removed.contains(&n) {
                     self.cancel_for_node(node, now);
+                    break;
                 }
+                cur = dom.node(n).parent_node().map(|p| p.id());
             }
-            let connected = dom.node(root).is_connected();
-            forget_subtree(dom, root, connected);
+        }
+        let mut forgotten = HashSet::with_capacity(removed.len());
+        for &root in roots {
+            if removed.contains(&root) && forgotten.insert(root) {
+                let connected = dom.node(root).is_connected();
+                forget_subtree(dom, root, connected);
+            }
         }
     }
 
@@ -67,6 +85,13 @@ impl AnimationRegistry {
         out.dedup();
         out
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The steps `detach` took to find what runs under the removed roots
+    /// (cost tests).
+    pub(crate) static TEARDOWN_STEPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// The node whose place in the document `node`'s is: a

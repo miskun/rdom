@@ -254,3 +254,54 @@ fn a_tooltip_after_leaving_mid_transition_is_gone() {
     assert_eq!(first_row(&app), "x", "the stale style is not put back");
     assert!(!has(&log, "transitionend"), "{:?}", log.borrow());
 }
+
+// ── C13G-TEARDOWN-COST ──────────────────────────────────────────
+
+/// C13G-TEARDOWN-COST (architect N7) — sorting a list moves every row (a
+/// removal and an insertion each, DOM §4.2.3), so one frame tears down
+/// as many roots as there are rows, each with a running spinner: finding
+/// what runs under the removed roots costs a climb per running element,
+/// not a climb per running element per root — linear in the rows, at 1000
+/// as at 100.
+#[test]
+fn sorting_a_list_of_spinners_tears_down_in_linear_time() {
+    use crate::TuiDom;
+    use crate::render::Terminal;
+    use crate::runtime::animation::TEARDOWN_STEPS;
+    use crate::style::Stylesheet;
+    for n in [100usize, 1000] {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let ul = dom.create_element("ul");
+        dom.append_child(root, ul).unwrap();
+        let rows: Vec<NodeId> = (0..n)
+            .map(|_| {
+                let li = dom.create_element("li");
+                let spin = dom.create_element("span");
+                dom.set_attribute(spin, "class", "spin").unwrap();
+                let t = dom.create_text_node("x");
+                dom.append_child(spin, t).unwrap();
+                dom.append_child(li, spin).unwrap();
+                dom.append_child(ul, li).unwrap();
+                li
+            })
+            .collect();
+        let sheet = rdom_css::parse(
+            "@keyframes spin { from { width: 1 } to { width: 3 } } \
+             .spin { display: inline-block; animation: spin 1s steps(2) infinite }",
+        );
+        assert!(sheet.warnings.is_empty(), "{:?}", sheet.warnings);
+        let terminal = Terminal::new(TestBackend::new(40, 12)).unwrap();
+        let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
+        app.push_stylesheet(sheet.stylesheet);
+        app.advance(0).unwrap();
+        // Sort descending: every row moved to the end, in reverse.
+        for &li in rows.iter().rev() {
+            app.dom_mut().append_child(ul, li).unwrap();
+        }
+        TEARDOWN_STEPS.with(|c| c.set(0));
+        app.advance(16).unwrap();
+        let steps = TEARDOWN_STEPS.with(std::cell::Cell::get);
+        assert!(steps <= 8 * n, "{n} rows: {steps} teardown steps");
+    }
+}

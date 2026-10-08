@@ -8766,3 +8766,13 @@ row comes from.
   for 1; green after, the summaries at rows 0, 2, 4, 6, 8 both before and after (checked against the old
   code with the layout assertion first); `a_nested_calc_size_resolves_inside_out` (factor 0.5) still
   resolves inside out. Mutation: the old `lay_out` restored alone gives the red count.
+- 2026-10-08 — C13G-TEARDOWN-COST (architect N7; CSS Animations 1 §4.1, DOM §4.2.3). Found: `detach` ran,
+  for each removed root, `nodes()` (collect, sort, dedup) and a `contains` climb per running element —
+  O(roots × entries × depth); since C12G-MOVE-RECORD a sort moves every row, so a 1000-row list with a
+  spinner per row paid ~5·10⁵ climbs in one frame. Decided: the removed roots go in a `HashSet` once;
+  each running element (`nodes()` once) climbs from its subject (a `::details-content` box from its
+  `<details>`) to the root, cancelled at the first removed ancestor — O(entries × depth) whatever the
+  number of roots; each root's subtree is then forgotten once (in `roots` order, duplicates skipped).
+  Red: `app/teardown_tests.rs` `sorting_a_list_of_spinners_tears_down_in_linear_time` — 5050 steps at 100
+  rows (bound 8 a row); green after at 100 and 1000 rows, the C12G-DETACHED tests unchanged. Mutation:
+  the old loop is the red count.

@@ -526,6 +526,8 @@ pub(crate) use diff::DIFF_VISITS;
 pub(crate) use diff::diff_and_register_in;
 pub use diff::{diff_and_register, diff_and_register_with, settle_restyled};
 #[cfg(test)]
+pub(crate) use teardown::TEARDOWN_STEPS;
+#[cfg(test)]
 mod behavior_tests;
 #[cfg(test)]
 mod custom_tests;
