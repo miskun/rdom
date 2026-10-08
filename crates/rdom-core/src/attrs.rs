@@ -343,16 +343,14 @@ impl<Ext: 'static> Dom<Ext> {
         Ok(swapped)
     }
 
-    /// Iterate class tokens in alphabetic order.
+    /// Iterate class tokens in alphabetic order. Allocates nothing (the
+    /// cascade asks once per element and pseudo-element it matches).
     pub fn class_list(&self, id: NodeId) -> impl Iterator<Item = &str> {
-        let slot = self.get_node(id);
-
-        match slot.map(|n| &n.data) {
-            Some(NodeData::Element { classes, .. }) => {
-                Box::new(classes.iter().map(String::as_str)) as Box<dyn Iterator<Item = &str>>
-            }
-            _ => Box::new(std::iter::empty()) as Box<dyn Iterator<Item = &str>>,
-        }
+        let classes = match self.get_node(id).map(|n| &n.data) {
+            Some(NodeData::Element { classes, .. }) => Some(classes),
+            _ => None,
+        };
+        classes.into_iter().flatten().map(String::as_str)
     }
 }
 

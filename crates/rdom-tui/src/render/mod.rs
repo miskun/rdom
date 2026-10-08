@@ -22,6 +22,7 @@ pub(crate) mod box_tree;
 pub mod buffer;
 pub mod cell;
 pub(crate) mod compose;
+pub(crate) mod highlight_index;
 pub mod inline;
 pub mod layout_pass;
 pub mod paint_pass;

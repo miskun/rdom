@@ -4,7 +4,7 @@
 //! `::first-letter`, `::details-content` and `::highlight()`. `::after` waits for the children
 //! (`walk::finish_element`): a `counter()` in it sees their increments.
 
-use super::matching::{MatchedRules, Recorder, Slot};
+use super::matching::{MatchedRules, Recorder, Rules, Slot};
 use super::pseudo::{before_targets, compute_pseudo_style};
 use super::walk::{ElementCx, compute_box};
 use crate::ext::TuiExt;
@@ -23,7 +23,7 @@ pub(super) struct EarlyPseudos {
     first_line: Option<ComputedStyle>,
     first_letter: Option<ComputedStyle>,
     details_content: Option<ComputedStyle>,
-    highlights: Vec<(std::sync::Arc<str>, ComputedStyle)>,
+    highlights: Option<crate::ext::HighlightStyles>,
 }
 
 impl EarlyPseudos {
@@ -37,14 +37,7 @@ impl EarlyPseudos {
         ext.computed_first_line = self.first_line.map(Rc::new);
         ext.computed_first_letter = self.first_letter.map(Rc::new);
         ext.computed_details_content = self.details_content.map(Rc::new);
-        ext.computed_highlights = (!self.highlights.is_empty()).then(|| {
-            Box::new(
-                self.highlights
-                    .into_iter()
-                    .map(|(name, style)| (name, Rc::new(style)))
-                    .collect(),
-            )
-        });
+        ext.computed_highlights = self.highlights;
         ext.computed_scrollbar = self.scrollbar.map(Rc::new);
         ext.computed_scrollbar_thumb_vertical = self.thumb_vertical.map(Rc::new);
         ext.computed_scrollbar_thumb_horizontal = self.thumb_horizontal.map(Rc::new);
@@ -162,20 +155,7 @@ pub(super) fn compute(
             )
         })
         .flatten();
-    // `::highlight(name)` (CSS Custom Highlight API 1 §5.1), for each
-    // name the sheets style — matched afresh, not cached per slot: there
-    // is one per name.
-    let sheets = cx.sheets;
-    let names = sheets.highlight_names();
-    let mut highlights = Vec::new();
-    for name in names {
-        let target = [PseudoElementTarget::Highlight(name.clone())];
-        if let Some(style) =
-            compute_pseudo_style(cx, computed, &target, super::matching::Rules::Match)
-        {
-            highlights.push((name.clone(), style));
-        }
-    }
+    let highlights = highlight_styles(cx, computed, cached, recorder);
     EarlyPseudos {
         details_content,
         highlights,
@@ -189,6 +169,67 @@ pub(super) fn compute(
         first_line,
         first_letter,
     }
+}
+
+/// `::highlight(name)` (CSS Custom Highlight API 1 §5.1), for each name
+/// the sheets style: from `cached` matches or by matching (recorded into
+/// `recorder`, the same matches shared across elements). A style equal to
+/// the parent element's for that name is the parent's, and a list equal to
+/// the parent's is the parent's: a `*::highlight(search)` rule over a
+/// document allocates per element only where its style differs.
+fn highlight_styles(
+    cx: &mut ElementCx<'_, '_>,
+    computed: &ComputedStyle,
+    cached: Option<&MatchedRules>,
+    recorder: &mut Recorder,
+) -> Option<crate::ext::HighlightStyles> {
+    use std::rc::Rc;
+    let names = cx.sheets.highlight_names();
+    if names.is_empty() {
+        return None;
+    }
+    let parent = cx
+        .dom
+        .node(cx.id)
+        .parent_node()
+        .and_then(|p| p.ext())
+        .and_then(|e| e.computed_highlights.clone());
+    let mut refs = std::mem::take(&mut cx.scratch.highlight_buf);
+    let mut styles = std::mem::take(&mut cx.scratch.highlight_styles);
+    refs.clear();
+    styles.clear();
+    for (k, name) in names.iter().enumerate() {
+        let rules = cached.map_or(Rules::Match, |m| m.highlight_rules(k));
+        let target = [PseudoElementTarget::Highlight(name.clone())];
+        let style = compute_pseudo_style(cx, computed, &target, rules);
+        if let Rules::Match = rules {
+            refs.push(cx.scratch.intern_highlight(k));
+        }
+        if let Some(style) = style {
+            let shared = parent
+                .as_deref()
+                .and_then(|p| p.iter().find(|(n, _)| n == name))
+                .filter(|(_, s)| **s == style)
+                .map(|(_, s)| s.clone());
+            styles.push((name.clone(), shared.unwrap_or_else(|| Rc::new(style))));
+        }
+    }
+    if refs.len() == names.len() {
+        recorder.record_highlights(cx.scratch.intern_highlights(&refs));
+    }
+    let out = match &parent {
+        _ if styles.is_empty() => None,
+        Some(p)
+            if p.len() == styles.len()
+                && p.iter().zip(&styles).all(|(a, b)| Rc::ptr_eq(&a.1, &b.1)) =>
+        {
+            Some(p.clone())
+        }
+        _ => Some(Rc::new(styles.clone())),
+    };
+    cx.scratch.highlight_buf = refs;
+    cx.scratch.highlight_styles = styles;
+    out
 }
 
 /// Whether a box styled `computed` is a block container — the boxes

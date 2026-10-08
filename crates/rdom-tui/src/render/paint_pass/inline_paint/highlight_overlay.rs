@@ -7,6 +7,11 @@
 //! the selection last, the topmost layer (§3.5), in its `::selection`
 //! style. One path for both.
 //!
+//! The layers come indexed by text node (`render::highlight_index`): a
+//! fragment is tested against the ranges that start and end in its own
+//! text node and those that span nodes — not every range of every
+//! highlight.
+//!
 //! A highlight style applies only the properties a highlight
 //! pseudo-element takes (§3.2: color, background, decorations — the rules
 //! were cut to them, `TuiStyle::highlight_subset`), and of those only the
@@ -17,75 +22,29 @@
 //! inheritance, approximated). The used `user-select` (`style::user_select`)
 //! excludes text from the selection's layer only.
 
-use std::sync::Arc;
+use std::borrow::Cow;
 
 use rdom_core::{Dom, NodeId, Position, Range};
 
 use crate::ext::TuiExt;
+use crate::render::highlight_index::{self, Layer, OverlayIndex, Source};
 use crate::render::inline::InlineFragment;
 use crate::render::paint_pass::text::decoration_style;
 use crate::render::{Buffer, Rect, Style};
 use crate::style::ComputedStyle;
 
-/// What one overlay layer paints in.
-#[derive(Debug, Clone)]
-enum Source {
-    /// The registered highlight of that name.
-    Highlight(Arc<str>),
-    /// The document selection.
-    Selection,
-}
+/// The overlays of one paint.
+pub(super) struct Overlays<'a>(Cow<'a, OverlayIndex>);
 
-/// One range of one layer.
-#[derive(Debug, Clone)]
-struct Layer {
-    range: Range,
-    source: Source,
-}
-
-/// The overlay layers of one paint, bottom first.
-#[derive(Debug, Default)]
-pub(super) struct Overlays {
-    layers: Vec<Layer>,
-}
-
-impl Overlays {
-    /// The document's overlays: each registered highlight's ranges, by
-    /// priority then registration order, then the selection when it is
-    /// not collapsed. `None` when there are none.
-    pub(super) fn of(dom: &Dom<TuiExt>) -> Option<Self> {
-        let selection = dom.selection_range().filter(|r| !r.is_collapsed());
-        let registry = dom.highlights();
-        if registry.is_empty() && selection.is_none() {
-            return None;
-        }
-        let mut order: Vec<(i32, usize, &str, &rdom_core::Highlight)> = registry
-            .iter()
-            .enumerate()
-            .map(|(k, (name, h))| (h.priority, k, name, h))
-            .collect();
-        order.sort_by_key(|&(priority, k, ..)| (priority, k));
-        let mut layers = Vec::new();
-        for (.., name, h) in order {
-            let name: Arc<str> = name.into();
-            for range in h.ranges() {
-                layers.push(Layer {
-                    range: range.clone(),
-                    source: Source::Highlight(name.clone()),
-                });
-            }
-        }
-        if let Some(range) = selection {
-            layers.push(Layer {
-                range,
-                source: Source::Selection,
-            });
-        }
-        Some(Overlays { layers })
+impl<'a> Overlays<'a> {
+    /// The document's overlays ([`highlight_index::current`]); `None`
+    /// when there is nothing to highlight.
+    pub(super) fn of(dom: &'a Dom<TuiExt>) -> Option<Self> {
+        highlight_index::current(dom).map(Overlays)
     }
 
-    /// Paint every layer over `fragment`, drawn at `frag_x` on row
-    /// `line_y` inside `clip`.
+    /// Paint every layer that may cover `fragment`'s text over it, drawn
+    /// at `frag_x` on row `line_y` inside `clip`.
     pub(super) fn paint(
         &self,
         dom: &Dom<TuiExt>,
@@ -95,7 +54,7 @@ impl Overlays {
         clip: Rect,
         fragment: &InlineFragment,
     ) {
-        for layer in &self.layers {
+        for layer in self.0.layers_of(fragment.text_node) {
             paint_layer(dom, buf, line_y, frag_x, clip, fragment, layer);
         }
     }
@@ -112,6 +71,8 @@ fn paint_layer(
     fragment: &InlineFragment,
     layer: &Layer,
 ) {
+    #[cfg(test)]
+    crate::render::highlight_index::cost::RANGE_TESTS.with(|c| c.set(c.get() + 1));
     let Some((byte_start, byte_end)) = range_bytes_in(dom, &layer.range, fragment.text_node) else {
         return;
     };

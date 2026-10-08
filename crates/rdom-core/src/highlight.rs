@@ -118,10 +118,20 @@ impl Highlight {
 /// tie-break of equal priorities (§5.2). Read it through
 /// [`Dom::highlights`](crate::Dom::highlights), change it through
 /// [`Dom::highlights_mut`](crate::Dom::highlights_mut).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub struct HighlightRegistry {
     entries: Vec<(String, Highlight)>,
+    /// Moves whenever a highlight or a range may have changed.
+    generation: u64,
 }
+
+impl PartialEq for HighlightRegistry {
+    fn eq(&self, other: &Self) -> bool {
+        self.entries == other.entries
+    }
+}
+
+impl Eq for HighlightRegistry {}
 
 impl HighlightRegistry {
     /// Register `highlight` as `name` (a map's `set`): a registered name
@@ -183,6 +193,27 @@ impl HighlightRegistry {
         self.entries.iter().map(|(n, h)| (n.as_str(), h))
     }
 
+    /// A number that moves whenever a registered highlight or one of its
+    /// ranges may have changed — at every [`Dom::highlights_mut`](crate::Dom::highlights_mut)
+    /// and every DOM mutation that moves a live range: a renderer that
+    /// indexes the ranges rebuilds its index when it moves.
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// Every boundary point of every registered range.
+    fn points(&self) -> impl Iterator<Item = &Position> {
+        self.entries
+            .iter()
+            .flat_map(|(_, h)| &h.ranges)
+            .flat_map(|r| [&r.start, &r.end])
+    }
+
+    /// Whether a boundary point of a registered range is in `node`.
+    fn has_point_in(&self, node: NodeId) -> bool {
+        self.points().any(|p| p.node == node)
+    }
+
     /// Every boundary point of every registered range.
     fn points_mut(&mut self) -> impl Iterator<Item = &mut Position> {
         self.entries.iter_mut().flat_map(|(_, h)| h.points_mut())
@@ -192,6 +223,7 @@ impl HighlightRegistry {
     /// of `node`'s data replaced by `len` bytes: a boundary inside the
     /// replaced bytes moves to `offset`, one after them by `len - count`.
     pub(crate) fn replace_data(&mut self, node: NodeId, offset: usize, count: usize, len: usize) {
+        self.generation = self.generation.wrapping_add(1);
         for p in self.points_mut().filter(|p| p.node == node) {
             if p.offset > offset && p.offset <= offset + count {
                 p.offset = offset;
@@ -204,6 +236,7 @@ impl HighlightRegistry {
     /// DOM §4.2.3 "insert" step 6, for one node inserted at `index` of
     /// `parent`'s children: a boundary in `parent` past `index` moves right.
     pub(crate) fn inserted(&mut self, parent: NodeId, index: usize) {
+        self.generation = self.generation.wrapping_add(1);
         for p in self.points_mut().filter(|p| p.node == parent) {
             if p.offset > index {
                 p.offset += 1;
@@ -221,6 +254,7 @@ impl HighlightRegistry {
         index: usize,
         inside: impl Fn(NodeId) -> bool,
     ) {
+        self.generation = self.generation.wrapping_add(1);
         for p in self.points_mut() {
             if inside(p.node) {
                 *p = Position::new(parent, index);
@@ -243,6 +277,7 @@ impl<Ext: 'static> crate::Dom<Ext> {
     /// mutations repaints the highlights.
     pub fn highlights_mut(&mut self) -> &mut HighlightRegistry {
         self.fire_mutation(crate::Mutation::HighlightsChanged);
+        self.highlights.generation = self.highlights.generation.wrapping_add(1);
         &mut self.highlights
     }
 
@@ -251,6 +286,8 @@ impl<Ext: 'static> crate::Dom<Ext> {
         let mut index = 0;
         let mut cur = self.get_node(id).and_then(|n| n.prev_sibling);
         while let Some(prev) = cur {
+            #[cfg(test)]
+            crate::highlight_tests::INDEX_HOPS.with(|c| c.set(c.get() + 1));
             index += 1;
             cur = self.get_node(prev).and_then(|n| n.prev_sibling);
         }
@@ -258,9 +295,16 @@ impl<Ext: 'static> crate::Dom<Ext> {
     }
 
     /// The live ranges after `child` was inserted under `parent` (DOM
-    /// §4.2.3 "insert" step 6). Free with no highlight registered.
+    /// §4.2.3 "insert" step 6: a boundary in `parent` past the insertion
+    /// index moves right). Free with no highlight registered, and for an
+    /// append — the index is the old child count, which no boundary
+    /// offset exceeds; elsewhere the index is walked only when a boundary
+    /// sits in `parent`.
     pub(crate) fn highlights_inserted(&mut self, parent: NodeId, child: NodeId) {
-        if self.highlights.is_empty() {
+        if self.highlights.is_empty()
+            || self.get_node(child).and_then(|n| n.next_sibling).is_none()
+            || !self.highlights.has_point_in(parent)
+        {
             return;
         }
         let index = self.child_index(child);
@@ -276,6 +320,12 @@ impl<Ext: 'static> crate::Dom<Ext> {
         let Some(parent) = self.get_node(id).and_then(|n| n.parent) else {
             return;
         };
+        // The index is walked only when a boundary moves: one in `parent`
+        // or inside the removed subtree.
+        let moves = |p: &Position| p.node == parent || self.is_ancestor(id, p.node);
+        if !self.highlights.points().any(moves) {
+            return;
+        }
         let index = self.child_index(id);
         let mut registry = std::mem::take(&mut self.highlights);
         registry.removing(parent, index, |n| self.is_ancestor(id, n));

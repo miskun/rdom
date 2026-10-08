@@ -207,6 +207,9 @@ impl LayoutExt for Dom<TuiExt> {
         // absolute and fixed ones with the elements).
         positioning::offset_in_flow_pseudos(self);
         intrinsic::end_pass(self);
+        // The highlight layers the paints after this layout read, indexed
+        // once (`highlight_index`).
+        crate::render::highlight_index::prepare(self);
     }
 }
 

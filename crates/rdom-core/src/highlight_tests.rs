@@ -127,3 +127,81 @@ fn ranges_follow_tree_changes() {
         "the text's range moves to (p, 1); the element range shifts left"
     );
 }
+
+thread_local! {
+    /// Sibling hops `Dom::child_index` walked.
+    pub(crate) static INDEX_HOPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// C10G-HIGHLIGHT-COST — DOM §4.2.3 "insert" step 6 moves a boundary in
+/// the parent only past the insertion index, and an appended child's index
+/// is the old child count, which no boundary exceeds: appending costs no
+/// walk of the siblings while a highlight is registered (a log appending
+/// lines under a search highlight walked every earlier line per append).
+/// An insertion elsewhere, or a removal, walks them only when a boundary
+/// sits in the parent (or, for a removal, inside the removed node).
+#[test]
+fn appending_under_a_highlight_walks_no_siblings() {
+    let (mut dom, p, t) = para("hit");
+    dom.highlights_mut()
+        .set("search", Highlight::new([range((t, 0), (t, 3))]));
+    let log = dom.create_element("div");
+    dom.append_child(dom.root(), log).unwrap();
+    INDEX_HOPS.with(|c| c.set(0));
+    for _ in 0..2000 {
+        let line = dom.create_element("div");
+        dom.append_child(log, line).unwrap();
+    }
+    let first = dom.node(log).first_child().unwrap().id();
+    let line = dom.create_element("div");
+    dom.insert_before(log, line, Some(first)).unwrap();
+    // Removing lines moves no boundary either: none is in the log.
+    for _ in 0..100 {
+        let last = dom.node(log).last_child().unwrap().id();
+        dom.remove_child(log, last).unwrap();
+    }
+    assert_eq!(INDEX_HOPS.with(std::cell::Cell::get), 0);
+    // A boundary in the log itself: an append still walks nothing.
+    dom.highlights_mut()
+        .set("top", Highlight::new([range((log, 0), (log, 1))]));
+    for _ in 0..500 {
+        let line = dom.create_element("div");
+        dom.append_child(log, line).unwrap();
+    }
+    assert_eq!(INDEX_HOPS.with(std::cell::Cell::get), 0, "appends");
+    assert_eq!(ranges(&dom, "top"), [range((log, 0), (log, 1))]);
+    // A boundary in the parent still moves (§4.2.3 step 6).
+    let mid = range((p, 0), (p, 1));
+    dom.highlights_mut().set("mid", Highlight::new([mid]));
+    let x = dom.create_element("b");
+    dom.insert_before(p, x, Some(t)).unwrap();
+    assert_eq!(ranges(&dom, "mid"), [range((p, 0), (p, 2))]);
+}
+
+/// DOM §4.2.3 "insert" step 4: inserting a `DocumentFragment` first removes
+/// its children from it, which moves a live range inside them to `(fragment,
+/// 0)` ("remove" step 4) — the fragment's children go through the remove
+/// hook as any other removal does.
+#[test]
+fn inserting_a_fragment_removes_its_children_from_it_first() {
+    for append in [true, false] {
+        let (mut dom, p, t) = para("x");
+        let fragment = dom.create_document_fragment();
+        let b = dom.create_element("b");
+        let inner = dom.create_text_node("inner");
+        dom.append_child(b, inner).unwrap();
+        dom.append_child(fragment, b).unwrap();
+        dom.highlights_mut()
+            .set("h", Highlight::new([range((inner, 1), (inner, 3))]));
+        if append {
+            dom.append_child(p, fragment).unwrap();
+        } else {
+            dom.insert_before(p, fragment, Some(t)).unwrap();
+        }
+        assert_eq!(
+            ranges(&dom, "h"),
+            [range((fragment, 0), (fragment, 0))],
+            "append {append}"
+        );
+    }
+}

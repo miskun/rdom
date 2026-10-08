@@ -183,10 +183,12 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - `css_syntax::serialize_string` / `serialize_identifier` (CSSOM §2.1): the inverses of `consume_string` / `consume_ident`. (C1G-VAR-TOKENS)
 - **`:is()`** (Selectors 4 §4.2) parses into `SimpleSelector::Is`, with the specificity of its most specific argument; the list is forgiving (an unparsable argument is dropped, an empty `:is()` matches nothing). (C1G-IS-PARSE)
 - **Document data** (`Dom::document_data` / `document_data_mut` / `set_document_data` / `remove_document_data`): per-document backend state, one value per Rust type; rdom-tui keeps the viewport there. (C2G-VIEWPORT-DOC)
+- **`HighlightRegistry::generation()`**: a number that moves whenever a registered highlight or one of its live ranges may have changed, so a renderer can index the ranges once and rebuild the index only when it moves. (C10G-HIGHLIGHT-COST)
 
 ### Fixed — `rdom-core`
 
 - **Pseudo-class names are ASCII case-insensitive** (Selectors 4 §3.1): `a:HOVER` is `a:hover`. (C1-CASE)
+- **Live highlight ranges follow a `DocumentFragment` insertion** (DOM §4.2.3 "insert" step 4): a range inside the fragment's children moves to `(fragment, 0)` as they leave it; and appending, or inserting or removing where no boundary is, walks no siblings while a highlight is registered. (C10G-HIGHLIGHT-COST)
 
 ### Breaking — `rdom-style`
 
@@ -682,6 +684,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **Laying out many sibling blocks is linear again**: placing list markers (CSS Lists 3 §3.5) walked a parent's whole box sequence for every packed line — 8 million box visits for 2000 rows, now 18 000 — and is skipped in a document with no list item. (C10G-MARKER-COST)
 - **A pointer on an outside list marker hits its list item** (CSS Lists 3 §3.5): a click on a bullet targets the `li` (it reached the list under it), `hit_test_pseudo` names the marker and `li::marker:hover` applies; an absolutely positioned inline `::before` starts where its host's first line does (CSS 2.1 §10.3.7). (C10G-MARKER-HIT)
 - **`::selection`'s UA colors apply as a pair** (CSS Pseudo-Elements 4 §3.4): an author `color` or `background-color` on `::selection` drops the UA's other half, so `::selection { background-color: yellow }` no longer paints white text. (C10G-SELECTION-PAIRED)
+- **Highlights cost what they touch**: the ranges are indexed by text node once per layout, not copied per inline flow per paint; a `*::highlight()` style is shared by elements that compute the same; a restyle reuses its matches; every element and pseudo-element cascades with two fewer allocations. (C10G-HIGHLIGHT-COST)
 
 ### Changed — `rdom-showcase`
 

@@ -48,6 +48,14 @@ pub(super) struct Scratch<'a> {
     /// whose trailing pseudo-classes do not hold (`::first-letter:hover`
     /// off the letter): the pseudo-element exists, unstyled by it.
     pub(super) gated: bool,
+    /// The last `::highlight()` matches recorded per name and the last
+    /// list of them: elements matching the same rules share them
+    /// ([`intern_highlights`](Self::intern_highlights)).
+    highlight_refs: Vec<Rc<[MatchRef]>>,
+    highlight_list: Option<HighlightRefs>,
+    /// Buffers of one element's `::highlight()` boxes, reused.
+    pub(super) highlight_buf: Vec<Rc<[MatchRef]>>,
+    pub(super) highlight_styles: Vec<(std::sync::Arc<str>, Rc<crate::style::ComputedStyle>)>,
 }
 
 /// One matched rule: which of the requested targets it styles, its
@@ -116,11 +124,21 @@ const SLOTS: usize = 12;
 pub(crate) struct MatchedRules {
     stamp: Rc<PropertyRegistry>,
     slots: [Option<Rc<[MatchRef]>>; SLOTS],
+    /// The `::highlight(name)` boxes' matches, by the name's place in
+    /// `Sheets::highlight_names`; `None` when they were not matched.
+    highlights: Option<HighlightRefs>,
 }
+
+/// The matches of each `::highlight()` name, in `Sheets::highlight_names`
+/// order — shared by the elements whose matches are the same
+/// ([`Scratch::intern_highlights`]).
+pub(super) type HighlightRefs = Rc<[Rc<[MatchRef]>]>;
 
 impl PartialEq for MatchedRules {
     fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.stamp, &other.stamp) && self.slots == other.slots
+        Rc::ptr_eq(&self.stamp, &other.stamp)
+            && self.slots == other.slots
+            && self.highlights == other.highlights
     }
 }
 
@@ -138,6 +156,14 @@ impl MatchedRules {
             None => Rules::Match,
         }
     }
+
+    /// The rules of the `k`th `::highlight()` name, as [`rules`](Self::rules).
+    pub(super) fn highlight_rules(&self, k: usize) -> Rules<'_> {
+        match self.highlights.as_deref().and_then(|h| h.get(k)) {
+            Some(refs) => Rules::Cached(refs),
+            None => Rules::Match,
+        }
+    }
 }
 
 /// Builds an element's [`MatchedRules`] as its boxes are matched,
@@ -145,6 +171,7 @@ impl MatchedRules {
 pub(super) struct Recorder {
     previous: Option<Rc<MatchedRules>>,
     slots: [Option<Rc<[MatchRef]>>; SLOTS],
+    highlights: Option<HighlightRefs>,
     changed: bool,
 }
 
@@ -155,15 +182,32 @@ impl Recorder {
     /// without, every box is matched afresh and an unmatched one has
     /// none.
     pub(super) fn new(previous: Option<Rc<MatchedRules>>, reuse: bool) -> Self {
-        let slots = match &previous {
-            Some(p) if reuse => p.slots.clone(),
+        let (slots, highlights) = match &previous {
+            Some(p) if reuse => (p.slots.clone(), p.highlights.clone()),
             _ => Default::default(),
         };
         Recorder {
             changed: previous.is_none(),
             previous,
             slots,
+            highlights,
         }
+    }
+
+    /// The `::highlight()` boxes' matches, every name matched afresh.
+    pub(super) fn record_highlights(&mut self, refs: HighlightRefs) {
+        let kept = self
+            .previous
+            .as_ref()
+            .and_then(|p| p.highlights.as_ref())
+            .filter(|old| **old == refs);
+        self.highlights = Some(match kept {
+            Some(old) => old.clone(),
+            None => {
+                self.changed = true;
+                refs
+            }
+        });
     }
 
     /// `slot`'s matches: the last [`Scratch::collect`].
@@ -187,16 +231,56 @@ impl Recorder {
     /// rules, else a new one.
     pub(super) fn finish(self, sheets: &Sheets<'_>) -> Rc<MatchedRules> {
         match self.previous {
-            Some(previous) if !self.changed && previous.slots == self.slots => previous,
+            Some(previous)
+                if !self.changed
+                    && previous.slots == self.slots
+                    && previous.highlights == self.highlights =>
+            {
+                previous
+            }
             _ => Rc::new(MatchedRules {
                 stamp: sheets.stamp().clone(),
                 slots: self.slots,
+                highlights: self.highlights,
             }),
         }
     }
 }
 
 impl<'a> Scratch<'a> {
+    /// The last [`collect`](Self::collect)'s matches, as the `k`th
+    /// highlight name's record: the one recorded last for that name when
+    /// they are the same (no allocation), else a new one.
+    pub(super) fn intern_highlight(&mut self, k: usize) -> Rc<[MatchRef]> {
+        let current = self.matching.iter().map(Matched::as_ref);
+        if let Some(last) = self.highlight_refs.get(k)
+            && last.iter().copied().eq(current.clone())
+        {
+            return last.clone();
+        }
+        let refs: Rc<[MatchRef]> = current.collect();
+        if k < self.highlight_refs.len() {
+            self.highlight_refs[k] = refs.clone();
+        } else {
+            self.highlight_refs.resize(k + 1, refs.clone());
+        }
+        refs
+    }
+
+    /// `refs` (one per highlight name) as a shared list: the last one
+    /// built when its records are the same ones, else a new one.
+    pub(super) fn intern_highlights(&mut self, refs: &[Rc<[MatchRef]>]) -> HighlightRefs {
+        if let Some(list) = &self.highlight_list
+            && list.len() == refs.len()
+            && list.iter().zip(refs).all(|(a, b)| Rc::ptr_eq(a, b))
+        {
+            return list.clone();
+        }
+        let list: HighlightRefs = refs.iter().cloned().collect();
+        self.highlight_list = Some(list.clone());
+        list
+    }
+
     /// [`collect`](Self::collect) or [`load`](Self::load), per `rules`.
     pub(super) fn gather(
         &mut self,
@@ -252,7 +336,7 @@ impl<'a> Scratch<'a> {
             sheet.rule_index().candidates(
                 node.tag_name(),
                 node.id_attr(),
-                node.class_list().iter(),
+                dom.class_list(id),
                 &mut self.candidates,
             );
             for &ri in &self.candidates {

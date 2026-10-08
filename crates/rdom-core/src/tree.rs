@@ -51,27 +51,16 @@ impl<Ext: 'static> Dom<Ext> {
     pub fn append_child(&mut self, parent: NodeId, child: NodeId) -> Result<()> {
         self.validate_insert(parent, child)?;
 
-        // Fragment: splice its children in, leave the fragment empty.
+        // Fragment: splice its children in, leave the fragment empty. Each
+        // child is removed from the fragment as any removal is (DOM §4.2.3
+        // "insert" step 4 — the live ranges inside it move out), by the
+        // detach that inserting it starts with.
         if matches!(
             self.get_node(child).map(|n| &n.data),
             Some(NodeData::Fragment)
         ) {
-            let mut current = self.get_node(child).and_then(|n| n.first_child);
-            // Clear fragment's child pointers up front; we re-link below.
-            if let Some(n) = self.get_node_mut(child) {
-                n.first_child = None;
-                n.last_child = None;
-            }
-            while let Some(c) = current {
-                // Capture next sibling before detaching.
-                let next = self.get_node(c).and_then(|n| n.next_sibling);
-                if let Some(n) = self.get_node_mut(c) {
-                    n.prev_sibling = None;
-                    n.next_sibling = None;
-                    n.parent = None;
-                }
+            while let Some(c) = self.get_node(child).and_then(|n| n.first_child) {
                 self.append_child(parent, c)?;
-                current = next;
             }
             return Ok(());
         }
@@ -138,20 +127,10 @@ impl<Ext: 'static> Dom<Ext> {
             self.get_node(new_child).map(|n| &n.data),
             Some(NodeData::Fragment)
         ) {
-            let mut current = self.get_node(new_child).and_then(|n| n.first_child);
-            if let Some(n) = self.get_node_mut(new_child) {
-                n.first_child = None;
-                n.last_child = None;
-            }
-            while let Some(c) = current {
-                let next = self.get_node(c).and_then(|n| n.next_sibling);
-                if let Some(n) = self.get_node_mut(c) {
-                    n.prev_sibling = None;
-                    n.next_sibling = None;
-                    n.parent = None;
-                }
+            // As `append_child`: each child leaves the fragment through the
+            // detach its insertion starts with (DOM §4.2.3 step 4).
+            while let Some(c) = self.get_node(new_child).and_then(|n| n.first_child) {
                 self.insert_before(parent, c, Some(reference))?;
-                current = next;
             }
             return Ok(());
         }

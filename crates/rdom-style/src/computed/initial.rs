@@ -8,7 +8,14 @@ use crate::layout::{
 };
 use crate::{Color, Modifier};
 
-use super::ComputedStyle;
+use super::{ComputedStyle, VarMap};
+
+thread_local! {
+    /// The empty `var()` map every initial style shares: building one is
+    /// the cascade's commonest step (each element and pseudo-element
+    /// starts from it), and a fresh map per start was an allocation each.
+    static NO_VARS: VarMap = Rc::new(std::collections::HashMap::new());
+}
 
 impl ComputedStyle {
     /// Spec initial values: what every property starts as before any
@@ -146,7 +153,7 @@ impl ComputedStyle {
             counter_increment: Vec::new(),
             counter_set: Vec::new(),
             color_scheme: crate::color::ColorSchemeList::normal(),
-            vars: Rc::new(std::collections::HashMap::new()),
+            vars: NO_VARS.with(Rc::clone),
             animated_vars: None,
         }
     }

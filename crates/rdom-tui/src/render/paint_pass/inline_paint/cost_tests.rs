@@ -59,3 +59,51 @@ fn a_clamp_point_is_walked_by_layout_only() {
     let (_, clamp_walks) = paint_walks(".d { line-clamp: 2 }", 5, 1, 3);
     assert_eq!(clamp_walks, 0);
 }
+
+/// C10G-HIGHLIGHT-COST (TECH_DEBT `HIGHLIGHT-COST-1`) — a highlight's
+/// ranges (CSS Custom Highlight API 1 §5) are indexed once, not copied
+/// into a layer list for every inline formatting context on every paint,
+/// and a painted fragment is tested against the ranges that touch its own
+/// text node (and the few that span nodes), not every range of every
+/// highlight: `n` paragraphs, a search highlight of 100 hits in the
+/// first, painted 3 times.
+#[test]
+fn highlight_ranges_are_indexed_not_copied_per_flow() {
+    use crate::render::highlight_index::cost::{RANGE_COPIES, RANGE_TESTS};
+    let n = 50;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let mut texts = Vec::new();
+    for k in 0..n {
+        let p = dom.create_element("p");
+        let t = dom.create_text_node(&if k == 0 { "x ".repeat(100) } else { "y".into() });
+        dom.append_child(p, t).unwrap();
+        dom.append_child(root, p).unwrap();
+        texts.push(t);
+    }
+    let hits = (0..100).map(|i| {
+        rdom_core::Range::ordered_unchecked(
+            rdom_core::Position::new(texts[0], 2 * i),
+            rdom_core::Position::new(texts[0], 2 * i + 1),
+        )
+    });
+    dom.highlights_mut()
+        .set("search", rdom_core::Highlight::new(hits));
+    let sheet =
+        rdom_css::from_css_strict("::highlight(search) { background-color: yellow }").unwrap();
+    let area = Rect::new(0, 0, 220, 60);
+    dom.cascade(&sheet);
+    dom.layout_dom(area);
+    RANGE_COPIES.with(|c| c.set(0));
+    RANGE_TESTS.with(|c| c.set(0));
+    for _ in 0..3 {
+        let mut buf = Buffer::empty(area);
+        dom.paint_dom(&mut buf, area);
+    }
+    let (copies, tests) = (
+        RANGE_COPIES.with(|c| c.get()),
+        RANGE_TESTS.with(|c| c.get()),
+    );
+    assert_eq!(copies, 0, "ranges copied while painting");
+    assert!(tests <= 3 * 100, "{tests} range tests for 3 paints");
+}

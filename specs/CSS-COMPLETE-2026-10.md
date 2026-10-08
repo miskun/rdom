@@ -6550,3 +6550,40 @@ row comes from.
   `(red, yellow)`; green after (also `(red, blue)` with only `color` set, and the UA pair untouched with
   neither). Mutation (the background reset dropped, restored, touched): the `color`-only row fails with the
   UA's `Rgb(57, 75, 126)` background. No existing expectation or snapshot changed.
+- 2026-10-13 — C10G-HIGHLIGHT-COST (architect N1, N2, N3; API N3.5; closes TECH_DEBT `HIGHLIGHT-COST-1`).
+  Found, by counting (red first, each): (1) rdom-core walked every earlier sibling (`child_index`) on each
+  insertion while a highlight was registered — 1 999 000 hops for 2000 appends under one search highlight
+  — and each removal too; (2) inserting a `DocumentFragment` unlinked its children by hand, so a live range
+  inside them stayed there (DOM §4.2.3 "insert" step 4 removes them first: it moves to `(fragment, 0)`);
+  (3) `Overlays::of` copied every range of every highlight into a layer list for each inline formatting
+  context's paint (15 000 copies for 50 paragraphs, 100 hits, 3 paints) and every fragment tested every
+  range; (4) a `*::highlight(search)` rule allocated a style and a list per element per cascade (420
+  allocations for 300 over 20 elements) and a restyle matched it again. Fixed at each root: (1) an append
+  moves no boundary (its index is the old child count, which no offset exceeds) and is skipped; an
+  insertion or removal elsewhere walks the siblings only when a boundary sits in the parent or inside the
+  removed node; (2) the fragment branches of `append_child` / `insert_before` insert each child in turn,
+  so each leaves the fragment through `detach_from_parent` and its remove hook; (3) a new
+  `render::highlight_index` keys an `OverlayIndex` by `HighlightRegistry::generation()` (new, rdom-core:
+  moves at every `highlights_mut()` and every live-range move) and the selection, indexes the layers by
+  text node (ranges within one node by that node, ranges spanning nodes apart, merged in paint order per
+  fragment), is built once at the end of `layout_dom` (document data), and a paint after a change no
+  layout saw builds its own; (4) the `::highlight()` matches are recorded in `MatchedRules` per name
+  (shared across elements through the pass's `Scratch`) and reloaded by a restyle, a style equal to the
+  parent's for that name is the parent's `Rc`, and an equal list is the parent's
+  (`TuiExt::computed_highlights` is an `Rc<Vec<…>>`). Getting (4) to zero per element found two
+  allocations every element and pseudo-element paid: `Dom::class_list` boxed its iterator (now a concrete
+  one; rule matching reads it instead of a `DomTokenList` snapshot), and `ComputedStyle::initial()` built
+  a fresh empty `var()` map (now one per thread, shared — immutable, so no test-order dependence; the
+  allocation test helper builds it before counting). Decision: build the index at layout, not at paint —
+  paint takes `&Dom`, layout is the `&mut` step before every paint, and the key makes a stale index
+  harmless. Tests: rdom-core `highlight_tests.rs::appending_under_a_highlight_walks_no_siblings` (0 hops for
+  2000 appends, an insertion and 100 removals with no boundary in the log, and 500 appends with one) and
+  `inserting_a_fragment_removes_its_children_from_it_first`; rdom-tui
+  `inline_paint/cost_tests.rs::highlight_ranges_are_indexed_not_copied_per_flow` (0 copies, ≤ 300 range
+  tests for 3 paints), `cascade/cost_tests.rs::a_universal_highlight_rule_shares_its_style` (equal
+  per-element allocations with and without the rule: 160 = 160) and
+  `a_restyle_reuses_the_highlight_matches` (0 selector matches). All red on HEAD as quoted, green after;
+  the plain baseline itself fell from 300 to 160 allocations per 20 elements. Mutation (restored,
+  touched): no append fast path → 1 075 250 hops; no removal gate → 195 050 hops; the prepared index
+  ignored → 15 000 copies; no node index → 15 000 range tests; no style sharing → 220 allocations for
+  160; highlight matches never reloaded → 1 match. No existing expectation or snapshot changed.

@@ -20,6 +20,12 @@ use crate::render::inline::InlineLayout;
 use crate::runtime::editing::EditorState;
 use crate::style::{ComputedStyle, TuiStyle};
 
+/// An element's `::highlight(name)` computed styles, one per name a rule
+/// matching it styles (CSS Custom Highlight API 1 §5.1) — shared with its
+/// parent when they are the parent's.
+pub(crate) type HighlightStyles =
+    std::rc::Rc<Vec<(std::sync::Arc<str>, std::rc::Rc<ComputedStyle>)>>;
+
 /// `<select>` type-ahead state (see `runtime::builtins::select`).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct TypeaheadState {
@@ -356,10 +362,9 @@ pub struct TuiExt {
     /// §5.1): one per name a `::highlight()` rule matching this element
     /// styles. The highlight overlay paint reads the nearest ancestor's
     /// for a name, as `::selection`'s; `None` with none (most elements).
-    /// A thin `Box`, as `floated_pseudos` is.
-    #[allow(clippy::type_complexity, clippy::box_collection)]
-    pub(crate) computed_highlights:
-        Option<Box<Vec<(std::sync::Arc<str>, std::rc::Rc<ComputedStyle>)>>>,
+    /// A thin `Rc`, shared with the parent's when the styles are its
+    /// (`cascade::early_pseudos`).
+    pub(crate) computed_highlights: Option<HighlightStyles>,
     /// `::scrollbar` pseudo-element computed style — populated
     /// for elements with non-`Visible`/`Hidden` overflow on at
     /// least one axis. Drives the scrollbar track paint: `bg`

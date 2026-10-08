@@ -262,6 +262,9 @@ fn cascade_allocations(css: &str, n: usize) -> u64 {
         dom.append_child(p, div).unwrap();
     }
     let css = sheet(css);
+    // The thread's shared empty `var()` map, built on first use, is no
+    // per-element cost.
+    let _ = ComputedStyle::initial();
     crate::test_alloc::allocations_in(|| dom.cascade(&css))
 }
 
@@ -296,4 +299,42 @@ fn an_inherited_calc_text_indent_is_shared_not_copied() {
     let plain = per_element(".p { color: red; text-indent: 2 }");
     let calc = per_element(".p { color: red; text-indent: calc(50% + 2) }");
     assert_eq!(calc, plain, "20 elements: {calc} allocations for {plain}");
+}
+
+/// C10G-HIGHLIGHT-COST. A `::highlight(name)` rule with no compound before
+/// it (`*::highlight(search)`, CSS Custom Highlight API 1 §5.1) styles every
+/// element, and an element's highlight style is most often its parent's:
+/// it is shared, so a plain element cascades with the same allocations
+/// whether a highlight is styled or not (it allocated a style and a list
+/// per element per name).
+#[test]
+fn a_universal_highlight_rule_shares_its_style() {
+    let per_element = |css: &str| cascade_allocations(css, 40) - cascade_allocations(css, 20);
+    let plain = per_element(".p { color: red }");
+    let styled = per_element(".p { color: red } ::highlight(search) { background-color: yellow }");
+    assert_eq!(
+        styled, plain,
+        "20 elements: {styled} allocations for {plain}"
+    );
+}
+
+/// C10G-HIGHLIGHT-COST. A restyle that recomputes an element (a
+/// registered custom property's transition, `walk::Mode::Restyle`) reloads
+/// its recorded `::highlight()` matches as it reloads its other boxes' —
+/// no selector is matched again.
+#[test]
+fn a_restyle_reuses_the_highlight_matches() {
+    let mut dom = one_div();
+    let div = dom.node(dom.root()).first_child().unwrap().id();
+    let css = sheet("div { color: red } ::highlight(search) { background-color: yellow }");
+    let sheets = [&css];
+    let registry = Rc::new(PropertyRegistry::new(&sheets));
+    cascade_all_with(&mut dom, &sheets, Some(registry.clone()));
+    // A stale style: the restyle computes the element afresh.
+    dom.node_mut(div).ext_mut().unwrap().computed = Some(Rc::new(ComputedStyle::initial()));
+    super::matching::probe::take();
+    restyle_vars(&mut dom, &sheets, registry, &[div]);
+    assert_eq!(super::matching::probe::take(), 0, "selectors matched");
+    let ext = dom.node(div).ext().unwrap();
+    assert!(ext.computed_highlight("search").is_some());
 }
