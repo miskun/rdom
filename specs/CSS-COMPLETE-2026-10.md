@@ -8909,3 +8909,28 @@ row comes from.
   `a_virtual_table_ports_to_css_tables` (columns `[12, 6, 12]`, the long cell clipped at its padding edge,
   the chip at (28, 0)). The first draft of the last expected the clip at the content edge; `overflow: hidden`
   clips at the padding box (CSS Overflow 3 §3), so the pin and the example say so.
+- 2026-10-09 — C13G-DOCS (API N3, N5, N6; docs and pins). (1) DIVERGENCES' `border-collapse` entry said collapse
+  reaches only a container's direct children and every container in the chain must declare it — false for a
+  table, whose formatting context collapses the borders of cells under rows and row groups (CSS 2.1 §17.6.2):
+  retitled "does not inherit, and outside a table it collapses a flex or block container's direct children",
+  the table named as the one collapse context of its grid, and the inheritance axis now says a table nested
+  in a collapsed table's cell is separated unless it declares collapse. (2) CSS-COVERAGE's `display: table`,
+  `table-layout` and `caption-side` rows pointed at the deleted `runtime/builtins/table` / "table builtin":
+  now `render/layout_pass/table/` (and its `place.rs` for captions). (3) The table builder's module doc names
+  `empty-cells` and where `border-collapse` / `border-spacing` are set. (4) README.md's historical "0.1.0
+  substrate" section is back to its wording (`<table>` family + column-width sync), which C13-TFC had
+  rewritten; its UA rule count, kept current by convention, is 187 (C13G-TABLE-UA missed it). (5) Pins
+  (`css_phase13/paint.rs`, new; held on first run): `zebra_rows_paint_across_their_cells` (the stripe on cells
+  0–6 of the even row, padding included, not the odd rows, not past the table) and
+  `a_wide_table_scrolls_in_an_overflow_auto_wrapper` (a block wrapper: the table shrinks to it, 16, and wraps;
+  at `width: max-content` 25 wide, `scroll_width` 25, the row clipped at the wrapper). `width: 100%` and `th`
+  defaults were pinned by C13G-TABLE-UA and C13G-TH-CAPTION. Found writing the wrapper pin: an `overflow:
+  auto` box that is a direct child of the document root shows a vertical scrollbar it does not need
+  (`scroll_height` 3 for a 2-row table, 5 for three lines of plain text — not table-specific), while the same
+  box inside a block does not; the root's flex-column layout is the suspect, so it is left to C13-ROOT-BLOCK
+  (batch C), and the pins and the README recipe nest the wrapper in a block. (6) rdom-tui README "Tables": a
+  doctested data table — collapsed borders, zebra body rows, `col.num || td { text-align: right }`, `width:
+  max-content` in an `overflow: auto` wrapper, `table_tracks()` for headers — asserting painted rows, the
+  stripe and the column ranges `[1..19, 20..26]`. (7) ACID tile 14 adds zebra rows, unstyled `th` and caption
+  defaults, a bordered `width: 100%` table, a `table-layout: fixed` table and an anonymous table, with what
+  each verifies (ACID.md is still a proposal).

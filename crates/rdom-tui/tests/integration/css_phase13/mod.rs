@@ -11,6 +11,7 @@ mod columns;
 mod display;
 mod gaps;
 mod html;
+mod paint;
 mod props;
 mod tfc;
 mod tracks;

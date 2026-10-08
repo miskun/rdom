@@ -228,6 +228,65 @@ fn main() -> std::result::Result<(), StyleError> {
 
 A node can carry the same declarations inline: `set_grid()`, `set_grid_template_columns(…)`, `set_grid_area_named("head")`, `set_grid_row(…)` and the other `TuiNodeMutExt` grid setters.
 
+## Tables
+
+HTML tables, and `display: table` on any element, lay out in a table formatting context (CSS 2.1 §17): columns sized by the automatic or `fixed` algorithm, `colspan` / `rowspan`, captions, separated borders with `border-spacing` or collapsed ones joined into junctions — all in whole cells. The UA sheet is HTML's: `th` bold and centred, `caption` centred, rows centring their cells, no borders. A data table — collapsed borders, zebra rows, a right-aligned numeric column picked by the column combinator, one-line rows at `width: max-content` in a wrapper that scrolls — and its used column ranges read back with `table_tracks()`, for a header or a resize handle drawn outside it:
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        "
+        .scroll { width: 20; overflow: auto }
+        table   { width: max-content; border-collapse: collapse }
+        th, td  { border: solid }
+        tbody tr:nth-child(even) { background-color: rgb(0, 0, 80) }
+        col.num || td { text-align: right }
+        ",
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    rdom_parser::parse_into(
+        &mut dom,
+        r#"<div><div class="scroll"><table id="files">
+             <colgroup><col><col class="num"></colgroup>
+             <thead><tr><th>File</th><th>Size</th></tr></thead>
+             <tbody>
+               <tr><td>notes.txt</td><td>12</td></tr>
+               <tr><td>build-output.log</td><td>4096</td></tr>
+               <tr><td>b</td><td>7</td></tr>
+             </tbody>
+           </table></div></div>"#,
+        root,
+    )?;
+
+    let area = Rect::new(0, 0, 30, 11);
+    dom.cascade(&sheet);
+    dom.layout_dom(area);
+    let mut buf = Buffer::empty(area);
+    dom.paint_dom(&mut buf, area);
+
+    let row = |y: u16| -> String { (0..20).map(|x| buf.cell(x, y).unwrap().symbol()).collect() };
+    // The table is 27 cells wide; the wrapper shows 20 and scrolls.
+    assert_eq!(row(1), "│       File       │");
+    assert_eq!(row(3), "│ notes.txt        │");
+    assert_eq!(row(5), "│ build-output.log │");
+    // The even body row is striped across its cells.
+    assert_eq!(buf.cell(3, 5).unwrap().bg, Color::Rgb(0, 0, 80));
+    assert_ne!(buf.cell(3, 3).unwrap().bg, Color::Rgb(0, 0, 80));
+
+    // Each column's cells from the table's content edge, the one-cell
+    // collapsed lines between them: a header drawn elsewhere lines up.
+    let table = dom.get_element_by_id("files").unwrap();
+    let tracks = dom.node(table).table_tracks().unwrap();
+    assert_eq!(tracks.columns(), [1..19, 20..26]);
+    Ok(())
+}
+```
+
+Scroll the wrapper (`scroll_to`) to bring the `Size` column, right-aligned by `col.num || td`, into view. Without `width: max-content` the table shrinks to its wrapper and wraps its cells, as a browser's does; `td { white-space: nowrap }` keeps rows one line either way. For exact column widths use `table-layout: fixed` with a table `width`: the first row's cells and the `<col>`s set the columns, and rows added later cannot move them.
+
 ## Floats and text overflow
 
 `float` / `clear` follow CSS 2.1 §9.5: a float leaves the line, lines beside it are shortened, and `clear` moves a box below it; a box that establishes a block formatting context (`overflow: hidden`, `display: flow-root`) contains its floats, and so does the clearfix — an empty block `::after` that clears. `text-overflow` marks a clipped line's cut edge, and `line-clamp` ends a block after its Nth line with an ellipsis. A float floats where its parent lays out in block flow: the document root's children are items of rdom's viewport column, so put the content in a `<body>`, as a browser's is.

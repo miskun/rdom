@@ -1,5 +1,7 @@
 //! The table setters of the `TuiStyle` builder: `table-layout` (CSS 2.1
-//! §17.5.2) and `caption-side` (§17.4.1).
+//! §17.5.2), `caption-side` (§17.4.1) and `empty-cells` (§17.6.1.1).
+//! `border-collapse` (`builder/mod.rs`) and `border-spacing` (`decoration.rs`)
+//! are set elsewhere, beside the other border setters.
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
