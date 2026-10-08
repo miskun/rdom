@@ -408,6 +408,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **Rust-built flex factors stay in `<number [0,∞]>`** (CSS Flexbox §7.1): a negative, zero or NaN `Size::Flex` weight is `Size::Auto`, an infinite one `f32::MAX`, a negative or NaN shrink 0. New `Size::validated`, `layout::valid_flex_factor`, saturating `Padding::horizontal` / `vertical`. (C2G-LAYOUT-SAFETY)
 - A side longhand replayed from `pending` after its shorthand in the same block keeps the shorthand's other sides: `margin: 1; margin-left: var(--x)` is 1 on top, right and bottom (they were 0). (C5-LOGICAL)
 - **A pseudo-element with no compound before it attaches to the implicit `*`** (Selectors 4 §5.2): `*, ::before, ::after { … }` applies (the rule was dropped), and `div ::before` is `div *::before` (it styled the `div`'s own). (C5G-BARE-PSEUDO)
+- **The 60-code-point cap of a counter representation holds for every system** (CSS Counter Styles 3 §3.1): a `numeric` or `alphabetic` style counts its digits before building, so a huge value in long symbols falls back without first building hundreds of code points. (C10G-MINOR)
 
 ### Added — `rdom-css`
 

@@ -9,9 +9,10 @@ use super::style::{CounterStyle, CounterStyleLookup};
 /// The longest representation generated, in Unicode code points (§3.1:
 /// UAs "must support representations at least 60 Unicode codepoints
 /// long" and may use the fallback style past that). A longer one —
-/// a `symbolic` or `additive` style's huge value, a large `pad` — is
-/// not built: the fallback style writes the value instead, and `pad`
-/// never pads past it. This bounds every allocation by the cap.
+/// a huge value in a `symbolic`, `additive`, `numeric` or `alphabetic`
+/// style, a large `pad` — is not built: each system counts before it
+/// builds, the fallback style writes the value instead, and `pad` never
+/// pads past it. This bounds every allocation by the cap.
 pub const MAX_REPRESENTATION_CHARS: usize = 60;
 
 /// How many styles a fallback (§3.7) or `extends` (§3.1.7) chain visits
@@ -204,7 +205,7 @@ fn represent(style: &Resolved<'_>, name: &str, value: i32, rtl: bool) -> Option<
         }
         System::Symbolic => symbolic(style.symbols, magnitude)?,
         System::Alphabetic => alphabetic(style.symbols, magnitude)?,
-        System::Numeric => numeric(style.symbols, magnitude),
+        System::Numeric => numeric(style.symbols, magnitude)?,
         System::Additive => additive(style.additive, magnitude)?,
         // `resolve` replaced it with its base's system.
         System::Extends(_) => return None,
@@ -260,29 +261,46 @@ fn alphabetic(symbols: &[String], n: i64) -> Option<String> {
         return None;
     }
     let len = symbols.len() as i64;
-    let mut digits = Vec::new();
-    let mut k = n;
-    while k > 0 {
-        k -= 1;
-        digits.push(&symbols[(k % len) as usize]);
-        k /= len;
-    }
-    Some(digits.into_iter().rev().map(String::as_str).collect())
+    positional(symbols, n, |k| {
+        let k = k - 1;
+        ((k % len) as usize, k / len)
+    })
 }
 
 /// §3.1.4: positional base-`len`, the first symbol the zero digit.
-fn numeric(symbols: &[String], n: i64) -> String {
+fn numeric(symbols: &[String], n: i64) -> Option<String> {
     let len = symbols.len().max(2) as i64;
     if n == 0 {
-        return symbols[0].clone();
+        return Some(symbols[0].clone());
     }
-    let mut digits = Vec::new();
-    let mut k = n;
+    positional(symbols, n, |k| ((k % len) as usize, k / len))
+}
+
+/// `n`'s digits (`step` gives the next one, least significant first, and
+/// the rest) written most significant first — `None`, building nothing,
+/// when they would pass the cap.
+fn positional(symbols: &[String], n: i64, step: impl Fn(i64) -> (usize, i64)) -> Option<String> {
+    // An `i64` has at most 64 digits in any base of two or more.
+    let mut digits = [0usize; 64];
+    let (mut count, mut chars, mut k) = (0, 0usize, n);
     while k > 0 {
-        digits.push(&symbols[(k % len) as usize]);
-        k /= len;
+        let (digit, rest) = step(k);
+        chars += symbols[digit].chars().count();
+        if chars > MAX_REPRESENTATION_CHARS {
+            return None;
+        }
+        digits[count] = digit;
+        count += 1;
+        k = rest;
     }
-    digits.into_iter().rev().map(String::as_str).collect()
+    let text: String = digits[..count]
+        .iter()
+        .rev()
+        .map(|&d| symbols[d].as_str())
+        .collect();
+    #[cfg(test)]
+    probe::BUILT.with(|c| c.set(c.get() + text.chars().count()));
+    Some(text)
 }
 
 /// §3.1.6: the weighted symbols, greedily from the heaviest; `None`
@@ -316,4 +334,16 @@ fn additive(tuples: &[(u32, String)], n: i64) -> Option<String> {
         }
     }
     None
+}
+
+/// Test-only: code points the positional systems built.
+#[cfg(test)]
+pub(super) mod probe {
+    thread_local! {
+        pub(super) static BUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    pub(in crate::counters) fn take() -> usize {
+        BUILT.with(|c| c.replace(0))
+    }
 }

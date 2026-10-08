@@ -6653,3 +6653,24 @@ row comes from.
   `ext/tests.rs::the_pseudo_side_record_is_boxed_only_when_used` (none on a plain `div`, one on an `li`,
   gone when it stops being a list item). No other expectation or snapshot changed (the test reads rewrote
   field reads as accessor calls).
+- 2026-10-13 — C10G-MINOR (architect N13: the layering scan and the counter cap). Two fixes, each red first.
+  (1) The layering test (`style/layering_tests.rs`, CLAUDE.md §Architecture Hygiene: `style/` reaches no
+  `crate::render`) scanned lines for the text `crate::render`, so a grouped import — `use
+  crate::{render::Rect, style::X};` — or a `super::super::super::render` path evaded it. It now reads paths
+  as Rust does: comments and string / character literals blanked, every `use` tree flattened (groups,
+  nested groups, `self`, `as`, `*`), every path in code collected, and `crate::` / `super::` / `self::`
+  resolved against the file's module path (`module_of`: `style/cascade/walk.rs` is `style::cascade::walk`).
+  Red: `every_spelling_of_a_render_path_is_caught` failed at the grouped import under the old scan
+  (refactored first into the same `offenders(module, source)` shape); green after, with the nested group,
+  the multi-line `pub(crate) use crate::{ render, };`, both `super` paths (three levels up is
+  `crate::render`, two is `style::render` and passes), a path in code, and a `render_x` name, a comment
+  and a string not caught. The tree itself is clean. (2) The counter cap (`MAX_REPRESENTATION_CHARS`, 60
+  code points, §3.1's "at least 60"): `numeric` and `alphabetic` built the whole representation —
+  `symbols("0"×20 "1"×20)` built 630 code points for `i32::MAX` — before the final check threw it away;
+  the Phase 10 log's "no value allocates more than the cap" held only for `symbolic` and `additive`. Both
+  now share `positional`, which counts each digit's code points as it finds the digits (indices on the
+  stack, at most 64) and returns `None` — the fallback writes the value — before building past the cap; so
+  the claim holds for every system. Red: `counters/tests.rs::numeric_and_alphabetic_check_the_cap_before_building`
+  (630 built for ≤ 60); green after (the fallback `2147483647`, nothing built, and two-digit values of 40
+  code points still written). Mutation (each, restored, touched): the `use` trees ignored → the grouped
+  import passes the scan; the cap check removed → 630 built. No existing expectation or snapshot changed.

@@ -180,3 +180,33 @@ fn every_representation_is_bounded() {
         }
     }
 }
+
+/// C10G-MINOR — the cap holds for every system, before anything is
+/// built: a `numeric` or `alphabetic` style whose symbols are long writes
+/// a huge value in more code points than the cap, so it is not built —
+/// the fallback (`decimal`) writes the value — and the text built for it
+/// never passes the cap (31 digits of a 20-code-point symbol were built,
+/// then thrown away).
+#[test]
+fn numeric_and_alphabetic_check_the_cap_before_building() {
+    use super::System;
+    let long = ["0".repeat(20), "1".repeat(20)];
+    let symbols = [long[0].as_str(), long[1].as_str()];
+    // Two digits each: numeric `10`, alphabetic (bijective) `aa`.
+    for (system, two_digits) in [(System::Numeric, 2), (System::Alphabetic, 3)] {
+        let style = CounterStyle::symbols(system.clone(), &symbols).expect("a valid symbols()");
+        super::generate::probe::take();
+        assert_eq!(
+            style.format(i32::MAX),
+            "2147483647",
+            "{system:?}: the fallback"
+        );
+        let built = super::generate::probe::take();
+        assert!(
+            built <= MAX_REPRESENTATION_CHARS,
+            "{system:?}: {built} code points built"
+        );
+        let within = style.format(two_digits);
+        assert_eq!(within.chars().count(), 40, "{system:?}: within the cap");
+    }
+}
