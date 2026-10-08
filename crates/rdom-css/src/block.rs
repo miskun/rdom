@@ -23,7 +23,7 @@
 //! `{` is not a rule: it is reported as a malformed declaration (CSS
 //! Syntax 3 parses it in that position as one).
 
-use rdom_style::parse::Cursor;
+use rdom_style::parse::SourceCursor;
 use rdom_style::{LayerId, RuleContext, StyleSelector, Stylesheet, TuiStyle};
 
 use crate::declarations::DeclarationRun;
@@ -63,7 +63,7 @@ impl Context<'_> {
 /// Returns `false` when the input ended before a block (the caller
 /// stops).
 pub(crate) fn consume_style_rule(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     ctx: Context<'_>,
@@ -94,7 +94,11 @@ enum Head {
     End,
 }
 
-fn consume_rule_head(cursor: &mut Cursor, warnings: &mut Vec<Warning>, ctx: Context<'_>) -> Head {
+fn consume_rule_head(
+    cursor: &mut SourceCursor,
+    warnings: &mut Vec<Warning>,
+    ctx: Context<'_>,
+) -> Head {
     let at = (cursor.line(), cursor.col());
     let nested = ctx.nested();
     let Some(prelude) = read_prelude(cursor, warnings, nested) else {
@@ -155,7 +159,7 @@ struct Block<'a> {
 /// even when empty — a nested `@layer`'s block passes `false`, as all
 /// its declarations are nested declarations rules.
 fn consume_block_contents(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     block: Block<'_>,
@@ -242,7 +246,7 @@ fn flush(
 
 /// An at-rule inside a style rule's block (CSS Nesting 1 §3.2).
 fn consume_nested_at_rule(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     block: Block<'_>,
@@ -252,7 +256,7 @@ fn consume_nested_at_rule(
     let (name, used) = rdom_core::css_syntax::consume_ident(cursor.rest());
     cursor.advance(used);
     if name.eq_ignore_ascii_case("layer") {
-        let mut body = |cursor: &mut Cursor,
+        let mut body = |cursor: &mut SourceCursor,
                         sheet: &mut Stylesheet,
                         warnings: &mut Vec<Warning>,
                         layer: Option<LayerId>| {
@@ -312,7 +316,7 @@ enum Children {
 /// inside its `{`: scoped style rules, and declarations that apply to
 /// the scoping root as `:where(:scope)` (zero specificity).
 pub(crate) fn consume_scope_body(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     ctx: RuleContext,
@@ -388,7 +392,7 @@ fn is_declaration(rest: &str) -> bool {
 /// Consume one declaration's text through its `;` (consumed) or up to
 /// the block's `}` (not consumed) or EOF. Strings, comments, escapes
 /// and bracketed groups are passed through whole.
-fn read_declaration(cursor: &mut Cursor) -> String {
+fn read_declaration(cursor: &mut SourceCursor) -> String {
     let mut out = String::new();
     let mut depth = 0usize;
     loop {
@@ -432,7 +436,11 @@ fn read_declaration(cursor: &mut Cursor) -> String {
 /// to a `;` / `}` that ends the item first. Comments become a space;
 /// strings and escapes are copied through so a `{` in them does not
 /// end the prelude. `None` at EOF or on an unterminated comment.
-fn read_prelude(cursor: &mut Cursor, warnings: &mut Vec<Warning>, nested: bool) -> Option<String> {
+fn read_prelude(
+    cursor: &mut SourceCursor,
+    warnings: &mut Vec<Warning>,
+    nested: bool,
+) -> Option<String> {
     let mut out = String::new();
     loop {
         match cursor.peek() {
@@ -468,7 +476,7 @@ fn read_prelude(cursor: &mut Cursor, warnings: &mut Vec<Warning>, nested: bool) 
 }
 
 /// From just inside a block's `{`, skip through its matching `}`.
-fn skip_rest_of_block(cursor: &mut Cursor) {
+fn skip_rest_of_block(cursor: &mut SourceCursor) {
     let mut depth = 1usize;
     loop {
         match cursor.peek() {
@@ -513,7 +521,7 @@ fn skip_rest_of_block(cursor: &mut Cursor) {
 /// After `@starting-style`'s name: an empty prelude then `{` — consumed,
 /// `true` — or an invalid rule, reported and skipped (`false`).
 pub(crate) fn starting_style_block(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     warnings: &mut Vec<Warning>,
     at: (u32, u32),
 ) -> bool {

@@ -14,7 +14,7 @@
 //! `WarningKind::InvalidAtRulePrelude`.
 
 use rdom_core::selectors::{self, SelectorList};
-use rdom_style::parse::Cursor;
+use rdom_style::parse::SourceCursor;
 use rdom_style::{Scope, Stylesheet};
 
 use crate::block::{Context, Parent, consume_scope_body};
@@ -25,7 +25,7 @@ use crate::{Warning, WarningKind};
 /// Consume an `@scope` rule; the cursor is just past the at-keyword,
 /// `at` is the position of `@`.
 pub(crate) fn consume_scope_rule(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     ctx: Context<'_>,

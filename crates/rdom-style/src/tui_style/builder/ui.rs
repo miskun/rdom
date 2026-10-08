@@ -10,17 +10,18 @@ use crate::layout::{
 };
 
 /// A setter for one [`UiDeclarations`](crate::UiDeclarations) field and
-/// its `!important` twin, as `setter!` is for a `TuiStyle` field.
+/// its `!important` twin, as `setter!` is for a `TuiStyle` field; the
+/// value is `impl Into` its type, as the alignment setters' are.
 macro_rules! ui_setter {
     ($css:literal, $field:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
-        #[doc = concat!("Set the `", $css, "` property to `v`. Chainable.")]
-        pub fn $field(mut self, v: $ty) -> Self {
-            self.ui.$field = Some(Value::Specified(v));
+        #[doc = concat!("Set the `", $css, "` property to `v` (anything that converts into its value: `.cursor(CursorKeyword::Pointer)`). Chainable.")]
+        pub fn $field(mut self, v: impl Into<$ty>) -> Self {
+            self.ui.$field = Some(Value::Specified(v.into()));
             self
         }
 
         #[doc = concat!("Like `", stringify!($field), "` but also marks the `", $css, "` declaration `!important`.")]
-        pub fn $important_setter(mut self, v: $ty) -> Self {
+        pub fn $important_setter(mut self, v: impl Into<$ty>) -> Self {
             self.important |= ImportantMask::$mask;
             self.$field(v)
         }

@@ -388,7 +388,7 @@ mod number_value_tests {
         assert_eq!(
             parse_transition_property_list(&t("display, foo")),
             Some(vec![
-                TransitionProperty::Named("display"),
+                TransitionProperty::named("display"),
                 TransitionProperty::Other("foo".into()),
             ])
         );

@@ -27,13 +27,12 @@ pub enum TransitionProperty {
     All,
     /// `transition-property: none` — disables transitions.
     None,
-    /// A property the dispatch table knows, by its canonical name
-    /// ([`property_names`](crate::property_dispatch::property_names)):
-    /// a longhand, a shorthand (its longhands transition) or a
+    /// A property the dispatch table knows ([`PropertyName`]): a
+    /// longhand, a shorthand (its longhands transition) or a
     /// flow-relative property (its physical twin's). A discrete or
     /// not-animatable one starts no transition unless the
     /// [`animation`](crate::animation) type allows it.
-    Named(&'static str),
+    Named(PropertyName),
     /// Any other `<custom-ident>` — a custom property (`--x`, which
     /// transitions when registered) or a name rdom does not know. Valid
     /// CSS (Transitions 1 §2.1) and kept for its place in the list.
@@ -52,10 +51,7 @@ impl TransitionProperty {
         match lower.as_str() {
             "all" => TransitionProperty::All,
             "none" => TransitionProperty::None,
-            _ => match crate::property_dispatch::property_names()
-                .iter()
-                .find(|n| **n == lower)
-            {
+            _ => match PropertyName::new(&lower) {
                 Some(n) => TransitionProperty::Named(n),
                 None => TransitionProperty::Other(lower),
             },
@@ -67,9 +63,41 @@ impl TransitionProperty {
         match self {
             TransitionProperty::All => "all",
             TransitionProperty::None => "none",
-            TransitionProperty::Named(n) => n,
+            TransitionProperty::Named(n) => n.as_str(),
             TransitionProperty::Other(n) => n,
         }
+    }
+}
+
+/// The canonical name of a property the dispatch table knows
+/// ([`property_names`](crate::property_dispatch::property_names)) — what
+/// a [`TransitionProperty::Named`] entry holds. Built only from a known
+/// name, so a misspelt one (`colour`) cannot become a rule that never
+/// fires: [`TransitionProperty::named`] keeps it in `Other`, as CSS keeps
+/// an unknown `<custom-ident>`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PropertyName(&'static str);
+
+impl PropertyName {
+    /// The property `name` names, ASCII case-insensitively; `None` for a
+    /// custom property or a name rdom does not know.
+    pub fn new(name: &str) -> Option<PropertyName> {
+        let lower = name.to_ascii_lowercase();
+        crate::property_dispatch::property_names()
+            .iter()
+            .find(|n| **n == lower)
+            .map(|n| PropertyName(n))
+    }
+
+    /// The canonical (lower-case) name.
+    pub fn as_str(&self) -> &'static str {
+        self.0
+    }
+}
+
+impl std::fmt::Display for PropertyName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0)
     }
 }
 
@@ -105,14 +133,16 @@ pub enum StepPosition {
 /// progress `input` the output progress is `output`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LinearStop {
-    pub input: f32,
     pub output: f32,
+    pub input: f32,
 }
 
 impl LinearStop {
-    /// The point `(input, output)`.
-    pub const fn new(input: f32, output: f32) -> Self {
-        LinearStop { input, output }
+    /// The point with output progress `output` at input progress `input`
+    /// — CSS's order, `linear(<output> <input>%)`: `linear(0, 0.25 75%,
+    /// 1)`'s middle stop is `LinearStop::new(0.25, 0.75)`.
+    pub const fn new(output: f32, input: f32) -> Self {
+        LinearStop { output, input }
     }
 }
 
@@ -120,7 +150,12 @@ impl LinearStop {
 /// `linear(<stops>)`, `cubic-bezier(x1, y1, x2, y2)` and
 /// `steps(n, <position>)`. `PartialEq` only — the curves carry `f32`s.
 /// Not `Copy`: `linear()`'s points are shared behind an `Arc`.
+///
+/// `#[non_exhaustive]` (DESIGN): CSS Easing keeps adding easing
+/// functions, and an easing is evaluated here ([`ease`](Self::ease)), so
+/// no consumer matches one to animate.
 #[derive(Debug, Clone, PartialEq, Default)]
+#[non_exhaustive]
 pub enum TimingFunction {
     /// Identity — `t` linearly maps to itself.
     Linear,
@@ -299,6 +334,43 @@ mod tests {
         // (the canonical reference value).
         let mid = TimingFunction::Ease.ease(0.5);
         assert!((mid - 0.8).abs() < 0.05, "ease at 0.5 = {mid}");
+    }
+}
+
+#[cfg(test)]
+mod name_tests {
+    use super::{LinearStop, PropertyName, TransitionProperty};
+
+    /// CSS Transitions 1 §2.1: a `transition-property` entry naming a
+    /// property rdom knows is `Named`, built only from a known name
+    /// (ASCII case-insensitive, kept canonical); a misspelling is not a
+    /// property and is kept as written in `Other`, as CSS keeps it.
+    #[test]
+    fn a_named_entry_holds_only_a_known_property() {
+        assert_eq!(
+            PropertyName::new("Color").map(|n| n.as_str()),
+            Some("color")
+        );
+        assert_eq!(PropertyName::new("colour"), None);
+        assert_eq!(PropertyName::new("--x"), None);
+        let color = PropertyName::new("color").unwrap();
+        assert_eq!(
+            TransitionProperty::named("COLOR"),
+            TransitionProperty::Named(color)
+        );
+        assert_eq!(
+            TransitionProperty::named("colour"),
+            TransitionProperty::Other("colour".into())
+        );
+        assert_eq!(TransitionProperty::Named(color).name(), "color");
+    }
+
+    /// CSS Easing 2 §2.1: `linear(<output> <input>%)` — the constructor
+    /// takes its arguments in CSS's order.
+    #[test]
+    fn a_linear_stop_is_built_output_first() {
+        let stop = LinearStop::new(0.25, 0.75);
+        assert_eq!((stop.output, stop.input), (0.25, 0.75));
     }
 }
 

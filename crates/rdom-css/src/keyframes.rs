@@ -16,7 +16,7 @@
 //! (`KeyframesRule::resolve`).
 
 use rdom_style::keyframes::{Keyframe, KeyframeSelector, KeyframesRule, TimelineRangeName};
-use rdom_style::parse::Cursor;
+use rdom_style::parse::SourceCursor;
 use rdom_style::parse::token::{Token, tokenize};
 use rdom_style::{LayerId, Stylesheet, TuiStyle};
 
@@ -30,7 +30,7 @@ use crate::{Warning, WarningKind};
 /// at-keyword, `at` is the position of `@`, `layer` the cascade layer
 /// the rule sits in.
 pub(crate) fn consume_keyframes_rule(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     layer: Option<LayerId>,
@@ -69,7 +69,10 @@ pub(crate) fn consume_keyframes_rule(
 /// The next keyframe block of the rule's body: `Some(Some(_))` for a
 /// block, `Some(None)` for one dropped (warned), `None` at the body's
 /// end (its `}` consumed, or EOF).
-fn next_keyframe(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> Option<Option<Keyframe>> {
+fn next_keyframe(
+    cursor: &mut SourceCursor,
+    warnings: &mut Vec<Warning>,
+) -> Option<Option<Keyframe>> {
     if !skip_ws_and_comments(cursor, warnings) {
         return None;
     }

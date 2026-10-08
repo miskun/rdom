@@ -12,7 +12,7 @@
 use rdom_style::counters::{
     CounterStyleDefinition, CounterStyleRule, apply_descriptor, check_rule,
 };
-use rdom_style::parse::Cursor;
+use rdom_style::parse::SourceCursor;
 use rdom_style::parse::token::{Token, tokenize};
 use rdom_style::{LayerId, Stylesheet};
 
@@ -24,7 +24,7 @@ use crate::{CounterStyleDescriptorReason, CounterStyleRuleReason, Warning, Warni
 /// at-keyword, `at` is the position of `@`, `layer` the cascade layer
 /// the rule sits in.
 pub(crate) fn consume_counter_style_rule(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     layer: Option<LayerId>,

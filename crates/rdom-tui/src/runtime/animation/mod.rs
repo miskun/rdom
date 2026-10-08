@@ -1,6 +1,6 @@
 //! Transition and animation engine (CSS Transitions 1 / 2, CSS
 //! Animations 1 / 2) — observes the computed values each cascade
-//! changes, registers an [`ActiveAnimation`] per longhand a
+//! changes, registers a transition per longhand a
 //! `transition-*` rule covers and a CSS animation per `animation-name`
 //! entry (`css`), and each frame composites the running values onto the
 //! element's computed style (Web Animations 1 §5.4.5: the effect stack's
@@ -37,9 +37,11 @@ pub use rdom_style::animation::Longhand;
 
 // ── Active animation ──────────────────────────────────────────────
 
-/// One running transition of one longhand of one element style.
+/// One running transition of one longhand of one element style. The
+/// engine's own record — what a consumer inspects is
+/// [`AnimationInfo`] (`App::get_animations`).
 #[derive(Debug, Clone)]
-pub struct ActiveAnimation {
+pub(crate) struct ActiveAnimation {
     pub node: NodeId,
     /// The element itself or one of its pseudo-elements.
     pub slot: StyleSlot,
@@ -494,40 +496,6 @@ pub(crate) fn transitions_discretely(style: &ComputedStyle, name: &str) -> bool 
     })
 }
 
-// ── Effective-value helpers ───────────────────────────────────────
-
-/// The element's `color`: its computed value, which holds a running
-/// transition's value.
-pub fn effective_fg(ext: &TuiExt) -> crate::style::Color {
-    ext.computed
-        .as_ref()
-        .map_or(crate::style::Color::Reset, |c| c.fg)
-}
-
-/// The element's `background-color` (see [`effective_fg`]).
-pub fn effective_bg(ext: &TuiExt) -> crate::style::Color {
-    ext.computed
-        .as_ref()
-        .map_or(crate::style::Color::Reset, |c| c.bg)
-}
-
-/// The element's `border-*-color`s (see [`effective_fg`]).
-pub fn effective_border_color(ext: &TuiExt) -> crate::layout::Sides<crate::style::Color> {
-    ext.computed
-        .as_ref()
-        .map_or(crate::layout::Sides::all(crate::style::Color::Reset), |c| {
-            c.border_color
-        })
-}
-
-/// The element's `padding` (see [`effective_fg`]).
-pub fn effective_padding(ext: &TuiExt) -> crate::layout::Padding {
-    ext.computed
-        .as_ref()
-        .map(|c| c.padding.clone())
-        .unwrap_or_default()
-}
-
 mod css;
 mod custom;
 mod diff;
@@ -545,7 +513,7 @@ mod timing_tests;
 mod visibility_tests;
 
 pub use crate::style::AnimationPlayState;
-pub use css::{AnimationEventKind, AnimationInfo, AnimationKind};
+pub use css::{AnimationInfo, AnimationKind};
 pub(crate) use css::{CssInputs, PendingAnimationEvent, slot_order};
 pub use custom::PendingCustomEvent;
 #[cfg(test)]

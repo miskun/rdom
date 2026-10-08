@@ -8282,3 +8282,30 @@ row comes from.
   `geometry_transition_tests::base_computed_is_the_style_under_the_running_values` did not compile (no
   `base_computed`); green after — mid-flight `computed` height / width 6 / 6 (a transition and an
   animation), the base 10 / `auto`; after both end the two are one style.
+- 2026-10-08 — C12G-API-HYGIENE (API N2–N6). (1) Re-exports: the `transition-*` vocabulary
+  (`TransitionProperty`, the new `PropertyName`, `TimingFunction`, `LinearStop`, `StepPosition`,
+  `TransitionBehavior`, `TransitionRule`) and `App::get_animations`' `AnimationInfo` / `AnimationKind`
+  with `Longhand` are at the `rdom_tui` root. (2) Dead surface — decided: `ActiveAnimation` is
+  crate-private rather than `#[non_exhaustive]` with accessors, because no public API ever built or
+  returned one (`register` is private; `AnimationInfo` is the inspection record), so accessors would
+  have been a second dead surface; `AnimationEventKind` likewise (no public signature); the vestigial
+  `effective_fg` / `_bg` / `_border_color` / `_padding` are removed (they only read `computed`, and
+  `effective_bg`'s `Reset` fallback contradicted the `TRANSPARENT` initial value). Both classified in
+  DESIGN's crate-private records. (3) `TransitionProperty::Named` holds a `PropertyName`, an opaque
+  `&'static str` built only by `PropertyName::new` (a dispatch-table name, ASCII case-insensitive):
+  `Named("colour")` no longer compiles and `named("colour")` is `Other`, as CSS keeps an unknown
+  `<custom-ident>` (CSS Transitions 1 §2.1). (4) `TimingFunction` and `Appearance` are
+  `#[non_exhaustive]`, moved to DESIGN's open vocabularies (Easing and CSS Forms keep growing; both are
+  evaluated inside rdom-style). (5) Builders: `view_timeline_axis`, `view_timeline_inset`,
+  `timeline_scope` added — `overlay` already had one (a `setter!` macro the review's grep missed); the
+  `ui_setter!` setters take `impl Into` of their value (`.cursor(CursorKeyword::Pointer)`, the UA
+  sheet's `.into()` dropped); the tokenizer's `parse::Cursor` is `parse::SourceCursor` (it is a
+  character cursor, and the name collided with the `cursor` property's `layout::Cursor` under a glob);
+  `LinearStop::new(output, input)` in CSS's `linear(<output> <input>%)` order, the fields declared in
+  that order too. Breaking bullets for the 0.5 items (`TimingFunction`, `TransitionProperty`,
+  `parse::Cursor`, `effective_*`, `ActiveAnimation`), post-0.5 rows for the rest; hint group
+  `animation_api_hygiene_hints`. Red: rdom-style's four new tests did not compile (no `PropertyName`,
+  no `SourceCursor`, no `view_timeline_axis`, `.cursor` refused a `CursorKeyword`); green after. The
+  rdom-tui re-export test was written before the re-exports but its red was not run separately.
+  Changed test: `timing_tests::linear_stop_builds` pinned the old argument order — replaced by
+  `a_linear_stop_is_built_output_first`.

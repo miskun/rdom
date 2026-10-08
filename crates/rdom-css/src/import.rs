@@ -24,7 +24,7 @@
 //! loader, or a loader error, imports nothing (`ImportFailed`). Warnings
 //! inside an imported sheet carry positions in that sheet's text.
 
-use rdom_style::parse::Cursor;
+use rdom_style::parse::SourceCursor;
 use rdom_style::{Import, LayerId, Stylesheet};
 
 use crate::layer::{layer_names, read_prelude};
@@ -90,7 +90,7 @@ pub(crate) fn leading_at_rule(rest: &str) -> Leading {
 /// `None` where an import is not allowed. `layer` is the layer the
 /// importing sheet's rules sit in.
 pub(crate) fn consume_import(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     layer: Option<LayerId>,
@@ -172,7 +172,7 @@ pub(crate) fn consume_import(
     ));
     imports.stack.push(loaded.url);
     imports.depth += 1;
-    let mut inner = Cursor::new(&loaded.text);
+    let mut inner = SourceCursor::new(&loaded.text);
     parse_rule_list(
         &mut inner,
         sheet,

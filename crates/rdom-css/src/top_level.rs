@@ -23,12 +23,12 @@ use rdom_style::{LayerId, RuleContext, Stylesheet};
 use crate::block::{Context, Parent, consume_style_rule};
 use crate::import::Imports;
 use crate::{Warning, WarningKind};
-use rdom_style::parse::Cursor;
+use rdom_style::parse::SourceCursor;
 
 /// Parse a full stylesheet. Mutates `sheet` in place via the
 /// fluent-builder bridge (see `add_rule`).
 pub(crate) fn parse_stylesheet(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     imports: &mut Imports<'_>,
@@ -49,7 +49,7 @@ pub(crate) fn parse_stylesheet(
 /// — its `}` ends it and is consumed, while at the top level a stray
 /// `}` is dropped. EOF ends either (§5.4.7).
 pub(crate) fn parse_rule_list(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     ctx: RuleContext,
@@ -115,7 +115,7 @@ pub(crate) fn parse_rule_list(
 /// `UnsupportedAtRule(name)` positioned at the `@`. At-rule names are
 /// ASCII case-insensitive.
 fn consume_at_rule(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     ctx: RuleContext,
@@ -127,7 +127,7 @@ fn consume_at_rule(
     let (name, used) = rdom_core::css_syntax::consume_ident(cursor.rest());
     cursor.advance(used);
     if name.eq_ignore_ascii_case("layer") {
-        let mut body = |cursor: &mut Cursor,
+        let mut body = |cursor: &mut SourceCursor,
                         sheet: &mut Stylesheet,
                         warnings: &mut Vec<Warning>,
                         layer: Option<LayerId>| {
@@ -184,7 +184,11 @@ fn consume_at_rule(
 /// comments in the prelude may hold `;` / `{`. `nested`: the at-rule
 /// sits in a style rule's block, whose `}` also ends a statement (and
 /// is left for the block).
-pub(crate) fn skip_at_rule_rest(cursor: &mut Cursor, warnings: &mut Vec<Warning>, nested: bool) {
+pub(crate) fn skip_at_rule_rest(
+    cursor: &mut SourceCursor,
+    warnings: &mut Vec<Warning>,
+    nested: bool,
+) {
     loop {
         match cursor.peek() {
             None => return,
@@ -219,7 +223,7 @@ pub(crate) fn skip_at_rule_rest(cursor: &mut Cursor, warnings: &mut Vec<Warning>
 /// With the cursor on `{`, consume through the matching `}` (nested
 /// blocks, strings, and comments respected). At EOF the block is
 /// treated as closed (§5.4.7).
-pub(crate) fn skip_balanced_block(cursor: &mut Cursor) {
+pub(crate) fn skip_balanced_block(cursor: &mut SourceCursor) {
     let mut depth = 0usize;
     loop {
         match cursor.peek() {
@@ -260,7 +264,7 @@ pub(crate) fn skip_balanced_block(cursor: &mut Cursor) {
 /// Skip whitespace and `/* … */` comments. Returns `false` if an
 /// unterminated comment was hit (warning emitted, parse should
 /// abort).
-pub(crate) fn skip_ws_and_comments(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> bool {
+pub(crate) fn skip_ws_and_comments(cursor: &mut SourceCursor, warnings: &mut Vec<Warning>) -> bool {
     loop {
         match cursor.peek() {
             Some(c) if c.is_whitespace() => {
@@ -282,7 +286,7 @@ pub(crate) fn skip_ws_and_comments(cursor: &mut Cursor, warnings: &mut Vec<Warni
 
 /// Consume a `/* … */` comment. The cursor is at `/`; we already
 /// know the next char is `*`. Returns `false` on unterminated.
-pub(crate) fn skip_comment(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> bool {
+pub(crate) fn skip_comment(cursor: &mut SourceCursor, warnings: &mut Vec<Warning>) -> bool {
     let start_line = cursor.line();
     let start_col = cursor.col();
     cursor.bump(); // /
@@ -308,7 +312,7 @@ pub(crate) fn skip_comment(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> 
     }
 }
 
-pub(crate) fn skip_comment_into(cursor: &mut Cursor, out: &mut String) -> bool {
+pub(crate) fn skip_comment_into(cursor: &mut SourceCursor, out: &mut String) -> bool {
     loop {
         match cursor.peek() {
             None => return false,
@@ -332,7 +336,7 @@ pub(crate) fn skip_comment_into(cursor: &mut Cursor, out: &mut String) -> bool {
 /// With the cursor on `\`, copy the backslash and the code point it
 /// escapes verbatim, so an escaped `{`, `}`, quote or `,` is never read
 /// as structure. Decoding is the consumer's job.
-pub(crate) fn copy_escape_into(cursor: &mut Cursor, out: &mut String) {
+pub(crate) fn copy_escape_into(cursor: &mut SourceCursor, out: &mut String) {
     out.push('\\');
     cursor.bump();
     if let Some(c) = cursor.bump() {
@@ -340,7 +344,7 @@ pub(crate) fn copy_escape_into(cursor: &mut Cursor, out: &mut String) {
     }
 }
 
-pub(crate) fn read_string_into(cursor: &mut Cursor, quote: char, out: &mut String) -> bool {
+pub(crate) fn read_string_into(cursor: &mut SourceCursor, quote: char, out: &mut String) -> bool {
     loop {
         match cursor.peek() {
             None => return false,

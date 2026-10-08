@@ -602,3 +602,36 @@ fn grid_area_named_sets_all_four_lines() {
         TuiStyle::new().grid_area(head(), head(), head(), head())
     );
 }
+
+/// C12G-API-HYGIENE: every scroll-driven longhand has a builder setter —
+/// `view-timeline-axis`, `view-timeline-inset` and `timeline-scope` had a
+/// field and no setter (Scroll-driven Animations 1 §3.2, §4.2).
+#[test]
+fn the_view_timeline_and_scope_longhands_have_setters() {
+    use crate::keyframes::{TimelineAxis, TimelineInset, TimelineScope};
+    let s = TuiStyle::new()
+        .view_timeline_axis(vec![TimelineAxis::Inline])
+        .view_timeline_inset(vec![TimelineInset::default()])
+        .timeline_scope(TimelineScope::All);
+    assert_eq!(
+        s.view_timeline_axis,
+        Some(Value::Specified(vec![TimelineAxis::Inline]))
+    );
+    assert_eq!(
+        s.view_timeline_inset,
+        Some(Value::Specified(vec![TimelineInset::default()]))
+    );
+    assert_eq!(s.timeline_scope, Some(Value::Specified(TimelineScope::All)));
+}
+
+/// C12G-API-HYGIENE: the UI setters take `impl Into` of their value, as
+/// the alignment setters do — `.cursor(CursorKeyword::Pointer)`.
+#[test]
+fn the_cursor_setter_takes_a_keyword() {
+    use crate::layout::{Cursor, CursorKeyword};
+    let s = TuiStyle::new().cursor(CursorKeyword::Pointer);
+    assert_eq!(
+        s.ui.cursor,
+        Some(Value::Specified(Cursor::from(CursorKeyword::Pointer)))
+    );
+}

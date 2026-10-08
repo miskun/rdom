@@ -105,7 +105,7 @@ impl Coverage {
                     }
                 }
                 TransitionProperty::Named(name) => {
-                    for l in transition_longhands(name, direction) {
+                    for l in transition_longhands(name.as_str(), direction) {
                         slots[l.index()] = i;
                     }
                 }

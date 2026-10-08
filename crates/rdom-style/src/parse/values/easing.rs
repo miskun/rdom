@@ -186,7 +186,7 @@ fn parse_linear_stops(args: &[Token]) -> Option<Vec<LinearStop>> {
     Some(
         points
             .into_iter()
-            .map(|(output, input)| LinearStop::new(input.unwrap_or(0.0), output))
+            .map(|(output, input)| LinearStop::new(output, input.unwrap_or(0.0)))
             .collect(),
     )
 }

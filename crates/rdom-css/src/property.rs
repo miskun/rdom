@@ -7,7 +7,7 @@
 //! descriptors are ignored. An invalid rule registers nothing and is
 //! reported with `WarningKind::InvalidPropertyRule`.
 
-use rdom_style::parse::Cursor;
+use rdom_style::parse::SourceCursor;
 use rdom_style::parse::token::{Token, tokenize};
 use rdom_style::parse::values::render_value;
 use rdom_style::{PropertyRegistration, Stylesheet};
@@ -19,7 +19,7 @@ use crate::{Warning, WarningKind};
 /// Consume an `@property` rule; the cursor is just past the
 /// at-keyword, `at` is the position of `@`.
 pub(crate) fn consume_property_rule(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     at: (u32, u32),
@@ -85,7 +85,7 @@ fn registration(name: &str, body: &str) -> Result<PropertyRegistration, String> 
 
 /// From just inside `{`, the block's text through its matching `}`
 /// (consumed; EOF closes it).
-pub(crate) fn read_body(cursor: &mut Cursor) -> Option<String> {
+pub(crate) fn read_body(cursor: &mut SourceCursor) -> Option<String> {
     let mut out = String::new();
     let mut depth = 0usize;
     loop {

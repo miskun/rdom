@@ -4,9 +4,9 @@
 //! for `rdom-css`'s block parser (which still owns top-level
 //! stylesheet + declaration-list parsing on top of these tokens).
 
-pub mod cursor;
+pub mod source_cursor;
 pub mod token;
 pub mod values;
 
-pub use cursor::Cursor;
+pub use source_cursor::SourceCursor;
 pub use token::{Token, TokenizerError, TokenizerErrorKind, tokenize};

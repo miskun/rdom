@@ -112,6 +112,21 @@ impl TuiStyle {
         self.view_timeline_name = Some(Value::Specified(v));
         self
     }
+    /// `view-timeline-axis`.
+    pub fn view_timeline_axis(mut self, v: Vec<crate::keyframes::TimelineAxis>) -> Self {
+        self.view_timeline_axis = Some(Value::Specified(v));
+        self
+    }
+    /// `view-timeline-inset`.
+    pub fn view_timeline_inset(mut self, v: Vec<crate::keyframes::TimelineInset>) -> Self {
+        self.view_timeline_inset = Some(Value::Specified(v));
+        self
+    }
+    /// `timeline-scope`.
+    pub fn timeline_scope(mut self, v: crate::keyframes::TimelineScope) -> Self {
+        self.timeline_scope = Some(Value::Specified(v));
+        self
+    }
     /// `animation-range-start` / `-end`, one pair per animation.
     pub fn animation_range(
         mut self,

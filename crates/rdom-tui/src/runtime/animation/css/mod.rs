@@ -45,7 +45,7 @@ mod timing;
 mod update;
 
 pub(crate) use effect::KeyframeEffect;
-pub use events::AnimationEventKind;
+pub(crate) use events::AnimationEventKind;
 pub(crate) use events::PendingAnimationEvent;
 pub(crate) use info::slot_order;
 pub use info::{AnimationInfo, AnimationKind};

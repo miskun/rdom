@@ -11,7 +11,7 @@
 //! rule invalid. An invalid prelude drops the whole rule (block
 //! included) with `WarningKind::InvalidAtRulePrelude`.
 
-use rdom_style::parse::Cursor;
+use rdom_style::parse::SourceCursor;
 use rdom_style::parse::token::{Token, tokenize};
 use rdom_style::{LayerId, Stylesheet};
 
@@ -22,13 +22,13 @@ use crate::{Warning, WarningKind};
 /// rule list at the top level, a style rule's block contents when the
 /// `@layer` is nested in a style rule (CSS Nesting 1 §3.2).
 pub(crate) type LayerBody<'b> =
-    dyn FnMut(&mut Cursor, &mut Stylesheet, &mut Vec<Warning>, Option<LayerId>) + 'b;
+    dyn FnMut(&mut SourceCursor, &mut Stylesheet, &mut Vec<Warning>, Option<LayerId>) + 'b;
 
 /// Consume an `@layer` rule; the cursor is just past the at-keyword.
 /// `parent` is the layer the rule sits in; `at` the position of `@`;
 /// `body` parses the block form's contents.
 pub(crate) fn consume_layer_rule(
-    cursor: &mut Cursor,
+    cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     parent: Option<LayerId>,
@@ -83,7 +83,10 @@ fn segments(name: &[String]) -> Vec<&str> {
 
 /// The prelude up to (not including) `;` or `{`, comments removed and
 /// strings kept. `None` on an unterminated comment (warned).
-pub(crate) fn read_prelude(cursor: &mut Cursor, warnings: &mut Vec<Warning>) -> Option<String> {
+pub(crate) fn read_prelude(
+    cursor: &mut SourceCursor,
+    warnings: &mut Vec<Warning>,
+) -> Option<String> {
     let mut out = String::new();
     loop {
         match cursor.peek() {

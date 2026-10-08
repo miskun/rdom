@@ -11,8 +11,7 @@ use crate::ext::StyleSlot;
 
 /// The kind of a CSS animation event (CSS Animations 1 §5.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum AnimationEventKind {
+pub(crate) enum AnimationEventKind {
     /// `animationstart`: the active interval begins.
     Start,
     /// `animationiteration`: a new iteration begins.

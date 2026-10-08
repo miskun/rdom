@@ -57,7 +57,7 @@ pub fn from_css_strict(source: &str) -> Result<Stylesheet, ParseError> {
     Ok(sheet)
 }
 
-use rdom_style::parse::Cursor;
+use rdom_style::parse::SourceCursor;
 
 /// Lenient parse. Unknown properties and unparseable values become
 /// [`Warning`]s; the rest of the parse continues. Mirrors browser
@@ -192,7 +192,7 @@ pub fn parse_with_loader_at(source: &str, url: &str, loader: &dyn ImportLoader) 
 }
 
 fn parse_in(source: &str, loader: Option<&dyn ImportLoader>, url: Option<&str>) -> ParseResult {
-    let mut cursor = Cursor::new(source);
+    let mut cursor = SourceCursor::new(source);
     let mut sheet = Stylesheet::bare();
     let mut warnings = Vec::new();
     let mut imports = import::Imports::new(loader, url);

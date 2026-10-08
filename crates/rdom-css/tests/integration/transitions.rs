@@ -23,7 +23,7 @@ fn transition_property_named() {
     let s = first_style("a { transition-property: color; }");
     assert_eq!(
         s.transition_property,
-        Some(Value::Specified(vec![TransitionProperty::Named("color")]))
+        Some(Value::Specified(vec![TransitionProperty::named("color")]))
     );
 }
 
@@ -51,9 +51,9 @@ fn transition_property_list() {
     assert_eq!(
         s.transition_property,
         Some(Value::Specified(vec![
-            TransitionProperty::Named("color"),
-            TransitionProperty::Named("background-color"),
-            TransitionProperty::Named("width"),
+            TransitionProperty::named("color"),
+            TransitionProperty::named("background-color"),
+            TransitionProperty::named("width"),
         ]))
     );
 }
@@ -123,7 +123,7 @@ fn transition_shorthand_all_pieces() {
     let s = first_style("a { transition: color 200ms ease-in 50ms; }");
     assert_eq!(
         s.transition_property,
-        Some(Value::Specified(vec![TransitionProperty::Named("color")]))
+        Some(Value::Specified(vec![TransitionProperty::named("color")]))
     );
     assert_eq!(s.transition_duration, Some(Value::Specified(vec![200])));
     assert_eq!(
@@ -138,7 +138,7 @@ fn transition_shorthand_property_and_duration() {
     let s = first_style("a { transition: color 200ms; }");
     assert_eq!(
         s.transition_property,
-        Some(Value::Specified(vec![TransitionProperty::Named("color")]))
+        Some(Value::Specified(vec![TransitionProperty::named("color")]))
     );
     assert_eq!(s.transition_duration, Some(Value::Specified(vec![200])));
     // Timing + delay default to ease + 0.
@@ -165,8 +165,8 @@ fn transition_shorthand_multiple_rules() {
     assert_eq!(
         s.transition_property,
         Some(Value::Specified(vec![
-            TransitionProperty::Named("color"),
-            TransitionProperty::Named("background-color"),
+            TransitionProperty::named("color"),
+            TransitionProperty::named("background-color"),
         ]))
     );
     assert_eq!(
@@ -190,7 +190,7 @@ fn transition_shorthand_pieces_in_any_order() {
     let s = first_style("a { transition: 200ms color; }");
     assert_eq!(
         s.transition_property,
-        Some(Value::Specified(vec![TransitionProperty::Named("color")]))
+        Some(Value::Specified(vec![TransitionProperty::named("color")]))
     );
     assert_eq!(s.transition_duration, Some(Value::Specified(vec![200])));
 }
@@ -215,7 +215,7 @@ fn transition_with_non_animatable_property_is_valid_and_inert() {
     assert!(r.warnings.is_empty(), "{:?}", r.warnings);
     assert_eq!(
         r.stylesheet.rules()[0].style.transition_property,
-        Some(Value::Specified(vec![TransitionProperty::Named("display")]))
+        Some(Value::Specified(vec![TransitionProperty::named("display")]))
     );
 }
 

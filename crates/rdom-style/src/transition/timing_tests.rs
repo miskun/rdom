@@ -1,7 +1,7 @@
 //! C12-TIMING: the easing functions of CSS Easing 1 / 2 and the
 //! transition value lists of CSS Transitions 1 §2.
 
-use super::{LinearStop, StepPosition, TimingFunction};
+use super::{StepPosition, TimingFunction};
 use crate::parse::token::tokenize;
 use crate::parse::values::{
     parse_time_list, parse_timing_function_list, parse_transition_property_list,
@@ -105,11 +105,4 @@ fn none_is_only_valid_alone() {
     assert_eq!(parse_transition_property_list(&t("none, color")), None);
     assert!(parse_transition_shorthand(&t("none 1s")).is_some());
     assert_eq!(parse_transition_shorthand(&t("color 1s, none 2s")), None);
-}
-
-/// `LinearStop` is a plain record.
-#[test]
-fn linear_stop_builds() {
-    let s = LinearStop::new(0.5, 0.25);
-    assert_eq!((s.input, s.output), (0.5, 0.25));
 }

@@ -1357,7 +1357,8 @@ fn phase11_reexport_hints() {
 }
 
 /// C12-ANIMATABLE: `transition-property` names any property — a
-/// `TransitionProperty::Named` holds its canonical name (`AnimatableProperty`
+/// `TransitionProperty::Named` holds its canonical name, a `PropertyName`
+/// built only from a known one (C12G-API-HYGIENE; `AnimatableProperty`
 /// is gone), `Discrete(name)` is `Other(name)` for a custom or unknown
 /// name; the engine's `AnimatedProp` / `AnimatedValue` are a
 /// `style::animation::Longhand` and two whole styles
@@ -1370,8 +1371,11 @@ fn transition_property_hints() {
     use style::transition::TransitionProperty;
     assert_eq!(
         TransitionProperty::named("color"),
-        TransitionProperty::Named("color")
+        TransitionProperty::Named(PropertyName::new("color").unwrap())
     );
+    if let TransitionProperty::Named(n) = TransitionProperty::named("color") {
+        assert_eq!(n.as_str(), "color");
+    }
     assert_eq!(
         TransitionProperty::named("--x"),
         TransitionProperty::Other("--x".into())
@@ -1382,7 +1386,7 @@ fn transition_property_hints() {
         style::animation::animation_type("display"),
         Some(style::animation::AnimationType::Discrete)
     );
-    let _: Option<&runtime::animation::Longhand> = None;
+    let _: Option<&Longhand> = None;
     let ext = TuiExt::default();
     assert!(ext.base_computed_for(ext::StyleSlot::Host).is_none());
     let mut dom: TuiDom = TuiDom::new();
@@ -1431,8 +1435,8 @@ fn calc_size_hints() {
     ));
 }
 
-/// C12-TIMING: `TimingFunction` is not `Copy` and has `linear()`'s
-/// `LinearStops`; delays are signed (`transition_delay: Vec<i32>`);
+/// C12-TIMING: `TimingFunction` is not `Copy`, has `linear()`'s
+/// `LinearStops` and is `#[non_exhaustive]` (C12G-API-HYGIENE); delays are signed (`transition_delay: Vec<i32>`);
 /// `parse_duration_list` reads durations, `parse_time_list` delays.
 #[test]
 fn timing_hints() {
@@ -1442,6 +1446,13 @@ fn timing_hints() {
     );
     let g = f.clone();
     assert_eq!(g.ease(0.5), 0.5);
+    // C12G-API-HYGIENE: `#[non_exhaustive]` — a match keeps a `_` arm.
+    let name = match g {
+        TimingFunction::Linear => "linear",
+        TimingFunction::LinearStops(_) => "linear()",
+        _ => "other",
+    };
+    assert_eq!(name, "linear()");
     let s = TuiStyle::new().transition_delay(vec![-500]);
     assert_eq!(s.transition_delay, Some(Value::Specified(vec![-500])));
     let tokens = style::parse::tokenize("1s, 2s").unwrap();
@@ -1449,4 +1460,32 @@ fn timing_hints() {
         style::parse::values::parse_duration_list(&tokens),
         Some(vec![1000, 2000])
     );
+}
+
+/// C12G-API-HYGIENE: the `effective_*` helpers are gone — read the
+/// computed style, which holds the running values; `ActiveAnimation` is
+/// the engine's own (inspect with `App::get_animations`); rdom-style's
+/// tokenizer cursor is `parse::SourceCursor`; `linear()` stops are built
+/// output first, as CSS writes them; `Appearance` is `#[non_exhaustive]`;
+/// the UI setters take `impl Into` of their value.
+#[test]
+fn animation_api_hygiene_hints() {
+    let mut dom: TuiDom = TuiDom::new();
+    let el = dom.create_element("div");
+    let fg = dom.node(el).computed().map(|c| c.fg);
+    assert_eq!(fg, None, "not cascaded yet");
+    let mut cursor = style::parse::SourceCursor::new("a");
+    assert_eq!(cursor.bump(), Some('a'));
+    let stop = LinearStop::new(0.25, 0.75);
+    assert_eq!((stop.output, stop.input), (0.25, 0.75));
+    let chrome = match layout::Appearance::None {
+        layout::Appearance::None => "none",
+        layout::Appearance::Auto => "auto",
+        _ => "auto (an unknown keyword)",
+    };
+    assert_eq!(chrome, "none");
+    let s = TuiStyle::new().cursor(layout::CursorKeyword::Pointer);
+    assert!(s.ui.cursor.is_some());
+    let s = TuiStyle::new().timeline_scope(TimelineScope::All);
+    assert!(s.timeline_scope.is_some());
 }

@@ -7,7 +7,7 @@
 
 use rdom_core::css_syntax;
 
-use crate::parse::cursor::Cursor;
+use crate::parse::source_cursor::SourceCursor;
 
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -154,7 +154,7 @@ pub struct SpannedTokens {
 /// comments between its tokens included (CSS Variables 1 §2: a custom
 /// property's value is the token sequence as written).
 pub fn tokenize_spans(source: &str, line: u32, col: u32) -> Result<SpannedTokens, TokenizerError> {
-    let mut cursor = Cursor::at(source, line, col);
+    let mut cursor = SourceCursor::at(source, line, col);
     let mut out = SpannedTokens::default();
     loop {
         skip_ws_and_comments(&mut cursor)?;
@@ -172,7 +172,7 @@ pub fn tokenize_spans(source: &str, line: u32, col: u32) -> Result<SpannedTokens
     }
 }
 
-fn skip_ws_and_comments(cursor: &mut Cursor) -> Result<(), TokenizerError> {
+fn skip_ws_and_comments(cursor: &mut SourceCursor) -> Result<(), TokenizerError> {
     loop {
         match cursor.peek() {
             Some(c) if c.is_whitespace() => {
@@ -199,7 +199,7 @@ fn skip_ws_and_comments(cursor: &mut Cursor) -> Result<(), TokenizerError> {
     }
 }
 
-fn skip_comment_body(cursor: &mut Cursor) -> bool {
+fn skip_comment_body(cursor: &mut SourceCursor) -> bool {
     loop {
         match cursor.bump() {
             None => return false,
@@ -214,7 +214,7 @@ fn skip_comment_body(cursor: &mut Cursor) -> bool {
     }
 }
 
-fn read_one(cursor: &mut Cursor, c: char) -> Result<Token, TokenizerError> {
+fn read_one(cursor: &mut SourceCursor, c: char) -> Result<Token, TokenizerError> {
     // §4.3.1: an ident-start code point, a valid escape (`\31`), or a
     // `-` followed by either of those or another `-` begins an
     // identifier. `-5`, `-)` and a lone `-` are punctuation and start a
@@ -252,7 +252,7 @@ fn read_one(cursor: &mut Cursor, c: char) -> Result<Token, TokenizerError> {
 /// §4.3.4 "consume an ident-like token" (minus `url(`): an ident
 /// sequence with its escapes decoded (§4.3.11), promoted to a
 /// `Function` when `(` follows directly.
-fn read_ident_or_function(cursor: &mut Cursor) -> Token {
+fn read_ident_or_function(cursor: &mut SourceCursor) -> Token {
     let (name, used) = css_syntax::consume_ident(cursor.rest());
     cursor.advance(used);
     if cursor.peek() == Some('(') {
@@ -278,7 +278,7 @@ fn read_ident_or_function(cursor: &mut Cursor) -> Token {
 
 /// §4.3.6 "consume a url token", `url(` and its leading whitespace
 /// already consumed.
-fn read_url(cursor: &mut Cursor) -> Token {
+fn read_url(cursor: &mut SourceCursor) -> Token {
     let mut url = String::new();
     loop {
         match cursor.peek() {
@@ -319,7 +319,7 @@ fn read_url(cursor: &mut Cursor) -> Token {
 
 /// §4.3.14 "consume the remnants of a bad url": up to and including the
 /// next `)` not inside an escape.
-fn bad_url_remnants(cursor: &mut Cursor) -> Token {
+fn bad_url_remnants(cursor: &mut SourceCursor) -> Token {
     loop {
         match cursor.peek() {
             None => return Token::BadUrl,
@@ -346,7 +346,7 @@ fn is_non_printable(c: char) -> bool {
 
 /// CSS Syntax 3 §4.3.3 "consume a numeric token": a number, then a
 /// `Dimension` when an identifier starts right after it.
-fn read_numeric(cursor: &mut Cursor) -> Token {
+fn read_numeric(cursor: &mut SourceCursor) -> Token {
     let number = read_number(cursor);
     let (value, integer) = match number {
         Token::Number(n) => (n as f64, true),
@@ -370,7 +370,7 @@ fn read_numeric(cursor: &mut Cursor) -> Token {
 /// digit follows, so `1em` stays `1` + `em`), then the `%` promotion.
 /// The sign is not part of the literal here — `read_one` emits
 /// `Delim('-')` first — so this only ever sees an unsigned literal.
-fn read_number(cursor: &mut Cursor) -> Token {
+fn read_number(cursor: &mut SourceCursor) -> Token {
     let mut text = String::new();
     let mut is_integer = true;
     while let Some(c) = cursor.peek() {
@@ -444,7 +444,7 @@ fn read_number(cursor: &mut Cursor) -> Token {
     Token::Float(value)
 }
 
-fn read_hash(cursor: &mut Cursor) -> Token {
+fn read_hash(cursor: &mut SourceCursor) -> Token {
     cursor.bump(); // consume '#'
     let mut hex = String::new();
     while let Some(c) = cursor.peek() {
@@ -458,7 +458,7 @@ fn read_hash(cursor: &mut Cursor) -> Token {
     Token::HexColor(hex)
 }
 
-fn read_string(cursor: &mut Cursor) -> Result<Token, TokenizerError> {
+fn read_string(cursor: &mut SourceCursor) -> Result<Token, TokenizerError> {
     let line = cursor.line();
     let col = cursor.col();
     let quote = cursor

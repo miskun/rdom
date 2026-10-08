@@ -109,7 +109,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 - **Counters and generated content**: `CounterStyle` is a counter style name (`CounterStyle::named("upper-roman")`, no longer `Copy`), `CounterOp` is built by `CounterOp::new` / `reversed`, `parse_counter_ops` takes a third argument, `Content` (`content: normal` is `Content::Normal`) and `PseudoElementTarget` (no longer `Copy`) take a `_` arm, and `Length::Calc` holds an `Arc`.
 - **Removed helpers**: `parse_unsigned`, `round_half_to_even`, `Content::Attr`.
 - **Dialog methods return `Result`**: `dialog::show` / `show_modal` (`?` them).
-- **Transitions**: `transition-property` names any property (`TransitionProperty::Named("color")`, `TransitionProperty::named(name)`); the engine's `AnimatedProp` / `AnimatedValue` and `PresentationStyle`'s value fields are gone — read the running value from `computed`.
+- **Transitions**: `transition-property` names any property (`TransitionProperty::named("color")`, a `Named(PropertyName)` for a known one); `TimingFunction` is `#[non_exhaustive]`; the engine's `AnimatedProp` / `AnimatedValue` and `PresentationStyle`'s value fields are gone — read the running value from `computed`.
 - **Selectors**: `SimpleSelector::Attribute` gains `case: AttrCase` (build it with `case: AttrCase::Default`; match `{ name, op, value, .. }`).
 
 Code written against git `main` between 0.5 and this release also meets the [changes to unreleased APIs](#changes-to-apis-added-after-05) — items that never shipped in 0.5.
@@ -173,9 +173,10 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | exhaustive `match` on `Content`; `content: normal` as `Content::None` | `#[non_exhaustive]` (a `_` arm; new `Counters`, `Quote`, `WithAlt`); `Content::Normal` | C10-CONTENT, C10-LIST-ITEM | `generated_content_hints` |
 | exhaustive `match` on `Size` | add a `Size::CalcSize(c)` arm (`calc-size()`; `c.basis_size()`, `c.resolve(basis, percent_basis)`) | C12-ANIMATABLE | `calc_size_hints` |
 | exhaustive `match` on `MinSize` | add a `MinSize::CalcSize(c)` arm (`c.basis_min_size()`, `c.resolve(…)`) | C12-ANIMATABLE | `calc_size_hints` |
-| `TimingFunction` (`Copy`); `transition_delay: Vec<u32>`, `TransitionRule::delay_ms: u32`; `parse_time_list` for durations | `.clone()`; a `LinearStops` arm; `Vec<i32>` / `i32`; `parse_duration_list` (`parse_time_list` reads signed delays) | C12-TIMING | `timing_hints` |
-| `AnimatableProperty` (`TransitionProperty::Named(AnimatableProperty::Color)`); `parse::values::parse_animatable_property`; `TransitionProperty::Discrete(name)` | `TransitionProperty::Named("color")` — any property's canonical name, built by `TransitionProperty::named(name)`; `Other(name)` for a custom or unknown one | C12-ANIMATABLE | `transition_property_hints` |
+| `TimingFunction` (`Copy`, exhaustive); `transition_delay: Vec<u32>`, `TransitionRule::delay_ms: u32`; `parse_time_list` for durations | `.clone()`; `#[non_exhaustive]` (a `_` arm); `Vec<i32>` / `i32`; `parse_duration_list` (`parse_time_list` reads signed delays) | C12-TIMING, C12G-API-HYGIENE | `timing_hints` |
+| `AnimatableProperty` (`TransitionProperty::Named(AnimatableProperty::Color)`); `parse::values::parse_animatable_property`; `TransitionProperty::Discrete(name)` | `TransitionProperty::named("color")` — `Named(PropertyName)`, a known property's canonical name (`PropertyName::new`, `as_str()`); `Other(name)` for a custom or unknown one | C12-ANIMATABLE, C12G-API-HYGIENE | `transition_property_hints` |
 | `PseudoElementTarget` (`Copy`) | `.clone()`; a match adds `Highlight(_)` under its `_` arm | C10-HIGHLIGHT | `pseudo_element_target_hints` |
+| `parse::Cursor` (`parse::cursor::Cursor`), the tokenizer's character cursor | `parse::SourceCursor` (`parse::source_cursor`) | C12G-API-HYGIENE | `animation_api_hygiene_hints` |
 
 #### `rdom-core`
 
@@ -187,7 +188,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 
 | 0.5 | Unreleased | Item | Hint test |
 |---|---|---|---|
-| `ActiveAnimation { … }` struct literal | adds `scheme` (only read; not built outside rdom-tui) | C3G-SCHEME-CONSISTENCY | — |
+| `ActiveAnimation { … }` (public, never returned by a public API) | crate-private; `App::get_animations` → `AnimationInfo` (`kind()`, `play_state()`, `current_time_ms()`) | C3G-SCHEME-CONSISTENCY, C12G-API-HYGIENE | `animation_api_hygiene_hints` |
 | `set_width(Size)` / `set_height(Size)` | `set_width(impl Into<Size>)` / `set_height(impl Into<Size>)` | C3G-API | `sizing_hints` |
 | `set_min_width(Some(m))` / `set_min_height(Some(m))` | `set_min_width(m)` (`impl Into<MinSize>`) | C2-PERCENT, C3G-API | `sizing_hints` |
 | `set_min_width(None)` (remove the declaration) | `style_mut().unwrap().remove_property("min-width")` | C3G-API | `sizing_hints` |
@@ -197,7 +198,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `impl LayoutExt` / `PaintExt` / `HitTestExt` / `TuiDispatchExt` / `TuiDocAccessors` / `TuiNodeExt` / `TuiNodeMutExt` / `TuiAccessors` / `TuiAccessorsMut` / `TuiTimers` | sealed; wrap a `Dom<TuiExt>` or node handle | C4G-SEALED | `sealed_trait_hints` |
 | `Buffer { … }` struct literal | `Buffer::empty` / `filled` / `with_cells` | C3-ALPHA | `render_hints` |
 | `PresentationStyle::border_fg: Option<Color>` | `border_color: Option<Sides<Color>>` | C4-BORDER-SHORTHAND | `border_hints` |
-| `animation::effective_border_fg(…) -> Color` | `effective_border_color(…) -> Sides<Color>` | C4-BORDER-SHORTHAND | `border_hints` |
+| `animation::effective_fg` / `effective_bg` / `effective_border_fg` / `effective_padding` | removed: `node.computed()` (`c.fg`, `c.bg`, `c.border_color: Sides<Color>`, `c.padding`), which holds the running values | C4-BORDER-SHORTHAND, C12G-API-HYGIENE | `animation_api_hygiene_hints` |
 | `BorderContribution { … }` | adds `weight: BorderWeight` (`BorderWeight::Light`) | C4-BORDER-WIDTH | `border_hints`, `render_hints` |
 | `TuiExt::scroll_x: usize` | `scroll_x: i32` (`scrollLeft`, ≤ 0 from a right-edge origin) | C5G-RTL-SCROLL | `scroll_token_and_line_hints` |
 | `TuiExt::scroll_y: usize` | `scroll_y: i32` (`scrollTop`, ≤ 0 from a bottom-edge origin) | C6-DIRECTION-REVERSE | `reverse_and_signed_scroll_top_hints` |
@@ -213,7 +214,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `TuiExt::before_layout` / `after_layout` (`PseudoLayout { rect, position }`) | `TuiExt::positioned_pseudos()` — an iterator of `PositionedPseudo { slot, border_box, content_box, lines }`, an absolutely or fixed positioned pseudo-element each; a relative or sticky one is laid out in flow, drawn at its fragments' `GeneratedFragment::drawn_at()` | C10-PSEUDO-UNIFY, C10G-API-SMALL | `generated_box_read_hints` |
 | `render::Style { fg, bg, add_modifier, sub_modifier }`; `SgrState { fg, bg, modifier }` literals | add `underline_color` (`Style::new()…underline_color(c)`, `SgrState::RESET`) | C9-DECORATION | `text_decoration_hints` |
 | `TuiExt::computed_before_prev` / `computed_after_prev` / `presentation_before` / `presentation_after` / `computed_backdrop` / `computed_scrollbar` / `computed_scrollbar_thumb_vertical` / `computed_scrollbar_thumb_horizontal` fields | accessors of the same names (`ext.computed_backdrop()`), `presentation_for(StyleSlot::Before)`; the record `pseudo_styles()` (`PseudoStyles`) | C10G-TUIEXT-SIDE | `tui_ext_pseudo_hints` |
-| `runtime::animation::AnimatedProp` / `AnimatedValue`; `ActiveAnimation::{property, from, to}`; `PendingEvent::property: AnimatedProp` | `style::animation::Longhand` (`css_name()`); `from` / `to: Rc<ComputedStyle>` | C12-ANIMATABLE | `transition_property_hints` |
+| `runtime::animation::AnimatedProp` / `AnimatedValue`; `ActiveAnimation::{property, from, to}`; `PendingEvent::property: AnimatedProp` | `Longhand` (`css_name()`, at the root); `ActiveAnimation` is crate-private | C12-ANIMATABLE, C12G-API-HYGIENE | `transition_property_hints` |
 | `PresentationStyle`'s value fields (`fg`, `bg`, `border_color`, `width`, `height`, `padding`, `row_gap`, … `visibility`), `PresentationStyle::clear` | `TuiExt::computed` / `computed_for(slot)`, which hold the running values; the cascade's own style is `TuiExt::base_computed_for(slot)` / `node.base_computed()`; `PresentationStyle::animated()` | C12-ANIMATABLE | `transition_property_hints` |
 | `dialog::show(dom, d)` / `dialog::show_modal(dom, d)` → `()` | `-> rdom_core::Result<()>` (`DomError::InvalidState` where HTML throws) | C11G-POPOVER-BOUND | `dialog_show_hints` |
 
@@ -245,6 +246,10 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 | rdom-css `WarningKind::InvalidCounterStyleRule { name, reason: String }`, for a rule that defines nothing and for a dropped descriptor | `InvalidCounterStyleRule { name, reason: CounterStyleRuleReason }` for a rule that defines nothing; `CounterStyleDescriptorDropped { name, descriptor, reason: CounterStyleDescriptorReason }` for a dropped declaration | C10G-API-SMALL | — |
 | `ControlStateHook<Ext>` = `fn(&Dom<Ext>, NodeId, ControlState) -> bool` | `-> Option<bool>` (`None`: the substrate's default answers); wrap answers in `Some`, a `_ => false` arm becomes `_ => None` | C11G-API | `control_state_hook_hints` |
 | `TuiExt::cascaded_for(slot)`; `PresentationStyle::cascaded()` | `TuiExt::base_computed_for(slot)` (the base value, without transitions or CSS animations), `node.base_computed()` on handles; `PresentationStyle::base()` | C12G-COMPUTED-DOCS | `transition_property_hints` |
+| `LinearStop::new(input, output)` | `LinearStop::new(output, input)` — CSS's `linear(<output> <input>%)` order (fields `output`, `input`) | C12G-API-HYGIENE | `animation_api_hygiene_hints` |
+| exhaustive `match` on `Appearance` | add a `_` arm (`#[non_exhaustive]`: CSS Forms extends the grammar; treat an unknown keyword as `auto`) | C12G-API-HYGIENE | `animation_api_hygiene_hints` |
+| `runtime::animation::AnimationEventKind` | crate-private (no public signature used it; an event's type is its `event_type` string) | C12G-API-HYGIENE | — |
+| `.cursor(CursorKeyword::Pointer.into())` (and the other CSS UI setters) | `.cursor(CursorKeyword::Pointer)` (`impl Into<Cursor>`) | C12G-API-HYGIENE | `animation_api_hygiene_hints` |
 
 ### Breaking — `rdom-core`
 
@@ -297,10 +302,11 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Breaking — `rdom-style`
 
-- **`TimingFunction` is not `Copy` and gains `LinearStops`** (`linear()`, CSS Easing 2); **`transition-delay` is signed**: `TuiStyle` / `ComputedStyle::transition_delay` are `Vec<i32>`, `TransitionRule::delay_ms` is `i32`, `parse_time_list` reads signed delays (`parse_duration_list` the durations). Migration: `.clone()` an easing; add a `LinearStops` arm; `i32` delays. (C12-TIMING)
+- **The tokenizer's cursor is `parse::SourceCursor`** (module `parse::source_cursor`): `Cursor` is the `cursor` property's value (`layout::Cursor`), and two public `Cursor`s collided under a glob import. Migration: `rdom_style::parse::Cursor` → `parse::SourceCursor`, same methods. (C12G-API-HYGIENE)
+- **`TimingFunction` is not `Copy`, gains `LinearStops`** (`linear()`, CSS Easing 2) **and is `#[non_exhaustive]`** (C12G-API-HYGIENE); **`transition-delay` is signed**: `TuiStyle` / `ComputedStyle::transition_delay` are `Vec<i32>`, `TransitionRule::delay_ms` is `i32`, `parse_time_list` reads signed delays (`parse_duration_list` the durations). Migration: `.clone()` an easing; a match adds a `_` arm; `i32` delays. (C12-TIMING, C12G-API-HYGIENE)
 - **`Size` gains `CalcSize`** (`calc-size()`, CSS Values 5 §10), the value an `auto` ↔ length transition runs through. Migration: add a `Size::CalcSize(c)` arm — size it as `c.basis_size()`, or `c.resolve(basis, percent_basis)` once the basis is known. (C12-ANIMATABLE)
 - **`MinSize`, `MaxSize` and `FlexBasis` gain `CalcSize`**, and `CalcSizeBasis` gains `Content` (`flex-basis: calc-size(content, …)`). Migration: add a `CalcSize(c)` arm — its keyword is `c.basis_min_size()` / `basis_max_size()` / `basis_flex_basis()`, its size `c.resolve(basis, percent_basis)`. (C12-ANIMATABLE)
-- **`transition-property` names any property**: `TransitionProperty::Named` holds the property's canonical name (`Named("padding")`); `AnimatableProperty` and `parse_animatable_property` are gone, and `Discrete(name)` is `Other(name)`. Migration: `TransitionProperty::named("color")`; match `Named(name)`. (C12-ANIMATABLE)
+- **`transition-property` names any property**: `TransitionProperty::Named` holds a `PropertyName` — a known property's canonical name, built only by `PropertyName::new` (`None` for `colour`) — and any other name is `Other(name)`; `AnimatableProperty` and `parse_animatable_property` are gone. Migration: `TransitionProperty::named("color")`; match `Named(n)`, read `n.as_str()`. (C12-ANIMATABLE, C12G-API-HYGIENE)
 - **`Length::Calc` holds an `Arc<CalcExpr>`** (was a `Box`): an inherited `calc()` `text-indent` is shared by its descendants' computed styles, not copied per element, and every `Length` clones without allocating. Migration: `Length::Calc(Box::new(e))` → `Length::calc(e)` (or `Length::Calc(Arc::new(e))`); a match on `Length::Calc(e)` reads `e` as before. (C9-CARRY-INDENT)
 - **`PseudoElementTarget` is no longer `Copy`**: its new `Highlight(Arc<str>)` variant names a `::highlight()`'s highlight. Migration: `rule.pseudo.clone()` where a copy was taken; a `match` adds `Highlight(_)` (the enum is `#[non_exhaustive]`). (C10-HIGHLIGHT)
 - **`CounterOp` is `#[non_exhaustive]`** and gains `reversed` and `value_given` (`counter-reset: reversed(c)`, CSS Lists 3 §4.2); `parse_counter_ops` takes a third argument, whether `reversed()` is allowed. Migration: `CounterOp { name, value }` → `CounterOp::new(name, value)`; `CounterOp::reversed(name, Some(n))` for a reversed reset. (C10-COUNTERS)
@@ -379,6 +385,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **Builder setters for every scroll-driven longhand**: `view_timeline_axis`, `view_timeline_inset` and `timeline_scope` join `scroll_timeline_*` / `view_timeline_name`; the CSS UI setters (`cursor`, `appearance`, `outline_*`, …) take `impl Into` of their value, so `.cursor(CursorKeyword::Pointer)`. (C12G-API-HYGIENE)
 - **`resize`** (CSS UI 4 §4.2): `none | both | horizontal | vertical | block | inline`, not inherited, discrete (`Resize`, `axes()`); the UA sheet's `textarea` takes `both`. (C12-CONTROLS)
 - **`field-sizing`** (CSS UI 4 §7.2): `content | fixed`, not inherited, discrete (`FieldSizing`). (C12-CONTROLS)
 - **`appearance`** (CSS UI 4 §7.1) and its legacy name `-webkit-appearance`: `none | auto | base` and the compat keywords, not inherited, discrete (`Appearance`). (C12-CONTROLS)
@@ -565,7 +572,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Breaking — `rdom-tui`
 
-- **Running transitions composite onto `computed`**: `AnimatedProp` / `AnimatedValue` are gone (`PendingEvent::property` is a `Longhand`, `ActiveAnimation::from` / `to` whole styles) and `PresentationStyle` keeps no values. Migration: read `ext.computed` / `computed_for(slot)`, which hold the running value; `base_computed_for(slot)` / `node.base_computed()` is the cascade's own style. (C12-ANIMATABLE)
+- **`runtime::animation`'s `effective_fg` / `effective_bg` / `effective_border_color` / `effective_padding` are removed, and `ActiveAnimation` is crate-private**: the helpers only read `computed` (and `effective_bg` fell back to `Reset`, not the initial `TRANSPARENT`); no public API built or returned an `ActiveAnimation`. Migration: `node.computed().map(|c| c.fg)`; inspect animations with `App::get_animations`. (C12G-API-HYGIENE)
+- **Running transitions composite onto `computed`**: `AnimatedProp` / `AnimatedValue` are gone (`PendingEvent::property` is a `Longhand`) and `PresentationStyle` keeps no values. Migration: read `ext.computed` / `computed_for(slot)`, which hold the running value; `base_computed_for(slot)` / `node.base_computed()` is the cascade's own style. (C12-ANIMATABLE)
 - **`dialog::show` / `show_modal` return `rdom_core::Result<()>`** (HTML §4.11.4's `InvalidStateError`s): `show` on a modal dialog, `show_modal` on an open, disconnected or popover-showing dialog are `DomError::InvalidState`; `show_modal` on a modal one does nothing. Migration: `?` the call, or `.ok()` on a known-closed dialog. (C11G-POPOVER-BOUND)
 - **A modal `<dialog>` is in the top layer, not marked `data-rdom-modal`**: `dialog::show_modal` adds it to `Dom::top_layer()`; the rdom-internal marker attribute is gone. Migration: select a modal dialog with `dialog:modal` (or `:modal`), test it with `dialog::is_modal` or `dom.top_layer_kind(id)`. (C11-MODAL-POPOVER)
 - **`render::Style` and `render::SgrState` gain `underline_color`** (SGR 58, CSS `text-decoration-color`): a struct literal sets it. Migration: `Style::new()` and its builders (`.underline_color(c)`), `SgrState { underline_color: Color::Reset, .. }` or `SgrState::RESET`. (C9-DECORATION)
@@ -596,6 +604,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **The transition and animation-inspection types at the root**: `TransitionProperty`, `PropertyName`, `TimingFunction`, `LinearStop`, `StepPosition`, `TransitionBehavior` and `TransitionRule` beside the `@keyframes` types, and `AnimationInfo`, `AnimationKind` and `Longhand`, so `use rdom_tui::*;` names what `App::get_animations` returns. (C12G-API-HYGIENE)
 - **`node.base_computed()`** (`TuiNodeExt`): an element's base computed style — the cascade's, without its running transitions' and CSS animations' values (Web Animations 1 §5.4.5's base value) — beside `computed()`, which holds them; `TuiExt::base_computed_for(slot)` for a pseudo-element. (C12G-COMPUTED-DOCS)
 - **A `<select>` picker in the top layer**: an open drop-down's option list renders above every stacking context and outside every `overflow` clip, without moving the page (the select keeps its row), is hit first and light-dismisses on a click outside, as a popover does. (C12-SELECT-TOP-LAYER)
 - **`resize`: dragging a box's grip resizes it** (CSS UI 4 §4.2): a scroll container with `resize` draws a `◢` grip in its bottom-right cell inside the border, and a press there drags its size on the allowed axes into its `style` attribute; `<textarea>` is `resize: both` by default. (C12-CONTROLS, C12G-RESIZE-PICKER)

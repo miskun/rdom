@@ -249,3 +249,14 @@ fn a_tokenizer_error_is_a_std_error() {
     let err = tokenize("\n  'open").unwrap_err();
     assert_eq!(err.to_string(), "2:3: unterminated string");
 }
+
+/// C12G-API-HYGIENE: the tokenizer's character cursor is `SourceCursor`
+/// — `Cursor` is the `cursor` property's value (`layout::Cursor`) — and
+/// tracks the line and column of the next character.
+#[test]
+fn the_source_cursor_tracks_lines() {
+    let mut c = crate::parse::SourceCursor::new("a\nb");
+    c.bump();
+    c.bump();
+    assert_eq!((c.line(), c.col()), (2, 1));
+}

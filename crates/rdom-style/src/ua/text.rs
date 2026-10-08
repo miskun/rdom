@@ -185,7 +185,7 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new()
                 .fg(ACCENT)
                 .text_decoration(TextDecoration::Underline)
-                .cursor(crate::layout::CursorKeyword::Pointer.into()),
+                .cursor(crate::layout::CursorKeyword::Pointer),
         ),
         ("a[href]:hover", TuiStyle::new().bold(true)),
         // ── Block typography ──

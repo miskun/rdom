@@ -117,6 +117,9 @@ pub use render::{
     Backend, Buffer, Cell, CellDiff, CompletedFrame, CrosstermBackend, LayoutExt, PaintExt, Rect,
     SgrCapabilities, Style, Terminal, TerminalGuard, TestBackend,
 };
+/// What [`App::get_animations`] lists (`Element.getAnimations()`, Web
+/// Animations 1 §6.7) and the longhand a transition event names.
+pub use runtime::animation::{AnimationInfo, AnimationKind, Longhand};
 /// The canvas paint surface a `<canvas>` `set_paint` callback receives.
 /// (Re-exported here as the canonical `RenderContext`; the old, unused
 /// `render::RenderContext` was removed in `RENDERCTX-DEDUP-1`.)
@@ -133,6 +136,12 @@ pub use runtime::pointer_shape::PointerShapes;
 pub use runtime::timers::TuiTimers;
 pub use runtime::{
     App, AppContext, AppHandle, ControlFlow, HitTestExt, RouteOutcome, Router, StylesheetId,
+};
+/// The `transition-*` vocabulary (CSS Transitions 1 / 2, CSS Easing 1 /
+/// 2), beside the `@keyframes` types.
+pub use style::transition::{
+    LinearStop, PropertyName, StepPosition, TimingFunction, TransitionBehavior, TransitionProperty,
+    TransitionRule,
 };
 pub use style::{
     AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
@@ -224,6 +233,32 @@ mod tests {
         dom.set_validity_hook(Some(hook));
         let serial: SelectionSerial = dom.selection_serial();
         assert_eq!(serial, dom.selection_serial());
+    }
+
+    /// C12G-API-HYGIENE: the transition vocabulary and what
+    /// `App::get_animations` returns are nameable from `rdom_tui` alone,
+    /// as the `@keyframes` types already were.
+    #[test]
+    fn transition_and_animation_inspection_types_are_reexported() {
+        let rule = TransitionRule {
+            property: TransitionProperty::named("color"),
+            duration_ms: 100,
+            timing: TimingFunction::LinearStops(
+                vec![LinearStop::new(0.0, 0.0), LinearStop::new(1.0, 1.0)].into(),
+            ),
+            delay_ms: 0,
+        };
+        assert_eq!(
+            rule.property,
+            TransitionProperty::Named(PropertyName::new("color").unwrap())
+        );
+        let _ = (TransitionBehavior::AllowDiscrete, StepPosition::End);
+        let longhand = Longhand::from_name("color").unwrap();
+        assert_eq!(longhand.css_name(), "color");
+        fn kinds(info: &AnimationInfo) -> &AnimationKind {
+            info.kind()
+        }
+        let _ = kinds;
     }
 
     #[test]

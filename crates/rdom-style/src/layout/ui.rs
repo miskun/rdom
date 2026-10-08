@@ -347,8 +347,11 @@ pub enum AccentColor {
 /// UA chrome. `base` (the WD's restylable base appearance) and the compat
 /// keywords are `auto` for rdom, whose controls are drawn with CSS.
 ///
-/// Closed (DESIGN): every keyword of the grammar.
+/// `#[non_exhaustive]` (DESIGN): CSS UI 4 is a Working Draft and CSS
+/// Forms keeps extending the grammar (`base-select`); a reader that meets
+/// an unknown keyword treats it as `auto`, as rdom does `base`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+#[non_exhaustive]
 pub enum Appearance {
     None,
     #[default]

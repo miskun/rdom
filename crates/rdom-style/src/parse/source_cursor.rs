@@ -1,19 +1,19 @@
 //! Char-level cursor with line / column tracking.
 //!
-//! The parser walks the source via [`Cursor::peek`] / [`Cursor::bump`]
+//! The parser walks the source via [`SourceCursor::peek`] / [`SourceCursor::bump`]
 //! plus a couple of compound helpers. Line and column track the
 //! *next* character so warnings/errors point at the offending token,
 //! not the one that came before.
 
 #[derive(Debug)]
-pub struct Cursor<'a> {
+pub struct SourceCursor<'a> {
     source: &'a str,
     pos: usize,
     line: u32,
     col: u32,
 }
 
-impl<'a> Cursor<'a> {
+impl<'a> SourceCursor<'a> {
     pub fn new(source: &'a str) -> Self {
         Self::at(source, 1, 1)
     }
@@ -67,7 +67,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Consume `bytes` bytes (a count a `rdom_core::css_syntax`
-    /// function returned for [`Cursor::rest`], so it ends on a `char`
+    /// function returned for [`SourceCursor::rest`], so it ends on a `char`
     /// boundary), keeping line and column current.
     pub fn advance(&mut self, bytes: usize) {
         let end = self.pos + bytes;
