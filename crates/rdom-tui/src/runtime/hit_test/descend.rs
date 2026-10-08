@@ -82,7 +82,10 @@ pub(super) fn hit_stacking_context(
             || hit_layers(dom, root, &layers.negative, x, y, viewport, path);
     };
     let contains = rect_contains(outer, x, y);
-    if contains && content_clip.contains(x, y) {
+    // A `<select>` picker (in the top layer) is its option list, which
+    // overflows the select's own row: its content is hit outside its box.
+    let picker = dom.top_layer_kind(root) == Some(rdom_core::TopLayerKind::Picker);
+    if (contains || picker) && content_clip.contains(x, y) {
         if !transparent {
             path.push(root);
         }

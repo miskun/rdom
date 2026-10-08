@@ -304,6 +304,11 @@ pub(super) fn extend_box_overflow(
         if let Some(r) = clip.cut(ext.layout) {
             extend(r);
         }
+        // A `<select>` picker's option list is in the top layer, part of no
+        // scroller's overflow (CSS Position 4); the select's own row is.
+        if dom.top_layer_kind(id) == Some(rdom_core::TopLayerKind::Picker) {
+            return;
+        }
         if let Some(c) = ext.computed.as_ref() {
             if c.is_scroll_container() {
                 return;

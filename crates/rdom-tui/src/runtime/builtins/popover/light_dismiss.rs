@@ -36,6 +36,8 @@ fn any_light_dismissable(dom: &TuiDom) -> bool {
 
 /// A press at `target` (`None`: on nothing).
 pub(crate) fn pointer_down(dom: &mut TuiDom, target: Option<NodeId>) {
+    // An open `<select>` picker light-dismisses as a popover does.
+    crate::runtime::builtins::select::light_dismiss_down(dom, target);
     if !any_light_dismissable(dom) {
         return;
     }
@@ -43,19 +45,21 @@ pub(crate) fn pointer_down(dom: &mut TuiDom, target: Option<NodeId>) {
     dom.set_document_data(PointerDown(clicked));
 }
 
-/// A release at `target`. Returns whether it hid a popover.
+/// A release at `target`. Returns whether it hid a popover (or closed a
+/// `<select>` picker).
 pub(crate) fn pointer_up(dom: &mut TuiDom, target: Option<NodeId>) -> bool {
+    let picker = crate::runtime::builtins::select::light_dismiss_up(dom, target);
     if !any_light_dismissable(dom) {
-        return false;
+        return picker;
     }
     let ancestor = target.and_then(|t| topmost_clicked_popover(dom, t));
     let down = dom.remove_document_data::<PointerDown>().and_then(|d| d.0);
     if ancestor != down {
-        return false;
+        return picker;
     }
     let before = dom.top_layer().len();
     hide_popovers_until(dom, ancestor, false, true);
-    dom.top_layer().len() != before
+    picker || dom.top_layer().len() != before
 }
 
 /// HTML "topmost clicked popover": of the nearest open popover holding

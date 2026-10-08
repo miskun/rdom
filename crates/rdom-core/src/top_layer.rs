@@ -26,6 +26,11 @@ pub enum TopLayerKind {
     /// An element whose popover is showing (HTML §6.12):
     /// `:popover-open`.
     Popover,
+    /// An open drop-down `<select>`: its picker (the option list,
+    /// HTML's `::picker(select)`) renders in the top layer while the
+    /// select's own box stays in flow. Neither `:modal` nor
+    /// `:popover-open`.
+    Picker,
 }
 
 impl<Ext> Dom<Ext> {

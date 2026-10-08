@@ -249,6 +249,7 @@ row comes from.
 | C12-CARET | `caret-shape` / `caret-animation` / `caret` | done |
 | C12-FOCUS-FLUSH | `focus()` (and other style-reading DOM calls) flushes pending style for the element first, as browsers do — TECH_DEBT `FOCUS-FLUSH-1`; needs the sheet set / transition registry / dirty tracker reachable from a handler's `Dom` | done |
 | C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | done |
+| C12-SELECT-TOP-LAYER | `<select>`'s drop-down picker in the top layer, light-dismissed like a popover (Phase 11 API N7's "consider") | done |
 
 ### Phase 13 — Tables (audit §3.20)
 
@@ -8001,3 +8002,26 @@ row comes from.
   Red, by mutation (no box counted resizable): `dragging_the_corner_resizes_the_box` reads `(6, 2)` for
   `(9, 4)` and the textarea test `(10, 4)` for `(6, 6)`. Dispatch: `ui_tests::resize_keywords_and_their_axes`.
   CHANGELOG silent change: a textarea's corner press now resizes it. C12-CONTROLS done.
+- 2026-10-17 — C12-SELECT-TOP-LAYER (Phase 11 API N7, left to C12 at Phase 11's close; HTML's select picker,
+  CSS Position 4 top layer, HTML §6.12.2 light dismiss). Found: an open drop-down set `data-rdom-open`, which
+  the UA sheet answered with `height: auto` — the select grew in flow to list its options, pushing the page
+  down, clipped by an `overflow` ancestor and under later stacking contexts. Decided — keep the look (the
+  option list from the select's row) but render it as a browser's picker: rdom-core's top layer gains
+  `TopLayerKind::Picker` (`#[non_exhaustive]` enum, additive), which `select::open` adds the select as and
+  `close` removes (a select not in the document does not open, as `showPicker()` throws there). The
+  select's box stays in flow (`finalize_top_layer` skips a picker, so its `position` is not forced) at its
+  one row (`select[data-rdom-open]` keeps `height: 1`, `overflow: visible`); its options overflow below it on
+  the field background (`:where(select[data-rdom-open]) > option`, below the selected / highlighted options'
+  own; UA count 185 → 186); being a top-layer member, the stacking walk leaves it out and
+  `paint_pass::top_layer` draws it after the document, clipped by the viewport only; the hit test, which
+  tries the top layer first, descends into a picker's content outside the select's own box; the scrollable
+  overflow walk counts the select's row but not its options. Light dismiss shares the popover router hooks
+  (`popover::light_dismiss::pointer_down` / `pointer_up` call `select::light_dismiss_down` / `_up`): a
+  release closes each open picker that neither the press nor the release was inside — the same press /
+  release rule as an auto popover's; it is not a popover otherwise (not `:popover-open`, no close watcher:
+  Esc stays the select's key; opening hides no popover — DIVERGENCES §2). Red:
+  `select/top_layer_tests.rs` 3 of 3 failed (not in the top layer; the select 3 rows tall; the option click
+  missed — the overflowing options were clipped); green after. Mutation-checked: no light dismiss fails
+  the dismiss test. Changed test: `open_dropdown_renders_options_inline_without_chrome` opens its select
+  after inserting it (its comment said no top layer); its expectations stand. No snapshot changed.
+  CHANGELOG silent change 21.

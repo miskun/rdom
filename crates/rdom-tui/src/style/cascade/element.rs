@@ -147,7 +147,11 @@ pub(super) fn compute_element_style(
     if super::blockify::children_are_items(dom, box_parent, parent) {
         super::blockify::blockify(&mut working);
     }
-    super::blockify::finalize_top_layer(&mut working, dom.is_in_top_layer(id));
+    // A `<select>` picker's select keeps its box in flow (its option list
+    // is what renders in the top layer).
+    let out_of_flow =
+        dom.is_in_top_layer(id) && dom.top_layer_kind(id) != Some(rdom_core::TopLayerKind::Picker);
+    super::blockify::finalize_top_layer(&mut working, out_of_flow);
     super::blockify::finalize_float(&mut working);
     // Content a closed `<details>`'s slot hides generates no box (HTML
     // §15.5.20's `content-visibility: hidden`, DIVERGENCES §2).

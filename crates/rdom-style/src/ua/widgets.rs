@@ -51,11 +51,18 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .height(Size::Auto)
                 .overflow(Overflow::Visible),
         ),
+        // An open drop-down keeps its one row in flow; its option list
+        // overflows below it, rendered in the top layer (the runtime puts
+        // the select there as a picker, HTML's `::picker(select)`), so it
+        // overlays the page — on the field background, which `:where()`
+        // keeps below the selected / highlighted options' own.
         (
             "select[data-rdom-open]",
-            TuiStyle::new()
-                .height(Size::Auto)
-                .overflow(Overflow::Visible),
+            TuiStyle::new().overflow(Overflow::Visible),
+        ),
+        (
+            ":where(select[data-rdom-open]) > option",
+            TuiStyle::new().bg(FIELD_BG),
         ),
         (
             "option",

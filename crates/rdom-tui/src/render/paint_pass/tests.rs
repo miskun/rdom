@@ -2874,13 +2874,14 @@ fn closed_dropdown_renders_arrow_plus_selected_label() {
 
 #[test]
 fn open_dropdown_renders_options_inline_without_chrome() {
-    // Open dropdown expands inline — options replace the chrome
-    // row. Selection stays visible via `option[selected]` bg.
-    // (Overlay popups are out of scope for v1; no top-layer.)
+    // An open dropdown's options replace the chrome row, from the
+    // select's row down, drawn from the top layer (C12-SELECT-TOP-LAYER:
+    // its picker; a disconnected select does not open, as HTML's
+    // `showPicker()` refuses one). Selection stays visible via
+    // `option[selected]` bg.
     let mut dom = TuiDom::new();
     let root = dom.root();
     let sel = dom.create_element("select");
-    crate::runtime::builtins::select::open(&mut dom, sel);
     let o1 = dom.create_element("option");
     dom.set_attribute(o1, "value", "dog").unwrap();
     dom.set_attribute(o1, "selected", "").unwrap();
@@ -2892,6 +2893,7 @@ fn open_dropdown_renders_options_inline_without_chrome() {
     dom.append_child(sel, o1).unwrap();
     dom.append_child(sel, o2).unwrap();
     dom.append_child(root, sel).unwrap();
+    crate::runtime::builtins::select::open(&mut dom, sel);
 
     let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 4));
     let r0 = row(&buf, 0);

@@ -61,7 +61,10 @@ fn ua_total_rule_count() {
     // `dialog:popover-open` a block, `[popover]` placement (+3).
     // 185: `:modal` / `:popover-open { overlay: auto !important }` (CSS
     // Position 4 §3.4, C12-BEHAVIOR, +2).
-    assert_eq!(ua.len(), 185);
+    // 186: an open drop-down's options on the field background, its
+    // picker overlaying the page from the top layer (C12-SELECT-TOP-LAYER,
+    // +1).
+    assert_eq!(ua.len(), 186);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")
