@@ -6465,3 +6465,11 @@ row comes from.
   `::details-content` as a real box, `::before::marker` / `::after::marker`. Full reports:
   `target/claude-logs/c10_gate_{architect,api}.md`. Fix as `C10G-*`, three batches: A correctness and
   cost, B finish the two partial items, C API and docs.
+- 2026-10-13 — C10G-SPLITS (architect B2). Two production files past the 575 split-on-touch bar, split by
+  concern with no code change: `rdom-tui/src/render/paint_pass/inline_paint/mod.rs` (578) → `mod.rs` 325
+  (the three entry points and the anchor tagging) + `inline_paint/flow.rs` 271 (`FlowPlacement` and the
+  shared line walker `paint_inline_layout`, which C10G-HIGHLIGHT-COST changes next); `rdom-style/src/computed.rs`
+  (590) → `computed.rs` 398 (the `ComputedStyle` record) + `computed/initial.rs` 159 (`initial()` and
+  `Default`) + `computed/queries.rs` 55 (`flex_direction`, `is_scroll_container`, `is_atomic_inline`,
+  `clips_overflow`, `normalize_overflow`). TECH_DEBT `SIZE-1` recounted against the tree (21 files between
+  500 and 575, none past). Public paths unchanged; no test or snapshot changed.
