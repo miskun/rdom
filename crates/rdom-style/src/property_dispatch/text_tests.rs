@@ -416,6 +416,9 @@ fn text_align_is_the_shorthand_of_all_and_last() {
         ("text-align", "left right"),
         ("text-align-all", "justify-all"),
         ("text-align-last", "justify-all"),
+        // The UA `th`'s value (HTML §15.3.8) is no author keyword.
+        ("text-align", "-internal-center"),
+        ("text-align-all", "-internal-center"),
         ("text-justify", "inter-ideograph"),
     ] {
         assert_eq!(

@@ -102,10 +102,24 @@ pub(super) fn root_line_height(dom: &Dom<TuiExt>) -> u16 {
 /// `text-align-all` / `text-align-last: match-parent`'s computed value
 /// (CSS Text 3 §6.1): the parent's, `start` / `end` resolved against the
 /// parent's `direction` to `left` / `right`; on the root element (no
-/// element parent), `start`.
+/// element parent), `start`. And the UA `th`'s `InternalCenter` (HTML
+/// §15.3.8): `center` when the parent's `text-align-all` is its initial
+/// `start` (on the root, always), else the parent's value as inherited —
+/// the rule does not match, so nothing but inheritance sets it.
+/// `text-align-last` is left as it is: browsers' `text-align` and
+/// `text-align-last` are separate properties, and theirs is the rule's
+/// reach.
 pub(super) fn finalize_text_align(working: &mut ComputedStyle, parent: &ComputedStyle, root: bool) {
     let rtl = parent.text_direction == TextDirection::Rtl;
     let text = &mut working.text;
+    if text.text_align_all == TextAlign::InternalCenter {
+        let inherited = parent.text.text_align_all;
+        text.text_align_all = if root || inherited == TextAlign::Start {
+            TextAlign::Center
+        } else {
+            inherited
+        };
+    }
     if text.text_align_all == TextAlign::MatchParent {
         text.text_align_all = if root {
             TextAlign::Start

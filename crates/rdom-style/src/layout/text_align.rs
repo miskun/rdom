@@ -92,7 +92,8 @@ impl TextIndent {
 /// (§6.1) sets it to: the inline alignment of a block container's lines.
 /// Inherited; initial `start`. `MatchParent` computes to the parent's
 /// value with `start` / `end` resolved against the parent's `direction`
-/// (`left` or `right`); at the root, to `start`.
+/// (`left` or `right`); at the root, to `start`. `InternalCenter` is the
+/// UA sheet's `th` value (HTML §15.3.8), which no author sheet can write.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextAlign {
     /// The line box's start edge.
@@ -110,6 +111,16 @@ pub enum TextAlign {
     Justify,
     /// The parent's alignment, `start` / `end` made physical.
     MatchParent,
+    /// HTML §15.3.8's `th` rule, which "matches `th` elements that have a
+    /// parent node whose computed value for the `text-align` property is
+    /// its initial value" and centres them: computes to `center` when the
+    /// parent's `text-align-all` is `start` (or there is no parent
+    /// element), else to the parent's value, as inherited. Only the UA
+    /// sheet sets it — the parser never produces it, as browsers'
+    /// `-internal-center` (Blink) and `-moz-center-or-inherit` (Gecko)
+    /// parse only in their UA sheets — and it never survives to a
+    /// computed value.
+    InternalCenter,
 }
 
 impl TextAlign {
@@ -123,6 +134,7 @@ impl TextAlign {
             Self::Center => "center",
             Self::Justify => "justify",
             Self::MatchParent => "match-parent",
+            Self::InternalCenter => "-internal-center",
         }
     }
 
@@ -235,6 +247,9 @@ impl TextAlignLast {
             TextAlign::Center => Self::Center,
             TextAlign::Justify => Self::Justify,
             TextAlign::MatchParent => Self::MatchParent,
+            // UA-only and computed away before `text-align-last` reads it
+            // (`TextAlign::InternalCenter`): its centred case.
+            TextAlign::InternalCenter => Self::Center,
         }
     }
 }

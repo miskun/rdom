@@ -3,7 +3,9 @@
 use super::css;
 use crate::color::named;
 use crate::color::system::{ACCENT, FIELD_BG, TEXT_MUTED};
-use crate::layout::{Display, Length, Overflow, Padding, Position, Size, TablePart, VerticalAlign};
+use crate::layout::{
+    Display, Length, Overflow, Padding, Position, Size, TablePart, TextAlign, VerticalAlign,
+};
 use crate::{Color, Content, TuiStyle};
 
 /// The UA rules of this group, in cascade order.
@@ -163,12 +165,13 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .display(Display::Block)
                 .flow(crate::layout::Flow::Table),
         ),
+        // HTML §15.3.8: `caption { text-align: center }`, no font or
+        // colour of its own.
         (
             "caption",
             TuiStyle::new()
                 .display(Display::TablePart(TablePart::Caption))
-                .italic(true)
-                .fg(TEXT_MUTED),
+                .text_align(TextAlign::Center),
         ),
         (
             "colgroup",
@@ -250,13 +253,14 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
 
 /// The UA style of `<td>` (`<th>` when `header`): a table cell with
 /// rdom's one-cell inline padding, inheriting `vertical-align` (HTML
-/// §15.3.8), a header bold.
+/// §15.3.8), a header bold and centred unless its parent aligns its text
+/// (§15.3.8's conditional `th` rule, as `TextAlign::InternalCenter`).
 fn cell(header: bool) -> TuiStyle {
     let mut s = TuiStyle::new()
         .display(Display::TablePart(TablePart::Cell))
         .padding(Padding::new(0, 1, 0, 1));
     if header {
-        s = s.bold(true);
+        s = s.bold(true).text_align_all(TextAlign::InternalCenter);
     }
     s.vertical_align = Some(crate::Value::Inherit);
     s

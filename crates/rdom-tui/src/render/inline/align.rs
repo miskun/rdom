@@ -47,11 +47,11 @@ impl TextAlignment {
             (true, None) if self.all == TextAlign::Justify => TextAlign::Start,
             (true, None) => self.all,
         };
-        // `match-parent` computes away in the cascade; `start` otherwise.
-        let align = if align == TextAlign::MatchParent {
-            TextAlign::Start
-        } else {
-            align
+        // `match-parent` and the UA's `th` centring compute away in the
+        // cascade; `start` otherwise.
+        let align = match align {
+            TextAlign::MatchParent | TextAlign::InternalCenter => TextAlign::Start,
+            a => a,
         };
         align.physical(rtl)
     }

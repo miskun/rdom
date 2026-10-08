@@ -2728,8 +2728,10 @@ fn table_header_cells_are_rendered_bold_via_ua_style() {
     assert!(computed.modifiers.contains(crate::style::Modifier::BOLD));
 }
 
+/// HTML §15.3.8: `caption { text-align: center }` and no font or colour
+/// of its own (it was italic and muted before C13G-TH-CAPTION).
 #[test]
-fn table_caption_uses_italic_dim_style() {
+fn table_caption_is_centred_and_plain() {
     use crate::node::TuiNodeExt;
     use crate::style::CascadeExt;
     let mut dom = TuiDom::new();
@@ -2743,9 +2745,12 @@ fn table_caption_uses_italic_dim_style() {
     dom.cascade(&Stylesheet::new());
 
     let computed = dom.node(caption).computed().cloned().unwrap();
-    assert!(computed.modifiers.contains(crate::style::Modifier::ITALIC));
-    // Caption is muted via `fg: TEXT_MUTED` (#7F868B).
-    assert_eq!(computed.fg, crate::style::Color::Rgb(127, 134, 139));
+    assert!(!computed.modifiers.contains(crate::style::Modifier::ITALIC));
+    assert_ne!(computed.fg, crate::style::Color::Rgb(127, 134, 139));
+    assert_eq!(
+        computed.text.text_align_all,
+        rdom_style::layout::TextAlign::Center
+    );
 }
 
 #[test]

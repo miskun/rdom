@@ -90,3 +90,55 @@ fn border_spacing_spaces_html_table_cells() {
     assert_eq!((rect(&dom, "a").x, rect(&dom, "a").y), (2, 1));
     assert_eq!(rect(&dom, "b").x, 7);
 }
+
+/// HTML §15.3.8: "a rule … that matches `th` elements that have a parent
+/// node whose computed value for the `text-align` property is its initial
+/// value, whose declaration block consists of just a single declaration
+/// that sets the `text-align` property to the value `center`" — a header
+/// cell is centred unless its row inherited an alignment, and an author's
+/// `th` rule (any value, `inherit` included) wins.
+#[test]
+fn th_is_centred_unless_its_parent_aligns_text() {
+    use rdom_tui::TextAlign;
+    let all = |css: &str| {
+        let mut dom = doc(r#"<table><tr id="r"><th id="h">h</th></tr></table>"#);
+        let sheet = rdom_css::from_css_strict(css).expect("sheet parses");
+        dom.cascade(&sheet);
+        let c = dom.node(by_id(&dom, "h")).computed().cloned().unwrap();
+        c.text.text_align_all
+    };
+    assert_eq!(all(""), TextAlign::Center);
+    assert_eq!(all("table { text-align: right }"), TextAlign::Right);
+    assert_eq!(all("table { text-align: end }"), TextAlign::End);
+    // `start` is the initial value: still centred.
+    assert_eq!(all("tr { text-align: start }"), TextAlign::Center);
+    assert_eq!(all("th { text-align: left }"), TextAlign::Left);
+    assert_eq!(all("th { text-align: inherit }"), TextAlign::Start);
+}
+
+/// HTML §15.3.8: `th` centred over its column (and bold), `td` at the start.
+#[test]
+fn header_cells_paint_centred_over_their_columns() {
+    let mut dom = doc(
+        r#"<div><table><tr><th>Name</th><th>Size</th></tr><tr><td>alphabet</td><td>1</td></tr></table></div>"#,
+    );
+    let buf = paint(&mut dom, "", 20, 3);
+    assert_eq!(rows(&buf)[..2], ["   Name    Size", " alphabet  1"]);
+    let right = paint(&mut dom, "table { text-align: right }", 20, 3);
+    assert_eq!(rows(&right)[..2], ["     Name  Size", " alphabet     1"]);
+}
+
+/// HTML §15.3.8: `caption { text-align: center }` — and nothing more: no
+/// italic, no colour of its own.
+#[test]
+fn a_caption_is_centred_and_plain() {
+    let mut dom = doc(
+        r#"<div><table id="t"><caption id="c">Cap</caption><tr><td>abcdefghi</td></tr></table></div>"#,
+    );
+    let buf = paint(&mut dom, "", 20, 3);
+    assert_eq!(rows(&buf)[..2], ["    Cap", " abcdefghi"]);
+    let c = dom.node(by_id(&dom, "c")).computed().cloned().unwrap();
+    let t = dom.node(by_id(&dom, "t")).computed().cloned().unwrap();
+    assert!(!c.modifiers.contains(rdom_tui::Modifier::ITALIC));
+    assert_eq!(c.fg, t.fg);
+}

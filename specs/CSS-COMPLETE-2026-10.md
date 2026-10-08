@@ -8822,3 +8822,23 @@ row comes from.
   they are — no type trips them today. (3) DIVERGENCES §2 "Timers & animations" gains C12G-BEFORE-CHANGE's
   nuance: a cascade change to a longhand a CSS animation drives can start a transition under it, which
   outlives the animation (browsers snap).
+- 2026-10-09 — C13G-TH-CAPTION (API B1; HTML §15.3.8). Found: the UA `th` only bolded and `caption` was italic
+  and `TEXT_MUTED`, left-aligned — HTML has `caption { text-align: center }` and no font or colour for it,
+  and a rule "that matches `th` elements that have a parent node whose computed value for the `text-align`
+  property is its initial value" setting `text-align: center`; neither difference was in DIVERGENCES.
+  Decided: (1) the conditional rule is a value, as in browsers (Blink's UA-only `-internal-center`, Gecko's
+  `-moz-center-or-inherit`): `TextAlign::InternalCenter` (keyword `-internal-center`; the parser never
+  produces it, pinned in `text_tests.rs`), set as the UA `th`'s `text-align-all` and computed away in
+  `cascade::text::finalize_text_align` beside `match-parent` — `center` when the parent's `text-align-all`
+  is `start` (or there is no parent element), else the parent's value as inherited (the rule does not
+  match, so only inheritance sets it). An author `th` rule of any value, `inherit` included, wins by the
+  cascade; a plain UA `th { text-align: center }` would have broken `table { text-align: right }`. Only
+  `text-align-all` is read and set: browsers' `text-align` and `text-align-last` are separate properties,
+  and the rule's reach is theirs. `TextAlign` is new since 0.5, so the variant is no break. (2) `caption`
+  takes `text-align: center` and drops the italic and muted colour (HTML gives it neither). CHANGELOG
+  silent change 8 says both, with `th { text-align: start }` to restore 0.5. Red (`css_phase13/html.rs`):
+  `th_is_centred_unless_its_parent_aligns_text` (`Start` for `Center`),
+  `header_cells_paint_centred_over_their_columns` (`" Name      Size"` for `"   Name    Size"`),
+  `a_caption_is_centred_and_plain` (`"Cap"` at column 0 for column 4); green after. One existing test
+  changed: `paint_pass/tests.rs`' `table_caption_uses_italic_dim_style` pinned the old caption look, which
+  this item removes; it is now `table_caption_is_centred_and_plain`. No snapshot paints a `th` or a caption.
