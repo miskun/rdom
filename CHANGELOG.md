@@ -776,6 +776,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A `steps()` transition wakes the app only at its steps** (CSS Easing 1 §2.3), not every frame; a restyle that leaves the cascade unchanged keeps the base style, so the transition hook skips it; nested `calc-size()` boxes resolve inside out (CSS Values 5 §10), the outer `auto` counting the inner box at its resolved size. (C12G-CARRYOVER)
 - **Transition and animation timing follows the specs** (CSS Transitions 1 §3, §6, CSS Animations 2 §4.2): a transition reversed back to its start value runs over the share it covered; `transitioncancel` reports the active time; a frame's transition and animation events merge by time; keyframe steps take the before flag; a re-stepped scroll timeline restyles children that frame. (C12G-MISC)
 - **A positioned `::details-content` is as inert as its `<details>`** (HTML §6.3): the hit test asked `Dom::is_inert` of the parentless box, so content inside a modal dialog was swallowed by the backdrop and content inside `[inert]` took clicks. (C12G-MISC)
 - **Outlines draw on inline elements** (CSS UI 4 §5): `a:focus-visible { outline: auto }` drew nothing on a link in a line; an inline element with an outline is ringed on each line it has a fragment on — one rectangle per line around its text, generated content and atoms there. (C12G-OUTLINE-INLINE)

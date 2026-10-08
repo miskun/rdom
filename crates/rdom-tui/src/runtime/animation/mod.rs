@@ -66,6 +66,10 @@ pub(crate) struct ActiveAnimation {
     pub scheme: ColorScheme,
     /// Whether `transitionstart` fired (on the first tick past the delay).
     pub started_dispatched: bool,
+    /// When a frame last composited it (`None` before its first): a
+    /// stepped transition's next change counts from there
+    /// ([`next_change`](Self::next_change)).
+    pub stepped_at: Option<Instant>,
 }
 
 impl ActiveAnimation {
@@ -332,6 +336,7 @@ impl AnimationRegistry {
         let mut i = 0;
         while i < self.active.len() {
             let anim = &mut self.active[i];
+            anim.stepped_at = Some(now);
             let target = (anim.node, anim.slot);
             if !targets.contains(&target) {
                 targets.push(target);

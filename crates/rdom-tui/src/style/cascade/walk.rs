@@ -327,7 +327,7 @@ fn style_element<'a>(
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.matched = Some(recorder.finish(sheets));
             if overlaid.is_some() {
-                ext.keep_cascaded(crate::ext::StyleSlot::Host, Rc::new(computed));
+                ext.keep_cascaded(crate::ext::StyleSlot::Host, computed);
             }
         }
         return Styled::Kept {

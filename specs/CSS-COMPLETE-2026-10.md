@@ -8365,3 +8365,27 @@ row comes from.
   in other types' reasons); DESIGN fixed — entries added, the reason mentions reworded. Mutation-checked:
   restoring `` `AccentColor` `` in the open bullet fails the attribute rule. DESIGN's rule paragraph and
   CLAUDE.md's checklist line describe the stricter check.
+- 2026-10-08 — C12G-CARRYOVER (batch A's "not done"). (1) `steps()` transitions (CSS Easing 1 §2.3, CSS
+  Transitions 1 §3): an `ActiveAnimation` remembers the frame that last composited it (`stepped_at`)
+  and `next_change` answers `now` for a continuous easing, the end of its delay while in it
+  (`transitionstart`, a `jump-start`'s first step), else the next of its `n` equal divisions after the
+  last frame — the last one its end (`transitionend`); a boundary passed since is due at once.
+  `next_frame` takes the minimum over transitions and CSS animations (registered custom-property
+  transitions still every frame). Red: `frame_cost_tests::a_stepped_transition_paints_only_at_its_steps`
+  25 paints for 4; green after. (2) `keep_cascaded`'s per-restyle `Rc`: measurable as a full re-diff
+  of every element restyled under a running transition — a new base allocation defeats the hook's
+  `Rc::ptr_eq` skip. Both write-backs (`keep_cascaded`, which now takes the style by value and
+  allocates only when it differs, and `set_cascaded`) keep the old base when the cascade's style is
+  equal. Red: `geometry_transition_tests::an_unchanged_restyle_keeps_the_base_style` (a `data-x`
+  write mid-transition replaced the base); fixing `keep_cascaded` alone stayed red — the restyle went
+  through `set_cascaded` — green with both. (3) Nested `calc-size()` (architect N4; CSS Values 5 §10:
+  a basis is the box's size with its content as it is): `layout_pass::calc_size` records each box's
+  count of `calc-size()`d ancestors and resolves level by level, innermost first, each level in a pass
+  after the one that measured it — `d + 2` passes for nesting `d` deep, 2 without nesting as before;
+  TECH_DEBT `ANIM-RELAYOUT-1`'s bound restated. Red:
+  `calc_size_tests::a_nested_calc_size_resolves_inside_out` outer 4 for 2; green after. (4) Not done:
+  a `::before` / `::after` `view()` timeline still takes its originating element as the subject
+  (DIVERGENCES §2, "`scroll(root)` follows the document element"). rdom has no single rect for a
+  pseudo-element — an inline run's fragments, a generated block box, a float or a positioned box each
+  keep their geometry in a different place — so a subject rect means a pseudo-element bounding-box
+  accessor first; recorded here, the divergence entry stands.

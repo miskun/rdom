@@ -3,13 +3,18 @@
 //! transition between a sizing keyword and a length (§11) — is the size
 //! its basis resolves to, scaled and offset.
 //!
-//! Layout runs twice when the document has one (`doc_flags::has_calc_sizes`):
-//! first with each such property at its basis (`auto`, `min-content`, …),
-//! which sizes the box as every layout mode sizes that keyword, then with
-//! it at the length the sum gives from that size — so flex, grid, block
-//! and positioned layout, and every parent measuring the box, see an
-//! ordinary length. The computed styles are put back afterwards. A
-//! document without one lays out once, with no walk.
+//! Layout runs more than once when the document has one
+//! (`doc_flags::has_calc_sizes`): first with each such property at its
+//! basis (`auto`, `min-content`, …), which sizes the box as every layout
+//! mode sizes that keyword, then with it at the length the sum gives from
+//! that size — so flex, grid, block and positioned layout, and every
+//! parent measuring the box, see an ordinary length. A box's basis is its
+//! size with its content as it is, so `calc-size()` boxes nested in one
+//! another resolve inside out: the innermost first, each level in a pass
+//! of its own after the one that measured it (C12G-CARRYOVER) — a
+//! document whose `calc-size()` boxes do not nest lays out twice, one
+//! nested `d` deep `d + 2` times. The computed styles are put back
+//! afterwards. A document without one lays out once, with no walk.
 
 use std::rc::Rc;
 
@@ -21,7 +26,7 @@ use crate::render::Rect;
 use crate::style::ComputedStyle;
 
 /// Lay `dom` out with `pass` (one whole-tree layout), twice when a box
-/// is `calc-size()`d.
+/// is `calc-size()`d, once more for each level such boxes nest.
 pub(super) fn lay_out(dom: &mut Dom<TuiExt>, viewport: Rect, pass: fn(&mut Dom<TuiExt>, Rect)) {
     let sized = if crate::style::doc_flags::has_calc_sizes(dom) {
         collect(dom)
@@ -35,36 +40,43 @@ pub(super) fn lay_out(dom: &mut Dom<TuiExt>, viewport: Rect, pass: fn(&mut Dom<T
         pass(dom, viewport);
         return;
     }
-    for (id, original) in &sized {
+    for (id, original, _) in &sized {
         put(dom, *id, Rc::new(at_basis(original)));
     }
     pass(dom, viewport);
-    let resolved: Vec<Rc<ComputedStyle>> = sized
-        .iter()
-        .map(|(id, original)| Rc::new(resolved(dom, *id, original)))
-        .collect();
-    for ((id, _), style) in sized.iter().zip(resolved) {
-        put(dom, *id, style);
+    let deepest = sized.iter().map(|(_, _, level)| *level).max().unwrap_or(0);
+    for level in (0..=deepest).rev() {
+        let resolved: Vec<(NodeId, Rc<ComputedStyle>)> = sized
+            .iter()
+            .filter(|(_, _, l)| *l == level)
+            .map(|(id, original, _)| (*id, Rc::new(resolved(dom, *id, original))))
+            .collect();
+        for (id, style) in resolved {
+            put(dom, id, style);
+        }
+        pass(dom, viewport);
     }
-    pass(dom, viewport);
-    for (id, original) in sized {
+    for (id, original, _) in sized {
         put(dom, id, original);
     }
 }
 
 /// The boxes (in the box tree: a `::details-content` box too) whose
-/// `width` or `height` is a `calc-size()`, with their computed styles.
-fn collect(dom: &Dom<TuiExt>) -> Vec<(NodeId, Rc<ComputedStyle>)> {
+/// `width` or `height` is a `calc-size()`, with their computed styles and
+/// how many such boxes are their ancestors (0 for the outermost).
+fn collect(dom: &Dom<TuiExt>) -> Vec<(NodeId, Rc<ComputedStyle>, usize)> {
     let mut out = Vec::new();
-    let mut stack = vec![dom.root()];
-    while let Some(id) = stack.pop() {
+    let mut stack = vec![(dom.root(), 0)];
+    while let Some((id, level)) = stack.pop() {
+        let mut below = level;
         if dom.node(id).node_type() == NodeType::Element
             && let Some(style) = dom.node(id).ext().and_then(|e| e.computed.clone())
             && crate::style::doc_flags::is_calc_sized(&style)
         {
-            out.push((id, style));
+            out.push((id, style, level));
+            below += 1;
         }
-        stack.extend(crate::render::box_tree::children(dom, id));
+        stack.extend(crate::render::box_tree::children(dom, id).map(|c| (c, below)));
     }
     out
 }

@@ -428,3 +428,37 @@ fn base_computed_is_the_style_under_the_running_values() {
         node.base_computed().unwrap()
     ));
 }
+
+/// A restyle that leaves an element's cascaded style as it was, while a
+/// transition runs on it, keeps the base style it had — the same
+/// allocation — so the transition hook does not diff it again
+/// (C12G-CARRYOVER: architect N3's `keep_cascaded`).
+#[test]
+fn an_unchanged_restyle_keeps_the_base_style() {
+    let (mut app, div, _) =
+        app("#a { height: 2; transition: height 100ms linear } #a.tall { height: 10 }");
+    app.dom_mut().set_attribute(div, "class", "tall").unwrap();
+    app.advance(0).unwrap();
+    app.advance(30).unwrap();
+    let base = |app: &App<TestBackend>| {
+        app.dom()
+            .node(div)
+            .ext()
+            .unwrap()
+            .base_computed_for(crate::ext::StyleSlot::Host)
+            .cloned()
+            .unwrap()
+    };
+    let before = base(&app);
+    app.dom_mut().set_attribute(div, "data-x", "1").unwrap();
+    app.advance(16).unwrap();
+    assert!(
+        std::rc::Rc::ptr_eq(&before, &base(&app)),
+        "a new base was kept"
+    );
+    assert_eq!(
+        rect(&app, div).height,
+        6,
+        "the transition runs on (46 ms: 5.68)"
+    );
+}

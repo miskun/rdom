@@ -80,3 +80,38 @@ fn allow_keywords_animates_a_min_size_to_a_keyword() {
     app.advance(60).unwrap();
     assert_eq!(width(&app, a), 8);
 }
+
+/// CSS Values 5 §10: a `calc-size()` box's basis is its size with its
+/// content laid out as it is — so a `calc-size()`d box inside another
+/// (nested `<details>` accordions mid-animation) is resolved first, and
+/// the outer box's `auto` counts the inner one at its resolved size, not
+/// at its own basis (C12G-CARRYOVER, architect N4). Eight rows inside an
+/// inner box at half its height (4) inside an outer box at half its
+/// height: 2, not 4.
+#[test]
+fn a_nested_calc_size_resolves_inside_out() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let outer = dom.create_element("div");
+    dom.set_attribute(outer, "id", "outer").unwrap();
+    let inner = dom.create_element("div");
+    dom.set_attribute(inner, "id", "inner").unwrap();
+    for _ in 0..8 {
+        let p = dom.create_element("div");
+        let t = dom.create_text_node("x");
+        dom.append_child(p, t).unwrap();
+        dom.append_child(inner, p).unwrap();
+    }
+    dom.append_child(outer, inner).unwrap();
+    dom.append_child(root, outer).unwrap();
+    let sheet =
+        rdom_css::parse("#outer, #inner { height: calc-size(auto, size * 0.5); overflow: hidden }");
+    assert!(sheet.warnings.is_empty(), "{:?}", sheet.warnings);
+    let terminal = Terminal::new(TestBackend::new(20, 12)).unwrap();
+    let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
+    app.push_stylesheet(sheet.stylesheet);
+    app.advance(0).unwrap();
+    let height = |id: NodeId| app.dom().node(id).ext().unwrap().layout.height;
+    assert_eq!(height(inner), 4);
+    assert_eq!(height(outer), 2);
+}

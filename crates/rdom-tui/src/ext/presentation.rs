@@ -276,7 +276,9 @@ impl TuiExt {
 
     /// Store a cascade result for `slot`: `fresh` as the cascade's style
     /// and `overlaid` ([`overlay`](Self::overlay)) as the computed style
-    /// while transitions run.
+    /// while transitions run. A `fresh` equal to the base already kept
+    /// leaves that allocation in place (see
+    /// [`keep_cascaded`](Self::keep_cascaded)).
     pub(crate) fn set_cascaded(
         &mut self,
         slot: StyleSlot,
@@ -285,7 +287,9 @@ impl TuiExt {
     ) {
         match overlaid {
             Some(style) => {
-                if let Some(p) = self.presentation_slot(slot).and_then(|p| p.as_deref_mut()) {
+                if let Some(p) = self.presentation_slot(slot).and_then(|p| p.as_deref_mut())
+                    && p.base.as_deref() != Some(&*fresh)
+                {
                     p.base = Some(fresh);
                 }
                 self.put_computed(slot, Some(style));
@@ -296,14 +300,18 @@ impl TuiExt {
 
     /// Keep `fresh` as the cascade's style for `slot` and its computed
     /// style as it is — a restyle that left the composited style alone.
-    pub(crate) fn keep_cascaded(&mut self, slot: StyleSlot, fresh: Rc<ComputedStyle>) {
+    /// A `fresh` equal to the base already kept leaves that allocation in
+    /// place, so the transition hook, which skips a slot whose base is the
+    /// previous one, does not diff it again.
+    pub(crate) fn keep_cascaded(&mut self, slot: StyleSlot, fresh: ComputedStyle) {
         if self.presentation_for(slot).is_none() {
             return;
         }
         if let Some(p) = self.presentation_slot(slot).and_then(|p| p.as_deref_mut())
             && !p.animated.is_empty()
+            && p.base.as_deref() != Some(&fresh)
         {
-            p.base = Some(fresh);
+            p.base = Some(Rc::new(fresh));
         }
     }
 

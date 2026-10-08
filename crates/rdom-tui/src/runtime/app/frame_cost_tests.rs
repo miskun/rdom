@@ -264,3 +264,27 @@ fn a_reversed_iteration_wakes_at_its_mirrored_steps() {
     let s = app.take_frame_stats();
     assert_eq!(s.paints, 1, "{s:?}");
 }
+
+/// CSS Easing 1 §2.3, CSS Transitions 1 §3: a `steps(4)` transition holds
+/// each step's value, so over its 400 ms it changes at 100, 200, 300 and
+/// 400 ms — the app wakes and paints at those steps, as a stepped CSS
+/// animation does, not every frame (C12G-CARRYOVER).
+#[test]
+fn a_stepped_transition_paints_only_at_its_steps() {
+    let (mut app, div) =
+        animated("#a { width: 2; transition: width 400ms steps(4) } #a.wide { width: 10 }");
+    app.dom_mut().set_attribute(div, "class", "wide").unwrap();
+    app.advance(0).unwrap();
+    app.take_frame_stats();
+    run(&mut app, 256);
+    assert_eq!(
+        super::keyframes_tests::width(&app, div),
+        6,
+        "the second step"
+    );
+    run(&mut app, 256);
+    let s = app.take_frame_stats();
+    assert_eq!(s.paints, 4, "{s:?}");
+    assert_eq!(super::keyframes_tests::width(&app, div), 10);
+    assert!(!needs_frames(&app));
+}
