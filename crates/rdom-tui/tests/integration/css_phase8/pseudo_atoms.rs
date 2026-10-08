@@ -233,7 +233,8 @@ fn pseudo_atoms_and_floats_count_in_the_hosts_intrinsic_width() {
 
 /// A pseudo-element is part of its host's box: a click on a floated
 /// `::before` hanging below its one-row host targets the host; beside the
-/// float, below the host, the click reaches `<body>`.
+/// float, below the host, the click reaches `<body>`, which fills the
+/// viewport (`height: 100%` of the initial containing block).
 #[test]
 fn a_click_on_a_floated_pseudo_targets_its_host() {
     let mut dom = TuiDom::new();
@@ -244,7 +245,7 @@ fn a_click_on_a_floated_pseudo_targets_its_host() {
     dom.append_child(h, t).unwrap();
     lay_out(
         &mut dom,
-        ".h::before { content: \"F\"; float: left; width: 2; height: 3 }",
+        "body { height: 100% } .h::before { content: \"F\"; float: left; width: 2; height: 3 }",
         10,
         4,
     );

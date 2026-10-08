@@ -2759,15 +2759,17 @@ fn whitespace_only_text_at_the_edges_still_collapses_margins() {
     );
 }
 
-// ── P6G-ROOT-MARGIN-1: the root's children are collapse boundaries ─
+// ── C13-ROOT-BLOCK: the initial containing block is the boundary ───
 //
-// The root Fragment lays its children out as the items of an invisible
-// column (like the viewport around `<html>`), and a flex item — like the
-// root element (CSS 2.1 §8.3.1: "margins of the root element's box do
-// not collapse") — establishes an independent formatting context
-// (Flexbox §4): its children's margins stay inside it.
+// The root Fragment's box is the initial containing block (CSS 2.1
+// §10.1), a block container that establishes a block formatting context
+// (§9.4.1): its children lay out in block flow, as `<body>`'s do — their
+// margins collapse with their children's and their siblings' (§8.3.1) —
+// and nothing collapses through the ICB itself. (P6G-ROOT-MARGIN-1 had
+// made every root child a boundary, as the item of a viewport column.)
 
-/// The root's own first child keeps its `margin-top`.
+/// The root's own first child keeps its `margin-top`: it does not
+/// collapse through the ICB.
 #[test]
 fn root_first_child_margin_top_pushes_it_down() {
     let mut dom = dom();
@@ -2783,10 +2785,10 @@ fn root_first_child_margin_top_pushes_it_down() {
     assert_eq!(layout_of(&dom, c).y, 2);
 }
 
-/// A first child's `margin-top` inside a root child pushes it down
-/// inside that box instead of collapsing through it (and being dropped).
+/// A first child's `margin-top` collapses through a root child with no
+/// border or padding, and surfaces above it (§8.3.1).
 #[test]
-fn first_child_margin_top_stays_inside_a_root_child() {
+fn first_child_margin_top_collapses_through_a_root_child() {
     let mut dom = dom();
     let root = dom.root();
     let p = dom.create_element("p");
@@ -2799,15 +2801,15 @@ fn first_child_margin_top_stays_inside_a_root_child() {
     );
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 40, 10));
-    assert_eq!(layout_of(&dom, p).y, 0);
-    assert_eq!(layout_of(&dom, c).y, 2, "c's margin-top is inside p");
-    assert_eq!(layout_of(&dom, p).height, 3, "p's auto height holds it");
+    assert_eq!(layout_of(&dom, p).y, 2, "c's margin-top surfaces above p");
+    assert_eq!(layout_of(&dom, c).y, 2);
+    assert_eq!(layout_of(&dom, p).height, 1);
 }
 
-/// Deeper down, margins still collapse through ordinary blocks — up to
-/// the root child, which keeps them.
+/// Deeper down, margins collapse through every ordinary block, the root
+/// child included, into one — and stop at the ICB.
 #[test]
-fn nested_margin_collapses_up_to_the_root_child_and_stops() {
+fn nested_margins_collapse_through_the_root_child_to_the_icb() {
     let mut dom = dom();
     let root = dom.root();
     let outer = dom.create_element("outer");
@@ -2824,20 +2826,16 @@ fn nested_margin_collapses_up_to_the_root_child_and_stops() {
         );
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 40, 10));
-    assert_eq!(layout_of(&dom, outer).y, 1, "outer's own margin only");
-    assert_eq!(
-        layout_of(&dom, p).y,
-        1 + 3,
-        "c's margin collapses through p"
-    );
-    assert_eq!(layout_of(&dom, c).y, 1 + 3);
-    assert_eq!(layout_of(&dom, outer).height, 3 + 1);
+    assert_eq!(layout_of(&dom, outer).y, 3, "max(1, 3): one margin");
+    assert_eq!(layout_of(&dom, p).y, 3);
+    assert_eq!(layout_of(&dom, c).y, 3);
+    assert_eq!(layout_of(&dom, outer).height, 1);
 }
 
-/// Symmetric: the last child's `margin-bottom` counts toward the root
-/// child's height, and its sibling sits below it.
+/// Symmetric: the last child's `margin-bottom` collapses through the
+/// root child and separates it from its sibling.
 #[test]
-fn last_child_margin_bottom_counts_toward_a_root_childs_height() {
+fn last_child_margin_bottom_collapses_through_a_root_child() {
     let mut dom = dom();
     let root = dom.root();
     let p = dom.create_element("p");
@@ -2856,7 +2854,7 @@ fn last_child_margin_bottom_counts_toward_a_root_childs_height() {
         .rule_unchecked("n", TuiStyle::new().height(Size::Fixed(1)));
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 40, 10));
-    assert_eq!(layout_of(&dom, p).height, 1 + 2);
+    assert_eq!(layout_of(&dom, p).height, 1);
     assert_eq!(layout_of(&dom, next).y, 1 + 2);
 }
 

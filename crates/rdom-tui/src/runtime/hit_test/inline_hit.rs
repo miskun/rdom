@@ -25,12 +25,81 @@ pub(super) fn hit_inline_content(
     viewport: Rect,
     path: &mut Vec<NodeId>,
 ) -> bool {
+    let Some(layout) = dom.node(id).ext().and_then(|e| e.inline_layout.as_ref()) else {
+        return false;
+    };
     // Text rows are addressed through the *scrolled* content rect so
     // a scrolled IFC block resolves the owner visible on that row
     // (paint and the caret use the same rect).
     let outer = dom.node(id).layout_rect().unwrap_or_default();
     let inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(outer);
-    let Some((owner, atomic)) = hit_fragment(dom, id, inner, x, y) else {
+    let lines = Lines {
+        block: id,
+        layout,
+        content: inner,
+    };
+    hit_lines(dom, &lines, x, y, (content_clip, viewport), path)
+}
+
+/// Search the lines of the anonymous block boxes of `id` — a block
+/// container with block-level children, or the document root's initial
+/// containing block — for `(x, y)` (CSS 2.1 §9.2.1.1: an inline run
+/// among blocks is in a line box of an anonymous block box): as
+/// [`hit_inline_content`] does an IFC block's.
+pub(super) fn hit_anonymous_lines(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    x: u16,
+    y: u16,
+    clips: (Rect, Rect),
+    path: &mut Vec<NodeId>,
+) -> bool {
+    if !clips.0.contains(x, y) {
+        return false;
+    }
+    let (px, py) = (i32::from(x), i32::from(y));
+    crate::render::box_tree::icb::anonymous_blocks(dom, id)
+        .iter()
+        // A `::before` / `::after` box is its host's (`pseudo`).
+        .filter(|anon| anon.generated.is_none())
+        .find(|anon| {
+            let r = anon.rect;
+            px >= r.x
+                && px < r.x + i32::from(r.width)
+                && py >= r.y
+                && py < r.y + i32::from(r.height)
+        })
+        .is_some_and(|anon| {
+            let lines = Lines {
+                block: id,
+                layout: &anon.inline_layout,
+                content: anon.rect,
+            };
+            hit_lines(dom, &lines, x, y, clips, path)
+        })
+}
+
+/// Line boxes of the block container `block`: an IFC block's own, or one
+/// of its anonymous block boxes', laid out from `content`.
+struct Lines<'a> {
+    block: NodeId,
+    layout: &'a crate::render::inline::InlineLayout,
+    content: LayoutRect,
+}
+
+/// The owner of the inline fragment of `lines` under `(x, y)`, with its
+/// inline ancestors, pushed on `path` (the block itself is the
+/// caller's).
+fn hit_lines(
+    dom: &Dom<TuiExt>,
+    lines: &Lines<'_>,
+    x: u16,
+    y: u16,
+    (content_clip, viewport): (Rect, Rect),
+    path: &mut Vec<NodeId>,
+) -> bool {
+    let id = lines.block;
+    let Some((owner, atomic)) = hit_fragment(dom, lines, x, y) else {
         return false;
     };
     // An inline in an `inert` subtree below the block is inert (HTML
@@ -79,20 +148,13 @@ pub(super) fn hit_inline_content(
     true
 }
 
-/// Look up the inline fragment under `(x, y)` inside an IFC block's
-/// content area. Returns the fragment's owner element (the direct
-/// element parent of the underlying text — typically `<code>`, `<b>`,
+/// Look up the inline fragment under `(x, y)` in `lines`. Returns the
+/// fragment's owner element (the direct element parent of the
+/// underlying text — typically `<code>`, `<b>`,
 /// or the IFC block itself when the text is a direct child; an atomic
 /// inline for its fragment) and whether it is an atom.
-fn hit_fragment(
-    dom: &Dom<TuiExt>,
-    ifc_block: NodeId,
-    content: LayoutRect,
-    x: u16,
-    y: u16,
-) -> Option<(NodeId, bool)> {
-    let ext = dom.node(ifc_block).ext()?;
-    let layout = ext.inline_layout.as_ref()?;
+fn hit_fragment(dom: &Dom<TuiExt>, lines: &Lines<'_>, x: u16, y: u16) -> Option<(NodeId, bool)> {
+    let (ifc_block, layout, content) = (lines.block, lines.layout, lines.content);
 
     // A relatively positioned or sticky run moved off its line paints
     // over the lines (CSS 2.1 §9.4.3): it is hit first, for its host —

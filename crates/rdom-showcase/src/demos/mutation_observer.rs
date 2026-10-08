@@ -37,8 +37,12 @@ pub const CSS: &str = r#"
   /* FILL demo: claim the full view pane so the inner `.log`
    * (`flex: 1; overflow: auto`) gets a bounded height to scroll
    * against. `height: 100%` resolves against the flex-sized
-   * `.view-content` pane (Flexbox §9.8 definite). */
+   * `.view-content` pane (Flexbox §9.8 definite) — or, standalone,
+   * the viewport (the initial containing block's height, CSS 2.1
+   * §10.5) — and `border-box` keeps the padding inside it: block
+   * flow does not shrink an overflowing box to fit. */
   height: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   padding: 1 2;

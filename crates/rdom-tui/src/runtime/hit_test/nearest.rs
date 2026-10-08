@@ -58,17 +58,18 @@ pub(crate) fn nearest_inline_target_in_subtree(
                 content.y + content.height as i32,
             );
         }
-        if let Some(ext) = dom.node(id).ext() {
-            for (i, anon) in ext.anonymous_blocks.iter().enumerate() {
-                consider(
-                    InlineTarget::Anonymous {
-                        container: id,
-                        index: i,
-                    },
-                    anon.rect.y,
-                    anon.rect.y + anon.rect.height as i32,
-                );
-            }
+        for (i, anon) in crate::render::box_tree::icb::anonymous_blocks(dom, id)
+            .iter()
+            .enumerate()
+        {
+            consider(
+                InlineTarget::Anonymous {
+                    container: id,
+                    index: i,
+                },
+                anon.rect.y,
+                anon.rect.y + anon.rect.height as i32,
+            );
         }
         // Push children reversed so they pop in document order.
         let kids: Vec<NodeId> = crate::render::box_tree::children(dom, id)
@@ -115,8 +116,8 @@ impl InlineTarget {
                 Some((layout, content))
             }
             InlineTarget::Anonymous { container, index } => {
-                let ext = dom.node(container).ext()?;
-                let anon = ext.anonymous_blocks.get(index)?;
+                let anon =
+                    crate::render::box_tree::icb::anonymous_blocks(dom, container).get(index)?;
                 Some((&anon.inline_layout, anon.rect))
             }
         }
@@ -138,7 +139,7 @@ pub(super) fn inline_target_at(
     if has_inline_layout(dom, id) {
         return Some(InlineTarget::Ifc(id));
     }
-    let ext = dom.node(id).ext()?;
+    let boxes = crate::render::box_tree::icb::anonymous_blocks(dom, id);
     let (x, y) = (i32::from(x), i32::from(y));
     let on_rows = |anon: &&crate::ext::AnonymousIfc| {
         y >= anon.rect.y && y < anon.rect.y + i32::from(anon.rect.height)
@@ -146,11 +147,10 @@ pub(super) fn inline_target_at(
     let in_columns = |anon: &crate::ext::AnonymousIfc| {
         x >= anon.rect.x && x < anon.rect.x + i32::from(anon.rect.width)
     };
-    let index = ext
-        .anonymous_blocks
+    let index = boxes
         .iter()
         .position(|anon| on_rows(&anon) && in_columns(anon))
-        .or_else(|| ext.anonymous_blocks.iter().position(|anon| on_rows(&anon)))?;
+        .or_else(|| boxes.iter().position(|anon| on_rows(&anon)))?;
     Some(InlineTarget::Anonymous {
         container: id,
         index,

@@ -58,8 +58,11 @@ pub(super) const BASE_CSS: &str = r#"
   box-sizing: border-box;
 }
 /* `.app-shell` is the outer flex column that holds the bordered
- * `.app` panel and the status bar below it. `.app` flexes to fill
- * remaining viewport height; the status bar holds its intrinsic
+ * `.app` panel and the status bar below it. It fills the viewport as
+ * a web app shell does — `height: 100%` of the initial containing
+ * block, whose height is the viewport's (CSS 2.1 §10.1, §10.5; the
+ * document root lays its children out in block flow). `.app` flexes
+ * to fill the remaining height; the status bar holds its intrinsic
  * 1-row footprint. `min-*: 0` keeps the panel shrinkable past its
  * children's intrinsic content size (same fitting-pane pattern
  * used inside `.app`).
@@ -67,7 +70,7 @@ pub(super) const BASE_CSS: &str = r#"
 .app-shell {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  height: 100%;
   min-width: 0;
   min-height: 0;
 }

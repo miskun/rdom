@@ -187,11 +187,10 @@ pub fn inline_flow_for_text(dom: &Dom<TuiExt>, text_node: NodeId) -> Option<Inli
         if has_inline_layout(dom, id) {
             return Some(InlineFlow::Ifc { block: id });
         }
-        if let Some(ext) = dom.node(id).ext()
-            && !ext.anonymous_blocks.is_empty()
+        let boxes = crate::render::box_tree::icb::anonymous_blocks(dom, id);
+        if !boxes.is_empty()
             && let Some(index) = box_index(dom, id, text_node, child)
-            && let Some(i) = ext
-                .anonymous_blocks
+            && let Some(i) = boxes
                 .iter()
                 .position(|anon| anon.child_range.0 <= index && index < anon.child_range.1)
         {
@@ -261,7 +260,7 @@ pub fn inline_flow_layout(
             Some((layout, content))
         }
         InlineFlow::Anonymous { container, index } => {
-            let anon = dom.node(container).ext()?.anonymous_blocks.get(index)?;
+            let anon = crate::render::box_tree::icb::anonymous_blocks(dom, container).get(index)?;
             Some((&anon.inline_layout, anon.rect))
         }
     }

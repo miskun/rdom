@@ -36,7 +36,9 @@ pub const MARKUP: &str = r#"<ul role="tree" class="nav-tree">
 
 pub const CSS: &str = r#"
 .nav-tree {
-  flex: 1;
+  /* Fill the view pane — or, standalone, the viewport. */
+  height: 100%;
+  box-sizing: border-box;
   padding: 1 2;
 }
 /* Retheme the guide lines via the treeitem border-color. */

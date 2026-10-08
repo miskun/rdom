@@ -29,8 +29,11 @@ pub const CSS: &str = r#"
   /* FILL demo: claim the full view pane so the inner `.list` has a
    * bounded height to scroll against (rather than letting the whole
    * 50-row list overflow the Page). `height: 100%` resolves against
-   * the flex-sized `.view-content` pane (Flexbox §9.8 definite). */
+   * the flex-sized `.view-content` pane (Flexbox §9.8 definite) — or,
+   * standalone, the viewport (CSS 2.1 §10.5) — and `border-box` keeps
+   * the padding inside it: block flow does not shrink a box to fit. */
   height: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   padding: 1 2;

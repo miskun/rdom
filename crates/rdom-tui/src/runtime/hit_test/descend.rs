@@ -77,8 +77,18 @@ pub(super) fn hit_stacking_context(
         return true;
     }
     let Some((_, outer)) = root_box else {
-        // The document root: in-flow content, then the negative layer.
+        // The document root: in-flow content — its children's boxes,
+        // then the lines of the initial containing block's anonymous
+        // boxes — then the negative layer.
         return descend_children_reverse(dom, root, x, y, (content_clip, clip), viewport, path)
+            || super::inline_hit::hit_anonymous_lines(
+                dom,
+                root,
+                x,
+                y,
+                (content_clip, viewport),
+                path,
+            )
             || hit_layers(dom, root, &layers.negative, x, y, viewport, path);
     };
     let contains = rect_contains(outer, x, y);
@@ -311,6 +321,7 @@ fn hit_content(
             && super::inline_hit::hit_inline_content(dom, id, x, y, content_clip, viewport, path);
     }
     descend_children_reverse(dom, id, x, y, (content_clip, outer), viewport, path)
+        || super::inline_hit::hit_anonymous_lines(dom, id, x, y, (content_clip, viewport), path)
 }
 
 /// Recurse into the in-flow element children in reverse document

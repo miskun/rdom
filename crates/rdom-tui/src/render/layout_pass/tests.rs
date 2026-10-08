@@ -115,12 +115,12 @@ fn root_fragment_distributes_to_children() {
     dom.append_child(root, b).unwrap();
 
     // Both children default to Auto (content) — no content, so 0+padding.
-    // The fragment root lays its children out in the viewport column.
+    // The fragment root lays its children out in block flow (the ICB).
     cascade(&mut dom, &Stylesheet::bare());
     dom.layout_dom(Rect::new(0, 0, 20, 10));
 
-    // `a` comes first, `b` follows vertically. Both width = 20 (stretch
-    // cross-axis in Column), height = intrinsic (0 cells since empty).
+    // `a` comes first, `b` follows vertically. Both width = 20 (a block
+    // fills its containing block), height = intrinsic (0 cells, empty).
     let la = layout_rect_of(&dom, a);
     let lb = layout_rect_of(&dom, b);
     assert_eq!(la.x, 0);
@@ -325,7 +325,7 @@ fn column_stacks_vertically() {
     dom.append_child(root, a).unwrap();
     dom.append_child(root, b).unwrap();
 
-    // The fragment root lays its children out in the viewport column.
+    // The fragment root lays its children out in block flow (the ICB).
     let sheet = Stylesheet::bare()
         .rule_unchecked("a", TuiStyle::new().height(Size::Fixed(3)))
         .rule_unchecked("b", TuiStyle::new().height(Size::Fixed(2)));
@@ -1041,20 +1041,29 @@ fn aspect_ratio_computes_width_from_explicit_height_in_column_flex() {
     // aspect-ratio: 16/9, width: auto. Expected width = 9 * (16/9) = 16.
     let mut dom = tui_dom();
     let root = dom.root();
+    let col = dom.create_element("col");
     let a = dom.create_element("a");
-    dom.append_child(root, a).unwrap();
+    dom.append_child(col, a).unwrap();
+    dom.append_child(root, col).unwrap();
 
-    let sheet = Stylesheet::bare().rule_unchecked(
-        "a",
-        TuiStyle::new()
-            .width(Size::Auto)
-            .height(Size::Fixed(9))
-            .aspect_ratio(16, 9),
-    );
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "col",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Column),
+        )
+        .rule_unchecked(
+            "a",
+            TuiStyle::new()
+                .width(Size::Auto)
+                .height(Size::Fixed(9))
+                .aspect_ratio(16, 9),
+        );
     cascade(&mut dom, &sheet);
     dom.layout_dom(Rect::new(0, 0, 80, 30));
 
-    // root is Column-direction fragment; child's cross is width.
+    // `col` is a column flex container; the item's cross is width.
     // Auto on cross with aspect-ratio set → 9 * 16/9 = 16.
     assert_eq!(layout_rect_of(&dom, a).width, 16);
 }
@@ -2505,9 +2514,8 @@ fn debug_inline_block_cascade() {
 // ── Display::InlineBlock — atomic inline-level box ───────────────
 //
 // An inline block hugs its intrinsic content where it is inline-level:
-// in a line, and among the document root's children (rdom's viewport
-// column stands in for a browser's `<body>`, `button/tests.rs`). As a
-// flex item it is blockified (CSS Display 3 §2.7) and stretches like a
+// in a line — the document root's children's too, in the line boxes of
+// the initial containing block (`button/tests.rs`). As a flex item it is blockified (CSS Display 3 §2.7) and stretches like a
 // block (CSS Flexbox §9.4 step 11, C6G-FLEX-SPEC); `align-items:
 // flex-start` keeps it at its content size.
 
@@ -2604,7 +2612,7 @@ fn an_inline_block_flex_item_hugs_its_content_on_the_main_axis() {
                 .flow(Flow::Flex)
                 .direction(Direction::Row)
                 .width(Size::Flex(1.0))
-                .height(Size::Flex(1.0)),
+                .height(Size::Fixed(24)),
         )
         .rule_unchecked("btn", TuiStyle::new().display(Display::InlineBlock));
     cascade(&mut dom, &sheet);

@@ -154,9 +154,8 @@ pub(crate) fn is_positioned(c: &ComputedStyle) -> bool {
 /// context (CSS 2.1 Appendix E)? Inline blocks and inline flex and grid
 /// containers do, and so do flex items (CSS Flexbox §5.4: they paint
 /// exactly as inline blocks) and grid items (CSS Grid 2 §6.5, the same
-/// words). The children of the document root are
-/// block boxes for paint (rdom lays them out as flex items, a
-/// documented divergence; a browser's `<body>` children are blocks).
+/// words). The children of the document root are the initial
+/// containing block's block flow (`box_tree::icb`), no items.
 pub(crate) fn paints_atomically(dom: &Dom<TuiExt>, parent: NodeId, c: &ComputedStyle) -> bool {
     c.is_atomic_inline() || is_item_of(dom, parent)
 }

@@ -184,13 +184,14 @@ pub(super) fn parent_collapses_bottom_with_last_child(
 /// §9.4.1), or its place in the tree does:
 ///
 /// - the root (CSS 2.1 §8.3.1: "margins of the root element's box do
-///   not collapse"; §9.4.1: the root element establishes a BFC);
+///   not collapse"; §9.4.1: the root element establishes a BFC) — an
+///   element root, or a root fragment, the initial containing block,
+///   whose children are its block flow (`layout_pass::icb`): their
+///   margins collapse with each other's and their children's, as
+///   `<body>`'s children's do, but not through the ICB;
 /// - a flex or grid item (Flexbox §4: "A flex item establishes an
 ///   independent formatting context for its contents", Grid 2 §6.1 the
-///   same of a grid item) — including every element
-///   child of a Fragment root, which lays its children out as the items
-///   of an invisible column (`layout_fragment_children`), the way the
-///   viewport holds `<html>`.
+///   same of a grid item).
 ///
 /// Fragments between an element and its layout parent are transparent
 /// (`element_children_of` unwraps them).
@@ -207,15 +208,10 @@ pub(in crate::render::layout_pass) fn establishes_independent_formatting_context
     };
     let mut parent = up(dom.node(id));
     while let Some(p) = parent {
-        if p.id() == dom.root() {
-            // A Fragment root lays its children out as flex items; an
-            // element root lays them out by its own `flow`.
-            return p.node_type() == NodeType::Fragment
-                || p.ext()
-                    .and_then(|e| e.computed.as_ref())
-                    .is_some_and(|c| c.flow.is_flex_or_grid());
-        }
         match p.node_type() {
+            // The initial containing block lays its children out in block
+            // flow (`layout_pass::icb`).
+            NodeType::Fragment if p.id() == dom.root() => return false,
             NodeType::Fragment => parent = up(p),
             // A box-less element is transparent too (CSS Display 3 §2.5).
             NodeType::Element if crate::render::box_tree::is_contents(dom, p.id()) => {

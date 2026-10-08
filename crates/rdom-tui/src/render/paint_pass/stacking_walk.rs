@@ -109,7 +109,12 @@ fn paint_unit(
     }
     match frame {
         Some(frame) => paint_content(dom, root, buf, clip, viewport, frame),
-        None => recurse_children(dom, root, buf, (clip, clip), viewport),
+        None => {
+            // The document root: its children's boxes, then the lines of
+            // the initial containing block's anonymous boxes.
+            recurse_children(dom, root, buf, (clip, clip), viewport);
+            super::inline_paint::paint_anonymous_blocks(dom, root, buf, clip, viewport);
+        }
     }
 }
 
@@ -350,8 +355,10 @@ pub(super) fn paint_line_atom(
 /// and paint as boxes.
 fn in_a_line(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool {
     let p = dom.node(parent);
-    p.node_type() == NodeType::Element
-        && p.computed().is_some_and(|c| c.flow.is_block_flow())
+    // The initial containing block lays out block flow too.
+    (crate::render::box_tree::icb::is_icb(dom, parent)
+        || p.node_type() == NodeType::Element
+            && p.computed().is_some_and(|c| c.flow.is_block_flow()))
         && dom
             .node(child)
             .computed()

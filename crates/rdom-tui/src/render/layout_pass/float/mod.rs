@@ -23,9 +23,9 @@
 //! - `measure` — the same rules for intrinsic sizes, on a scratch area.
 //!
 //! A float in a flex or grid container does not float (its children are
-//! items: CSS Flexbox §4, CSS Grid 2 §6.1), nor does one of the document
-//! root's children — rdom lays those out as the items of its viewport
-//! column (DIVERGENCES).
+//! items: CSS Flexbox §4, CSS Grid 2 §6.1). The document root's children
+//! float in the initial containing block's block formatting context
+//! (`box_tree::icb`).
 
 pub(crate) mod area;
 mod flow;
@@ -56,6 +56,11 @@ pub(crate) fn float_side(dom: &Dom<TuiExt>, id: NodeId) -> Option<FloatSide> {
         return None;
     }
     let parent = crate::render::box_tree::box_parent(dom, id)?;
+    // The initial containing block is a `ltr` block container
+    // (`box_tree::icb`): the document root's children float.
+    if crate::render::box_tree::icb::is_icb(dom, parent) {
+        return c.float.side(false);
+    }
     let p = dom.node(parent);
     if p.node_type() != NodeType::Element {
         return None;

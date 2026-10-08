@@ -73,9 +73,8 @@ pub(super) fn finalize_float(working: &mut ComputedStyle) {
 /// or grid items: their parent box — `parent`, or for a box-less
 /// (`display: contents`, CSS Display 3 §2.5) parent its nearest ancestor
 /// with a box — is a flex or grid container. A non-element parent (the
-/// document root's fragment) is no flex container: rdom's viewport column
-/// only stands in for a browser's `<body>`, whose children are not flex
-/// items.
+/// document root's fragment, whose box is the initial containing block, a
+/// block container) is no flex container.
 pub(crate) fn children_are_items(
     dom: &Dom<TuiExt>,
     parent: Option<NodeId>,

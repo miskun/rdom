@@ -2481,9 +2481,9 @@ fn progress_without_value_renders_indeterminate_track() {
 
 #[test]
 fn anchor_with_href_tags_painted_cells_with_link() {
-    // Wrap in `<p>` so the IFC paint path fires — inline elements
-    // directly under the Fragment root aren't painted (they need
-    // a block parent to own the IFC).
+    // Wrap in `<p>` so the IFC paint path fires (an inline directly
+    // under the Fragment root paints in a line of the initial containing
+    // block's anonymous block box).
     let mut dom = TuiDom::new();
     let root = dom.root();
     let p = dom.create_element("p");

@@ -30,7 +30,10 @@ pub const MARKUP: &str = r#"<div class="dom-api-demo">
 
 pub const CSS: &str = r#"
 .dom-api-demo {
-  flex: 1;
+  /* Fill the view pane — or, standalone, the viewport (the initial
+   * containing block's height, CSS 2.1 §10.5). */
+  height: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   padding: 1 2;

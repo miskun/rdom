@@ -113,9 +113,10 @@ pub(super) struct BlockMeasurement {
 /// static positions of the out-of-flow children after the last in-flow
 /// one.
 ///
-/// Stores anonymous boxes on the parent's `TuiExt.anonymous_blocks`
-/// — paint / hit-test / selection iterate this Vec alongside the
-/// singular `inline_layout` field.
+/// Stores anonymous boxes on the parent's `TuiExt.anonymous_blocks` —
+/// or, for the document root, the initial containing block's
+/// (`box_tree::icb`) — which paint / hit-test / selection iterate
+/// alongside the singular `inline_layout` field.
 pub(super) fn layout_block_children(
     dom: &mut Dom<TuiExt>,
     id: NodeId,
@@ -126,9 +127,7 @@ pub(super) fn layout_block_children(
     let Some(prepared) = flow::prepare(dom, id, Some(&mut statics)) else {
         // Clear any stale anonymous boxes from a previous layout —
         // matches flex's `ext.inline_layout = None` reset.
-        if let Some(ext) = dom.node_mut(id).ext_mut() {
-            ext.anonymous_blocks.clear();
-        }
+        crate::render::box_tree::icb::set_anonymous_blocks(dom, id, Vec::new());
         let (scroll_x, scroll_y) = dom
             .node(id)
             .ext()
@@ -213,10 +212,36 @@ pub(super) fn layout_block_children(
     // Write anon boxes to the parent. Empty Vec is the normal state
     // for pure-block containers — clears any stale entries from a
     // previous layout where the tree may have had different shape.
-    if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.anonymous_blocks = anon_blocks;
-    }
+    crate::render::box_tree::icb::set_anonymous_blocks(dom, id, anon_blocks);
     end.measurement
+}
+
+/// Lay the element root `root` out as a block in the initial containing
+/// block `icb` (CSS 2.1 §10.1, `icb`): placed as an only block child is
+/// (§10.3.3 width, §10.6.3 height, its own margins — the root element's
+/// do not collapse with its children's, §8.3.1), then laid out.
+pub(super) fn layout_root_element(dom: &mut Dom<TuiExt>, root: NodeId, icb: LayoutRect) {
+    let mut margin_acc = MarginAccumulator::new();
+    let mut sink = LayoutSink {
+        dom,
+        // The ICB has no node: the root stands for its own parent, which
+        // a block placement reads only to keep anonymous boxes.
+        id: root,
+        anon_blocks: Vec::new(),
+        statics: flow::Statics::default(),
+    };
+    flow::FlowSink::block(
+        &mut sink,
+        root,
+        BlockPlace {
+            container: icb,
+            containing_block_width: icb.width,
+            y_cursor: icb.y,
+            margin_acc: &mut margin_acc,
+            suppress_top_margin: false,
+            suppress_bottom_margin: false,
+        },
+    );
 }
 
 /// [`flow::FlowSink`] for layout: each piece laid out in the document,

@@ -13,6 +13,7 @@ mod gaps;
 mod html;
 mod paint;
 mod props;
+mod root;
 mod tfc;
 mod tracks;
 mod ua;

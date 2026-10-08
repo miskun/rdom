@@ -40,7 +40,9 @@ pub const MARKUP: &str = r#"<div class="raf-demo">
 
 pub const CSS: &str = r#"
 .raf-demo {
-  flex: 1;
+  /* Fill the view pane — or, standalone, the viewport. */
+  height: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   padding: 1 2;

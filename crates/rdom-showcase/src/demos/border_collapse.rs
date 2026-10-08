@@ -35,7 +35,9 @@ pub const CSS: &str = r#"
   box-sizing: border-box;
 }
 .border-collapse-demo {
-  flex: 1;
+  /* Fill the view pane — or, standalone, the viewport (the initial
+   * containing block's height, CSS 2.1 §10.5). */
+  height: 100%;
   display: flex;
   flex-direction: row;
   border: solid;

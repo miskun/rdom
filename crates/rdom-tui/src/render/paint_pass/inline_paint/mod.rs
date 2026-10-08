@@ -258,7 +258,8 @@ pub(super) fn paint_ifc(
 }
 
 /// Paint each anonymous block box (BFC-1 phase 3) attached to
-/// `container_id`'s `TuiExt.anonymous_blocks`. Each anon box was
+/// `container_id`'s `TuiExt.anonymous_blocks` (the initial containing
+/// block's, for the document root). Each anon box was
 /// synthesized by `layout_pass::block::layout_block_children` for
 /// a run of inline-level children inside a block container that
 /// also has block-level children. The anon box carries its own
@@ -275,13 +276,12 @@ pub(super) fn paint_anonymous_blocks(
     clip: Rect,
     viewport: Rect,
 ) {
-    let Some(ext) = dom.node(container_id).tui_ext() else {
-        return;
-    };
     // The host's `::before` / `::after` are packed into the first / last
     // anonymous box by the layout pass (CSS 2.1 §9.2.1.1); they arrive
-    // here as the layouts' generated fragments.
-    for (k, anon) in ext.anonymous_blocks.iter().enumerate() {
+    // here as the layouts' generated fragments. The document root's are
+    // the initial containing block's (`box_tree::icb`).
+    let boxes = crate::render::box_tree::icb::anonymous_blocks(dom, container_id);
+    for (k, anon) in boxes.iter().enumerate() {
         // An anonymous block box's lines are its container's (CSS Overflow
         // 4 §3 applies to the block container's line boxes).
         let marking = match anon.generated {

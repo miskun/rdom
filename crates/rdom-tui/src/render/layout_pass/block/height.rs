@@ -133,7 +133,9 @@ pub(crate) fn height_is_definite_below(dom: &Dom<TuiExt>, parent: Option<NodeId>
         };
         let parent = dom.node(parent_id);
         let Some(parent_computed) = parent.ext().and_then(|e| e.computed.as_ref()) else {
-            return true; // fragment root etc.
+            // The root fragment: the initial containing block, the
+            // viewport's height (CSS 2.1 §10.1).
+            return true;
         };
         if matches!(
             parent_computed.position,
@@ -161,10 +163,6 @@ pub(crate) fn height_is_definite_below(dom: &Dom<TuiExt>, parent: Option<NodeId>
             // to the container. An intrinsic keyword is the content
             // height too (CSS Sizing 3 §3.1), and a `calc-size()` from
             // one (`calc_size`, whose second pass makes it a length).
-            //
-            // The document root's children are items of rdom's viewport
-            // column (DIVERGENCES): only one that grows has a size the
-            // viewport fixes — definite, as a `<n>fr` one is below.
             Size::Auto | Size::Intrinsic(_) | Size::CalcSize(_) => {
                 match crate::render::box_tree::box_parent(dom, parent_id) {
                     Some(gp) if crate::render::box_tree::is_flex_container(dom, gp) => {
@@ -182,12 +180,6 @@ pub(crate) fn height_is_definite_below(dom: &Dom<TuiExt>, parent: Option<NodeId>
                     {
                         return true;
                     }
-                    Some(gp)
-                        if dom.node(gp).node_type() == rdom_core::NodeType::Fragment
-                            && parent_computed.flex_grow > 0.0 =>
-                    {
-                        return true;
-                    }
                     _ => return false,
                 }
             }
@@ -201,15 +193,13 @@ pub(crate) fn height_is_definite_below(dom: &Dom<TuiExt>, parent: Option<NodeId>
                 // container is, so chain up and re-test the container.
                 use crate::layout::Flow;
                 match crate::render::box_tree::box_parent(dom, parent_id).map(|gp| dom.node(gp)) {
-                    // No grandparent: `parent` is the top-level box,
-                    // flexed against the viewport `layout_dom` passes
-                    // in — definite.
-                    None => return true,
+                    // No grandparent (the element root) or the root
+                    // fragment: `parent` is laid out in the initial
+                    // containing block, a block container (`icb`) — a
+                    // non-flex context, below.
+                    None => return false,
                     Some(gp) => match gp.ext().and_then(|e| e.computed.as_ref()).map(|c| c.flow) {
-                        // Fragment / document root lays children out as
-                        // a definite-size column flex container (the
-                        // viewport), so a flexing child is definite.
-                        None => return true,
+                        None => return false,
                         // Flex container: chain up to test its size.
                         Some(Flow::Flex) => {
                             next = crate::render::box_tree::box_parent(dom, parent_id)

@@ -96,7 +96,7 @@ fn percent_margin_resolves_against_containing_block_width() {
     let child = el(&mut dom, cb, "in");
     lay_out(
         &mut dom,
-        ".cb { width: 40; height: 30 } .in { margin: 10% 0 0 5%; height: 2 }",
+        ".cb { width: 40; height: 30; display: flow-root } .in { margin: 10% 0 0 5%; height: 2 }",
         80,
         40,
     );

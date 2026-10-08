@@ -32,7 +32,10 @@ const MARKUP: &str = r#"<div class="tab-form-demo">
 
 const CSS: &str = r#"
 .tab-form-demo {
-  flex: 1;
+  /* Fill the viewport: the initial containing block's height
+   * (CSS 2.1 §10.5). */
+  height: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   padding: 1 2;

@@ -26,6 +26,7 @@
 //! and its content ([`slot`]): [`children`] and [`box_parent`] see it, so
 //! every walk here does.
 
+pub(crate) mod icb;
 pub(crate) mod slot;
 
 use rdom_core::{Dom, NodeId, NodeType};
@@ -322,8 +323,8 @@ pub(crate) fn generated_text(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) 
 }
 
 /// `id` is an element flex container (`display: flex` / `inline-flex`).
-/// The document root's children are flex items of rdom's viewport
-/// column only as a layout device, so the root is not one.
+/// The document root is none: its box is the initial containing block, a
+/// block container (`icb`).
 pub(crate) fn is_flex_container(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     let node = dom.node(id);
     node.node_type() == NodeType::Element

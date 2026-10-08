@@ -95,7 +95,7 @@ fn a_current_color_border_takes_the_text_color() {
     let buf = paint(
         &mut dom,
         ".b { color: rgb(0 128 0); border: solid; border-color: currentColor; \
-              width: 4; height: 3 }",
+              width: 4; height: 3; box-sizing: border-box }",
         ColorScheme::Dark,
     );
     let corner = cell(&buf, 0, 0);

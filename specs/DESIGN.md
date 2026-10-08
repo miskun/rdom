@@ -68,7 +68,9 @@ Special-case patches that only satisfy the current fixture, silent fallbacks tha
 
 ## Layout passes
 
-`rdom-tui` runs its formatting contexts off the same `layout_pass::layout_node` entry point. Selection happens in `dispatch::layout_children`:
+`rdom-tui` runs its formatting contexts off the same `layout_pass::layout_node` entry point. Selection happens in `dispatch::layout_children`.
+
+**The pass starts at the initial containing block** (`layout_pass::icb`, CSS 2.1 §10.1; C13-ROOT-BLOCK): a block container the viewport's size that establishes a block formatting context. A root fragment's box is the ICB: its children lay out in block flow (`block::layout_block_children` with the ICB's `flow-root` style, `box_tree::icb::style`), as a browser's `<body>` children — margins collapsing, floats floating, inline runs in anonymous block boxes, which the ICB keeps as document data (`box_tree::icb::anonymous_blocks` is the one read of an element's or the ICB's, for paint, the hit test and the caret). The ICB's height is definite, so a root child's percentage height is a share of the viewport; each child's `auto` height is its content's. An element root is placed as a block in the ICB (`block::layout_root_element`). Nothing is special about the root's children after that: they are not flex items, and no layout, cascade or paint rule asks whether a box is one.
 
 1. **Inline Formatting Context (IFC)** — fires when the node has at least one `Display::Inline` child. The `LinePacker` greedily packs every descendant grapheme (plus atomic `Display::InlineBlock` fragments per CSS 2.1 §10.8) into `LineBox`es at the container's content width. Children get zero-sized layout rects; paint reads the parent's `inline_layout`. Single-fragment containers (just one inline element) still go through this path. Lives in `render/inline/`.
 
@@ -115,6 +117,10 @@ Web-platform surface not yet shipped is listed in [`DIVERGENCES.md`](DIVERGENCES
 ## Decision archive
 
 Architectural decisions worth preserving past their original context.
+
+### The document root is the initial containing block, a block container
+
+Until C13-ROOT-BLOCK the root fragment laid its children out as the items of an invisible viewport flex column, which made `flex: 1` fill the screen and cost five documented root special cases: margins between top-level siblings added; top-level floats did not float; a top-level box's percentage heights were definite only when it grew; inline blocks and tables at the root needed a no-stretch exception (`hugs_as_inline_level`); and blockification and `visibility: collapse` had to say why the root's children were not flex items. The root's box is now CSS 2.1 §10.1's initial containing block — viewport-sized, `flow-root` — and its children are `<body>`'s children: every special case is gone, and an app fills the screen as a web page does (`height: 100%` on its shell). Breaking, ranked silent change 2 with its migration (Phase 13 gate, architect "Design question: the root special cases").
 
 ### `rdom-style` exists as a leaf crate
 

@@ -43,7 +43,10 @@ const CSS: &str = r#"
   --accent: #3d90ce;
   --ink: #d0d0d0;
   --muted: #808080;
-  flex: 1;
+  /* Fill the viewport: the initial containing block's height
+   * (CSS 2.1 §10.5). */
+  height: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
 }

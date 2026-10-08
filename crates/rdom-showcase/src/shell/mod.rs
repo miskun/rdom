@@ -8,7 +8,7 @@
 //! Structure:
 //!
 //! ```text
-//! <div class="app-shell">             ← flex column, viewport
+//! <div class="app-shell">             ← flex column, height: 100%
 //!   <div class="app">                 ← bordered panel (flex: 1)
 //!     <header class="app-header">
 //!       <h1>rdom showcase</h1>
@@ -98,7 +98,7 @@ pub struct ShellHandles {
 /// Returns the handles to load-bearing nodes; the shell itself is
 /// already attached to `dom.root()` when this returns.
 pub fn build_shell(dom: &mut TuiDom) -> ShellHandles {
-    // <div class="app-shell">                  ← flex column, viewport
+    // <div class="app-shell">                  ← flex column, height: 100%
     //   <div class="app">…</div>               ← bordered panel (flex: 1)
     //   <footer class="status-bar">…</footer>  ← 1-row status line
     // </div>

@@ -38,8 +38,9 @@
 //! ## Module layout
 //!
 //! - `mod.rs` — public `LayoutExt` trait + `layout_node` dispatch +
-//!   shared helpers (element_children_of) +
-//!   fragment handling.
+//!   shared helpers (element_children_of).
+//! - `icb` — the initial containing block (CSS 2.1 §10.1): the document
+//!   root's children in block flow, or an element root as a block.
 //! - `dispatch` — `layout_children`: which formatting context lays out
 //!   an element's children.
 //! - `flex` — flex distribution: `layout_flex_container`,
@@ -77,7 +78,8 @@
 //! Text / Comment / Fragment nodes have no `TuiExt`. During layout
 //! we skip them structurally (they don't occupy layout slots on
 //! their own). Text content is consumed via the parent element's
-//! intrinsic measurement.
+//! intrinsic measurement; the root fragment's box is the initial
+//! containing block (`icb`).
 
 mod auto_height;
 pub(crate) mod baselines;
@@ -97,6 +99,7 @@ pub(crate) mod generated_atoms;
 pub(crate) mod geometry;
 mod grid;
 pub(crate) mod gutter;
+mod icb;
 mod ifc;
 pub(crate) mod intrinsic;
 mod items;
@@ -121,13 +124,12 @@ mod tests;
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::{Direction, LayoutRect, Overflow, compute_content_area_collapsed};
+use crate::layout::{LayoutRect, Overflow, compute_content_area_collapsed};
 use crate::node::TuiNodeExt;
 use crate::render::Rect;
 use crate::style::ComputedStyle;
 
 use dispatch::layout_children;
-use flex::layout_flex_children;
 pub(super) use flow::{flow_axis, gap_along, resolve_gap};
 
 use auto_height::resolve_auto_height;
@@ -196,9 +198,10 @@ fn layout_once(dom: &mut Dom<TuiExt>, viewport: Rect) {
         }
         #[cfg(test)]
         ROUNDS.with(|c| c.set(c.get() + 1));
-        // Pass 1 — flex / inline flow. Skips position: absolute /
-        // fixed children at every container (see flex.rs filter).
-        layout_node(dom, root, root_rect, root_rect.width);
+        // Pass 1 — in-flow layout, from the initial containing block
+        // down. Skips position: absolute / fixed children at every
+        // container (see flex.rs filter).
+        icb::lay_out(dom, root, root_rect);
         // Pass 2 — place absolute / fixed elements against their
         // containing blocks.
         let placed = positioning::place_positioned(dom, root_rect);
@@ -247,16 +250,10 @@ pub(super) fn layout_node(
     outer_rect: LayoutRect,
     containing_block_width: u16,
 ) {
-    // Skip non-elements — they have no TuiExt. Fragment children
-    // are visited when the parent iterates its children (text /
-    // comment get pulled into intrinsic measurements).
+    // Skip non-elements — they have no TuiExt (text / comment get pulled
+    // into their parent's measurements; the root fragment is the initial
+    // containing block, laid out by `icb`).
     if dom.node(id).node_type() != NodeType::Element {
-        // Fragments *do* propagate layout to their element children
-        // transparently. For a Fragment root (the default rdom-core
-        // root), we still want children laid out within outer_rect.
-        if dom.node(id).node_type() == NodeType::Fragment {
-            layout_fragment_children(dom, id, outer_rect);
-        }
         return;
     }
 
@@ -513,42 +510,6 @@ fn layout_children_aligned(
         tree::shift_content(dom, id, lead);
     }
     measurement
-}
-
-/// Fragment case: children inherit our container rect directly
-/// (no padding, no border, no layout-rect write for the fragment).
-fn layout_fragment_children(dom: &mut Dom<TuiExt>, id: NodeId, container: LayoutRect) {
-    // Same filter as `flex::layout_children`: out-of-flow children
-    // (display:none, position:absolute|fixed) don't participate in
-    // distribution. Positioned children get placed in phase-2
-    // against their containing block (= the viewport, since a
-    // Fragment is not a positioned containing block).
-    let children: Vec<NodeId> = element_children_of(dom, id)
-        .into_iter()
-        .filter(|&c| is_in_flow(dom, c))
-        .collect();
-    for n in positioning::out_of_flow_positioned_children(dom, id) {
-        positioning::record_static_position(dom, n, container.x, container.y);
-    }
-    // The fragment root lays its children out in rdom's viewport
-    // column: an invisible column flex container with no gap or
-    // padding (its children stretch to the viewport's width, as a
-    // browser's `<body>` blocks do).
-    let mut viewport_column = ComputedStyle::initial();
-    viewport_column.flow = crate::layout::Flow::Flex;
-    viewport_column.direction = Direction::Column;
-    // Element items only: the root's text is not laid out.
-    let anonymous = layout_flex_children(
-        dom,
-        &items::elements(&children),
-        container,
-        &viewport_column,
-    );
-    debug_assert!(
-        anonymous.is_empty(),
-        "element items make no anonymous boxes"
-    );
-    collapse_hidden_children(dom, id, container);
 }
 
 // ─── Tree helpers ───────────────────────────────────────────────────

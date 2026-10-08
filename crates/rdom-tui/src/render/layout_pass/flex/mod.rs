@@ -65,9 +65,8 @@ use placement::{FlexLine, place_items};
 
 /// `visibility: collapse` on a flex item (Flexbox §4.4): it is laid out
 /// as a strut — no main size, its cross size kept — and drawn as
-/// `hidden`. The document root's children are flex items of rdom's
-/// viewport column only as a layout device (DIVERGENCES), as a
-/// browser's `<body>` children are blocks: there `collapse` is
+/// `hidden`. On any other box — the document root's children, in the
+/// initial containing block's block flow, included — `collapse` is
 /// `hidden` (CSS Display 3 §4).
 pub(in crate::render::layout_pass) fn is_collapsed(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     use crate::node::TuiNodeExt;

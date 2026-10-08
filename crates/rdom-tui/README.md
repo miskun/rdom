@@ -98,6 +98,37 @@ a UA `!important` rule beats an author `!important` rule.
 
 Boxes size as `box-sizing: content-box`, the CSS initial value: `width`, `height` and `min-*` / `max-*` measure the content box, padding and border lie outside it (form controls are `border-box` in the UA sheet); start a sheet with `*, ::before, ::after { box-sizing: border-box }` to size every box by its border.
 
+## The document root and a full-screen app
+
+The document root (`dom.root()`, a fragment) is the initial containing block, the viewport's size (CSS 2.1 §10.1), and lays its children out as a browser lays out `<body>`'s: block boxes as tall as their content, their margins collapsing, floats floating, inline elements and text in lines. So a top-level element fills the screen as it would on a web page — `height: 100%`, a percentage of the viewport — and an app shell is a flex column inside it, its panes `flex: 1`. (rdom 0.5 laid the root's children out in a viewport flex column, where `flex: 1` alone filled it.)
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        ".app  { height: 100%; display: flex; flex-direction: column }
+         .main { flex: 1 }",
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    rdom_parser::parse_into(
+        &mut dom,
+        r#"<div class="app"><header>title</header><main class="main">body</main><footer id="f">status</footer></div>"#,
+        root,
+    )?;
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 12));
+    // The footer sits on the last row: the shell fills the viewport and
+    // the main pane takes what the header and footer leave.
+    let footer = dom.get_element_by_id("f").unwrap();
+    assert_eq!(dom.node(footer).layout_rect().unwrap().y, 11);
+    Ok(())
+}
+```
+
+Give a padded or bordered shell `box-sizing: border-box`, so its `100%` includes them: block flow does not shrink a box to fit the viewport.
+
 ## Grid layout
 
 `display: grid` lays its children out on rows and columns (CSS Grid Layout 2): track lists with cells, `%`, `fr`, `minmax()`, `fit-content()` and `repeat()` (including `auto-fill` / `auto-fit`), named lines and areas, line, span and area placement with `dense` auto-placement, `subgrid`, and Box Alignment in both axes. Lengths are whole cells, so tracks are too. A page laid out with named areas, its `main` a grid of cards that fits as many 4-cell columns as it can:
@@ -289,7 +320,7 @@ Scroll the wrapper (`scroll_to`) to bring the `Size` column, right-aligned by `c
 
 ## Floats and text overflow
 
-`float` / `clear` follow CSS 2.1 §9.5: a float leaves the line, lines beside it are shortened, and `clear` moves a box below it; a box that establishes a block formatting context (`overflow: hidden`, `display: flow-root`) contains its floats, and so does the clearfix — an empty block `::after` that clears. `text-overflow` marks a clipped line's cut edge, and `line-clamp` ends a block after its Nth line with an ellipsis. A float floats where its parent lays out in block flow: the document root's children are items of rdom's viewport column, so put the content in a `<body>`, as a browser's is.
+`float` / `clear` follow CSS 2.1 §9.5: a float leaves the line, lines beside it are shortened, and `clear` moves a box below it; a box that establishes a block formatting context (`overflow: hidden`, `display: flow-root`) contains its floats, and so does the clearfix — an empty block `::after` that clears. `text-overflow` marks a clipped line's cut edge, and `line-clamp` ends a block after its Nth line with an ellipsis. A float floats where its parent lays out in block flow — the document root's children included, in the initial containing block.
 
 ```rust
 use rdom_tui::prelude::*;

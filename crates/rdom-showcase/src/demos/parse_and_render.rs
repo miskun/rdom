@@ -42,7 +42,9 @@ pub const CSS: &str = r#"
   --accent: #3d90ce;
   --ink: #d0d0d0;
   --muted: #808080;
-  flex: 1;
+  /* Fill the view pane — or, standalone, the viewport. */
+  height: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
 }

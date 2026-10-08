@@ -50,7 +50,9 @@ second line after a literal newline<span></span></p>
 
 pub const CSS: &str = r#"
 .ws-demo {
-  flex: 1;
+  /* Fill the view pane — or, standalone, the viewport. */
+  height: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   padding: 1 2;

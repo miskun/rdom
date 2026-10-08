@@ -8934,3 +8934,62 @@ row comes from.
   stripe and the column ranges `[1..19, 20..26]`. (7) ACID tile 14 adds zebra rows, unstyled `th` and caption
   defaults, a bordered `width: 100%` table, a `table-layout: fixed` table and an anonymous table, with what
   each verifies (ACID.md is still a proposal).
+- 2026-10-09 — C13-ROOT-BLOCK (Phase 13 gate decision; architect "Design question: the root special cases"; CSS
+  2.1 §10.1, §9.4.1, §8.3.1, §9.5, §9.2.1.1, §10.5, §10.6.3). Inventory — every place layout, cascade, paint or
+  hit-test treated the document root or its children specially, and what each became: (1) `layout_pass/mod.rs`
+  `layout_fragment_children`, the explicit viewport column (`Flow::Flex` + `Direction::Column`,
+  C6-FLEX-DIRECTION-INITIAL) the root fragment laid its element children out in, its text not laid out → gone:
+  `layout_pass/icb.rs` lays the children out in block flow in the initial containing block
+  (`block::layout_block_children` with `box_tree::icb::style()`, `flow-root`), the viewport's size, its height
+  definite; (2) an element root (`Dom::with_root_tag`) was laid out over the whole viewport → placed as a block in
+  the ICB (`block::layout_root_element`: width less its margins, height its content's unless set); (3)
+  `flex/cross.rs` `hugs_as_inline_level`, the no-stretch exception for root-level inline blocks (C6G-FLEX-SPEC) and
+  tables (C13-TFC) → deleted; (4) `block/margin_collapse.rs`: every child of a Fragment root an independent
+  formatting context (P6G-ROOT-MARGIN-1) → the root's children are ordinary blocks, the ICB the boundary; (5)
+  `block/height.rs`: a root child's `auto` height definite only while it grew (`flex-grow`), a `fr` height under
+  the root definite → removed (a `fr` height under the ICB is the non-flex case, indefinite); (6) `float/mod.rs`
+  `float_side`: a box whose parent is no element did not float (C8-FLOAT) → the ICB is an `ltr` block container,
+  its children float; (7) `cascade/blockify.rs` `children_are_items` (C6G-BLOCKIFY: root children not
+  blockified), `flex::is_collapsed` (root children's `collapse` is `hidden`), `box_tree::is_flex_container` and
+  `stacking::paints_atomically` (root children paint as blocks) — code unchanged, each justified by the column
+  before and by the ICB now (docs rewritten); (8) paint (`stacking_walk::paint_unit`) and the hit test
+  (`descend::hit_stacking_context`) recursed into the root's element children only → the ICB's anonymous boxes
+  are kept as document data (`box_tree::icb::{anonymous_blocks, set_anonymous_blocks}`, the one read of an
+  element's or the ICB's: paint, `nearest`, `inline_flow_for_text` / `inline_flow_layout`), painted after the
+  children, and `in_a_line` treats the ICB as block flow (a root-level atom paints with its line); (9) the root's
+  containing block for positioned children is the viewport — unchanged (it is the ICB). Docs that said otherwise:
+  DIVERGENCES §2's margin entry (top-level margins add), percentage-height entry (definite only when growing),
+  floats entry (fourth simplification) and `Dom::root()` entry; CSS-COVERAGE's float row; the rdom-tui README's
+  floats paragraph; CHANGELOG silent change 41's "the document root's children stack in a column". Found: (a) the
+  "spurious scrollbar" C13G-DOCS reported is the column flex-shrinking a root-level `overflow: auto` box taller
+  than the viewport to fit it (its automatic minimum is 0), its content then overflowing — block flow keeps the
+  `auto` height; (b) a hit on an inline in an anonymous block box's line (`<div><p>…</p>text <b>x</b></div>`)
+  never reached the inline, for any block container — the column hid it at the root, where top-level `<a>` and
+  `<span>` were flex items: `inline_hit::hit_anonymous_lines` searches those lines as an IFC block's, from
+  `hit_content` and the root. Decided: no UA `height: 100%` for the root's children (browsers give `html` none,
+  and a UA rule would make every top-level element viewport-tall; `:root` matches the fragment) — an app fills the
+  screen with CSS, as on the web, and the root element's background fills it by propagating to the canvas
+  (C13-ROOT-CANVAS, next). The showcase: `.app-shell` `flex: 1` → `height: 100%`; every demo root that relied on
+  `flex: 1` (thirteen) and `scroll-list-demo` / `mo-demo` (`height: 100%` overflowing by their padding once
+  nothing shrank them) declare `height: 100%; box-sizing: border-box` — the snapshots are unchanged; in the app
+  the view pane already laid its demo out in block flow, where `flex: 1` did nothing, so the demos now fill the
+  pane as written; the three rdom-tui examples likewise. Red (`css_phase13/root.rs`, new): sibling margins
+  collapse (y 6 for 4), a root child floats (x 0 for 7), an `auto` root child that would grow is indefinite (12 for
+  1), root-level inline blocks share a line (`(0, 1)` for `(3, 0)`), an element root is a block in the ICB
+  (`(0, 0, 20, 1)` for `(1, 0, 18, 1)`), the README data table at the root in an 8-row viewport has no vertical bar
+  (`scroll_height` 11 for 10), an inline in an anonymous line is hit (`None` for the `<a>`); guards that held
+  before and after: `height: 50%` / `100%` of the viewport and definite below, a root-level table hugs its content
+  and centres with `margin: 0 auto`, `flex: 1` on a root child grows nothing but a `height: 100%` flex shell
+  does. Green after. Mutation (each alone, restored, touched): the ICB's children back to independent formatting
+  contexts → the three `block_tests` root-margin tests; `float_side`'s ICB branch out → the float test; the old
+  `flex-grow` definiteness → the indefinite test; `hit_anonymous_lines` out of `hit_content` → the element half of
+  the hit test; the ICB's anonymous boxes not kept → the inline-block and hit tests; the root's anonymous-box paint
+  out → the inline-block test. Existing tests changed: `block_tests`' P6G-ROOT-MARGIN-1 section pinned the column
+  (margins inside a root child) — now the ICB contract (collapsing through it, stopping at the ICB); a `1fr`-high
+  root flex row (`an_inline_block_flex_item_hugs…`) and a root-level aspect-ratio item read the column — given a
+  fixed height and a column flex container; `css_phase3_colors`' bordered box shrank into an 8×3 viewport — now
+  `border-box`; `css_values`' percentage margin now collapses through its block parent — `.cb` is `flow-root`;
+  `css_phase8`'s floated-pseudo hit needs `<body>` to fill the screen — `body { height: 100% }`. CHANGELOG: silent
+  change 2 (the old 2–85 move to 3–86, "Porting a column-synced table" cites 5), a Breaking bullet, two Fixed
+  bullets, a showcase bullet; README "The document root and a full-screen app" with a doctested shell. DESIGN: the
+  ICB paragraph in "Layout passes" and a decision-archive entry. TECH_DEBT `SIZE-1` recounted.
