@@ -1228,3 +1228,29 @@ fn highlight_hints() {
     assert_eq!(dom.highlights().get("search").unwrap().priority(), 2);
     assert_eq!(dom.descendants(dom.root()).collect::<Vec<_>>(), [t]);
 }
+
+/// C10G-API-SMALL (C10-PSEUDO-UNIFY's row from 0.5; the counter errors
+/// after 0.5): `positioned_pseudos()` yields a `PositionedPseudo` per
+/// absolutely positioned pseudo-element — its slot, border box and lines —
+/// a fragment reads where it is drawn, and the `@counter-style` checks
+/// return typed errors.
+#[test]
+fn generated_box_read_hints() {
+    let ext = TuiExt::default();
+    let none: Vec<ext::PositionedPseudo<'_>> = ext.positioned_pseudos().collect();
+    assert!(none.is_empty());
+    let dom: TuiDom = TuiDom::new();
+    let g = render::GeneratedFragment::text(dom.root(), ext::PseudoSlot::Before, 3, "x");
+    assert_eq!(
+        (g.offset(), g.drawn_at(), g.is_outside_marker()),
+        ((0, 0), (3, 0), false)
+    );
+    let rule = style::counters::CounterStyleRule::default();
+    let e: style::counters::CounterStyleRuleError =
+        style::counters::check_rule("x", &rule).unwrap_err();
+    assert_eq!(e.to_string(), "the symbols do not suit the system");
+    let mut rule = rule;
+    let d: style::counters::DescriptorError =
+        style::counters::apply_descriptor(&mut rule, "colour", &[]).unwrap_err();
+    assert_eq!(d, style::counters::DescriptorError::Unknown);
+}

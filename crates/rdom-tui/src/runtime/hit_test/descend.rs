@@ -167,7 +167,7 @@ fn hit_generated(
     };
     let anon = match generated {
         Generated::Floated(k) => ext.floated_pseudos().get(k),
-        Generated::Positioned(k) => ext.positioned_pseudos().get(k),
+        Generated::Positioned(k) => ext.positioned_pseudo_boxes().get(k),
     };
     let Some(g) = anon.and_then(|a| a.generated) else {
         return false;

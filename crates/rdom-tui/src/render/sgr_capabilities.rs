@@ -74,7 +74,8 @@ impl SgrCapabilities {
     /// 1. **A multiplexer wins** over the outer terminal's variables it
     ///    inherits (`KITTY_WINDOW_ID`, `TERM_PROGRAM`, …), since it is
     ///    what the program writes to. GNU screen (`STY` set) reads none
-    ///    of the colon forms: `BASIC`. tmux 3.2 and later
+    ///    of the colon forms: `BASIC`. Zellij (`ZELLIJ` set) is not known
+    ///    to pass them all on: `BASIC`. tmux 3.2 and later
     ///    (`TERM_PROGRAM=tmux` with `TERM_PROGRAM_VERSION`, which it
     ///    exports from 3.2) parses all three and passes each to its outer
     ///    terminal where that terminal's terminfo (or tmux's
@@ -106,7 +107,7 @@ impl SgrCapabilities {
         let version = || var("TERM_PROGRAM_VERSION").and_then(|v| major_minor(&v));
         let at_least = |want: (u32, u32)| version().is_some_and(|v| v >= want);
         // 1. Multiplexers.
-        if var("STY").is_some() {
+        if var("STY").is_some() || var("ZELLIJ").is_some() {
             return Self::BASIC;
         }
         if program == "tmux" {
@@ -325,6 +326,31 @@ mod tests {
                 ("TERM_PROGRAM_VERSION", "3.1c")
             ]),
             basic
+        );
+    }
+
+    /// C10G-API-SMALL: Zellij is a multiplexer too — it sets `ZELLIJ` (and
+    /// `ZELLIJ_SESSION_NAME`) and leaves the outer terminal's `TERM` and
+    /// variables — so the outer terminal's extensions are not assumed to
+    /// reach it: the common subset.
+    #[test]
+    fn zellij_is_a_multiplexer() {
+        assert_eq!(
+            detect(&[
+                ("TERM", "xterm-kitty"),
+                ("KITTY_WINDOW_ID", "1"),
+                ("ZELLIJ", "0"),
+                ("ZELLIJ_SESSION_NAME", "dev")
+            ]),
+            SgrCapabilities::BASIC
+        );
+        assert_eq!(
+            detect(&[
+                ("TERM", "xterm-256color"),
+                ("ZELLIJ", "0"),
+                ("VTE_VERSION", "7000")
+            ]),
+            SgrCapabilities::BASIC
         );
     }
 }

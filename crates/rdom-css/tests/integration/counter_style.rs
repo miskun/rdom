@@ -2,8 +2,8 @@
 //! descriptor, the rules that define nothing, and the order a name's
 //! definitions apply in.
 
-use rdom_css::{WarningKind, parse};
-use rdom_style::counters::{CounterRange, SpeakAs, System};
+use rdom_css::{CounterStyleDescriptorReason, CounterStyleRuleReason, WarningKind, parse};
+use rdom_style::counters::{CounterRange, CounterStyleRuleError, DescriptorError, SpeakAs, System};
 
 /// §3: each descriptor parses into the rule — `system`, `symbols`,
 /// `additive-symbols`, `negative`, `prefix`, `suffix`, `range`, `pad`,
@@ -68,23 +68,69 @@ fn every_descriptor_parses() {
 /// `disclosure-closed`); when its symbols do not suit its system
 /// (§3.1: alphabetic and numeric need two); when `extends` comes with
 /// `symbols`; when `additive-symbols` weights do not descend.
+///
+/// C10G-API-SMALL: the warning says why, typed — `CounterStyleRuleReason`
+/// — and is only ever about a rule that defines nothing.
 #[test]
 fn invalid_rules_define_nothing() {
-    for css in [
-        "@counter-style none { system: cyclic; symbols: a }",
-        "@counter-style DECIMAL { system: cyclic; symbols: a }",
-        "@counter-style disc { system: cyclic; symbols: a }",
-        "@counter-style inherit { system: cyclic; symbols: a }",
-        "@counter-style x { system: alphabetic; symbols: a }",
-        "@counter-style x { system: cyclic }",
-        "@counter-style x { system: extends decimal; symbols: a }",
-        "@counter-style x { system: additive; additive-symbols: 1 a, 5 b }",
-        "@counter-style x",
+    use CounterStyleRuleError::{ReservedName, SymbolsDoNotSuitSystem};
+    use CounterStyleRuleReason::{MissingBlock, NotOneIdentifier, Rule};
+    for (css, name, reason) in [
+        (
+            "@counter-style none { system: cyclic; symbols: a }",
+            "none",
+            Rule(ReservedName),
+        ),
+        (
+            "@counter-style DECIMAL { system: cyclic; symbols: a }",
+            "DECIMAL",
+            Rule(ReservedName),
+        ),
+        (
+            "@counter-style disc { system: cyclic; symbols: a }",
+            "disc",
+            Rule(ReservedName),
+        ),
+        (
+            "@counter-style inherit { system: cyclic; symbols: a }",
+            "inherit",
+            Rule(ReservedName),
+        ),
+        (
+            "@counter-style x { system: alphabetic; symbols: a }",
+            "x",
+            Rule(SymbolsDoNotSuitSystem),
+        ),
+        (
+            "@counter-style x { system: cyclic }",
+            "x",
+            Rule(SymbolsDoNotSuitSystem),
+        ),
+        (
+            "@counter-style x { system: extends decimal; symbols: a }",
+            "x",
+            Rule(SymbolsDoNotSuitSystem),
+        ),
+        (
+            "@counter-style x { system: additive; additive-symbols: 1 a, 5 b }",
+            "x",
+            Rule(SymbolsDoNotSuitSystem),
+        ),
+        (
+            "@counter-style x y { system: cyclic; symbols: a }",
+            "x y",
+            NotOneIdentifier,
+        ),
+        ("@counter-style x", "x", MissingBlock),
     ] {
         let r = parse(css);
         assert!(r.stylesheet.counter_styles().is_empty(), "{css}");
+        let expected = WarningKind::InvalidCounterStyleRule {
+            name: name.to_owned(),
+            reason,
+        };
         assert!(
-            matches!(&r.warnings[..], [w] if matches!(w.kind, WarningKind::InvalidCounterStyleRule { .. })),
+            matches!(&r.warnings[..], [w] if w.kind == expected),
             "{css}: {:?}",
             r.warnings
         );
@@ -101,6 +147,38 @@ fn an_invalid_descriptor_is_dropped() {
     assert_eq!(defs[0].rule.pad, None);
     assert_eq!(defs[0].rule.range, None);
     assert_eq!(r.warnings.len(), 2, "{:?}", r.warnings);
+}
+
+/// C10G-API-SMALL — a dropped descriptor of a rule that is defined is its
+/// own warning, `CounterStyleDescriptorDropped`, naming the rule, the
+/// descriptor and why (typed): an unknown descriptor, an invalid value, a
+/// declaration that is not `descriptor: value` (CSS Counter Styles 3 §3,
+/// CSS Syntax 3 §5.4.6).
+#[test]
+fn a_dropped_descriptor_is_its_own_warning() {
+    use CounterStyleDescriptorReason::{Descriptor, Malformed};
+    let r = parse("@counter-style x { system: cyclic; symbols: a; pad: -1 z; colour: red; 7 }");
+    assert_eq!(r.stylesheet.counter_styles().len(), 1, "defined");
+    let dropped: Vec<_> = r
+        .warnings
+        .iter()
+        .map(|w| match &w.kind {
+            WarningKind::CounterStyleDescriptorDropped {
+                name,
+                descriptor,
+                reason,
+            } => (name.as_str(), descriptor.as_str(), *reason),
+            other => panic!("{other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        dropped,
+        [
+            ("x", "pad", Descriptor(DescriptorError::InvalidValue)),
+            ("x", "colour", Descriptor(DescriptorError::Unknown)),
+            ("x", "7", Malformed),
+        ]
+    );
 }
 
 /// CSS Cascade 5 §6.4.3 for name-defining at-rules: a later definition

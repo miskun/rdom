@@ -118,7 +118,7 @@ pub(super) fn settle(dom: &mut Dom<TuiExt>, placed: &[BoxItem]) -> bool {
                 let boxes = dom
                     .node(host)
                     .ext()
-                    .map_or(&[][..], |e| e.positioned_pseudos());
+                    .map_or(&[][..], |e| e.positioned_pseudo_boxes());
                 let laid_out = boxes
                     .iter()
                     .filter(|a| a.generated.is_some_and(|g| g.slot == slot));

@@ -35,7 +35,7 @@ pub(crate) fn pseudo_at(
     // run, the box parent of a box-less host).
     let own = dom.node(target).ext()?;
     if let Some(hit) = own
-        .positioned_pseudos()
+        .positioned_pseudo_boxes()
         .iter()
         .rev()
         .find_map(|anon| in_box(dom, anon, target, x, y))

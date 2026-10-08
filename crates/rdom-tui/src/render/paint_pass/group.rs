@@ -102,7 +102,10 @@ fn collect_rows(dom: &Dom<TuiExt>, id: NodeId, rows: &mut Option<(i64, i64)>) {
             return;
         }
         extend_rect(rows, ext.layout);
-        let generated = ext.floated_pseudos().iter().chain(ext.positioned_pseudos());
+        let generated = ext
+            .floated_pseudos()
+            .iter()
+            .chain(ext.positioned_pseudo_boxes());
         for anon in ext.anonymous_blocks.iter().chain(generated) {
             extend_rect(rows, anon.border_box());
         }

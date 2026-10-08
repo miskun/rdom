@@ -34,6 +34,14 @@ use super::{Cell, Rect};
 ///
 /// All backends also implement `io::Write` — the terminal RAII guard
 /// and `Terminal::draw`'s BSU/ESU wrappers write raw bytes through this.
+///
+/// **A backend that wraps another** (one that records, throttles or
+/// tees the output) must forward
+/// [`set_sgr_capabilities`](Self::set_sgr_capabilities) and
+/// [`sgr_capabilities`](Self::sgr_capabilities) to the inner backend.
+/// Both are provided methods: left out, the wrapper takes their defaults,
+/// so `App::with_sgr_capabilities` is silently dropped and the inner
+/// backend draws the common subset.
 pub trait Backend: io::Write {
     /// Current size of the terminal (or fake size, for tests).
     fn size(&self) -> io::Result<Rect>;

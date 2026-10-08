@@ -13,7 +13,7 @@ mod pseudo_styles;
 mod tests;
 
 pub(crate) use layout_cache::MarginChainMemo;
-pub use layout_cache::{AnonymousIfc, GeneratedBox, StaticPosition};
+pub use layout_cache::{AnonymousIfc, GeneratedBox, PositionedPseudo, StaticPosition};
 pub use presentation::{PresentationStyle, PseudoSlot, StyleSlot};
 pub(crate) use pseudo_styles::ContentBoxLink;
 pub use pseudo_styles::PseudoStyles;
@@ -46,11 +46,20 @@ impl TuiExt {
     }
 
     /// This element's absolutely or fixed positioned `::before` /
-    /// `::after` boxes, as the last layout placed them: each one's border
-    /// box is its `generated` box's, its lines sit at its `rect`. Empty
-    /// with none. (A relatively positioned or sticky pseudo-element is
-    /// laid out in flow, with the static ones.)
-    pub fn positioned_pseudos(&self) -> &[AnonymousIfc] {
+    /// `::after` boxes, as the last layout placed them, in slot order
+    /// ([`PositionedPseudo`]): which pseudo-element, its border box, its
+    /// lines. None with none. (A relatively positioned or sticky
+    /// pseudo-element is laid out in flow, with the static ones: its
+    /// fragments' `GeneratedFragment::drawn_at`.)
+    pub fn positioned_pseudos(&self) -> impl Iterator<Item = PositionedPseudo<'_>> {
+        self.positioned_pseudo_boxes()
+            .iter()
+            .filter_map(PositionedPseudo::of)
+    }
+
+    /// The boxes [`positioned_pseudos`](Self::positioned_pseudos) reads,
+    /// as layout keeps them (paint, hit-testing and stacking index them).
+    pub(crate) fn positioned_pseudo_boxes(&self) -> &[AnonymousIfc] {
         self.positioned_pseudos
             .as_deref()
             .map_or(&[], Vec::as_slice)

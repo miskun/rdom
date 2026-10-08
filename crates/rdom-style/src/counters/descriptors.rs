@@ -47,6 +47,53 @@ fn symbols_type(kw: &str) -> Option<System> {
     })
 }
 
+/// Why [`apply_descriptor`] dropped a declaration (§3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum DescriptorError {
+    /// No `@counter-style` descriptor has that name.
+    Unknown,
+    /// The value does not match the descriptor's grammar.
+    InvalidValue,
+}
+
+impl std::fmt::Display for DescriptorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            DescriptorError::Unknown => "unknown descriptor",
+            DescriptorError::InvalidValue => "invalid descriptor value",
+        })
+    }
+}
+
+impl std::error::Error for DescriptorError {}
+
+/// Why [`check_rule`] finds that an `@counter-style` rule defines nothing
+/// (§3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum CounterStyleRuleError {
+    /// The name may not be defined: not a `<counter-style-name>` (a
+    /// CSS-wide keyword, `default`), or `none` or one of the styles
+    /// authors cannot override (`decimal`, `disc`, `square`, `circle`,
+    /// `disclosure-open`, `disclosure-closed`).
+    ReservedName,
+    /// The system lacks the symbols it needs, or `extends` comes with
+    /// symbols ([`CounterStyleRule::is_valid`]).
+    SymbolsDoNotSuitSystem,
+}
+
+impl std::fmt::Display for CounterStyleRuleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            CounterStyleRuleError::ReservedName => "the name cannot name a counter style",
+            CounterStyleRuleError::SymbolsDoNotSuitSystem => "the symbols do not suit the system",
+        })
+    }
+}
+
+impl std::error::Error for CounterStyleRuleError {}
+
 /// Apply one `descriptor: value` of an `@counter-style` block to `rule`
 /// (§3). `Err` with the reason when the descriptor is unknown or its
 /// value invalid — the declaration is then ignored, as CSS ignores an
@@ -55,8 +102,8 @@ pub fn apply_descriptor(
     rule: &mut CounterStyleRule,
     descriptor: &str,
     value: &[Token],
-) -> Result<(), String> {
-    let invalid = || format!("invalid `{descriptor}` descriptor");
+) -> Result<(), DescriptorError> {
+    let invalid = || DescriptorError::InvalidValue;
     match descriptor.to_ascii_lowercase().as_str() {
         "system" => rule.system = Some(system(value).ok_or_else(invalid)?),
         "symbols" => {
@@ -85,7 +132,7 @@ pub fn apply_descriptor(
             _ => return Err(invalid()),
         },
         "speak-as" => rule.speak_as = Some(speak_as(value).ok_or_else(invalid)?),
-        _ => return Err(format!("unknown descriptor `{descriptor}`")),
+        _ => return Err(DescriptorError::Unknown),
     }
     Ok(())
 }
@@ -95,7 +142,7 @@ pub fn apply_descriptor(
 /// `none` and the styles authors cannot override (`decimal`, `disc`,
 /// `square`, `circle`, `disclosure-open`, `disclosure-closed`); the
 /// system has the symbols it needs ([`CounterStyleRule::is_valid`]).
-pub fn check_rule(name: &str, rule: &CounterStyleRule) -> Result<(), String> {
+pub fn check_rule(name: &str, rule: &CounterStyleRule) -> Result<(), CounterStyleRuleError> {
     const FIXED: [&str; 7] = [
         "none",
         "decimal",
@@ -106,10 +153,10 @@ pub fn check_rule(name: &str, rule: &CounterStyleRule) -> Result<(), String> {
         "disclosure-closed",
     ];
     if !is_counter_style_name(name) || FIXED.iter().any(|f| name.eq_ignore_ascii_case(f)) {
-        return Err(format!("`{name}` cannot name a counter style"));
+        return Err(CounterStyleRuleError::ReservedName);
     }
     if !rule.is_valid() {
-        return Err("the symbols do not suit the system".to_string());
+        return Err(CounterStyleRuleError::SymbolsDoNotSuitSystem);
     }
     Ok(())
 }

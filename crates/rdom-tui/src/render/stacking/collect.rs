@@ -260,7 +260,7 @@ impl Walk<'_> {
         let Some(ext) = dom.node(id).ext() else {
             return;
         };
-        for (k, anon) in ext.positioned_pseudos().iter().enumerate() {
+        for (k, anon) in ext.positioned_pseudo_boxes().iter().enumerate() {
             let Some(g) = anon.generated.filter(|g| g.slot == slot) else {
                 continue;
             };

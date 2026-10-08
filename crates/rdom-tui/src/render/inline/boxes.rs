@@ -247,6 +247,28 @@ impl GeneratedFragment {
     pub fn atom_rows(&self) -> Option<(u16, u16)> {
         self.atom.as_ref().map(|a| (a.y, a.height))
     }
+
+    /// The `(dx, dy)` cells a relatively positioned or sticky
+    /// pseudo-element is drawn moved by from where the packer put it (CSS
+    /// 2.1 §9.4.3, CSS Position 3 §3.4); `(0, 0)` for any other.
+    pub fn offset(&self) -> (i32, i32) {
+        self.offset
+    }
+
+    /// Where the fragment is drawn — `(x, y)` moved by its
+    /// [`offset`](Self::offset), in the coordinates of `x` and `y` (its
+    /// inline flow's content edge, its line's top) — where paint draws it
+    /// and hit-testing finds it.
+    pub fn drawn_at(&self) -> (i32, i32) {
+        (self.x + self.offset.0, i32::from(self.y) + self.offset.1)
+    }
+
+    /// Whether this is (a piece of) an outside list marker (CSS Lists 3
+    /// §3.5): beside its line, taking no room in it — its `x` set from its
+    /// list item's box, not by the packer.
+    pub fn is_outside_marker(&self) -> bool {
+        self.outside.is_some()
+    }
 }
 
 /// An atomic inline `::before` / `::after` in its line: where its border

@@ -160,7 +160,7 @@ pub(in crate::render::paint_pass) fn paint_positioned_pseudo(
     let Some(anon) = dom
         .node(host)
         .ext()
-        .and_then(|e| e.positioned_pseudos().get(k))
+        .and_then(|e| e.positioned_pseudo_boxes().get(k))
     else {
         return;
     };

@@ -195,7 +195,7 @@ fn shift(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32, keep: Keep) {
         // Its positioned pseudo-elements move with it, as its positioned
         // descendants do: a `fixed` one stays where `keep` says.
         let fixed: Vec<bool> = ext
-            .positioned_pseudos()
+            .positioned_pseudo_boxes()
             .iter()
             .map(|a| {
                 keep == Keep::Fixed

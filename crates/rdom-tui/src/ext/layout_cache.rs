@@ -136,3 +136,35 @@ impl GeneratedBox {
         }
     }
 }
+
+/// An absolutely or fixed positioned `::before` / `::after` as the last
+/// layout placed it ([`TuiExt::positioned_pseudos`](super::TuiExt::positioned_pseudos)).
+///
+/// `#[non_exhaustive]`: a layout output read, never built, outside
+/// rdom-tui.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub struct PositionedPseudo<'a> {
+    /// Which pseudo-element (`Before` or `After`).
+    pub slot: super::PseudoSlot,
+    /// Its border box, in the coordinates of `TuiExt::layout`.
+    pub border_box: LayoutRect,
+    /// Where its lines sit: its content box.
+    pub content_box: LayoutRect,
+    /// Its text, packed into lines.
+    pub lines: &'a InlineLayout,
+}
+
+impl<'a> PositionedPseudo<'a> {
+    /// The positioned pseudo-element `anon` is; `None` for an anonymous
+    /// box (layout keeps none of those among positioned pseudo-elements).
+    pub(crate) fn of(anon: &'a AnonymousIfc) -> Option<Self> {
+        let generated = anon.generated?;
+        Some(Self {
+            slot: generated.slot,
+            border_box: generated.border_box,
+            content_box: anon.rect,
+            lines: &anon.inline_layout,
+        })
+    }
+}

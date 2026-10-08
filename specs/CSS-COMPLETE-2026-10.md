@@ -6850,3 +6850,29 @@ row comes from.
   `migration_hints.rs::highlight_hints` with an after-0.5 API-table row. Changed expectation: the existing
   registry test reads `len()` / `priority()` / `kind()` and `with_kind` (it still counts five records for
   five changes).
+- 2026-10-13 — C10G-API-SMALL (API N4, N6, N8; the architect's `Backend` note). Five parts, red first where code
+  changed. (1) `GeneratedFragment` gains `offset()` (a relative / sticky pseudo-element's shift, CSS 2.1 §9.4.3),
+  `drawn_at()` (`(x, y)` moved by it — where paint draws and hit-testing finds it) and `is_outside_marker()`
+  (CSS Lists 3 §3.5); the fields stay crate-private. Decision: accessors, not public fields, as the record's other
+  reads (`is_atom`, `atom_rows`). (2) `TuiExt::positioned_pseudos()` returns an iterator of `PositionedPseudo {
+  slot, border_box, content_box, lines }` (`ext/layout_cache.rs`, `#[non_exhaustive]`); the slice of
+  `AnonymousIfc` it returned is the crate-private `positioned_pseudo_boxes()`, which paint, stacking,
+  hit-testing and layout index (eight call sites renamed). (3) rdom-css's `InvalidCounterStyleRule` now means only
+  "the rule defines nothing", `reason: CounterStyleRuleReason` (`MissingBlock`, `Unterminated`,
+  `NotOneIdentifier`, `Rule(CounterStyleRuleError)`); a declaration dropped from a defined rule is the new
+  `CounterStyleDescriptorDropped { name, descriptor, reason: CounterStyleDescriptorReason }` (`Malformed`,
+  `Descriptor(DescriptorError)`); rdom-style's `check_rule` / `apply_descriptor` return the typed
+  `CounterStyleRuleError` (`ReservedName`, `SymbolsDoNotSuitSystem`) / `DescriptorError` (`Unknown`,
+  `InvalidValue`), each with `Display` and `Error`. Decision: the parse-level reasons live in rdom-css and wrap
+  rdom-style's, so neither crate restates the other's. (4) SGR detection treats `ZELLIJ` as a multiplexer
+  (`BASIC`), beside `STY`: Zellij leaves the outer `TERM` and terminal variables, and is not known to pass every
+  extension on. (5) The `Backend` trait doc says a wrapping backend must forward `set_sgr_capabilities` /
+  `sgr_capabilities` (provided methods, so a wrapper that omits them drops `App::with_sgr_capabilities`). Red:
+  `css_phase10/layout_reads.rs` (3 tests) and rdom-css `counter_style.rs::invalid_rules_define_nothing` (now
+  asserting each reason) / `a_dropped_descriptor_is_its_own_warning` failed to compile (the accessors, the
+  iterator, the typed reasons and the new variant missing); `sgr_capabilities::tests::zellij_is_a_multiplexer`
+  failed with the kitty `EXTENDED` set for `BASIC`. Green after. DESIGN classifies `PositionedPseudo`, the four
+  reason enums, and C10G-HIGHLIGHT-API's `HighlightsMut` / `Descendants`. Changed expectations: the rdom-css
+  invalid-rule test names each rule's reason (it matched any `InvalidCounterStyleRule`), and
+  `css_phase8/containing_block.rs` reads `positioned_pseudos().next()` for the border box. CHANGELOG: the from-0.5
+  `before_layout` row and two after-0.5 rows, hint group `generated_box_read_hints`.

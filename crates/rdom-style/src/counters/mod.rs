@@ -19,7 +19,9 @@ mod style;
 #[cfg(test)]
 mod tests;
 
-pub use descriptors::{apply_descriptor, check_rule, parse_counter_style};
+pub use descriptors::{
+    CounterStyleRuleError, DescriptorError, apply_descriptor, check_rule, parse_counter_style,
+};
 pub use generate::{MAX_FALLBACK_DEPTH, MAX_REPRESENTATION_CHARS};
 pub use predefined::{predefined, predefined_names};
 pub use registry::{CounterStyleDefinition, CounterStyleRegistry};

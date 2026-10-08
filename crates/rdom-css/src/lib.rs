@@ -258,6 +258,9 @@ fn warning_to_error(w: &Warning) -> ParseError {
         WarningKind::InvalidCounterStyleRule { .. } => {
             ParseErrorKind::ExpectedToken("valid counter style")
         }
+        WarningKind::CounterStyleDescriptorDropped { .. } => {
+            ParseErrorKind::ExpectedToken("valid counter style descriptor")
+        }
     };
     ParseError {
         kind,
@@ -372,15 +375,49 @@ pub enum WarningKind {
         reason: String,
     },
     /// An `@counter-style` rule (its prelude, `name`) that defines
-    /// nothing — its name cannot name a counter style, or its symbols do
-    /// not suit its system — or one of its descriptors, dropped (`reason`
-    /// says which; CSS Counter Styles 3 §3).
+    /// nothing, and why (CSS Counter Styles 3 §3).
     InvalidCounterStyleRule {
         name: String,
-        reason: String,
+        reason: CounterStyleRuleReason,
+    },
+    /// A declaration of the `@counter-style` rule `name` dropped while the
+    /// rule is defined (CSS Counter Styles 3 §3, CSS Syntax 3 §5.4.6):
+    /// `descriptor` is its name — the whole declaration's text when it is
+    /// not `descriptor: value` — and `reason` why.
+    CounterStyleDescriptorDropped {
+        name: String,
+        descriptor: String,
+        reason: CounterStyleDescriptorReason,
     },
     UnterminatedComment,
     UnterminatedString,
+}
+
+/// Why an `@counter-style` rule defines nothing
+/// ([`WarningKind::InvalidCounterStyleRule`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum CounterStyleRuleReason {
+    /// The rule has no `{ … }` block.
+    MissingBlock,
+    /// Its block holds an unterminated string or comment.
+    Unterminated,
+    /// Its prelude is not one identifier.
+    NotOneIdentifier,
+    /// [`check_rule`](rdom_style::counters::check_rule) refused it.
+    Rule(rdom_style::counters::CounterStyleRuleError),
+}
+
+/// Why a declaration of an `@counter-style` rule was dropped
+/// ([`WarningKind::CounterStyleDescriptorDropped`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum CounterStyleDescriptorReason {
+    /// The declaration is not `descriptor: value`.
+    Malformed,
+    /// [`apply_descriptor`](rdom_style::counters::apply_descriptor)
+    /// refused it.
+    Descriptor(rdom_style::counters::DescriptorError),
 }
 
 /// The README's examples, compiled and run as doctests so they keep

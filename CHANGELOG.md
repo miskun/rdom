@@ -169,7 +169,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `PresentationStyle::gap` | `row_gap` / `column_gap` | C6-GAP | `gap_hints` |
 | `AnonymousIfc { rect, inline_layout, child_range }` | `AnonymousIfc::new(rect, inline_layout, child_range, None)` | C6G-PSEUDO-FLEX-ITEMS | `anonymous_box_hints` |
 | rdom-style value types reached through `rdom_style::…` | re-exported at the `rdom_tui` root (`use rdom_tui::*;`), with `set_border_radius` / `border_radius` on nodes | C4G-REEXPORTS, C5G-REEXPORTS-AND-ROOT | `node_border_radius_accessor` |
-| `TuiExt::before_layout` / `after_layout` (`PseudoLayout { rect, position }`) | `TuiExt::positioned_pseudos()` — an absolutely or fixed positioned pseudo-element's box (`AnonymousIfc`, its border box in `generated`); a relative or sticky one is laid out in flow | C10-PSEUDO-UNIFY | — |
+| `TuiExt::before_layout` / `after_layout` (`PseudoLayout { rect, position }`) | `TuiExt::positioned_pseudos()` — an iterator of `PositionedPseudo { slot, border_box, content_box, lines }`, an absolutely or fixed positioned pseudo-element each; a relative or sticky one is laid out in flow, drawn at its fragments' `GeneratedFragment::drawn_at()` | C10-PSEUDO-UNIFY, C10G-API-SMALL | `generated_box_read_hints` |
 | `render::Style { fg, bg, add_modifier, sub_modifier }`; `SgrState { fg, bg, modifier }` literals | add `underline_color` (`Style::new()…underline_color(c)`, `SgrState::RESET`) | C9-DECORATION | `text_decoration_hints` |
 | `TuiExt::computed_before_prev` / `computed_after_prev` / `presentation_before` / `presentation_after` / `computed_backdrop` / `computed_scrollbar` / `computed_scrollbar_thumb_vertical` / `computed_scrollbar_thumb_horizontal` fields | accessors of the same names (`ext.computed_backdrop()`), `presentation_for(StyleSlot::Before)`; the record `pseudo_styles()` (`PseudoStyles`) | C10G-TUIEXT-SIDE | `tui_ext_pseudo_hints` |
 
@@ -196,6 +196,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 | exhaustive `match` on `FontVariant` | add a `_` arm (`#[non_exhaustive]`: Fonts 4 adds values) | C9G-TYPES | `font_type_hints` |
 | `TuiStyle::text_align(TextAlign)` | `text_align(impl Into<TextAlignKeyword>)`: a `TextAlign` as before, or `TextAlignKeyword::JustifyAll` | C9G-TYPES | `font_type_hints` |
 | `Highlight::priority` / `kind` fields, `with_type`, `size()`; `Dom::highlights_mut() -> &mut HighlightRegistry`, firing `HighlightsChanged` on every call, before the change | `priority()` / `set_priority`, `kind()` / `set_kind`, `with_kind`, `len()` / `is_empty()`; a `HighlightsMut` guard (`Deref` / `DerefMut` to the registry; `&mut *guard` where a `&mut HighlightRegistry` is wanted) that fires once, after a change, and only when something changed | C10G-HIGHLIGHT-API | `highlight_hints` |
+| `counters::apply_descriptor` / `check_rule` → `Result<(), String>` | `Result<(), DescriptorError>` / `Result<(), CounterStyleRuleError>` (`Display` gives the old text) | C10G-API-SMALL | `generated_box_read_hints` |
+| rdom-css `WarningKind::InvalidCounterStyleRule { name, reason: String }`, for a rule that defines nothing and for a dropped descriptor | `InvalidCounterStyleRule { name, reason: CounterStyleRuleReason }` for a rule that defines nothing; `CounterStyleDescriptorDropped { name, descriptor, reason: CounterStyleDescriptorReason }` for a dropped declaration | C10G-API-SMALL | — |
 
 ### Added — `rdom-core`
 
@@ -444,6 +446,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 ### Changed — `rdom-css`
 
 - `from_css` / `from_css_strict` merge the parsed sheet with `Stylesheet::append` instead of re-adding each rule by its selector text, so rules keep their cascade layer. (C1-LAYER)
+- **`@counter-style` warnings are typed and split** (CSS Counter Styles 3 §3): `WarningKind::InvalidCounterStyleRule` is only a rule that defines nothing, its `reason` a `CounterStyleRuleReason` (`MissingBlock`, `Unterminated`, `NotOneIdentifier`, `Rule(CounterStyleRuleError)`); a declaration dropped from a defined rule is the new `CounterStyleDescriptorDropped { name, descriptor, reason }` (`Malformed`, `Descriptor(DescriptorError)`). rdom-style's `apply_descriptor` / `check_rule` return `DescriptorError` / `CounterStyleRuleError`. (C10G-API-SMALL)
 
 ### Fixed — `rdom-css`
 
@@ -583,6 +586,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - `TuiNodeExt::flex_direction()` reads the inline `flex-direction` whole, `row-reverse` and `column-reverse` included; `direction()` is documented as its axis, the half `set_direction` writes. (C7G-UPGRADE-GUIDE)
 - `TuiAccessors::grid_tracks()` reads a laid-out grid's used tracks (CSS Grid 2 §7.2.6's resolved value) as `GridTracks`: each column and row a cell range from the content box, in grid order, for headers or rules drawn on the grid. (C7G-DOCS-TESTS)
 - **The list `type` attribute**: `<ol type>` / `<li type>` (`1`, `a`, `A`, `i`, `I`, case-sensitive) and `<ul type>` / `<li type>` (`none`, `disc`, `circle`, `square`) map to `list-style-type` as presentational hints (HTML §15.3.8). (C10G-MARKER-HIT)
+- **Generated boxes read back where they are drawn**: `GeneratedFragment::offset()` (a relatively positioned or sticky pseudo-element's shift, CSS 2.1 §9.4.3), `drawn_at()` (where paint draws it and hit-testing finds it) and `is_outside_marker()` (CSS Lists 3 §3.5); `TuiExt::positioned_pseudos()` names each absolutely positioned `::before` / `::after` — `PositionedPseudo { slot, border_box, content_box, lines }` — instead of handing out the internal `AnonymousIfc`. (C10G-API-SMALL)
 
 ### Changed — `rdom-tui`
 
@@ -615,6 +619,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **Color transitions interpolate in Oklab** (CSS Color 4 §12.1) with premultiplied alpha, for `color`, `background-color`, `border-color` and registered `<color>`s; a `reset` endpoint is the canvas color for the property's role in the element's scheme. (C3-LAB, C3G-SCHEME-CONSISTENCY)
 - **A border corner takes its dominant side's color**: the wider side, then the heavier style, then the horizontal side (DIVERGENCES §2) — it took whichever side the joiner read first. (C4-BORDER-SIDES)
 - `SetPropertyError::source()` returns the `DispatchError` / `DomError` it wraps, and its `Display` uses theirs. (C8-PARSE-ERROR)
+- **Zellij is a multiplexer to SGR detection**: under `ZELLIJ`, `SgrCapabilities::from_env` gives the common subset (`BASIC`) instead of the outer terminal's extensions, as for GNU screen and tmux before 3.2; the `Backend` doc says a wrapping backend must forward `set_sgr_capabilities` / `sgr_capabilities`. (C10G-API-SMALL)
 
 ### Fixed — `rdom-tui`
 

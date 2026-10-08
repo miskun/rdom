@@ -18,7 +18,7 @@ fn after(dom: &TuiDom, host: NodeId) -> (i32, i32, u16, u16) {
     xywh(
         dom.node(host)
             .ext()
-            .and_then(|e| e.positioned_pseudos().iter().find_map(|a| a.generated))
+            .and_then(|e| e.positioned_pseudos().next())
             .expect("a positioned ::after is placed")
             .border_box,
     )

@@ -286,7 +286,7 @@ fn positioned_box(
 ) -> Option<&crate::ext::AnonymousIfc> {
     dom.node(host)
         .ext()?
-        .positioned_pseudos()
+        .positioned_pseudo_boxes()
         .iter()
         .find(|a| a.generated.is_some_and(|g| g.slot == slot))
 }

@@ -142,8 +142,9 @@ behavior, so copy-pasting CSS from MDN doesn't blow up:
   not yet evaluated;
   `@property` registers a custom property, `Stylesheet::registered_properties`;
   `@counter-style` defines a counter style, `Stylesheet::counter_styles`
-  (`WarningKind::InvalidCounterStyleRule` for a rule that defines nothing
-  or a dropped descriptor);
+  (`WarningKind::InvalidCounterStyleRule` for a rule that defines nothing,
+  `CounterStyleDescriptorDropped` for a dropped descriptor, each with a
+  typed reason);
   `@scope` is parsed into the sheet's scopes:
   `Stylesheet::scopes`, `Rule::scope`). The applicable ones (`@media`, `@supports`, `@keyframes`,
   …) are scheduled for 0.6.0. `@layer` (statement and block forms,
