@@ -22,6 +22,11 @@ pub struct PseudoStyles {
     /// `::marker` (CSS Lists 3 §3.2): a list item whose marker has
     /// content; its `content` holds the marker text.
     pub marker: Option<Rc<ComputedStyle>>,
+    /// `::before::marker` / `::after::marker` (CSS Pseudo-Elements 4 §4):
+    /// the marker of a `::before` / `::after` that is a list item, as
+    /// [`marker`](Self::marker).
+    pub before_marker: Option<Rc<ComputedStyle>>,
+    pub after_marker: Option<Rc<ComputedStyle>>,
     /// `::first-line` (CSS Pseudo-Elements 4 §2.2) of a block container a
     /// rule styles it on.
     pub first_line: Option<Rc<ComputedStyle>>,
@@ -102,6 +107,16 @@ impl TuiExt {
     /// `::marker`'s computed style (CSS Lists 3 §3.2).
     pub fn computed_marker(&self) -> Option<&Rc<ComputedStyle>> {
         self.pseudo.as_ref()?.marker.as_ref()
+    }
+
+    /// `::before::marker`'s computed style (CSS Pseudo-Elements 4 §4).
+    pub fn computed_before_marker(&self) -> Option<&Rc<ComputedStyle>> {
+        self.pseudo.as_ref()?.before_marker.as_ref()
+    }
+
+    /// `::after::marker`'s computed style.
+    pub fn computed_after_marker(&self) -> Option<&Rc<ComputedStyle>> {
+        self.pseudo.as_ref()?.after_marker.as_ref()
     }
 
     /// `::first-line`'s computed style (CSS Pseudo-Elements 4 §2.2).

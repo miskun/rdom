@@ -38,9 +38,11 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         ),
         // CSS Lists 3 §3.2's UA sheet: `::marker { white-space: pre }`
         // (its `text-transform: none` is applied by the backend: no
-        // author rule can set it on a marker).
+        // author rule can set it on a marker) — for the markers of
+        // list-item `::before` / `::after` too (CSS Pseudo-Elements 4 §4),
+        // which `::marker` (`*::marker`) does not select.
         (
-            "::marker",
+            "::marker, ::before::marker, ::after::marker",
             super::css(TuiStyle::new(), "white-space", "pre"),
         ),
         (

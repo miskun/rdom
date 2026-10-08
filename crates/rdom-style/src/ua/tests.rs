@@ -50,7 +50,9 @@ fn ua_total_rule_count() {
     // 173: `ul > li::before` / `ol > li::before` gave way to `::marker`,
     // and `[role=treeitem]::before`'s bullet suppression with them
     // (C10-LIST-ITEM, -3).
-    assert_eq!(ua.len(), 173);
+    // 175: the same `white-space: pre` for `::before::marker` and
+    // `::after::marker` (C10G-PSEUDO-MARKER, +2).
+    assert_eq!(ua.len(), 175);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")

@@ -12,6 +12,11 @@
 //!   names (§3.6). The packer keeps its fragments apart from the line's
 //!   content (`push_outside_marker`); the layout pass gives them their
 //!   column once the item's box is placed ([`place_outside`]).
+//!
+//! A `::before` / `::after` that is a list item has a marker of its own
+//! (`::before::marker`, CSS Pseudo-Elements 4 §4): it rides the first of
+//! the lines the pseudo-element's box packs (`inline::pack_generated`),
+//! an outside one hung beside that box ([`place_outside_of_box`]).
 
 use rdom_core::{Dom, NodeId};
 
@@ -19,8 +24,8 @@ use super::InlineLayout;
 use super::generated::{
     before_is_inline_content, is_block_flow_container, is_block_level, line_bearing_child,
 };
-use crate::ext::TuiExt;
-use crate::layout::{Display, ListStylePosition, MarkerSide, TextDirection};
+use crate::ext::{PseudoSlot, TuiExt};
+use crate::layout::{Display, LayoutRect, ListStylePosition, MarkerSide, TextDirection};
 use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
 
@@ -28,11 +33,13 @@ use crate::render::box_tree::BoxItem;
 #[path = "markers_tests.rs"]
 mod tests;
 
-/// A list item's marker: the item, the marker's text (its `::marker`
-/// `content`) and whether it hangs outside.
+/// A list item's marker: the item (the host, for a list-item `::before`
+/// / `::after`), the marker's slot (`Marker`, `BeforeMarker` or
+/// `AfterMarker`), its text (its `content`) and whether it hangs outside.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Marker<'a> {
     pub(crate) item: NodeId,
+    pub(crate) slot: PseudoSlot,
     pub(crate) text: &'a str,
     pub(crate) outside: bool,
 }
@@ -53,8 +60,38 @@ pub(crate) fn marker(dom: &Dom<TuiExt>, item: NodeId) -> Option<Marker<'_>> {
     let text = node.computed_marker()?.content.as_deref()?;
     Some(Marker {
         item,
+        slot: PseudoSlot::Marker,
         text,
         outside: computed.list_style_position == ListStylePosition::Outside,
+    })
+}
+
+/// The marker of `host`'s `slot` pseudo-element (`Before` / `After`) when
+/// that box is a list item whose `::before::marker` / `::after::marker`
+/// has content (CSS Pseudo-Elements 4 §4, CSS Lists 3 §3.1) — a block
+/// container, which packs lines of its own, as [`marker`] asks of an
+/// element.
+pub(crate) fn pseudo_marker(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    slot: PseudoSlot,
+) -> Option<Marker<'_>> {
+    let marker_slot = match slot {
+        PseudoSlot::Before => PseudoSlot::BeforeMarker,
+        PseudoSlot::After => PseudoSlot::AfterMarker,
+        _ => return None,
+    };
+    let ext = dom.node(host).ext()?;
+    let pseudo = ext.computed_pseudo(slot)?;
+    if !pseudo.list_item || pseudo.display != Display::Block || !pseudo.flow.is_block_flow() {
+        return None;
+    }
+    let text = ext.computed_pseudo(marker_slot)?.content.as_deref()?;
+    Some(Marker {
+        item: host,
+        slot: marker_slot,
+        text,
+        outside: pseudo.list_style_position == ListStylePosition::Outside,
     })
 }
 
@@ -128,18 +165,30 @@ pub(crate) fn line_markers(dom: &Dom<TuiExt>, holder: NodeId) -> Vec<Marker<'_>>
     items.into_iter().filter_map(|i| marker(dom, i)).collect()
 }
 
-/// Whether `item`'s outside marker hangs on the right: `marker-side:
-/// match-self` takes the item's `direction`, `match-parent` its parent's
-/// (CSS Lists 3 §3.6).
-pub(crate) fn hangs_right(dom: &Dom<TuiExt>, item: NodeId) -> bool {
+/// Whether `item`'s `slot` outside marker hangs on the right: `marker-side:
+/// match-self` takes the list item's `direction`, `match-parent` its
+/// parent's (CSS Lists 3 §3.6) — for the marker of a list-item `::before`
+/// / `::after`, the pseudo-element's and its host's.
+pub(crate) fn hangs_right(dom: &Dom<TuiExt>, item: NodeId, slot: PseudoSlot) -> bool {
     let node = dom.node(item);
-    let Some(computed) = node.computed() else {
+    let (list_item, parent) = match slot {
+        PseudoSlot::BeforeMarker | PseudoSlot::AfterMarker => {
+            let pseudo = match slot {
+                PseudoSlot::BeforeMarker => PseudoSlot::Before,
+                _ => PseudoSlot::After,
+            };
+            (node.computed_pseudo(pseudo), node.computed())
+        }
+        _ => (
+            node.computed(),
+            crate::render::box_tree::slot::parent(dom, item).and_then(|p| dom.node(p).computed()),
+        ),
+    };
+    let Some(computed) = list_item else {
         return false;
     };
     let direction = match computed.marker_side {
-        MarkerSide::MatchParent => crate::render::box_tree::slot::parent(dom, node.id())
-            .and_then(|p| dom.node(p).computed().map(|c| c.text_direction))
-            .unwrap_or(TextDirection::Ltr),
+        MarkerSide::MatchParent => parent.map_or(TextDirection::Ltr, |c| c.text_direction),
         _ => computed.text_direction,
     };
     direction == TextDirection::Rtl
@@ -176,14 +225,38 @@ pub(crate) fn visual_rtl(text: &str) -> String {
 /// before the lines of its first line's block are packed (a box's rect is
 /// written before its children are laid out).
 pub(crate) fn place_outside(dom: &Dom<TuiExt>, layout: &mut InlineLayout, content_x: i32) {
+    place(dom, layout, content_x, |host| dom.node(host).layout_rect());
+}
+
+/// [`place_outside`] for the lines a list-item `::before` / `::after`
+/// packs itself (`inline::pack_generated`): its marker hangs beside
+/// `border_box`, the pseudo-element's box, in the coordinates of
+/// `content_x`, its lines' content edge.
+pub(crate) fn place_outside_of_box(
+    dom: &Dom<TuiExt>,
+    layout: &mut InlineLayout,
+    content_x: i32,
+    border_box: LayoutRect,
+) {
+    place(dom, layout, content_x, |_| Some(border_box));
+}
+
+/// Give each outside marker on `layout`'s lines its column against its
+/// list item's border box, `item_box` of the marker's host.
+fn place(
+    dom: &Dom<TuiExt>,
+    layout: &mut InlineLayout,
+    content_x: i32,
+    item_box: impl Fn(NodeId) -> Option<LayoutRect>,
+) {
     for g in layout.lines.iter_mut().flat_map(|l| l.generated.iter_mut()) {
         let Some(outside) = g.outside else {
             continue;
         };
-        let Some(item) = dom.node(g.host).layout_rect() else {
+        let Some(item) = item_box(g.host) else {
             continue;
         };
-        let base = if hangs_right(dom, g.host) {
+        let base = if hangs_right(dom, g.host, g.slot) {
             item.x + i32::from(item.width) - content_x
         } else {
             item.x - content_x - i32::from(outside.width)

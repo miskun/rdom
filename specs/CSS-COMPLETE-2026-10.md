@@ -216,7 +216,7 @@ row comes from.
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | done |
 | C10-DETAILS-CONTENT | `::details-content` | done |
-| C10-PSEUDO-CHAINS | Pseudo-element followed by user-action pseudo-classes (`::before:hover`) and nested pseudo-elements where defined | partial — nested pseudo-elements (`::before::marker` / `::after::marker`, CSS Lists 3 §3.1) remain: a marker on a generated box needs a marker slot per pseudo-element, the `list-item` counter on a `::before` / `::after`, and marker placement in a generated box's lines |
+| C10-PSEUDO-CHAINS | Pseudo-element followed by user-action pseudo-classes (`::before:hover`) and nested pseudo-elements where defined | done |
 | C9-CARRY-INDENT | A `calc()` `text-indent` shared by the elements that inherit it, not cloned per element (from the Phase 9 close) | done |
 | C10-PSEUDO-UNIFY | Positioned `::before` / `::after` on the generated-box path: the positioning layer places, stacks, hit-tests and scrolls them as elements (from C10-LIST-ITEM's note; `positioned_pseudos` gone) | done |
 
@@ -6719,3 +6719,41 @@ row comes from.
   scroll and caret tests; `children` ignoring the link → 9 of 13. No existing expectation or snapshot
   changed. CSS-COVERAGE `::details-content` Partial → Supported, §3.16 9 / 1 / 0 / 6, total 197 / 14 / 51
   / 45. TECH_DEBT `SIZE-1` recounted for the touched files (none past 575).
+- 2026-10-13 — C10G-PSEUDO-MARKER (finishes C10-PSEUDO-CHAINS). Found: `li::before::marker` was an invalid
+  selector ("at most one pseudo-element"), and a `display: list-item` `::before` / `::after` — which already
+  incremented `list-item` (CSS Lists 3 §4.6: `counters::enter` reads the flag on any box) — drew no marker.
+  Decisions (CSS Pseudo-Elements 4 §4, CSS Lists 3 §3.1): (1) rdom-style parses the one nesting CSS defines,
+  `::before::marker` / `::after::marker` (also after the legacy `:before`), as `PseudoElementTarget::BeforeMarker`
+  / `AfterMarker`: two pseudo-elements in the specificity (Selectors 4 §17), cut to `marker_subset`, taking
+  trailing user-action pseudo-classes; any other nesting stays invalid. The UA's `::marker { white-space: pre }`
+  now also names them (`*::marker` does not select a pseudo-element's marker; UA rules 173 → 175). (2) rdom-tui
+  computes the marker right after its pseudo-element — `::before`'s in `early_pseudos`, `::after`'s after the
+  children with the `::after` (`early_pseudos::after_marker`) — when that box is a list item, inheriting from it,
+  its `content: normal` the `list-style-type` text of the `list-item` value the box just set; matched rules
+  cached per slot (`Slot::BeforeMarker` / `AfterMarker`, 14 slots), the styles kept in `PseudoStyles`
+  (`before_marker` / `after_marker`, accessors `computed_before_marker` / `computed_after_marker`), the slots
+  `PseudoSlot` / `StyleSlot::BeforeMarker` / `AfterMarker` (no transitions, as `::marker`). (3) Layout: the
+  marker rides the pseudo-element's own first line — `inline::pack_generated`, which packs the lines of every
+  box a `::before` / `::after` makes (block-level, flex or grid item, float, positioned), pushes it first
+  (`markers::pseudo_marker`, the element path's `feed::push_marker` with the marker's slot) — inside as the first
+  inline box, outside hung beside the pseudo-element's border box (`markers::place_outside_of_box`, the element
+  path's placement over a given box; `AnonymousItem::lay_out_content` takes the border box), `marker-side`
+  reading the pseudo-element's direction and its host's (`hangs_right(item, slot)`). (4) The pseudo hit test
+  looks for the marker on a generated box's lines before naming the box (innermost wins), so
+  `::before::marker:hover` applies. Same predicate as an element's marker: a block container — an inline list
+  item gets none, element or pseudo-element (found here: CSS-COVERAGE claimed a marker for `inline list-item`;
+  DIVERGENCES §4 entry added, the row corrected). Red: rdom-style `a_before_or_after_takes_a_nested_marker` and
+  `a_nested_marker_takes_trailing_user_action_pseudo_classes` failed ("at most one pseudo-element suffix allowed
+  per selector, found 2"; `no_other_pseudo_element_nests` passed before, a guard); `css_phase10/pseudo_marker.rs`
+  — 6 of 7 failed with the slot variants stubbed (`"x"` for `"1. x"`, `(h, Before)` from the pseudo hit test),
+  the no-list-item guard passed. Green after, plus `every_box_a_before_makes_carries_its_marker` (flex item,
+  grid item, float, absolutely positioned). On the way: the outside marker landed a cell right (`" 1.x"`) until
+  the UA `white-space: pre` reached nested markers (its space was collapsed off the marker's width). Mutations
+  (restored, touched): no marker pushed in `pack_generated` → 6 of 7; no outside placement and no nested pseudo
+  hit together → the outside test and the hover test, each. Changed expectation: the UA rule count test (173 →
+  175). No snapshot changed. CSS-COVERAGE: the pseudo-element-chain row Partial → Supported, `::marker` and
+  `display: list-item` rows extended, §3.16 10 / 0 / 0 / 6, total 198 / 13 / 51 / 45; DIVERGENCES §3's
+  pseudo-element line removed. TECH_DEBT `SIZE-1`: `walk.rs` 527 / 541.
+- 2026-10-13 — C10G batch B closed (C10G-DETAILS-CONTENT-BOX, C10G-PSEUDO-MARKER): both Phase 10 partial
+  items are done; §3.16 has no Partial row. Found on the way and recorded: geometry transitions never move
+  layout (DIVERGENCES §3, C12-ANIMATABLE); an inline list item has no marker (DIVERGENCES §4).

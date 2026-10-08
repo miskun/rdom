@@ -16,6 +16,7 @@ mod highlight;
 mod legacy_colon;
 mod list_item;
 mod pseudo_chains;
+mod pseudo_marker;
 mod pseudo_unify;
 mod quotes;
 

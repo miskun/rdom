@@ -331,7 +331,7 @@ impl AnonymousItem {
         cb_width: u16,
     ) -> AnonymousIfc {
         let content = self.content_rect(rect, cb_width);
-        let (at, lines) = self.lay_out_content(dom, content);
+        let (at, lines) = self.lay_out_content(dom, content, rect);
         AnonymousIfc::new(
             at,
             lines,
@@ -341,8 +341,10 @@ impl AnonymousItem {
         )
     }
 
-    /// Lay its content out in `content`, its content box: the rect its
-    /// lines sit at and the lines — packed at its width, or, for a
+    /// Lay its content out in `content`, its content box (`border_box` its
+    /// border box): the rect its lines sit at and the lines — packed at
+    /// its width, an outside marker of its own hung beside `border_box`
+    /// (a list-item `::before` / `::after`, CSS Lists 3 §3.5), or, for a
     /// generated flex or grid container, its one item laid out by flex or
     /// grid layout (CSS Flexbox §9, CSS Grid 2 §11) and its lines at that
     /// item's content box.
@@ -350,9 +352,16 @@ impl AnonymousItem {
         &self,
         dom: &mut Dom<TuiExt>,
         content: LayoutRect,
+        border_box: LayoutRect,
     ) -> (LayoutRect, InlineLayout) {
         let Some(item) = self.content_item() else {
-            return (content, self.pack_clamped(dom, content.width));
+            let mut lines = self.pack_clamped(dom, content.width);
+            if self.generated.is_some() {
+                crate::render::inline::markers::place_outside_of_box(
+                    dom, &mut lines, content.x, border_box,
+                );
+            }
+            return (content, lines);
         };
         let boxes = match self.style.flow {
             crate::layout::Flow::Grid => crate::render::layout_pass::grid::layout_generated_grid(

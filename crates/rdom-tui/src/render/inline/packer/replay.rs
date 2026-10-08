@@ -31,6 +31,7 @@ pub(in crate::render::inline) enum Op<'a> {
     /// An outside list marker beside the current line.
     OutsideMarker {
         host: NodeId,
+        slot: PseudoSlot,
         text: &'a str,
         run: RunStyle,
         right: bool,
@@ -142,10 +143,11 @@ impl<'a> LinePacker<'a> {
                 } => self.push_generated(host, slot, text, run),
                 Op::OutsideMarker {
                     host,
+                    slot,
                     text,
                     run,
                     right,
-                } => self.push_outside_marker(host, text, run, right),
+                } => self.push_outside_marker(host, slot, text, run, right),
                 Op::HardBreak(owner) => self.push_hard_break(owner),
                 Op::Opportunity => self.push_break_opportunity(),
                 Op::Atom {

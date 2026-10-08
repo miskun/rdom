@@ -66,7 +66,7 @@ pub(super) fn lay_out(dom: &mut Dom<TuiExt>, layout: &mut InlineLayout) {
             };
             let border_box = LayoutRect::new(0, 0, g.width, atom.height);
             let content = item.content_rect(border_box, cb_width);
-            atom.content = Some(item.lay_out_content(dom, content));
+            atom.content = Some(item.lay_out_content(dom, content, border_box));
         }
     }
 }

@@ -436,7 +436,13 @@ pub(crate) fn pack_generated(
             .into_iter()
             .collect()
     };
+    // A list-item `::before` / `::after`'s own marker comes first
+    // (`markers::pseudo_marker`).
+    let marker = markers::pseudo_marker(dom, host, slot);
     let lines = wrap::pack(packer, style.text.text_wrap_style, |p| {
+        if let Some(marker) = marker {
+            feed::push_marker(dom, marker, p);
+        }
         for text in texts {
             p.push_generated(host, slot, text, run_style::RunStyle::of(style));
         }

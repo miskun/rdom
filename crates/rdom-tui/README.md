@@ -500,7 +500,10 @@ text wraps around them; a `::before` on a host that starts with a
 block child gets a line of its own. A list item's `::marker` rides the
 item's first line box — its own, or its block child's — hung outside the
 item in the list's padding (`list-style-position: inside` puts it in the
-line).
+line); a `display: list-item` `::before` / `::after` has a marker of its
+own (`::before::marker`) on its own first line. A `<details>` element's
+content is laid out in its `::details-content` box, which takes a
+background, border, padding, a size and `overflow`.
 
 See the `parse_and_render` example for a working template.
 

@@ -67,27 +67,30 @@ impl<'a> LinePacker<'a> {
         self.push_str(origin, text);
     }
 
-    /// An outside list marker of the list item `host` (CSS Lists 3 §3.5):
-    /// `text` packed alone in the marker's `run` — transformed, spaced as
-    /// any generated text — into fragments that sit beside the current
-    /// line on its baseline, taking no room in it. Their column is the
-    /// layout pass's (`markers::place_outside`). A marker hanging on the
-    /// `right` is written in visual order (`markers::visual_rtl`).
+    /// An outside list marker — `host`'s `slot` one: its `::marker`, or
+    /// the marker of its list-item `::before` / `::after` — (CSS Lists 3
+    /// §3.5): `text` packed alone in the marker's `run` — transformed,
+    /// spaced as any generated text — into fragments that sit beside the
+    /// current line on its baseline, taking no room in it. Their column is
+    /// the layout pass's (`markers::place_outside`). A marker hanging on
+    /// the `right` is written in visual order (`markers::visual_rtl`).
     pub(in crate::render::inline) fn push_outside_marker(
         &mut self,
         host: NodeId,
+        slot: PseudoSlot,
         text: &'a str,
         run: RunStyle,
         right: bool,
     ) {
         self.log(Op::OutsideMarker {
             host,
+            slot,
             text,
             run,
             right,
         });
         let mut marker = LinePacker::new(u16::MAX);
-        marker.push_generated(host, PseudoSlot::Marker, text, run);
+        marker.push_generated(host, slot, text, run);
         marker.finish();
         let Some(line) = marker.take_lines().into_iter().next() else {
             return;

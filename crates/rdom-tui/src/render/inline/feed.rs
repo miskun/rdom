@@ -376,20 +376,21 @@ fn push_atom(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'_>) {
     packer.push_atomic_inline_block(id, width, rows, align);
 }
 
-/// Push a list item's marker (CSS Lists 3 §3.5): `inside`, the line's
-/// first inline box, as generated text; `outside`, beside the line — in
-/// visual order when it hangs right (`markers::visual_rtl`).
+/// Push a list item's marker (CSS Lists 3 §3.5) — an element's, or a
+/// list-item `::before` / `::after`'s: `inside`, the line's first inline
+/// box, as generated text; `outside`, beside the line — in visual order
+/// when it hangs right (`markers::visual_rtl`).
 pub(super) fn push_marker<'a>(
     dom: &'a Dom<TuiExt>,
     marker: super::markers::Marker<'a>,
     packer: &mut LinePacker<'a>,
 ) {
-    let (item, text) = (marker.item, marker.text);
+    let (item, slot, text) = (marker.item, marker.slot, marker.text);
     if !marker.outside {
-        push_pseudo_text(dom, item, PseudoSlot::Marker, text, packer);
+        push_pseudo_text(dom, item, slot, text, packer);
         return;
     }
-    let run = pseudo_run(dom, item, PseudoSlot::Marker);
-    let right = super::markers::hangs_right(dom, item);
-    packer.push_outside_marker(item, text, run, right);
+    let run = pseudo_run(dom, item, slot);
+    let right = super::markers::hangs_right(dom, item, slot);
+    packer.push_outside_marker(item, slot, text, run, right);
 }

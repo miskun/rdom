@@ -57,6 +57,11 @@ pub enum StyleSlot {
     /// A block container's `::first-letter` (CSS Pseudo-Elements 4
     /// §2.3). It has no animation overrides, as `::marker`.
     FirstLetter,
+    /// The `::marker` of a list-item `::before` (CSS Pseudo-Elements 4
+    /// §4, CSS Lists 3 §3.1). No animation overrides, as `::marker`.
+    BeforeMarker,
+    /// The `::marker` of a list-item `::after`.
+    AfterMarker,
 }
 
 impl StyleSlot {
@@ -68,6 +73,8 @@ impl StyleSlot {
             StyleSlot::After => Some("::after"),
             StyleSlot::Marker => Some("::marker"),
             StyleSlot::FirstLetter => Some("::first-letter"),
+            StyleSlot::BeforeMarker => Some("::before::marker"),
+            StyleSlot::AfterMarker => Some("::after::marker"),
         }
     }
 }
@@ -85,6 +92,11 @@ pub enum PseudoSlot {
     /// A block container's `::first-letter` laid out as a box of its own
     /// — a float (CSS Pseudo-Elements 4 §2.3).
     FirstLetter,
+    /// The `::marker` of a list-item `::before` (CSS Pseudo-Elements 4
+    /// §4, CSS Lists 3 §3.1): it rides the `::before`'s first line.
+    BeforeMarker,
+    /// The `::marker` of a list-item `::after`.
+    AfterMarker,
 }
 
 impl From<PseudoSlot> for StyleSlot {
@@ -94,6 +106,8 @@ impl From<PseudoSlot> for StyleSlot {
             PseudoSlot::After => StyleSlot::After,
             PseudoSlot::Marker => StyleSlot::Marker,
             PseudoSlot::FirstLetter => StyleSlot::FirstLetter,
+            PseudoSlot::BeforeMarker => StyleSlot::BeforeMarker,
+            PseudoSlot::AfterMarker => StyleSlot::AfterMarker,
         }
     }
 }
@@ -106,7 +120,10 @@ impl TuiExt {
             StyleSlot::Host => self.presentation.as_deref(),
             StyleSlot::Before => self.pseudo.as_ref()?.presentation_before.as_deref(),
             StyleSlot::After => self.pseudo.as_ref()?.presentation_after.as_deref(),
-            StyleSlot::Marker | StyleSlot::FirstLetter => None,
+            StyleSlot::Marker
+            | StyleSlot::FirstLetter
+            | StyleSlot::BeforeMarker
+            | StyleSlot::AfterMarker => None,
         }
     }
 
@@ -146,17 +163,21 @@ impl TuiExt {
             StyleSlot::After => self.computed_after.as_ref(),
             StyleSlot::Marker => self.computed_marker(),
             StyleSlot::FirstLetter => self.computed_first_letter(),
+            StyleSlot::BeforeMarker => self.computed_before_marker(),
+            StyleSlot::AfterMarker => self.computed_after_marker(),
         }
     }
 
     /// The computed style of the `slot` pseudo-element — `::before`,
-    /// `::after` or `::marker` — `None` when it generates no box.
+    /// `::after`, a `::marker` — `None` when it generates no box.
     pub fn computed_pseudo(&self, slot: PseudoSlot) -> Option<&std::rc::Rc<ComputedStyle>> {
         match slot {
             PseudoSlot::Before => self.computed_before.as_ref(),
             PseudoSlot::After => self.computed_after.as_ref(),
             PseudoSlot::Marker => self.computed_marker(),
             PseudoSlot::FirstLetter => self.computed_first_letter(),
+            PseudoSlot::BeforeMarker => self.computed_before_marker(),
+            PseudoSlot::AfterMarker => self.computed_after_marker(),
         }
     }
 
@@ -178,7 +199,10 @@ impl TuiExt {
                     .get_or_insert_with(Default::default)
                     .presentation_after,
             ),
-            StyleSlot::Marker | StyleSlot::FirstLetter => None,
+            StyleSlot::Marker
+            | StyleSlot::FirstLetter
+            | StyleSlot::BeforeMarker
+            | StyleSlot::AfterMarker => None,
         }
     }
 }

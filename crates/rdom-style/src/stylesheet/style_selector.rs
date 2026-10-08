@@ -162,7 +162,13 @@ impl Stylesheet {
             .items
             .iter()
             .map(|item| {
-                let pseudo_count = u16::from(item.pseudo != PseudoElementTarget::None);
+                // Selectors 4 §17: each pseudo-element counts as a type
+                // selector — two in a nested `::before::marker`.
+                let pseudo_count = match item.pseudo {
+                    PseudoElementTarget::None => 0,
+                    PseudoElementTarget::BeforeMarker | PseudoElementTarget::AfterMarker => 2,
+                    _ => 1,
+                };
                 let mut specificity = Specificity::of_complex(&item.complex, pseudo_count);
                 // Selectors 4 §17: a pseudo-class after a pseudo-element
                 // counts as any pseudo-class does.
@@ -188,7 +194,9 @@ impl Stylesheet {
                     }
                     // CSS Lists 3 §3.2: only some properties apply to
                     // `::marker`; none of them is flow-relative.
-                    PseudoElementTarget::Marker => (style.marker_subset(), None),
+                    PseudoElementTarget::Marker
+                    | PseudoElementTarget::BeforeMarker
+                    | PseudoElementTarget::AfterMarker => (style.marker_subset(), None),
                     // CSS Pseudo-Elements 4 §3.2: the highlight
                     // pseudo-elements take a few paint properties.
                     PseudoElementTarget::Selection | PseudoElementTarget::Highlight(_) => {

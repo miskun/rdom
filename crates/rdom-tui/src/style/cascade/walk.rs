@@ -469,8 +469,9 @@ fn finish_element<'a>(
         restyle,
     } = styled;
     let cached = recorded.as_deref().filter(|_| restyle);
-    // `::after` comes after the children in tree order.
-    let computed_after = {
+    // `::after` comes after the children in tree order, and its own
+    // marker after it (CSS Pseudo-Elements 4 §4).
+    let (computed_after, after_marker) = {
         let mut cx = ElementCx {
             dom: &*dom,
             sheets,
@@ -478,9 +479,12 @@ fn finish_element<'a>(
             counters: &mut *counters,
             scratch: &mut *scratch,
         };
-        compute_box(&mut cx, Slot::After, cached, &mut recorder, |cx, rules| {
+        let after = compute_box(&mut cx, Slot::After, cached, &mut recorder, |cx, rules| {
             compute_pseudo_style(cx, &computed, &[PseudoElementTarget::After], rules)
-        })
+        });
+        let marker =
+            super::early_pseudos::after_marker(&mut cx, after.as_ref(), cached, &mut recorder);
+        (after, marker)
     };
     reads_counters |= counters.take_read();
     counters.exit(id);
@@ -507,6 +511,8 @@ fn finish_element<'a>(
         counters.note_ops(ext.computed_after.as_deref(), computed_after.as_ref());
         ext.computed_before = computed_before;
         ext.computed_after = computed_after.map(std::rc::Rc::new);
+        let marker = after_marker.map(std::rc::Rc::new);
+        ext.update_pseudo(marker.is_some(), |p| p.after_marker = marker);
         ext.tree_has_positioned_pseudo = flags.has_positioned_pseudo;
         ext.tree_has_collapse = flags.has_collapse;
         ext.tree_has_counters = flags.has_counters;

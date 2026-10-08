@@ -34,6 +34,16 @@ const SUFFIXES: [(&str, PseudoElementTarget); 13] = [
     ("::scrollbar", PseudoElementTarget::Scrollbar),
 ];
 
+/// The nested pseudo-elements CSS Pseudo-Elements 4 §4 defines: the
+/// marker of a list-item `::before` / `::after` (CSS Lists 3 §3.1), the
+/// originating pseudo-element in either spelling (Selectors 4 §15).
+const NESTED_SUFFIXES: [(&str, PseudoElementTarget); 4] = [
+    ("::before::marker", PseudoElementTarget::BeforeMarker),
+    ("::after::marker", PseudoElementTarget::AfterMarker),
+    (":before::marker", PseudoElementTarget::BeforeMarker),
+    (":after::marker", PseudoElementTarget::AfterMarker),
+];
+
 /// The CSS 2.1 pseudo-elements Selectors 4 §15 still accepts with one
 /// colon (`:before`, `:after`, `:first-line`, `:first-letter`).
 const LEGACY_SUFFIXES: [(&str, PseudoElementTarget); 4] = [
@@ -45,9 +55,10 @@ const LEGACY_SUFFIXES: [(&str, PseudoElementTarget); 4] = [
 
 /// Strip a trailing pseudo-element (`::before`, `::scrollbar-thumb:vertical`,
 /// the legacy `:before`, …) if present. Returns the core selector + pseudo
-/// target. Errors if more than one pseudo-element is present (not allowed
-/// in a single selector) or the pseudo-element is unsupported. Names are
-/// ASCII case-insensitive (Selectors 4 §4.1).
+/// target. Errors if more than one pseudo-element is present — save the
+/// nested `::before::marker` / `::after::marker` (CSS Pseudo-Elements 4
+/// §4) — or the pseudo-element is unsupported. Names are ASCII
+/// case-insensitive (Selectors 4 §4.1).
 ///
 /// The pseudo-element attaches to the last compound of the core. When
 /// there is none — the core is empty, or ends in whitespace or a
@@ -59,6 +70,17 @@ pub(super) fn extract_pseudo_suffix(
     selector: &str,
 ) -> Result<(Cow<'_, str>, PseudoElementTarget), String> {
     let s = selector.trim_end();
+
+    // A nested marker: its originating pseudo-element is the only one
+    // before it, ending the core (`li::before::marker`).
+    for (suffix, target) in NESTED_SUFFIXES {
+        if let Some(core) = strip_suffix_ignore_case(s, suffix)
+            && !core.contains("::")
+            && core.chars().rev().take_while(|&c| c == '\\').count() % 2 == 0
+        {
+            return Ok((with_compound(core), target));
+        }
+    }
 
     // Disallow multiple `::` pseudo-elements (`::before::after` is invalid).
     let pseudo_count = s.matches("::").count();
@@ -85,7 +107,7 @@ pub(super) fn extract_pseudo_suffix(
     // A bare `::other` anywhere is rejected (unsupported pseudo-element).
     if pseudo_count == 1 {
         return Err(
-            "unsupported pseudo-element; only ::before, ::after, ::backdrop, ::selection, ::placeholder, ::first-line, ::first-letter, ::marker, ::highlight(<name>), ::details-content, ::scrollbar, ::scrollbar-thumb (optionally :vertical / :horizontal) allowed"
+            "unsupported pseudo-element; only ::before, ::after, ::backdrop, ::selection, ::placeholder, ::first-line, ::first-letter, ::marker, ::before::marker, ::after::marker, ::highlight(<name>), ::details-content, ::scrollbar, ::scrollbar-thumb (optionally :vertical / :horizontal) allowed"
                 .to_string(),
         );
     }
@@ -130,7 +152,8 @@ pub(super) fn extract_pseudo_chain(
     if !takes_user_action(&target) {
         return Err(format!(
             "no pseudo-class may follow this pseudo-element ({target:?}); \
-             only ::before, ::after, ::marker and ::first-letter take :hover / :active / :focus*"
+             only ::before, ::after, ::marker (nested too) and ::first-letter take \
+             :hover / :active / :focus*"
         ));
     }
     Ok((core, target, state))
@@ -147,6 +170,8 @@ fn takes_user_action(target: &PseudoElementTarget) -> bool {
         PseudoElementTarget::Before
             | PseudoElementTarget::After
             | PseudoElementTarget::Marker
+            | PseudoElementTarget::BeforeMarker
+            | PseudoElementTarget::AfterMarker
             | PseudoElementTarget::FirstLetter
     )
 }

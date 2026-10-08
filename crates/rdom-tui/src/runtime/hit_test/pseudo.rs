@@ -10,7 +10,8 @@
 //! pseudo-elements sit on lines of a block other than their host's box:
 //! a list item's `::marker` rides a descendant's first line, and a
 //! block's `::first-letter` its first line — their host may be an
-//! ancestor of the hit. The innermost pseudo-element under the point
+//! ancestor of the hit. A list-item `::before` / `::after`'s own marker
+//! rides that box's lines. The innermost pseudo-element under the point
 //! wins (a `::first-letter` inside a `::before`'s text).
 
 use rdom_core::{Dom, NodeId, NodeType};
@@ -101,7 +102,10 @@ fn ancestors_or_self(dom: &Dom<TuiExt>, id: NodeId) -> impl Iterator<Item = Node
     })
 }
 
-/// `anon`, a generated box of `target`'s containing `(x, y)`.
+/// `anon`, a generated box of `target`'s containing `(x, y)` — or the
+/// marker of its own that a list-item `::before` / `::after` carries on
+/// its lines (CSS Pseudo-Elements 4 §4), beside the box when outside: the
+/// innermost pseudo-element there.
 fn in_box(
     dom: &Dom<TuiExt>,
     anon: &AnonymousIfc,
@@ -110,8 +114,14 @@ fn in_box(
     y: i32,
 ) -> Option<(NodeId, PseudoSlot)> {
     let g = anon.generated?;
-    (g.host == target && contains(g.border_box, x, y) && targets(dom, g.host, g.slot))
-        .then_some((g.host, g.slot))
+    if g.host != target {
+        return None;
+    }
+    let nested = in_layout(dom, &anon.inline_layout, anon.rect, target, (x, y), false);
+    if let Some(hit @ (_, PseudoSlot::BeforeMarker | PseudoSlot::AfterMarker)) = nested {
+        return Some(hit);
+    }
+    (contains(g.border_box, x, y) && targets(dom, g.host, g.slot)).then_some((g.host, g.slot))
 }
 
 /// A pseudo-element of (or, for a marker or first letter, above)

@@ -873,3 +873,58 @@ fn rdom_css_like(selector: &str, decls: &[(&str, &str)]) -> Stylesheet {
     sheet.add_style_rule(&sel, style, RuleContext::default());
     sheet
 }
+
+// ── ::before::marker / ::after::marker (C10G-PSEUDO-MARKER) ────────
+
+/// CSS Pseudo-Elements 4 §4 / CSS Lists 3 §3.1: `::before` and `::after`
+/// "can have a ::marker pseudo-element" when they are list items —
+/// `li::before::marker` targets it, in any ASCII case and after the
+/// legacy one-colon `:before` (Selectors 4 §15). Each pseudo-element
+/// counts as a type selector (Selectors 4 §17), and only the `::marker`
+/// properties apply (CSS Lists 3 §3.2).
+#[test]
+fn a_before_or_after_takes_a_nested_marker() {
+    assert_eq!(
+        extract("li::before::marker").unwrap(),
+        ("li".into(), PseudoElementTarget::BeforeMarker)
+    );
+    assert_eq!(
+        extract("::AFTER::Marker").unwrap(),
+        ("*".into(), PseudoElementTarget::AfterMarker)
+    );
+    assert_eq!(
+        extract("p:before::marker").unwrap(),
+        ("p".into(), PseudoElementTarget::BeforeMarker)
+    );
+    let sheet = Stylesheet::bare()
+        .rule("li::before", TuiStyle::new())
+        .unwrap()
+        .rule("li::before::marker", TuiStyle::new().padding(3))
+        .unwrap();
+    let (before, marker) = (&sheet.rules()[0], &sheet.rules()[1]);
+    assert_eq!(
+        marker.specificity.type_pseudo_el,
+        before.specificity.type_pseudo_el + 1
+    );
+    assert!(
+        marker.style.padding.top.is_none(),
+        "not a ::marker property"
+    );
+}
+
+/// Pseudo-Elements 4 §4 defines no other nesting: a marker of a marker,
+/// a `::before` of anything, or a marker of any other pseudo-element is
+/// an invalid selector.
+#[test]
+fn no_other_pseudo_element_nests() {
+    for selector in [
+        "li::marker::marker",
+        "li::marker::before",
+        "li::before::after",
+        "li::before::marker::marker",
+        "p::first-line::marker",
+        "li::before:hover::marker",
+    ] {
+        assert!(extract(selector).is_err(), "{selector}");
+    }
+}

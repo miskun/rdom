@@ -80,7 +80,8 @@ value       := token+
   (`:hover`, `:active`, `:focus`, `:not(...)`, `:first-child`, `:last-child`,
   `:only-child`, `:empty`, `:root`, `:checked`, `:indeterminate`,
   `:open`, `:is(...)`, `:where(...)`, …), pseudo-elements (`::before`, `::after`, `::marker`,
-  `::first-line`, `::first-letter`, `::selection`, `::highlight(name)`, `::details-content`, `::backdrop`; the CSS 2.1 spellings
+  `::first-line`, `::first-letter`, `::selection`, `::highlight(name)`, `::details-content`, `::backdrop`,
+  the nested `::before::marker` / `::after::marker`; the CSS 2.1 spellings
   `:before` / `:after` / `:first-line` / `:first-letter`; `::before` / `::after` / `::marker` / `::first-letter` followed by
   `:hover` / `:active`), descendant / child / next-sibling / subsequent-sibling
   combinators, comma-separated lists.

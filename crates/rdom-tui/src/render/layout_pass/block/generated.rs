@@ -192,7 +192,7 @@ pub(super) fn lay_out(
     })?;
     let content = placed.content;
     let (lines_at, lines) = match item(dom, host, slot) {
-        Some(i) => i.lay_out_content(dom, content),
+        Some(i) => i.lay_out_content(dom, content, placed.rect),
         None => (
             content,
             InlineLayout {

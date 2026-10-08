@@ -145,6 +145,14 @@ pub enum PseudoElementTarget {
     /// first `<summary>` child: what the content inherits from, and what
     /// hides it while the element is closed.
     DetailsContent,
+    /// `::before::marker` (CSS Pseudo-Elements 4 §4, CSS Lists 3 §3.1) —
+    /// the marker of a `::before` that is a list item (`display:
+    /// list-item`). Only the `::marker` properties apply, as for
+    /// [`Marker`](Self::Marker).
+    BeforeMarker,
+    /// `::after::marker` — the marker of a list-item `::after`, as
+    /// [`BeforeMarker`](Self::BeforeMarker).
+    AfterMarker,
 }
 
 impl PseudoElementTarget {

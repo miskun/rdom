@@ -64,7 +64,12 @@ pub(super) fn compute_pseudo_style(
     let fallback = legacy_content(dom, id, target);
     // A list item's marker exists without a rule: `list-style-type`
     // makes its content (CSS Lists 3 §3.2).
-    let marker = *target == PseudoElementTarget::Marker;
+    let marker = matches!(
+        target,
+        PseudoElementTarget::Marker
+            | PseudoElementTarget::BeforeMarker
+            | PseudoElementTarget::AfterMarker
+    );
     // A first letter exists whether styled or not (CSS Pseudo 4 §2.3);
     // rdom makes its box where a rule's selector names it — one whose
     // trailing pseudo-classes do not hold yet included, so the letter

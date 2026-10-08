@@ -138,3 +138,17 @@ fn the_state_matches_the_pointer_state_and_never_focus() {
     assert!(!UserActionState::FOCUS.matches(true, true));
     assert!(!UserActionState::FOCUS_WITHIN.matches(true, true));
 }
+
+/// Selectors 4 §3.6.3 lets user-action pseudo-classes follow a nested
+/// marker as they follow `::marker` (C10G-PSEUDO-MARKER).
+#[test]
+fn a_nested_marker_takes_trailing_user_action_pseudo_classes() {
+    assert_eq!(
+        chain("li::after::marker:hover").unwrap(),
+        (
+            "li".into(),
+            PseudoElementTarget::AfterMarker,
+            UserActionState::HOVER
+        )
+    );
+}

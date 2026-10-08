@@ -1,8 +1,9 @@
 //! The pseudo-element boxes an element's cascade computes before its
-//! children (`walk::style_element`): `::marker`, `::before`, `::backdrop`,
-//! `::selection`, the scrollbar parts, `::first-line`,
-//! `::first-letter`, `::details-content` and `::highlight()`. `::after` waits for the children
-//! (`walk::finish_element`): a `counter()` in it sees their increments.
+//! children (`walk::style_element`): `::marker`, `::before` and its
+//! `::marker`, `::backdrop`, `::selection`, the scrollbar parts,
+//! `::first-line`, `::first-letter`, `::details-content` and
+//! `::highlight()`. `::after` and its `::marker` wait for the children
+//! (`walk::finish_element`): a `counter()` in them sees their increments.
 
 use super::matching::{MatchedRules, Recorder, Rules, Slot};
 use super::pseudo::{before_targets, compute_pseudo_style};
@@ -15,6 +16,7 @@ use crate::style::{ComputedStyle, PseudoElementTarget};
 pub(super) struct EarlyPseudos {
     pub(super) marker: Option<ComputedStyle>,
     pub(super) before: Option<ComputedStyle>,
+    before_marker: Option<ComputedStyle>,
     backdrop: Option<ComputedStyle>,
     selection: Option<ComputedStyle>,
     scrollbar: Option<ComputedStyle>,
@@ -34,6 +36,7 @@ impl EarlyPseudos {
         ext.computed_selection = self.selection.map(Rc::new);
         ext.computed_highlights = self.highlights;
         let sets = self.marker.is_some()
+            || self.before_marker.is_some()
             || self.backdrop.is_some()
             || self.first_line.is_some()
             || self.first_letter.is_some()
@@ -43,6 +46,7 @@ impl EarlyPseudos {
             || self.thumb_horizontal.is_some();
         ext.update_pseudo(sets, |p| {
             p.marker = self.marker.map(Rc::new);
+            p.before_marker = self.before_marker.map(Rc::new);
             p.backdrop = self.backdrop.map(Rc::new);
             p.first_line = self.first_line.map(Rc::new);
             p.first_letter = self.first_letter.map(Rc::new);
@@ -80,6 +84,15 @@ pub(super) fn compute(
         None
     };
     let before = pseudo(cx, Slot::Before, computed, before_targets(dom, id));
+    // Its own marker, when it is a list item: after its counter ops.
+    let before_marker = before.as_ref().filter(|b| has_marker(b)).and_then(|b| {
+        pseudo(
+            cx,
+            Slot::BeforeMarker,
+            b,
+            &[PseudoElementTarget::BeforeMarker],
+        )
+    });
     let backdrop = pseudo(
         cx,
         Slot::Backdrop,
@@ -171,6 +184,7 @@ pub(super) fn compute(
         highlights,
         marker,
         before,
+        before_marker,
         backdrop,
         selection,
         scrollbar,
@@ -179,6 +193,31 @@ pub(super) fn compute(
         first_line,
         first_letter,
     }
+}
+
+/// Whether a `::before` / `::after` styled `pseudo` has a `::marker` of
+/// its own (CSS Pseudo-Elements 4 §4, CSS Lists 3 §3.1): it is a list
+/// item. The marker — `::before::marker` / `::after::marker` — inherits
+/// from it, and its content is made by its `list-style-type` from the
+/// `list-item` counter the list item just incremented (§4.6), as an
+/// element's marker is.
+fn has_marker(pseudo: &ComputedStyle) -> bool {
+    pseudo.list_item && pseudo.display != crate::layout::Display::None
+}
+
+/// `::after::marker`, the marker of the `::after` styled `after`
+/// ([`has_marker`]), from `cached` matches or by matching: computed with
+/// the `::after`, after the children (`walk::finish_element`).
+pub(super) fn after_marker(
+    cx: &mut ElementCx<'_, '_>,
+    after: Option<&ComputedStyle>,
+    cached: Option<&MatchedRules>,
+    recorder: &mut Recorder,
+) -> Option<ComputedStyle> {
+    let after = after.filter(|a| has_marker(a))?;
+    compute_box(cx, Slot::AfterMarker, cached, recorder, |cx, rules| {
+        compute_pseudo_style(cx, after, &[PseudoElementTarget::AfterMarker], rules)
+    })
 }
 
 /// `::highlight(name)` (CSS Custom Highlight API 1 §5.1), for each name

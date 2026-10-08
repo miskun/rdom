@@ -117,6 +117,8 @@ pub(crate) fn matches(
         PseudoElementTarget::Before => PseudoSlot::Before,
         PseudoElementTarget::After => PseudoSlot::After,
         PseudoElementTarget::Marker => PseudoSlot::Marker,
+        PseudoElementTarget::BeforeMarker => PseudoSlot::BeforeMarker,
+        PseudoElementTarget::AfterMarker => PseudoSlot::AfterMarker,
         PseudoElementTarget::FirstLetter => PseudoSlot::FirstLetter,
         _ => return false,
     };
