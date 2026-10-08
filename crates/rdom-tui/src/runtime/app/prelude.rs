@@ -152,6 +152,7 @@ impl FramePrelude {
         self.control_seeding.flush(cx.dom);
         // 2.
         self.selectedness.flush(cx.dom);
+        crate::runtime::builtins::select::settle_pickers(cx.dom);
         self.popover_attributes.flush(cx.dom);
         // 3.
         if self.style_elements.flush(cx.dom) {

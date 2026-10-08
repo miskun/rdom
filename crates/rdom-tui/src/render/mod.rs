@@ -27,6 +27,7 @@ pub mod inline;
 pub mod layout_pass;
 pub mod paint_pass;
 pub mod rect;
+pub(crate) mod resizer;
 pub mod sgr;
 mod sgr_capabilities;
 pub(crate) mod stacking;

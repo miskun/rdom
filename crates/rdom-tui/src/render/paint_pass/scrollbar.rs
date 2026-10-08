@@ -239,9 +239,22 @@ impl Look {
 }
 
 /// Paint vertical and/or horizontal scrollbars for `id` if its
-/// overflow properties demand them ([`tracks`]). No-op when both axes are
-/// `Visible` / `Hidden`.
+/// overflow properties demand them ([`tracks`]), then its resizer's grip
+/// over them (`render::resizer`, CSS UI 4 §4.2).
 pub(super) fn paint_scrollbars(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    buf: &mut Buffer,
+    clip: Rect,
+) {
+    paint_bars(dom, id, computed, buf, clip);
+    crate::render::resizer::paint(dom, id, computed, buf, clip);
+}
+
+/// The bars of [`paint_scrollbars`]. No-op when both axes are `Visible` /
+/// `Hidden`.
+fn paint_bars(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,

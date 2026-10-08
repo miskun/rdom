@@ -43,6 +43,10 @@ pub fn open(dom: &mut TuiDom, select: NodeId) {
         dom.add_to_top_layer(select, rdom_core::TopLayerKind::Picker)
             .expect("a connected element joins the top layer");
     }
+    let open = &mut opened(dom).0;
+    if !open.contains(&select) {
+        open.push(select);
+    }
 }
 
 /// Close a dropdown — clear the open marker and take its picker out of
@@ -54,6 +58,48 @@ pub fn close(dom: &mut TuiDom, select: NodeId) {
     let _ = dom.remove_attribute(select, OPEN_ATTR);
     if dom.top_layer_kind(select) == Some(rdom_core::TopLayerKind::Picker) {
         dom.remove_from_top_layer(select);
+    }
+    if let Some(open) = dom.document_data_mut::<OpenedPickers>() {
+        open.0.retain(|&s| s != select);
+    }
+}
+
+/// The selects [`open`] opened and [`close`] has not closed.
+#[derive(Debug, Default)]
+struct OpenedPickers(Vec<NodeId>);
+
+fn opened(dom: &mut TuiDom) -> &mut OpenedPickers {
+    if dom.document_data::<OpenedPickers>().is_none() {
+        dom.set_document_data(OpenedPickers::default());
+    }
+    dom.document_data_mut::<OpenedPickers>().expect("just set")
+}
+
+/// HTML's removing steps for the picker, and a disabled select's
+/// (C12G-RESIZE-PICKER): close each open select that left the top layer
+/// — rdom-core's removing steps took it out when the tree removed it — or
+/// is disabled now. The `App` runs this at its next event or frame (a
+/// mutation observer may not change the tree), as it settles popovers.
+pub(crate) fn settle_pickers(dom: &mut TuiDom) {
+    let Some(open) = dom.document_data::<OpenedPickers>() else {
+        return;
+    };
+    let stale: Vec<NodeId> = open
+        .0
+        .iter()
+        .copied()
+        .filter(|&s| {
+            !dom.contains(s)
+                || dom.top_layer_kind(s) != Some(rdom_core::TopLayerKind::Picker)
+                || dom.is_actually_disabled(s)
+        })
+        .collect();
+    for select in stale {
+        if dom.contains(select) {
+            close(dom, select);
+        } else if let Some(open) = dom.document_data_mut::<OpenedPickers>() {
+            open.0.retain(|&s| s != select);
+        }
     }
 }
 

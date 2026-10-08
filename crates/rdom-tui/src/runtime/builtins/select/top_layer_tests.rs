@@ -143,3 +143,40 @@ fn the_picker_picks_and_light_dismisses() {
     assert!(!p.app.dom().is_in_top_layer(p.select));
     assert!(p.app.dom().node(p.options[2]).has_attribute("selected"));
 }
+
+/// HTML's removing steps for the picker (C12G-RESIZE-PICKER, architect
+/// N6): a select taken out of the document while open is closed — out of
+/// the top layer and no longer marked open — so inserted again it is a
+/// closed one-row drop-down, not an in-flow option list no light dismiss
+/// reaches.
+#[test]
+fn removing_an_open_select_closes_its_picker() {
+    let mut p = page();
+    select::open(p.app.dom_mut(), p.select);
+    p.app.advance(0).unwrap();
+    let parent = p.app.dom().node(p.select).parent_node().unwrap().id();
+    p.app.dom_mut().remove_child(parent, p.select).unwrap();
+    p.app.advance(0).unwrap();
+    assert!(!select::is_open(p.app.dom(), p.select));
+    p.app.dom_mut().append_child(parent, p.select).unwrap();
+    p.app.advance(0).unwrap();
+    assert!(!select::is_open(p.app.dom(), p.select));
+    assert!(!p.app.dom().is_in_top_layer(p.select));
+    assert_eq!(p.app.dom().node(p.select).layout_rect().unwrap().height, 1);
+}
+
+/// A select disabled while its picker is open closes it (as browsers do;
+/// HTML's `showPicker()` refuses a disabled select).
+#[test]
+fn disabling_an_open_select_closes_its_picker() {
+    let mut p = page();
+    select::open(p.app.dom_mut(), p.select);
+    p.app.advance(0).unwrap();
+    p.app
+        .dom_mut()
+        .set_attribute(p.select, "disabled", "")
+        .unwrap();
+    p.app.advance(0).unwrap();
+    assert!(!select::is_open(p.app.dom(), p.select));
+    assert!(!p.app.dom().is_in_top_layer(p.select));
+}

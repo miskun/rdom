@@ -289,3 +289,89 @@ fn a_textarea_is_resizable_by_default() {
     let (w, h) = drag_corner(".b { width: 8 }", "textarea", (9, 3), (5, 5));
     assert_eq!((w, h), (6, 6));
 }
+
+// ── C12G-RESIZE-PICKER: the resizer (§4.2) ───────────────────────
+
+/// CSS UI 4 §4.2 (as browsers draw a resizer in a resizable box's
+/// corner): the hot spot shows — a `◢` grip in the bottom-right cell of a
+/// resizable scroll container, over its content or its scrollbar's end;
+/// none where `resize` is `none`, and none on a box that is not a scroll
+/// container (`overflow: clip`, which §4.2 leaves out — and which a drag
+/// no longer resizes).
+#[test]
+fn a_resizable_scroll_container_draws_its_grip() {
+    let grip = |css: &str, tag: &str, at: (u16, u16)| {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let id = dom.create_element(tag);
+        dom.set_attribute(id, "class", "b").unwrap();
+        dom.append_child(root, id).unwrap();
+        let buf = paint(&mut dom, css, 20, 8);
+        cell(&buf, at.0, at.1).symbol().to_string()
+    };
+    let b = |extra: &str| format!(".b {{ display: block; width: 6; height: 2; {extra} }}");
+    assert_eq!(grip(&b("overflow: auto; resize: both"), "div", (5, 1)), "◢");
+    assert_eq!(grip(&b("overflow: auto; resize: none"), "div", (5, 1)), " ");
+    assert_eq!(grip(&b("overflow: clip; resize: both"), "div", (5, 1)), " ");
+    // The UA textarea: 8 + its padding wide, 4 tall.
+    assert_eq!(grip(".b { width: 8 }", "textarea", (9, 3)), "◢");
+    assert_eq!(
+        drag_corner(&b("overflow: clip; resize: both"), "div", (5, 1), (8, 3)),
+        (6, 2),
+        "overflow: clip is not a scroll container"
+    );
+}
+
+/// §4.2 resizes the box the pointer drags: a `content-box` width is the
+/// border box less what lies outside the content box as laid out —
+/// padding (a percentage of the containing block, not of the box),
+/// border and any scrollbar gutter — so a one-cell drag is a one-cell
+/// resize.
+#[test]
+fn a_one_cell_drag_is_a_one_cell_resize() {
+    // `padding-left: 50%` of the 20-cell viewport: 10; the border box
+    // 16 wide, its corner at column 15.
+    let padded = ".b { display: block; width: 6; height: 2; overflow: auto; \
+                  padding-left: 50%; resize: both }";
+    assert_eq!(drag_corner(padded, "div", (15, 1), (16, 1)), (17, 2));
+    // A stable gutter is part of the border box: the corner is at 5.
+    let gutter = ".b { display: block; width: 6; height: 2; overflow: auto; \
+                  scrollbar-gutter: stable; resize: both }";
+    assert_eq!(drag_corner(gutter, "div", (5, 1), (6, 1)), (7, 2));
+}
+
+/// A drag writes only the axes the pointer moved: a horizontal drag of a
+/// `resize: both` box sets its `width`, not its `height`.
+#[test]
+fn a_horizontal_drag_writes_only_the_width() {
+    use crossterm::event::{Event, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use rdom_tui::runtime::router::Router;
+    let css = ".b { display: block; width: 6; height: 2; overflow: auto; resize: both }";
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let id = dom.create_element("div");
+    dom.set_attribute(id, "class", "b").unwrap();
+    dom.append_child(root, id).unwrap();
+    paint(&mut dom, css, 20, 8);
+    let mut router = Router::new();
+    let at = |kind, (column, row): (u16, u16)| {
+        Event::Mouse(MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        })
+    };
+    router.route(
+        &mut dom,
+        at(MouseEventKind::Down(MouseButton::Left), (5, 1)),
+    );
+    router.route(
+        &mut dom,
+        at(MouseEventKind::Drag(MouseButton::Left), (8, 1)),
+    );
+    router.route(&mut dom, at(MouseEventKind::Up(MouseButton::Left), (8, 1)));
+    let style = dom.node(id).get_attribute("style").unwrap_or_default();
+    assert!(style.contains("width: 9"), "{style}");
+    assert!(!style.contains("height"), "{style}");
+}

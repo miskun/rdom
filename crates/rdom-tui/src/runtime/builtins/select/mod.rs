@@ -88,7 +88,7 @@ use rdom_core::ListenerOptions;
 use crate::TuiDom;
 
 pub use dropdown::{close, is_dropdown, is_open, open};
-pub(crate) use dropdown::{inline_chrome, light_dismiss_down, light_dismiss_up};
+pub(crate) use dropdown::{inline_chrome, light_dismiss_down, light_dismiss_up, settle_pickers};
 pub(crate) use model::{display_size, is_multi, option_disabled};
 pub use model::{option_label, option_value, options, selected_options, value};
 pub(crate) use selectedness::Selectedness;

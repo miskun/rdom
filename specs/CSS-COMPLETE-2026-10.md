@@ -8160,3 +8160,31 @@ row comes from.
   (`next_wake`), and no longer does once removed. CHANGELOG silent change 79. Not done here: transitions
   with `steps()` still run every frame (their cost is bounded by their duration); `keep_cascaded`'s
   per-restyle `Rc` (architect N3's last line) and nested `calc-size()` (N4) are left for batch B.
+- 2026-10-08 — C12G-RESIZE-PICKER (architect N5, N6; CSS UI 4 §4.2, HTML's select picker and removing
+  steps). Resize — decided: draw the grip (the first option), since a resizer browsers show is the
+  faithful affordance and excluding the hot spot where a box has no room would have made `resize`
+  unusable on every padding-less box (the C12-CONTROLS tests drag exactly such a box). One answer for
+  the hot spot and the glyph, `render::resizer::cell`: the bottom-right cell of the padding box (inside
+  the border; a bordered box's corner glyph stays), of a scroll container whose `resize` allows an axis —
+  `overflow: clip` no longer counts (§4.2: scroll containers only); paint draws `◢` there in the box's
+  `color` after its scrollbars (`paint_scrollbars` → `resizer::paint`), so the press that starts a drag
+  is always on the visible grip, over the content or a bar's end. The drag's `extra` (what a
+  `content-box` size leaves out) is measured from the layout — border box less content box less the
+  gutters, which the content box gives up inside the size — so a percentage padding resolves against
+  the containing block (it used the box's own width: a one-cell drag grew a `padding-left: 50%` box by
+  three). A move writes only an axis `resize` allows whose size it changed (`ResizeDrag::written`):
+  a horizontal drag no longer rewrites `height`, an unchanged move writes nothing (each write is a
+  mutation, a restyle and a layout). The architect's "2 cells per 1" with a gutter did not reproduce —
+  rdom's gutter is inside the size, as in browsers; the stable-gutter case is pinned. Picker: `open`
+  records the select in document data, `close` forgets it, and `select::settle_pickers` — run with the
+  selectedness flush at the App's next event or frame, as popovers settle — closes a recorded select
+  that left the top layer (rdom-core's removing steps took it out) or is disabled
+  (`Dom::is_actually_disabled`): no `data-rdom-open` left, so inserted again it is a closed drop-down.
+  Red: `css_phase12/controls.rs` `a_resizable_scroll_container_draws_its_grip` (no grip),
+  `a_one_cell_drag_is_a_one_cell_resize` (19 for 17), `a_horizontal_drag_writes_only_the_width`
+  (`height: 2` written); `select/top_layer_tests.rs` `removing_an_open_select_closes_its_picker`,
+  `disabling_an_open_select_closes_its_picker` (still open); green after. Snapshot changed:
+  `rdom-showcase/tests/snapshots/tab_form.snap` — the Notes textarea's bottom-right cell shows `◢`
+  (the text layer only; the background section is unchanged: the grip takes the cell's background).
+  DIVERGENCES §2's resize entry rewritten (grip drawn; the corner inside the border); CHANGELOG silent
+  change 76 updated.
