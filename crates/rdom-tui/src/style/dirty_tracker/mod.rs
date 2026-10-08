@@ -144,6 +144,10 @@ pub(super) struct DirtyState {
     /// Records observed since install — evidence that code changed the
     /// tree (`records_seen`, `P7G-TICK-TOUCHED-1`).
     pub(super) records: u64,
+    /// A style flush cascaded roots taken from here between frames
+    /// (`runtime::style_flush`): the next frame still owes them its
+    /// transition hook and its layout. Consumed via `take_flushed()`.
+    pub(super) flushed: bool,
     /// Which changes can reach a sibling's match through a `+` / `~`
     /// combinator (`style::sibling_triggers`,
     /// `P7G-SIBLING-MARK-NARROW-1`). Every change until the App says
@@ -165,6 +169,7 @@ impl Default for DirtyState {
             paint_dirty: false,
             selection_dirty: false,
             records: 0,
+            flushed: false,
             siblings: SiblingTriggers::all(),
             has: HasTriggers::all(),
         }
@@ -211,6 +216,46 @@ impl DirtyTracker {
         std::mem::take(&mut state.roots)
     }
 
+    /// Take the dirty roots whose subtrees hold `id` — `id` and its
+    /// ancestors — leaving the others: what a style flush for `id`
+    /// cascades (`runtime::style_flush`). Taking any notes the flush for
+    /// the next frame ([`take_flushed`](Self::take_flushed)). The
+    /// per-drain dedupe sets are cleared, as a full drain clears them: a
+    /// sibling list or `:has()` walk they recorded may now be clean.
+    pub(crate) fn take_roots_holding(&self, dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {
+        let mut state = self.inner.borrow_mut();
+        if state.roots.is_empty() {
+            return Vec::new();
+        }
+        let mut held = Vec::new();
+        let mut cur = Some(id);
+        while let Some(n) = cur {
+            if state.roots_set.contains(&n) {
+                held.push(n);
+            }
+            cur = dom.node(n).parent_node().map(|p| p.id());
+        }
+        if held.is_empty() {
+            return held;
+        }
+        state.roots.retain(|r| !held.contains(r));
+        for r in &held {
+            state.roots_set.remove(r);
+        }
+        state.sibling_marked.clear();
+        state.has_walked.clear();
+        state.flushed = true;
+        held.reverse();
+        held
+    }
+
+    /// Consume the flag a style flush sets when it cascades roots
+    /// between frames ([`take_roots_holding`](Self::take_roots_holding)):
+    /// the frame runs its transition hook and lays out for them.
+    pub(crate) fn take_flushed(&self) -> bool {
+        std::mem::take(&mut self.inner.borrow_mut().flushed)
+    }
+
     /// Peek at the current dirty roots without clearing. Useful in
     /// tests.
     pub fn roots_snapshot(&self) -> Vec<NodeId> {
@@ -247,7 +292,7 @@ impl DirtyTracker {
     #[cfg(test)]
     pub(crate) fn has_pending(&self) -> bool {
         let state = self.inner.borrow();
-        !state.roots.is_empty() || state.paint_dirty || state.selection_dirty
+        !state.roots.is_empty() || state.paint_dirty || state.selection_dirty || state.flushed
     }
 
     /// How many mutation records the tracker has observed since it was

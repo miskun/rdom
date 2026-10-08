@@ -36,6 +36,7 @@
 //! offsets stage 8 compares against and the highlight generation stage 10
 //! does.
 
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use rdom_core::NodeId;
@@ -66,7 +67,7 @@ pub(super) struct PreludeCx<'a> {
     pub(super) dom: &'a mut TuiDom,
     pub(super) tracker: &'a DirtyTracker,
     /// The App's own sheets, in push order.
-    pub(super) app_sheets: &'a [(StylesheetId, Stylesheet)],
+    pub(super) app_sheets: &'a [(StylesheetId, Rc<Stylesheet>)],
     /// What the frame must redo; each stage notes the least it needs.
     pub(super) redraw: &'a mut Redraw,
     /// The scheduler clock.
@@ -93,7 +94,7 @@ pub(super) struct FramePrelude {
     pub(super) style_elements: StyleElements,
     /// `CSS.registerProperty` registrations (`App::register_property`),
     /// cascaded after every other sheet so they win over `@property`.
-    pub(super) registrations: crate::style::Stylesheet,
+    pub(super) registrations: std::rc::Rc<crate::style::Stylesheet>,
     /// The custom properties every sheet registers ("later wins"), the
     /// one registry the cascade and the transition engine share; rebuilt
     /// when the sheets change ([`Self::sheets_changed`]).
@@ -132,7 +133,7 @@ impl FramePrelude {
             selectedness: Selectedness::install(dom),
             popover_attributes: PopoverAttributes::install(dom),
             style_elements: StyleElements::install(dom),
-            registrations: crate::style::Stylesheet::bare(),
+            registrations: std::rc::Rc::new(crate::style::Stylesheet::bare()),
             registry: std::rc::Rc::default(),
             scroll_focus_marked: None,
             validity_marks: FormStateMarks::default(),
@@ -175,7 +176,7 @@ impl FramePrelude {
                 cx.tracker,
                 self.style_elements
                     .sheets()
-                    .chain(cx.app_sheets.iter().map(|(_, s)| s)),
+                    .chain(cx.app_sheets.iter().map(|(_, s)| &**s)),
             );
             walks += u32::from(walked);
         }
@@ -253,7 +254,7 @@ impl FramePrelude {
         &mut self,
         dom: &mut TuiDom,
         tracker: &DirtyTracker,
-        app_sheets: &[(StylesheetId, Stylesheet)],
+        app_sheets: &[(StylesheetId, Rc<Stylesheet>)],
         redraw: &mut Redraw,
     ) {
         self.sync_sheet_set(dom, tracker, app_sheets);
@@ -264,15 +265,17 @@ impl FramePrelude {
     }
 
     /// Rebuild what is derived from the stylesheet set: the property
-    /// registry, the dirty tracker's sibling-combinator hint, and whether
+    /// registry, the dirty tracker's sibling-combinator hint, whether
     /// the runtime keeps the pseudo-elements' pointer state (a sheet has a
-    /// `::before:hover`-like rule, `style::pseudo_pointer`). Once per
-    /// stylesheet set (construction, [`Self::sheets_changed`]).
+    /// `::before:hover`-like rule, `style::pseudo_pointer`), and the
+    /// cascade inputs a style flush reads off the document
+    /// (`runtime::style_flush`). Once per stylesheet set (construction,
+    /// [`Self::sheets_changed`]).
     pub(super) fn sync_sheet_set(
         &mut self,
         dom: &mut TuiDom,
         tracker: &DirtyTracker,
-        app_sheets: &[(StylesheetId, Stylesheet)],
+        app_sheets: &[(StylesheetId, Rc<Stylesheet>)],
     ) {
         let (registry, tracked) = {
             let sheets = self.cascade_order(app_sheets);
@@ -283,6 +286,14 @@ impl FramePrelude {
         };
         self.registry = std::rc::Rc::new(registry);
         crate::style::pseudo_pointer::set_tracked(dom, tracked);
+        let sheets = self
+            .style_elements
+            .sheet_handles()
+            .chain(app_sheets.iter().map(|(_, s)| s))
+            .chain(std::iter::once(&self.registrations))
+            .cloned()
+            .collect();
+        crate::runtime::style_flush::publish(dom, sheets, self.registry.clone(), tracker.clone());
         self.sync_sibling_combinators(tracker, app_sheets);
     }
 
@@ -294,7 +305,7 @@ impl FramePrelude {
     fn sync_sibling_combinators(
         &self,
         tracker: &DirtyTracker,
-        app_sheets: &[(StylesheetId, Stylesheet)],
+        app_sheets: &[(StylesheetId, Rc<Stylesheet>)],
     ) {
         tracker.set_sibling_triggers(crate::style::sibling_triggers::SiblingTriggers::of_sheets(
             self.cascade_order(app_sheets),
@@ -311,12 +322,12 @@ impl FramePrelude {
     /// same-specificity contests.
     pub(super) fn cascade_order<'a>(
         &'a self,
-        app_sheets: &'a [(StylesheetId, Stylesheet)],
+        app_sheets: &'a [(StylesheetId, Rc<Stylesheet>)],
     ) -> Vec<&'a Stylesheet> {
         self.style_elements
             .sheets()
-            .chain(app_sheets.iter().map(|(_, s)| s))
-            .chain(std::iter::once(&self.registrations))
+            .chain(app_sheets.iter().map(|(_, s)| &**s))
+            .chain(std::iter::once(&*self.registrations))
             .collect()
     }
 

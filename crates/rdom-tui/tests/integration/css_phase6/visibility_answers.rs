@@ -113,18 +113,16 @@ fn a_visibility_transition_that_ends_hidden_blurs() {
     assert_eq!(blurs.get(), 1);
 }
 
-/// C7G-UPGRADE-GUIDE — the upgrade guide's "open panel, focus input"
-/// entry, checked. HTML `focus()` refuses an element that is not a
-/// focusable area, and rdom reads that from the last cascade's styles
-/// (DIVERGENCES §2, TECH_DEBT `FOCUS-FLUSH-1`): a handler that shows a
-/// `display: none` panel and focuses its input in the same call is
-/// refused, and so is a `requestAnimationFrame` callback it requests —
-/// a frame runs its animation frame callbacks before it updates style
-/// (HTML "update the rendering"). A callback requested from that
-/// callback runs in the frame after, once the panel's style is computed,
-/// and takes the focus: the workaround the guide gives.
+/// C7G-UPGRADE-GUIDE, then C12-FOCUS-FLUSH — the upgrade guide's "open
+/// panel, focus input" case. HTML `focus()` refuses an element that is
+/// not a focusable area, and decides it against up-to-date style: the
+/// `App`'s document flushes the input's dirty style first
+/// (`runtime::style_flush`), so a handler that shows a `display: none`
+/// panel and focuses its input in the same call focuses it — and so does
+/// an animation frame callback it requests, or one that callback
+/// requests (the nested-callback workaround this used to need).
 #[test]
-fn focusing_a_just_shown_input_waits_for_the_next_frame() {
+fn focusing_a_just_shown_input_flushes_its_style() {
     use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
     use rdom_tui::runtime::timers::TuiTimers;
 
@@ -177,11 +175,6 @@ fn focusing_a_just_shown_input_waits_for_the_next_frame() {
         for _ in 0..4 {
             app.advance(20).unwrap();
         }
-        let expected = if when == When::TwoAnimationFrames {
-            input
-        } else {
-            open
-        };
-        assert_eq!(app.dom().focused(), Some(expected), "{when:?}");
+        assert_eq!(app.dom().focused(), Some(input), "{when:?}");
     }
 }

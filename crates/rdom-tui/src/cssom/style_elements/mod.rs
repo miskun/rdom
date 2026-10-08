@@ -53,7 +53,7 @@ struct StyleSheetEntry {
     element: NodeId,
     /// The concatenated child text the sheet was parsed from.
     source: String,
-    sheet: Stylesheet,
+    sheet: Rc<Stylesheet>,
     warnings: Vec<Warning>,
 }
 
@@ -128,7 +128,7 @@ impl StyleElements {
                 StyleSheetEntry {
                     element,
                     source,
-                    sheet: parsed.stylesheet,
+                    sheet: Rc::new(parsed.stylesheet),
                     warnings: parsed.warnings,
                 }
             });
@@ -141,6 +141,12 @@ impl StyleElements {
 
     /// The sheets, in tree order.
     pub(crate) fn sheets(&self) -> impl Iterator<Item = &Stylesheet> {
+        self.entries.iter().map(|e| &*e.sheet)
+    }
+
+    /// The sheets, in tree order, as shared handles (what a style flush
+    /// keeps, `runtime::style_flush`).
+    pub(crate) fn sheet_handles(&self) -> impl Iterator<Item = &Rc<Stylesheet>> {
         self.entries.iter().map(|e| &e.sheet)
     }
 

@@ -131,6 +131,8 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
     fn focus(&mut self) {
         let id = self.id();
         let dom = self.dom_mut();
+        // HTML §6.6.6: the focusing steps read up-to-date style.
+        crate::runtime::style_flush::flush_style(dom, id);
         if !crate::runtime::focus::tabindex::is_focusable(dom, id) {
             return;
         }
@@ -140,6 +142,7 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
     fn focus_with(&mut self, options: crate::runtime::focus::FocusOptions) {
         let id = self.id();
         let dom = self.dom_mut();
+        crate::runtime::style_flush::flush_style(dom, id);
         if !crate::runtime::focus::tabindex::is_focusable(dom, id) {
             return;
         }

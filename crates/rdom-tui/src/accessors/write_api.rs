@@ -92,7 +92,12 @@ pub trait TuiAccessorsMut<'a>: crate::sealed::Sealed {
 
     /// Focus this element. No-op if the element isn't focusable
     /// (matches `HTMLElement.focus()` browser semantics — "if the
-    /// element is not focusable, this method does nothing"). When
+    /// element is not focusable, this method does nothing"), decided
+    /// against up-to-date style: on a document an `App` runs, the
+    /// element's dirty style is flushed first
+    /// ([`runtime::style_flush::flush_style`](crate::runtime::style_flush::flush_style)),
+    /// so a panel shown by the same handler lets its input take the
+    /// focus. When
     /// it does fire, runs the standard focus ceremony via
     /// [`runtime::focus::focus_node`](crate::runtime::focus::focus_node):
     /// `blur` + `focusout` on the old target, commit the new focus

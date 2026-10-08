@@ -89,7 +89,7 @@ impl<B: Backend> App<B> {
             self.stylesheets.iter().all(|(sid, _)| *sid != id),
             "a StylesheetId is registered at most once"
         );
-        self.stylesheets.push((id, sheet));
+        self.stylesheets.push((id, std::rc::Rc::new(sheet)));
         self.invalidate_cascade();
     }
 
@@ -164,7 +164,7 @@ impl<B: Backend> App<B> {
     /// on the tree and live on `Dom`; this one operates on the
     /// runtime and lives here.
     pub fn style_sheets(&self) -> Vec<&Stylesheet> {
-        self.stylesheets.iter().map(|(_, s)| s).collect()
+        self.stylesheets.iter().map(|(_, s)| &**s).collect()
     }
 
     /// Resolve the `@import` rules of the document's `<style>` elements
@@ -233,7 +233,7 @@ impl<B: Backend> App<B> {
         &mut self,
         registration: crate::PropertyRegistration,
     ) -> Result<(), crate::RegisterPropertyError> {
-        let registered = &mut self.prelude.registrations;
+        let registered = std::rc::Rc::make_mut(&mut self.prelude.registrations);
         if registered
             .registered_properties()
             .iter()

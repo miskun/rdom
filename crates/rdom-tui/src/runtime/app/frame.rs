@@ -77,6 +77,7 @@ impl<B: Backend> App<B> {
         // cascaded in this frame.
         self.run_prelude(PreludeRun::Frame);
         let dirty_roots = self.take_dirty_roots();
+        let flushed = self.take_flushed();
         let redraw = self.redraw;
 
         if redraw == Redraw::Clean && dirty_roots.is_empty() {
@@ -99,7 +100,7 @@ impl<B: Backend> App<B> {
                 (&sheets, registry),
                 (animations, now),
                 (redraw, cascaded_viewport),
-                &dirty_roots,
+                (&dirty_roots, flushed),
                 buf.area,
             );
             dom.paint_dom(buf, buf.area);
@@ -150,6 +151,15 @@ impl<B: Backend> App<B> {
         dirty_roots.sort_unstable();
         dirty_roots.dedup();
         dirty_roots
+    }
+
+    /// Whether a style flush cascaded subtrees since the last frame
+    /// (`runtime::style_flush`): the frame lays out (noted on `redraw`)
+    /// and runs its transition hook for them.
+    fn take_flushed(&mut self) -> bool {
+        let flushed = self.tracker.take_flushed();
+        self.redraw.note_if(flushed, Redraw::Layout);
+        flushed
     }
 
     /// Dispatch transition lifecycle events queued by the
@@ -285,6 +295,7 @@ impl<B: Backend> App<B> {
     pub(super) fn cascade_and_layout(&mut self, area: Rect) {
         self.run_prelude(PreludeRun::OffFrame);
         let dirty_roots = self.take_dirty_roots();
+        let flushed = self.take_flushed();
         let redraw = self.redraw.max(Redraw::Layout);
         let now = self.frame_now();
         let sheets = self.prelude.cascade_order(&self.stylesheets);
@@ -293,7 +304,7 @@ impl<B: Backend> App<B> {
             (&sheets, &self.prelude.registry),
             (&mut self.animations, now),
             (redraw, &mut self.cascaded_viewport),
-            &dirty_roots,
+            (&dirty_roots, flushed),
             area,
         );
         self.note_pass(pass, false);
@@ -346,7 +357,8 @@ struct Pass {
 /// dirty roots need it (`redraw::Redraw`, `P7G-PAINT-ONLY-FRAME-1`):
 /// cascade (the whole tree for `Redraw::Cascade`, else `dirty_roots`'
 /// subtrees, else nothing) → register the transitions a cascade's
-/// property changes start → when anything was cascaded or `redraw` is
+/// property changes start — or a style flush's since the last frame
+/// (`flushed`, `runtime::style_flush`) → when anything was cascaded or `redraw` is
 /// at least `Layout`: advance the running transitions (compositing their
 /// values onto the animated styles), lay out, and
 /// service a caret reveal requested this frame against the fresh
@@ -360,7 +372,7 @@ fn style_and_layout(
     (sheets, registry): (&[&Stylesheet], &Rc<PropertyRegistry>),
     (animations, now): (&mut AnimationRegistry, std::time::Instant),
     (redraw, cascaded_viewport): (Redraw, &mut Option<Viewport>),
-    dirty_roots: &[NodeId],
+    (dirty_roots, flushed): (&[NodeId], bool),
     area: Rect,
 ) -> Pass {
     // The viewport-percentage units resolve against the terminal (CSS
@@ -384,7 +396,7 @@ fn style_and_layout(
     } else {
         None
     };
-    if cascade.is_some() {
+    if cascade.is_some() || flushed {
         animations.set_registered_properties(registry.clone());
         // A newly rendered element's transitions start from its starting
         // style (CSS Transitions 2 §3, `@starting-style`); its CSS
@@ -392,7 +404,7 @@ fn style_and_layout(
         let inputs = crate::runtime::animation::CssInputs { sheets, registry };
         crate::runtime::animation::diff_and_register_in(dom, animations, now, inputs);
     }
-    let must_lay_out = cascade.is_some() || redraw >= Redraw::Layout;
+    let must_lay_out = cascade.is_some() || flushed || redraw >= Redraw::Layout;
     // A frame the animation pump asked for (`Redraw::Paint`) steps the
     // transitions and animations — the one that ends them too — and lays
     // out only when they moved a longhand layout reads. Stepping one that

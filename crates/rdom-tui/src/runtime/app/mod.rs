@@ -142,7 +142,7 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// [`App::remove_stylesheet`] (delete by id), or
     /// [`App::set_stylesheet`] (clear + push). Public accessor
     /// [`App::style_sheets`] returns the sheets-only view.
-    pub(super) stylesheets: Vec<(StylesheetId, Stylesheet)>,
+    pub(super) stylesheets: Vec<(StylesheetId, Rc<Stylesheet>)>,
     /// The pre-cascade stages each frame runs, in order, and their state
     /// (`prelude::FramePrelude`: selectedness, `<style>` elements,
     /// scroll-focus marker, validity marks, caret blink, smooth scrolls,
@@ -340,7 +340,7 @@ impl<B: Backend> App<B> {
         let mut stylesheet_ids = stylesheets::StylesheetIdAllocator::default();
         let mut app = Self {
             dom,
-            stylesheets: vec![(stylesheet_ids.allocate(), stylesheet)],
+            stylesheets: vec![(stylesheet_ids.allocate(), Rc::new(stylesheet))],
             prelude,
             stylesheet_ids,
             terminal,

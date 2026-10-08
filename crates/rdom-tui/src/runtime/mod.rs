@@ -9,6 +9,8 @@
 //! - [`router`] — crossterm event → synthesized `TuiEvent` → dispatch.
 //!   Sub-modules: `mouse`, `hover`, `wheel`, `key`.
 //! - [`focus`] — tabindex, focus navigation, modal focus trap.
+//! - [`style_flush`] — bring an element's style up to date between
+//!   frames (what `focus()` does first).
 //! - [`selection`] — text selection, clipboard, `::selection`,
 //!   `user-select`.
 //! - Pointer capture (drag routing) is DOM state in `rdom-core`
@@ -45,6 +47,7 @@ pub mod scrollbar;
 pub mod selection;
 pub mod smooth_scroll;
 pub(crate) mod state_writes;
+pub mod style_flush;
 pub mod timers;
 pub(crate) mod top_layer;
 pub mod trace;

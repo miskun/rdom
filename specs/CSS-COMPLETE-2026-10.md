@@ -247,7 +247,7 @@ row comes from.
 | C12-OUTLINE | `outline` / `-color` / `-style` / `-width` / `-offset` (non-layout ring) | |
 | C12-CURSOR | `cursor` (OSC 22 pointer shapes) | |
 | C12-CARET | `caret-shape` / `caret-animation` / `caret` | |
-| C12-FOCUS-FLUSH | `focus()` (and other style-reading DOM calls) flushes pending style for the element first, as browsers do — TECH_DEBT `FOCUS-FLUSH-1`; needs the sheet set / transition registry / dirty tracker reachable from a handler's `Dom` | |
+| C12-FOCUS-FLUSH | `focus()` (and other style-reading DOM calls) flushes pending style for the element first, as browsers do — TECH_DEBT `FOCUS-FLUSH-1`; needs the sheet set / transition registry / dirty tracker reachable from a handler's `Dom` | done |
 | C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | |
 
 ### Phase 13 — Tables (audit §3.20)
@@ -7855,3 +7855,30 @@ row comes from.
   transitions, `add`, the four events) and I18 (a scroll-driven progress bar: `scroll()` with no clock
   tick, `rtl`, a `view()` item with a range and a range keyframe, `timeline-scope`, an inactive
   timeline). Docs only.
+- 2026-10-17 — C12-FOCUS-FLUSH (TECH_DEBT `FOCUS-FLUSH-1` closed; HTML §6.6.3 focusing steps, §6.6.6
+  `focus()`). Found: `focus()` decided focusability on the last frame's styles, so "show the panel, focus its
+  input" in one handler was refused (the upgrade guide's nested-rAF workaround). Decided — the cascade's
+  inputs as document data, as the focus deferral is (C9G): `runtime::style_flush` keeps `StyleInputs` (the
+  sheets in cascade order as shared `Rc<Stylesheet>` handles — the App's author sheets, the `<style>`
+  sheets and the `CSS.registerProperty` sheet now live behind `Rc` — the property registry, the dirty
+  tracker) published by the App at every sheet-set change (`FramePrelude::sync_sheet_set`); no rdom-core
+  hook was needed, since `focus()` itself is rdom-tui's. `flush_style(dom, id)` (public) takes from the
+  tracker only the roots that hold `id` (`DirtyTracker::take_roots_holding`: `id` and its ancestors) and
+  cascades their subtrees as the frame would; the rest stays dirty. `TuiAccessorsMut::focus` /
+  `focus_with` call it first. The transition registry is *not* reached: the before-change style is kept per
+  element (`computed_prev`) until the frame's transition hook, so the flush leaves a `flushed` flag on the
+  tracker and the next frame runs its hook (and lays out) even with no root left — transitions start at the
+  frame's time, and two flushes in one handler are one style change (DIVERGENCES §2). Scope: style only —
+  layout stays whole-tree and per frame, so `bounding_rect`, the scroll metrics and the focus scroll read the
+  last layout; a whole-tree restyle the App has pending and `<style>` text edited in the handler are not
+  flushed; `&self` readers (`computed()`, Tab) read the last style update. Red:
+  `runtime/style_flush/tests.rs` (3 of 4 failed: the focus refused, `None` for `Some(input)`; the frame test's
+  "the flush took them"), and `css_phase6/visibility_answers.rs`'s pin, rewritten as
+  `focusing_a_just_shown_input_flushes_its_style` (the handler and one-rAF cases now focus the input — the
+  changed expectation this item exists for). Green after. The counting test measures the panel subtree's
+  cost from a frame with only it dirty, then flushes with an unrelated section dirty too: the flush matches
+  the panel's cost (13 matching passes, the panel and input with their pseudo-elements), the section stays
+  dirty, and a second `focus()` with nothing dirty matches 0. Mutation-checked (restored, touched): the
+  frame ignoring `flushed` fails the transition test; taking every root fails the count (68 for 13).
+  Docs: DIVERGENCES §2's "Focusability reads the last cascade's styles" replaced by what a flush covers;
+  the focus-scroll entry no longer names the debt; upgrade-guide item 20 loses the workaround.

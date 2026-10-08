@@ -36,9 +36,9 @@ use crate::node::TuiNodeExt;
 /// 1. An element that is not rendered and visible
 ///    ([`is_rendered_and_visible`]: it or an ancestor `display: none`, or
 ///    its used `visibility` not `visible`) is not a focusable area (HTML
-///    §6.6.2) and returns `None`. This reads the last cascade's styles:
-///    an element shown since then is still refused until the next frame
-///    has cascaded (DIVERGENCES §2, TECH_DEBT `FOCUS-FLUSH-1`).
+///    §6.6.2) and returns `None`. This reads the element's computed
+///    style as it is: `focus()` flushes it first on a document an `App`
+///    runs (`runtime::style_flush`).
 /// 2. Actually disabled controls (`Dom::is_actually_disabled`: own
 ///    `disabled`, or inside a `<fieldset disabled>`) are NEVER focusable
 ///    (returns `None`).
