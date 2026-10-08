@@ -39,7 +39,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 7 | Grid | done 2026-10-09 (both gates; 15 gate fixes `C7G-*`; their re-review rides with the Phase 8 gate) |
 | 8 | Positioning, floats, overflow, scrolling | done 2026-10-10 (both gates; 15 gate fixes `C8G-*`; their re-review rides with the Phase 9 gate) |
 | 9 | Inline text and decoration | done 2026-10-12 (both gates; 14 gate fixes `C9G-*`; their re-review rides with the Phase 10 gate) |
-| 10 | Lists, counters, generated content, pseudo-elements | items done, gates pending (C10-DETAILS-CONTENT and C10-PSEUDO-CHAINS partial) |
+| 10 | Lists, counters, generated content, pseudo-elements | gates run 2026-10-13; `C10G-*` fixes in progress |
 | 11 | Selectors | |
 | 12 | Transitions, animations, user interface | |
 | 13 | Tables (real table formatting context) | |
@@ -6433,3 +6433,35 @@ row comes from.
   whether an inherited `calc()` `letter-spacing` / `word-spacing` / `line-height` clones per element as
   `text-indent` did (C9-CARRY-INDENT); and the re-review of the Phase 9 gate fixes (`C9G-*`) that rides with
   this gate.
+- 2026-10-13 — Phase 10 gates (with the C9G re-review: all 14 at the root). Architect: 2 blocking —
+  marker placement is quadratic in sibling count in every document (`line_markers` climbs and rebuilds
+  the parent's `box_sequence` per flow; ~4M box visits for 2000 rows); two production files past 575
+  (`inline_paint/mod.rs` 577, `computed.rs` 589) with SIZE-1 stale. API: 4 blocking — six reshaped
+  items (`CounterStyle`, `CounterOp`, `Content`, `PseudoElementTarget`, `Length::Calc`,
+  `parse_counter_ops`) lack API-table rows and migration groups, `CounterStyle` / `CounterOp` not at
+  the root; DESIGN lists `Content` closed (it is open), ~17 new types unclassified, `ListStylePosition`
+  / `MarkerSide` / `QuoteKind` wrongly `#[non_exhaustive]`; upgrade guide misses seven silent changes
+  (`<q>` quotes, closed `<details>` hides loose text, `::selection` subset, `::placeholder` subset,
+  nested `◦` / `▪`, `abbr[title]` dotted, `li{counter-increment:none}`) and item 10 lacks the
+  `li::before` colour and `ul{padding:0}` consequences; outside markers clip at column 0 (UA list
+  padding 2 / 3 cells; "10. " paints "0. "). Non-blocking: highlight cost (O(N²) appends while a
+  highlight is registered, fragment insertion bypasses the remove hook, ranges cloned per IFC per paint,
+  `::highlight()` re-matched and allocated per element per name on every cascade; HIGHLIGHT-COST-1);
+  `first_line::hosts` climbs for every flow with no sheet using it; outside markers not hit-testable
+  (`::marker:hover` only for inside), the flex / grid list-item DIVERGENCES line describes invalid CSS;
+  `<ol type>` / `<li type>` unmapped; inherited values that allocate per element (`font-size` %,
+  `color-scheme`, `ListStyleImage(String)`) — want one table-driven cost test and `Arc` payloads;
+  `TuiExt` holds 14 mostly-`None` pseudo style slots (~130 B / node) — move to one boxed side record;
+  pseudo hit test scans every ancestor line per pointer move; sheets rescanned per cascade
+  (`styles_first`, `highlight_names`, the counter-style registry); positioned `::before` static
+  position ignores `text-align`; layering test evadable; counter cap claim holds only for symbolic /
+  additive; `::selection{background}` paints white text (paired cascade); highlight API friction (no
+  descendant iterator, no checked `Range` builder, `HighlightsChanged` fires before the change on every
+  `highlights_mut()`, `kind` / `with_type`, `size` / `len`); `GeneratedFragment::offset` / `outside`
+  crate-private, `positioned_pseudos()` returns `AnonymousIfc`; `Calc` payloads inconsistent (`Arc` vs
+  `Box`); `InvalidCounterStyleRule` overloaded with an untyped reason; READMEs (rdom-core record list,
+  rdom-tui Phase 10, list and highlight doctests); Zellij not a multiplexer; ACID tile 9 too big;
+  `Backend` doc should say wrappers forward the capability methods. Also open from the phase:
+  `::details-content` as a real box, `::before::marker` / `::after::marker`. Full reports:
+  `target/claude-logs/c10_gate_{architect,api}.md`. Fix as `C10G-*`, three batches: A correctness and
+  cost, B finish the two partial items, C API and docs.
