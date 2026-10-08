@@ -30,6 +30,14 @@ pub(crate) trait Animate: Clone {
     /// The value `progress` of the way from `self` to `to`; `None` when
     /// the pair does not interpolate.
     fn animate(&self, to: &Self, progress: f64, cx: &Cx) -> Option<Self>;
+
+    /// `self + other` (Web Animations 1 §5.4.4, CSS Values 4 §3.1): the
+    /// composite of an `add` / `accumulate` effect value onto the
+    /// underlying value; `None` where the type defines no addition (a
+    /// discrete value, a keyword) — the effect value then replaces.
+    fn add(&self, _other: &Self, _cx: &Cx) -> Option<Self> {
+        None
+    }
 }
 
 /// Web Animations 1 §5.3.1: the discrete step — `from` below 50 %
@@ -68,6 +76,9 @@ impl Animate for f32 {
     fn animate(&self, to: &Self, p: f64, _: &Cx) -> Option<Self> {
         Some(lerp(f64::from(*self), f64::from(*to), p) as f32)
     }
+    fn add(&self, other: &Self, _: &Cx) -> Option<Self> {
+        Some(self + other)
+    }
 }
 
 /// An `<integer>` interpolates as a real number and rounds (CSS Values 4
@@ -76,6 +87,9 @@ impl Animate for i32 {
     fn animate(&self, to: &Self, p: f64, _: &Cx) -> Option<Self> {
         Some(to_cells(lerp(f64::from(*self), f64::from(*to), p)))
     }
+    fn add(&self, other: &Self, _: &Cx) -> Option<Self> {
+        Some(self.saturating_add(*other))
+    }
 }
 
 /// Whole cells, never negative.
@@ -83,12 +97,18 @@ impl Animate for u16 {
     fn animate(&self, to: &Self, p: f64, _: &Cx) -> Option<Self> {
         Some(cells_u16(lerp(f64::from(*self), f64::from(*to), p)))
     }
+    fn add(&self, other: &Self, _: &Cx) -> Option<Self> {
+        Some(self.saturating_add(*other))
+    }
 }
 
 impl Animate for i16 {
     fn animate(&self, to: &Self, p: f64, _: &Cx) -> Option<Self> {
         let v = to_cells(lerp(f64::from(*self), f64::from(*to), p));
         Some(v.clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16)
+    }
+    fn add(&self, other: &Self, _: &Cx) -> Option<Self> {
+        Some(self.saturating_add(*other))
     }
 }
 
@@ -110,6 +130,34 @@ impl Animate for Color {
     fn animate(&self, to: &Self, p: f64, cx: &Cx) -> Option<Self> {
         Some(lerp_color(*self, *to, p as f32, cx.reset))
     }
+    fn add(&self, other: &Self, cx: &Cx) -> Option<Self> {
+        Some(add_color(*self, *other, cx.reset))
+    }
+}
+
+/// Two colors added channel by channel in sRGB, each clamped (Web
+/// Animations 1 §5.4.4 for `<color>`), alpha included; a `reset`
+/// endpoint counts as its canvas color, a palette index as its xterm
+/// color.
+fn add_color(a: Color, b: Color, reset: Color) -> Color {
+    let rgba = |c: Color| match if c == Color::Reset { reset } else { c } {
+        Color::Rgb(r, g, b) => Some((r, g, b, u8::MAX)),
+        Color::Rgba(r, g, b, a) => Some((r, g, b, a)),
+        Color::Indexed(n) => {
+            let (r, g, b) = crate::color::palette::xterm_rgb(n);
+            Some((r, g, b, u8::MAX))
+        }
+        _ => None,
+    };
+    match (rgba(a), rgba(b)) {
+        (Some(x), Some(y)) => Color::rgba(
+            x.0.saturating_add(y.0),
+            x.1.saturating_add(y.1),
+            x.2.saturating_add(y.2),
+            x.3.saturating_add(y.3),
+        ),
+        _ => b,
+    }
 }
 
 impl Animate for crate::TuiColor {
@@ -118,6 +166,14 @@ impl Animate for crate::TuiColor {
             (crate::TuiColor::Literal(a), crate::TuiColor::Literal(b)) => Some(
                 crate::TuiColor::Literal(lerp_color(*a, *b, p as f32, cx.reset)),
             ),
+            _ => None,
+        }
+    }
+    fn add(&self, other: &Self, cx: &Cx) -> Option<Self> {
+        match (self, other) {
+            (crate::TuiColor::Literal(a), crate::TuiColor::Literal(b)) => {
+                Some(crate::TuiColor::Literal(add_color(*a, *b, cx.reset)))
+            }
             _ => None,
         }
     }
@@ -180,6 +236,14 @@ impl Animate for BorderWidth {
                 Some(BorderWidth::Length(a.animate(b, p, cx)?))
             }
             (a, b) if a == b => Some(a.clone()),
+            _ => None,
+        }
+    }
+    fn add(&self, other: &Self, cx: &Cx) -> Option<Self> {
+        match (self, other) {
+            (BorderWidth::Length(a), BorderWidth::Length(b)) => {
+                Some(BorderWidth::Length(a.add(b, cx)?))
+            }
             _ => None,
         }
     }
@@ -248,6 +312,12 @@ impl Animate for ZIndex {
     fn animate(&self, to: &Self, p: f64, cx: &Cx) -> Option<Self> {
         match (self, to) {
             (ZIndex::Value(a), ZIndex::Value(b)) => Some(ZIndex::Value(a.animate(b, p, cx)?)),
+            _ => None,
+        }
+    }
+    fn add(&self, other: &Self, cx: &Cx) -> Option<Self> {
+        match (self, other) {
+            (ZIndex::Value(a), ZIndex::Value(b)) => Some(ZIndex::Value(a.add(b, cx)?)),
             _ => None,
         }
     }

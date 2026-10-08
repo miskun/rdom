@@ -95,7 +95,7 @@ pub use dom_string_map::{DomStringMap, DomStringMapMut};
 pub use error::{DomError, Result};
 pub use event::{Event, EventPhase};
 pub use event_detail::{
-    EventDetail, FormEnctype, FormMethod, InputDetail, InputType, KeyboardDetail,
+    AnimationDetail, EventDetail, FormEnctype, FormMethod, InputDetail, InputType, KeyboardDetail,
     KeyboardModifiers, MouseButton, MouseDetail, SubmitDetail, ToggleDetail, ToggleState,
     TransitionDetail,
 };

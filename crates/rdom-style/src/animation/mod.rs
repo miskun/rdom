@@ -15,6 +15,8 @@
 //! rounds onto the grid half to even, as a `calc()` result does — one
 //! rounding, at the computed value (DIVERGENCES §1).
 
+#[cfg(test)]
+mod composite_tests;
 mod entry;
 mod length;
 mod size;
@@ -156,6 +158,57 @@ impl Longhand {
         out: &mut ComputedStyle,
     ) {
         self.entry().blend(from, to, progress, scheme, out);
+    }
+
+    /// Whether `style` declares it — itself, through a shorthand, or
+    /// through a flow-relative property mapped by `direction` (a
+    /// declaration kept for substitution counts) — as a keyframe block
+    /// names the longhands its keyframe animates (CSS Animations 1 §3).
+    pub fn declared_in(self, style: &crate::TuiStyle, direction: TextDirection) -> bool {
+        crate::property_dispatch::sets_any_field(style, self.name())
+            || style
+                .pending
+                .iter()
+                .any(|d| transition_longhands(&d.name, direction).contains(&self))
+    }
+
+    /// Whether a change of its value can move a box — anything but the
+    /// colors, `opacity` and the shadows, which paint reads alone. A
+    /// frame whose running animations move only paint-only longhands
+    /// is painted without a layout.
+    pub fn affects_layout(self) -> bool {
+        !matches!(
+            self.name(),
+            "color"
+                | "background-color"
+                | "border-top-color"
+                | "border-right-color"
+                | "border-bottom-color"
+                | "border-left-color"
+                | "opacity"
+                | "text-decoration-color"
+                | "caret-color"
+                | "caret-text-color"
+                | "scrollbar-color"
+                | "box-shadow"
+        )
+    }
+
+    /// Write `underlying + value` into `out` (Web Animations 1 §5.4.4:
+    /// the composite of an `add` or `accumulate` effect value — the two
+    /// agree for every type rdom adds: numbers, lengths, colors), the
+    /// value clamped to the property's range; `false` when the type
+    /// defines no addition (a discrete value), where the composite
+    /// replaces. `scheme` resolves a `reset` color as for
+    /// [`interpolate`](Self::interpolate).
+    pub fn add(
+        self,
+        underlying: &ComputedStyle,
+        value: &ComputedStyle,
+        scheme: ColorScheme,
+        out: &mut ComputedStyle,
+    ) -> bool {
+        self.entry().add(underlying, value, scheme, out)
     }
 
     /// Copy its value from `from` into `out`.

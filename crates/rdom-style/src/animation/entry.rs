@@ -23,6 +23,14 @@ pub(super) struct Ops {
     pub differs: fn(&ComputedStyle, &ComputedStyle) -> bool,
     pub interpolable: fn(&ComputedStyle, &ComputedStyle) -> bool,
     pub blend: fn(&ComputedStyle, &ComputedStyle, f64, &Cx, &mut ComputedStyle),
+    /// Write `underlying + value` into the output; `false` when the type
+    /// defines no addition (Web Animations 1 §5.4.4: the value replaces).
+    pub add: fn(&ComputedStyle, &ComputedStyle, &Cx, &mut ComputedStyle) -> bool,
+}
+
+/// No addition: a discrete value's composite replaces.
+pub(super) fn no_add(_: &ComputedStyle, _: &ComputedStyle, _: &Cx, _: &mut ComputedStyle) -> bool {
+    false
 }
 
 /// One longhand.
@@ -47,6 +55,14 @@ macro_rules! value {
                 out.$($f).+ = blend(&a.$($f).+, &b.$($f).+, p, cx);
                 $($fix(out);)?
             },
+            add: |a, b, cx, out| match super::value::Animate::add(&a.$($f).+, &b.$($f).+, cx) {
+                Some(v) => {
+                    out.$($f).+ = v;
+                    $($fix(out);)?
+                    true
+                }
+                None => false,
+            },
         })
     };
 }
@@ -62,6 +78,7 @@ macro_rules! steps {
                 $(out.$($f).+ = side.$($f).+.clone();)+
                 $($fix(out);)?
             },
+            add: super::entry::no_add,
         })
     };
 }
@@ -78,6 +95,13 @@ macro_rules! size {
             interpolable: |a, b| super::size::size_interpolable(&a.$f, &b.$f, b.interpolate_size),
             blend: |a, b, p, cx, out| {
                 out.$f = super::size::blend_size(&a.$f, &b.$f, p, b.interpolate_size, cx)
+            },
+            add: |a, b, cx, out| match super::value::Animate::add(&a.$f, &b.$f, cx) {
+                Some(v) => {
+                    out.$f = v;
+                    true
+                }
+                None => false,
             },
         })
     };
@@ -157,6 +181,7 @@ pub(super) const DISPLAY: Option<Ops> = Some(Ops {
         out.establishes_new_bfc = side.establishes_new_bfc;
         out.line_clamp_container = side.line_clamp_container;
     },
+    add: no_add,
 });
 
 /// `overlay` (CSS Position 4 §3.4): discrete, but — as `display` with
@@ -178,6 +203,7 @@ pub(super) const OVERLAY: Option<Ops> = Some(Ops {
             discrete(&a.overlay, &b.overlay, p)
         };
     },
+    add: no_add,
 });
 
 /// `visibility` (CSS Display 3 §4, Web Animations 1 §5.3.2): discrete,
@@ -186,6 +212,7 @@ pub(super) const VISIBILITY: Option<Ops> = Some(Ops {
     differs: |a, b| a.visibility != b.visibility,
     interpolable: |a, b| a.visibility.is_visible() || b.visibility.is_visible(),
     blend: |a, b, p, _, out| out.visibility = lerp_visibility(a.visibility, b.visibility, p as f32),
+    add: no_add,
 });
 
 /// CSS Color 4 §13: `opacity` clamps to `[0, 1]` (an overshooting easing
@@ -201,6 +228,37 @@ pub(super) fn fix_flex(out: &mut ComputedStyle) {
 }
 
 impl Entry {
+    /// Write `underlying + value` of the longhand into `out`; `false`
+    /// when its values do not add.
+    pub(super) fn add(
+        &self,
+        underlying: &ComputedStyle,
+        value: &ComputedStyle,
+        scheme: crate::color::ColorScheme,
+        out: &mut ComputedStyle,
+    ) -> bool {
+        let Some(ops) = self.ops else {
+            return false;
+        };
+        (ops.add)(
+            underlying,
+            value,
+            &Cx {
+                reset: self.reset(scheme),
+            },
+            out,
+        )
+    }
+
+    /// The canvas color a `reset` endpoint stands for, by role.
+    fn reset(&self, scheme: crate::color::ColorScheme) -> crate::Color {
+        let (background, text) = scheme.canvas();
+        match self.role {
+            Role::Background => background,
+            Role::Text => text,
+        }
+    }
+
     /// Interpolate the longhand `from` → `to` at `progress` into `out`.
     pub(super) fn blend(
         &self,

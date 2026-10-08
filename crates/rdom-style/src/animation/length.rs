@@ -70,11 +70,40 @@ pub(crate) fn animate_lp<T: LengthPercentage>(a: &T, b: &T, p: f64) -> Option<T>
     Some(T::from_mixed(mix(&a.expr()?, &b.expr()?, p)))
 }
 
+/// `a + b` for two `<length-percentage>`s (CSS Values 4 §3.1): the cells
+/// and the percentages sum apart when both are linear, else the math
+/// function `calc(a + b)`.
+pub(crate) fn add_lp<T: LengthPercentage>(a: &T, b: &T) -> Option<T> {
+    let (a, b) = (a.expr()?, b.expr()?);
+    if let (Some((ac, ap)), Some((bc, bp))) = (a.linear_parts(), b.linear_parts()) {
+        let (c, pc) = (ac + bc, ap + bp);
+        return Some(T::from_mixed(if pc == 0.0 {
+            Mixed::Cells(c)
+        } else if c == 0.0 {
+            Mixed::Percent(pc)
+        } else {
+            Mixed::Calc(CalcExpr::binary(
+                CalcOp::Add,
+                CalcExpr::Number(c),
+                CalcExpr::Percent(pc),
+            ))
+        }));
+    }
+    Some(T::from_mixed(Mixed::Calc(CalcExpr::binary(
+        CalcOp::Add,
+        a,
+        b,
+    ))))
+}
+
 macro_rules! lp_animate {
     ($($t:ty),+) => {$(
         impl Animate for $t {
             fn animate(&self, to: &Self, p: f64, _: &Cx) -> Option<Self> {
                 animate_lp(self, to, p)
+            }
+            fn add(&self, other: &Self, _: &Cx) -> Option<Self> {
+                add_lp(self, other)
             }
         }
     )+};
@@ -109,6 +138,12 @@ impl Animate for Size {
         match (self, to) {
             (Size::Flex(a), Size::Flex(b)) => Some(Size::Flex(a.animate(b, p, cx)?.max(0.0))),
             _ => animate_lp(self, to, p),
+        }
+    }
+    fn add(&self, other: &Self, _: &Cx) -> Option<Self> {
+        match (self, other) {
+            (Size::Flex(a), Size::Flex(b)) => Some(Size::Flex(a + b)),
+            _ => add_lp(self, other),
         }
     }
 }

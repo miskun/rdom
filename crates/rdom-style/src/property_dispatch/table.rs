@@ -452,3 +452,9 @@ pub(crate) fn covers(outer: &str, inner: &str) -> bool {
         _ => false,
     }
 }
+
+/// Whether `style` sets a storage field of the property `name` — a
+/// block declaring it (or a shorthand covering it).
+pub(crate) fn sets_any_field(style: &TuiStyle, name: &str) -> bool {
+    fields_of(&canonical_property_name(name)).is_some_and(|f| f.iter().any(|f| f.is_set(style)))
+}

@@ -268,3 +268,23 @@ fn event_detail_accessor_cross_check() {
     assert!(s.as_mouse().is_none());
     assert!(s.as_keyboard().is_none());
 }
+
+// --- AnimationDetail ---
+
+/// CSS Animations 1 §5.1 `AnimationEvent`: `animationName`,
+/// `elapsedTime` (seconds) and `pseudoElement`, read through
+/// `as_animation` — no other accessor answers for it.
+#[test]
+fn animation_detail_carries_name_elapsed_and_pseudo_element() {
+    let d = EventDetail::Animation(Box::new(AnimationDetail::new(
+        "slide",
+        0.5,
+        Some("::before".into()),
+    )));
+    let a = d.as_animation().expect("an animation payload");
+    assert_eq!(a.animation_name, "slide");
+    assert_eq!(a.elapsed, 0.5);
+    assert_eq!(a.pseudo_element.as_deref(), Some("::before"));
+    assert!(d.as_transition().is_none());
+    assert!(EventDetail::None.as_animation().is_none());
+}

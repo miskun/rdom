@@ -241,7 +241,7 @@ row comes from.
 | C12-TIMING | `transition-timing-function` full (`linear()`, `steps()` positions), negative `transition-delay` || done |
 | C12-BEHAVIOR | `transition-behavior: allow-discrete` || done (`content-visibility` with C14-CONTAIN) |
 | C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) || done |
-| C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | partial — the engine (2/3) and `animation-composition`'s `add` / `accumulate` (3/3) |
+| C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | done |
 | C12-STARTING | `@starting-style` || done |
 | C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | |
 | C12-OUTLINE | `outline` / `-color` / `-style` / `-width` / `-offset` (non-layout ring) | |
@@ -7690,7 +7690,7 @@ row comes from.
   inherits from its parent's computed style rather than its starting style (DIVERGENCES §4). ACID I6
   updated and I16 added (popover entry and exit). Phase 12 part 1 (C12-ANIMATABLE, -TIMING, -BEHAVIOR,
   -STARTING) done.
-- 2026-10-16 — C12-KEYFRAMES (1/3), the syntax. A split first: `rdom-core/src/event_detail.rs` (573
+- 2026-10-16 — C12-KEYFRAMES (1/2), the syntax. A split first: `rdom-core/src/event_detail.rs` (573
   production lines) became `event_detail/` (`mod.rs`, `form.rs`, `ui.rs`, tests), so the animation event
   payload fits. CSS Animations 1 §3 `@keyframes`: rdom-css `keyframes.rs` reads the name (a
   `<custom-ident>` other than `none`, a CSS-wide keyword or `default`, or a `<string>`; else
@@ -7712,4 +7712,56 @@ row comes from.
   `apply_tests::initial_keyword_yields_the_initial_computed_value_for_every_property` covers the new
   fields. The builder gains `animation_*` setters and `animations_important` (`ImportantMask::ANIMATIONS`);
   `tui_style/builder/mod.rs` (580) split first — the positioning setters to `position.rs`, the transition
-  and animation ones to `motion.rs`. Nothing runs yet: the engine is part 2/3.
+  and animation ones to `motion.rs`. Nothing runs yet: the engine is part 2/2.
+- 2026-10-16 — C12-KEYFRAMES (2/2) done, the engine. CSS animations run in the transitions' effect stack —
+  no second engine: `runtime::animation::css` keeps a `CssAnimation` per `animation-name` entry in the
+  `AnimationRegistry` beside the transitions, and `composite` writes each element style's transitions
+  onto its cascaded style first, then its CSS animations in `animation-name` order (Web Animations 1
+  §5.4.5, CSS Animations 2 §3: animations sort above transitions); the composite is the computed style
+  layout, paint and inheritance read, and the cascade's write-back keeps it over a fresh style
+  (`TuiExt::overlay`), as for transitions. The cascade hook (`diff_and_register_in`, the App's frame,
+  under its sheets) matches an element style's new `animation-name` list to its animations by name
+  (§4.1): a new name starts at the frame's time, a dropped one is cancelled (`animationcancel` from the
+  before or active phase), a kept one takes the other longhands in place, its start time kept — a pause
+  holds the local time, a resume restarts the clock from it; an element not rendered (`display: none`,
+  itself or above) runs none, so hiding cancels and showing restarts; a changed sheet set re-resolves
+  every rule. Keyframes (CSS Animations 1 §3): `cascade::keyframes_rule` resolves a name to the last
+  rule by layer, sheet and source order (a `SheetFacts` map, built once per sheet set);
+  `cascade::keyframe_style` computes a keyframe's values as the element's cascade (or its
+  `::before` / `::after`'s) with the keyframe's blocks in a new ladder step, `Source::Animation`, between
+  the normal and the important declarations (CSS Cascade 5 §6.1) — so `inherit`, `var()`,
+  `currentcolor` and the relative units resolve as for the element, and an `!important` declaration
+  keeps its value; computed when the animation starts or its element style changes, never per frame.
+  `KeyframeEffect` keeps, per animated longhand (`Longhand::declared_in`, animatable ones only), its
+  property-specific keyframes with implicit 0% / 100% ones at the underlying value, each with its easing
+  (the keyframe's `animation-timing-function`, else the animation's) and composite operation; sampling
+  (Web Animations 1 §5.3.3) eases the interval and interpolates through `Longhand::interpolate`, and
+  under `add` / `accumulate` an endpoint is `underlying + value` (`Longhand::add`, new in rdom-style:
+  numbers, integers, length-percentages — a `calc()` sum when not linear — and colors by sRGB channel;
+  any other type replaces, DIVERGENCES §2). The timing model is Web Animations 1 §4 (`css::timing`):
+  phases, active time by fill mode, overall / simple progress (the end is progress 1 of the last
+  iteration), current iteration, directed progress for the four directions; `auto` durations are 0 on
+  the clock. Events (CSS Animations 2 §4.2's table, `css::events`): `animationstart` /
+  `animationiteration` / `animationend` / `animationcancel` with `elapsedTime` (interval start / end,
+  iterations × duration, the active time cancelled) and `pseudoElement` (a `::details-content` box's to
+  its `<details>`), payload `rdom_core::AnimationDetail` (`EventDetail::Animation`); a frame's events go
+  out after its transition events, by the time each happened, then tree order, slot order and
+  `animation-name` order — not cancelable. `App::get_animations(node)` lists the transitions and CSS
+  animations (`AnimationInfo`: kind and name, pseudo-element, play state, current time). Frame pump
+  (cost pinned by `an_infinite_animation_costs_a_composite_per_frame_and_layout_only_for_geometry`): a
+  running transition or a playing animation before its end asks for a `Redraw::Paint` frame
+  (`needs_frames`; a paused or finished one asks for none, the live loop polls at the animation frame
+  rate while one does); such a frame steps every registered effect and composites only the element
+  styles whose progress moved (one per animated element per frame) and lays out only when a composited
+  longhand layout reads moved (`Longhand::affects_layout`: all but the colors, `opacity` and the
+  shadows) — a background-color pulse paints 4 frames with 0 layouts, a `height` one with 4; the same
+  rule now spares a color transition its layout (TECH_DEBT `ANIM-RELAYOUT-1` narrowed). Every
+  transition test kept its expectations. Red: with the hook not running CSS animations (the
+  `diff_and_register_with` path), 21 of the 22 `keyframes_tests` / `animation_event_tests` fail (the
+  `!important` one passes vacuously); green after. Mutation-checked: the animation step after the
+  important ones fails `an_important_declaration_beats_the_animation`; animations under transitions
+  fail `an_animation_sorts_above_a_transition`; always laying out fails the cost test; ignoring the
+  composite operation fails `composition_adds_keyframes_to_the_underlying_value`; no color addition
+  fails `colors_add_by_channel`. `prefers-reduced-motion` waits for `@media` (C14-MEDIA, noted in
+  DIVERGENCES §3 and in `runtime::animation::css`): it is a media feature, so no engine hook is needed.
+  `style/cascade/ladder.rs` is now 552 production lines (TECH_DEBT `SIZE-1`). Item done.

@@ -59,6 +59,8 @@ mod scheme;
 mod stylesheets;
 
 #[cfg(test)]
+mod animation_event_tests;
+#[cfg(test)]
 mod control_click_tests;
 #[cfg(test)]
 mod control_seeding_tests;
@@ -70,6 +72,8 @@ mod geometry_transition_tests;
 mod idle_tests;
 #[cfg(test)]
 mod interaction_chain_tests;
+#[cfg(test)]
+mod keyframes_tests;
 #[cfg(test)]
 mod layout_runs_tests;
 #[cfg(test)]

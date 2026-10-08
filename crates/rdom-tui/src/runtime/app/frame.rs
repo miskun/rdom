@@ -122,13 +122,14 @@ impl<B: Backend> App<B> {
         // §5.4), queued between layout and paint: HTML fires them at the
         // rendering update, never in the middle of one.
         self.prelude.touched |= crate::runtime::scrollbar::fire_queued_scroll_events(&mut self.dom);
-        // Drain transition events queued during this frame.
+        // Drain transition and animation events queued during this frame.
         self.dispatch_animation_events();
 
-        // Lay out and paint the next frame too while any transition is
-        // still running — interpolation needs to keep stepping.
+        // Run the next frame too while a transition or an animation is
+        // still moving: it composites them, and lays out only when a
+        // longhand layout reads moved (`style_and_layout`).
         self.redraw
-            .note_if(!self.animations.is_empty(), Redraw::Layout);
+            .note_if(self.animations.needs_frames(now), Redraw::Paint);
         Ok(())
     }
 
@@ -215,6 +216,60 @@ impl<B: Backend> App<B> {
             ));
             crate::tui_event::dispatch_event_to_live(&mut self.dom, e.node, &mut ev);
         }
+        self.dispatch_css_animation_events();
+    }
+
+    /// Dispatch the CSS animation events of this frame (CSS Animations 2
+    /// §4.2): by the time each happened, then in composite order — tree
+    /// order of their elements, the element before its pseudo-elements,
+    /// then `animation-name` order.
+    fn dispatch_css_animation_events(&mut self) {
+        let mut pending = self.animations.take_pending_animation_events();
+        if pending.is_empty() {
+            return;
+        }
+        self.prelude.touched = true;
+        let dom = &self.dom;
+        pending.sort_by(|a, b| {
+            a.scheduled
+                .cmp(&b.scheduled)
+                .then_with(|| tree_order(dom, a.node, b.node))
+                .then_with(|| {
+                    let order = crate::runtime::animation::slot_order;
+                    order(a.slot).cmp(&order(b.slot))
+                })
+                .then_with(|| a.index.cmp(&b.index))
+        });
+        for e in pending {
+            // A `::details-content` box's animations are its
+            // `<details>`'s, for that pseudo-element (CSS Animations 1
+            // §5.1), as its transitions are.
+            let (node, pseudo_element) = match self
+                .dom
+                .contains(e.node)
+                .then(|| crate::render::box_tree::slot::host_of(&self.dom, e.node))
+                .flatten()
+            {
+                Some(host) => (host, Some("::details-content".to_string())),
+                None => (e.node, e.slot.pseudo_element().map(str::to_string)),
+            };
+            // AnimationEvent bubbles and is not cancelable (CSS
+            // Animations 1 §5.1).
+            let mut ev = rdom_core::Event::new(e.kind.event_type()).with_cancelable(false);
+            ev.detail = rdom_core::EventDetail::Animation(Box::new(
+                rdom_core::AnimationDetail::new(&*e.name, e.elapsed_seconds, pseudo_element),
+            ));
+            crate::tui_event::dispatch_event_to_live(&mut self.dom, node, &mut ev);
+        }
+    }
+
+    /// The animations running on `node` and its pseudo-elements at the
+    /// app's clock — `Element.getAnimations()` (Web Animations 1 §6.7):
+    /// its transitions, then its CSS animations in composite order, each
+    /// with its name, play state and current time.
+    pub fn get_animations(&self, node: NodeId) -> Vec<crate::runtime::animation::AnimationInfo> {
+        let now = self.scheduler.borrow().now();
+        self.animations.animations_of(node, now)
     }
 
     /// Cascade the dirty subtrees + advance animations + layout — the
@@ -260,6 +315,7 @@ impl<B: Backend> App<B> {
                 None => {}
             }
             stats.layouts += u32::from(pass.laid_out);
+            stats.composites += pass.composites;
             stats.paints += u32::from(painted);
         }
     }
@@ -281,6 +337,8 @@ enum CascadeScope {
 struct Pass {
     cascade: Option<CascadeScope>,
     laid_out: bool,
+    /// Element styles the transition engine composited.
+    composites: u32,
 }
 
 /// The frame pipeline up to paint, shared by [`App::draw_if_dirty`] and
@@ -315,6 +373,7 @@ fn style_and_layout(
     } else {
         Redraw::Cascade
     };
+    // The cascade, then the transition and animation hook under its sheets.
     let cascade = if redraw == Redraw::Cascade {
         cascade_all_with(dom, sheets, Some(registry.clone()));
         *cascaded_viewport = Some(viewport);
@@ -328,15 +387,23 @@ fn style_and_layout(
     if cascade.is_some() {
         animations.set_registered_properties(registry.clone());
         // A newly rendered element's transitions start from its starting
-        // style (CSS Transitions 2 §3, `@starting-style`).
-        let starting = |dom: &TuiDom, id: NodeId| {
-            crate::style::cascade::starting_style(dom, (sheets, registry), id)
-        };
-        crate::runtime::animation::diff_and_register_with(dom, animations, now, &starting);
+        // style (CSS Transitions 2 §3, `@starting-style`); its CSS
+        // animations follow its `animation-*` lists (CSS Animations 1 §4).
+        let inputs = crate::runtime::animation::CssInputs { sheets, registry };
+        crate::runtime::animation::diff_and_register_in(dom, animations, now, inputs);
     }
-    let laid_out = cascade.is_some() || redraw >= Redraw::Layout;
-    if laid_out {
-        animations.advance(dom, now);
+    let must_lay_out = cascade.is_some() || redraw >= Redraw::Layout;
+    // A frame the animation pump asked for (`Redraw::Paint`) steps the
+    // transitions and animations — the one that ends them too — and lays
+    // out only when they moved a longhand layout reads. Stepping one that
+    // did not move composites nothing.
+    let animate = must_lay_out || (redraw >= Redraw::Paint && !animations.is_empty());
+    let mut laid_out = must_lay_out;
+    let mut composites = 0;
+    if animate {
+        let advanced = animations.advance_frame(dom, now);
+        composites = advanced.composites;
+        laid_out |= advanced.layout;
         // The elements waiting to leave the top layer leave once their
         // `overlay` is not `auto` (CSS Position 4 §3.3); the removal
         // re-cascades them next frame (its mutation dirties them).
@@ -353,6 +420,8 @@ fn style_and_layout(
             // elements whose counters it moved too.
             crate::runtime::animation::settle_restyled(dom, &restyled);
         }
+    }
+    if laid_out {
         dom.layout_dom(area);
         // Against this layout, each correcting for the offsets moved since
         // it (`scrollbar::state::laid_out`), then one relayout for all:
@@ -367,5 +436,23 @@ fn style_and_layout(
             dom.layout_dom(area);
         }
     }
-    Pass { cascade, laid_out }
+    Pass {
+        cascade,
+        laid_out,
+        composites,
+    }
+}
+
+/// `a` before `b` in tree order (`Ordering::Less`); equal for one node.
+fn tree_order(dom: &TuiDom, a: NodeId, b: NodeId) -> std::cmp::Ordering {
+    use rdom_core::DocumentPosition;
+    if a == b || !dom.contains(a) || !dom.contains(b) {
+        return std::cmp::Ordering::Equal;
+    }
+    let p = dom.compare_document_position(a, b);
+    if p.contains(DocumentPosition::FOLLOWING) {
+        std::cmp::Ordering::Less
+    } else {
+        std::cmp::Ordering::Greater
+    }
 }

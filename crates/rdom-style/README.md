@@ -60,7 +60,8 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 | `parse::Cursor` | Tokenizer + cursor used by `property_dispatch::set` and re-exported for `rdom-css`'s block parser. |
 | `layout::*` | `Display`, `Direction`, `WhiteSpace`, `Size`, `Padding`, `Border`, `Position`, `Length`, `ZIndex`, `Overflow`, `LayoutRect`, … |
 | `transition::*` | Transition declarations — `TimingFunction`, `TransitionProperty` (`all`, `none`, a property name, another ident), `TransitionRule`. |
-| `animation::*` | Each longhand's animation type (`AnimationType`, `Longhand`, `animation_type`), the longhands a `transition-property` name covers, and the interpolation of computed values a running transition composites onto a `ComputedStyle`. |
+| `animation::*` | Each longhand's animation type (`AnimationType`, `Longhand`, `animation_type`), the longhands a `transition-property` name covers, and the interpolation and addition of computed values a running transition or animation composites onto a `ComputedStyle`. |
+| `keyframes::*` | `@keyframes` rules (`KeyframesRule`, `Keyframe`, resolved by offset) and the `animation-*` values (`AnimationName`, `AnimationDuration`, `IterationCount`, …). |
 
 ## Supported properties
 
@@ -121,7 +122,11 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 - **Positioning** — `position` (incl. `sticky`), `top`, `right`,
   `bottom`, `left`, `inset`, `z-index`, `float`, `clear`.
 - **Transitions** — `transition` (+ `-property`, `-duration`,
-  `-timing-function`, `-delay` longhands).
+  `-timing-function`, `-delay`, `-behavior` longhands).
+- **Animations** — `animation` (+ `-name`, `-duration`, `-timing-function`,
+  `-delay`, `-iteration-count`, `-direction`, `-fill-mode`, `-play-state`,
+  `-composition`, `-timeline` longhands); `@keyframes` rules are
+  `keyframes::KeyframesRule`s.
 - **Custom properties** — `--*`, and `all`.
 
 See [`DESIGN.md`](../../specs/DESIGN.md#roadmap) for what's coming next.

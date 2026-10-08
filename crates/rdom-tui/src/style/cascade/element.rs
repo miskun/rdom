@@ -38,6 +38,10 @@ pub(super) fn compute_element_style(
     if hints.is_some() {
         cx.scratch.plan.add_hints();
     }
+    // A keyframe style's keyframe, in the animation origin.
+    if !sheets.animation().is_empty() {
+        cx.scratch.plan.add_animation();
+    }
     let Scratch {
         sorted,
         ranks,
@@ -49,7 +53,9 @@ pub(super) fn compute_element_style(
     // Inline style on this element (may be empty).
     let inline = dom.node(id).ext().and_then(|e| e.inline_style.as_deref());
 
-    let decls = Declarations::new(sorted, ranks, inline).with_hints(hints.as_ref());
+    let decls = Declarations::new(sorted, ranks, inline)
+        .with_hints(hints.as_ref())
+        .with_animation(sheets.animation());
     // Running transitions of registered custom properties
     // (`runtime::animation`).
     let transitions = dom

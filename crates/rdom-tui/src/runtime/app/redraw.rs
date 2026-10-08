@@ -25,8 +25,9 @@ pub(crate) enum Redraw {
     /// tracker queues the elements whose selector state text feeds),
     /// hover and focus moves (their restyles are tracker roots), a
     /// mouse route's own work (`RouteOutcome::redraw_requested`
-    /// without `cascade_requested`: wheel, scrollbar press, drag),
-    /// running transitions (they composite onto the computed styles).
+    /// without `cascade_requested`: wheel, scrollbar press, drag).
+    /// (Running transitions and animations ask for `Paint`: their frame
+    /// composites them and lays out only when they moved geometry.)
     Layout,
     /// Cascade the whole tree, lay out and repaint: something the dirty
     /// tracker cannot see may have changed the cascade — the
@@ -68,6 +69,8 @@ pub(crate) struct FrameStats {
     pub(crate) layouts: u32,
     /// Frames painted.
     pub(crate) paints: u32,
+    /// Element styles the transition engine composited.
+    pub(crate) composites: u32,
     /// Whole-tree walks the frame's pre-cascade checks and post-paint
     /// bookkeeping made (validity marks, scroll offsets moved since
     /// paint, smooth scrolls in flight, offsets noted as painted).

@@ -1,6 +1,8 @@
 //! The cascade hook (CSS Transitions 1 §3): compare each element style's
 //! before-change and after-change values, longhand by longhand, and
-//! start, replace or cancel the transitions the changes call for.
+//! start, replace or cancel the transitions the changes call for — and
+//! bring each element style's CSS animations in line with its
+//! `animation-*` lists (`css`, CSS Animations 1 §4).
 
 use std::rc::Rc;
 use std::time::Instant;
@@ -35,15 +37,63 @@ pub fn diff_and_register_with(
     now: Instant,
     starting: &dyn Fn(&Dom<TuiExt>, NodeId) -> Option<ComputedStyle>,
 ) {
+    diff(dom, registry, now, starting, None);
+}
+
+/// [`diff_and_register_with`] under the cascade's sheets: the starting
+/// styles they give, and the CSS animations their `@keyframes` rules run
+/// (CSS Animations 1 §4) — what an `App`'s frame does.
+pub(crate) fn diff_and_register_in(
+    dom: &mut Dom<TuiExt>,
+    registry: &mut AnimationRegistry,
+    now: Instant,
+    inputs: super::CssInputs<'_>,
+) {
+    let starting = |dom: &Dom<TuiExt>, id: NodeId| {
+        crate::style::cascade::starting_style(dom, (inputs.sheets, inputs.registry), id)
+    };
+    diff(dom, registry, now, &starting, Some(inputs));
+}
+
+fn diff(
+    dom: &mut Dom<TuiExt>,
+    registry: &mut AnimationRegistry,
+    now: Instant,
+    starting: &dyn Fn(&Dom<TuiExt>, NodeId) -> Option<ComputedStyle>,
+    css: Option<super::CssInputs<'_>>,
+) {
     let ids = collect_element_ids(dom, dom.root());
     let preferred = crate::style::CascadeExt::color_scheme(dom);
     // Whether each element was rendered at the last style update, read
     // before any snapshot below moves on (parents come first).
     let rendered = was_rendered(dom, &ids);
+    // CSS animations: the sheets changed since the last pass (every
+    // animation re-resolves its `@keyframes`), and which elements are
+    // rendered now (a hidden one runs none).
+    let css = css.map(|inputs| {
+        let sheets_changed = registry.css_stamp != inputs.stamp();
+        registry.css_stamp = inputs.stamp();
+        let animated: std::collections::HashSet<NodeId> =
+            registry.css.iter().map(|a| a.node).collect();
+        (inputs, sheets_changed, is_rendered(dom, &ids), animated)
+    });
     for id in ids {
         let was_rendered = rendered.get(&id).copied().unwrap_or(false);
         for slot in [StyleSlot::Host, StyleSlot::Before, StyleSlot::After] {
-            let Some((prev, curr)) = snapshot(dom, id, slot) else {
+            let changed = snapshot(dom, id, slot);
+            if let Some((inputs, sheets_changed, rendered_now, animated)) = &css {
+                let now_rendered = rendered_now.get(&id).copied().unwrap_or(false);
+                update_css(
+                    dom,
+                    registry,
+                    (*inputs, preferred, now),
+                    (id, slot),
+                    animated.contains(&id),
+                    changed.is_some() || *sheets_changed || now_rendered != was_rendered,
+                    now_rendered,
+                );
+            }
+            let Some((prev, curr)) = changed else {
                 continue;
             };
             let scheme = curr.color_scheme.used(preferred);
@@ -182,6 +232,61 @@ fn snapshot(
         return None;
     }
     Some((prev.cloned(), curr.clone()))
+}
+
+/// Update the CSS animations of `(id, slot)` when its style, the sheets
+/// or its being rendered changed — `animated`: it runs some now.
+fn update_css(
+    dom: &Dom<TuiExt>,
+    registry: &mut AnimationRegistry,
+    (inputs, preferred, now): (
+        super::CssInputs<'_>,
+        rdom_style::color::ColorScheme,
+        Instant,
+    ),
+    (id, slot): (NodeId, StyleSlot),
+    animated: bool,
+    changed: bool,
+    rendered: bool,
+) {
+    let Some(ext) = dom.node(id).ext() else {
+        return;
+    };
+    let style = ext
+        .cascaded_for(slot)
+        .filter(|s| rendered && s.display != crate::layout::Display::None);
+    let wants = style.is_some_and(|s| !s.animation_name.is_empty());
+    if !(animated || wants) || !changed {
+        return;
+    }
+    let scheme = style.map_or(preferred, |s| s.color_scheme.used(preferred));
+    registry.update_css(
+        dom,
+        inputs,
+        (id, slot),
+        style.map(|s| &**s),
+        scheme,
+        true,
+        now,
+    );
+}
+
+/// Whether each of `ids` (in tree order, parents first) is rendered now:
+/// styled, not `display: none`, and under a box parent that is.
+fn is_rendered(dom: &Dom<TuiExt>, ids: &[NodeId]) -> std::collections::HashMap<NodeId, bool> {
+    let mut out = std::collections::HashMap::with_capacity(ids.len());
+    for &id in ids {
+        let own = dom
+            .node(id)
+            .ext()
+            .and_then(|e| e.cascaded_for(StyleSlot::Host))
+            .is_some_and(|c| c.display != crate::layout::Display::None);
+        let parent = crate::render::box_tree::box_parent(dom, id)
+            .and_then(|p| out.get(&p).copied())
+            .unwrap_or(true);
+        out.insert(id, own && parent);
+    }
+    out
 }
 
 /// Whether each of `ids` (in tree order, parents first) was rendered at

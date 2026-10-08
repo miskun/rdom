@@ -166,8 +166,8 @@ pub use rdom_core as core_api;
 /// `core_api::selectors::SimpleSelector::Attribute`.
 pub use rdom_core::selectors::AttrCase;
 pub use rdom_core::{
-    AdjacentPosition, ContentEditableState, ControlState, Directionality, DocumentPosition,
-    DomError, Event, EventDetail, EventPhase, FormEnctype, FormMethod, Highlight,
+    AdjacentPosition, AnimationDetail, ContentEditableState, ControlState, Directionality,
+    DocumentPosition, DomError, Event, EventDetail, EventPhase, FormEnctype, FormMethod, Highlight,
     HighlightRegistry, HighlightType, HighlightsMut, InputDetail, InputType, InputTypeState,
     InteractionKind, KeyboardDetail, KeyboardModifiers, ListenerId, ListenerOptions, MouseButton,
     MouseDetail, Mutation, MutationObserver, NodeData, NodeId, NodeType, ObserverId, Position,

@@ -30,6 +30,10 @@ pub(super) struct Sheets<'a> {
     /// Whether `@starting-style` rules apply (CSS Transitions 2 §3): only
     /// when computing an element's starting style (`starting.rs`).
     starting: bool,
+    /// A keyframe's declaration blocks, applied in the animation origin
+    /// when computing a keyframe style (`keyframe_style.rs`); empty
+    /// otherwise.
+    animation: &'a [&'a crate::style::TuiStyle],
 }
 
 /// What a sheet set holds that every element's cascade asks, each found
@@ -47,6 +51,9 @@ pub(super) struct SheetFacts {
     highlight_names: std::cell::OnceCell<Vec<std::sync::Arc<str>>>,
     /// Whether any rule is a `@starting-style` rule.
     starting_rules: std::cell::OnceCell<bool>,
+    /// Each `@keyframes` name and the rule it resolves to: `(sheet,
+    /// index)` into the sheets' `Stylesheet::keyframes`.
+    keyframes: std::cell::OnceCell<std::collections::HashMap<std::sync::Arc<str>, (usize, usize)>>,
 }
 
 impl<'a> Sheets<'a> {
@@ -66,7 +73,23 @@ impl<'a> Sheets<'a> {
             viewport,
             color_scheme,
             starting: false,
+            animation: &[],
         }
+    }
+
+    /// These sheets with a keyframe's `blocks` applying in the animation
+    /// origin (CSS Cascade 5 §6.1) — what a keyframe style is computed
+    /// under.
+    pub(super) fn with_animation(self, blocks: &'a [&'a crate::style::TuiStyle]) -> Self {
+        Sheets {
+            animation: blocks,
+            ..self
+        }
+    }
+
+    /// The keyframe blocks of [`with_animation`](Self::with_animation).
+    pub(super) fn animation(&self) -> &'a [&'a crate::style::TuiStyle] {
+        self.animation
     }
 
     /// These sheets with their `@starting-style` rules applying — what an
@@ -152,6 +175,30 @@ impl<'a> Sheets<'a> {
             }
             registry
         })
+    }
+
+    /// The `@keyframes` rule `name` resolves to (CSS Animations 1 §3):
+    /// the last of that name — by cascade layer (unlayered last), then
+    /// sheet, then source order (CSS Cascade 5 §6.4.3).
+    pub(super) fn keyframes_rule(&self, name: &str) -> Option<&'a rdom_style::KeyframesRule> {
+        let map = self.registry.facts.keyframes.get_or_init(|| {
+            #[cfg(test)]
+            cost::FACT_BUILDS.with(|c| c.set(c.get() + 1));
+            let mut defs: Vec<(u32, usize, usize)> = Vec::new();
+            for (sheet, s) in self.list.iter().enumerate() {
+                for (i, rule) in s.keyframes().iter().enumerate() {
+                    defs.push((self.layers.rank(sheet, rule.layer), sheet, i));
+                }
+            }
+            defs.sort_unstable();
+            let mut map = std::collections::HashMap::new();
+            for (_, sheet, i) in defs {
+                map.insert(self.list[sheet].keyframes()[i].name.clone(), (sheet, i));
+            }
+            map
+        });
+        let &(sheet, i) = map.get(name)?;
+        self.list.get(sheet)?.keyframes().get(i)
     }
 
     /// The document's preferred color scheme (CSS Color Adjust 1 §2.1).

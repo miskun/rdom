@@ -74,6 +74,7 @@ mod counters;
 mod custom;
 mod hints;
 mod inherit;
+mod keyframes;
 mod ladder;
 mod line_clamp;
 mod matching;
@@ -82,6 +83,7 @@ mod pseudo;
 mod quotes;
 mod registered;
 pub(crate) use inherit::anonymous_box_style;
+pub(crate) use keyframes::{keyframe_style, keyframes_rule};
 pub(crate) use matching::MatchedRules;
 #[cfg(test)]
 pub(crate) use matching::probe as match_probe;

@@ -156,7 +156,10 @@ impl<B: Backend> App<B> {
             .unwrap_or(self.tick_rate);
         // If we have pending rAF callbacks (= an animation
         // frame is queued), tighten to the frame budget.
-        let frame_floor = if self.scheduler.borrow().has_active_raf() {
+        // So does a running transition or animation (it steps each frame).
+        let frame_floor = if self.scheduler.borrow().has_active_raf()
+            || self.animations.needs_frames(self.scheduler.borrow().now())
+        {
             Duration::from_millis(self.animation_frame_ms as u64)
         } else {
             self.tick_rate

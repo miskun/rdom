@@ -1,8 +1,11 @@
-//! Transition engine (CSS Transitions 1 / 2) — observes the computed
-//! values each cascade changes, registers an [`ActiveAnimation`] per
-//! longhand a `transition-*` rule covers, and each frame composites the
-//! running values onto the element's computed style (Web Animations 1
-//! §5.4.5: the effect stack's result *is* the computed value).
+//! Transition and animation engine (CSS Transitions 1 / 2, CSS
+//! Animations 1 / 2) — observes the computed values each cascade
+//! changes, registers an [`ActiveAnimation`] per longhand a
+//! `transition-*` rule covers and a CSS animation per `animation-name`
+//! entry (`css`), and each frame composites the running values onto the
+//! element's computed style (Web Animations 1 §5.4.5: the effect stack's
+//! result *is* the computed value) — the transitions first, the CSS
+//! animations above them.
 //!
 //! So layout, paint, hit-testing and inheritance all read one style —
 //! [`TuiExt::computed_for`] — and a `height` transition grows the box
@@ -11,11 +14,12 @@
 //! ([`TuiExt::cascaded_for`]); the next style change is compared with
 //! that. How each longhand interpolates is `rdom_style::animation`.
 //!
-//! Cost: a page with no running transition does nothing here per frame.
-//! A running one composites its element's style and lays the page out
-//! once per frame (layout is a whole-tree pass); one whose longhand
-//! inherits or propagates restyles the element's children too, so they
-//! inherit the running value.
+//! Cost: a page with no running transition or animation does nothing
+//! here per frame. A running one composites its element's style once per
+//! frame, and the frame lays the page out only when a longhand layout
+//! reads moved (layout is a whole-tree pass; a color is painted without
+//! one); one whose longhand inherits or propagates restyles the
+//! element's children too, so they inherit the running value.
 
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -127,6 +131,22 @@ pub struct AnimationRegistry {
     custom_events: Vec<PendingCustomEvent>,
     registered: Rc<crate::style::cascade::PropertyRegistry>,
     restyle: Vec<NodeId>,
+    /// The CSS animations (`css`), their queued events, the targets whose
+    /// animations were dropped since the last frame (composited back to
+    /// their cascaded style), and the sheet set they were matched under.
+    css: Vec<css::CssAnimation>,
+    css_events: Vec<css::PendingAnimationEvent>,
+    css_cancelled: Vec<(NodeId, StyleSlot)>,
+    css_stamp: usize,
+}
+
+/// What one frame's [`AnimationRegistry::advance`] did.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct Advanced {
+    /// Element styles composited.
+    pub composites: u32,
+    /// A longhand layout reads moved: the frame must lay out.
+    pub layout: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -153,12 +173,24 @@ impl AnimationRegistry {
         Self::default()
     }
 
+    /// No transition or animation is registered (a finished CSS
+    /// animation stays registered while its name is listed).
     pub fn is_empty(&self) -> bool {
-        self.active.is_empty() && self.custom.is_empty()
+        self.active.is_empty() && self.custom.is_empty() && self.css.is_empty()
     }
 
     pub fn len(&self) -> usize {
-        self.active.len() + self.custom.len()
+        self.active.len() + self.custom.len() + self.css.len()
+    }
+
+    /// Whether the next frame must step something with the clock: a
+    /// transition runs, or a CSS animation plays on the document
+    /// timeline before or in its active interval. A paused or finished
+    /// animation holds its value without frames.
+    pub fn needs_frames(&self, now: Instant) -> bool {
+        !self.active.is_empty()
+            || !self.custom.is_empty()
+            || self.css.iter().any(|a| a.needs_frames(now))
     }
 
     pub fn take_pending_events(&mut self) -> Vec<PendingEvent> {
@@ -233,6 +265,7 @@ impl AnimationRegistry {
     /// removed from DOM, display:none cascaded onto it).
     pub fn cancel_for_node(&mut self, node: NodeId, now: Instant) {
         self.cancel_custom_for_node(node, now);
+        self.cancel_css_for_node(node, now);
         let mut i = 0;
         while i < self.active.len() {
             if self.active[i].node == node {
@@ -251,12 +284,19 @@ impl AnimationRegistry {
     /// running values reach their descendants have their children queued
     /// for a restyle ([`take_restyle`](Self::take_restyle)).
     pub fn advance(&mut self, dom: &mut Dom<TuiExt>, now: Instant) {
+        self.advance_frame(dom, now);
+    }
+
+    /// [`advance`](Self::advance), reporting what it did.
+    pub(crate) fn advance_frame(&mut self, dom: &mut Dom<TuiExt>, now: Instant) -> Advanced {
         self.advance_custom(dom, now);
-        if self.active.is_empty() {
-            return;
+        if self.active.is_empty() && self.css.is_empty() && self.css_cancelled.is_empty() {
+            return Advanced::default();
         }
-        // A dropped element's transitions go with it, silently.
+        // A dropped element's transitions and animations go with it,
+        // silently.
         self.active.retain(|a| dom.contains(a.node));
+        self.css.retain(|a| dom.contains(a.node));
         let mut targets: Vec<(NodeId, StyleSlot)> = Vec::new();
         let mut i = 0;
         while i < self.active.len() {
@@ -292,37 +332,65 @@ impl AnimationRegistry {
                 i += 1;
             }
         }
+        self.step_css(now, &mut targets);
+        let mut out = Advanced::default();
         for (node, slot) in targets {
-            self.composite(dom, node, slot, now);
+            if !dom.contains(node) {
+                continue;
+            }
+            out.composites += 1;
+            out.layout |= self.composite(dom, node, slot, now);
         }
+        out
     }
 
     /// Composite the running transitions of `(node, slot)` onto its
-    /// cascaded style.
-    fn composite(&mut self, dom: &mut Dom<TuiExt>, node: NodeId, slot: StyleSlot, now: Instant) {
+    /// cascaded style, then its CSS animations over them (Web Animations
+    /// 1 §5.4.5: CSS animations sort above CSS transitions). `true` when
+    /// a longhand layout reads was or is animated: the frame lays out.
+    fn composite(
+        &mut self,
+        dom: &mut Dom<TuiExt>,
+        node: NodeId,
+        slot: StyleSlot,
+        now: Instant,
+    ) -> bool {
         let running: Vec<&ActiveAnimation> = self
             .active
             .iter()
             .filter(|a| a.node == node && a.slot == slot)
             .collect();
+        let css = self.css_on(node, slot);
         let mut node_mut = dom.node_mut(node);
         let Some(ext) = node_mut.ext_mut() else {
-            return;
+            return false;
         };
-        let style = if running.is_empty() {
+        let before: Vec<Longhand> = ext
+            .presentation_for(slot)
+            .map(|p| p.animated().to_vec())
+            .unwrap_or_default();
+        let mut animated: Vec<Longhand> = running.iter().map(|a| a.property).collect();
+        let style = if running.is_empty() && css.is_empty() {
             None
         } else {
             let Some(base) = ext.cascaded_for(slot) else {
-                return;
+                return false;
             };
             let mut style = (**base).clone();
             for a in &running {
                 a.apply(now, &mut style);
             }
+            for a in &css {
+                for l in a.apply(now, &mut style) {
+                    if !animated.contains(&l) {
+                        animated.push(l);
+                    }
+                }
+            }
             Some(style)
         };
-        let reaches = running.iter().any(|a| a.property.reaches_descendants());
-        let animated = running.iter().map(|a| a.property).collect();
+        let reaches = animated.iter().any(|l| l.reaches_descendants());
+        let layout = animated.iter().chain(&before).any(|l| l.affects_layout());
         let calc_size = style
             .as_ref()
             .is_some_and(crate::style::doc_flags::is_calc_sized);
@@ -333,6 +401,7 @@ impl AnimationRegistry {
         if reaches && slot == StyleSlot::Host {
             self.restyle_children(dom, node);
         }
+        layout
     }
 
     /// Queue `node`'s children (in the box tree) for a restyle: they
@@ -402,6 +471,7 @@ pub fn effective_padding(ext: &TuiExt) -> crate::layout::Padding {
         .unwrap_or_default()
 }
 
+mod css;
 mod custom;
 mod diff;
 #[cfg(test)]
@@ -414,7 +484,11 @@ mod timing_tests;
 #[cfg(test)]
 mod visibility_tests;
 
+pub use crate::style::AnimationPlayState;
+pub use css::{AnimationEventKind, AnimationInfo, AnimationKind};
+pub(crate) use css::{CssInputs, slot_order};
 pub use custom::PendingCustomEvent;
+pub(crate) use diff::diff_and_register_in;
 pub use diff::{diff_and_register, diff_and_register_with, settle_restyled};
 #[cfg(test)]
 mod behavior_tests;

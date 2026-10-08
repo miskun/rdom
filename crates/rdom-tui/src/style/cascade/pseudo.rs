@@ -62,6 +62,10 @@ pub(super) fn compute_pseudo_style(
     // sheet_idx as the secondary tiebreaker.
     cx.scratch.gather(dom, cx.sheets, id, targets, rules);
     let fallback = legacy_content(dom, id, target);
+    // A keyframe style's keyframe, in the animation origin.
+    if !cx.sheets.animation().is_empty() {
+        cx.scratch.plan.add_animation();
+    }
     // A list item's marker exists without a rule: `list-style-type`
     // makes its content (CSS Lists 3 §3.2).
     let marker = matches!(
@@ -91,7 +95,7 @@ pub(super) fn compute_pseudo_style(
     // Pseudo-elements inherit from the host's computed style (per spec),
     // not from the host's parent.
     // Pseudo-elements don't have their own inline_style on `TuiExt`.
-    let decls = Declarations::new(sorted, ranks, None);
+    let decls = Declarations::new(sorted, ranks, None).with_animation(cx.sheets.animation());
     // `attr()` on a pseudo-element reads its originating element's
     // attributes (CSS Values 5 §8.7).
     let attrs = |name: &str| dom.node(id).get_attribute(name);

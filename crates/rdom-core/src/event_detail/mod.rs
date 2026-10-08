@@ -147,6 +147,9 @@ pub enum EventDetail {
     /// `transitionstart` / `transitionend` / `transitioncancel`
     /// payload — emitted by `runtime::animation`.
     Transition(Box<TransitionDetail>),
+    /// `animationstart` / `animationiteration` / `animationend` /
+    /// `animationcancel` payload — emitted by `runtime::animation`.
+    Animation(Box<AnimationDetail>),
     /// `beforeinput` / `input` event payload — emitted by
     /// `<input>` / `<textarea>` and contenteditable elements.
     Input(Box<InputDetail>),
@@ -188,6 +191,15 @@ impl EventDetail {
     pub fn as_transition(&self) -> Option<&TransitionDetail> {
         match self {
             EventDetail::Transition(t) => Some(t),
+            _ => None,
+        }
+    }
+
+    /// Borrow the animation payload iff this is
+    /// [`EventDetail::Animation`].
+    pub fn as_animation(&self) -> Option<&AnimationDetail> {
+        match self {
+            EventDetail::Animation(a) => Some(a),
             _ => None,
         }
     }
@@ -266,6 +278,38 @@ impl TransitionDetail {
     ) -> Self {
         Self {
             property_name: property_name.into(),
+            elapsed,
+            pseudo_element,
+        }
+    }
+}
+
+/// `animationstart` / `animationiteration` / `animationend` /
+/// `animationcancel` event payload (CSS Animations 1 §5.1
+/// `AnimationEvent`).
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct AnimationDetail {
+    /// The `animation-name` of the animation, as written.
+    pub animation_name: String,
+    /// The animation's time when the event happened, in seconds, not
+    /// counting its delay (§5.1: `elapsedTime`).
+    pub elapsed: f64,
+    /// The pseudo-element the animation runs on (`"::before"`), or
+    /// `None` on the element itself.
+    pub pseudo_element: Option<String>,
+}
+
+impl AnimationDetail {
+    /// An animation event payload (`AnimationEventInit`): the name, the
+    /// elapsed seconds and the pseudo-element, if any.
+    pub fn new(
+        animation_name: impl Into<String>,
+        elapsed: f64,
+        pseudo_element: Option<String>,
+    ) -> Self {
+        Self {
+            animation_name: animation_name.into(),
             elapsed,
             pseudo_element,
         }
