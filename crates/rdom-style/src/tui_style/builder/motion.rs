@@ -95,4 +95,40 @@ impl TuiStyle {
         self.important |= ImportantMask::ANIMATIONS;
         self
     }
+
+    // ── Scroll-driven animations (Scroll-driven Animations 1) ────────
+    /// `scroll-timeline-name`.
+    pub fn scroll_timeline_name(mut self, v: Vec<crate::keyframes::TimelineName>) -> Self {
+        self.scroll_timeline_name = Some(Value::Specified(v));
+        self
+    }
+    /// `scroll-timeline-axis`.
+    pub fn scroll_timeline_axis(mut self, v: Vec<crate::keyframes::TimelineAxis>) -> Self {
+        self.scroll_timeline_axis = Some(Value::Specified(v));
+        self
+    }
+    /// `view-timeline-name`.
+    pub fn view_timeline_name(mut self, v: Vec<crate::keyframes::TimelineName>) -> Self {
+        self.view_timeline_name = Some(Value::Specified(v));
+        self
+    }
+    /// `animation-range-start` / `-end`, one pair per animation.
+    pub fn animation_range(
+        mut self,
+        v: Vec<(
+            crate::keyframes::RangeBoundary,
+            crate::keyframes::RangeBoundary,
+        )>,
+    ) -> Self {
+        let (starts, ends) = v.into_iter().unzip();
+        self.animation_range_start = Some(Value::Specified(starts));
+        self.animation_range_end = Some(Value::Specified(ends));
+        self
+    }
+    /// Mark the timeline-declaring longhands `!important`
+    /// (`ImportantMask::TIMELINES`).
+    pub fn timelines_important(mut self) -> Self {
+        self.important |= ImportantMask::TIMELINES;
+        self
+    }
 }

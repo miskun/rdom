@@ -48,6 +48,7 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
     }
     if let Some(out) = super::background::serialize(name, style)
         .or_else(|| super::animation::serialize(name, style))
+        .or_else(|| super::timeline::serialize(name, style))
         .or_else(|| super::border::serialize(name, style))
         .or_else(|| super::shadow::serialize(name, style))
         .or_else(|| super::contain::serialize(name, style))

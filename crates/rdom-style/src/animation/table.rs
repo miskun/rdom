@@ -372,6 +372,19 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("animation-play-state", NotAnimatable, None),
     e("animation-composition", NotAnimatable, None),
     e("animation-timeline", NotAnimatable, None),
+    // Scroll-driven Animations 1 §2–§4: not animatable but the insets.
+    e("scroll-timeline-name", NotAnimatable, None),
+    e("scroll-timeline-axis", NotAnimatable, None),
+    e("view-timeline-name", NotAnimatable, None),
+    e("view-timeline-axis", NotAnimatable, None),
+    e(
+        "view-timeline-inset",
+        ByComputedValue,
+        value!(view_timeline_inset),
+    ),
+    e("timeline-scope", NotAnimatable, None),
+    e("animation-range-start", NotAnimatable, None),
+    e("animation-range-end", NotAnimatable, None),
     // CSS Lists 3 §4
     e("counter-reset", ByComputedValue, value!(counter_reset)),
     e(

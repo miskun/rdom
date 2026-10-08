@@ -123,19 +123,10 @@ pub(crate) fn parse_composition_list(value: &[Token]) -> Option<Vec<AnimationCom
     keyword_list(value, AnimationComposition::from_keyword)
 }
 
-/// One `animation-timeline` entry: `auto | none` (the scroll and view
-/// timelines are C12-SCROLL-DRIVEN's).
-fn timeline(seg: &[Token]) -> Option<AnimationTimeline> {
-    match seg {
-        [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(AnimationTimeline::Auto),
-        [Token::Ident(s)] if s.eq_ignore_ascii_case("none") => Some(AnimationTimeline::None),
-        _ => None,
-    }
-}
-
-/// `animation-timeline: <single-animation-timeline>#`.
+/// `animation-timeline: <single-animation-timeline>#` (CSS Animations 2
+/// §3.7; the entries are `timeline.rs`'s).
 pub(crate) fn parse_timeline_list(value: &[Token]) -> Option<Vec<AnimationTimeline>> {
-    list(value, timeline)
+    list(value, super::timeline::animation_timeline)
 }
 
 /// One piece of the `animation` shorthand (CSS Animations 1 §4.9): the

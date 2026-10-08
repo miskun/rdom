@@ -441,3 +441,29 @@ impl Animate for ContainIntrinsicSize {
         })
     }
 }
+
+/// Scroll-driven Animations 1 §3.2.3 (`view-timeline-inset`, by computed
+/// value): two lists of one length pair their insets, each side a
+/// `<length-percentage>` — `auto` against `auto` only.
+impl Animate for Vec<crate::keyframes::TimelineInset> {
+    fn animate(&self, to: &Self, p: f64, cx: &Cx) -> Option<Self> {
+        if self.len() != to.len() {
+            return None;
+        }
+        let side = |a: &crate::layout::Length, b: &crate::layout::Length| match (a, b) {
+            (crate::layout::Length::Auto, crate::layout::Length::Auto) => {
+                Some(crate::layout::Length::Auto)
+            }
+            _ => a.animate(b, p, cx),
+        };
+        self.iter()
+            .zip(to)
+            .map(|(a, b)| {
+                Some(crate::keyframes::TimelineInset {
+                    start: side(&a.start, &b.start)?,
+                    end: side(&a.end, &b.end)?,
+                })
+            })
+            .collect()
+    }
+}

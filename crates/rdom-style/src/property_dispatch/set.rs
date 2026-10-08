@@ -79,6 +79,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
     }
     if let Some(outcome) = super::background::set(name, value, style)
         .or_else(|| super::animation::set(name, value, style))
+        .or_else(|| super::timeline::set(name, value, style))
         .or_else(|| super::border::set(name, value, style))
         .or_else(|| super::shadow::set(name, value, style))
         .or_else(|| super::contain::set(name, value, style))

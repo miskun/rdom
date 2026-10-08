@@ -208,6 +208,18 @@ const PROPERTY_NAMES: &[&str] = &[
     "animation-composition",
     "animation-timeline",
     "animation",
+    // Scroll-driven animations (Scroll-driven Animations 1)
+    "scroll-timeline-name",
+    "scroll-timeline-axis",
+    "view-timeline-name",
+    "view-timeline-axis",
+    "view-timeline-inset",
+    "scroll-timeline",
+    "view-timeline",
+    "timeline-scope",
+    "animation-range-start",
+    "animation-range-end",
+    "animation-range",
     // Counters (CSS Lists 3)
     "counter-reset",
     "counter-increment",

@@ -362,6 +362,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **The scroll-driven animation properties** (Scroll-driven Animations 1 §2–§4): `scroll-timeline` / `view-timeline` and their longhands, `timeline-scope`, `animation-timeline`'s `scroll()` / `view()` / `<dashed-ident>`, `animation-range` and its longhands with range names (`TimelineAxis`, `TimelineInset`, `RangeBoundary`, …). (C12-SCROLL-DRIVEN)
 - **Composite addition** (Web Animations 1 §5.4.4): `Longhand::add` adds a number, length or color onto an underlying value (`false` for a discrete one, which replaces); `Longhand::declared_in` (a block names it) and `affects_layout`. (C12-KEYFRAMES)
 - **`@keyframes` and the `animation-*` longhands** (CSS Animations 1 §3–§4, 2 §3): `KeyframesRule` / `Keyframe` / `KeyframeSelector` (`Stylesheet::keyframes`, `KeyframesRule::resolve` cascading the blocks of one offset), the ten longhands and `animation` as computed lists (`AnimationName`, `AnimationDuration`, `IterationCount`, …). (C12-KEYFRAMES)
 - **`@starting-style` rules** (CSS Transitions 2 §3): `Rule::starting_style` and `RuleContext::in_starting_style` mark a rule that applies only to an element's starting style. (C12-STARTING)

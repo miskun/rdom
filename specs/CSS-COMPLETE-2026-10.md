@@ -243,7 +243,7 @@ row comes from.
 | C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) || done |
 | C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | done |
 | C12-STARTING | `@starting-style` || done |
-| C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | |
+| C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | partial — the timelines driving animations (2/2) |
 | C12-OUTLINE | `outline` / `-color` / `-style` / `-width` / `-offset` (non-layout ring) | |
 | C12-CURSOR | `cursor` (OSC 22 pointer shapes) | |
 | C12-CARET | `caret-shape` / `caret-animation` / `caret` | |
@@ -7765,3 +7765,21 @@ row comes from.
   fails `colors_add_by_channel`. `prefers-reduced-motion` waits for `@media` (C14-MEDIA, noted in
   DIVERGENCES §3 and in `runtime::animation::css`): it is a media feature, so no engine hook is needed.
   `style/cascade/ladder.rs` is now 552 production lines (TECH_DEBT `SIZE-1`). Item done.
+- 2026-10-16 — C12-SCROLL-DRIVEN (1/2), the syntax (Scroll-driven Animations 1). rdom-style's
+  `keyframes::timeline` holds the values — `TimelineAxis` (`block | inline | x | y`), `TimelineScroller`
+  (`nearest | root | self`), `TimelineName` (`none | <dashed-ident>`), `TimelineInset` (start and end,
+  each `auto` or a `<length-percentage>`), `TimelineScope` (`none | all | <dashed-ident>#`),
+  `TimelineRangeName` (the six named ranges) and `RangeBoundary` (`normal`, or an offset into a named
+  range or the whole timeline) — and `AnimationTimeline` gains `Named`, `Scroll { scroller, axis }` and
+  `View { axis, inset }` (`scroll()` takes its two keywords in either order, `view()` an axis and insets
+  in either order; the defaults serialize away). The longhands `scroll-timeline-name` / `-axis`,
+  `view-timeline-name` / `-axis` / `-inset`, `timeline-scope`, `animation-range-start` / `-end` (a name
+  alone is 0% at the start, 100% at the end) and the shorthands `scroll-timeline`, `view-timeline`,
+  `animation-range` (an omitted end is the start's range at 100% when the start names one, else
+  `normal`; §4.3) are computed lists, none inherited; `view-timeline-inset` animates by computed value
+  (lists of one length pair their insets), the others are not animatable; `animation` resets the
+  range. `ImportantMask::TIMELINES` and builders (`scroll_timeline_name`, `animation_range`, …).
+  Their viewport units are absolute at computed-value time (`absolute.rs`, caught by
+  `css_phase2_gates::every_length_property_resolves_viewport_units_in_the_cascade`).
+  Red: `property_dispatch::timeline_tests` (7: `UnknownProperty`); green after. Nothing follows a
+  timeline yet: the engine is part 2/2.

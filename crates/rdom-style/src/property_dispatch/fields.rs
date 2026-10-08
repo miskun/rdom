@@ -334,7 +334,19 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "animation-play-state" => &[AnimationPlayState],
         "animation-composition" => &[AnimationComposition],
         "animation-timeline" => &[AnimationTimeline],
-        // CSS Animations 2 §3.9: the shorthand resets every longhand.
+        "scroll-timeline-name" => &[ScrollTimelineName],
+        "scroll-timeline-axis" => &[ScrollTimelineAxis],
+        "view-timeline-name" => &[ViewTimelineName],
+        "view-timeline-axis" => &[ViewTimelineAxis],
+        "view-timeline-inset" => &[ViewTimelineInset],
+        "timeline-scope" => &[TimelineScope],
+        "animation-range-start" => &[AnimationRangeStart],
+        "animation-range-end" => &[AnimationRangeEnd],
+        "scroll-timeline" => &[ScrollTimelineName, ScrollTimelineAxis],
+        "view-timeline" => &[ViewTimelineName, ViewTimelineAxis, ViewTimelineInset],
+        "animation-range" => &[AnimationRangeStart, AnimationRangeEnd],
+        // CSS Animations 2 §3.9: the shorthand resets every longhand, the
+        // range too (Scroll-driven Animations 1 §4.3).
         "animation" => &[
             AnimationName,
             AnimationDuration,
@@ -346,6 +358,8 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
             AnimationPlayState,
             AnimationComposition,
             AnimationTimeline,
+            AnimationRangeStart,
+            AnimationRangeEnd,
         ],
         "counter-reset" => &[CounterReset],
         "counter-increment" => &[CounterIncrement],

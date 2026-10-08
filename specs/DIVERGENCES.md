@@ -350,7 +350,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Transitions and animations
 
-- Scroll-driven animations (`scroll-timeline*`, `view-timeline*`, `animation-timeline`, `animation-range*`) — C12-SCROLL-DRIVEN
+- Scroll-driven animations — `scroll-timeline*`, `view-timeline*`, `timeline-scope`, `animation-timeline`'s `scroll()` / `view()` / names and `animation-range*` parse and compute, but no animation follows a scroll or view timeline yet (it stays idle) — C12-SCROLL-DRIVEN (2/2)
 
 ### User interface
 

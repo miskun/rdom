@@ -254,6 +254,18 @@ const SPEC: &[(&str, Spec)] = &[
     ("animation-composition", L(N)),
     ("animation-timeline", L(N)),
     ("animation", S),
+    // Scroll-driven Animations 1 §2–§4
+    ("scroll-timeline-name", L(N)),
+    ("scroll-timeline-axis", L(N)),
+    ("view-timeline-name", L(N)),
+    ("view-timeline-axis", L(N)),
+    ("view-timeline-inset", L(V)),
+    ("timeline-scope", L(N)),
+    ("animation-range-start", L(N)),
+    ("animation-range-end", L(N)),
+    ("scroll-timeline", S),
+    ("view-timeline", S),
+    ("animation-range", S),
     // CSS Color Adjust 1 §2
     ("color-scheme", L(D)),
     // CSS Writing Modes 4 §2–§3

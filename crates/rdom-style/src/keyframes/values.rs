@@ -128,7 +128,7 @@ pub enum AnimationComposition {
 
 /// One `animation-timeline` entry (CSS Animations 2 §3.7, Scroll-driven
 /// Animations 1 §4.1): which timeline drives the animation.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 #[non_exhaustive]
 pub enum AnimationTimeline {
     /// The document's timeline: the clock.
@@ -136,6 +136,20 @@ pub enum AnimationTimeline {
     Auto,
     /// No timeline: the animation is inactive.
     None,
+    /// The scroll or view progress timeline of that `<dashed-ident>`
+    /// (`scroll-timeline-name` / `view-timeline-name`, §4.1).
+    Named(Arc<str>),
+    /// `scroll()`: an anonymous scroll progress timeline (§2.1.1).
+    Scroll {
+        scroller: super::TimelineScroller,
+        axis: super::TimelineAxis,
+    },
+    /// `view()`: an anonymous view progress timeline of the element
+    /// itself (§3.1.1).
+    View {
+        axis: super::TimelineAxis,
+        inset: super::TimelineInset,
+    },
 }
 
 /// The keyword spelling of each keyword value, both ways.

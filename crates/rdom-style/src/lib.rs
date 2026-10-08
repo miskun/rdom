@@ -83,7 +83,8 @@ pub use custom_value::CustomValue;
 pub use keyframes::{
     AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
     AnimationPlayState, AnimationTimeline, IterationCount, Keyframe, KeyframeSelector,
-    KeyframesRule, ResolvedKeyframe,
+    KeyframesRule, RangeBoundary, ResolvedKeyframe, TimelineAxis, TimelineInset, TimelineName,
+    TimelineRangeName, TimelineScope, TimelineScroller,
 };
 pub use modifier::Modifier;
 pub use quotes::{QuotePair, Quotes, auto_quotes};

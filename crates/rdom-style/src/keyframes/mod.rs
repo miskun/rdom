@@ -15,8 +15,13 @@ use std::sync::Arc;
 use crate::TuiStyle;
 use crate::transition::TimingFunction;
 
+mod timeline;
 mod values;
 
+pub use timeline::{
+    RangeBoundary, TimelineAxis, TimelineInset, TimelineName, TimelineRangeName, TimelineScope,
+    TimelineScroller,
+};
 pub use values::{
     AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
     AnimationPlayState, AnimationTimeline, IterationCount,

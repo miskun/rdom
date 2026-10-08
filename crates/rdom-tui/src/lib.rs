@@ -134,7 +134,8 @@ pub use runtime::{
 pub use style::{
     AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
     AnimationPlayState, AnimationTimeline, IterationCount, Keyframe, KeyframeSelector,
-    KeyframesRule, ResolvedKeyframe,
+    KeyframesRule, RangeBoundary, ResolvedKeyframe, TimelineAxis, TimelineInset, TimelineName,
+    TimelineRangeName, TimelineScope, TimelineScroller,
 };
 pub use style::{
     CascadeExt, Color, ColorContext, ColorFunction, ColorScheme, ColorSchemeList, ComputedStyle,

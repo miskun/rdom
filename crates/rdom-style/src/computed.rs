@@ -385,6 +385,19 @@ pub struct ComputedStyle {
     pub animation_composition: Vec<crate::keyframes::AnimationComposition>,
     pub animation_timeline: Vec<crate::keyframes::AnimationTimeline>,
 
+    // ── Scroll-driven animations (Scroll-driven Animations 1) ────────
+    /// The timeline longhands' lists (empty: `none` / the initial axis),
+    /// `timeline-scope`, and the animations' ranges (empty: `normal`).
+    /// Not inherited.
+    pub scroll_timeline_name: Vec<crate::keyframes::TimelineName>,
+    pub scroll_timeline_axis: Vec<crate::keyframes::TimelineAxis>,
+    pub view_timeline_name: Vec<crate::keyframes::TimelineName>,
+    pub view_timeline_axis: Vec<crate::keyframes::TimelineAxis>,
+    pub view_timeline_inset: Vec<crate::keyframes::TimelineInset>,
+    pub timeline_scope: crate::keyframes::TimelineScope,
+    pub animation_range_start: Vec<crate::keyframes::RangeBoundary>,
+    pub animation_range_end: Vec<crate::keyframes::RangeBoundary>,
+
     /// `counter-reset` / `counter-increment` / `counter-set` (CSS Lists
     /// 3 §4). Non-inheriting; the cascade applies them to its counter
     /// state in tree order — reset, increment, set (§4.4). A reversed

@@ -63,7 +63,8 @@ pub use rdom_style::transition;
 pub use rdom_style::{
     AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
     AnimationPlayState, AnimationTimeline, IterationCount, Keyframe, KeyframeSelector,
-    KeyframesRule, ResolvedKeyframe,
+    KeyframesRule, RangeBoundary, ResolvedKeyframe, TimelineAxis, TimelineInset, TimelineName,
+    TimelineRangeName, TimelineScope, TimelineScroller,
 };
 pub use rdom_style::{
     Color, ColorContext, ColorFunction, ComputedStyle, Content, ContentContext, CounterOp,

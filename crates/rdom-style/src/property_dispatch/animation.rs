@@ -77,6 +77,13 @@ fn set_shorthand(pieces: &[AnimationPiece], style: &mut TuiStyle) {
     style.animation_play_state = each(pieces, |p| p.play_state.unwrap_or_default());
     style.animation_composition = Some(Value::Specified(vec![AnimationComposition::Replace]));
     style.animation_timeline = Some(Value::Specified(vec![AnimationTimeline::Auto]));
+    let normal = || {
+        Some(Value::Specified(vec![
+            crate::keyframes::RangeBoundary::Normal,
+        ]))
+    };
+    style.animation_range_start = normal();
+    style.animation_range_end = normal();
 }
 
 /// A `<keyframes-name>` as CSS text: an identifier when it is one as
@@ -115,10 +122,7 @@ fn iterations_text(n: &IterationCount) -> String {
 }
 
 fn timeline_text(t: &AnimationTimeline) -> String {
-    match t {
-        AnimationTimeline::Auto => "auto".to_string(),
-        AnimationTimeline::None => "none".to_string(),
-    }
+    super::timeline::animation_timeline_text(t)
 }
 
 /// Serialize one of the names. `None` when `name` is not one.
@@ -168,6 +172,15 @@ fn serialize_shorthand(style: &TuiStyle) -> Option<String> {
         c.iter().all(|c| *c == AnimationComposition::Replace)
             && t.iter().all(|t| *t == AnimationTimeline::Auto)
     };
+    let range_normal = |f: &Option<Value<Vec<crate::keyframes::RangeBoundary>>>| {
+        f.as_ref().and_then(specified).is_none_or(|l| {
+            l.iter()
+                .all(|b| *b == crate::keyframes::RangeBoundary::Normal)
+        })
+    };
+    if !range_normal(&style.animation_range_start) || !range_normal(&style.animation_range_end) {
+        return None;
+    }
     if !initial_only(
         style
             .animation_composition

@@ -74,6 +74,7 @@ mod shadow;
 mod spacing;
 mod text;
 mod text_decoration;
+mod timeline;
 mod transition;
 
 pub use align::{
@@ -179,6 +180,11 @@ pub use text_decoration::{
     parse_text_decoration_skip_ink, parse_text_decoration_style, parse_text_decoration_thickness,
     parse_text_underline_offset, parse_text_underline_position, serialize_decoration_length,
     serialize_text_decoration_thickness,
+};
+pub(crate) use timeline::{
+    parse_animation_range, parse_range_end_list, parse_range_start_list, parse_scroll_timeline,
+    parse_timeline_axis_list, parse_timeline_inset_list, parse_timeline_name_list,
+    parse_timeline_scope, parse_view_timeline,
 };
 pub use transition::{
     TransitionShorthandRule, parse_duration_list, parse_signed_time_ms, parse_time_list,

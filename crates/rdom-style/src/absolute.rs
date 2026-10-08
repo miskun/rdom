@@ -209,6 +209,22 @@ impl ComputedStyle {
         absolutize(&mut self.text.text_indent.length, vp, Length::Calc, |v| {
             Length::Cells(cells_i32(v))
         });
+        // Scroll-driven Animations 1 §3.2.3 / §4.3: the view timeline
+        // insets and the range offsets are length-percentages.
+        for inset in &mut self.view_timeline_inset {
+            for side in [&mut inset.start, &mut inset.end] {
+                absolutize(side, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
+            }
+        }
+        for boundary in self
+            .animation_range_start
+            .iter_mut()
+            .chain(&mut self.animation_range_end)
+        {
+            if let crate::keyframes::RangeBoundary::Offset { offset, .. } = boundary {
+                absolutize(offset, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
+            }
+        }
     }
 }
 

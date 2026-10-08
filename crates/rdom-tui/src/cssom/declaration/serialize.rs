@@ -149,7 +149,13 @@ fn shorthand_family_of(name: &str) -> Option<&'static str> {
         | "animation-fill-mode"
         | "animation-play-state"
         | "animation-composition"
-        | "animation-timeline" => Some("animation"),
+        | "animation-timeline"
+        | "animation-range-start"
+        | "animation-range-end" => Some("animation"),
+        "scroll-timeline-name" | "scroll-timeline-axis" => Some("scroll-timeline"),
+        "view-timeline-name" | "view-timeline-axis" | "view-timeline-inset" => {
+            Some("view-timeline")
+        }
         _ => None,
     }
 }

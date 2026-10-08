@@ -200,8 +200,8 @@ impl ImportantMask {
         .union(Self::TRANSITION_TIMING_FUNCTION)
         .union(Self::TRANSITION_DELAY)
         .union(Self::TRANSITION_BEHAVIOR);
-    /// The ten `animation-*` longhands' bits — what the `animation`
-    /// shorthand (and `TuiStyle::animations_important`) marks.
+    /// The `animation-*` longhands' bits, the range's included — what the
+    /// `animation` shorthand (and `TuiStyle::animations_important`) marks.
     pub const ANIMATIONS: Self = Self::ANIMATION_NAME
         .union(Self::ANIMATION_DURATION)
         .union(Self::ANIMATION_TIMING_FUNCTION)
@@ -211,7 +211,18 @@ impl ImportantMask {
         .union(Self::ANIMATION_FILL_MODE)
         .union(Self::ANIMATION_PLAY_STATE)
         .union(Self::ANIMATION_COMPOSITION)
-        .union(Self::ANIMATION_TIMELINE);
+        .union(Self::ANIMATION_TIMELINE)
+        .union(Self::ANIMATION_RANGE_START)
+        .union(Self::ANIMATION_RANGE_END);
+    /// The timeline-declaring longhands' bits (`scroll-timeline-*`,
+    /// `view-timeline-*`, `timeline-scope`) — what
+    /// `TuiStyle::timelines_important` marks.
+    pub const TIMELINES: Self = Self::SCROLL_TIMELINE_NAME
+        .union(Self::SCROLL_TIMELINE_AXIS)
+        .union(Self::VIEW_TIMELINE_NAME)
+        .union(Self::VIEW_TIMELINE_AXIS)
+        .union(Self::VIEW_TIMELINE_INSET)
+        .union(Self::TIMELINE_SCOPE);
 }
 
 #[cfg(test)]

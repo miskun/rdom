@@ -341,6 +341,24 @@ pub struct TuiStyle {
     /// `animation-timeline` (CSS Animations 2 §3.7, Scroll-driven Animations 1 §4.1).
     pub animation_timeline: Option<Value<Vec<crate::keyframes::AnimationTimeline>>>,
 
+    // ── Scroll-driven animations (Scroll-driven Animations 1) ────────
+    /// `scroll-timeline-name` (Scroll-driven Animations 1 §2.2.1).
+    pub scroll_timeline_name: Option<Value<Vec<crate::keyframes::TimelineName>>>,
+    /// `scroll-timeline-axis` (§2.2.2).
+    pub scroll_timeline_axis: Option<Value<Vec<crate::keyframes::TimelineAxis>>>,
+    /// `view-timeline-name` (§3.2.1).
+    pub view_timeline_name: Option<Value<Vec<crate::keyframes::TimelineName>>>,
+    /// `view-timeline-axis` (§3.2.2).
+    pub view_timeline_axis: Option<Value<Vec<crate::keyframes::TimelineAxis>>>,
+    /// `view-timeline-inset` (§3.2.3).
+    pub view_timeline_inset: Option<Value<Vec<crate::keyframes::TimelineInset>>>,
+    /// `timeline-scope` (§4.2).
+    pub timeline_scope: Option<Value<crate::keyframes::TimelineScope>>,
+    /// `animation-range-start` (§4.3.1).
+    pub animation_range_start: Option<Value<Vec<crate::keyframes::RangeBoundary>>>,
+    /// `animation-range-end` (§4.3.2).
+    pub animation_range_end: Option<Value<Vec<crate::keyframes::RangeBoundary>>>,
+
     // ── Counters (CSS Lists 3 §4) ────────────────────────────────────
     pub counter_reset: Option<Value<Vec<crate::counters::CounterOp>>>,
     pub counter_increment: Option<Value<Vec<crate::counters::CounterOp>>>,

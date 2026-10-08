@@ -100,6 +100,7 @@ mod shadow;
 mod table;
 mod text;
 mod text_decoration;
+mod timeline;
 mod value_serializers;
 
 #[cfg(test)]
@@ -150,6 +151,8 @@ mod tests;
 mod text_decoration_tests;
 #[cfg(test)]
 mod text_tests;
+#[cfg(test)]
+mod timeline_tests;
 #[cfg(test)]
 mod visibility_tests;
 #[cfg(test)]

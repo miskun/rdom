@@ -216,6 +216,7 @@ const SAMPLES: &[(&str, &str, &str, Mid)] = &[
     ("word-spacing", "2", "4", Is("3")),
     ("line-height", "2", "4", Is("3")),
     ("vertical-align", "2ch", "4ch", Is("3ch")),
+    ("view-timeline-inset", "2 auto", "4 auto", Is("3 auto")),
 ];
 
 /// `#t`'s computed style under `name: value`.
