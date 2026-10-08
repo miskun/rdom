@@ -1,7 +1,7 @@
 //! Transition engine tests.
 use super::*;
+use crate::style::Color;
 use crate::style::Stylesheet;
-use crate::style::transition::AnimatableProperty;
 use crate::style::transition::TransitionProperty;
 use crate::{CascadeExt, TuiDom, TuiStyle};
 
@@ -39,8 +39,8 @@ fn property_change_without_transition_rule_applies_instantly() {
 }
 
 /// `D-M3-3`: a `::before` with its own `transition: color` animates
-/// in its own slot — the host's presentation stays untouched, the
-/// event names the pseudo-element, and the override clears at the end.
+/// in its own slot — the host's style stays untouched, the event names
+/// the pseudo-element, and the record clears at the end.
 #[test]
 fn pseudo_element_color_transitions_in_its_own_slot() {
     use crate::ext::StyleSlot;
@@ -55,7 +55,7 @@ fn pseudo_element_color_transitions_in_its_own_slot() {
             TuiStyle::new()
                 .content(Content::Str("*".into()))
                 .fg(fg)
-                .transition_property(vec![TransitionProperty::Named(AnimatableProperty::Color)])
+                .transition_property(vec![TransitionProperty::named("color")])
                 .transition_duration(vec![100])
                 .transition_timing_function(vec![TimingFunction::Linear]),
         )
@@ -71,9 +71,18 @@ fn pseudo_element_color_transitions_in_its_own_slot() {
     reg.advance(&mut dom, start + Duration::from_millis(50));
     let ext = dom.node(div).ext().unwrap();
     assert!(ext.presentation.is_none(), "host slot untouched");
-    let fg = ext.presentation_for(StyleSlot::Before).and_then(|p| p.fg);
+    let fg = ext.computed_for(StyleSlot::Before).map(|c| c.fg);
     // Red → blue at the midpoint, in Oklab (CSS Color 4 §12.1).
-    assert_eq!(fg, Some(Color::Rgb(140, 83, 162)), "the ::before override");
+    assert_eq!(
+        fg,
+        Some(Color::Rgb(140, 83, 162)),
+        "the ::before's running value"
+    );
+    assert_eq!(
+        ext.cascaded_for(StyleSlot::Before).map(|c| c.fg),
+        Some(Color::Rgb(0, 0, 255)),
+        "the cascade's style keeps the end value"
+    );
     let events = reg.take_pending_events();
     assert!(
         events
@@ -107,7 +116,7 @@ fn transition_color_interpolates_at_midpoint() {
         "div",
         TuiStyle::new()
             .fg(Color::Rgb(255, 0, 0))
-            .transition_property(vec![TransitionProperty::Named(AnimatableProperty::Color)])
+            .transition_property(vec![TransitionProperty::named("color")])
             .transition_duration(vec![100])
             .transition_timing_function(vec![TimingFunction::Linear])
             .transition_delay(vec![0]),
@@ -122,7 +131,7 @@ fn transition_color_interpolates_at_midpoint() {
         "div",
         TuiStyle::new()
             .fg(Color::Rgb(0, 0, 255))
-            .transition_property(vec![TransitionProperty::Named(AnimatableProperty::Color)])
+            .transition_property(vec![TransitionProperty::named("color")])
             .transition_duration(vec![100])
             .transition_timing_function(vec![TimingFunction::Linear])
             .transition_delay(vec![0]),
@@ -137,16 +146,9 @@ fn transition_color_interpolates_at_midpoint() {
     // Oklab (CSS Color 4 §12.1): a light purple, (140, 83, 162).
     let mid = start + Duration::from_millis(50);
     reg.advance(&mut dom, mid);
-    let pres_fg = dom
-        .node(div)
-        .ext()
-        .unwrap()
-        .presentation
-        .as_ref()
-        .unwrap()
-        .fg
-        .unwrap();
-    assert_eq!(pres_fg, Color::Rgb(140, 83, 162));
+    // The running value is the computed value.
+    let fg = dom.node(div).ext().unwrap().computed.as_ref().unwrap().fg;
+    assert_eq!(fg, Color::Rgb(140, 83, 162));
 
     // Advance to end — animation retires, presentation cleared.
     let end = start + Duration::from_millis(120);
@@ -167,7 +169,7 @@ fn transitionend_event_queued_at_completion() {
             "div",
             TuiStyle::new()
                 .fg(c)
-                .transition_property(vec![TransitionProperty::Named(AnimatableProperty::Color)])
+                .transition_property(vec![TransitionProperty::named("color")])
                 .transition_duration(vec![100])
                 .transition_timing_function(vec![TimingFunction::Linear])
                 .transition_delay(vec![0]),
@@ -190,9 +192,8 @@ fn transitionend_event_queued_at_completion() {
     reg.advance(&mut dom, start + Duration::from_millis(150));
     let ending = reg.take_pending_events();
     assert!(
-        ending
-            .iter()
-            .any(|e| e.kind == TransitionEventKind::End && e.property == AnimatedProp::Fg),
+        ending.iter().any(|e| e.kind == TransitionEventKind::End
+            && e.property == Longhand::from_name("color").unwrap()),
         "expected transitionend; got {:?}",
         ending
     );
@@ -210,7 +211,7 @@ fn re_setting_property_mid_flight_fires_cancel_and_restarts_from_current() {
             "div",
             TuiStyle::new()
                 .fg(c)
-                .transition_property(vec![TransitionProperty::Named(AnimatableProperty::Color)])
+                .transition_property(vec![TransitionProperty::named("color")])
                 .transition_duration(vec![100])
                 .transition_timing_function(vec![TimingFunction::Linear])
                 .transition_delay(vec![0]),
@@ -235,7 +236,8 @@ fn re_setting_property_mid_flight_fires_cancel_and_restarts_from_current() {
     assert!(
         after_retarget
             .iter()
-            .any(|e| e.kind == TransitionEventKind::Cancel && e.property == AnimatedProp::Fg)
+            .any(|e| e.kind == TransitionEventKind::Cancel
+                && e.property == Longhand::from_name("color").unwrap())
     );
     // And there's exactly one animation now (the new red-ish→green).
     assert_eq!(reg.len(), 1);
@@ -246,7 +248,7 @@ fn re_setting_property_mid_flight_fires_cancel_and_restarts_from_current() {
 /// passing through gray.
 #[test]
 fn color_interpolation_premultiplies_alpha() {
-    use super::interpolate::lerp_color;
+    use rdom_style::animation::lerp_color;
     let mid = lerp_color(
         Color::Rgba(0, 0, 0, 0),
         Color::Rgb(255, 0, 0),
@@ -288,8 +290,8 @@ fn reset_endpoint_interpolates_from_the_scheme_canvas_for_its_role() {
                     .fg(c)
                     .bg(c)
                     .transition_property(vec![
-                        TransitionProperty::Named(AnimatableProperty::Color),
-                        TransitionProperty::Named(AnimatableProperty::BackgroundColor),
+                        TransitionProperty::named("color"),
+                        TransitionProperty::named("background-color"),
                     ])
                     .transition_duration(vec![100])
                     .transition_timing_function(vec![TimingFunction::Linear]),
@@ -302,15 +304,15 @@ fn reset_endpoint_interpolates_from_the_scheme_canvas_for_its_role() {
         dom.cascade(&sheet(blue));
         diff_and_register(&mut dom, &mut reg, start);
         reg.advance(&mut dom, start + Duration::from_millis(50));
-        let p = dom.node(div).ext().unwrap().presentation.clone().unwrap();
+        let p = dom.node(div).ext().unwrap().computed.clone().unwrap();
         let (canvas_bg, canvas_fg) = scheme.canvas();
         assert_eq!(
-            p.bg,
+            Some(p.bg),
             interpolate_oklab(canvas_bg, blue, 0.5),
             "{scheme:?} bg"
         );
         assert_eq!(
-            p.fg,
+            Some(p.fg),
             interpolate_oklab(canvas_fg, blue, 0.5),
             "{scheme:?} fg"
         );
@@ -322,15 +324,23 @@ fn reset_endpoint_interpolates_from_the_scheme_canvas_for_its_role() {
 /// the whole range — exactly, where an `f32` would lose the units.
 #[test]
 fn z_index_interpolates_over_the_full_integer_range() {
-    use super::interpolate::interpolate;
-    let z = |a: i32, b: i32, t: f32| match interpolate(
-        &AnimatedValue::ZIndex(ZIndex::Value(a)),
-        &AnimatedValue::ZIndex(ZIndex::Value(b)),
-        t,
-        crate::style::Color::Reset,
-    ) {
-        AnimatedValue::ZIndex(ZIndex::Value(n)) => n,
-        other => panic!("{other:?}"),
+    use crate::layout::ZIndex;
+    let z = |a: i32, b: i32, t: f64| {
+        let (mut from, mut to) = (ComputedStyle::initial(), ComputedStyle::initial());
+        from.z_index = ZIndex::Value(a);
+        to.z_index = ZIndex::Value(b);
+        let mut out = to.clone();
+        Longhand::from_name("z-index").unwrap().interpolate(
+            &from,
+            &to,
+            t,
+            rdom_style::color::ColorScheme::Dark,
+            &mut out,
+        );
+        match out.z_index {
+            ZIndex::Value(n) => n,
+            other => panic!("{other:?}"),
+        }
     };
     assert_eq!(z(0, 100_000, 0.5), 50_000);
     assert_eq!(z(2_000_000_001, 2_000_000_003, 0.5), 2_000_000_002);

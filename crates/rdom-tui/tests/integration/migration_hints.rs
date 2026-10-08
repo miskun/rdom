@@ -405,7 +405,7 @@ fn visibility_hints() {
     let ComputedStyle { visibility, .. } = ComputedStyle::initial();
     assert!(visibility.is_visible());
     assert!(ImportantMask::VISIBILITY.intersects(ImportantMask::all()));
-    let _ = style::transition::AnimatableProperty::Visibility;
+    let _ = style::transition::TransitionProperty::named("visibility");
 }
 
 /// C6-ORDER: the `order` field, builder, bit and parser.
@@ -1354,4 +1354,34 @@ fn phase11_reexport_hints() {
     let state: Option<PopoverState> = popover::popover_state(&dom, p);
     assert_eq!(state, Some(PopoverState::Hint));
     let _ = (ControlState::UserValidity, AttrCase::AsciiInsensitive);
+}
+
+/// C12-ANIMATABLE: `transition-property` names any property — a
+/// `TransitionProperty::Named` holds its canonical name (`AnimatableProperty`
+/// is gone), `Discrete(name)` is `Other(name)` for a custom or unknown
+/// name; the engine's `AnimatedProp` / `AnimatedValue` are a
+/// `style::animation::Longhand` and two whole styles
+/// (`ActiveAnimation::from` / `to`); `PresentationStyle` holds no values
+/// — a running transition's values are in `TuiExt::computed`, the
+/// cascade's own style in `TuiExt::cascaded_for`.
+#[test]
+fn transition_property_hints() {
+    use style::transition::TransitionProperty;
+    assert_eq!(
+        TransitionProperty::named("color"),
+        TransitionProperty::Named("color")
+    );
+    assert_eq!(
+        TransitionProperty::named("--x"),
+        TransitionProperty::Other("--x".into())
+    );
+    let l = style::animation::Longhand::from_name("padding-top").unwrap();
+    assert_eq!(l.css_name(), "padding-top");
+    assert_eq!(
+        style::animation::animation_type("display"),
+        Some(style::animation::AnimationType::Discrete)
+    );
+    let _: Option<&runtime::animation::Longhand> = None;
+    let ext = TuiExt::default();
+    assert!(ext.cascaded_for(ext::StyleSlot::Host).is_none());
 }

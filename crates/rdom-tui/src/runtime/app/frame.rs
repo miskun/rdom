@@ -31,6 +31,17 @@ use crate::style::cascade::{
 use rdom_style::calc::Viewport;
 
 impl<B: Backend> App<B> {
+    /// The time a frame runs at: the wall clock, which the scheduler's
+    /// clock follows, unless [`App::advance`] drives the clock.
+    fn frame_now(&mut self) -> std::time::Instant {
+        if !self.virtual_clock {
+            self.scheduler
+                .borrow_mut()
+                .set_now(std::time::Instant::now());
+        }
+        self.scheduler.borrow().now()
+    }
+
     /// Run the frame prelude (`prelude::FramePrelude::run`: the
     /// pre-cascade stages, in order) against this App.
     fn run_prelude(&mut self, run: PreludeRun) {
@@ -74,6 +85,8 @@ impl<B: Backend> App<B> {
         }
         crate::rdom_trace!("draw_if_dirty: DRAW (redraw={redraw:?}, dirty_roots={dirty_roots:?})");
 
+        // The transitions run on the app's clock (`frame_now`).
+        let now = self.frame_now();
         let dom = &mut self.dom;
         let sheets = self.prelude.cascade_order(&self.stylesheets);
         let registry = &self.prelude.registry;
@@ -84,7 +97,7 @@ impl<B: Backend> App<B> {
             pass = style_and_layout(
                 dom,
                 (&sheets, registry),
-                animations,
+                (animations, now),
                 (redraw, cascaded_viewport),
                 &dirty_roots,
                 buf.area,
@@ -216,11 +229,12 @@ impl<B: Backend> App<B> {
         self.run_prelude(PreludeRun::OffFrame);
         let dirty_roots = self.take_dirty_roots();
         let redraw = self.redraw.max(Redraw::Layout);
+        let now = self.frame_now();
         let sheets = self.prelude.cascade_order(&self.stylesheets);
         let pass = style_and_layout(
             &mut self.dom,
             (&sheets, &self.prelude.registry),
-            &mut self.animations,
+            (&mut self.animations, now),
             (redraw, &mut self.cascaded_viewport),
             &dirty_roots,
             area,
@@ -273,8 +287,8 @@ struct Pass {
 /// cascade (the whole tree for `Redraw::Cascade`, else `dirty_roots`'
 /// subtrees, else nothing) → register the transitions a cascade's
 /// property changes start → when anything was cascaded or `redraw` is
-/// at least `Layout`: advance the running transitions (writing
-/// interpolated values into `TuiExt::presentation`), lay out, and
+/// at least `Layout`: advance the running transitions (compositing their
+/// values onto the animated styles), lay out, and
 /// service a caret reveal requested this frame against the fresh
 /// extent, re-laying out when it moved a scroll offset. A
 /// `Redraw::Paint` frame with no dirty roots runs none of it.
@@ -284,12 +298,11 @@ struct Pass {
 fn style_and_layout(
     dom: &mut TuiDom,
     (sheets, registry): (&[&Stylesheet], &Rc<PropertyRegistry>),
-    animations: &mut AnimationRegistry,
+    (animations, now): (&mut AnimationRegistry, std::time::Instant),
     (redraw, cascaded_viewport): (Redraw, &mut Option<Viewport>),
     dirty_roots: &[NodeId],
     area: Rect,
 ) -> Pass {
-    let now = std::time::Instant::now();
     // The viewport-percentage units resolve against the terminal (CSS
     // Values 4 §6.1.2); at a size the tree was not cascaded for, every
     // element's are stale, so the whole tree cascades.
@@ -318,7 +331,8 @@ fn style_and_layout(
     if laid_out {
         animations.advance(dom, now);
         // A registered custom property's animated value reaches its
-        // `var()` consumers through the cascade.
+        // `var()` consumers through the cascade, and an inherited
+        // longhand's running value the element's descendants.
         let restyle = animations.take_restyle();
         if !restyle.is_empty() {
             // No selector can see the change: reuse the matches.

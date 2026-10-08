@@ -12,17 +12,15 @@ use std::rc::Rc;
 use rdom_core::{Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
-use crate::layout::Position;
 use crate::node::TuiNodeExt;
-use crate::style::{ComputedStyle, PseudoElementTarget};
+use crate::style::ComputedStyle;
 
 pub(super) use super::counters::CounterState;
-use super::counters::{StoredOps, has_ops, takes_part};
+use super::counters::{StoredOps, takes_part};
 use super::element::compute_element_style;
 use super::inherit::layout_differs;
 pub(super) use super::matching::Scratch;
 use super::matching::{MatchedRules, Recorder, Rules, Slot};
-use super::pseudo::compute_pseudo_style;
 pub(super) use super::root_vars::merge_root_vars;
 pub(super) use super::sheets::Sheets;
 
@@ -118,7 +116,7 @@ pub(super) fn compute_box<T>(
 /// The walk recurses once per tree level, so this frame holds only what
 /// must outlive the children's cascade — the element's styles behind
 /// `Rc`s; computing them happens in [`style_element`] and
-/// [`finish_element`], whose large frames are gone before the next
+/// `finish::finish_element`, whose large frames are gone before the next
 /// level starts (a style is kilobytes, and an element computes eight).
 pub(super) fn cascade_subtree<'a>(
     dom: &mut Dom<TuiExt>,
@@ -193,7 +191,7 @@ pub(super) fn cascade_subtree<'a>(
     }
     // A kept child leaves its own reads behind: only `::after`'s count.
     counters.take_read();
-    finish_element(dom, sheets, id, styled, flags, counters, scratch)
+    super::finish::finish_element(dom, sheets, id, styled, flags, counters, scratch)
 }
 
 /// [`style_element`]'s outcome. It lives on the stack for one call, so
@@ -212,16 +210,16 @@ enum Styled {
     Fresh(FreshElement),
 }
 
-/// An element styled before its children: what [`finish_element`]
+/// An element styled before its children: what `finish::finish_element`
 /// needs after them.
-struct FreshElement {
-    computed: Rc<ComputedStyle>,
-    computed_before: Option<Rc<ComputedStyle>>,
-    recorded: Option<Rc<MatchedRules>>,
-    recorder: Recorder,
-    reads_counters: bool,
+pub(super) struct FreshElement {
+    pub(super) computed: Rc<ComputedStyle>,
+    pub(super) computed_before: Option<Rc<ComputedStyle>>,
+    pub(super) recorded: Option<Rc<MatchedRules>>,
+    pub(super) recorder: Recorder,
+    pub(super) reads_counters: bool,
     /// A restyle: `::after` reuses the recorded matches too.
-    restyle: bool,
+    pub(super) restyle: bool,
 }
 
 /// Compute the element `id`'s style, and — unless a restyle keeps it —
@@ -269,6 +267,13 @@ fn style_element<'a>(
         )
     };
     let previous = dom.node(id).ext().and_then(|e| e.computed.clone());
+    // The running transitions' values over the new style (CSS Transitions
+    // 1 §3): what the element shows, its children inherit and the
+    // comparisons below see. `computed` stays the cascade's own style.
+    let overlaid = dom
+        .node(id)
+        .ext()
+        .and_then(|e| e.overlay(crate::ext::StyleSlot::Host, &computed));
     // Counter values before this element moved and its boxes read one:
     // they must be recomputed even when the element's style is unchanged.
     let reads_moved_counters =
@@ -288,7 +293,7 @@ fn style_element<'a>(
     if mode == Mode::Restyle
         && previous
             .as_deref()
-            .is_some_and(|p| item_parent(p) != item_parent(&computed))
+            .is_some_and(|p| item_parent(p) != item_parent(overlaid.as_ref().unwrap_or(&computed)))
     {
         scratch.items_changed.push(id);
     }
@@ -297,9 +302,15 @@ fn style_element<'a>(
     // reaches them under elements whose own style stays.
     if mode == Mode::Restyle
         && dom.document_element().id() == id
-        && previous
-            .as_deref()
-            .is_some_and(|p| p.text.line_height.rows() != computed.text.line_height.rows())
+        && previous.as_deref().is_some_and(|p| {
+            p.text.line_height.rows()
+                != overlaid
+                    .as_ref()
+                    .unwrap_or(&computed)
+                    .text
+                    .line_height
+                    .rows()
+        })
     {
         scratch.root_line_height_moved = true;
     }
@@ -307,12 +318,17 @@ fn style_element<'a>(
         || !items_changed_above(dom, id, &scratch.items_changed))
         && !scratch.root_line_height_moved;
     if mode == Mode::Restyle
-        && let Some(previous) = previous.as_ref().filter(|p| ***p == computed)
+        && let Some(previous) = previous
+            .as_ref()
+            .filter(|p| ***p == *overlaid.as_ref().unwrap_or(&computed))
         && !reads_moved_counters
         && keeps_subtree
     {
         if let Some(ext) = dom.node_mut(id).ext_mut() {
             ext.matched = Some(recorder.finish(sheets));
+            if overlaid.is_some() {
+                ext.keep_cascaded(crate::ext::StyleSlot::Host, Rc::new(computed));
+            }
         }
         return Styled::Kept {
             computed: previous.clone(),
@@ -335,7 +351,12 @@ fn style_element<'a>(
             counters: &mut *counters,
             scratch: &mut *scratch,
         };
-        super::early_pseudos::compute(&mut cx, &computed, cached, &mut recorder)
+        super::early_pseudos::compute(
+            &mut cx,
+            overlaid.as_ref().unwrap_or(&computed),
+            cached,
+            &mut recorder,
+        )
     };
     let reads_counters = counters.take_read();
     // `::marker` and `::before` come before the children: a changed op
@@ -356,17 +377,19 @@ fn style_element<'a>(
     // Diff for layout invalidation. "No previous computed" counts as a
     // change (first cascade).
     let layout_changed = match &previous {
-        Some(prev) => layout_differs(prev, &computed),
+        Some(prev) => layout_differs(prev, overlaid.as_ref().unwrap_or(&computed)),
         None => true,
     };
 
     // Write back; `::before` waits for the children (`finish_element`).
     let computed = Rc::new(computed);
+    let overlaid = overlaid.map(Rc::new);
+    let shown = overlaid.clone().unwrap_or_else(|| computed.clone());
     let mut early = early;
     let before = early.before.take();
     let auto_direction = crate::style::dir_auto::styled_direction(dom, id);
     if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.computed = Some(computed.clone());
+        ext.set_cascaded(crate::ext::StyleSlot::Host, computed, overlaid);
         ext.auto_direction = auto_direction;
         early.write(ext);
         ext.style_dirty = false;
@@ -376,7 +399,7 @@ fn style_element<'a>(
     }
     super::details::sync_content_box(dom, id);
     Styled::Fresh(FreshElement {
-        computed,
+        computed: shown,
         computed_before: before.map(Rc::new),
         recorded,
         recorder,
@@ -449,82 +472,6 @@ fn replay_kept<'a>(
     } else {
         counters.replay_element(parent_id, id, &ops, |c| c.replay_children(dom, id));
     }
-    flags
-}
-
-/// After the element `id`'s children: its `::after` (which sees their
-/// counter increments) and the bottom-up aggregates, written back. Not
-/// inlined into the recursion, as [`style_element`] is not.
-#[inline(never)]
-fn finish_element<'a>(
-    dom: &mut Dom<TuiExt>,
-    sheets: &Sheets<'a>,
-    id: NodeId,
-    styled: FreshElement,
-    mut flags: SubtreeFlags,
-    counters: &mut CounterState,
-    scratch: &mut Scratch<'a>,
-) -> SubtreeFlags {
-    let FreshElement {
-        computed,
-        computed_before,
-        recorded,
-        mut recorder,
-        mut reads_counters,
-        restyle,
-    } = styled;
-    let cached = recorded.as_deref().filter(|_| restyle);
-    // `::after` comes after the children in tree order, and its own
-    // marker after it (CSS Pseudo-Elements 4 §4).
-    let (computed_after, after_marker) = {
-        let mut cx = ElementCx {
-            dom: &*dom,
-            sheets,
-            id,
-            counters: &mut *counters,
-            scratch: &mut *scratch,
-        };
-        let after = compute_box(&mut cx, Slot::After, cached, &mut recorder, |cx, rules| {
-            compute_pseudo_style(cx, &computed, &[PseudoElementTarget::After], rules)
-        });
-        let marker =
-            super::early_pseudos::after_marker(&mut cx, after.as_ref(), cached, &mut recorder);
-        (after, marker)
-    };
-    reads_counters |= counters.take_read();
-    counters.exit(id);
-    let own_has_positioned_pseudo = computed_before
-        .as_deref()
-        .is_some_and(|c| c.position != Position::Static)
-        || computed_after
-            .as_ref()
-            .is_some_and(|c| c.position != Position::Static);
-    flags.has_positioned_pseudo |= own_has_positioned_pseudo;
-
-    flags.has_counters |= reads_counters
-        || has_ops(&computed)
-        || dom
-            .node(id)
-            .ext()
-            .and_then(|e| e.computed_marker().map(|s| &**s))
-            .is_some_and(has_ops)
-        || computed_before.as_deref().is_some_and(has_ops)
-        || computed_after.as_ref().is_some_and(has_ops);
-
-    // Write the bottom-up aggregates.
-    if let Some(ext) = dom.node_mut(id).ext_mut() {
-        counters.note_ops(ext.computed_after.as_deref(), computed_after.as_ref());
-        ext.computed_before = computed_before;
-        ext.computed_after = computed_after.map(std::rc::Rc::new);
-        let marker = after_marker.map(std::rc::Rc::new);
-        ext.update_pseudo(marker.is_some(), |p| p.after_marker = marker);
-        ext.tree_has_positioned_pseudo = flags.has_positioned_pseudo;
-        ext.tree_has_collapse = flags.has_collapse;
-        ext.tree_has_counters = flags.has_counters;
-        ext.reads_counters = reads_counters;
-        ext.matched = Some(recorder.finish(sheets));
-    }
-    super::details::mirror_flags(dom, id);
     flags
 }
 

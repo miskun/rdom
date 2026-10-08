@@ -14,7 +14,6 @@ use crate::ext::{GeneratedBox, StyleSlot, TuiExt};
 use crate::layout::LayoutRect;
 use crate::render::buffer::BorderContribution;
 use crate::render::{Buffer, Rect};
-use crate::style::ComputedStyle;
 
 /// Paint the box of every generated flex or grid item of `container`,
 /// atomically with its content (CSS Flexbox §5.4). A block container's
@@ -68,27 +67,17 @@ pub(super) fn paint_box(
         return;
     };
     let slot = StyleSlot::from(g.slot);
-    let (style, overrides) = (ext.computed_pseudo(g.slot), ext.presentation_for(slot));
-    let Some(style) = style else {
+    let Some(style) = ext.computed_pseudo(g.slot) else {
         return;
     };
     if !crate::render::visibility::shows(dom, g.host, slot) {
         return;
     }
-    let mut style = ComputedStyle::clone(style);
-    if let Some(o) = overrides {
-        if let Some(bg) = o.bg {
-            style.bg = bg;
-        }
-        if let Some(border_color) = o.border_color {
-            style.border_color = border_color;
-        }
-    }
     let outer = g.border_box;
     let Some(outer_grid) = layout_rect_to_grid(outer, clip) else {
         return;
     };
-    paint_background(buf, &style, outer, content, clip);
+    paint_background(buf, style, outer, content, clip);
     if !style.border.is_empty() {
         // One level below its host, as a child box.
         let mut depth: u16 = 1;
@@ -98,6 +87,6 @@ pub(super) fn paint_box(
             cur = crate::render::box_tree::slot::parent(dom, node);
         }
         let priority = BorderContribution::pack_priority(depth, g.host.as_u32());
-        paint_border_sides(buf, &style, outer, outer_grid, clip, priority);
+        paint_border_sides(buf, style, outer, outer_grid, clip, priority);
     }
 }

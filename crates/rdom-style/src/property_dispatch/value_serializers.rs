@@ -256,28 +256,7 @@ pub(super) fn serialize_calc(expr: &crate::calc::CalcExpr) -> String {
 }
 
 pub(super) fn serialize_transition_property(p: &TransitionProperty) -> String {
-    use crate::transition::AnimatableProperty;
-    match p {
-        TransitionProperty::All => "all".to_string(),
-        TransitionProperty::None => "none".to_string(),
-        TransitionProperty::Discrete(name) => name.clone(),
-        TransitionProperty::Named(a) => match a {
-            AnimatableProperty::Color => "color",
-            AnimatableProperty::BackgroundColor => "background-color",
-            AnimatableProperty::BorderColor => "border-color",
-            AnimatableProperty::Width => "width",
-            AnimatableProperty::Height => "height",
-            AnimatableProperty::Padding => "padding",
-            AnimatableProperty::Gap => "gap",
-            AnimatableProperty::Top => "top",
-            AnimatableProperty::Right => "right",
-            AnimatableProperty::Bottom => "bottom",
-            AnimatableProperty::Left => "left",
-            AnimatableProperty::ZIndex => "z-index",
-            AnimatableProperty::Visibility => "visibility",
-        }
-        .to_string(),
-    }
+    p.name().to_string()
 }
 
 /// `counter-reset` / `counter-increment` value: `name value` pairs.

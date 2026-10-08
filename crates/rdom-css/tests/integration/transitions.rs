@@ -4,7 +4,7 @@
 
 use rdom_css::parse;
 use rdom_tui::style::Value;
-use rdom_tui::style::transition::{AnimatableProperty, TimingFunction, TransitionProperty};
+use rdom_tui::style::transition::{TimingFunction, TransitionProperty};
 
 fn first_style(source: &str) -> rdom_tui::TuiStyle {
     let r = parse(source);
@@ -23,9 +23,7 @@ fn transition_property_named() {
     let s = first_style("a { transition-property: color; }");
     assert_eq!(
         s.transition_property,
-        Some(Value::Specified(vec![TransitionProperty::Named(
-            AnimatableProperty::Color
-        )]))
+        Some(Value::Specified(vec![TransitionProperty::Named("color")]))
     );
 }
 
@@ -53,9 +51,9 @@ fn transition_property_list() {
     assert_eq!(
         s.transition_property,
         Some(Value::Specified(vec![
-            TransitionProperty::Named(AnimatableProperty::Color),
-            TransitionProperty::Named(AnimatableProperty::BackgroundColor),
-            TransitionProperty::Named(AnimatableProperty::Width),
+            TransitionProperty::Named("color"),
+            TransitionProperty::Named("background-color"),
+            TransitionProperty::Named("width"),
         ]))
     );
 }
@@ -125,9 +123,7 @@ fn transition_shorthand_all_pieces() {
     let s = first_style("a { transition: color 200ms ease-in 50ms; }");
     assert_eq!(
         s.transition_property,
-        Some(Value::Specified(vec![TransitionProperty::Named(
-            AnimatableProperty::Color
-        )]))
+        Some(Value::Specified(vec![TransitionProperty::Named("color")]))
     );
     assert_eq!(s.transition_duration, Some(Value::Specified(vec![200])));
     assert_eq!(
@@ -142,9 +138,7 @@ fn transition_shorthand_property_and_duration() {
     let s = first_style("a { transition: color 200ms; }");
     assert_eq!(
         s.transition_property,
-        Some(Value::Specified(vec![TransitionProperty::Named(
-            AnimatableProperty::Color
-        )]))
+        Some(Value::Specified(vec![TransitionProperty::Named("color")]))
     );
     assert_eq!(s.transition_duration, Some(Value::Specified(vec![200])));
     // Timing + delay default to ease + 0.
@@ -171,8 +165,8 @@ fn transition_shorthand_multiple_rules() {
     assert_eq!(
         s.transition_property,
         Some(Value::Specified(vec![
-            TransitionProperty::Named(AnimatableProperty::Color),
-            TransitionProperty::Named(AnimatableProperty::BackgroundColor),
+            TransitionProperty::Named("color"),
+            TransitionProperty::Named("background-color"),
         ]))
     );
     assert_eq!(
@@ -196,9 +190,7 @@ fn transition_shorthand_pieces_in_any_order() {
     let s = first_style("a { transition: 200ms color; }");
     assert_eq!(
         s.transition_property,
-        Some(Value::Specified(vec![TransitionProperty::Named(
-            AnimatableProperty::Color
-        )]))
+        Some(Value::Specified(vec![TransitionProperty::Named("color")]))
     );
     assert_eq!(s.transition_duration, Some(Value::Specified(vec![200])));
 }
@@ -212,20 +204,18 @@ fn transition_shorthand_two_durations_first_is_duration_second_is_delay() {
     assert_eq!(s.transition_delay, Some(Value::Specified(vec![50])));
 }
 
-// ── non-animatable names are valid and inert (Transitions L1 §2.1) ──
+// ── discrete names are valid (Transitions L1 §2.1) ──
 
 #[test]
 fn transition_with_non_animatable_property_is_valid_and_inert() {
-    // `display` is discrete: it never transitions (no
-    // `transition-behavior: allow-discrete`), but naming it is valid CSS
+    // `display` is discrete: it transitions only under
+    // `transition-behavior: allow-discrete`, but naming it is valid CSS
     // and must not warn.
     let r = parse("a { transition-property: display; }");
     assert!(r.warnings.is_empty(), "{:?}", r.warnings);
     assert_eq!(
         r.stylesheet.rules()[0].style.transition_property,
-        Some(Value::Specified(vec![TransitionProperty::Discrete(
-            "display".into()
-        )]))
+        Some(Value::Specified(vec![TransitionProperty::Named("display")]))
     );
 }
 

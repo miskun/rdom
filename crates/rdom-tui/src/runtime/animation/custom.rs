@@ -19,11 +19,11 @@ use std::time::{Duration, Instant};
 use rdom_core::{Dom, NodeId};
 use rdom_style::{PropertyRegistration, SyntaxComponent};
 
-use super::interpolate::lerp_color;
 use super::{AnimationRegistry, TransitionEventKind};
 use crate::ext::{StyleSlot, TuiExt};
-use crate::style::transition::{TimingFunction, TransitionProperty};
+use crate::style::transition::TimingFunction;
 use crate::style::{Color, ComputedStyle};
+use rdom_style::animation::lerp_color;
 
 /// How a registered property's values interpolate.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -247,12 +247,10 @@ impl AnimationRegistry {
             .filter_map(|(name, reg)| Some((name.to_string(), Kind::of(reg)?)))
             .collect();
         for (name, kind) in changed {
-            let Some(rule) = rule_for(curr, &name) else {
+            let Some(rule) = super::rule::custom(curr, &name).filter(super::rule::Rule::runs)
+            else {
                 continue;
             };
-            if rule.0 == 0 && rule.2 == 0 {
-                continue;
-            }
             let running = self
                 .custom
                 .iter()
@@ -287,9 +285,9 @@ impl AnimationRegistry {
                 from,
                 to,
                 started_at: now,
-                delay: Duration::from_millis(u64::from(rule.2)),
-                duration: Duration::from_millis(u64::from(rule.0)),
-                timing: rule.1,
+                delay: Duration::from_millis(u64::from(rule.delay_ms)),
+                duration: Duration::from_millis(u64::from(rule.duration_ms)),
+                timing: rule.timing,
                 started_dispatched: false,
             });
         }
@@ -355,33 +353,6 @@ impl AnimationRegistry {
             }
         }
     }
-}
-
-/// `(duration ms, timing, delay ms)` of the `transition-*` entry
-/// covering `--name` (`all` or the name itself), cycling the lists.
-fn rule_for(style: &ComputedStyle, name: &str) -> Option<(u32, TimingFunction, u32)> {
-    let idx = style.transition_property.iter().position(|p| match p {
-        TransitionProperty::All => true,
-        TransitionProperty::Discrete(n) => n.strip_prefix("--") == Some(name),
-        _ => false,
-    })?;
-    let pick = |len: usize| idx % len.max(1);
-    let duration = style
-        .transition_duration
-        .get(pick(style.transition_duration.len()))
-        .copied()
-        .unwrap_or(0);
-    let timing = style
-        .transition_timing_function
-        .get(pick(style.transition_timing_function.len()))
-        .copied()
-        .unwrap_or(TimingFunction::Ease);
-    let delay = style
-        .transition_delay
-        .get(pick(style.transition_delay.len()))
-        .copied()
-        .unwrap_or(0);
-    Some((duration, timing, delay))
 }
 
 /// Set (or, with `None`, clear) `node`'s animated value of `name`.

@@ -12,10 +12,10 @@ use crate::ext::TuiExt;
 use crate::layout::LayoutRect;
 use crate::node::TuiNodeExt;
 use crate::render::paint_pass::layout_rect_to_grid;
-use crate::render::paint_pass::text::{paint_text_from, pseudo_style};
+use crate::render::paint_pass::text::{paint_text_from, style_from_computed};
 use crate::render::{Buffer, Rect, Style};
 
-use super::{anchor_href_for, presentation_of};
+use super::anchor_href_for;
 
 /// Single-row paint: `::before` + `body_text` + `::after`. Used by
 /// chrome-substitution elements (gauge, select, password mask) and
@@ -68,10 +68,7 @@ pub(super) fn paint_single_row_chrome(
             cursor_x,
             crate::ext::StyleSlot::Before,
             text,
-            pseudo_style(
-                before,
-                presentation_of(dom, id, crate::ext::StyleSlot::Before),
-            ),
+            style_from_computed(before),
         );
     }
 
@@ -94,10 +91,7 @@ pub(super) fn paint_single_row_chrome(
             cursor_x,
             crate::ext::StyleSlot::After,
             text,
-            pseudo_style(
-                after,
-                presentation_of(dom, id, crate::ext::StyleSlot::After),
-            ),
+            style_from_computed(after),
         );
     }
 

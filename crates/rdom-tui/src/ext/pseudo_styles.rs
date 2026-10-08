@@ -97,7 +97,12 @@ impl TuiExt {
     /// Keep this cascade's `::before` / `::after` styles as the previous
     /// ones the next diff reads (`runtime::animation`).
     pub(crate) fn snapshot_pseudo_prev(&mut self) {
-        let (before, after) = (self.computed_before.clone(), self.computed_after.clone());
+        // The cascade's styles, without running transitions' values: the
+        // after-change styles (CSS Transitions 1 §3).
+        let (before, after) = (
+            self.cascaded_for(super::StyleSlot::Before).cloned(),
+            self.cascaded_for(super::StyleSlot::After).cloned(),
+        );
         self.update_pseudo(before.is_some() || after.is_some(), |p| {
             p.before_prev = before;
             p.after_prev = after;

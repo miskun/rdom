@@ -241,6 +241,7 @@ impl<B: Backend> App<B> {
     /// clock. Advance one period at a time to step a repeating timer
     /// tick-by-tick.
     pub fn advance(&mut self, ms: u64) -> io::Result<()> {
+        self.virtual_clock = true;
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
         let target = self.scheduler.borrow().now() + std::time::Duration::from_millis(ms);
         self.scheduler.borrow_mut().set_now(target);

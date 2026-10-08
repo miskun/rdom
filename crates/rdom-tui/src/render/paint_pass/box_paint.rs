@@ -24,8 +24,8 @@ use crate::render::stacking::children_clip;
 use crate::render::{Buffer, Rect};
 use crate::style::{Color, ComputedStyle};
 
-/// What [`box_frame`] hands to [`paint_content`]: the style with the
-/// transition presentation overlaid, the border and content rects and the
+/// What [`box_frame`] hands to [`paint_content`]: the computed style (a
+/// running transition's values included), the border and content rects and the
 /// clip the content paints into.
 pub(super) struct BoxFrame {
     computed: ComputedStyle,
@@ -39,8 +39,8 @@ pub(super) struct BoxFrame {
     visible: bool,
 }
 
-/// An element's box as paint reads it — its style with an in-flight
-/// transition's presentation overlaid, its rects, whether it is drawn and
+/// An element's box as paint reads it — its computed style (running
+/// transitions' values included), its rects, whether it is drawn and
 /// the clip its content paints into (CSS Overflow 3 §3,
 /// `stacking::children_clip`). `None` for non-elements and `display:
 /// none`, which paint nothing and have no content to paint.
@@ -49,36 +49,12 @@ pub(super) fn box_frame(dom: &Dom<TuiExt>, id: NodeId, clip: Rect) -> Option<Box
         return None;
     }
 
-    let mut computed = dom
+    // A running transition's values are in the computed style.
+    let computed = dom
         .node(id)
         .computed()
         .cloned()
         .unwrap_or_else(ComputedStyle::initial);
-
-    // M3: an in-flight transition writes interpolated values
-    // into `TuiExt.presentation` each tick. Paint reads them by
-    // overlaying onto the local `computed` clone — keeps the
-    // existing paint logic unchanged otherwise.
-    if let Some(presentation) = dom.node(id).ext().and_then(|e| e.presentation.as_deref()) {
-        if let Some(fg) = presentation.fg {
-            computed.fg = fg;
-        }
-        if let Some(bg) = presentation.bg {
-            computed.bg = bg;
-        }
-        if let Some(border_color) = presentation.border_color {
-            computed.border_color = border_color;
-        }
-        if let Some(padding) = &presentation.padding {
-            computed.padding = padding.clone();
-        }
-        if let Some(gap) = presentation.row_gap {
-            computed.row_gap = crate::layout::GapValue::Cells(gap);
-        }
-        if let Some(gap) = presentation.column_gap {
-            computed.column_gap = crate::layout::GapValue::Cells(gap);
-        }
-    }
 
     // `display: none` — element takes no space and neither it
     // nor its children paint. Matches CSS semantics.

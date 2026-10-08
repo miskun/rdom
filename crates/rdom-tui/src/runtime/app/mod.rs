@@ -65,6 +65,8 @@ mod control_seeding_tests;
 #[cfg(test)]
 mod frame_work_tests;
 #[cfg(test)]
+mod geometry_transition_tests;
+#[cfg(test)]
 mod idle_tests;
 #[cfg(test)]
 mod interaction_chain_tests;
@@ -166,6 +168,9 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     pub(crate) scheduler: crate::runtime::timers::SharedScheduler,
     /// In-flight CSS transitions.
     pub(crate) animations: crate::runtime::animation::AnimationRegistry,
+    /// The app's clock is driven by [`advance`](App::advance) (a headless
+    /// or test driver), not by the wall clock: a frame does not sync it.
+    virtual_clock: bool,
 
     /// DRAG-AUTOSCROLL session state (`autoscroll::AutoscrollSession`).
     autoscroll: autoscroll::AutoscrollSession,
@@ -341,6 +346,7 @@ impl<B: Backend> App<B> {
                 crate::runtime::timers::Scheduler::new(std::time::Instant::now()),
             )),
             animations: crate::runtime::animation::AnimationRegistry::new(),
+            virtual_clock: false,
             autoscroll: autoscroll::AutoscrollSession::default(),
             redraw: Redraw::Cascade,
             #[cfg(test)]

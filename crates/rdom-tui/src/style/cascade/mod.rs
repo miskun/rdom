@@ -95,6 +95,7 @@ mod decoration;
 pub(crate) mod details;
 mod early_pseudos;
 mod element;
+mod finish;
 mod font;
 mod root_vars;
 mod scheme;

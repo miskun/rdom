@@ -3,46 +3,15 @@
 //! comma-separated longhand lists and the `transition` shorthand.
 
 use crate::parse::token::Token;
-use crate::transition::{AnimatableProperty, StepPosition, TimingFunction, TransitionProperty};
+use crate::transition::{StepPosition, TimingFunction, TransitionProperty};
 
-/// Map a CSS property name to its `AnimatableProperty` slot.
-/// Returns `None` for non-animatable / unknown names so the
-/// caller can warn.
-pub fn parse_animatable_property(name: &str) -> Option<AnimatableProperty> {
-    Some(match name.to_ascii_lowercase().as_str() {
-        "color" => AnimatableProperty::Color,
-        "background-color" => AnimatableProperty::BackgroundColor,
-        "border-color" => AnimatableProperty::BorderColor,
-        "width" => AnimatableProperty::Width,
-        "height" => AnimatableProperty::Height,
-        "padding" => AnimatableProperty::Padding,
-        "gap" => AnimatableProperty::Gap,
-        "top" => AnimatableProperty::Top,
-        "right" => AnimatableProperty::Right,
-        "bottom" => AnimatableProperty::Bottom,
-        "left" => AnimatableProperty::Left,
-        "z-index" => AnimatableProperty::ZIndex,
-        "visibility" => AnimatableProperty::Visibility,
-        _ => return None,
-    })
-}
-
-/// Parse a single property keyword (`all` / `none` / named).
+/// Parse a single property keyword: `all`, `none`, or any
+/// `<custom-ident>` (CSS Transitions 1 §2.1) — a property the dispatch
+/// table knows is [`TransitionProperty::Named`], any other name (a custom
+/// property, an unknown one) is valid and kept as
+/// [`TransitionProperty::Other`].
 pub fn parse_transition_property_keyword(name: &str) -> Option<TransitionProperty> {
-    // Custom property names are case-sensitive (CSS Variables 1 §2).
-    if name.starts_with("--") {
-        return Some(TransitionProperty::Discrete(name.to_string()));
-    }
-    match name.to_ascii_lowercase().as_str() {
-        "all" => Some(TransitionProperty::All),
-        "none" => Some(TransitionProperty::None),
-        other => match parse_animatable_property(other) {
-            Some(ap) => Some(TransitionProperty::Named(ap)),
-            // Any other `<custom-ident>` is valid and inert (Transitions
-            // L1 §2.1), whether or not it names a property rdom knows.
-            None => Some(TransitionProperty::Discrete(other.to_string())),
-        },
-    }
+    Some(TransitionProperty::named(name))
 }
 
 /// Parse a single timing-function keyword (CSS Easing 1 §2.2 / §2.3).
@@ -409,15 +378,15 @@ mod number_value_tests {
         assert_eq!((rules[0].duration, rules[0].delay), (1000, 500));
     }
 
-    /// Transitions L1 §2.1: any `<custom-ident>` is a valid, inert
-    /// `transition-property`.
+    /// Transitions L1 §2.1: any `<custom-ident>` is a valid
+    /// `transition-property`; a known property is named, any other kept.
     #[test]
     fn transition_property_accepts_any_custom_ident() {
         assert_eq!(
             parse_transition_property_list(&t("display, foo")),
             Some(vec![
-                TransitionProperty::Discrete("display".into()),
-                TransitionProperty::Discrete("foo".into()),
+                TransitionProperty::Named("display"),
+                TransitionProperty::Other("foo".into()),
             ])
         );
     }

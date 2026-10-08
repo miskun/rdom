@@ -1,43 +1,35 @@
 //! The transition engine's overrides on an element (`PresentationStyle`)
 //! and which of its boxes they drive (`StyleSlot`, `PseudoSlot`).
 
-use super::TuiExt;
-use crate::layout::{Length, Padding, Size, ZIndex};
-use crate::style::{Color, ComputedStyle};
+use std::rc::Rc;
 
-/// Sparse override on top of `ComputedStyle`. Only populated for
-/// properties that an active transition is currently driving.
-/// Paint, layout, and hit-test read these slots before falling
-/// back to `ComputedStyle` — see `effective_*` helpers below.
+use rdom_style::animation::Longhand;
+
+use super::TuiExt;
+use crate::style::ComputedStyle;
+
+/// What running transitions do to one of an element's styles (CSS
+/// Transitions 1 §3, Web Animations 1 §5.4.5): the animated value of a
+/// longhand is its computed value, so while a transition runs the slot's
+/// computed style ([`TuiExt::computed_for`]) is the cascade's style with
+/// the running values composited on — what layout, paint, hit-testing
+/// and inheritance read. This record keeps the cascade's own style (the
+/// *after-change style* the next style change is compared with) and the
+/// longhands composited.
 ///
-/// M3 covers the animatable subset. Discrete properties (display,
-/// position, content, etc.) toggle in `ComputedStyle` directly
-/// at midpoint and are not covered here.
+/// `None` on an element while no transition drives the slot.
 #[derive(Debug, Clone, Default, PartialEq)]
 #[non_exhaustive]
 pub struct PresentationStyle {
-    pub fg: Option<Color>,
-    pub bg: Option<Color>,
-    /// `border-color`'s four sides.
-    pub border_color: Option<crate::layout::Sides<Color>>,
-    pub width: Option<Size>,
-    pub height: Option<Size>,
-    pub padding: Option<Padding>,
-    /// `row-gap` / `column-gap` while a `gap` transition runs.
-    pub row_gap: Option<u16>,
-    pub column_gap: Option<u16>,
-    pub top: Option<Length>,
-    pub right: Option<Length>,
-    pub bottom: Option<Length>,
-    pub left: Option<Length>,
-    pub z_index: Option<ZIndex>,
-    /// `visibility` while a transition runs (CSS Display 3 §4: `visible`
-    /// for the whole run when either end is).
-    pub visibility: Option<crate::layout::Visibility>,
+    /// The cascade's style for the slot, without the running values; set
+    /// while [`animated`](Self::animated) is not empty.
+    base: Option<Rc<ComputedStyle>>,
+    /// The longhands running transitions composite onto the slot.
+    animated: Vec<Longhand>,
     /// The running transitions of registered custom properties (name
-    /// without dashes → animated value). Not read by paint: the cascade
-    /// applies them on top of the cascaded values
-    /// (`ComputedStyle::animated_vars`) so `var()` consumers follow.
+    /// without dashes → animated value). The cascade applies them on top
+    /// of the cascaded values (`ComputedStyle::animated_vars`) so `var()`
+    /// consumers follow.
     pub custom_properties: Option<std::collections::HashMap<String, rdom_style::CustomValue>>,
 }
 
@@ -208,30 +200,130 @@ impl TuiExt {
 }
 
 impl PresentationStyle {
-    /// True when no animation is currently driving any property.
-    /// The hot path uses this to skip the override read.
+    /// True when no transition drives the slot.
     pub fn is_empty(&self) -> bool {
-        self.custom_properties.is_none()
-            && self.fg.is_none()
-            && self.bg.is_none()
-            && self.border_color.is_none()
-            && self.width.is_none()
-            && self.height.is_none()
-            && self.padding.is_none()
-            && self.row_gap.is_none()
-            && self.column_gap.is_none()
-            && self.top.is_none()
-            && self.right.is_none()
-            && self.bottom.is_none()
-            && self.left.is_none()
-            && self.z_index.is_none()
-            && self.visibility.is_none()
+        self.custom_properties.is_none() && self.animated.is_empty()
     }
 
-    /// Drop every override. Called by the engine when an
-    /// animation reaches its end value (so paint sees the
-    /// committed `ComputedStyle` from the next cascade onward).
-    pub fn clear(&mut self) {
-        *self = PresentationStyle::default();
+    /// The longhands running transitions composite onto the slot's
+    /// computed style.
+    pub fn animated(&self) -> &[Longhand] {
+        &self.animated
+    }
+
+    /// The cascade's style for the slot under the running values, while
+    /// any longhand animates.
+    pub fn cascaded(&self) -> Option<&Rc<ComputedStyle>> {
+        self.base.as_ref()
+    }
+}
+
+impl TuiExt {
+    /// The cascade's style for `slot` — its computed style without the
+    /// running transitions' values: the *after-change style* of CSS
+    /// Transitions 1 §3. The computed style itself while nothing runs.
+    pub fn cascaded_for(&self, slot: StyleSlot) -> Option<&Rc<ComputedStyle>> {
+        self.presentation_for(slot)
+            .and_then(PresentationStyle::cascaded)
+            .or_else(|| self.computed_for(slot))
+    }
+
+    /// `fresh`, a new cascade result for `slot`, with the values the
+    /// slot's running transitions hold now (carried from its current
+    /// computed style) — `None` while none runs. The cascade's write-back
+    /// (`style::cascade`).
+    pub(crate) fn overlay(&self, slot: StyleSlot, fresh: &ComputedStyle) -> Option<ComputedStyle> {
+        let animated = self.presentation_for(slot)?.animated();
+        if animated.is_empty() {
+            return None;
+        }
+        let current = self.computed_for(slot)?;
+        let mut out = fresh.clone();
+        for l in animated {
+            l.copy(current, &mut out);
+        }
+        Some(out)
+    }
+
+    /// Store a cascade result for `slot`: `fresh` as the cascade's style
+    /// and `overlaid` ([`overlay`](Self::overlay)) as the computed style
+    /// while transitions run.
+    pub(crate) fn set_cascaded(
+        &mut self,
+        slot: StyleSlot,
+        fresh: Rc<ComputedStyle>,
+        overlaid: Option<Rc<ComputedStyle>>,
+    ) {
+        match overlaid {
+            Some(style) => {
+                if let Some(p) = self.presentation_slot(slot).and_then(|p| p.as_deref_mut()) {
+                    p.base = Some(fresh);
+                }
+                self.put_computed(slot, Some(style));
+            }
+            None => self.put_computed(slot, Some(fresh)),
+        }
+    }
+
+    /// Keep `fresh` as the cascade's style for `slot` and its computed
+    /// style as it is — a restyle that left the composited style alone.
+    pub(crate) fn keep_cascaded(&mut self, slot: StyleSlot, fresh: Rc<ComputedStyle>) {
+        if self.presentation_for(slot).is_none() {
+            return;
+        }
+        if let Some(p) = self.presentation_slot(slot).and_then(|p| p.as_deref_mut())
+            && !p.animated.is_empty()
+        {
+            p.base = Some(fresh);
+        }
+    }
+
+    /// Composite the running transitions onto `slot`: `style`, the
+    /// cascade's style with the values of `animated` written on, becomes
+    /// the computed style; with nothing animated the cascade's style
+    /// comes back. Transition-engine plumbing (`runtime::animation`).
+    pub(crate) fn composite(
+        &mut self,
+        slot: StyleSlot,
+        animated: Vec<Longhand>,
+        style: Option<ComputedStyle>,
+    ) {
+        let Some(base) = self.cascaded_for(slot).cloned() else {
+            return;
+        };
+        match style.filter(|_| !animated.is_empty()) {
+            Some(style) => {
+                let Some(p) = self.presentation_for_mut(slot) else {
+                    return;
+                };
+                p.base = Some(base);
+                p.animated = animated;
+                self.put_computed(slot, Some(Rc::new(style)));
+            }
+            None => {
+                if self.presentation_for(slot).is_none() {
+                    return;
+                }
+                if let Some(p) = self.presentation_slot(slot).and_then(|p| p.as_deref_mut()) {
+                    p.base = None;
+                    p.animated.clear();
+                }
+                self.put_computed(slot, Some(base));
+                self.release_empty_presentation(slot);
+            }
+        }
+    }
+
+    fn put_computed(&mut self, slot: StyleSlot, style: Option<Rc<ComputedStyle>>) {
+        match slot {
+            StyleSlot::Host => self.computed = style,
+            StyleSlot::Before => self.computed_before = style,
+            StyleSlot::After => self.computed_after = style,
+            // No transition drives the other slots (`presentation_slot`).
+            StyleSlot::Marker
+            | StyleSlot::FirstLetter
+            | StyleSlot::BeforeMarker
+            | StyleSlot::AfterMarker => {}
+        }
     }
 }

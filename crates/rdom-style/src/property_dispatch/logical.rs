@@ -516,3 +516,10 @@ pub(super) fn remove_inline_axis(name: &str, style: &mut TuiStyle) -> bool {
     style.pending = kept;
     removed
 }
+
+/// The physical properties the flow-relative `name` maps to under
+/// `direction` (CSS Logical 1 §4); `None` for a name that is not
+/// flow-relative. What a `transition-property` naming it animates.
+pub(crate) fn physical_names(name: &str, direction: TextDirection) -> Option<Vec<&'static str>> {
+    mapping(name, direction).map(targets)
+}

@@ -8,7 +8,6 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::time::Duration;
 
 use rdom_core::ListenerOptions;
 
@@ -58,9 +57,8 @@ fn an_unrelated_restyle_mid_transition_starts_no_transition() {
     }
     app.dom_mut().set_attribute(div, "class", "on").unwrap();
     app.advance(0).unwrap();
-    // Real time moves the transitions (they run on the wall clock).
-    std::thread::sleep(Duration::from_millis(40));
-    app.advance(0).unwrap();
+    // The app's clock moves the transitions.
+    app.advance(40).unwrap();
     assert!(cancelled.borrow().is_empty(), "{:?}", cancelled.borrow());
 
     app.dom_mut().set_attribute(div, "class", "on x").unwrap();
@@ -100,8 +98,7 @@ fn registrations_are_built_once_per_stylesheet_change() {
     // Restyles and transition frames: no sheet changed.
     app.dom_mut().set_attribute(div, "class", "on").unwrap();
     app.advance(0).unwrap();
-    std::thread::sleep(Duration::from_millis(20));
-    app.advance(0).unwrap();
+    app.advance(20).unwrap();
     app.dom_mut().set_attribute(div, "class", "on x").unwrap();
     app.advance(0).unwrap();
     assert_eq!(take_builds(), 0, "no sheet changed");
@@ -162,8 +159,7 @@ fn a_theme_transition_frame_matches_no_selectors() {
     app.dom_mut().set_attribute(main, "class", "dark").unwrap();
     app.advance(0).unwrap();
     match_probe::take();
-    std::thread::sleep(Duration::from_millis(60));
-    app.advance(0).unwrap();
+    app.advance(60).unwrap();
     assert_eq!(
         match_probe::take(),
         0,

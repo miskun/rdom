@@ -47,6 +47,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod animation;
 pub mod backend;
 pub mod calc;
 pub mod counters;
@@ -88,7 +89,7 @@ pub use stylesheet::{
     Import, Layer, LayerId, LayerOrder, PseudoElementTarget, Rule, RuleContext, RuleIndex,
     RuleOrigin, Scope, ScopeId, StyleError, StyleSelector, Stylesheet, UserActionState,
 };
-pub use transition::{AnimatableProperty, TimingFunction, TransitionProperty, TransitionRule};
+pub use transition::{TimingFunction, TransitionProperty, TransitionRule};
 pub use tui_color::{ColorContext, ColorFunction, TuiColor, parse_color, resolve_tui_color};
 pub use tui_style::{
     CustomDeclaration, FontDeclarations, ImportantMask, TextDeclarations,

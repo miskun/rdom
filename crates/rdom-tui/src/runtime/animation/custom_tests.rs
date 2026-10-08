@@ -6,6 +6,7 @@
 use std::time::{Duration, Instant};
 
 use super::*;
+use crate::style::Color;
 use crate::style::Stylesheet;
 use crate::{CascadeExt, TuiDom};
 

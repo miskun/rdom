@@ -2046,7 +2046,7 @@ fn transitionend_event_carries_typed_transition_detail() {
     // `event.detail` with `EventDetail::Transition(...)` carrying
     // the property name and elapsed seconds — not a pipe-separated
     // string. Retires D-M3-1.
-    use crate::runtime::animation::{AnimatedProp, PendingEvent, TransitionEventKind};
+    use crate::runtime::animation::{Longhand, PendingEvent, TransitionEventKind};
     use std::cell::RefCell;
 
     let mut dom: TuiDom = TuiDom::new();
@@ -2080,7 +2080,7 @@ fn transitionend_event_carries_typed_transition_detail() {
             slot: crate::ext::StyleSlot::Host,
             node: div,
             kind: TransitionEventKind::End,
-            property: AnimatedProp::Fg,
+            property: Longhand::from_name("color").unwrap(),
             elapsed_seconds: 0.1,
         });
     app.dispatch_animation_events_for_test();
@@ -2099,7 +2099,7 @@ fn transitionstart_and_transitioncancel_also_carry_typed_detail() {
     // Coverage for all three transition event variants; ensures
     // the migration in `dispatch_animation_events` doesn't leave
     // Start or Cancel on the old string path.
-    use crate::runtime::animation::{AnimatedProp, PendingEvent, TransitionEventKind};
+    use crate::runtime::animation::{Longhand, PendingEvent, TransitionEventKind};
     use std::cell::RefCell;
 
     let kinds = [
@@ -2134,7 +2134,7 @@ fn transitionstart_and_transitioncancel_also_carry_typed_detail() {
                 slot: crate::ext::StyleSlot::Host,
                 node: div,
                 kind,
-                property: AnimatedProp::Bg,
+                property: Longhand::from_name("background-color").unwrap(),
                 elapsed_seconds: 0.0,
             });
         app.dispatch_animation_events_for_test();

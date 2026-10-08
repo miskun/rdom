@@ -225,12 +225,17 @@ fn copy_reads_the_presented_visibility_mid_transition() {
         TuiStyle::new().visibility(crate::layout::Visibility::Hidden),
     );
     assert_eq!(copy(&mut dom, &sheet, (a, 0), (c, 1)), "ac");
-    dom.node_mut(span)
-        .ext_mut()
-        .expect("cascaded")
-        .presentation_for_mut(crate::ext::StyleSlot::Host)
-        .expect("the host takes overrides")
-        .visibility = Some(crate::layout::Visibility::Visible);
+    // A running `visibility` transition's value, composited as the
+    // engine does.
+    let mut node = dom.node_mut(span);
+    let ext = node.ext_mut().expect("cascaded");
+    let mut running = (**ext.computed.as_ref().unwrap()).clone();
+    running.visibility = crate::layout::Visibility::Visible;
+    ext.composite(
+        crate::ext::StyleSlot::Host,
+        vec![rdom_style::animation::Longhand::from_name("visibility").unwrap()],
+        Some(running),
+    );
     let range = Range::ordered_unchecked(Position::new(a, 0), Position::new(c, 1));
     assert_eq!(serialize_selection(&dom, &range), "aBc");
 }

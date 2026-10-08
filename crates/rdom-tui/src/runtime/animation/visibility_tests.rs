@@ -1,10 +1,10 @@
 //! `visibility` transitions (C6-VISIBILITY, CSS Display 3 §4).
-use super::interpolate::lerp_visibility;
 use super::*;
 use crate::layout::Visibility::{Collapse, Hidden, Visible};
 use crate::style::Stylesheet;
-use crate::style::transition::{AnimatableProperty, TransitionProperty};
+use crate::style::transition::TransitionProperty;
 use crate::{CascadeExt, TuiDom, TuiStyle};
+use rdom_style::animation::lerp_visibility;
 
 /// CSS Display 3 §4: with a `visible` end, every progress strictly
 /// between 0 and 1 is `visible`; between two non-visible values a
@@ -36,20 +36,17 @@ fn a_visibility_transition_presents_visible_while_it_runs() {
             "div",
             TuiStyle::new()
                 .visibility(v)
-                .transition_property(vec![TransitionProperty::Named(
-                    AnimatableProperty::Visibility,
-                )])
+                .transition_property(vec![TransitionProperty::named("visibility")])
                 .transition_duration(vec![100])
                 .transition_timing_function(vec![TimingFunction::Linear]),
         )
     };
+    // The running value, while a transition runs.
     let presented = |dom: &TuiDom| {
-        dom.node(div)
-            .ext()
-            .unwrap()
-            .presentation
-            .as_ref()
-            .and_then(|p| p.visibility)
+        let ext = dom.node(div).ext().unwrap();
+        ext.presentation
+            .is_some()
+            .then(|| ext.computed.as_ref().unwrap().visibility)
     };
     dom.cascade(&sheet(Visible));
     let mut reg = AnimationRegistry::new();

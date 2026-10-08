@@ -240,7 +240,7 @@ row comes from.
 |---|---|---|
 | C12-TIMING | `transition-timing-function` full (`linear()`, `steps()` positions), negative `transition-delay` | |
 | C12-BEHAVIOR | `transition-behavior: allow-discrete` | |
-| C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) | |
+| C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) || partial — `interpolate-size` / `calc-size()` (to and from `auto`) remain |
 | C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | |
 | C12-STARTING | `@starting-style` | |
 | C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | |
@@ -7577,3 +7577,34 @@ row comes from.
   `HAS-COST-1`); API N7's "consider" — moving `<select>`'s dropdown (`data-rdom-open`) into the top layer —
   is not taken in Phase 11 and is left to C12's form-control work. The DESIGN classification of public types is now checked mechanically (`design_types`).
   The fixes' re-review rides with the Phase 12 gate.
+- 2026-10-15 — C12-ANIMATABLE (1/2). Found (C10G-DETAILS-CONTENT-BOX): the transition engine wrote running
+  values into a sparse `PresentationStyle` that paint read field by field, so layout took a geometry
+  transition's end value at once. Fixed at the root, as browsers composite the effect stack onto the
+  computed value (CSS Transitions 1 §3, Web Animations 1 §5.4.5): each frame the running values are
+  composited onto the cascade's style and that composite *is* `TuiExt::computed` (`computed_before` /
+  `computed_after` for the pseudo-elements, the `::details-content` box's own), so layout, paint, hit-testing,
+  `getComputedStyle` and inheritance all read one style. The cascade's own style — the after-change style the
+  next change is diffed against — is kept beside it (`TuiExt::cascaded_for`); the cascade's write-back
+  re-applies the running values over a fresh style (`TuiExt::overlay`), so an unrelated restyle mid-run keeps
+  them and a change to another property applies at once. A running longhand that inherits or propagates
+  restyles the element's children (the same restyle registered custom properties use), so they inherit it.
+  Interpolation moved to rdom-style's new `animation` module: a table of every longhand of the dispatch table
+  with its spec "Animation type" (by computed value, repeatable list, shadow list, discrete, not animatable),
+  and per type the `Animate` rule — cells exactly and rounded half to even (DIVERGENCES §1), length +
+  percentage as `calc()` mixes (the old midpoint snap of every `calc()` pair is gone), Oklab colors, integers,
+  ratios through their logarithm, track lists item by item, shadow lists padded; a pair that does not
+  interpolate is not transitioned (Transitions 2 §2 leaves it to `allow-discrete`). Transitions run per
+  longhand, so events name longhands (`padding` → `padding-top` …), and `transition-property` names any
+  property (`TransitionProperty::Named(&'static str)`, shorthands expanded, flow-relative names by
+  `direction`, the last entry naming a property wins). Frames run on the app's clock when `App::advance`
+  drives it (wall clock otherwise), which made App-level transition tests deterministic; three
+  `registered_transition_tests` that slept on the wall clock now advance it. Red: `geometry_transition_tests`
+  — `a_height_transition_moves_the_box_frame_by_frame` (`left: 10, right: 2` — the end value at once),
+  width / padding / margin / inset / gap (`24` vs `17`), `::details-content` height (`4` vs `2`), inherited
+  color, idle cost; green after. `longhand_tests::every_longhand_drives_one_interpolation` drives one
+  interpolation per longhand from cascaded values (`rdom_style::animation::tests` checks the spec table over
+  `property_names()`). Mutation-checked: skipping the composite fails 8 tests, dropping the cascade overlay
+  fails `a_change_mid_transition_applies_to_the_other_properties`, dropping the children's restyle fails
+  `descendants_inherit_the_running_value`. Cost: no running transition, no frame; one running, one whole-tree
+  layout per frame (TECH_DEBT `ANIM-RELAYOUT-1`, no partial relayout exists), no cascade. `walk.rs` split
+  (`finish.rs`). Remaining: `interpolate-size` / `calc-size()` (part 2/2).

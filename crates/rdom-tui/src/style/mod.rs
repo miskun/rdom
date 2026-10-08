@@ -46,6 +46,10 @@ pub use dirty_tracker::DirtyTracker;
 // rdom-style extraction keeps working through these re-exports.
 // Internal rdom-tui code uses `rdom_style::X` directly for clarity.
 
+/// The animation types and interpolation of computed values
+/// (`animation::Longhand`, `animation::AnimationType`) — what a running
+/// transition composites onto a style.
+pub use rdom_style::animation;
 pub use rdom_style::color::{ColorScheme, ColorSchemeList, SystemColor};
 /// The counter styles (CSS Counter Styles 3): `@counter-style` rules
 /// (`counters::CounterStyleRule`, `counters::System`, …), the predefined
@@ -55,11 +59,11 @@ pub use rdom_style::counters;
 pub use rdom_style::counters::CounterStyleName;
 pub use rdom_style::transition;
 pub use rdom_style::{
-    AnimatableProperty, Color, ColorContext, ColorFunction, ComputedStyle, Content, ContentContext,
-    CounterOp, CounterStyle, CustomDeclaration, CustomValue, FontDeclarations, ImportantMask,
-    LayerId, Modifier, PropertyRegistration, PropertySyntax, PropertySyntaxError,
-    PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError, Rule, RuleContext,
-    RuleOrigin, Specificity, StyleError, StyleSelector, Stylesheet, TextDeclarations,
+    Color, ColorContext, ColorFunction, ComputedStyle, Content, ContentContext, CounterOp,
+    CounterStyle, CustomDeclaration, CustomValue, FontDeclarations, ImportantMask, LayerId,
+    Modifier, PropertyRegistration, PropertySyntax, PropertySyntaxError, PseudoElementTarget,
+    QuoteKind, QuotePair, Quotes, RegisterPropertyError, Rule, RuleContext, RuleOrigin,
+    Specificity, StyleError, StyleSelector, Stylesheet, TextDeclarations,
     TextDecorationDeclarations, TimingFunction, TransitionProperty, TransitionRule, TuiColor,
     TuiStyle, UserActionState, Value, VarMap, parse_color, resolve_tui_color,
 };

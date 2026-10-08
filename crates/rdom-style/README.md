@@ -59,7 +59,8 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 | `property_dispatch` | The **single** `name → (setter, serializer, mask, remover)` table. Both `rdom-css` (parser) and `rdom-tui`'s `StyleDeclaration` consume this — there is no parallel list to drift. |
 | `parse::Cursor` | Tokenizer + cursor used by `property_dispatch::set` and re-exported for `rdom-css`'s block parser. |
 | `layout::*` | `Display`, `Direction`, `WhiteSpace`, `Size`, `Padding`, `Border`, `Position`, `Length`, `ZIndex`, `Overflow`, `LayoutRect`, … |
-| `transition::*` | Animation type system — `AnimatableProperty`, `TimingFunction`, `TransitionProperty`, `TransitionRule`. |
+| `transition::*` | Transition declarations — `TimingFunction`, `TransitionProperty` (`all`, `none`, a property name, another ident), `TransitionRule`. |
+| `animation::*` | Each longhand's animation type (`AnimationType`, `Longhand`, `animation_type`), the longhands a `transition-property` name covers, and the interpolation of computed values a running transition composites onto a `ComputedStyle`. |
 
 ## Supported properties
 

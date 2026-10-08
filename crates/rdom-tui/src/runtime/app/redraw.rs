@@ -26,7 +26,7 @@ pub(crate) enum Redraw {
     /// hover and focus moves (their restyles are tracker roots), a
     /// mouse route's own work (`RouteOutcome::redraw_requested`
     /// without `cascade_requested`: wheel, scrollbar press, drag),
-    /// running transitions (they write `TuiExt::presentation`).
+    /// running transitions (they composite onto the computed styles).
     Layout,
     /// Cascade the whole tree, lay out and repaint: something the dirty
     /// tracker cannot see may have changed the cascade — the

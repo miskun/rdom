@@ -167,10 +167,10 @@ pub use text_decoration::{
     serialize_text_decoration_thickness,
 };
 pub use transition::{
-    TransitionShorthandRule, parse_animatable_property, parse_time_list, parse_time_ms,
-    parse_timing_function_at, parse_timing_function_keyword, parse_timing_function_list,
-    parse_transition_property_keyword, parse_transition_property_list, parse_transition_shorthand,
-    parse_transition_shorthand_single, unzip_transition_rules,
+    TransitionShorthandRule, parse_time_list, parse_time_ms, parse_timing_function_at,
+    parse_timing_function_keyword, parse_timing_function_list, parse_transition_property_keyword,
+    parse_transition_property_list, parse_transition_shorthand, parse_transition_shorthand_single,
+    unzip_transition_rules,
 };
 
 use crate::parse::token::Token;

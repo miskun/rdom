@@ -552,13 +552,13 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `transition-property` | Supported | `all` / `none` / names; unknown idents inert. | — | `TR` |
+| `transition-property` | Supported | `all` / `none` / any property name — a shorthand covers its longhands, a flow-relative name its physical twin by `direction`, the last entry naming a property wins; unknown idents inert. | — | `TR`, `rdom-style/src/animation` |
 | `transition-duration` | Supported | `<time>` list. | — | `TR::parse_time_ms` |
 | `transition-timing-function` | Partial | `linear` / `ease*` / `step-start` / `step-end` / `cubic-bezier()` / `steps()` with all positions; `linear(<stops>)` (Easing 2) rejected. | No | `TR` |
 | `transition-delay` | Partial | Negative delays rejected (Transitions 1 allows them: start part-way). | No | `TR::parse_time_ms` |
 | `transition` | Supported | Shorthand list. | — | `TR` |
 | `transition-behavior` | Missing | `allow-discrete`. | Yes | `TR` |
-| Animatable property set | Partial | `color`, `background-color`, `border-color`, `width`, `height`, `padding`, `gap` (both axes, C6-GAP), `top` / `right` / `bottom` / `left`, `z-index`, `visibility` (C6-VISIBILITY); not `opacity`, `margin`, `min-*` / `max-*`, `inset` as a name. | No | `TR::parse_animatable_property` |
+| Animatable property set | Partial | Every longhand of the dispatch table animates by its spec's animation type (by computed value, repeatable list, shadow list, discrete, not animatable — `rdom_style::animation`), per longhand, on elements, `::before` / `::after` and `::details-content`; the running value is the computed value layout, paint and inheritance read (C12-ANIMATABLE). Not to or from `auto` (`interpolate-size`, `calc-size()`). | Yes | `rdom-style/src/animation`, `rdom-tui/src/runtime/animation` |
 | `@keyframes` | Missing | — | Yes | `AT`, `TR` |
 | `animation` / `animation-name` / `-duration` / `-timing-function` / `-delay` / `-iteration-count` / `-direction` / `-fill-mode` / `-play-state` / `-composition` | Missing | — | Yes | `DISP`, `TR` |
 | `@starting-style` | Missing | Entry transitions. | Blanket | `AT`, `TR` |

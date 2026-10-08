@@ -18,7 +18,7 @@ pub struct TransitionRule {
     pub delay_ms: u32,
 }
 
-/// Which property a transition rule covers.
+/// Which property a transition rule covers (CSS Transitions 1 §2.1).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TransitionProperty {
     /// `transition-property: all` — every animatable property
@@ -26,53 +26,50 @@ pub enum TransitionProperty {
     All,
     /// `transition-property: none` — disables transitions.
     None,
-    /// A specific animatable property.
-    Named(AnimatableProperty),
-    /// Any other `<custom-ident>` — a non-animatable property
-    /// (`display`, `position`, …) or an unknown name. Valid CSS
-    /// (Transitions 1 §2.1); it never starts a transition because
-    /// discrete properties only transition under `transition-behavior:
-    /// allow-discrete` (Transitions 2), which rdom does not ship.
-    Discrete(String),
+    /// A property the dispatch table knows, by its canonical name
+    /// ([`property_names`](crate::property_dispatch::property_names)):
+    /// a longhand, a shorthand (its longhands transition) or a
+    /// flow-relative property (its physical twin's). A discrete or
+    /// not-animatable one starts no transition unless the
+    /// [`animation`](crate::animation) type allows it.
+    Named(&'static str),
+    /// Any other `<custom-ident>` — a custom property (`--x`, which
+    /// transitions when registered) or a name rdom does not know. Valid
+    /// CSS (Transitions 1 §2.1) and kept for its place in the list.
+    Other(String),
 }
 
-/// The set of `TuiStyle` properties a transition can animate.
-/// Discrete properties (display, position, content, …) aren't here:
-/// they never transition (CSS Transitions 1; `transition-behavior:
-/// allow-discrete` is Level 2 and not shipped), so `transition: all`
-/// covers exactly this set.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum AnimatableProperty {
-    /// `color` (= TuiStyle.fg)
-    Color,
-    /// `background-color`
-    BackgroundColor,
-    /// `border-color`
-    BorderColor,
-    /// `width`
-    Width,
-    /// `height`
-    Height,
-    /// `padding` (uniform — per-side longhands not yet exposed
-    /// as a transition target; spec-faithful for M3, can grow)
-    Padding,
-    /// `gap`
-    Gap,
-    /// `top`
-    Top,
-    /// `right`
-    Right,
-    /// `bottom`
-    Bottom,
-    /// `left`
-    Left,
-    /// `z-index`
-    ZIndex,
-    /// `visibility` (CSS Display 3 §4: discrete, but `visible` for the
-    /// whole of a transition with a `visible` end, CSS Transitions 1
-    /// §2.1's rule for `visibility`).
-    Visibility,
+impl TransitionProperty {
+    /// The entry naming `name`: [`Named`](Self::Named) for a property the
+    /// dispatch table knows (ASCII case-insensitive), else
+    /// [`Other`](Self::Other). `all` and `none` are their keywords.
+    pub fn named(name: &str) -> TransitionProperty {
+        if name.starts_with("--") {
+            return TransitionProperty::Other(name.to_string());
+        }
+        let lower = name.to_ascii_lowercase();
+        match lower.as_str() {
+            "all" => TransitionProperty::All,
+            "none" => TransitionProperty::None,
+            _ => match crate::property_dispatch::property_names()
+                .iter()
+                .find(|n| **n == lower)
+            {
+                Some(n) => TransitionProperty::Named(n),
+                None => TransitionProperty::Other(lower),
+            },
+        }
+    }
+
+    /// The name as written in the value (`all`, `none`, a property).
+    pub fn name(&self) -> &str {
+        match self {
+            TransitionProperty::All => "all",
+            TransitionProperty::None => "none",
+            TransitionProperty::Named(n) => n,
+            TransitionProperty::Other(n) => n,
+        }
+    }
 }
 
 /// Where a `steps()` easing jumps (CSS Easing 1 §2.3). `start` /

@@ -2,8 +2,8 @@
 //! `::after` run of text where the packer put it, an atomic one's box and
 //! content at its turn in its line, a floated one's box in its stacking
 //! context's float layer and a positioned one's on its positioned layer —
-//! each in its pseudo-element's style, a running transition's overrides
-//! included.
+//! each in its pseudo-element's style (which holds a running transition's
+//! values).
 
 use rdom_core::{Dom, NodeId};
 
@@ -11,11 +11,13 @@ use super::{FlowPlacement, anchor_href_for, paint_inline_layout};
 use crate::ext::{PseudoSlot, TuiExt};
 use crate::layout::LayoutRect;
 use crate::node::TuiNodeExt;
-use crate::render::paint_pass::text::{paint_text_from, pseudo_glyph_style, pseudo_style};
+use crate::render::paint_pass::text::{
+    glyph_style_from_computed, paint_text_from, style_from_computed,
+};
 use crate::render::{Buffer, Rect};
 
 /// Paint one generated-content run at its packed cell, in the style of
-/// its host's pseudo-element (transition overrides included) — without
+/// its host's pseudo-element (running transitions included) — without
 /// its background when it is the content of the pseudo-element's own box
 /// (`own_box`), which painted that — tagged with the host's enclosing
 /// `<a href>` link, if any; on a first formatted line (`first`, its
@@ -50,11 +52,12 @@ pub(super) fn paint_generated(
         .first_letter
         .and_then(|host| crate::render::inline::first_letter::effective(dom, host, computed));
     let computed = letter_style.as_ref().unwrap_or(computed);
-    let overrides = presentation_of(dom, generated.host, generated.slot.into());
+    // A box of its own painted its background under the glyphs once (CSS
+    // Backgrounds 3 §3.10). Running transitions' values are in the style.
     let style = if own_box {
-        pseudo_glyph_style(computed, overrides)
+        glyph_style_from_computed(computed)
     } else {
-        pseudo_style(computed, overrides)
+        style_from_computed(computed)
     };
     let x = origin_x + generated.x;
     let end = paint_text_from(buf, x, y, clip_left, right, &generated.text, style);
@@ -174,19 +177,4 @@ pub(in crate::render::paint_pass) fn paint_positioned_pseudo(
             viewport,
         );
     }
-}
-
-/// The in-flight transition overrides for one of `id`'s pseudo-element
-/// slots, borrowed; an empty set when the element has no ext.
-pub(super) fn presentation_of(
-    dom: &Dom<TuiExt>,
-    id: NodeId,
-    slot: crate::ext::StyleSlot,
-) -> &crate::ext::PresentationStyle {
-    static EMPTY: std::sync::LazyLock<crate::ext::PresentationStyle> =
-        std::sync::LazyLock::new(crate::ext::PresentationStyle::default);
-    dom.node(id)
-        .ext()
-        .and_then(|e| e.presentation_for(slot))
-        .unwrap_or(&EMPTY)
 }

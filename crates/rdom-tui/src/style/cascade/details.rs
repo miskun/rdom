@@ -84,11 +84,15 @@ pub(super) fn sync_content_box(dom: &mut Dom<TuiExt>, host: NodeId) {
                 note_content_box(dom, host, b);
                 b
             });
+            // The box's own transitions (it is diffed as an element) run
+            // over the slot's style.
+            let slot = crate::ext::StyleSlot::Host;
             if let Some(e) = dom.node_mut(b).ext_mut()
-                && !e.computed.as_ref().is_some_and(|c| Rc::ptr_eq(c, &style))
+                && !e.cascaded_for(slot).is_some_and(|c| Rc::ptr_eq(c, &style))
             {
                 e.layout_dirty = true;
-                e.computed = Some(style);
+                let overlaid = e.overlay(slot, &style).map(Rc::new);
+                e.set_cascaded(slot, style, overlaid);
             }
         }
     }

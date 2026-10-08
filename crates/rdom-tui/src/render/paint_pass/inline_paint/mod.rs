@@ -56,7 +56,6 @@ use text_overflow::Marking;
 
 pub(super) use caret::paint_caret_if_editable;
 pub(crate) use chrome::{ChromeText, InlineChromeFn};
-use generated::presentation_of;
 pub(in crate::render::paint_pass) use generated::{paint_floated_pseudo, paint_positioned_pseudo};
 
 /// `::before` + own text + `::after` paint for a non-IFC element.

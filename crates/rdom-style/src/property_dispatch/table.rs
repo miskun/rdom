@@ -427,3 +427,14 @@ pub fn inherits(name: &str) -> bool {
             | "scrollbar-color"
     )
 }
+
+/// Whether the property `outer` owns every storage field of `inner` (and
+/// `inner` owns one): `inner` is `outer` itself, one of its longhands, or
+/// a companion it writes. What expands a shorthand named by
+/// `transition-property` into the longhands it animates.
+pub(crate) fn covers(outer: &str, inner: &str) -> bool {
+    match (fields_of(outer), fields_of(inner)) {
+        (Some(o), Some(i)) => !i.is_empty() && i.iter().all(|f| o.contains(f)),
+        _ => false,
+    }
+}
