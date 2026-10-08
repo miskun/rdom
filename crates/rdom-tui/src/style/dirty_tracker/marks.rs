@@ -137,11 +137,16 @@ pub(super) fn mark_style_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id
 
 /// HTML §3.2.6.4: the text below a `dir=auto` element — or a `<bdi>`
 /// without a valid `dir` — decides its directionality, which `:dir()`
-/// reads (the UA's `[dir]:dir(rtl)` rules among them). Mark the auto
+/// reads (the UA's `[dir]:dir(rtl)` rules among them). Find the auto
 /// element whose contained text includes `from`'s: the nearest such
 /// inclusive ancestor, unless an element whose text does not count for
 /// its ancestors comes first — one with its own `ltr` / `rtl`, a
-/// `<script>`, `<style>` or `<textarea>`. O(depth), no allocation.
+/// `<script>`, `<style>` or `<textarea>` — and mark it only when its
+/// directionality is not the one it was last styled with
+/// (`TuiExt::auto_direction`, `style::dir_auto`): an edit that leaves the
+/// first strong character's direction restyles nothing. O(depth) plus
+/// the host's directionality (its text up to the first strong
+/// character), no allocation.
 pub(super) fn mark_auto_direction_host(
     dom: &mut Dom<TuiExt>,
     state: &mut DirtyState,
@@ -156,12 +161,19 @@ pub(super) fn mark_auto_direction_host(
         };
         let dir = node.get_attribute("dir");
         let is = |k: &str| dir.is_some_and(|d| d.eq_ignore_ascii_case(k));
-        let auto = is("auto") || (tag == "bdi" && !is("ltr") && !is("rtl"));
-        if auto {
-            mark_state_dirty(dom, state, id, Cause::State);
+        let stops = is("ltr") || is("rtl") || matches!(tag, "script" | "style" | "textarea");
+        if crate::style::dir_auto::is_auto_host(dom, id) {
+            let now = dom.directionality(id);
+            let known = dom
+                .node_mut(id)
+                .ext_mut()
+                .and_then(|e| e.auto_direction.replace(now));
+            if known != Some(now) {
+                mark_state_dirty(dom, state, id, Cause::State);
+            }
             return;
         }
-        if is("ltr") || is("rtl") || matches!(tag, "script" | "style" | "textarea") {
+        if stops {
             return;
         }
     }

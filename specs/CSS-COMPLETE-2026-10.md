@@ -7366,3 +7366,15 @@ row comes from.
   always → the `+` test (rewritten to one drain per change, since the dedupe alone also made the
   one-drain version linear). Existing expectation changed: `the_arguments_reads_fire` asserts reaches
   (`HasTriggers::siblings()` became `sibling_reach()`).
+- 2026-10-14 — C11G-DIR-AUTO-COST (architect N4). Found, by count: 100 appended rows (and clock ticks)
+  under `<main dir=auto>` restyled `main`'s subtree 100 times, though its first strong character never
+  moved — `mark_auto_direction_host` marked the host on every text or child-list change below it.
+  Decided — a host remembers the directionality it was last styled with (`TuiExt::auto_direction`, set by
+  the cascade's write-back for every `dir=auto` / valid-`dir`-less `<bdi>` element, `None` for others;
+  `style::dir_auto` holds the one "is an auto host" predicate the cascade and the tracker share) and the
+  tracker marks it only when `Dom::directionality` now differs, recording the new one. The check costs the
+  host's text up to its first strong character per change below it — what the restyle would have read
+  anyway — and no allocation. Red: `a_dir_auto_host_restyles_only_when_its_direction_flips` counted 100
+  restyles; green after (0, then one per flip ltr → rtl → ltr, none for an rtl → rtl edit). Mutations (each
+  alone, restored, touched): marking unconditionally → the count; no cascade baseline (the first edit sees
+  `None`) → the count (1).

@@ -727,3 +727,44 @@ fn a_subsequent_sibling_has_walk_is_deduplicated_within_a_drain() {
     assert!(probe::take() >= rows.len() as u64 - 1);
     assert!(tracker.take_roots().contains(&rows[0]));
 }
+
+/// C11G-DIR-AUTO-COST (architect N4): a `dir=auto` host's directionality
+/// is its first strong character (HTML §3.2.6.4) — an edit that leaves it
+/// where it was does not restyle the host's subtree; one that flips it
+/// does. 100 appended log rows under `<main dir=auto>` restyle `main`
+/// zero times; a Hebrew first row restyles it once.
+#[test]
+fn a_dir_auto_host_restyles_only_when_its_direction_flips() {
+    use crate::CascadeExt;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let main = dom.create_element("main");
+    dom.set_attribute(main, "dir", "auto").unwrap();
+    dom.append_child(root, main).unwrap();
+    let first = dom.create_element("p");
+    let first_text = dom.create_text_node("start");
+    dom.append_child(first, first_text).unwrap();
+    dom.append_child(main, first).unwrap();
+    dom.cascade(&crate::style::Stylesheet::new());
+    let tracker = DirtyTracker::install(&mut dom);
+    let mut restyles = 0;
+    for i in 0..100 {
+        let row = dom.create_element("p");
+        let t = dom.create_text_node(&format!("row {i}"));
+        dom.append_child(row, t).unwrap();
+        dom.append_child(main, row).unwrap();
+        dom.node_mut(first_text)
+            .set_node_value(&format!("tick {i}"))
+            .unwrap();
+        restyles += usize::from(tracker.take_roots().contains(&main));
+    }
+    assert_eq!(restyles, 0, "the direction stayed ltr");
+    dom.node_mut(first_text).set_node_value("שלום").unwrap();
+    assert!(tracker.take_roots().contains(&main), "ltr → rtl restyles");
+    dom.node_mut(first_text)
+        .set_node_value("שלום עולם")
+        .unwrap();
+    assert!(!tracker.take_roots().contains(&main), "still rtl");
+    dom.node_mut(first_text).set_node_value("hello").unwrap();
+    assert!(tracker.take_roots().contains(&main), "rtl → ltr restyles");
+}

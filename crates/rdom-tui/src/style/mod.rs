@@ -25,6 +25,7 @@
 //! the author's rules at both importances (Cascade 4 §6.1).
 
 pub mod cascade;
+pub(crate) mod dir_auto;
 pub mod dirty_tracker;
 pub(crate) mod doc_flags;
 pub(crate) mod has_triggers;

@@ -670,6 +670,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A `dir=auto` host restyles only when its direction flips** (HTML §3.2.6.4): every text edit or child-list change under one re-cascaded its whole subtree — a `<main dir=auto>` log restyled per row; the host now remembers the directionality it was styled with. (C11G-DIR-AUTO-COST)
 - **`:has()` invalidation walks only as many earlier siblings as a relation reaches**: one per leading `+`, all only with `~`, each run once per drain — toggling a class on 5000 rows under one `h2:has(+ p)` rule walked ~12.5M siblings; and the anchors a pass found survive a mid-pass mutation. (C11G-HAS-COST)
 - **A modal dialog or a popover hides the page under it** (HTML §15.3.3, CSS Backgrounds 3 §3.2): `Canvas` resolved to the terminal default, which painted nothing, and the initial background was the same value, so a dialog over text showed the page's glyphs in its padding; the initial is now `transparent`, and `dialog` takes HTML's `Canvas` / `CanvasText`. (C11G-CANVAS-FILL)
 - **Popover listeners cannot hang the App** (HTML §6.12, 2026 text): showing a popover while one shows or hides is refused, and every stack walk hides a slice fixed at its start plus one event-free pass; a removed popover hides the popovers nested above it, and per-popover state is dropped with it. (C11G-POPOVER-BOUND)

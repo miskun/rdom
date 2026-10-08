@@ -364,8 +364,10 @@ fn style_element<'a>(
     let computed = Rc::new(computed);
     let mut early = early;
     let before = early.before.take();
+    let auto_direction = crate::style::dir_auto::styled_direction(dom, id);
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.computed = Some(computed.clone());
+        ext.auto_direction = auto_direction;
         early.write(ext);
         ext.style_dirty = false;
         if layout_changed {

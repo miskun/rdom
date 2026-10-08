@@ -259,6 +259,10 @@ pub struct TuiExt {
     /// restyles it then (`style::has_triggers`). Sticky — a stale `true`
     /// costs one restyle, a stale `false` would lose one.
     pub(crate) has_anchor: bool,
+    /// For a `dir=auto` host (or a `<bdi>` without a valid `dir`), the
+    /// directionality its last cascade or invalidation saw
+    /// (`style::dir_auto`): a text edit restyles it only on a flip.
+    pub(crate) auto_direction: Option<rdom_core::Directionality>,
 
     // ── Inline layout (populated when this is an IFC block) ───────────
     /// Line-packed layout of inline content. `Some` for elements that
