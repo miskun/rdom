@@ -15,8 +15,8 @@
 //! - a nested at-rule goes to [`consume_nested_at_rule`]: `@layer`
 //!   holds declarations and rules for the parent's elements, in the
 //!   layer; `@scope` (`scope.rs`) takes its start relative to the
-//!   parent; `@media` holds declarations and rules for the parent's
-//!   elements under its condition (`conditional.rs`), and any other
+//!   parent; `@media` and `@supports` hold declarations and rules for the
+//!   parent's elements under their condition (`conditional.rs`), and any other
 //!   at-rule is reported and skipped.
 //!
 //! A nested rule whose prelude reaches `;` or the block's `}` before a
@@ -270,11 +270,12 @@ fn consume_nested_at_rule(
         crate::layer::consume_layer_rule(cursor, sheet, warnings, layer, at, &mut body);
         return;
     }
-    if name.eq_ignore_ascii_case("media") {
-        // CSS Conditional 3 §3, nested (CSS Nesting 1 §3.2): the block's
-        // declarations and rules are the parent rule's, under the query.
+    if crate::conditional::is_conditional(&name) {
+        // CSS Conditional 3 §3, §6, nested (CSS Nesting 1 §3.2): the
+        // block's declarations and rules are the parent rule's, under the
+        // condition.
         if let Some(ctx) =
-            crate::conditional::open_media_rule(cursor, sheet, warnings, block.ctx, at)
+            crate::conditional::open_conditional_rule(&name, cursor, sheet, warnings, block.ctx, at)
         {
             let inner = Block { ctx, ..block };
             consume_block_contents(cursor, sheet, warnings, inner, false);
@@ -343,9 +344,10 @@ pub(crate) fn consume_scope_body(
 
 /// The at-rules a style rule's block evaluates (CSS Nesting 1 §3.2).
 fn is_evaluated_nested_at_rule(name: &str) -> bool {
-    ["layer", "scope", "starting-style", "media"]
-        .iter()
-        .any(|n| name.eq_ignore_ascii_case(n))
+    crate::conditional::is_conditional(name)
+        || ["layer", "scope", "starting-style"]
+            .iter()
+            .any(|n| name.eq_ignore_ascii_case(n))
 }
 
 /// Does the block item at the start of `rest` parse as a declaration?

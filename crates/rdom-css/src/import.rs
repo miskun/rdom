@@ -8,10 +8,9 @@
 //! into the importing sheet at the import's position — before the
 //! importing sheet's own rules, as an import must lead the sheet —
 //! inside the `layer` / `layer(name)` layer if one is given, under the
-//! media list as an `@media` rule would put them. The `supports()` and
-//! media conditions are also recorded on the
-//! [`Import`](rdom_style::Import) record; until `@supports` lands
-//! (C14-SUPPORTS) the `supports()` one counts as true.
+//! `supports()` condition and the media list as `@supports` / `@media`
+//! rules would put them. Both conditions are also recorded as written on
+//! the [`Import`](rdom_style::Import) record.
 //!
 //! The loader resolves each URL against the importing sheet's URL
 //! ([`ImportLoader::load_from`]) and returns the sheet's resolved URL,
@@ -126,6 +125,20 @@ pub(crate) fn consume_import(
         warn(warnings, invalid(&prelude));
         return;
     };
+    // CSS Cascade 5 §3: `supports( [ <supports-condition> | <declaration> ] )`.
+    let supports = match parsed.supports.as_deref() {
+        None => None,
+        Some(text) => {
+            let parsed = rdom_style::conditional::SupportsCondition::parse(text).or_else(|| {
+                rdom_style::conditional::SupportsCondition::parse(&format!("({text})"))
+            });
+            if parsed.is_none() {
+                warn(warnings, invalid(&prelude));
+                return;
+            }
+            parsed
+        }
+    };
     let Some(imports) = imports else {
         warn(warnings, WarningKind::ImportIgnored(parsed.url));
         return;
@@ -168,6 +181,11 @@ pub(crate) fn consume_import(
     // CSS Cascade 5 §3: the imported rules apply while the media list
     // matches.
     let mut ctx = rdom_style::RuleContext::default().in_layer(into);
+    // `supports()` likewise (Conditional 3 §6, evaluated once): a
+    // `<supports-condition>` or a bare declaration (CSS Cascade 5 §3).
+    if let Some(cond) = supports {
+        ctx = crate::conditional::declare(sheet, ctx, rdom_style::ConditionKind::Supports(cond));
+    }
     if let Some(media) = &parsed.media {
         let queries = rdom_style::conditional::MediaList::parse(media);
         ctx = crate::conditional::declare(sheet, ctx, rdom_style::ConditionKind::Media(queries));

@@ -157,3 +157,84 @@ fn reads_viewport() {
     assert!(!MediaList::parse("(hover)").reads_viewport());
     assert!(!MediaList::parse("print").reads_viewport());
 }
+
+// ─── C14-SUPPORTS: feature queries (CSS Conditional 3 §6, 4 §6, 5 §5) ─
+
+fn holds(condition: &str) -> bool {
+    SupportsCondition::parse(condition)
+        .unwrap_or_else(|| panic!("{condition} parses"))
+        .matches()
+}
+
+/// Conditional 3 §6.1: a declaration is supported when the property is
+/// known and its parser takes the value — the real value parser.
+#[test]
+fn a_declaration_is_tested_with_the_value_parser() {
+    assert!(holds("(display: grid)"));
+    assert!(holds("(DISPLAY: Grid)"));
+    assert!(holds("(width: calc(50% - 2))"));
+    assert!(holds("(color: light-dark(red, blue))"));
+    assert!(
+        holds("(color: var(--x))"),
+        "a substitution is kept for the cascade"
+    );
+    assert!(holds("(color: inherit)"));
+    assert!(holds("(--anything: { weird [ } ] )"));
+    assert!(
+        holds("(color: red !important)"),
+        "`!important` is part of a declaration"
+    );
+    assert!(!holds("(display: frobnicate)"));
+    assert!(!holds("(frobnicate: 1)"));
+    assert!(!holds("(width: 10px)"), "no pixel geometry");
+    assert!(!holds("(color:)"));
+}
+
+/// §6: `not` / `and` / `or`, and `<general-enclosed>` unknown — false,
+/// and so is its `not`.
+#[test]
+fn supports_conditions_combine() {
+    assert!(holds("not (display: frobnicate)"));
+    assert!(holds("(display: grid) and (gap: 1)"));
+    assert!(!holds("(display: grid) and (gap: 1px)"));
+    assert!(holds("(display: frob) or (display: flex)"));
+    assert!(holds("((display: grid) or (x: y)) and (not (z: w))"));
+    assert!(!holds("unknown(1)"));
+    assert!(!holds("not unknown(1)"));
+    assert!(!holds("(display: grid) and unknown(1)"));
+    assert!(
+        SupportsCondition::parse("display: grid").is_none(),
+        "no parentheses"
+    );
+    assert!(SupportsCondition::parse("(a: b) and (c: d) or (e: f)").is_none());
+}
+
+/// Conditional 4 §6.1 `selector()`: one complex selector rdom parses;
+/// Conditional 5 §5: rdom draws no fonts.
+#[test]
+fn selector_and_font_functions() {
+    assert!(holds("selector(:has(> img))"));
+    assert!(holds("selector(a > b ~ c)"));
+    assert!(holds("selector(p::before)"));
+    assert!(holds("selector(:is(a, b))"));
+    assert!(!holds("selector(a, b)"), "a list is not a complex selector");
+    assert!(!holds("selector(:frobnicate)"));
+    assert!(!holds("font-tech(color-COLRv1)"));
+    assert!(!holds("font-format(woff2)"));
+    assert!(holds("not font-format(woff2)"));
+}
+
+/// Conditional 3 §7.1 `CSS.supports()`: the two-argument form takes a
+/// value (no `!important`); the one-argument form a condition, or a bare
+/// declaration.
+#[test]
+fn css_supports() {
+    assert!(supports("display", "grid"));
+    assert!(supports("--x", "1 2 3"));
+    assert!(!supports("display", "frob"));
+    assert!(!supports("color", "red !important"));
+    assert!(supports_condition("(display: grid) and selector(a)"));
+    assert!(supports_condition("display: grid"));
+    assert!(!supports_condition("display: frob"));
+    assert!(!supports_condition("nonsense"));
+}

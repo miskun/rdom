@@ -1,6 +1,7 @@
 //! The conditional rules' data model: `@media` (Media Queries 4 / 5),
 //! `@supports` (CSS Conditional 3 §6) and `@container` (CSS Conditional 5
-//! §6, the container queries of CSS Containment 3).
+//! §6, the container queries of CSS Containment 3); and `CSS.supports()`
+//! ([`supports`], [`supports_condition`]).
 //!
 //! The three share one boolean grammar — `not X`, `X and X …`,
 //! `X or X …` over parenthesized leaves, with `<general-enclosed>` for a
@@ -20,11 +21,13 @@
 mod media;
 mod media_env;
 mod media_feature;
+mod supports;
 mod syntax;
 
 pub use media::{MediaList, MediaQuery, MediaType};
 pub use media_env::{Contrast, MediaEnvironment, MediaPreferences, PointerAccuracy};
 pub use media_feature::MediaFeature;
+pub use supports::{SupportsCondition, SupportsFeature, supports, supports_condition};
 
 /// A three-valued truth (Kleene logic, Media Queries 4 §3.1): what a
 /// condition evaluates to when a leaf of it is unknown.

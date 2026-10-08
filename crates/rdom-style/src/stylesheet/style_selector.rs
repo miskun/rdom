@@ -54,6 +54,16 @@ impl StyleSelector {
         Self::parse_in(text, Mode::Nested(&parent.nesting_list()))
     }
 
+    /// How many selectors the list holds (`a, b::before` is two).
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    /// Whether the list is empty (a parsed one never is).
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     /// The list `&` stands for in a rule nested in this one: the items
     /// without a pseudo-element, which `&` cannot represent (CSS
     /// Nesting 1 §2).

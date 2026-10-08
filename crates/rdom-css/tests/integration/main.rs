@@ -27,5 +27,6 @@ mod scope;
 mod selectors;
 mod starting_style;
 mod strict;
+mod supports;
 mod tokenizer;
 mod transitions;

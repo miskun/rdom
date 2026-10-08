@@ -264,7 +264,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C14-MEDIA | `@media` (cell-sized viewport, `prefers-color-scheme`, `prefers-reduced-motion`, `hover` / `pointer`, …) and `matchMedia` | done |
-| C14-SUPPORTS | `@supports` (feature queries against the dispatch table; `CSS.supports`) | |
+| C14-SUPPORTS | `@supports` (feature queries against the dispatch table; `CSS.supports`) | done |
 | C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | |
 | C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | |
 
@@ -9084,3 +9084,23 @@ row comes from.
   six tests (the viewport-unit, flip, preference, `<style media>`, sheet-media and change-report ones). The
   reduced-motion test pins that an animation stops through CSS alone. CSS-COVERAGE: `@media` Supported (§3.21
   1 / 0 / 5 / 1, total 238 / 7 / 17 / 45). Silent change 26 gains `<style media>`. Item done.
+- 2026-10-09 — C14-SUPPORTS (CSS Conditional 3 §6–§7.1, Conditional 4 §6.1, Conditional 5 §5, CSS Cascade 5 §3).
+  rdom-style `conditional/supports.rs`: `SupportsCondition` over the shared `Condition<L>` grammar with
+  `SupportsFeature` leaves — `(<property>: <value>)` (the value cut out as written by the component-value
+  tree), `selector()`, `font-tech()`, `font-format()` — anything else `<general-enclosed>`, unknown. Decided:
+  evaluated once, in `SupportsCondition::parse` (what rdom supports never changes while it runs), so the cascade
+  only reads the stored result (`ConditionKind::Supports`); a declaration holds when it is a custom property or
+  `property_dispatch::set` — the real value parser — takes it (`!important` stripped: it is part of a
+  declaration; a `var()` value is kept for the cascade and so holds, as in a browser); `selector()` holds for
+  exactly one complex selector `StyleSelector::parse` accepts (pseudo-elements included; a list is not one —
+  `StyleSelector::len` added); the font functions are false (no fonts). `CSS.supports()` is two free functions,
+  `rdom_style::supports(property, value)` (a value with `!important` is not one, Conditional 3 §7.1) and
+  `supports_condition(text)` (a bare declaration retried parenthesized, as CSSOM does). rdom-css: `@media`'s
+  opener generalized to `open_conditional_rule(name, …)` with `is_conditional`; an invalid `@supports` prelude
+  drops the rule (`InvalidAtRulePrelude`, block skipped); `@import … supports(…)` takes a condition or a bare
+  declaration (Cascade 5 §3) and conditions the imported rules, an unparseable one drops the import. Red:
+  rdom-css `supports.rs` 4 of 4 and rdom-tui `css_phase14/supports.rs` 3 of 3 failed on HEAD (`@supports`
+  unsupported, the strict sheet rejected it); rdom-style's four supports unit tests were compile-red. Green
+  after. Mutation (restored, touched): the cascade ignoring the result → 2 integration tests; the declaration
+  test skipping the value parser → 3 unit tests, 1 integration and the import test. Silent change 26 now
+  "`@media` and `@supports` rules apply". CSS-COVERAGE §3.21 2 / 0 / 4 / 1, total 239 / 7 / 16 / 45.

@@ -137,16 +137,18 @@ These produce a `Warning` and the parse continues — matching browser
 behavior, so copy-pasting CSS from MDN doesn't blow up:
 
 - **At-rules other than `@import`, `@layer`, `@scope`, `@property`, `@counter-style`,
-  `@starting-style`, `@keyframes` and `@media`.** Every other at-rule (`@charset`, `@supports`, `@font-face`, …) is
+  `@starting-style`, `@keyframes`, `@media` and `@supports`.** Every other at-rule (`@charset`, `@font-face`, …) is
   consumed whole per CSS Syntax 3 §5.4.2 and reported with
   `WarningKind::UnsupportedAtRule(name)`; the rules around it are
   unaffected (`@import` loads through the host's `ImportLoader` with
   `parse_with_loader` / `parse_with_loader_at` — relative URLs resolved
-  by the loader against the importing sheet — its media list conditioning
-  the imported rules, its `supports()` recorded but not yet evaluated;
-  `@media` is parsed into the sheet's conditions, `Stylesheet::conditions`,
-  `Rule::condition` — at the top level, in `@layer` and nested in a style
-  rule — and evaluated by the backend's cascade;
+  by the loader against the importing sheet — its `supports()` and media
+  list conditioning the imported rules;
+  `@media` and `@supports` are parsed into the sheet's conditions,
+  `Stylesheet::conditions`, `Rule::condition` — at the top level, in
+  `@layer` and nested in a style rule — `@supports` evaluated as it is
+  parsed (`rdom_style::supports_condition` is `CSS.supports()`), `@media`
+  by the backend's cascade;
   `@property` registers a custom property, `Stylesheet::registered_properties`;
   `@counter-style` defines a counter style, `Stylesheet::counter_styles`
   (`WarningKind::InvalidCounterStyleRule` for a rule that defines nothing,
@@ -156,7 +158,7 @@ behavior, so copy-pasting CSS from MDN doesn't blow up:
   `Stylesheet::scopes`, `Rule::scope`; `@keyframes` into its keyframes,
   `Stylesheet::keyframes` — `WarningKind::InvalidKeyframeSelector` for a
   dropped keyframe block, `ImportantInKeyframe` for an ignored `!important`
-  declaration). The applicable ones (`@supports`, `@container`,
+  declaration). The applicable ones (`@container`,
   …) are scheduled for 0.6.0. `@layer` (statement and block forms,
   anonymous and nested layers) is parsed into the sheet's cascade layers;
   an invalid `@layer` prelude reports `WarningKind::InvalidAtRulePrelude`.
@@ -164,8 +166,8 @@ behavior, so copy-pasting CSS from MDN doesn't blow up:
   other absolute and font-relative units have no cell-grid meaning and
   are rejected; cells, `fr`, `%`, `ch`, `lh` / `rlh` and the viewport
   units (`vw`, `vh`, `vmin`, …, of the terminal) are supported.
-- **Nested `@supports` / `@container`** (inside a style rule) — with those
-  at-rules, in 0.6.0.
+- **Nested `@container`** (inside a style rule) — with that at-rule, in
+  0.6.0.
 
 ## Lenient vs. strict
 

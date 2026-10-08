@@ -111,6 +111,18 @@ impl<'a> Prelude<'a> {
         &self.text[self.tokens.spans[a].start..self.tokens.spans[b].end]
     }
 
+    /// The source text of `values`, as written (empty for none).
+    pub(crate) fn text_of_all(&self, values: &[Cv]) -> &'a str {
+        match (values.first(), values.last()) {
+            (Some(first), Some(last)) => {
+                let a = first.range().0;
+                let b = last.range().1;
+                &self.text[self.tokens.spans[a].start..self.tokens.spans[b].end]
+            }
+            _ => "",
+        }
+    }
+
     /// Whether token `i + 1` follows token `i` with nothing between.
     pub(crate) fn adjacent(&self, i: usize) -> bool {
         self.tokens

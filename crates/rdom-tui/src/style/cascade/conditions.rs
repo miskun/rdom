@@ -1,6 +1,7 @@
 //! The conditional group rules of one sheet set, evaluated (CSS
 //! Conditional 3 §2): which `@media` rules hold in the document's media
-//! environment.
+//! environment, and which `@supports` rules hold (each evaluated once,
+//! when parsed).
 //!
 //! The results are computed once per environment and kept on the sheet
 //! set (`SheetFacts`): a cascade under the same viewport, scheme and
@@ -68,6 +69,8 @@ impl ConditionResults {
 fn own(kind: &ConditionKind, env: &MediaEnvironment) -> bool {
     match kind {
         ConditionKind::Media(queries) => queries.matches(env),
+        // Evaluated when parsed: what rdom supports does not change.
+        ConditionKind::Supports(condition) => condition.matches(),
         // `ConditionKind` is open: a kind this cascade does not know
         // holds nothing, rather than applying rules it cannot test.
         #[allow(unreachable_patterns)]

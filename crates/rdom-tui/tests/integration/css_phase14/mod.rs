@@ -9,6 +9,7 @@ use rdom_tui::render::{Buffer, Rect};
 use rdom_tui::{CascadeExt, Color, LayoutExt, NodeId, PaintExt, TuiDom, TuiNodeExt, Viewport};
 
 mod media;
+mod supports;
 
 /// A document holding `markup` under its root.
 pub(crate) fn doc(markup: &str) -> TuiDom {
