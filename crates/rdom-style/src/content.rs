@@ -58,9 +58,10 @@ pub enum Content {
     Normal,
 }
 
-/// The four `<quote>` keywords (CSS Generated Content 3 §2.2).
+/// The four `<quote>` keywords (CSS Generated Content 3 §2.2). Closed
+/// (DESIGN): each moves the quote depth its own way, which the cascade
+/// must apply.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 pub enum QuoteKind {
     /// `open-quote`: the opening mark of the current depth, then the
     /// depth rises by one.

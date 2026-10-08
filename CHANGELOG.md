@@ -392,6 +392,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **`flex: <n>` takes a basis of `0%`, as every engine does** (CSS Flexbox §7.2 / §7.3.3): an `auto`-height column of `flex: 1` items sizes them by content, and `flex: 1` serializes as `1 1 0%`. (C6G-FLEX-BASIS-ZERO)
 - `GridTemplate` stays `#[non_exhaustive]`, and every rdom-style read of it is an exhaustive match (`clippy::wildcard_enum_match_arm` denied), so a new value fails to compile where its layout answer is decided; DESIGN classifies every Phase 7 public type. (C7G-DESIGN-TYPES)
 
+- **The list values and `QuoteKind` are closed** (DESIGN, "Which public types are `#[non_exhaustive]`"): `ListStyleType`, `ListStyleImage`, `ListStylePosition`, `MarkerSide` and `QuoteKind` — all new since 0.5 — are no longer `#[non_exhaustive]`, so a consumer matches them without a wildcard arm, and a new member would be a breaking change that every renderer must handle. Each grammar is fixed by its spec: new counter styles and image forms land inside `ListStyleType::Style` and `ListStyleImage::Image`. (C10G-DESIGN-TYPES)
 
 ### Fixed — `rdom-style`
 

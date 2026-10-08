@@ -6787,3 +6787,23 @@ row comes from.
   `@counter-style` rule types (`System`, `CounterStyleRule`, …) stay off the root (generic names) and are reached
   as `rdom_tui::style::counters::…` (rdom-style's module, re-exported beside `style::parse`), so
   `CounterStyle::symbols(System::Cyclic, …)` works with `rdom-tui` alone; the hint builds one. No existing expectation changed.
+- 2026-10-13 — C10G-DESIGN-TYPES (API B2; the architect's DESIGN item). DESIGN listed `Content` as closed, but
+  it is `#[non_exhaustive]` (C10-CONTENT), and it classified none of Phase 10's ~20 new public types. Every type
+  is now decided. Open (`#[non_exhaustive]`): `Content` (Generated Content 3 / GCPM keep adding items; resolution
+  lives in rdom-style, `Content::resolve`, where an unknown item resolves to nothing), `Quotes` (read through
+  `pair()`; a WD grammar that already grew `match-parent`), the `@counter-style` descriptors (`CounterStyleRule`,
+  `System`, `CounterRange`, `SpeakAs`, `CounterStyleDefinition`: an invalid descriptor is ignored, and formatting
+  falls back to `decimal` inside rdom-style), `CounterOp` (grew `reversed()`; applied by the cascade),
+  `HighlightType` (changes nothing painted) and `PseudoElementTarget`'s new variants. Options bag: `Highlight`.
+  Closed: `ListStyleType`, `ListStyleImage`, `ListStylePosition`, `MarkerSide`, `QuoteKind`, `QuotePair`. Sealed
+  by private fields: `CounterStyleName`, `CounterStyleRegistry`, `UserActionState`, and `HighlightRegistry` (with
+  batch A's `generation()`); `Predefined` is a field-less handle. Crate-private: `ContentBoxLink`. Batch A/B's
+  `PseudoStyles` was already classified; its new marker fields and the `BeforeMarker` / `AfterMarker` slots are
+  noted there. Decision: closed means dropping `#[non_exhaustive]` from `ListStylePosition` and `MarkerSide`
+  (placements layout must make, as `TextAlign` / `Float`), from `QuoteKind` (four keywords, each moving the depth
+  its own way), and also from `ListStyleType` and `ListStyleImage`, whose grammars are fixed (`<counter-style> |
+  <string> | none`, `<image> | none`) and whose growth lands inside a variant's payload. No spec reason was found
+  for any of the five to grow. All five are new since 0.5, so relaxing them breaks nothing. Red:
+  `css_phase10/list_item.rs::marker_and_quote_values_are_closed` (an exhaustive match outside rdom-style) failed
+  to compile with 4 × E0004 (`_` not covered); green after. No wildcard arm in the workspace became unreachable
+  (clippy clean). No existing expectation changed.

@@ -462,3 +462,35 @@ fn the_type_attribute_sets_the_list_style_type() {
     let got = first_marker("ol", Some("a"), None, "ol { list-style-type: decimal }");
     assert_eq!(got.as_deref(), Some("1. "), "an author rule beats the hint");
 }
+
+/// C10G-DESIGN-TYPES — DESIGN's `#[non_exhaustive]` rule: the marker's
+/// placements (`list-style-position`, CSS Lists 3 §3.5: `inside` |
+/// `outside`; `marker-side`, §3.6: `match-self` | `match-parent`), the
+/// marker's text (`list-style-type`, §3.4: `<counter-style>` | `<string>`
+/// | `none`) and the four `<quote>` keywords (CSS Generated Content 3
+/// §2.2) are closed data a renderer must handle whole, so a consumer
+/// outside rdom-style matches them with no wildcard arm.
+#[test]
+fn marker_and_quote_values_are_closed() {
+    use rdom_tui::{CounterStyle, ListStylePosition, ListStyleType, MarkerSide, QuoteKind};
+    let hangs = |p: ListStylePosition| match p {
+        ListStylePosition::Outside => true,
+        ListStylePosition::Inside => false,
+    };
+    let own_direction = |s: MarkerSide| match s {
+        MarkerSide::MatchSelf => true,
+        MarkerSide::MatchParent => false,
+    };
+    let has_text = |t: &ListStyleType| match t {
+        ListStyleType::None => false,
+        ListStyleType::Style(_) | ListStyleType::String(_) => true,
+    };
+    let opens = |q: QuoteKind| match q {
+        QuoteKind::Open | QuoteKind::NoOpen => true,
+        QuoteKind::Close | QuoteKind::NoClose => false,
+    };
+    assert!(hangs(ListStylePosition::default()));
+    assert!(own_direction(MarkerSide::default()));
+    assert!(has_text(&ListStyleType::Style(CounterStyle::disc())));
+    assert!(opens(QuoteKind::Open));
+}
