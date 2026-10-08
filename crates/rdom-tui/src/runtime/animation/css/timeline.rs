@@ -104,6 +104,22 @@ impl ProgressTimeline {
         }
     }
 
+    /// Where the point `fraction` of the timeline range `name` falls in
+    /// the attachment range `[start, end]` (Scroll-driven Animations 1
+    /// §4.4) — `None` on a scroll timeline, which has no named ranges.
+    pub(super) fn place(
+        &self,
+        name: TimelineRangeName,
+        fraction: f64,
+        (start, end): (&RangeBoundary, &RangeBoundary),
+    ) -> Option<f64> {
+        let view = self.view?;
+        let (a, z) = view.range(name);
+        let point = a + fraction * (z - a);
+        let (r0, r1) = (self.boundary(start, false), self.boundary(end, true));
+        (r1 > r0).then(|| (point - r0) / (r1 - r0))
+    }
+
     /// Where the scroll offset stands in the attachment range
     /// `[start, end]` (§4.3): 0 at its start, 1 at its end, outside
     /// before and after it.

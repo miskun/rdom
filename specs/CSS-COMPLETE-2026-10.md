@@ -243,7 +243,7 @@ row comes from.
 | C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) || done |
 | C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | done |
 | C12-STARTING | `@starting-style` || done |
-| C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | partial — keyframe selectors naming a timeline range (3/3) |
+| C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | done |
 | C12-OUTLINE | `outline` / `-color` / `-style` / `-width` / `-offset` (non-layout ring) | |
 | C12-CURSOR | `cursor` (OSC 22 pointer shapes) | |
 | C12-CARET | `caret-shape` / `caret-animation` / `caret` | |
@@ -7810,3 +7810,15 @@ row comes from.
   dropping the end-boundary rule fails `a_scroll_timeline_follows_the_scroll_offset`. `css/mod.rs` (585
   lines) split: the registry side — matching, retiming, building effects, stepping — to `css/update.rs`.
   Remaining (3/3): keyframe selectors naming a timeline range (§4.4).
+- 2026-10-16 — C12-SCROLL-DRIVEN (3/3) done: keyframe selectors naming a timeline range
+  (Scroll-driven Animations 1 §4.4). `KeyframeSelector` gains its range (`in_range(name, fraction)`,
+  any finite fraction; `range()`), rdom-css reads `<timeline-range-name> <percentage>` (a negative one
+  too), and `KeyframesRule::resolve` keeps one keyframe per (range, offset). A longhand with such a
+  keyframe keeps its keyframes unplaced in `KeyframeEffect`; each sample places them in the
+  animation's attachment range through its progress timeline (`ProgressTimeline::place`: the range's
+  point against `[range-start, range-end]`, outside [0, 1] allowed), drops them on a timeline without
+  named ranges, and adds the implicit 0% / 100% keyframes only where no keyframe reaches them; the
+  interval search reads the last keyframe's offset rather than 1. Red: rdom-css
+  `keyframe_selectors_may_name_a_timeline_range` (no `KeyframeSelector::range`; the selectors were
+  invalid), `scroll_timeline_tests::keyframes_can_sit_on_a_named_range` (the sheet warned on them);
+  green after. Mutation-checked: placing nothing fails the engine test. Item done.

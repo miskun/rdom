@@ -93,6 +93,7 @@ impl AnimationRegistry {
                         dirty: true,
                         local: None,
                         fraction: None,
+                        progress_timeline: None,
                     };
                     anim.effect = Rc::new(build_effect(dom, inputs, (id, slot), &anim, style));
                     started.push(anim);

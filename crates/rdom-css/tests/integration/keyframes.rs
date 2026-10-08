@@ -138,3 +138,29 @@ fn keyframes_keep_their_easing_and_composition() {
         Some(rdom_style::keyframes::AnimationComposition::Add)
     );
 }
+
+/// Scroll-driven Animations 1 §4.4: a keyframe selector may name a
+/// timeline range and a percentage of it (`entry 20%`), any percentage —
+/// the point it names may fall outside the animation's range.
+#[test]
+fn keyframe_selectors_may_name_a_timeline_range() {
+    use rdom_style::keyframes::TimelineRangeName;
+    let r = parse("@keyframes a { entry 0%, exit 120% { color: red } cover 50% { color: blue } }");
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    let rule = &r.stylesheet.keyframes()[0];
+    let sel: Vec<(Option<TimelineRangeName>, f32)> = rule
+        .keyframes
+        .iter()
+        .flat_map(|k| k.selectors.iter().map(|s| (s.range(), s.offset())))
+        .collect();
+    assert_eq!(
+        sel,
+        [
+            (Some(TimelineRangeName::Entry), 0.0),
+            (Some(TimelineRangeName::Exit), 1.2),
+            (Some(TimelineRangeName::Cover), 0.5)
+        ]
+    );
+    let bad = parse("@keyframes a { sideways 10% { color: red } entry { color: red } }");
+    assert_eq!(bad.warnings.len(), 2, "{:?}", bad.warnings);
+}

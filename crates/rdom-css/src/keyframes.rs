@@ -6,7 +6,8 @@
 //! name is a `<custom-ident>` (not `none`, a CSS-wide keyword or
 //! `default`) or a `<string>`; an invalid one drops the rule
 //! (`WarningKind::InvalidAtRulePrelude`). Each keyframe block is a
-//! `<keyframe-selector>#` — `from`, `to`, percentages in [0%, 100%] —
+//! `<keyframe-selector>#` — `from`, `to`, percentages in [0%, 100%], a
+//! timeline range name and a percentage (Scroll-driven Animations 1 §4.4) —
 //! and a declaration list: a block with an invalid selector is ignored
 //! (`WarningKind::InvalidKeyframeSelector`), and an `!important`
 //! declaration in a block is ignored
@@ -14,7 +15,7 @@
 //! are all kept; they cascade when the rule is resolved
 //! (`KeyframesRule::resolve`).
 
-use rdom_style::keyframes::{Keyframe, KeyframeSelector, KeyframesRule};
+use rdom_style::keyframes::{Keyframe, KeyframeSelector, KeyframesRule, TimelineRangeName};
 use rdom_style::parse::Cursor;
 use rdom_style::parse::token::{Token, tokenize};
 use rdom_style::{LayerId, Stylesheet, TuiStyle};
@@ -134,6 +135,18 @@ fn selectors(prelude: &str) -> Option<Vec<KeyframeSelector>> {
             [Token::Ident(s)] if s.eq_ignore_ascii_case("from") => KeyframeSelector::at(0.0),
             [Token::Ident(s)] if s.eq_ignore_ascii_case("to") => KeyframeSelector::at(1.0),
             [Token::Percentage(p)] => KeyframeSelector::at((*p / 100.0) as f32),
+            // Scroll-driven Animations 1 §4.4: `<timeline-range-name>
+            // <percentage>`.
+            [Token::Ident(name), Token::Percentage(p)] => KeyframeSelector::in_range(
+                TimelineRangeName::from_keyword(name)?,
+                (*p / 100.0) as f32,
+            ),
+            [Token::Ident(name), Token::Delim('-'), Token::Percentage(p)] => {
+                KeyframeSelector::in_range(
+                    TimelineRangeName::from_keyword(name)?,
+                    (-*p / 100.0) as f32,
+                )
+            }
             _ => None,
         })
         .collect::<Option<Vec<_>>>()?;

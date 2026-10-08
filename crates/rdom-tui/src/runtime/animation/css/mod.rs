@@ -107,9 +107,11 @@ pub(crate) struct CssAnimation {
     composited: Option<f64>,
     dirty: bool,
     /// The last frame's local time (ms) and, on a progress timeline,
-    /// where the scroll offset stood in its attachment range.
+    /// where the scroll offset stood in its attachment range, and the
+    /// timeline itself (it places keyframes on its named ranges).
     local: Option<f64>,
     fraction: Option<f64>,
+    progress_timeline: Option<timeline::ProgressTimeline>,
 }
 
 /// The values of an element style's `animation-*` lists at entry `i`
@@ -180,17 +182,20 @@ impl CssAnimation {
         let (timing, span) = match resolved {
             timeline::Resolved::Inactive => {
                 self.fraction = None;
+                self.progress_timeline = None;
                 return None;
             }
             timeline::Resolved::Document => {
                 self.fraction = None;
+                self.progress_timeline = None;
                 let t = self.hold.unwrap_or_else(|| {
                     now.saturating_duration_since(self.start).as_secs_f64() * 1000.0
                 });
                 return Some((t, self.timing, false));
             }
-            timeline::Resolved::Progress(ref tl) => {
+            timeline::Resolved::Progress(tl) => {
                 self.fraction = Some(tl.fraction(&self.range.0, &self.range.1));
+                self.progress_timeline = Some(tl);
                 self.progress_timing()
             }
         };
@@ -263,7 +268,13 @@ impl CssAnimation {
             return Vec::new();
         };
         let underlying = out.clone();
-        self.effect.apply(progress, self.scheme, &underlying, out);
+        let place = |name, fraction| {
+            self.progress_timeline
+                .as_ref()?
+                .place(name, fraction, (&self.range.0, &self.range.1))
+        };
+        self.effect
+            .apply(progress, self.scheme, &underlying, out, Some(&place));
         self.effect.longhands().collect()
     }
 

@@ -513,6 +513,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-css`
 
+- **Keyframe selectors on a timeline range** (Scroll-driven Animations 1 §4.4): `entry 20%`, `exit -10%` (`KeyframeSelector::in_range`, `range()`), placed on a view timeline's range each frame, ignored on any other timeline. (C12-SCROLL-DRIVEN)
 - **`@keyframes`** (CSS Animations 1 §3): parsed into `Stylesheet::keyframes` with its layer; a block with an invalid selector is dropped (`WarningKind::InvalidKeyframeSelector`), an `!important` declaration in a keyframe ignored (`ImportantInKeyframe`). (C12-KEYFRAMES)
 - **`@starting-style`** (CSS Transitions 2 §3): parsed at the top level and nested in a style rule (CSS Nesting 1 §3.2); a prelude is invalid. (C12-STARTING)
 - **`@counter-style`** (CSS Counter Styles 3 §3): every descriptor, top-level and in `@layer`; a rule whose name cannot name a counter style (`none`, `decimal`, `disc`, `square`, `circle`, `disclosure-*`, a CSS-wide keyword) or whose symbols do not suit its system defines nothing, and an invalid descriptor is dropped — both reported as the new `WarningKind::InvalidCounterStyleRule { name, reason }`. (C10-COUNTER-STYLE)

@@ -52,26 +52,46 @@ pub struct Keyframe {
     pub style: TuiStyle,
 }
 
-/// One `<keyframe-selector>`: `from` (0%), `to` (100%) or a percentage.
+/// One `<keyframe-selector>`: `from` (0%), `to` (100%), a percentage, or
+/// a timeline range name and a percentage of it (Scroll-driven
+/// Animations 1 §4.4).
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub struct KeyframeSelector {
-    /// The offset in `[0, 1]`.
+    /// The offset: in `[0, 1]` of the animation, or — with `range` — any
+    /// fraction of that range.
     offset: f32,
+    range: Option<TimelineRangeName>,
 }
 
 impl KeyframeSelector {
     /// The selector at `offset`, a fraction in `[0, 1]`; `None` outside
     /// it (§3: a keyframe selector outside 0%–100% is invalid).
     pub fn at(offset: f32) -> Option<KeyframeSelector> {
-        (0.0..=1.0)
-            .contains(&offset)
-            .then_some(KeyframeSelector { offset })
+        (0.0..=1.0).contains(&offset).then_some(KeyframeSelector {
+            offset,
+            range: None,
+        })
     }
 
-    /// Its offset in `[0, 1]`.
+    /// The selector at `offset` (a fraction, any finite one) of the
+    /// timeline range `range` (`entry 20%`, Scroll-driven Animations 1
+    /// §4.4): it may fall outside the animation's own range.
+    pub fn in_range(range: TimelineRangeName, offset: f32) -> Option<KeyframeSelector> {
+        offset.is_finite().then_some(KeyframeSelector {
+            offset,
+            range: Some(range),
+        })
+    }
+
+    /// Its offset: of the animation, or of [`range`](Self::range).
     pub fn offset(&self) -> f32 {
         self.offset
+    }
+
+    /// The timeline range its offset is in, if it names one.
+    pub fn range(&self) -> Option<TimelineRangeName> {
+        self.range
     }
 }
 
@@ -105,8 +125,10 @@ impl Keyframe {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct ResolvedKeyframe<'a> {
-    /// The offset in `[0, 1]`.
+    /// The offset: in `[0, 1]` of the animation, or of `range`.
     pub offset: f32,
+    /// The timeline range the offset is in, if the selector names one.
+    pub range: Option<TimelineRangeName>,
     /// The blocks whose selectors name this offset, in source order: they
     /// cascade, a later block's declaration winning (§3).
     pub blocks: Vec<&'a Keyframe>,
@@ -157,7 +179,10 @@ impl KeyframesRule {
         let mut out: Vec<ResolvedKeyframe<'_>> = Vec::new();
         for k in &self.keyframes {
             for s in &k.selectors {
-                match out.iter_mut().find(|r| r.offset == s.offset) {
+                match out
+                    .iter_mut()
+                    .find(|r| r.offset == s.offset && r.range == s.range)
+                {
                     Some(r) => {
                         if !r.blocks.iter().any(|b| std::ptr::eq(*b, k)) {
                             r.blocks.push(k);
@@ -165,6 +190,7 @@ impl KeyframesRule {
                     }
                     None => out.push(ResolvedKeyframe {
                         offset: s.offset,
+                        range: s.range,
                         blocks: vec![k],
                     }),
                 }

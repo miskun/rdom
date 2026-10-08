@@ -308,3 +308,54 @@ fn the_first_frame_shows_a_timeline_its_layout_made() {
     app.advance(0).unwrap();
     assert_eq!(width(&app, bar), 0, "the timeline's 0%, in the first frame");
 }
+
+/// Scroll-driven Animations 1 §4.4: a keyframe at `contain 0%` / `contain
+/// 100%` sits where that range starts and ends within the animation's
+/// range (`cover`, offsets 4 to 9: `contain` is 5 to 8, so 20% and 80%),
+/// and the implicit 0% / 100% keyframes hold the element's own width.
+/// On a scroll timeline, which has no named ranges, such keyframes are
+/// ignored.
+#[test]
+fn keyframes_can_sit_on_a_named_range() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let s = dom.create_element("div");
+    dom.set_attribute(s, "id", "s").unwrap();
+    let mut subject = None;
+    for i in 0..20 {
+        let p = dom.create_element("p");
+        if i == 8 {
+            dom.set_attribute(p, "id", "subject").unwrap();
+            subject = Some(p);
+        }
+        let t = dom.create_text_node("x");
+        dom.append_child(p, t).unwrap();
+        dom.append_child(s, p).unwrap();
+    }
+    let subject = subject.unwrap();
+    dom.append_child(root, s).unwrap();
+    let sheet = rdom_css::parse(
+        "@keyframes w { contain 0% { width: 0 } contain 100% { width: 6 } } \
+         #s { height: 4; overflow: auto } p { margin: 0; height: 1 } \
+         #subject { width: 3; animation: w linear; animation-timeline: view() }",
+    );
+    assert!(sheet.warnings.is_empty(), "{:?}", sheet.warnings);
+    let terminal = Terminal::new(TestBackend::new(30, 10)).unwrap();
+    let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
+    app.push_stylesheet(sheet.stylesheet);
+    app.advance(0).unwrap();
+    let w = |app: &App<TestBackend>| app.dom().node(subject).ext().unwrap().layout.width;
+    scroll_top(&mut app, s, 4);
+    assert_eq!(w(&app), 3, "cover 0%: the implicit keyframe, its own width");
+    scroll_top(&mut app, s, 6);
+    assert_eq!(w(&app), 2, "a third into contain");
+    scroll_top(&mut app, s, 7);
+    assert_eq!(w(&app), 4, "two thirds into contain");
+
+    let (mut app, s, bar) = scroller(&format!(
+        "{FILL} @keyframes r {{ entry 0% {{ width: 0 }} to {{ width: 18 }} }} \
+         #bar {{ width: 0; animation: r linear; animation-timeline: scroll() }}"
+    ));
+    scroll_top(&mut app, s, 3);
+    assert_eq!(width(&app, bar), 6, "the range keyframe ignored: 0 → 18");
+}
