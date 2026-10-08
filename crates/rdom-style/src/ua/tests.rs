@@ -52,7 +52,10 @@ fn ua_total_rule_count() {
     // (C10-LIST-ITEM, -3).
     // 175: the same `white-space: pre` for `::before::marker` and
     // `::after::marker` (C10G-PSEUDO-MARKER, +2).
-    assert_eq!(ua.len(), 175);
+    // 178: the `dir` rules written as HTML §15.3.5 does, with `:dir()` —
+    // `[dir]:dir(ltr), bdi:dir(ltr), input[type=tel i]:dir(ltr)` and
+    // `[dir]:dir(rtl), bdi:dir(rtl)` (C11-LINK-LANG, +3).
+    assert_eq!(ua.len(), 178);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")

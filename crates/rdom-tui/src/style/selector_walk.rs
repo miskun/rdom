@@ -51,6 +51,7 @@ pub(crate) fn argument(simple: &SimpleSelector) -> Result<Option<&SelectorList>,
         | SimpleSelector::Id(_)
         | SimpleSelector::Class(_)
         | SimpleSelector::Attribute { .. }
+        | SimpleSelector::Lang(_)
         | SimpleSelector::Pseudo(_) => Ok(None),
         other => {
             debug_assert!(false, "selector_walk: unknown simple selector {other:?}");

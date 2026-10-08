@@ -231,7 +231,7 @@ row comes from.
 | C11-SCOPE | `:scope` (query APIs and `@scope`) | |
 | C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | |
 | C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | |
-| C11-LINK-LANG | `:link` / `:any-link`, `:lang()` | |
+| C11-LINK-LANG | `:link` / `:any-link`, `:lang()` | done (with `:dir()`, deferred here by C5-WRITING, and `:visited` never matching) |
 | C11-COLUMN | Column combinator `\|\|` (with the table phase) | |
 
 ### Phase 12 — Transitions, animations, user interface (audit §3.18, §3.19)
@@ -6949,3 +6949,33 @@ row comes from.
   `nth_of_s_reads_what_s_reads` and `css_phase11/nth.rs::a_sibling_matching_of_s_or_not_restyles_the_others`.
   The counting test's bound counts child nodes (the list interleaves text nodes): 4002 steps for 2000
   elements on first run, bound set to 3N. No existing expectation or snapshot changed.
+- 2026-10-14 — C11-LINK-LANG (with `:dir()`, deferred here by C5-WRITING). `:any-link` / `:link` (Selectors 4
+  §8.1–§8.2) match `a` / `area` with `href` (HTML §4.16.3); `:visited` parses and never matches — rdom keeps
+  no history (DIVERGENCES §1) — so `a:link, a:visited` keeps its `:link` half instead of dropping the rule.
+  `:lang()` (§7.2; `SimpleSelector::Lang(Vec<String>)`) takes `<ident>` / `<string>` ranges (a bare `*` must
+  be escaped or quoted) and matches by RFC 4647 §3.3.2 extended filtering, ASCII case-insensitively, against
+  the new `Dom::language(id)` (HTML §3.2.6.2: the nearest `xml:lang` / `lang`, `Some("")` when empty) — the
+  lookup `quotes: auto` now shares. Decided — an unknown language (empty or absent) is matched by the empty
+  range only, never by `*`. `:dir()` (§7.1; `PseudoClass::Dir(Option<Directionality>)`, another argument
+  valid and matching nothing) matches the new `Dom::directionality(id)` (`directionality.rs`, HTML §3.2.6.4:
+  `dir` `ltr` / `rtl`, `auto` and a `<bdi>` without a valid `dir` by the first strong character of the
+  value or contained text — skipping `<bdi>`, `<script>`, `<style>`, `<textarea>` and elements with a valid
+  `dir` — `ltr` without one; `<input type=tel>` `ltr`; else the parent's; the root `ltr`). Decided — `:dir()`
+  follows HTML directionality, not the CSS `direction` property, as Selectors 4 §7.1 says (pinned: a
+  `direction: rtl` ancestor does not make `:dir(rtl)` match). The strong-character classes are approximated
+  without a Bidi_Class table (DIVERGENCES §2, new entry). A pass memoizes directionality in
+  `SelectorCaches`. With `:dir()` in place the UA's `dir` rules became HTML §15.3.5's own
+  (`[dir]:dir(ltr), bdi:dir(ltr), input[type=tel i]:dir(ltr)` / `[dir]:dir(rtl), bdi:dir(rtl)`), so `dir=auto`
+  sets `direction` (the DIVERGENCES §1 "treated as no `dir`" sentence went). Invalidation: `lang` / `dir`
+  changes mark the subtree already; a text edit or child-list change marks the nearest `dir=auto` / `<bdi>`
+  host whose contained text it is part of (`dirty_tracker::marks::mark_auto_direction_host`, O(depth), every
+  frame — the UA sheet reads `:dir()`); `SiblingTriggers` records `lang` / `xml:lang` for a `:lang()` left
+  of `+` / `~`. Split: `style/dirty_tracker.rs` (567 production lines, past 575 with this change) became
+  `dirty_tracker/{mod,observe,marks,tests}.rs`. Section numbers here and in the new tests follow the 2022
+  WD (§7.1, §7.2, §8.1, §8.2). Red: `linguistic_tests` failed to compile (`Directionality`,
+  `Dom::language`, `Dom::directionality`); with those tests set aside, the link and `:lang()` tests failed on
+  "unsupported pseudo-class `:any-link`" / "`:lang`"; `css_phase11/link_lang.rs::dir_auto_sets_direction_from_its_text`
+  (`Ltr` for `Rtl`) and `editing_text_under_dir_auto_restyles_it` (`Reset` for red after the edit); green
+  after. Mutation (the auto host left unmarked, restored, touched): the editing test fails. Changed
+  expectation: the UA rule count 175 → 178 (`ua_total_rule_count`: the two `dir` rules now hold five selectors).
+  No snapshot changed.

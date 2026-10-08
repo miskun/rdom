@@ -20,6 +20,17 @@ impl<Ext> Dom<Ext> {
                 self.prev_element_sibling_id(id).is_none()
                     && self.next_element_sibling_id(id).is_none()
             }
+            // HTML §4.16.3: `a` / `area` with `href`; never visited.
+            PseudoClass::AnyLink | PseudoClass::Link => match &node.data {
+                NodeData::Element { tag, attrs, .. } => {
+                    matches!(tag.as_str(), "a" | "area") && attrs.contains_key("href")
+                }
+                _ => false,
+            },
+            PseudoClass::Visited => false,
+            PseudoClass::Dir(dir) => {
+                dir.is_some_and(|d| self.directionality_in(id, &mut cx.caches.dir) == d)
+            }
             PseudoClass::FirstOfType => self.type_position(id, cx).is_some_and(|(s, _)| s == 1),
             PseudoClass::LastOfType => self.type_position(id, cx).is_some_and(|(_, e)| e == 1),
             PseudoClass::OnlyOfType => self.type_position(id, cx) == Some((1, 1)),

@@ -12,6 +12,8 @@
 //!   `:nth-child(An+B [of S])`, `:nth-last-child()`, `:nth-of-type()`,
 //!   `:nth-last-of-type()`, `:first-of-type`, `:last-of-type`,
 //!   `:only-of-type` (the An+B microsyntax of CSS Syntax 3 §6),
+//!   `:link`, `:any-link`, `:visited` (never matches), `:lang()`,
+//!   `:dir()`,
 //!   plus the interaction pseudos (`:hover`, `:focus`, `:focus-within`, …)
 //!   and the form-state pseudos (`:checked`, `:disabled`, `:enabled`,
 //!   `:valid`, `:invalid`, `:required`, `:optional`, …)
@@ -132,6 +134,7 @@ fn add_compound_specificity(abc: &mut (u16, u16, u16), compound: &CompoundSelect
                 abc.1 += b;
                 abc.2 += c;
             }
+            SimpleSelector::Lang(_) => abc.1 += 1,
             // Selectors 4 §15: a pseudo-class, plus its `of S` list's
             // most specific selector.
             SimpleSelector::Nth(nth) => {
@@ -182,6 +185,10 @@ pub enum SimpleSelector {
     Where(Box<SelectorList>),
     /// Structural pseudo-classes.
     Pseudo(PseudoClass),
+    /// `:lang(<ranges>)` (Selectors 4 §7.2): the element's content
+    /// language matches one of the language ranges by RFC 4647 §3.3.2
+    /// extended filtering ([`Dom::language`](crate::Dom::language)).
+    Lang(Vec<String>),
     /// `:nth-child()` / `:nth-last-child()` / `:nth-of-type()` /
     /// `:nth-last-of-type()` (Selectors 4 §13.3.1–§13.3.2, §13.4.1–§13.4.2).
     Nth(Box<NthSelector>),
@@ -349,6 +356,22 @@ pub enum PseudoClass {
     /// `:optional` — an `<input>`, `<select>` or `<textarea>` that is
     /// not `:required`.
     Optional,
+    /// `:any-link` (Selectors 4 §8.1): an `a` or `area` element with an
+    /// `href` — the source anchor of a hyperlink (HTML §4.16.3).
+    AnyLink,
+    /// `:link` (Selectors 4 §8.2): an `:any-link` element not visited —
+    /// every one, as rdom keeps no visit history.
+    Link,
+    /// `:visited` (Selectors 4 §8.2): never matches — rdom keeps no
+    /// visit history (DIVERGENCES §1). Parsed so `a:link, a:visited`
+    /// keeps its `:link` half.
+    Visited,
+    /// `:dir(ltr)` / `:dir(rtl)` (Selectors 4 §7.1): the element's
+    /// directionality ([`Dom::directionality`](crate::Dom::directionality),
+    /// HTML §3.2.6.4) — not the CSS `direction` property. `None` for an
+    /// argument other than `ltr` / `rtl`, which is valid and matches
+    /// nothing.
+    Dir(Option<crate::Directionality>),
     /// `:scope` (Selectors 4 §14.3) — the scoping root: an `@scope`
     /// rule's root (CSS Cascade 6 §2.5) when matched through
     /// [`Dom::matches_list_in_scope`](crate::Dom::matches_list_in_scope),

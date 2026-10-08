@@ -234,16 +234,16 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .border(Border::top())
                 .border_fg(BORDER_DEFAULT),
         ),
-        // The HTML rendering section's "Bidirectional text" rules map the
-        // `dir` attribute (ASCII case-insensitive, HTML §4.16.2) onto
-        // `direction`. `dir=auto` needs the bidi algorithm's first strong
-        // character, which rdom does not run (DIVERGENCES).
+        // The HTML rendering section's "Bidirectional text" rules (§15.3.5)
+        // map an element's directionality (HTML §3.2.6.4: its `dir`
+        // attribute, `auto`'s first strong character, inheritance) onto
+        // `direction` through `:dir()`.
         (
-            "[dir=ltr]",
+            "[dir]:dir(ltr), bdi:dir(ltr), input[type=tel i]:dir(ltr)",
             TuiStyle::new().text_direction(TextDirection::Ltr),
         ),
         (
-            "[dir=rtl]",
+            "[dir]:dir(rtl), bdi:dir(rtl)",
             TuiStyle::new().text_direction(TextDirection::Rtl),
         ),
         // Figures.

@@ -6,23 +6,11 @@ use rdom_core::{Dom, NodeId, NodeType};
 use crate::ext::TuiExt;
 use crate::style::{ComputedStyle, Quotes};
 
-/// The content language of `id` (HTML §3.2.6.2): the `lang` attribute
-/// of the node or its nearest ancestor that has one (`xml:lang` first,
-/// as HTML orders them); `None` when there is none or it is empty
-/// ("unknown").
+/// The content language of `id` (HTML §3.2.6.2,
+/// [`Dom::language`] — the lookup `:lang()` matches against): `None`
+/// when there is none or it is empty ("unknown").
 pub(super) fn content_language(dom: &Dom<TuiExt>, id: NodeId) -> Option<&str> {
-    let mut cur = Some(dom.node(id));
-    while let Some(node) = cur {
-        if node.node_type() == NodeType::Element
-            && let Some(lang) = node
-                .get_attribute("xml:lang")
-                .or_else(|| node.get_attribute("lang"))
-        {
-            return (!lang.is_empty()).then_some(lang);
-        }
-        cur = node.parent_node();
-    }
-    None
+    dom.language(id).filter(|lang| !lang.is_empty())
 }
 
 /// `quotes: match-parent` computes to the parent's value (§2.1): its

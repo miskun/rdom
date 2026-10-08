@@ -5,6 +5,8 @@
 use super::anb::parse_anb;
 use super::parser::Parser;
 use super::{NthKind, NthSelector, ParseError, PseudoClass, SimpleSelector};
+use crate::Directionality;
+use crate::css_syntax;
 
 impl Parser<'_> {
     pub(super) fn parse_pseudo(&mut self) -> Result<SimpleSelector, ParseError> {
@@ -49,6 +51,11 @@ impl Parser<'_> {
             "first-of-type" => Ok(SimpleSelector::Pseudo(PseudoClass::FirstOfType)),
             "last-of-type" => Ok(SimpleSelector::Pseudo(PseudoClass::LastOfType)),
             "only-of-type" => Ok(SimpleSelector::Pseudo(PseudoClass::OnlyOfType)),
+            "any-link" => Ok(SimpleSelector::Pseudo(PseudoClass::AnyLink)),
+            "link" => Ok(SimpleSelector::Pseudo(PseudoClass::Link)),
+            "visited" => Ok(SimpleSelector::Pseudo(PseudoClass::Visited)),
+            "lang" => self.parse_lang(),
+            "dir" => self.parse_dir(),
             "first-child" => Ok(SimpleSelector::Pseudo(PseudoClass::FirstChild)),
             "last-child" => Ok(SimpleSelector::Pseudo(PseudoClass::LastChild)),
             "only-child" => Ok(SimpleSelector::Pseudo(PseudoClass::OnlyChild)),
@@ -116,5 +123,56 @@ impl Parser<'_> {
     fn at_of_keyword(&self) -> bool {
         let rest = &self.bytes[self.pos..];
         rest.len() > 2 && rest[..2].eq_ignore_ascii_case(b"of") && rest[2].is_ascii_whitespace()
+    }
+
+    /// Selectors 4 §7.2: `:lang( [<ident> | <string>]# )`.
+    fn parse_lang(&mut self) -> Result<SimpleSelector, ParseError> {
+        self.expect(b'(', ":lang")?;
+        let mut ranges = Vec::new();
+        loop {
+            self.skip_ws();
+            let range = match self.peek() {
+                Some(q @ (b'"' | b'\'')) => {
+                    self.pos += 1;
+                    let Some((value, used)) =
+                        css_syntax::consume_string(&self.src[self.pos..], q as char)
+                    else {
+                        return Err(self.err("unterminated :lang() string".to_string()));
+                    };
+                    self.pos += used;
+                    value
+                }
+                _ if css_syntax::would_start_ident(&self.src[self.pos..]) => self.parse_ident(),
+                _ => return Err(self.err(":lang() takes identifiers or strings".to_string())),
+            };
+            ranges.push(range);
+            self.skip_ws();
+            if self.peek() == Some(b',') {
+                self.pos += 1;
+                continue;
+            }
+            self.expect(b')', ":lang")?;
+            return Ok(SimpleSelector::Lang(ranges));
+        }
+    }
+
+    /// Selectors 4 §7.1: `:dir(<ident>)` — `ltr` / `rtl` (ASCII
+    /// case-insensitive); another identifier is valid and matches
+    /// nothing.
+    fn parse_dir(&mut self) -> Result<SimpleSelector, ParseError> {
+        self.expect(b'(', ":dir")?;
+        self.skip_ws();
+        if !css_syntax::would_start_ident(&self.src[self.pos..]) {
+            return Err(self.err(":dir() takes an identifier".to_string()));
+        }
+        let ident = self.parse_ident().to_ascii_lowercase();
+        self.skip_ws();
+        self.expect(b')', ":dir")?;
+        let dir = match ident.as_str() {
+            "ltr" => Some(Directionality::Ltr),
+            "rtl" => Some(Directionality::Rtl),
+            _ => None,
+        };
+        Ok(SimpleSelector::Pseudo(PseudoClass::Dir(dir)))
     }
 }

@@ -146,6 +146,13 @@ impl SiblingTriggers {
                 SimpleSelector::Id(_) => self.add_attribute("id"),
                 SimpleSelector::Class(_) => self.add_attribute("class"),
                 SimpleSelector::Attribute { name, .. } => self.add_attribute(name),
+                // The language is the element's own `lang` / `xml:lang`
+                // or an ancestor's (whose change marks the siblings'
+                // shared subtree anyway).
+                SimpleSelector::Lang(_) => {
+                    self.add_attribute("lang");
+                    self.add_attribute("xml:lang");
+                }
                 SimpleSelector::Pseudo(p) => {
                     self.state = true;
                     self.attribute_state |= reads_attributes(*p);
@@ -195,6 +202,7 @@ fn reads_attributes(p: PseudoClass) -> bool {
         PseudoClass::FirstChild
             | PseudoClass::LastChild
             | PseudoClass::OnlyChild
+            | PseudoClass::Visited
             | PseudoClass::FirstOfType
             | PseudoClass::LastOfType
             | PseudoClass::OnlyOfType

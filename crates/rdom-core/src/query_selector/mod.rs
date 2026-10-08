@@ -27,6 +27,8 @@ mod pseudo;
 pub use caches::{CacheWork, SelectorCaches};
 use matcher::Cx;
 #[cfg(test)]
+mod linguistic_tests;
+#[cfg(test)]
 mod tests;
 
 impl<Ext> Dom<Ext> {

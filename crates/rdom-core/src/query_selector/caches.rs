@@ -18,6 +18,7 @@
 
 use std::collections::HashMap;
 
+use crate::Directionality;
 use crate::node_id::NodeId;
 
 /// The caches of one selector-matching pass. Create one per pass (a
@@ -32,6 +33,8 @@ pub struct SelectorCaches {
     /// Per (parent, kind of count): each counted child's 1-based index
     /// and the number of children counted with it.
     pub(super) nth: HashMap<(NodeId, NthCount), HashMap<NodeId, (u32, u32)>>,
+    /// Each element's directionality, once read (`:dir()`).
+    pub(super) dir: HashMap<NodeId, Directionality>,
     work: CacheWork,
 }
 
@@ -70,6 +73,7 @@ impl SelectorCaches {
     pub(super) fn sync(&mut self, epoch: u64) {
         if self.epoch != Some(epoch) {
             self.nth.clear();
+            self.dir.clear();
             self.epoch = Some(epoch);
         }
     }

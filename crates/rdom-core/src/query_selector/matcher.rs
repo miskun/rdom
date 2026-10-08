@@ -4,6 +4,7 @@
 use super::attribute::match_attribute;
 use super::caches::SelectorCaches;
 use crate::dom::Dom;
+use crate::language::lang_range_matches;
 use crate::node::NodeData;
 use crate::node_id::NodeId;
 use crate::selectors::{
@@ -153,6 +154,12 @@ impl<Ext> Dom<Ext> {
                 }
                 SimpleSelector::Pseudo(p) => {
                     if !self.match_pseudo(id, *p, cx) {
+                        return false;
+                    }
+                }
+                SimpleSelector::Lang(ranges) => {
+                    let lang = self.language(id).unwrap_or("");
+                    if !ranges.iter().any(|r| lang_range_matches(r, lang)) {
                         return false;
                     }
                 }
