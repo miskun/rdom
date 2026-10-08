@@ -367,6 +367,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`field-sizing`** (CSS UI 4 §7.2): `content | fixed`, not inherited, discrete (`FieldSizing`). (C12-CONTROLS)
 - **`appearance`** (CSS UI 4 §7.1) and its legacy name `-webkit-appearance`: `none | auto | base` and the compat keywords, not inherited, discrete (`Appearance`). (C12-CONTROLS)
 - **`accent-color`** (CSS UI 4 §6.3): `auto | <color>`, inherited, interpolated between colors (`AccentColor` in `ComputedStyle::ui`). (C12-CONTROLS)
 - **`caret-shape`, `caret-animation` and the `caret` shorthand** (CSS UI 4 §6.2): `auto | bar | block | underscore` and `auto | manual`, inherited and discrete (`CaretShape`, `CaretAnimation` in `ComputedStyle::ui`), the shorthand also setting `caret-color`; `parse_caret_color` is the one `caret-color` parser. (C12-CARET)
@@ -581,6 +582,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **`field-sizing: content`** (CSS UI 4 §7.2): a text `<input>` or `<textarea>` sizes to its value — `max-content` wide, a textarea as tall as its rows — instead of the UA's fixed field, unless the page sets its `width` / `height`. (C12-CONTROLS)
 - **`appearance: none`** (CSS UI 4 §7.1): a checkbox, radio, button or drop-down `<select>` drops the UA's `::before` / `::after` chrome (`[x] `, `[ … ]`, `▾`) so author CSS draws it, and `<progress>`, `<meter>` and a range slider draw no bar or track. (C12-CONTROLS)
 - **`accent-color` tints the controls** (CSS UI 4 §6.3): a checked checkbox's or radio's mark, the range slider and the progress bar draw in the element's accent; `auto` keeps the UA colors and `<meter>` its zone colors. (C12-CONTROLS)
 - **Caret shapes and a steady caret** (CSS UI 4 §6.2): the painted caret takes `caret-shape` — `block` (and `auto`) a cell, `underscore` an underline in `caret-color`, `bar` a `▏` on a blank cell and the underline over a glyph — and `caret-animation: manual` stops the blink, with no wakeups for it. (C12-CARET)

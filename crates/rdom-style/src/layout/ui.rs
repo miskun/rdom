@@ -111,6 +111,8 @@ pub struct UiStyle {
     pub accent_color: AccentColor,
     /// `appearance` (§7.1). Not inherited.
     pub appearance: Appearance,
+    /// `field-sizing` (§7.2). Not inherited.
+    pub field_sizing: FieldSizing,
 }
 
 impl Default for UiStyle {
@@ -125,6 +127,7 @@ impl Default for UiStyle {
             caret_animation: CaretAnimation::Auto,
             accent_color: AccentColor::Auto,
             appearance: Appearance::Auto,
+            field_sizing: FieldSizing::Fixed,
         }
     }
 }
@@ -391,5 +394,27 @@ impl Appearance {
     /// Whether the control is drawn without its native (UA) chrome.
     pub fn is_none(self) -> bool {
         self == Appearance::None
+    }
+}
+
+/// `field-sizing` (CSS UI 4 §7.2): `content | fixed` — whether a text
+/// field's size follows its content or is the UA's fixed one. Not
+/// inherited; initial `fixed`.
+///
+/// Closed (DESIGN): the two sizing models.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub enum FieldSizing {
+    Content,
+    #[default]
+    Fixed,
+}
+
+impl FieldSizing {
+    /// The keyword's CSS spelling.
+    pub fn keyword(self) -> &'static str {
+        match self {
+            FieldSizing::Content => "content",
+            FieldSizing::Fixed => "fixed",
+        }
     }
 }

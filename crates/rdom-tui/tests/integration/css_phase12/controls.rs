@@ -154,3 +154,53 @@ fn appearance_none_strips_painted_chrome() {
     assert!(!chrome[0].is_empty() && !chrome[1].is_empty(), "{chrome:?}");
     assert_eq!(render("progress, input { appearance: none }"), ["", ""]);
 }
+
+// ── C12-CONTROLS: field-sizing (§7.2) ─────────────────────────────
+
+/// A text-family `<input>` (or a `<textarea>`) holding `value` — its
+/// value lives in a text child.
+fn field(dom: &mut TuiDom, tag: &str, value: &str) -> NodeId {
+    let root = dom.root();
+    let id = dom.create_element(tag);
+    let t = dom.create_text_node(value);
+    dom.append_child(id, t).unwrap();
+    let wrap = dom.create_element("div");
+    dom.append_child(wrap, id).unwrap();
+    dom.append_child(root, wrap).unwrap();
+    id
+}
+
+fn size_of(dom: &TuiDom, id: NodeId) -> (u16, u16) {
+    use rdom_tui::TuiNodeExt;
+    let r = dom.node(id).layout_rect().expect("laid out");
+    (r.width, r.height)
+}
+
+/// §7.2 `field-sizing: content`: a text field's size follows its content
+/// — the UA's fixed 20-cell field (rdom's stand-in for a browser's
+/// `size` / `cols` / `rows` intrinsic size) no longer applies — padding
+/// included; `fixed` (the initial value) keeps it, and an author `width`
+/// / `height` still wins over the content.
+#[test]
+fn field_sizing_content_sizes_a_field_to_its_value() {
+    let mut dom = TuiDom::new();
+    let a = field(&mut dom, "input", "hello");
+    let b = field(&mut dom, "input", "hello");
+    let c = field(&mut dom, "input", "hello");
+    let t = field(&mut dom, "textarea", "ab\ncdef");
+    for (id, class) in [(a, "c"), (b, "f"), (c, "w"), (t, "c")] {
+        dom.set_attribute(id, "class", class).unwrap();
+    }
+    paint(
+        &mut dom,
+        ".c { field-sizing: content } .f { field-sizing: fixed } \
+         .w { field-sizing: content; width: 10 }",
+        30,
+        12,
+    );
+    assert_eq!(size_of(&dom, a), (7, 1), "content: 5 + padding");
+    // The UA field: 20 cells of content box, plus padding.
+    assert_eq!(size_of(&dom, b), (22, 1), "fixed: the UA field");
+    assert_eq!(size_of(&dom, c), (12, 1), "an author width wins");
+    assert_eq!(size_of(&dom, t), (6, 2), "textarea: widest line, two rows");
+}

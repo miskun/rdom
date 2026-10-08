@@ -155,6 +155,8 @@ pub(super) fn compute_element_style(
         working.display = crate::layout::Display::None;
     }
     super::font::finalize_font(&mut working, parent);
+    // CSS UI 4 §7.2: a text field sized by its content.
+    super::field_sizing::finalize(&mut working, dom, id, sorted, inline);
     super::quotes::finalize_quotes(&mut working, parent, dom, parent_id);
     super::text_decoration::finalize_applied_decorations(&mut working, parent.applied_decorations);
     super::apply::finalize_justify_items(&mut working, parent);

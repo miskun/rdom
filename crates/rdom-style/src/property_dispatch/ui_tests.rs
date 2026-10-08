@@ -259,3 +259,24 @@ fn appearance_keywords_and_the_legacy_name() {
     }
     assert!(!inherits("appearance"));
 }
+
+/// §7.2: `field-sizing: content | fixed`, not inherited.
+#[test]
+fn field_sizing_is_content_or_fixed() {
+    use crate::layout::FieldSizing;
+    let mut style = TuiStyle::new();
+    set("field-sizing", "Content", &mut style).unwrap();
+    assert_eq!(spec(&style.ui.field_sizing), Some(FieldSizing::Content));
+    assert_eq!(
+        serialize("field-sizing", &style).as_deref(),
+        Some("content")
+    );
+    for bad in ["auto", "content fixed"] {
+        assert_eq!(
+            set("field-sizing", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+    assert!(!inherits("field-sizing"));
+}

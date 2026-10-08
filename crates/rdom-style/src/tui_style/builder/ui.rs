@@ -4,8 +4,8 @@
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
 use crate::layout::{
-    AccentColor, Appearance, BorderWidth, CaretAnimation, CaretShape, Cursor, OutlineColor,
-    OutlineStyle, PaintLength,
+    AccentColor, Appearance, BorderWidth, CaretAnimation, CaretShape, Cursor, FieldSizing,
+    OutlineColor, OutlineStyle, PaintLength,
 };
 
 /// A setter for one [`UiDeclarations`](crate::UiDeclarations) field and
@@ -83,5 +83,12 @@ impl TuiStyle {
         appearance_important,
         APPEARANCE,
         Appearance
+    );
+    ui_setter!(
+        "field-sizing",
+        field_sizing,
+        field_sizing_important,
+        FIELD_SIZING,
+        FieldSizing
     );
 }

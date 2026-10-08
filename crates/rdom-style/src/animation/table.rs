@@ -106,6 +106,8 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("accent-color", ByComputedValue, value!(ui.accent_color)),
     // CSS UI 4 §7.1
     e("appearance", Discrete, steps!(ui.appearance)),
+    // §7.2
+    e("field-sizing", Discrete, steps!(ui.field_sizing)),
     // CSS Overflow 3 / 4, Scrollbars 1, Overscroll 1, Scroll Snap 1
     e(
         "overflow-x",

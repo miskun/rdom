@@ -248,7 +248,7 @@ row comes from.
 | C12-CURSOR | `cursor` (OSC 22 pointer shapes) | done |
 | C12-CARET | `caret-shape` / `caret-animation` / `caret` | done |
 | C12-FOCUS-FLUSH | `focus()` (and other style-reading DOM calls) flushes pending style for the element first, as browsers do — TECH_DEBT `FOCUS-FLUSH-1`; needs the sheet set / transition registry / dirty tracker reachable from a handler's `Dom` | done |
-| C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | partial — `accent-color`, `appearance` done; `field-sizing`, `resize` next |
+| C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | partial — `accent-color`, `appearance`, `field-sizing` done; `resize` next |
 
 ### Phase 13 — Tables (audit §3.20)
 
@@ -7977,3 +7977,13 @@ row comes from.
   declarations under `none`). `base` and the compat keywords are `auto`. Red, by mutation of the finished
   code (no control counted as chrome, no `none` read by paint): both appearance tests in
   `css_phase12/controls.rs` fail; dispatch pinned by `ui_tests::appearance_keywords_and_the_legacy_name`.
+- 2026-10-17 — C12-CONTROLS (3/4), `field-sizing` (CSS UI 4 §7.2). rdom-style: `content | fixed` (`FieldSizing`,
+  not inherited, discrete). The model: a browser's text field has an intrinsic size (`size`, `cols` /
+  `rows`) that `content` replaces with the content's; rdom's UA writes fixed sizes instead, so the cascade's
+  new `field_sizing::finalize` (after the ladder, with the element's matched rules and inline style in
+  hand) sets a text `<input>`'s or `<textarea>`'s `width` to `max-content`, and a textarea's `height` to
+  `auto`, wherever no author or inline declaration — a value, a `var()` one, or a flow-relative
+  `inline-size` / `block-size` — sets them. Layout then sizes the field by its text child and padding (an
+  empty one to its padding and placeholder). `<select>` is left out (its size is its options'). Red, by
+  mutation (the finalizer a no-op): `field_sizing_content_sizes_a_field_to_its_value` reads `(22, 1)` for
+  `(7, 1)`; the fixed and author-width cases pin the rest. Dispatch: `ui_tests::field_sizing_is_content_or_fixed`.

@@ -62,6 +62,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "accent-color",
     "appearance",
     "-webkit-appearance",
+    "field-sizing",
     // Layout — overflow
     "overflow",
     "overflow-x",

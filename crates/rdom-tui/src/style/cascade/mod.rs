@@ -98,6 +98,7 @@ mod decoration;
 pub(crate) mod details;
 mod early_pseudos;
 mod element;
+mod field_sizing;
 mod finish;
 mod font;
 mod root_vars;

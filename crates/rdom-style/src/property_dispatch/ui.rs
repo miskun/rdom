@@ -11,8 +11,8 @@ use crate::layout::{
 use crate::parse::token::Token;
 use crate::parse::values::{
     parse_accent_color, parse_appearance, parse_caret, parse_caret_animation, parse_caret_shape,
-    parse_cursor, parse_line_width, parse_outline, parse_outline_color, parse_outline_offset,
-    parse_outline_style,
+    parse_cursor, parse_field_sizing, parse_line_width, parse_outline, parse_outline_color,
+    parse_outline_offset, parse_outline_style,
 };
 use crate::{TuiStyle, Value};
 
@@ -61,6 +61,9 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "appearance" | "-webkit-appearance" => parse_appearance(value).map(|a| {
             ui.appearance = Some(Value::Specified(a));
         }),
+        "field-sizing" => parse_field_sizing(value).map(|f| {
+            ui.field_sizing = Some(Value::Specified(f));
+        }),
         _ => return None,
     })
 }
@@ -98,6 +101,11 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .as_ref()
             .and_then(specified)
             .map(|a| a.keyword().to_string()),
+        "field-sizing" => ui
+            .field_sizing
+            .as_ref()
+            .and_then(specified)
+            .map(|f| f.keyword().to_string()),
         "appearance" | "-webkit-appearance" => ui
             .appearance
             .as_ref()

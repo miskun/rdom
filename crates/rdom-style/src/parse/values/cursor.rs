@@ -7,7 +7,7 @@ use super::keyword::parse_keyword;
 use super::numeric::{components, split_commas};
 use crate::layout::{
     AccentColor, Appearance, CaretAnimation, CaretColor, CaretShape, Cursor, CursorImage,
-    CursorKeyword,
+    CursorKeyword, FieldSizing,
 };
 use crate::parse::token::Token;
 
@@ -118,4 +118,15 @@ pub fn parse_accent_color(value: &[Token]) -> Option<AccentColor> {
 /// `appearance` (§7.1).
 pub fn parse_appearance(value: &[Token]) -> Option<Appearance> {
     parse_keyword(value, Appearance::KEYWORDS)
+}
+
+/// `field-sizing` (§7.2): `content | fixed`.
+pub fn parse_field_sizing(value: &[Token]) -> Option<FieldSizing> {
+    parse_keyword(
+        value,
+        &[
+            ("content", FieldSizing::Content),
+            ("fixed", FieldSizing::Fixed),
+        ],
+    )
 }

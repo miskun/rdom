@@ -117,7 +117,7 @@ pub use text_decoration::{
 };
 pub use ui::{
     AccentColor, Appearance, CaretAnimation, CaretShape, Cursor, CursorImage, CursorKeyword,
-    OutlineColor, OutlineStyle, UiStyle,
+    FieldSizing, OutlineColor, OutlineStyle, UiStyle,
 };
 pub use vertical_align::VerticalAlign;
 pub use white_space::{

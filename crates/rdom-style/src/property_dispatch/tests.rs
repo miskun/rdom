@@ -67,6 +67,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("accent-color", "rgb(4, 5, 6)"),
         ("appearance", "none"),
         ("-webkit-appearance", "menulist-button"),
+        ("field-sizing", "content"),
         ("overflow", "scroll"),
         ("overflow-x", "auto"),
         ("overflow-y", "hidden"),

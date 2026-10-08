@@ -177,6 +177,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("caret", "rgb(1 2 3) bar manual"),
     ("accent-color", "red"),
     ("appearance", "none"),
+    ("field-sizing", "content"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly
