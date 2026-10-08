@@ -64,10 +64,12 @@ mod position;
 mod query;
 mod query_selector;
 mod radio_group;
+mod range;
 mod selection;
 pub mod selectors;
 mod text;
 mod token_list;
+mod traversal;
 mod tree;
 mod validate;
 
@@ -85,7 +87,7 @@ pub use event_detail::{
     KeyboardModifiers, MouseButton, MouseDetail, SubmitDetail, ToggleDetail, ToggleState,
     TransitionDetail,
 };
-pub use highlight::{Highlight, HighlightRegistry, HighlightType};
+pub use highlight::{Highlight, HighlightRegistry, HighlightType, HighlightsMut};
 pub use html_collection::{FormControlsCollection, HtmlCollection};
 pub use input_type::InputTypeState;
 pub use markup::{VOID_ELEMENTS, is_void_element};
@@ -97,5 +99,6 @@ pub use observer::{InteractionKind, Mutation, MutationObserver, ObserverId};
 pub use position::DocumentPosition;
 pub use selection::{Position, Range, Selection, SelectionSerial};
 pub use token_list::{DomTokenList, DomTokenListMut};
+pub use traversal::Descendants;
 pub use tree::AdjacentPosition;
 pub use validate::InvariantViolation;

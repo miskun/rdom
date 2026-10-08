@@ -1198,3 +1198,33 @@ fn pseudo_element_target_hints() {
     assert_eq!(name, "highlight");
     assert_eq!(copy, PseudoElementTarget::Highlight("search".into()));
 }
+
+/// C10G-HIGHLIGHT-API (changes to APIs added after 0.5): a `Highlight`'s
+/// members are methods — `priority()` / `set_priority`, `kind()` /
+/// `set_kind` (the web's `type`), the `with_kind` builder (was
+/// `with_type`), `len()` / `is_empty()` (was `size()`) — and
+/// `highlights_mut()` is a `HighlightsMut` guard that reads and changes as
+/// the registry and reports the change when it goes.
+#[test]
+fn highlight_hints() {
+    let mut dom = TuiDom::new();
+    let t = dom.create_text_node("hello");
+    dom.append_child(dom.root(), t).unwrap();
+    let r = dom
+        .range_between(Position::new(t, 0), Position::new(t, 2))
+        .unwrap();
+    let h = Highlight::new([r])
+        .with_priority(1)
+        .with_kind(HighlightType::SpellingError);
+    assert_eq!(
+        (h.priority(), h.kind(), h.len()),
+        (1, HighlightType::SpellingError, 1)
+    );
+    dom.highlights_mut().set("search", h);
+    let mut registry: HighlightsMut<'_, TuiExt> = dom.highlights_mut();
+    let _: &mut HighlightRegistry = &mut registry;
+    registry.get_mut("search").unwrap().set_priority(2);
+    drop(registry);
+    assert_eq!(dom.highlights().get("search").unwrap().priority(), 2);
+    assert_eq!(dom.descendants(dom.root()).collect::<Vec<_>>(), [t]);
+}

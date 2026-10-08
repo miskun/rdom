@@ -32,18 +32,21 @@ fn a_highlight_is_a_set_of_ranges_with_a_priority_and_a_type() {
     let a = range((t, 0), (t, 2));
     let b = range((t, 3), (t, 5));
     let mut h = Highlight::new([a.clone(), b.clone(), a.clone()]);
-    assert_eq!(h.size(), 2, "a set: no duplicate");
-    assert_eq!((h.priority, h.kind), (0, HighlightType::Highlight));
+    assert_eq!(h.len(), 2, "a set: no duplicate");
+    assert_eq!((h.priority(), h.kind()), (0, HighlightType::Highlight));
     assert!(h.has(&b));
     assert!(!h.add(a.clone()), "already there");
     assert!(h.delete(&a));
     assert_eq!(h.ranges(), std::slice::from_ref(&b));
     h.clear();
-    assert_eq!(h.size(), 0);
-    let h = Highlight::new([b])
+    assert!(h.is_empty());
+    let mut h = Highlight::new([b])
         .with_priority(2)
-        .with_type(HighlightType::SpellingError);
-    assert_eq!((h.priority, h.kind), (2, HighlightType::SpellingError));
+        .with_kind(HighlightType::SpellingError);
+    assert_eq!((h.priority(), h.kind()), (2, HighlightType::SpellingError));
+    h.set_priority(-1);
+    h.set_kind(HighlightType::GrammarError);
+    assert_eq!((h.priority(), h.kind()), (-1, HighlightType::GrammarError));
 }
 
 /// §4 `HighlightRegistry` (`CSS.highlights`): a map from names to
@@ -204,4 +207,132 @@ fn inserting_a_fragment_removes_its_children_from_it_first() {
             "append {append}"
         );
     }
+}
+
+/// What an observer of `HighlightsChanged` sees: the registry's names at
+/// each record, and the registry's generation.
+struct Seen(std::rc::Rc<std::cell::RefCell<Vec<Vec<String>>>>);
+
+impl crate::MutationObserver<()> for Seen {
+    fn observe(&mut self, dom: &mut Dom, record: &Mutation) {
+        if matches!(record, Mutation::HighlightsChanged) {
+            let names = dom.highlights().iter().map(|(n, _)| n.to_owned()).collect();
+            self.0.borrow_mut().push(names);
+        }
+    }
+}
+
+/// C10G-HIGHLIGHT-API — `Mutation::HighlightsChanged` is a record of a
+/// change (DOM §4.3: a mutation record is queued after the mutation): it
+/// fires once the change is made — an observer reading the registry sees
+/// the new state — and only when something changed: a read through
+/// `highlights_mut`, a `get_mut` miss, a `get_mut` hit left alone, a
+/// `delete` of an unknown name and a `clear` of an empty registry fire
+/// nothing and leave `generation` where it was.
+#[test]
+fn highlights_changed_fires_after_a_change_and_only_then() {
+    let (mut dom, _, t) = para("hello");
+    let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    dom.add_mutation_observer(Box::new(Seen(seen.clone())));
+    dom.highlights_mut()
+        .set("a", Highlight::new([range((t, 0), (t, 1))]));
+    assert_eq!(*seen.borrow(), [vec!["a".to_owned()]], "after the change");
+    let generation = dom.highlights().generation();
+    assert!(dom.highlights_mut().get_mut("missing").is_none());
+    assert!(dom.highlights_mut().get("a").is_some());
+    assert!(!dom.highlights_mut().delete("missing"));
+    {
+        let mut registry = dom.highlights_mut();
+        let h = registry.get_mut("a").unwrap();
+        assert!(!h.add(range((t, 0), (t, 1))), "already there: no change");
+        h.set_priority(0);
+    }
+    assert_eq!(seen.borrow().len(), 1, "nothing changed");
+    assert_eq!(dom.highlights().generation(), generation);
+    dom.highlights_mut()
+        .get_mut("a")
+        .unwrap()
+        .add(range((t, 2), (t, 3)));
+    assert_eq!(seen.borrow().len(), 2, "a range added");
+    assert!(dom.highlights().generation() != generation);
+    dom.highlights_mut().get_mut("a").unwrap().set_priority(3);
+    dom.highlights_mut().clear();
+    dom.highlights_mut().clear();
+    assert_eq!(
+        *seen.borrow(),
+        [
+            vec!["a".to_owned()],
+            vec!["a".to_owned()],
+            vec!["a".to_owned()],
+            vec![]
+        ],
+        "the priority, then the clear; clearing nothing fires nothing"
+    );
+}
+
+/// C10G-HIGHLIGHT-API — DOM §5.5 "set the start or end": an offset past
+/// the node's length (a text node's data, an element's child count) is an
+/// `IndexSizeError`; rdom's byte offsets must also fall on a character. `Dom::range_between` checks both points and orders
+/// them in document order (§5.2), so any two valid points make a range.
+#[test]
+fn a_checked_range_validates_and_orders_its_points() {
+    let (mut dom, p, t) = para("hello");
+    let a = Position::new(t, 4);
+    let b = Position::new(t, 1);
+    assert_eq!(dom.range_between(a, b), Ok(range((t, 1), (t, 4))));
+    assert_eq!(dom.range_between(b, b), Ok(range((t, 1), (t, 1))));
+    assert_eq!(
+        dom.range_between(Position::new(t, 5), b)
+            .map(|r| r.end.offset),
+        Ok(5)
+    );
+    assert_eq!(
+        dom.range_between(Position::new(t, 6), b),
+        Err(crate::DomError::InvalidOffset { node: t, offset: 6 })
+    );
+    assert_eq!(
+        dom.range_between(Position::new(p, 0), Position::new(p, 1)),
+        Ok(range((p, 0), (p, 1)))
+    );
+    assert_eq!(
+        dom.range_between(Position::new(p, 2), b),
+        Err(crate::DomError::InvalidOffset { node: p, offset: 2 })
+    );
+    let e = dom.create_text_node("é");
+    dom.append_child(p, e).unwrap();
+    assert_eq!(
+        dom.range_between(Position::new(e, 1), b),
+        Err(crate::DomError::InvalidOffset { node: e, offset: 1 }),
+        "inside a UTF-8 character"
+    );
+    let detached = dom.create_text_node("x");
+    assert!(dom.range_between(Position::new(detached, 0), b).is_err());
+}
+
+/// C10G-HIGHLIGHT-API — `Dom::descendants`: the inclusive descendants of a
+/// node minus the node, in tree order (DOM §4.2: pre-order, depth-first),
+/// text nodes included — the walk a search over the document's text needs
+/// (`TreeWalker` / `NodeIterator`'s order) — iterative at any depth.
+#[test]
+fn descendants_walk_a_subtree_in_tree_order() {
+    let (mut dom, p, t) = para("a");
+    let b = dom.create_element("b");
+    let bt = dom.create_text_node("b");
+    dom.append_child(b, bt).unwrap();
+    dom.append_child(p, b).unwrap();
+    let tail = dom.create_text_node("c");
+    dom.append_child(p, tail).unwrap();
+    let order: Vec<NodeId> = dom.descendants(dom.root()).collect();
+    assert_eq!(order, [p, t, b, bt, tail]);
+    assert_eq!(dom.descendants(b).collect::<Vec<_>>(), [bt]);
+    assert_eq!(dom.descendants(bt).count(), 0);
+    let mut deep = tail;
+    let mut cur = dom.root();
+    for _ in 0..10_000 {
+        let d = dom.create_element("div");
+        dom.append_child(cur, d).unwrap();
+        cur = d;
+        deep = d;
+    }
+    assert_eq!(dom.descendants(dom.root()).last(), Some(deep));
 }

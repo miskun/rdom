@@ -74,7 +74,7 @@ impl OverlayIndex {
         let mut order: Vec<(i32, usize, &str, &rdom_core::Highlight)> = registry
             .iter()
             .enumerate()
-            .map(|(k, (name, h))| (h.priority, k, name, h))
+            .map(|(k, (name, h))| (h.priority(), k, name, h))
             .collect();
         order.sort_by_key(|&(priority, k, ..)| (priority, k));
         let mut index = OverlayIndex {

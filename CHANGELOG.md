@@ -195,6 +195,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 | `FontStretch::Keyword(&'static str)`; `FONT_STRETCH_KEYWORDS` | `FontStretch::Keyword(FontStretchKeyword)` (`FontStretchKeyword::Condensed`; `keyword()`, `percent()`, `from_keyword`); `FontStretchKeyword::ALL` | C9G-TYPES | `font_type_hints` |
 | exhaustive `match` on `FontVariant` | add a `_` arm (`#[non_exhaustive]`: Fonts 4 adds values) | C9G-TYPES | `font_type_hints` |
 | `TuiStyle::text_align(TextAlign)` | `text_align(impl Into<TextAlignKeyword>)`: a `TextAlign` as before, or `TextAlignKeyword::JustifyAll` | C9G-TYPES | `font_type_hints` |
+| `Highlight::priority` / `kind` fields, `with_type`, `size()`; `Dom::highlights_mut() -> &mut HighlightRegistry`, firing `HighlightsChanged` on every call, before the change | `priority()` / `set_priority`, `kind()` / `set_kind`, `with_kind`, `len()` / `is_empty()`; a `HighlightsMut` guard (`Deref` / `DerefMut` to the registry; `&mut *guard` where a `&mut HighlightRegistry` is wanted) that fires once, after a change, and only when something changed | C10G-HIGHLIGHT-API | `highlight_hints` |
 
 ### Added — `rdom-core`
 
@@ -206,6 +207,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **`:is()`** (Selectors 4 §4.2) parses into `SimpleSelector::Is`, with the specificity of its most specific argument; the list is forgiving (an unparsable argument is dropped, an empty `:is()` matches nothing). (C1G-IS-PARSE)
 - **Document data** (`Dom::document_data` / `document_data_mut` / `set_document_data` / `remove_document_data`): per-document backend state, one value per Rust type; rdom-tui keeps the viewport there. (C2G-VIEWPORT-DOC)
 - **`HighlightRegistry::generation()`**: a number that moves whenever a registered highlight or one of its live ranges may have changed, so a renderer can index the ranges once and rebuild the index only when it moves. (C10G-HIGHLIGHT-COST)
+- **Search highlighting from Rust** (CSS Custom Highlight API 1): `Dom::descendants(root)` walks a subtree in tree order (DOM §4.2, text nodes included; the `Descendants` iterator), `Dom::range_between(a, b)` builds a `Range` from two boundary points in either order, checked as DOM §5.5 checks `setStart` / `setEnd` (an offset past `Dom::node_length`, or inside a UTF-8 character, is `InvalidOffset`), and `Dom::highlights_mut()` returns a `HighlightsMut` guard that fires `Mutation::HighlightsChanged` once, after the change, only when a highlight was set or removed or a registered one changed. `Highlight`'s members are methods named for the web's (`priority()`, `kind()` for `type`, `with_kind`); `size` is `len()` on `Highlight` and `HighlightRegistry` alike. The rdom-tui README shows a search end to end. (C10G-HIGHLIGHT-API)
 
 ### Fixed — `rdom-core`
 

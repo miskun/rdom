@@ -331,6 +331,68 @@ Legacy fallback: if no rule supplies `content:`, the cascade falls
 back to `TuiExt.before_content` / `after_content` (settable via
 `node.set_before_content("→")` on `TuiNodeMutExt`).
 
+## Custom highlights: search results
+
+The CSS Custom Highlight API styles ranges of text without touching the tree. Register a `Highlight` of `Range`s under a name in `dom.highlights_mut()` and style it with `::highlight(name)`. The ranges are live, so they move with text edits, insertions and removals. `Dom::descendants` walks the text nodes, and `Dom::range_between` checks each pair of byte offsets. The registry reports one `Mutation::HighlightsChanged` after each change, which an `App` repaints on.
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        "::highlight(search) { background-color: yellow; color: black }",
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let body = dom.create_element("body");
+    dom.append_child(root, body)?;
+    for line in ["error: disk full", "ok", "an error again"] {
+        let p = dom.create_element("p");
+        let t = dom.create_text_node(line);
+        dom.append_child(p, t)?;
+        dom.append_child(body, p)?;
+    }
+
+    // One range per match, in every text node: `match_indices` gives byte
+    // offsets, which is what a `Position` holds.
+    let query = "error";
+    let mut ranges = Vec::new();
+    for id in dom.descendants(root) {
+        let node = dom.node(id);
+        if node.node_type() != NodeType::Text {
+            continue;
+        }
+        for (at, hit) in node.node_value().unwrap_or_default().match_indices(query) {
+            let (start, end) = (Position::new(id, at), Position::new(id, at + hit.len()));
+            ranges.push(dom.range_between(start, end)?);
+        }
+    }
+    dom.highlights_mut().set("search", Highlight::new(ranges));
+
+    let area = Rect::new(0, 0, 16, 3);
+    dom.cascade(&sheet);
+    dom.layout_dom(area);
+    let mut buf = Buffer::empty(area);
+    dom.paint_dom(&mut buf, area);
+
+    // Each row's text, and which cells the highlight painted yellow.
+    let yellow = Color::Rgb(255, 255, 0);
+    let row = |y: u16| -> (String, String) {
+        (0..16)
+            .map(|x| {
+                let cell = buf.cell(x, y).unwrap();
+                (cell.symbol().to_string(), if cell.bg == yellow { '^' } else { ' ' })
+            })
+            .unzip()
+    };
+    assert_eq!(row(0), ("error: disk full".into(), "^^^^^           ".into()));
+    assert_eq!(row(1), ("ok              ".into(), "                ".into()));
+    assert_eq!(row(2), ("an error again  ".into(), "   ^^^^^        ".into()));
+    assert_eq!(buf.cell(0, 0).unwrap().fg, Color::Rgb(0, 0, 0));
+    Ok(())
+}
+```
+
 ## Custom properties and `var()`
 
 ```rust

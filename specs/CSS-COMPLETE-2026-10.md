@@ -6822,3 +6822,31 @@ row comes from.
   marker. The wider list padding is item 10's "four cells (two in 0.5)", so it gets no separate entry. "The
   357-character bullet" matched no bullet in the guide by characters or bytes, so the trim went to the longest
   Phase 10 one, item 43. Docs only, so no code or test changed.
+- 2026-10-13 — C10G-HIGHLIGHT-API (API N3). The search-highlight use case from Rust had four rough edges, each
+  fixed. (1) No descendant walk existed under any name: rdom-core had only the crate-private
+  `walk_descendants` / `walk_subtree` callbacks, and `query_selector_all` returns elements only. The new
+  `Dom::descendants(root)` (`traversal.rs`, the `Descendants` iterator) walks in tree order, includes text nodes,
+  and uses no stack; it shares `next_in_subtree` with the private walks. (2) A checked range builder:
+  `Dom::range_between(a, b)` (`range.rs`) checks each point as DOM §5.5 "set the start or end" does (an offset
+  past `Dom::node_length`, or inside a UTF-8 character, is `InvalidOffset`) and orders the two by §5.2.
+  Decision: two points in different trees are `InvalidState` rather than a collapsed range, because no range
+  can hold them. (3) `HighlightsChanged` fired at every `highlights_mut()`, before the change. `highlights_mut`
+  now returns a `HighlightsMut` guard (`Deref` / `DerefMut` to the registry). On drop it moves the generation
+  and fires one record, but only when the registry marked a change: `set`, a `delete` that removed something,
+  a `clear` of a non-empty registry, or a registered `Highlight` changed through `get_mut`. To make that last
+  one knowable, `Highlight`'s members became private, with `add` / `delete` / `clear` / `set_priority` /
+  `set_kind` marking real changes. Decision: a guard, not explicit registry methods, so `get_mut` and the map
+  API keep the web's shape. It skips the observer call while unwinding from a panic. (4) Names: the web's
+  `type` is `kind` throughout (`kind()`, `set_kind`, `with_kind`, was `with_type`). The web's `size` (setlike
+  and maplike) is `len()` / `is_empty()` on both types, the Rust collection convention, documented on the
+  module. `highlight.rs` became `highlight/{mod, registry, live}.rs` (173 / 234 / 85). Red: rdom-core
+  `highlight_tests.rs` — the new `highlights_changed_fires_after_a_change_and_only_then`,
+  `a_checked_range_validates_and_orders_its_points` and `descendants_walk_a_subtree_in_tree_order`, plus the
+  renamed accessors, did not compile (18 × E0599); green after (9 tests). Mutations (restored, touched):
+  firing before the change at every call → `[[]]` for `[["a"]]` ("after the change"); firing at every guard
+  drop → 5 records for 1 ("nothing changed"). Docs: the rdom-tui README's new "Custom highlights: search
+  results" doctest walks three paragraphs, highlights every "error", and asserts the text and the yellow cells
+  of each row and the black text; `HighlightsMut` re-exported at the rdom-tui root; hint group
+  `migration_hints.rs::highlight_hints` with an after-0.5 API-table row. Changed expectation: the existing
+  registry test reads `len()` / `priority()` / `kind()` and `with_kind` (it still counts five records for
+  five changes).

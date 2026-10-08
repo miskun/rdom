@@ -107,7 +107,7 @@ impl<Ext> Dom<Ext> {
     /// The pre-order successor of `from` that is not one of its
     /// descendants, inside `root`'s subtree: `from`'s next sibling, else
     /// the nearest ancestor's (below `root`). `None` at the subtree's end.
-    fn next_in_subtree(&self, from: NodeId, root: NodeId) -> Option<NodeId> {
+    pub(crate) fn next_in_subtree(&self, from: NodeId, root: NodeId) -> Option<NodeId> {
         let mut up = from;
         while up != root {
             let n = self.get_node(up)?;
