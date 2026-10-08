@@ -155,9 +155,26 @@ Dom — enforced by an `is_observing` re-entrancy guard.
 - `CharacterDataChanged { id, old, new }` — text / comment node data
 - `InteractionChanged { prev, next, kind }` — hover / focus
 - `SelectionChanged { prev, next }` — document selection
+- `HighlightsChanged` — the highlight registry changed (once per
+  `highlights_mut()` that changed something, after the change)
+- `PreDetach { detached_root, focused, hovered }` — before a subtree
+  holding the focused or hovered node is unlinked
 
 See [`examples/mutation_observer.rs`](examples/mutation_observer.rs)
 for a logger that prints every record type.
+
+## Custom highlights
+
+The CSS Custom Highlight API's data model, renderer-free:
+`dom.highlights_mut().set("search", Highlight::new(ranges))` registers
+a set of `Range`s under a name (`CSS.highlights.set`), with a
+`priority` and a `kind` (the web's `type`). The ranges are live — text
+edits, insertions and removals move their boundary points as a
+browser's `Range` (DOM §5.3). `Dom::descendants(root)` walks a subtree
+in tree order, text nodes included, and `Dom::range_between(a, b)`
+builds a checked range from two boundary points. A renderer paints
+each name's ranges with `::highlight(name)` — see the rdom-tui README's
+search-results example.
 
 ## AbortSignal
 

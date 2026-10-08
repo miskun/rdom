@@ -331,6 +331,86 @@ Legacy fallback: if no rule supplies `content:`, the cascade falls
 back to `TuiExt.before_content` / `after_content` (settable via
 `node.set_before_content("→")` on `TuiNodeMutExt`).
 
+## Lists, counters and generated content
+
+List items are `display: list-item`: each carries a `::marker` whose text `list-style-type` makes from the `list-item` counter (CSS Lists 3). The marker hangs outside the item, in the list's four cells of padding, unless `list-style-position: inside` puts it in the line. Every predefined counter style is supported, and `@counter-style` defines more. `counter()` and `counters()` read a counter in `content`, `::marker` takes `color` and `content`, and `ol[reversed]`, `<li value>` and `<ol start>` number as HTML does. `content` also takes quotes (`open-quote`, `quotes`, `<q>`). `::first-line` and `::first-letter` style a block's first line and letter.
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        r#"
+        @counter-style check { system: cyclic; symbols: "✓"; suffix: " " }
+        .roman { list-style-type: upper-roman; margin-left: 2 }
+        .roman li::marker { color: red }
+        .outline { list-style-position: inside; padding-left: 0 }
+        .outline .outline { padding-left: 2 }
+        .outline li::marker { content: counters(list-item, ".") ". " }
+        .done { list-style-type: check }
+        "#,
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let body = dom.create_element("body");
+    dom.append_child(root, body)?;
+    let mut add = |parent: NodeId, tag: &str, class: &str, text: &str| -> NodeId {
+        let id = dom.create_element(tag);
+        if !class.is_empty() {
+            dom.set_attribute(id, "class", class).unwrap();
+        }
+        if !text.is_empty() {
+            let t = dom.create_text_node(text);
+            dom.append_child(id, t).unwrap();
+        }
+        dom.append_child(parent, id).unwrap();
+        id
+    };
+    let roman = add(body, "ol", "roman", "");
+    for item in ["one", "two", "three"] {
+        add(roman, "li", "", item);
+    }
+    let outline = add(body, "ol", "outline", "");
+    add(outline, "li", "", "Intro");
+    let part = add(outline, "li", "", "Body");
+    let inner = add(part, "ol", "outline", "");
+    add(inner, "li", "", "Part");
+    let done = add(body, "ul", "done", "");
+    add(done, "li", "", "milk");
+
+    let area = Rect::new(0, 0, 14, 7);
+    dom.cascade(&sheet);
+    dom.layout_dom(area);
+    let mut buf = Buffer::empty(area);
+    dom.paint_dom(&mut buf, area);
+
+    let rows: Vec<String> = (0..7)
+        .map(|y| (0..14).map(|x| buf.cell(x, y).unwrap().symbol()).collect())
+        .collect();
+    // The markers hang in the lists' four cells of padding, ending where
+    // the items start — a wider one past it, so the roman list keeps a
+    // margin (a list at column 0 would cut "III. " to "II. "); the outline
+    // numbers nest with `counters()`; the custom style's `✓` hangs too.
+    assert_eq!(
+        rows,
+        [
+            "   I. one     ",
+            "  II. two     ",
+            " III. three   ",
+            "1. Intro      ",
+            "2. Body       ",
+            "  2.1. Part   ",
+            "  ✓ milk      ",
+        ]
+    );
+    // `::marker { color: red }` colours the marker, not the item's text.
+    let red = Color::Rgb(255, 0, 0);
+    assert_eq!(buf.cell(3, 0).unwrap().fg, red);
+    assert_ne!(buf.cell(6, 0).unwrap().fg, red);
+    Ok(())
+}
+```
+
 ## Custom highlights: search results
 
 The CSS Custom Highlight API styles ranges of text without touching the tree. Register a `Highlight` of `Range`s under a name in `dom.highlights_mut()` and style it with `::highlight(name)`. The ranges are live, so they move with text edits, insertions and removals. `Dom::descendants` walks the text nodes, and `Dom::range_between` checks each pair of byte offsets. The registry reports one `Mutation::HighlightsChanged` after each change, which an `App` repaints on.

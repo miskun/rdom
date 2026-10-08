@@ -39,7 +39,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 7 | Grid | done 2026-10-09 (both gates; 15 gate fixes `C7G-*`; their re-review rides with the Phase 8 gate) |
 | 8 | Positioning, floats, overflow, scrolling | done 2026-10-10 (both gates; 15 gate fixes `C8G-*`; their re-review rides with the Phase 9 gate) |
 | 9 | Inline text and decoration | done 2026-10-12 (both gates; 14 gate fixes `C9G-*`; their re-review rides with the Phase 10 gate) |
-| 10 | Lists, counters, generated content, pseudo-elements | gates run 2026-10-13; `C10G-*` fixes in progress |
+| 10 | Lists, counters, generated content, pseudo-elements | done 2026-10-13 (both gates; 19 gate fixes `C10G-*`; their re-review rides with the Phase 11 gate) |
 | 11 | Selectors | |
 | 12 | Transitions, animations, user interface | |
 | 13 | Tables (real table formatting context) | |
@@ -240,7 +240,7 @@ row comes from.
 |---|---|---|
 | C12-TIMING | `transition-timing-function` full (`linear()`, `steps()` positions), negative `transition-delay` | |
 | C12-BEHAVIOR | `transition-behavior: allow-discrete` | |
-| C12-ANIMATABLE | Every animatable property this program adds interpolates | |
+| C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) | |
 | C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | |
 | C12-STARTING | `@starting-style` | |
 | C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | |
@@ -6876,3 +6876,27 @@ row comes from.
   invalid-rule test names each rule's reason (it matched any `InvalidCounterStyleRule`), and
   `css_phase8/containing_block.rs` reads `positioned_pseudos().next()` for the border box. CHANGELOG: the from-0.5
   `before_layout` row and two after-0.5 rows, hint group `generated_box_read_hints`.
+- 2026-10-13 — C10G-DOCS (API N7, N9). (1) The rdom-core README's mutation record list gains `HighlightsChanged`,
+  and `PreDetach`, which was also missing. A short "Custom highlights" section points to the rdom-tui README's
+  example. (2) The rdom-tui README gains a "Lists, counters and generated content" section: what Phase 10 ships
+  (markers, every predefined style, `@counter-style`, `counter()` / `counters()`, `::marker`, the HTML list
+  attributes, quotes, `::first-line` / `::first-letter`), and a doctest painting an `upper-roman` `ol`, a nested
+  `counters(list-item, ".")` outline on `::marker`, and a custom `@counter-style` bullet. It asserts every row
+  and the `::marker` colour on the marker cell but not the text. The roman list keeps the UA padding and sets a
+  `margin-left`, so the rows pin the four-cell list padding. Mutation (the UA padding set back to 0.5's 3 / 2
+  cells, restored, touched): the doctest fails with `"  I. one"` / `"✓ milk"` for `"   I. one"` /
+  `"  ✓ milk"`, so it would have caught the marker-clip bug. (3) ACID tile 9 is now three tiles: 9a counters and
+  generated content (with the positioned pseudo-elements and `<details>`); 9b lists and markers, gaining the
+  column-0 cases (a ten-item `ol`, an `upper-roman` list at the edge and beside a `margin-left`), nested
+  bullets, `<ol type>`, an inline list item and an outside `::marker:hover`; 9c first line, first letter and a
+  search highlight built from Rust (overlap with the selection stays in tile 17). I12 points at 9a–9c. (4) The
+  C12-ANIMATABLE row of the Phase 12 table now says, in bold, that geometry transitions never reach layout
+  (found by C10G-DETAILS-CONTENT-BOX). Docs and a doctest only; no production code changed.
+- 2026-10-13 — Phase 10 closed: 19 gate fixes, all at the root — batch A (correctness and cost: C10G-SPLITS,
+  -MARKER-COST, -MARKER-CLIP, -MARKER-HIT, -SELECTION-PAIRED, -HIGHLIGHT-COST, -IDLE-SCANS, -INHERIT-COST and its
+  split, -TUIEXT-SIDE, -MINOR), batch B (the two partial items: -DETAILS-CONTENT-BOX, -PSEUDO-MARKER) and batch C
+  (API, migration and docs: -INLINE-LIST-ITEM, -MIGRATION, -DESIGN-TYPES, -UPGRADE, -HIGHLIGHT-API, -API-SMALL,
+  -DOCS). Every Phase 10 row is done and §3.16 has no Partial row; the fixes' re-review rides with the Phase 11
+  gate. Carried forward: geometry transitions reaching layout (C12-ANIMATABLE, flagged on its row),
+  `interpolate-size` for `::details-content`, and closed `<details>` content computing `display: none` until
+  C14-CONTAIN brings `content-visibility`.
