@@ -8389,3 +8389,11 @@ row comes from.
   pseudo-element — an inline run's fragments, a generated block box, a float or a positioned box each
   keep their geometry in a different place — so a subject rect means a pseudo-element bounding-box
   accessor first; recorded here, the divergence entry stands.
+- 2026-10-08 — C12G-SPLITS (CLAUDE.md §Architecture Hygiene: 575 split on touch; moves only). The SIZE-1
+  recount at the end of batch B found two files batch B took past 575: `runtime/app/mod.rs` 596
+  (C12G-APP-CONFIG's configuration table in the module doc) — its `with_*` option builders moved to
+  `app/config.rs` (104), leaving 508, the table staying in the `app` module doc; and
+  `rdom-core/src/tree.rs` 587 production lines (C12G-MOVE-RECORD's insertion helpers) — now
+  `tree/mod.rs` 421 (the public mutations and the insertion path) and `tree/detach.rs` 179 (the
+  unlink, the interaction-state purge and the removing steps). No behaviour or public path changed.
+  TECH_DEBT `SIZE-1` recounted.
