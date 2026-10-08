@@ -17,6 +17,11 @@
 //! (`::before::marker`, CSS Pseudo-Elements 4 §4): it rides the first of
 //! the lines the pseudo-element's box packs (`inline::pack_generated`),
 //! an outside one hung beside that box ([`place_outside_of_box`]).
+//!
+//! An inline list item — `display: inline list-item`, an element or a
+//! `::before` / `::after` — has its marker as its own first inline box
+//! ([`inline_marker`], [`inline_pseudo_marker`]): §3.5 makes `outside`
+//! equivalent to `inside` for an inline box.
 
 use rdom_core::{Dom, NodeId};
 
@@ -81,9 +86,50 @@ pub(crate) fn pseudo_marker(
         PseudoSlot::After => PseudoSlot::AfterMarker,
         _ => return None,
     };
+    let pseudo = dom.node(host).computed_pseudo(slot)?;
+    if pseudo.display != Display::Block || !pseudo.flow.is_block_flow() {
+        return None;
+    }
+    list_item_pseudo_marker(dom, host, slot, marker_slot)
+}
+
+/// The marker of `host`'s `slot` pseudo-element (`Before` / `After`) when
+/// that box is an inline list item (`display: inline list-item`) whose
+/// nested marker has content: the pseudo-element's first inline box,
+/// always `inside` (CSS Lists 3 §3.5: "If the list item is an inline
+/// box, this value is equivalent to `inside`").
+pub(crate) fn inline_pseudo_marker(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    slot: PseudoSlot,
+) -> Option<Marker<'_>> {
+    let marker_slot = match slot {
+        PseudoSlot::Before => PseudoSlot::BeforeMarker,
+        PseudoSlot::After => PseudoSlot::AfterMarker,
+        _ => return None,
+    };
+    if dom.node(host).computed_pseudo(slot)?.display != Display::Inline {
+        return None;
+    }
+    let marker = list_item_pseudo_marker(dom, host, slot, marker_slot)?;
+    Some(Marker {
+        outside: false,
+        ..marker
+    })
+}
+
+/// The `marker_slot` marker of `host`'s `slot` pseudo-element when that
+/// box is a list item whose nested marker has content, whatever its
+/// display.
+fn list_item_pseudo_marker(
+    dom: &Dom<TuiExt>,
+    host: NodeId,
+    slot: PseudoSlot,
+    marker_slot: PseudoSlot,
+) -> Option<Marker<'_>> {
     let ext = dom.node(host).ext()?;
     let pseudo = ext.computed_pseudo(slot)?;
-    if !pseudo.list_item || pseudo.display != Display::Block || !pseudo.flow.is_block_flow() {
+    if !pseudo.list_item {
         return None;
     }
     let text = ext.computed_pseudo(marker_slot)?.content.as_deref()?;
@@ -92,6 +138,25 @@ pub(crate) fn pseudo_marker(
         slot: marker_slot,
         text,
         outside: pseudo.list_style_position == ListStylePosition::Outside,
+    })
+}
+
+/// `item`'s marker when it is an inline list item (`display: inline
+/// list-item`, an inline box) whose `::marker` has content (CSS Display 3
+/// §2.3, CSS Lists 3 §3.1): its first inline box, always `inside`
+/// (§3.5: `outside` "is equivalent to `inside`" for an inline box).
+pub(crate) fn inline_marker(dom: &Dom<TuiExt>, item: NodeId) -> Option<Marker<'_>> {
+    let node = dom.node(item);
+    let computed = node.computed()?;
+    if !computed.list_item || computed.display != Display::Inline {
+        return None;
+    }
+    let text = node.computed_marker()?.content.as_deref()?;
+    Some(Marker {
+        item,
+        slot: PseudoSlot::Marker,
+        text,
+        outside: false,
     })
 }
 

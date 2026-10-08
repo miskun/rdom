@@ -6757,3 +6757,18 @@ row comes from.
 - 2026-10-13 — C10G batch B closed (C10G-DETAILS-CONTENT-BOX, C10G-PSEUDO-MARKER): both Phase 10 partial
   items are done; §3.16 has no Partial row. Found on the way and recorded: geometry transitions never move
   layout (DIVERGENCES §3, C12-ANIMATABLE); an inline list item has no marker (DIVERGENCES §4).
+- 2026-10-13 — C10G-INLINE-LIST-ITEM (found by C10G-PSEUDO-MARKER). Found: `display: inline list-item` — on an
+  element, or on a `::before` / `::after` — incremented `list-item` but drew no marker, because markers were
+  placed only on a block container's first line. CSS Display 3 §2.3 gives every list item a `::marker`, and
+  CSS Lists 3 §3.5 says `outside` "is equivalent to `inside`" when the list item is an inline box. Fixed in the
+  inline feed: `walk_inline_box` pushes an inline list item's marker (`markers::inline_marker`) as the box's first
+  inline box, ahead of its `::before` (Pseudo-Elements 4 §3.1); `push_pseudo_text` does the same for an inline
+  list-item `::before` / `::after` (`markers::inline_pseudo_marker`, the nested marker slot). Both are always
+  inside. Measurement shares the feed, so shrink-to-fit widths count the marker. The block predicates
+  (`marker`, `pseudo_marker`) are unchanged. Red: `css_phase10/inline_list_item.rs`, all 5 failed on HEAD
+  (`"ab        "` for `"1. a2. b  "`, `"   a    "` for `"   ▪ a  "`, `"xa    "` for `"- xa  "`, no `→` marker,
+  `"a       "` unmeasured); green after (the `::marker` rule's colour and the pseudo hit test naming
+  `(span, Marker)` included). On the way: a `<span>` that is the root element is blockified (CSS Display 3 §2.7)
+  and so hangs its marker off-screen, which is correct, so the test wraps it in a `<div>`. DIVERGENCES §4's
+  "inline list item has no marker" entry removed; CSS-COVERAGE `display: list-item` and `::marker` rows
+  corrected (counts unchanged, both rows were already Supported). No existing expectation or snapshot changed.

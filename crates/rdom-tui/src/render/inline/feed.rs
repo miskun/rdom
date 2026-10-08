@@ -56,6 +56,10 @@ fn push_pseudo_text<'a>(
 ) {
     let (rows, align) = pseudo_box(dom, host, slot);
     packer.enter_box(rows, align);
+    // An inline list-item `::before` / `::after`: its marker first.
+    if let Some(marker) = super::markers::inline_pseudo_marker(dom, host, slot) {
+        push_marker(dom, marker, packer);
+    }
     packer.push_generated(host, slot, text, pseudo_run(dom, host, slot));
     packer.leave_box();
 }
@@ -286,14 +290,19 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
     }
 }
 
-/// Feed one in-flow inline element: its static `::before`, its
-/// content, its static `::after`. CSS 2.1 §12.1: the pseudo-elements
-/// are the element's first / last inline children, so they pack at its
-/// start / end, in its line flow (they wrap, and the text beside them
-/// shifts). They land in [`LineBox::generated`], hosted by the element.
+/// Feed one in-flow inline element: its marker when it is an inline
+/// list item, its static `::before`, its content, its static `::after`.
+/// CSS 2.1 §12.1: the pseudo-elements are the element's first / last
+/// inline children, so they pack at its start / end, in its line flow
+/// (they wrap, and the text beside them shifts); CSS Pseudo-Elements 4
+/// §3.1 puts `::marker` before `::before`. They land in
+/// [`LineBox::generated`], hosted by the element.
 fn walk_inline_box<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a>) {
     let (rows, align) = element_box(dom, id);
     packer.enter_box(rows, align);
+    if let Some(marker) = super::markers::inline_marker(dom, id) {
+        push_marker(dom, marker, packer);
+    }
     push_met_pseudo(dom, id, PseudoSlot::Before, packer);
     walk_subtree(dom, id, packer);
     push_met_pseudo(dom, id, PseudoSlot::After, packer);

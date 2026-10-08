@@ -13,6 +13,7 @@ mod counters;
 mod details_content;
 mod first;
 mod highlight;
+mod inline_list_item;
 mod legacy_colon;
 mod list_item;
 mod pseudo_chains;
