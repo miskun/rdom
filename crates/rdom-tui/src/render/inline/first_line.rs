@@ -41,9 +41,9 @@ pub(crate) fn hosts(dom: &Dom<TuiExt>, block: NodeId, first_formatted: bool) -> 
         return Vec::new();
     }
     let has_first = |id: NodeId| {
-        dom.node(id)
-            .ext()
-            .is_some_and(|e| e.computed_first_line.is_some() || e.computed_first_letter.is_some())
+        dom.node(id).ext().is_some_and(|e| {
+            e.computed_first_line().is_some() || e.computed_first_letter().is_some()
+        })
     };
     // The outermost ancestor that could style this line: nothing above it
     // needs the (allocating) first-content check.
@@ -107,7 +107,7 @@ fn line_styles<'d>(
             let ext = dom.node(h).ext()?;
             Some((
                 ext.computed.as_deref()?,
-                ext.computed_first_line.as_deref()?,
+                ext.computed_first_line().map(|s| &**s)?,
             ))
         })
         .collect()

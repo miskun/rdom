@@ -107,8 +107,7 @@ pub fn diff_and_register(dom: &mut Dom<TuiExt>, registry: &mut AnimationRegistry
             if let Some(curr_clone) = curr {
                 ext.computed_prev = Some(curr_clone);
             }
-            ext.computed_before_prev = ext.computed_before.clone();
-            ext.computed_after_prev = ext.computed_after.clone();
+            ext.snapshot_pseudo_prev();
         }
     }
 }
@@ -129,8 +128,7 @@ pub fn settle_restyled(dom: &mut Dom<TuiExt>, roots: &[NodeId]) {
         for id in collect_element_ids(dom, root) {
             if let Some(ext) = dom.node_mut(id).ext_mut() {
                 ext.computed_prev = ext.computed.clone();
-                ext.computed_before_prev = ext.computed_before.clone();
-                ext.computed_after_prev = ext.computed_after.clone();
+                ext.snapshot_pseudo_prev();
             }
         }
     }
@@ -145,12 +143,12 @@ fn snapshot_pseudo(
 ) -> Option<(std::rc::Rc<ComputedStyle>, std::rc::Rc<ComputedStyle>)> {
     let ext = dom.node(id).ext()?;
     let (prev, curr) = match slot {
-        StyleSlot::Before => (&ext.computed_before_prev, &ext.computed_before),
-        StyleSlot::After => (&ext.computed_after_prev, &ext.computed_after),
+        StyleSlot::Before => (ext.computed_before_prev(), ext.computed_before.as_ref()),
+        StyleSlot::After => (ext.computed_after_prev(), ext.computed_after.as_ref()),
         // The host is diffed on its own; a marker does not transition.
         _ => return None,
     };
-    let (prev, curr) = (prev.as_ref()?, curr.as_ref()?);
+    let (prev, curr) = (prev?, curr?);
     // Rc clones only; an unchanged pseudo (the cascade did not touch this
     // element) shares the allocation and is skipped outright.
     if std::rc::Rc::ptr_eq(prev, curr) {

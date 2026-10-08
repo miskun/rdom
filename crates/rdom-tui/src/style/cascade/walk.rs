@@ -343,7 +343,7 @@ fn style_element<'a>(
     counters.note_ops(
         dom.node(id)
             .ext()
-            .and_then(|e| e.computed_marker.as_deref()),
+            .and_then(|e| e.computed_marker().map(|s| &**s)),
         early.marker.as_ref(),
     );
     counters.note_ops(
@@ -496,7 +496,7 @@ fn finish_element<'a>(
         || dom
             .node(id)
             .ext()
-            .and_then(|e| e.computed_marker.as_deref())
+            .and_then(|e| e.computed_marker().map(|s| &**s))
             .is_some_and(has_ops)
         || computed_before.as_deref().is_some_and(has_ops)
         || computed_after.as_ref().is_some_and(has_ops);

@@ -96,10 +96,16 @@ fn clone_copies_author_inputs_and_resets_runtime_state() {
 /// `::details-content` style (`C10-DETAILS-CONTENT`, one `Rc` — the
 /// positioned pseudo-elements' boxes, `::first-line` / `::first-letter`
 /// and the highlight styles of C10-PSEUDO-UNIFY, -FIRST and -HIGHLIGHT
-/// fit in what the two `PseudoLayout`s freed).
+/// fit in what the two `PseudoLayout`s freed). Lowered to 376 by
+/// C10G-TUIEXT-SIDE: the twelve rarely set pseudo-element slots
+/// (`::marker`, `::first-line`, `::first-letter`, `::details-content`,
+/// `::backdrop`, the scrollbar parts, and the `::before` / `::after`
+/// previous styles and transition overrides) live in one boxed
+/// `PseudoStyles`, one pointer here (the highlight styles stay, shared
+/// from the parent).
 #[test]
 fn tui_ext_size_tripwire() {
-    const MAX: usize = 464;
+    const MAX: usize = 376;
     let size = std::mem::size_of::<TuiExt>();
     let computed = std::mem::size_of::<ComputedStyle>();
     let inline = std::mem::size_of::<TuiStyle>();
@@ -127,4 +133,28 @@ fn partial_eq_works() {
     };
     assert_eq!(a, b);
     assert_ne!(a, c);
+}
+
+/// C10G-TUIEXT-SIDE: the side record exists only while a rarely set
+/// pseudo-element style does — a plain element has none, a list item has
+/// one (its `::marker`), and it goes when the element stops being one.
+#[test]
+fn the_pseudo_side_record_is_boxed_only_when_used() {
+    use crate::{CascadeExt, TuiDom};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+    let li = dom.create_element("li");
+    let t = dom.create_text_node("x");
+    dom.append_child(li, t).unwrap();
+    dom.append_child(root, li).unwrap();
+    let plain = crate::style::Stylesheet::new();
+    dom.cascade(&plain);
+    assert!(dom.node(div).ext().unwrap().pseudo_styles().is_none());
+    let ext = dom.node(li).ext().unwrap();
+    assert!(ext.pseudo_styles().is_some() && ext.computed_marker().is_some());
+    let none = rdom_css::from_css_strict("li { display: block }").unwrap();
+    dom.cascade(&none);
+    assert!(dom.node(li).ext().unwrap().pseudo_styles().is_none());
 }

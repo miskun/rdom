@@ -104,8 +104,8 @@ impl TuiExt {
     pub fn presentation_for(&self, slot: StyleSlot) -> Option<&PresentationStyle> {
         match slot {
             StyleSlot::Host => self.presentation.as_deref(),
-            StyleSlot::Before => self.presentation_before.as_deref(),
-            StyleSlot::After => self.presentation_after.as_deref(),
+            StyleSlot::Before => self.pseudo.as_ref()?.presentation_before.as_deref(),
+            StyleSlot::After => self.pseudo.as_ref()?.presentation_after.as_deref(),
             StyleSlot::Marker | StyleSlot::FirstLetter => None,
         }
     }
@@ -125,11 +125,16 @@ impl TuiExt {
     /// element whose transitions finished is back to one `None`.
     /// Transition-engine plumbing (`runtime::animation`).
     pub(crate) fn release_empty_presentation(&mut self, slot: StyleSlot) {
+        if slot != StyleSlot::Host && self.pseudo.is_none() {
+            return;
+        }
         if let Some(boxed) = self.presentation_slot(slot)
             && boxed.as_deref().is_some_and(PresentationStyle::is_empty)
         {
             *boxed = None;
         }
+        // An empty side record goes with the last override in it.
+        self.update_pseudo(false, |_| {});
     }
 
     /// The computed style of `slot`: the element's own, or one of its
@@ -139,8 +144,8 @@ impl TuiExt {
             StyleSlot::Host => self.computed.as_ref(),
             StyleSlot::Before => self.computed_before.as_ref(),
             StyleSlot::After => self.computed_after.as_ref(),
-            StyleSlot::Marker => self.computed_marker.as_ref(),
-            StyleSlot::FirstLetter => self.computed_first_letter.as_ref(),
+            StyleSlot::Marker => self.computed_marker(),
+            StyleSlot::FirstLetter => self.computed_first_letter(),
         }
     }
 
@@ -150,8 +155,8 @@ impl TuiExt {
         match slot {
             PseudoSlot::Before => self.computed_before.as_ref(),
             PseudoSlot::After => self.computed_after.as_ref(),
-            PseudoSlot::Marker => self.computed_marker.as_ref(),
-            PseudoSlot::FirstLetter => self.computed_first_letter.as_ref(),
+            PseudoSlot::Marker => self.computed_marker(),
+            PseudoSlot::FirstLetter => self.computed_first_letter(),
         }
     }
 
@@ -161,8 +166,18 @@ impl TuiExt {
     ) -> Option<&mut Option<Box<PresentationStyle>>> {
         match slot {
             StyleSlot::Host => Some(&mut self.presentation),
-            StyleSlot::Before => Some(&mut self.presentation_before),
-            StyleSlot::After => Some(&mut self.presentation_after),
+            StyleSlot::Before => Some(
+                &mut self
+                    .pseudo
+                    .get_or_insert_with(Default::default)
+                    .presentation_before,
+            ),
+            StyleSlot::After => Some(
+                &mut self
+                    .pseudo
+                    .get_or_insert_with(Default::default)
+                    .presentation_after,
+            ),
             StyleSlot::Marker | StyleSlot::FirstLetter => None,
         }
     }

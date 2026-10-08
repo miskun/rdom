@@ -71,7 +71,7 @@ fn pseudo_element_color_transitions_in_its_own_slot() {
     reg.advance(&mut dom, start + Duration::from_millis(50));
     let ext = dom.node(div).ext().unwrap();
     assert!(ext.presentation.is_none(), "host slot untouched");
-    let fg = ext.presentation_before.as_ref().and_then(|p| p.fg);
+    let fg = ext.presentation_for(StyleSlot::Before).and_then(|p| p.fg);
     // Red → blue at the midpoint, in Oklab (CSS Color 4 §12.1).
     assert_eq!(fg, Some(Color::Rgb(140, 83, 162)), "the ::before override");
     let events = reg.take_pending_events();
@@ -84,7 +84,11 @@ fn pseudo_element_color_transitions_in_its_own_slot() {
     reg.advance(&mut dom, start + Duration::from_millis(120));
     assert!(reg.is_empty());
     assert!(
-        dom.node(div).ext().unwrap().presentation_before.is_none(),
+        dom.node(div)
+            .ext()
+            .unwrap()
+            .presentation_for(StyleSlot::Before)
+            .is_none(),
         "the finished transition releases the override box"
     );
 }

@@ -6632,3 +6632,24 @@ row comes from.
   `migration_hints.rs::calc_payload_hints`. Mutation: HEAD's payload types are the reverse change (the red
   run). Changed expectations: construction sites in rdom-style's own tests (`Box::new` → `Arc::new` or
   `calc()`); no behaviour or snapshot changed.
+- 2026-10-13 — C10G-TUIEXT-SIDE (architect N8). Found: every element's `TuiExt` held twelve pseudo-element
+  slots almost always `None` — `::marker`, `::first-line`, `::first-letter`, `::details-content`,
+  `::backdrop`, the three scrollbar parts, and the `::before` / `::after` previous styles and transition
+  overrides — 464 bytes per node. Fixed: they move into one `PseudoStyles` record
+  (`ext/pseudo_styles.rs`, `#[non_exhaustive]`, DESIGN's classification extended), boxed on `TuiExt` only
+  while one is set: the cascade writes its eight through `update_pseudo` (no box for an element that sets
+  none, the box dropped when the last goes), the transition engine its four (`snapshot_pseudo_prev`, the
+  override slots of `presentation_for_mut`, `release_empty_presentation` dropping an emptied record).
+  `::before` / `::after` / `::selection` stay inline (the UA's `*::selection` gives every element one), and
+  so do the `::highlight()` styles — decided by the gate's own test: moved into the record, a
+  `*::highlight()` rule boxed one per element (`a_universal_highlight_rule_shares_its_style`: 180
+  allocations for 160), while inline they stay shared from the parent.
+  Accessors stay: `computed_pseudo(slot)`, `computed_for(slot)`, `presentation_for(slot)`,
+  `computed_highlight(name)` and the `TuiNodeExt` reads are unchanged, and each moved field has an accessor
+  of its name (`computed_backdrop()` …) — the public fields of 0.5 among them are a Breaking bullet, an
+  API-table row and the hint group `tui_ext_pseudo_hints`. Red: the size tripwire lowered to 368 (all
+  thirteen moved) failed on HEAD (`size_of::<TuiExt>() = 464, bound 368`); green after at 376 with the
+  highlights kept inline (−88 B per node), the bound set there. Pin added:
+  `ext/tests.rs::the_pseudo_side_record_is_boxed_only_when_used` (none on a plain `div`, one on an `li`,
+  gone when it stops being a list item). No other expectation or snapshot changed (the test reads rewrote
+  field reads as accessor calls).

@@ -31,16 +31,26 @@ impl EarlyPseudos {
     /// caller keeps for after the children).
     pub(super) fn write(self, ext: &mut TuiExt) {
         use std::rc::Rc;
-        ext.computed_marker = self.marker.map(Rc::new);
-        ext.computed_backdrop = self.backdrop.map(Rc::new);
         ext.computed_selection = self.selection.map(Rc::new);
-        ext.computed_first_line = self.first_line.map(Rc::new);
-        ext.computed_first_letter = self.first_letter.map(Rc::new);
-        ext.computed_details_content = self.details_content.map(Rc::new);
         ext.computed_highlights = self.highlights;
-        ext.computed_scrollbar = self.scrollbar.map(Rc::new);
-        ext.computed_scrollbar_thumb_vertical = self.thumb_vertical.map(Rc::new);
-        ext.computed_scrollbar_thumb_horizontal = self.thumb_horizontal.map(Rc::new);
+        let sets = self.marker.is_some()
+            || self.backdrop.is_some()
+            || self.first_line.is_some()
+            || self.first_letter.is_some()
+            || self.details_content.is_some()
+            || self.scrollbar.is_some()
+            || self.thumb_vertical.is_some()
+            || self.thumb_horizontal.is_some();
+        ext.update_pseudo(sets, |p| {
+            p.marker = self.marker.map(Rc::new);
+            p.backdrop = self.backdrop.map(Rc::new);
+            p.first_line = self.first_line.map(Rc::new);
+            p.first_letter = self.first_letter.map(Rc::new);
+            p.details_content = self.details_content.map(Rc::new);
+            p.scrollbar = self.scrollbar.map(Rc::new);
+            p.scrollbar_thumb_vertical = self.thumb_vertical.map(Rc::new);
+            p.scrollbar_thumb_horizontal = self.thumb_horizontal.map(Rc::new);
+        });
     }
 }
 

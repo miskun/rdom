@@ -2124,7 +2124,7 @@ fn marked_scroll_container_thumb_is_accent() {
     let thumb_fg = |dom: &TuiDom| {
         dom.node(d)
             .tui_ext()
-            .and_then(|e| e.computed_scrollbar_thumb_vertical.as_ref())
+            .and_then(|e| e.computed_scrollbar_thumb_vertical())
             .map(|c| c.fg)
     };
     dom.set_focused(Some(d));
@@ -2969,7 +2969,7 @@ fn nested_ul_does_not_advance_the_enclosing_ol_numbering() {
     let marker = |id: NodeId| {
         dom.node(id)
             .ext()
-            .and_then(|e| e.computed_marker.as_ref())
+            .and_then(|e| e.computed_marker())
             .and_then(|p| p.content.clone())
     };
     assert_eq!(marker(a).as_deref(), Some("1. "));
@@ -3002,7 +3002,7 @@ fn subtree_cascade_renumbers_after_insertion_regardless_of_root_order() {
     let marker = |dom: &TuiDom, id: NodeId| {
         dom.node(id)
             .ext()
-            .and_then(|e| e.computed_marker.as_ref())
+            .and_then(|e| e.computed_marker())
             .and_then(|p| p.content.clone())
     };
     assert_eq!(marker(&dom, items[2]).as_deref(), Some("3. "));
@@ -3131,7 +3131,7 @@ fn detached_dirty_root_does_not_starve_connected_roots() {
     let marker = dom
         .node(li)
         .ext()
-        .and_then(|e| e.computed_marker.as_ref())
+        .and_then(|e| e.computed_marker())
         .and_then(|p| p.content.clone());
     assert_eq!(marker.as_deref(), Some("1. "));
 }

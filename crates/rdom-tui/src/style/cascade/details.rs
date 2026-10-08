@@ -34,7 +34,11 @@ pub(super) fn inherited_style(
     parent: NodeId,
     child: NodeId,
 ) -> Option<Rc<ComputedStyle>> {
-    let slot = dom.node(parent).ext()?.computed_details_content.clone()?;
+    let slot = dom
+        .node(parent)
+        .ext()?
+        .computed_details_content()
+        .cloned()?;
     slotted(dom, parent, child).then_some(slot)
 }
 
@@ -44,7 +48,7 @@ pub(crate) fn hides(dom: &Dom<TuiExt>, parent: NodeId) -> bool {
     let node = dom.node(parent);
     let Some(slot) = node
         .ext()
-        .and_then(|e| e.computed_details_content.as_deref())
+        .and_then(|e| e.computed_details_content().map(|s| &**s))
     else {
         return false;
     };

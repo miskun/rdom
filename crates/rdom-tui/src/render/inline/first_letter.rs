@@ -53,7 +53,7 @@ pub(crate) fn host_of(dom: &Dom<TuiExt>, hosts: &[NodeId]) -> Option<NodeId> {
     hosts.iter().copied().find(|&h| {
         dom.node(h)
             .ext()
-            .is_some_and(|e| e.computed_first_letter.is_some())
+            .is_some_and(|e| e.computed_first_letter().is_some())
     })
 }
 
@@ -269,10 +269,10 @@ fn is_punctuation(c: char) -> bool {
 /// `host`'s `::first-line`, or `host`.
 fn styles(dom: &Dom<TuiExt>, host: NodeId) -> Option<(&ComputedStyle, &ComputedStyle)> {
     let ext = dom.node(host).ext()?;
-    let letter = ext.computed_first_letter.as_deref()?;
+    let letter = ext.computed_first_letter().map(|s| &**s)?;
     let parent = ext
-        .computed_first_line
-        .as_deref()
+        .computed_first_line()
+        .map(|s| &**s)
         .or(ext.computed.as_deref())?;
     Some((letter, parent))
 }

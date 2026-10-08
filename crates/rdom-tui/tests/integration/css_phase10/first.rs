@@ -31,8 +31,8 @@ fn first_line_and_first_letter_are_cascaded() {
     );
     let ext = dom.node(p).ext().unwrap();
     let line = ext
-        .computed_first_line
-        .as_deref()
+        .computed_first_line()
+        .map(|s| &**s)
         .expect("p has a ::first-line");
     assert_eq!(line.fg, rdom_tui::Color::Rgb(255, 0, 0));
     assert_eq!(
@@ -42,8 +42,8 @@ fn first_line_and_first_letter_are_cascaded() {
     );
     assert_eq!(line.padding.top.resolve(20), 0, "padding does not apply");
     let letter = ext
-        .computed_first_letter
-        .as_deref()
+        .computed_first_letter()
+        .map(|s| &**s)
         .expect("p has a ::first-letter");
     assert_eq!(
         letter.fg,
@@ -53,8 +53,8 @@ fn first_line_and_first_letter_are_cascaded() {
     assert_eq!(letter.float, Float::Left);
     assert_eq!(letter.text.text_transform.case, TextCase::Uppercase);
     let span_ext = dom.node(span).ext().unwrap();
-    assert!(span_ext.computed_first_line.is_none());
-    assert!(span_ext.computed_first_letter.is_none());
+    assert!(span_ext.computed_first_line().is_none());
+    assert!(span_ext.computed_first_letter().is_none());
     let _ = el;
 }
 

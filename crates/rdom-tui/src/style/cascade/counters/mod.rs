@@ -90,7 +90,7 @@ impl StoredOps {
             .ext()
             .map_or_else(Self::default, |e| StoredOps {
                 element: e.computed.clone(),
-                marker: e.computed_marker.clone(),
+                marker: e.computed_marker().cloned(),
                 before: e.computed_before.clone(),
                 after: e.computed_after.clone(),
             })

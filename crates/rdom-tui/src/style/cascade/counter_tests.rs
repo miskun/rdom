@@ -340,6 +340,6 @@ fn appending_to_a_reversed_list_renumbers_it() {
 fn marker(dom: &TuiDom, id: NodeId) -> Option<String> {
     dom.node(id)
         .ext()
-        .and_then(|e| e.computed_marker.as_ref())
+        .and_then(|e| e.computed_marker())
         .and_then(|m| m.content.clone())
 }

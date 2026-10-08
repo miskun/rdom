@@ -1087,3 +1087,23 @@ fn calc_payload_hints() {
     let _ = layout::ListStyleImage::Image("url(a.png)".into());
     let _ = BlockEllipsis::Str("…".into());
 }
+
+/// C10G-TUIEXT-SIDE: `TuiExt`'s rarely set pseudo-element fields moved
+/// into one boxed `PseudoStyles`; read them through the accessors named
+/// as the fields were (`ext.computed_backdrop` → `ext.computed_backdrop()`,
+/// an `Option<&Rc<ComputedStyle>>`), the transition overrides through
+/// `presentation_for(ext::StyleSlot::Before)`, the record through
+/// `pseudo_styles()`.
+#[test]
+fn tui_ext_pseudo_hints() {
+    let ext = TuiExt::default();
+    assert!(ext.computed_backdrop().is_none());
+    assert!(ext.computed_scrollbar().is_none());
+    assert!(ext.computed_scrollbar_thumb_vertical().is_none());
+    assert!(ext.computed_scrollbar_thumb_horizontal().is_none());
+    assert!(ext.computed_before_prev().is_none() && ext.computed_after_prev().is_none());
+    assert!(ext.computed_marker().is_none() && ext.computed_first_line().is_none());
+    assert!(ext.computed_first_letter().is_none() && ext.computed_details_content().is_none());
+    assert!(ext.presentation_for(ext::StyleSlot::Before).is_none());
+    let _: Option<&ext::PseudoStyles> = ext.pseudo_styles();
+}

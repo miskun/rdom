@@ -110,7 +110,7 @@ impl CounterState {
             let node = dom.node(used.owner.element);
             let own = node.ext().and_then(|e| match used.owner.slot {
                 OpBox::Element => e.computed.clone(),
-                OpBox::Marker => e.computed_marker.clone(),
+                OpBox::Marker => e.computed_marker().cloned(),
                 OpBox::Before => e.computed_before.clone(),
                 OpBox::After => e.computed_after.clone(),
             });

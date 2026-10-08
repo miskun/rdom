@@ -8,12 +8,14 @@
 
 mod layout_cache;
 mod presentation;
+mod pseudo_styles;
 #[cfg(test)]
 mod tests;
 
 pub(crate) use layout_cache::MarginChainMemo;
 pub use layout_cache::{AnonymousIfc, GeneratedBox, StaticPosition};
 pub use presentation::{PresentationStyle, PseudoSlot, StyleSlot};
+pub use pseudo_styles::PseudoStyles;
 
 use crate::layout::LayoutRect;
 use crate::render::inline::InlineLayout;
@@ -311,43 +313,6 @@ pub struct TuiExt {
     pub computed_before: Option<std::rc::Rc<ComputedStyle>>,
     /// `::after` pseudo-element computed style.
     pub computed_after: Option<std::rc::Rc<ComputedStyle>>,
-    /// `::marker` computed style (CSS Lists 3 §3.2): `Some` for a list
-    /// item (`display: list-item`) whose marker has content — its
-    /// `content` holds the marker text.
-    pub computed_marker: Option<std::rc::Rc<ComputedStyle>>,
-    /// `::first-line` computed style (CSS Pseudo-Elements 4 §2.2):
-    /// `Some` for a block container a `::first-line` rule matches,
-    /// inheriting from it, cut to §2.2.1's properties. Layout and paint
-    /// apply it to the block's first formatted line.
-    pub computed_first_line: Option<std::rc::Rc<ComputedStyle>>,
-    /// `::first-letter` computed style (§2.3): `Some` for a block
-    /// container a `::first-letter` rule matches, inheriting from its
-    /// `::first-line` (or the block without one), cut to §2.3.1's
-    /// properties.
-    pub computed_first_letter: Option<std::rc::Rc<ComputedStyle>>,
-    /// `::details-content` computed style (HTML §15.5.20): `Some` for a
-    /// `<details>` element. Its content — every child but its first
-    /// `<summary>` — inherits from it, and it hides that content while
-    /// the element is closed (`style::cascade::details`).
-    pub computed_details_content: Option<std::rc::Rc<ComputedStyle>>,
-    /// Previous-cascade snapshots of the two pseudo-element styles, so
-    /// the transition engine can diff them like `computed_prev`
-    /// (`D-M3-3`).
-    pub computed_before_prev: Option<std::rc::Rc<ComputedStyle>>,
-    pub computed_after_prev: Option<std::rc::Rc<ComputedStyle>>,
-    /// Animation overrides for `::before` / `::after` paint
-    /// properties (`color`, `background-color`, `border-color`).
-    /// Geometry of positioned pseudo-elements does not transition.
-    /// Boxed and `None` while no transition drives the slot, like
-    /// [`presentation`](Self::presentation).
-    pub presentation_before: Option<Box<PresentationStyle>>,
-    pub presentation_after: Option<Box<PresentationStyle>>,
-    /// `::backdrop` pseudo-element computed style — populated for
-    /// modal `<dialog>` elements whose stylesheet has a matching
-    /// `dialog::backdrop` rule. The paint pass overlays the
-    /// backdrop across the viewport after normal paint and before
-    /// re-painting the dialog. See Polish #8.
-    pub computed_backdrop: Option<std::rc::Rc<ComputedStyle>>,
     /// `::selection` pseudo-element computed style — populated
     /// for elements whose stylesheet has a matching `::selection`
     /// rule. The selection-overlay paint walks up from each
@@ -360,28 +325,17 @@ pub struct TuiExt {
     pub computed_selection: Option<std::rc::Rc<ComputedStyle>>,
     /// `::highlight(name)` computed styles (CSS Custom Highlight API 1
     /// §5.1): one per name a `::highlight()` rule matching this element
-    /// styles. The highlight overlay paint reads the nearest ancestor's
-    /// for a name, as `::selection`'s; `None` with none (most elements).
-    /// A thin `Rc`, shared with the parent's when the styles are its
-    /// (`cascade::early_pseudos`).
+    /// styles; `None` with none. A thin `Rc`, shared with the parent's
+    /// when the styles are its (`cascade::early_pseudos`) — kept here, not
+    /// in [`PseudoStyles`]: a `*::highlight()` rule gives every element one.
     pub(crate) computed_highlights: Option<HighlightStyles>,
-    /// `::scrollbar` pseudo-element computed style — populated
-    /// for elements with non-`Visible`/`Hidden` overflow on at
-    /// least one axis. Drives the scrollbar track paint: `bg`
-    /// fills every track cell, `fg` colors the `content` glyph
-    /// (default `" "` from UA — a colored gutter via `bg` is the
-    /// modern look). Authors override via
-    /// `selector::scrollbar { bg: …; content: "▒"; }` to retheme.
-    pub computed_scrollbar: Option<std::rc::Rc<ComputedStyle>>,
-    /// `::scrollbar-thumb` computed style for the **vertical** bar:
-    /// axis-neutral `::scrollbar-thumb` rules with
-    /// `::scrollbar-thumb:vertical` layered on top (default content
-    /// `┃`). Authors override via `selector::scrollbar-thumb { … }`
-    /// or the axis form.
-    pub computed_scrollbar_thumb_vertical: Option<std::rc::Rc<ComputedStyle>>,
-    /// Same for the **horizontal** bar (`::scrollbar-thumb` +
-    /// `::scrollbar-thumb:horizontal`, default content `━`).
-    pub computed_scrollbar_thumb_horizontal: Option<std::rc::Rc<ComputedStyle>>,
+    /// The rarely set pseudo-element styles and transition state —
+    /// `::marker`, `::first-line`, `::first-letter`, `::details-content`,
+    /// `::backdrop`, the scrollbar parts, and the
+    /// `::before` / `::after` previous styles and transition overrides —
+    /// boxed only while one is set (C10G-TUIEXT-SIDE). Read through
+    /// [`pseudo_styles`](Self::pseudo_styles) and the accessors.
+    pub(crate) pseudo: Option<Box<PseudoStyles>>,
     /// The rules each box of this element matched in its last cascade,
     /// under that cascade's sheets — reused by the restyle a registered
     /// custom property's transition runs each frame

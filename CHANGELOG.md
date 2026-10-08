@@ -154,6 +154,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | rdom-style value types reached through `rdom_style::…` | re-exported at the `rdom_tui` root (`use rdom_tui::*;`), with `set_border_radius` / `border_radius` on nodes | C4G-REEXPORTS, C5G-REEXPORTS-AND-ROOT | `node_border_radius_accessor` |
 | `TuiExt::before_layout` / `after_layout` (`PseudoLayout { rect, position }`) | `TuiExt::positioned_pseudos()` — an absolutely or fixed positioned pseudo-element's box (`AnonymousIfc`, its border box in `generated`); a relative or sticky one is laid out in flow | C10-PSEUDO-UNIFY | — |
 | `render::Style { fg, bg, add_modifier, sub_modifier }`; `SgrState { fg, bg, modifier }` literals | add `underline_color` (`Style::new()…underline_color(c)`, `SgrState::RESET`) | C9-DECORATION | `text_decoration_hints` |
+| `TuiExt::computed_before_prev` / `computed_after_prev` / `presentation_before` / `presentation_after` / `computed_backdrop` / `computed_scrollbar` / `computed_scrollbar_thumb_vertical` / `computed_scrollbar_thumb_horizontal` fields | accessors of the same names (`ext.computed_backdrop()`), `presentation_for(StyleSlot::Before)`; the record `pseudo_styles()` (`PseudoStyles`) | C10G-TUIEXT-SIDE | `tui_ext_pseudo_hints` |
 
 #### Changes to APIs added after 0.5
 
@@ -173,6 +174,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 | `FontFamily::Names(Vec<String>)` | `FontFamily::Names(Arc<[String]>)` (`vec![…].into()`), shared by the elements that inherit it | C9G-PACKER-ALLOC | — |
 | `MaxSize::Calc` / `FlexBasis::Calc` / `Spacing::Calc` / `LineHeight::Calc` / `VerticalAlign::Calc` / `PaintLength::Calc` / `TrackBreadth::Calc` / `IntrinsicSize::FitContentLimit` holding a `Box<CalcExpr>` | an `Arc<CalcExpr>`: `X::calc(e)` | C10G-INHERIT-COST | `calc_payload_hints` |
 | `ListStyleType::String(String)`, `ListStyleImage::Image(String)`, `BlockEllipsis::Str(String)` | `Arc<str>` (`"→ ".into()`), shared by the elements that inherit them | C10G-INHERIT-COST | `calc_payload_hints` |
+| `TuiExt::computed_marker` / `computed_first_line` / `computed_first_letter` / `computed_details_content` fields | accessors of the same names (`ext.computed_marker()`) | C10G-TUIEXT-SIDE | `tui_ext_pseudo_hints` |
 | `FontStretch::Keyword(&'static str)`; `FONT_STRETCH_KEYWORDS` | `FontStretch::Keyword(FontStretchKeyword)` (`FontStretchKeyword::Condensed`; `keyword()`, `percent()`, `from_keyword`); `FontStretchKeyword::ALL` | C9G-TYPES | `font_type_hints` |
 | exhaustive `match` on `FontVariant` | add a `_` arm (`#[non_exhaustive]`: Fonts 4 adds values) | C9G-TYPES | `font_type_hints` |
 | `TuiStyle::text_align(TextAlign)` | `text_align(impl Into<TextAlignKeyword>)`: a `TextAlign` as before, or `TextAlignKeyword::JustifyAll` | C9G-TYPES | `font_type_hints` |
@@ -456,6 +458,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **`AnonymousIfc` is `#[non_exhaustive]` and gains `generated: Option<GeneratedBox>`** (a `::before` / `::after` flex item's own box; `rect` its content box), with `AnonymousIfc::new` and `border_box()`. Migration: `AnonymousIfc::new(rect, inline_layout, child_range, None)`. (C6G-PSEUDO-FLEX-ITEMS)
 
 - **`TuiExt::before_layout` / `after_layout` and `PseudoLayout` are gone**: a positioned `::before` / `::after` is a generated box like every other pseudo-element (C10-PSEUDO-UNIFY). Migration: read an absolutely or fixed positioned one's box from `TuiExt::positioned_pseudos()` (`.generated` holds its slot and border box); a relatively positioned or sticky one is part of its host's flow (`GeneratedFragment`s or `AnonymousIfc`s, as a static one). (C10-PSEUDO-UNIFY)
+- **`TuiExt`'s rarely set pseudo-element fields are one boxed `PseudoStyles`**: 464 → 376 bytes per element. Migration: read them through accessors named as the fields were — `ext.computed_backdrop` → `ext.computed_backdrop()` (an `Option<&Rc<ComputedStyle>>`), `ext.presentation_before` → `ext.presentation_for(StyleSlot::Before)`. (C10G-TUIEXT-SIDE)
 
 ### Added — `rdom-tui`
 

@@ -55,7 +55,7 @@ fn the_content_inherits_from_details_content() {
         dom.node(d)
             .ext()
             .unwrap()
-            .computed_details_content
+            .computed_details_content()
             .is_some()
     );
 }

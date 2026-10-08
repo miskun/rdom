@@ -19,7 +19,7 @@ pub(super) fn paint_modal_backdrops(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: R
         let Some(backdrop_style) = dom
             .node(dialog_id)
             .ext()
-            .and_then(|e| e.computed_backdrop.clone())
+            .and_then(|e| e.computed_backdrop().cloned())
         else {
             continue;
         };

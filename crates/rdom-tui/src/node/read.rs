@@ -176,7 +176,8 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
     /// `None` when it generates no marker. Its `content` is the marker
     /// text.
     fn computed_marker(&self) -> Option<&'a ComputedStyle> {
-        self.tui_ext().and_then(|e| e.computed_marker.as_deref())
+        self.tui_ext()
+            .and_then(|e| e.computed_marker().map(|s| &**s))
     }
 
     /// `true` when the cascade needs to re-run on this element's subtree.

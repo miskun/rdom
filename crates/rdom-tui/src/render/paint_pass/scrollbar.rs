@@ -259,10 +259,12 @@ pub(super) fn paint_scrollbars(
     // Both track and thumb glyphs are axis-sensitive (`│` vs `─` for the
     // track; `┃` vs `━` for the thumb).
     if let Some(track) = vertical {
-        let (track_glyph, track_style) =
-            look.track(ext.computed_scrollbar.as_deref(), ScrollbarAxis::Vertical);
+        let (track_glyph, track_style) = look.track(
+            ext.computed_scrollbar().map(|s| &**s),
+            ScrollbarAxis::Vertical,
+        );
         let (thumb_glyph, thumb_style) = look.thumb(
-            ext.computed_scrollbar_thumb_vertical.as_deref(),
+            ext.computed_scrollbar_thumb_vertical().map(|s| &**s),
             ScrollbarAxis::Vertical,
         );
         paint_track(
@@ -275,10 +277,12 @@ pub(super) fn paint_scrollbars(
         );
     }
     if let Some(track) = horizontal {
-        let (track_glyph, track_style) =
-            look.track(ext.computed_scrollbar.as_deref(), ScrollbarAxis::Horizontal);
+        let (track_glyph, track_style) = look.track(
+            ext.computed_scrollbar().map(|s| &**s),
+            ScrollbarAxis::Horizontal,
+        );
         let (thumb_glyph, thumb_style) = look.thumb(
-            ext.computed_scrollbar_thumb_horizontal.as_deref(),
+            ext.computed_scrollbar_thumb_horizontal().map(|s| &**s),
             ScrollbarAxis::Horizontal,
         );
         paint_track(
