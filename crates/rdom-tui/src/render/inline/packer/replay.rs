@@ -109,8 +109,9 @@ impl<'a> LinePacker<'a> {
         self.met_float
     }
 
-    /// A packer like this one — its width, direction, indent and
-    /// alignment, no floats beside its lines — with `caps` on its lines.
+    /// A packer like this one — its width, direction, indent, alignment
+    /// and first line, no floats beside its lines — with `caps` on its
+    /// lines.
     pub(in crate::render::inline) fn replica(&self, caps: WidthCaps) -> LinePacker<'a> {
         let mut packer = LinePacker::new(self.content_width)
             .with_strut(self.frames.strut())
@@ -118,6 +119,7 @@ impl<'a> LinePacker<'a> {
             .indented(self.indent)
             .aligned(self.align);
         packer.caps = caps;
+        packer.first = self.first_packing();
         packer
     }
 

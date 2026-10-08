@@ -157,7 +157,7 @@ pub(super) fn compute(
 /// `::first-line` and `::first-letter` apply to (CSS Pseudo-Elements 4
 /// §2.2, §2.3): one whose inner display lays its children out in block
 /// flow, not inline, box-less or a flex or grid container.
-fn is_block_container(computed: &ComputedStyle) -> bool {
+pub(crate) fn is_block_container(computed: &ComputedStyle) -> bool {
     use crate::layout::Display;
     computed.flow.is_block_flow()
         && !matches!(

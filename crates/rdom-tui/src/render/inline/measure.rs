@@ -21,7 +21,8 @@ use crate::render::box_tree::BoxItem;
 /// The widest line of the block container `block`'s inline content, its
 /// own `::before` / `::after` included, packed `available` wide.
 pub(crate) fn widest_line(dom: &Dom<TuiExt>, block: NodeId, available: u16) -> u16 {
-    let mut packer = LinePacker::measuring(available).indented(indent_of(dom, block, true));
+    let packer = LinePacker::measuring(available).indented(indent_of(dom, block, true));
+    let mut packer = super::first_line::configure(packer, dom, block, true);
     fill_block(dom, block, &mut packer);
     widest(packer)
 }
@@ -37,7 +38,8 @@ pub(crate) fn widest_run_line(
     available: u16,
     first: bool,
 ) -> u16 {
-    let mut packer = LinePacker::measuring(available).indented(indent_of(dom, parent, first));
+    let packer = LinePacker::measuring(available).indented(indent_of(dom, parent, first));
+    let mut packer = super::first_line::configure(packer, dom, parent, first);
     fill_run(dom, parent, items, RunPseudos::default(), &mut packer);
     widest(packer)
 }

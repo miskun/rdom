@@ -76,6 +76,7 @@ thread_local! {
 pub(in crate::render::inline) use frames::{BoxAlign, BoxRows};
 use frames::{FrameId, Frames};
 pub(in crate::render::inline) use replay::{Op, WidthCaps};
+mod first;
 mod fragments;
 mod intake;
 mod replay;
@@ -108,6 +109,12 @@ pub(super) struct PendingGrapheme<'a> {
     /// The blank cells of letter and word spacing ending `text` (CSS Text 3
     /// §9), part of `width` — dropped where the grapheme ends a line.
     spacing: u16,
+    /// The source grapheme, as taken in.
+    source: &'a str,
+    /// The run it was taken in under while the first line's style mapped
+    /// it (`first`): what it is reshaped in should it end up on the next
+    /// line. `None` otherwise.
+    unmapped: Option<RunStyle>,
 }
 
 /// What a buffered grapheme is to line breaking.
@@ -172,8 +179,14 @@ pub(super) enum LineEnd {
 
 pub(super) struct LinePacker<'a> {
     content_width: u16,
-    /// The CSS Text values of the text being pushed.
+    /// The CSS Text values of the text being pushed — the first line's
+    /// mapping of them while it is packed (`first`).
     run: RunStyle,
+    /// The text's own CSS Text values, unmapped.
+    run_source: RunStyle,
+    /// The first formatted line's style (`::first-line`, `first`), until
+    /// the first line is settled.
+    first: Option<Box<first::FirstLinePacking>>,
 
     lines: Vec<LineBox>,
 
@@ -291,6 +304,8 @@ impl<'a> LinePacker<'a> {
         Self {
             content_width,
             run: RunStyle::default(),
+            run_source: RunStyle::default(),
+            first: None,
             lines: Vec::new(),
             cur_fragments: Vec::new(),
             cur_generated: Vec::new(),

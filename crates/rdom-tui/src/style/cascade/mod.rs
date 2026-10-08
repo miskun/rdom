@@ -68,6 +68,7 @@
 mod apply;
 mod blockify;
 pub(crate) use blockify::children_are_items;
+pub(crate) use early_pseudos::is_block_container;
 mod content;
 mod counters;
 mod custom;

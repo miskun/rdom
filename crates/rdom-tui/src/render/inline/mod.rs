@@ -55,6 +55,7 @@ mod boxes;
 mod breaking;
 mod caret;
 mod feed;
+pub(crate) mod first_line;
 pub(crate) mod generated;
 mod indent;
 pub(crate) mod markers;
@@ -345,8 +346,10 @@ pub(crate) fn compute_inline_layout_around<'a>(
 /// `block`: its lines starting at its inline-start edge
 /// — the right one under `direction: rtl` (CSS Writing Modes 4 §2.1) —
 /// indented by its `text-indent` (CSS Text 3 §8.1; `first_formatted` when
-/// the flow's first line is the block's first formatted line), beside
-/// the floats `exclusions` describes.
+/// the flow's first line is the block's first formatted line), its first
+/// line styled by the `::first-line` of the blocks whose first formatted
+/// line it is (CSS Pseudo-Elements 4 §2.2, `first_line`), beside the
+/// floats `exclusions` describes.
 fn packer_for<'a>(
     dom: &'a Dom<TuiExt>,
     block: NodeId,
@@ -370,6 +373,7 @@ fn packer_for<'a>(
         .starting_right(rtl)
         .indented(indent)
         .aligned(align);
+    let packer = first_line::configure(packer, dom, block, first_formatted);
     match exclusions {
         Some(ex) => packer.around(ex),
         None => packer,

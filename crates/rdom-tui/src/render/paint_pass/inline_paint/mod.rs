@@ -372,6 +372,9 @@ fn paint_inline_layout(
             .as_ref()
             .map_or(clip, |cut| narrow(clip, cut.left, cut.right));
         let line_right = clip.right();
+        // The first formatted line of its blocks: their `::first-line`
+        // (CSS Pseudo-Elements 4 §2.2) styles what it holds.
+        let first = line.first_line.as_deref();
         for generated in &line.generated {
             let (dx, dy) = generated.offset;
             if let Some(atom) = &generated.atom {
@@ -403,7 +406,7 @@ fn paint_inline_layout(
                 (clip.x, line_right)
             };
             if visible(row) {
-                let at = (inner.x, row as u16, own_box(generated));
+                let at = (inner.x, row as u16, own_box(generated), first);
                 paint_generated(dom, generated, at, left, right, buf);
             }
         }
@@ -448,12 +451,21 @@ fn paint_inline_layout(
             // in the glyph style since they have no `fill_bg` of
             // their own. A box-less (`display: contents`) owner has no
             // background to paint (CSS Display 3 §2.5).
-            let style = if fragment.node == bg_dedup_owner
-                || computed.display == crate::layout::Display::Contents
+            // On a first formatted line, in the style the line's
+            // `::first-line` gives it — its background, behind a run with
+            // none of its own, painted with the run.
+            let first_style = first.and_then(|hosts| {
+                crate::render::inline::first_line::effective(dom, hosts, &computed)
+            });
+            let painted = first_style.as_ref().unwrap_or(&computed);
+            let line_bg = first_style.as_ref().is_some_and(|f| f.bg != computed.bg);
+            let style = if (fragment.node == bg_dedup_owner
+                || computed.display == crate::layout::Display::Contents)
+                && !line_bg
             {
-                glyph_style_from_computed(&computed)
+                glyph_style_from_computed(painted)
             } else {
-                style_from_computed(&computed)
+                style_from_computed(painted)
             };
 
             let start_x = frag_x.max(clip.x as i32) as u16;
@@ -506,7 +518,7 @@ fn paint_inline_layout(
             let row = row_of(generated.y) + dy;
             if (dx, dy) != (0, 0) && visible(row) {
                 let (left, right) = (outer_clip.x, outer_clip.right());
-                let at = (inner.x + dx, row as u16, own_box(generated));
+                let at = (inner.x + dx, row as u16, own_box(generated), first);
                 paint_generated(dom, generated, at, left, right, buf);
             }
         }

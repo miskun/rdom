@@ -34,7 +34,7 @@ impl<'a> LinePacker<'a> {
             text,
             run,
         });
-        self.run = run;
+        self.set_run(run);
         let origin = Origin::text(owner, text_node, self.frames.current());
         self.push_str(origin, text);
     }
@@ -62,7 +62,7 @@ impl<'a> LinePacker<'a> {
             generated: Some(slot),
             frame: self.frames.current(),
         };
-        self.run = run;
+        self.set_run(run);
         self.push_str(origin, text);
     }
 
@@ -351,11 +351,11 @@ impl<'a> LinePacker<'a> {
     /// `overflow-wrap` of its run (none in text that does not wrap, CSS
     /// Text 3 §5.5: "only has an effect when white-space allows
     /// wrapping").
-    fn piece(
+    pub(super) fn piece(
         &self,
         origin: Origin,
         source_offset: usize,
-        g: &str,
+        g: &'a str,
         text: Cow<'a, str>,
         width: u16,
         kind: GraphemeKind,
@@ -376,6 +376,8 @@ impl<'a> LinePacker<'a> {
                 OverflowWrap::Normal
             },
             spacing: 0,
+            source: g,
+            unmapped: self.first_maps().then_some(self.run_source),
         }
     }
 
@@ -431,7 +433,7 @@ impl<'a> LinePacker<'a> {
 impl<'a> PendingGrapheme<'a> {
     /// The piece followed by `n` cells of letter and word spacing (CSS
     /// Text 3 §9), rendered as blanks its source unit maps to.
-    fn spaced(mut self, n: u16) -> Self {
+    pub(super) fn spaced(mut self, n: u16) -> Self {
         if n > 0 {
             self.text = super::spacing::spaced(self.text, n);
             self.width = self.width.saturating_add(n);

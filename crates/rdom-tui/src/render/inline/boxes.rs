@@ -315,6 +315,11 @@ pub struct LineBox {
     /// pseudo-element's `block-ellipsis` at paint
     /// (`layout_pass::line_clamp::clamp_lines`).
     pub(crate) ends_clamp: bool,
+    /// For the first formatted line of block containers (CSS
+    /// Pseudo-Elements 4 §2.2): those blocks, innermost first, whose
+    /// `::first-line` paint reads (`first_line::effective`). `None` for
+    /// any other line.
+    pub(crate) first_line: Option<Box<[NodeId]>>,
 }
 
 impl Default for LineBox {
@@ -331,6 +336,7 @@ impl Default for LineBox {
             hang: 0,
             indent: 0,
             ends_clamp: false,
+            first_line: None,
         }
     }
 }
@@ -409,6 +415,7 @@ mod tests {
             hang: 0,
             indent: 0,
             ends_clamp: false,
+            first_line: None,
         }
     }
 

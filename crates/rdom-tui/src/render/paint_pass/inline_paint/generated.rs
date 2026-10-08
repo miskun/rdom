@@ -8,7 +8,7 @@
 use rdom_core::{Dom, NodeId};
 
 use super::{FlowPlacement, anchor_href_for, paint_inline_layout};
-use crate::ext::TuiExt;
+use crate::ext::{PseudoSlot, TuiExt};
 use crate::layout::LayoutRect;
 use crate::node::TuiNodeExt;
 use crate::render::paint_pass::text::{paint_text_from, pseudo_glyph_style, pseudo_style};
@@ -18,13 +18,14 @@ use crate::render::{Buffer, Rect};
 /// its host's pseudo-element (transition overrides included) — without
 /// its background when it is the content of the pseudo-element's own box
 /// (`own_box`), which painted that — tagged with the host's enclosing
-/// `<a href>` link, if any. The run starts at its logical x (`origin_x`
-/// plus its own) even when that is left of the clip — `paint_text_from`
-/// skips the clipped prefix.
+/// `<a href>` link, if any; on a first formatted line (`first`, its
+/// blocks innermost first) in the line's `::first-line` style. The run
+/// starts at its logical x (`origin_x` plus its own) even when that is
+/// left of the clip — `paint_text_from` skips the clipped prefix.
 pub(super) fn paint_generated(
     dom: &Dom<TuiExt>,
     generated: &crate::render::inline::GeneratedFragment,
-    (origin_x, y, own_box): (i32, u16, bool),
+    (origin_x, y, own_box, first): (i32, u16, bool, Option<&[NodeId]>),
     clip_left: u16,
     right: u16,
     buf: &mut Buffer,
@@ -36,6 +37,13 @@ pub(super) fn paint_generated(
     if !crate::render::visibility::shows(dom, generated.host, generated.slot.into()) {
         return;
     }
+    // On a first formatted line (`first`), a `::before` / `::after` is in
+    // the line's fictional `::first-line` box (CSS Pseudo-Elements 4
+    // §2.2.1); a list marker is not.
+    let line_style = first
+        .filter(|_| matches!(generated.slot, PseudoSlot::Before | PseudoSlot::After))
+        .and_then(|hosts| crate::render::inline::first_line::effective(dom, hosts, computed));
+    let computed = line_style.as_ref().unwrap_or(computed);
     let overrides = presentation_of(dom, generated.host, generated.slot.into());
     let style = if own_box {
         pseudo_glyph_style(computed, overrides)

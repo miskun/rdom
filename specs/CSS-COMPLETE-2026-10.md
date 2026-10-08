@@ -212,7 +212,7 @@ row comes from.
 | C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | done |
 | C10-COUNTER-STYLE | `@counter-style` and `symbols()` | done |
 | C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | done |
-| C10-FIRST | `::first-line` / `::first-letter` | partial — layout and paint (parts 2, 3) |
+| C10-FIRST | `::first-line` / `::first-letter` | partial — `::first-letter` layout and paint (part 3) |
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | |
 | C10-DETAILS-CONTENT | `::details-content` | |
@@ -6262,3 +6262,28 @@ row comes from.
   the block → the cascade test (green for red). No existing expectation changed. Split (SIZE-1): the subsets left
   `tui_style/mod.rs` (615) for `tui_style/subsets.rs`; the early pseudo-element styles left `cascade/walk.rs` (629) for
   `cascade/early_pseudos.rs` (a named struct for the nine-style tuple).
+- 2026-10-13 — C10-FIRST, part 2 of 3 (`::first-line` laid out and painted). Decisions: (1) Which line
+  (`inline/first_line.rs::hosts`): a flow packed for block `b` that holds its first formatted line is the first
+  formatted line of `b` and of each ancestor whose first line-bearing box item is the block below it, with no
+  inline `::before` line of its own before it (CSS Pseudo 4 §2.2; `generated::line_bearing_child` /
+  `own_line_pseudos`, the predicates margin collapsing and markers use), stopping at a non-block container; the walk
+  climbs only as far as the outermost ancestor with a `::first-line` / `::first-letter`, so a document without one
+  pays an ext lookup per ancestor and allocates nothing. (2) Layout — the brief's "style switch at the line
+  boundary in the packer": the packer (`packer/first.rs`) maps each run's `text-transform` / `letter-spacing` /
+  `word-spacing` while the first line is packed (`FirstLineRun`: a value the run shares with the block is
+  inherited, so it takes the `::first-line`'s — rdom has computed values only, DIVERGENCES §2), keeping each
+  buffered grapheme's source and unmapped run; when line 0 is settled (`break_line` → `end_first_line`) the mapping
+  ends and the buffered word — the next line's start, taken in under the first line's style — and the pending
+  separator are reshaped in their own run (`split_word` now hands its rest back before the break, so the cut word's
+  tail is reshaped too). Replicas (`text-wrap` replays) carry the first-line packing. The DOM text is not split:
+  fragments map to the source through the existing `SourceMap`. Intrinsic sizes measure with the same packing.
+  (3) Paint: the settled line keeps its hosts (`LineBox::first_line`); `first_line::effective` overlays, for a
+  run on it, each host's `::first-line` color, font weight / style and applied decorations where a rule set them
+  and the run's value is its host's, and the line's background behind a run with none of its own (painted with the
+  run); `::before` / `::after` text on the line takes it too, markers do not. Red: `css_phase10/first.rs` — the
+  seven layout / paint tests failed on HEAD (`Reset` for red on the first line, the descendant block's line, the
+  `::before`; `aaa bbb` for `AAA BBB`; `Reset` for the blue background; the clamped line not uppercased; the
+  spaced cell mapping to offset 2 for 1). Green after. Mutations (restored, touched): no reshape at the line's end
+  → the transform / spacing and line-clamp tests (`CCC` / `c d`); no climb past the block → the descendant-block
+  test; no paint overlay → the four color / background tests. No existing expectation or snapshot changed.
+  CSS-COVERAGE: the row Missing → Partial (`::first-letter` remains), §3.16 6 / 2 / 2 / 6, total 194 / 15 / 53 / 45.

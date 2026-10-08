@@ -170,9 +170,11 @@ impl LinePacker<'_> {
             let rest_width: u16 = rest.iter().map(|g| g.width).sum();
             self.word_width = self.word_width.saturating_sub(rest_width);
             self.emit_word_to_current_line(0);
-            self.break_line(LineEnd::Soft);
+            // The rest waits in the buffer while the line breaks: the end
+            // of the first line reshapes it (`end_first_line`).
             self.word_buffer = rest;
             self.word_width = rest_width;
+            self.break_line(LineEnd::Soft);
             self.layout_tabs(0);
             self.fit_empty_line(self.word_fit());
         }
@@ -404,8 +406,13 @@ impl LinePacker<'_> {
             hang,
             indent,
             ends_clamp: false,
+            first_line: None,
         });
         self.line_groups.push(self.cur_group);
+        // The first line settled: its style ends here (`first`).
+        if self.lines.len() == 1 {
+            self.end_first_line();
+        }
         if end == LineEnd::Forced {
             self.cur_group += 1;
         }
