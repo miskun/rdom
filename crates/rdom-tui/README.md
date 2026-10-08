@@ -677,6 +677,74 @@ does so only on a text field or editing host — and the UA focus tint
 keys on it; `dom.set_focus_visible(bool)` sets it directly (it fires
 `InteractionChanged(FocusVisible)`).
 
+## Form states and the field border
+
+A text field has no border in rdom: a browser draws a 2px inset one, but in a terminal a border is a whole row above and below and a column each side, so a one-row `<input>` would be three rows tall. The UA field is `padding: 0 1` on a `Field` background instead. So `input:user-invalid { border-color: red }`, the first rule a web developer writes, paints nothing — there is no border to colour. Mark the state with the field's own colours, or give the field a border yourself and pay its rows:
+
+```rust
+use rdom_tui::prelude::*;
+use rdom_tui::runtime::builtins::validation;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        r#"
+        .bare:invalid { border-color: red }
+        .tint:invalid { background-color: red; color: white }
+        .boxed { border: solid }
+        .boxed:invalid { border-color: red }
+        "#,
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    validation::install(&mut dom); // an `App` does this itself
+    let root = dom.root();
+    let body = dom.create_element("body");
+    dom.append_child(root, body)?;
+    let mut field = |class: &str| -> NodeId {
+        let input = dom.create_element("input");
+        dom.set_attribute(input, "class", class).unwrap();
+        dom.set_attribute(input, "required", "").unwrap();
+        dom.append_child(body, input).unwrap();
+        input
+    };
+    field("bare");
+    field("tint");
+    field("boxed");
+
+    let area = Rect::new(0, 0, 24, 5);
+    dom.cascade(&sheet);
+    dom.layout_dom(area);
+    let mut buf = Buffer::empty(area);
+    dom.paint_dom(&mut buf, area);
+
+    let rows: Vec<String> = (0..5)
+        .map(|y| (0..24).map(|x| buf.cell(x, y).unwrap().symbol()).collect())
+        .collect();
+    // `border-color` alone changes nothing: no border. The tinted field
+    // keeps its one row (20 cells and its padding); the boxed one is
+    // three, its border around the same box.
+    assert_eq!(
+        rows,
+        [
+            "                        ",
+            "                        ",
+            "┌──────────────────────┐",
+            "│                      │",
+            "└──────────────────────┘",
+        ]
+    );
+    let red = Color::Rgb(255, 0, 0);
+    let reddened = |y: u16| (0..24).any(|x| {
+        let cell = buf.cell(x, y).unwrap();
+        cell.fg == red || cell.bg == red
+    });
+    assert!(!reddened(0));
+    assert!((0..22).all(|x| buf.cell(x, 1).unwrap().bg == red));
+    assert_ne!(buf.cell(22, 1).unwrap().bg, red);
+    assert!((2..5).all(|y| buf.cell(0, y).unwrap().fg == red));
+    Ok(())
+}
+```
+
 ## Incremental re-cascade
 
 Full cascade walks the whole tree. For apps with many elements and

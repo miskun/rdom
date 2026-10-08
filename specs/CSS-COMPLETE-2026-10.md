@@ -7540,3 +7540,15 @@ row comes from.
   forward case costs the sibling marking's O(siblings)). The test is a pin; it fails when the sibling triggers
   stop walking `:has()` arguments (mutation, restored, touched: `arguments` returning nothing for `Has` → the
   `.x` case fails). No behaviour change, so no CHANGELOG bullet.
+- 2026-10-14 — C11G-FORM-BORDER (API N5). `input:user-invalid { border-color: red }` paints nothing: the UA text
+  field has no border (`padding: 0 1` and a `Field` background), so there is no border style for the colour to
+  show on. Options: (a) a UA border — 2 rows and 2 columns on every field, a one-row prompt becoming three, and
+  the user kept the input's `padding: 0 1` look; (b) document that authors add `border`; (c) map `border-color`
+  on a borderless field to something visible — a used-value rule no spec has, which would surprise the author
+  who sets `border-color` ahead of a `:focus { border-style: solid }`. Decided (b): the terminal cost of (a)
+  falls on every form whether or not it shows states, and (c) invents CSS. DIVERGENCES §1 gains "A text field
+  has no UA border" with both working forms; the rdom-tui README gains "Form states and the field border", a
+  doctest of three required fields under `:invalid` — `border-color` alone (one row, nothing red), a
+  background cue (one row, red), and `border: solid` + `border-color` (three rows, a red border) — and the
+  root README's built-ins paragraph says so. Docs only: the doctest documents existing behaviour, green when
+  written (rows and colours asserted exactly).
