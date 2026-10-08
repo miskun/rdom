@@ -95,7 +95,8 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 - **Sizing and box** — `width`, `height`, `min-width`, `max-width`,
   `min-height`, `max-height` (cells, `%`, `calc()`, `none` for `max-*`,
   and the intrinsic keywords `min-content` / `max-content` /
-  `fit-content` / `fit-content()`, `calc-size()` on `width` / `height`),
+  `fit-content` / `fit-content()`, and `calc-size()` — on `width` / `height`,
+  `min-*`, `max-*` and `flex-basis`),
   `interpolate-size`, `box-sizing` (initial `content-box`),
   `aspect-ratio`, `contain-intrinsic-size` (+ `-width` / `-height` /
   `-inline-size` / `-block-size`), `gap` (+ `row-gap` / `column-gap`), `padding` and
@@ -120,13 +121,25 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   `counter-increment`, `counter-set`; `@counter-style` rules are
   `counters::CounterStyleRule`s.
 - **Positioning** — `position` (incl. `sticky`), `top`, `right`,
-  `bottom`, `left`, `inset`, `z-index`, `float`, `clear`.
+  `bottom`, `left`, `inset`, `z-index`, `float`, `clear`, `overlay`.
+- **User interface** — `outline` (+ `-color`, `-style`, `-width`,
+  `-offset`), `cursor` (keywords, and `url()` images with a keyword
+  fallback), `caret` (+ `caret-shape`, `caret-animation`; `caret-color`
+  above), `accent-color`, `appearance` (and `-webkit-appearance`),
+  `field-sizing`, `resize`.
 - **Transitions** — `transition` (+ `-property`, `-duration`,
-  `-timing-function`, `-delay`, `-behavior` longhands).
+  `-timing-function` — keywords, `cubic-bezier()`, `steps()`, `linear()` —
+  `-delay`, negative included, `-behavior` longhands); `@starting-style`
+  rules (parsed by rdom-css) give a newly rendered element its starting
+  style.
 - **Animations** — `animation` (+ `-name`, `-duration`, `-timing-function`,
   `-delay`, `-iteration-count`, `-direction`, `-fill-mode`, `-play-state`,
   `-composition`, `-timeline` longhands); `@keyframes` rules are
   `keyframes::KeyframesRule`s.
+- **Scroll-driven animations** — `scroll-timeline` (+ `-name`, `-axis`),
+  `view-timeline` (+ `-name`, `-axis`, `-inset`), `timeline-scope`,
+  `animation-timeline`'s `scroll()` / `view()` / named timelines, and
+  `animation-range` (+ `-start`, `-end`).
 - **Custom properties** — `--*`, and `all`.
 
 See [`DESIGN.md`](../../specs/DESIGN.md#roadmap) for what's coming next.

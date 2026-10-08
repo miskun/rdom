@@ -8326,3 +8326,21 @@ row comes from.
   `config_tests::every_construction_option_is_a_with_builder` did not compile (no `with_tick_rate`);
   green after, with `with_backend_defaults_match_the_table` pinning the table's `with_backend` column.
   Breaking bullet and API rows; hint group `app_config_hints`.
+- 2026-10-08 — C12G-README-ANIM (API N10). The rdom-tui README gains "Transitions and animations": a
+  doctest on `App::with_backend` + `App::advance` that paints at fixed times — a `width: 2 → 10`
+  transition at 50 ms (6 cells, `computed()` 6, `base_computed()` 10) and at 125 ms (10), a
+  `pulse 100ms linear 2 alternate` animation at 50 ms (4), 125 ms (5, running back, one
+  `animationiteration`) and 225 ms (2, `animationend`). "Porting web patterns that do not carry over"
+  has two more doctests — a scroll-progress bar (a named `scroll-timeline` hoisted by `timeline-scope`,
+  `width` keyframes; half the range scrolled is 10 of 20 cells) and an `appearance: none` checkbox
+  drawn with `::before` (`( ) ` → `(•) ` on click) — and the `em` → cells rule (`1em` square is
+  `width: 2; height: 1`). Found while writing the first doctest: `Stylesheet::append` dropped
+  `@keyframes`, so a sheet built by `rdom_css::from_css_strict` (which appends its parse) never
+  animated — every in-tree test pushed `rdom_css::parse`'s sheet instead. Fixed in rdom-style (each
+  rule's layer mapped as the rules' are); red: `layers::tests::append_carries_keyframes` 0 for 1 (and
+  the doctest: the pulse 2 for 4, the progress bar 20 for 0, no animation registered); green after.
+  The rdom-style README's lists: `calc-size()` on `min-*`, `max-*` and `flex-basis` too, `overlay`,
+  a "User interface" line (outline, cursor, caret, accent, appearance, field sizing, resize), the
+  easing forms and `@starting-style`, and a "Scroll-driven animations" line. `ua/controls.rs`'s focus
+  comment no longer says a TUI cannot draw a ring — it says why the UA still tints (a cell-wide ring
+  covers the neighbours; DIVERGENCES `FOCUS-VOCAB-1`).

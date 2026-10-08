@@ -901,6 +901,157 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Transitions and animations
+
+`transition-*`, `@keyframes` / `animation-*` and `@starting-style` run on the `App`'s clock (CSS Transitions 1 / 2, CSS Animations 1 / 2). A running value *is* the computed value (Web Animations 1 §5.4.5): layout, paint and inheritance read it frame by frame, and so does `node.computed()` — mid-flight a `width: 2 → 10` transition reads `6` there; `node.base_computed()` is the cascade's style without the running values. Geometry moves in whole cells. `App::run` drives the clock from wall time; a test or a headless driver steps it with `App::advance(ms)`, so paint can be checked at fixed times:
+
+```rust
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use rdom_tui::prelude::*;
+use rdom_tui::Size;
+
+/// The cells of row `y` painted blue.
+fn blue(app: &mut App<TestBackend>, y: u16) -> usize {
+    let area = Rect::new(0, 0, 20, 2);
+    let mut buf = Buffer::empty(area);
+    app.dom_mut().paint_dom(&mut buf, area);
+    (0..20)
+        .filter(|&x| buf.cell(x, y).unwrap().bg == Color::Rgb(0, 0, 255))
+        .count()
+}
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        ".bar { width: 2; height: 1; background-color: rgb(0, 0, 255);
+                transition: width 100ms linear }
+         .bar.wide { width: 10 }
+         @keyframes pulse { from { width: 2 } to { width: 6 } }
+         .pulse { width: 2; height: 1; background-color: rgb(0, 0, 255);
+                  animation: pulse 100ms linear 2 alternate }",
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let (bar, pulse) = (dom.create_element("div"), dom.create_element("div"));
+    dom.set_attribute(bar, "class", "bar")?;
+    dom.set_attribute(pulse, "class", "pulse")?;
+    dom.append_child(root, bar)?;
+    dom.append_child(root, pulse)?;
+    let events = Rc::new(RefCell::new(Vec::new()));
+    for kind in ["animationiteration", "animationend"] {
+        let events = events.clone();
+        dom.add_event_listener(pulse, kind, ListenerOptions::default(), move |ctx| {
+            events.borrow_mut().push(ctx.event.event_type.clone());
+        })?;
+    }
+    let terminal = Terminal::new(TestBackend::new(20, 2))?;
+    let mut app = App::with_backend(dom, sheet, terminal)?;
+    app.advance(0)?; // t = 0: the pulse starts
+
+    app.dom_mut().set_attribute(bar, "class", "bar wide")?;
+    app.advance(0)?; // the width transition starts
+    app.advance(50)?; // t = 50 ms
+    assert_eq!((blue(&mut app, 0), blue(&mut app, 1)), (6, 4));
+    let node = app.dom().node(bar);
+    assert_eq!(node.computed().unwrap().width, Size::Fixed(6));
+    assert_eq!(node.base_computed().unwrap().width, Size::Fixed(10));
+
+    app.advance(75)?; // t = 125 ms: the transition is over, the pulse runs back
+    assert_eq!((blue(&mut app, 0), blue(&mut app, 1)), (10, 5));
+    assert_eq!(*events.borrow(), ["animationiteration"]);
+
+    app.advance(100)?; // t = 225 ms: two iterations done, no fill
+    assert_eq!(blue(&mut app, 1), 2);
+    assert_eq!(*events.borrow(), ["animationiteration", "animationend"]);
+    Ok(())
+}
+```
+
+### Porting web patterns that do not carry over
+
+A terminal has no fonts, no pixels and no `transform` yet (Phase 15), so three common browser patterns need a terminal form.
+
+**A scroll-progress bar.** The web's `.progress { position: fixed; animation: grow linear; animation-timeline: scroll(root) }` scales the bar with `transform: scaleX()` and follows the viewport's scroller; rdom has no viewport scrolling (`scroll(root)` follows the document element only when it is a scroll container) and no `transform`. Name the scroller's timeline, hoist it with `timeline-scope` to an ancestor the bar shares, and animate `width`:
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        "body { timeline-scope: --page }
+         .progress { height: 1; background-color: rgb(0, 0, 255);
+                     animation: grow linear both; animation-timeline: --page }
+         @keyframes grow { from { width: 0% } to { width: 100% } }
+         .page { height: 4; overflow-y: auto; scroll-timeline: --page }
+         .page p { margin: 0 }",
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let body = dom.create_element("body");
+    let (bar, page) = (dom.create_element("div"), dom.create_element("div"));
+    dom.set_attribute(bar, "class", "progress")?;
+    dom.set_attribute(page, "class", "page")?;
+    for i in 0..12 {
+        let p = dom.create_element("p");
+        let t = dom.create_text_node(&format!("line {i}"));
+        dom.append_child(p, t)?;
+        dom.append_child(page, p)?;
+    }
+    dom.append_child(body, bar)?;
+    dom.append_child(body, page)?;
+    dom.append_child(root, body)?;
+    let terminal = Terminal::new(TestBackend::new(20, 5))?;
+    let mut app = App::with_backend(dom, sheet, terminal)?;
+    app.advance(0)?;
+    app.advance(0)?; // the first layout gives the scroll range the timeline reads
+
+    let width = |app: &App<TestBackend>| app.dom().node(bar).bounding_rect().unwrap().width;
+    assert_eq!(width(&app), 0);
+    // 12 lines in 4 rows: a range of 8, half of it scrolled.
+    app.dom_mut().node_mut(page).set_scroll_top(4)?;
+    app.advance(0)?;
+    assert_eq!(width(&app), 10);
+    Ok(())
+}
+```
+
+**A custom checkbox.** The web draws one with `input[type=checkbox] { appearance: none; width: 1em; height: 1em; border: 1px solid }` and fills it on `:checked`. Under `appearance: none` rdom drops the UA's `[x] ` mark too, and `em` is dropped (below), so that rule leaves an empty box. Keep `appearance: none` and draw the mark as text with `::before`:
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        "input[type=checkbox] { appearance: none }
+         input[type=checkbox]::before { content: '( ) ' }
+         input[type=checkbox]:checked::before { content: '(•) ' }",
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let check = dom.create_element("input");
+    dom.set_attribute(check, "type", "checkbox")?;
+    dom.append_child(root, check)?;
+    let terminal = Terminal::new(TestBackend::new(10, 1))?;
+    let mut app = App::with_backend(dom, sheet, terminal)?;
+    app.draw_if_dirty()?;
+
+    let row = |app: &mut App<TestBackend>| {
+        let area = Rect::new(0, 0, 10, 1);
+        let mut buf = Buffer::empty(area);
+        app.dom_mut().paint_dom(&mut buf, area);
+        (0..10).map(|x| buf.cell(x, 0).unwrap().symbol().to_string()).collect::<String>()
+    };
+    assert!(row(&mut app).starts_with("( ) "));
+    app.dom_mut().node_mut(check).click();
+    app.draw_if_dirty()?;
+    assert!(row(&mut app).starts_with("(•) "));
+    Ok(())
+}
+```
+
+**`em` sizes.** The font-relative units (`em`, `rem`, `ex`, `cap`, `ic`) and the absolute ones (`px`, `pt`, …) are dropped with a warning on anything that lays out — a guessed font size would scale browser CSS arbitrarily (DIVERGENCES §1, "Length units"). Write sizes in cells: a cell is about twice as tall as it is wide, so `1em` square is `width: 2; height: 1`, and `padding: 0.5em 1em` is `padding: 0 1`. `ch` (one column) and `lh` (one line) carry over unchanged; border widths, outline widths and shadows still take `px` / `em`, as they only pick a glyph weight.
+
 ## Incremental re-cascade
 
 Full cascade walks the whole tree. For apps with many elements and

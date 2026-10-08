@@ -201,9 +201,12 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new().content(Content::Str(" ]".into())),
         ),
         // ── Focus indicator: background tint, scoped to atomic controls ──
-        // The web shows focus with an OUTLINE on every focusable element; a
-        // TUI can't draw a no-reflow ring, so rdom substitutes a background
-        // tint. A fill only reads as a focus affordance on small atomic
+        // The web shows focus with an OUTLINE on every focusable element.
+        // rdom draws `outline` (C12-OUTLINE), but its ring is a cell wide:
+        // around a one-row control it covers the neighbouring rows and
+        // columns, where a browser's covers a pixel of margin — so the UA
+        // substitutes a background tint (DIVERGENCES `FOCUS-VOCAB-1`).
+        // A fill only reads as a focus affordance on small atomic
         // controls (the box IS the control). On a container — table, div,
         // scroll region, canvas — it floods the interior, nothing like the
         // web's outline, so the tint is *scoped to the control set*.
@@ -212,7 +215,7 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // internal cursor, otherwise the consumer's own CSS. This replaces the
         // old generic `:focus` tint + its per-element opt-out hacks
         // (`canvas:focus`, `[role=tree]:focus`). Non-important so authors
-        // override freely. See DIVERGENCES.md "Focus affordances".
+        // override freely. See DIVERGENCES.md `FOCUS-VOCAB-1`.
         // Keyed on `:focus-visible` (Selectors 4 §13.2), as browsers key
         // their focus ring: a button, toggle or select focused by a mouse
         // click shows no tint; keyboard focus and text fields do

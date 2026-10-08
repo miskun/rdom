@@ -521,6 +521,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-style`
 
+- **`Stylesheet::append` carries `@keyframes`** (CSS Animations 1 §3): it copied rules, layers, imports and counter styles but not the keyframes, so a sheet from `rdom_css::from_css_strict` — which appends the parse — had none and its animations never ran. (C12G-README-ANIM)
 - **Integer interpolation rounds a half up, and a `<time>` may carry `+`** (CSS Values 4 §3.2, CSS Syntax 3 §4.3.13): an animated `order` or `z-index` half-way between two integers takes the higher (it took the even one); `transition: color +1s` parses. (C12G-MISC)
 - **A `content` string serializes as a CSS string**: a `"` or `\` in it is escaped (it was copied raw, so `content: "a\"b"` read back unparseable). (C10-CONTENT)
 - **Form controls reset the inherited text properties** (HTML §15.5, Chromium's and Gecko's UA sheets): `input, textarea, select, button` get `line-height: normal`, `text-transform: none`, `text-indent: 0`, `text-align: start` and a normal weight and style, so a page's `line-height: 2` no longer gives an input a scrollable second row or a 4-row textarea two lines. (C9G-UA-LINE-HEIGHT)

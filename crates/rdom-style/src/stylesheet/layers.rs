@@ -63,7 +63,7 @@ impl Stylesheet {
         self.push_layer(Layer { name: None, parent })
     }
 
-    /// Append `other`'s layers, rules and root variables after this
+    /// Append `other`'s layers, rules, `@keyframes` and root variables after this
     /// sheet's own, as if its text followed this sheet's: a named layer
     /// `other` declares merges with this sheet's layer of the same name
     /// (so the first declaration in either still fixes the order), an
@@ -92,6 +92,11 @@ impl Stylesheet {
             let mut import = import.clone();
             import.layer = import.layer.map(|l| map[l.index()]);
             self.imports.push(import);
+        }
+        for rule in &other.keyframes {
+            let mut rule = rule.clone();
+            rule.layer = rule.layer.map(|l| map[l.index()]);
+            self.keyframes.push(rule);
         }
         let rules: Vec<Rule> = other
             .rules
@@ -277,5 +282,22 @@ mod tests {
                 .as_deref(),
             Some("a")
         );
+    }
+
+    /// C12G-README-ANIM: `append` carries `other`'s `@keyframes` rules
+    /// (CSS Animations 1 §3), each in its layer as mapped — it dropped
+    /// them, so a sheet built by `rdom_css::from_css_strict` (which
+    /// appends the parse) had no keyframes and its animations never ran.
+    #[test]
+    fn append_carries_keyframes() {
+        let mut base = Stylesheet::bare();
+        let b = base.declare_layer(None, &["b"]);
+        let mut other = Stylesheet::bare();
+        let ob = other.declare_layer(None, &["b"]);
+        other.define_keyframes(crate::keyframes::KeyframesRule::new("spin").in_layer(ob));
+        base.append(&other);
+        assert_eq!(base.keyframes().len(), 1);
+        assert_eq!(&*base.keyframes()[0].name, "spin");
+        assert_eq!(base.keyframes()[0].layer, b);
     }
 }
