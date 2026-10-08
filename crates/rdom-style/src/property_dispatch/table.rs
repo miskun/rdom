@@ -189,6 +189,7 @@ define_fields! {
     Resize => ui.resize : RESIZE,
     TableLayout => table.table_layout : TABLE_LAYOUT,
     CaptionSide => table.caption_side : CAPTION_SIDE,
+    EmptyCells => table.empty_cells : EMPTY_CELLS,
     OverscrollBehaviorX => overscroll_behavior_x : OVERSCROLL_BEHAVIOR_X,
     OverscrollBehaviorY => overscroll_behavior_y : OVERSCROLL_BEHAVIOR_Y,
     ScrollPaddingTop => scroll_padding.top : SCROLL_PADDING_TOP,
@@ -457,6 +458,7 @@ pub fn inherits(name: &str) -> bool {
             | "color-scheme"
             | "border-spacing"
             | "caption-side"
+            | "empty-cells"
             | "direction"
             | "writing-mode"
             | "block-ellipsis"

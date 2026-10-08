@@ -94,7 +94,9 @@ pub(super) fn paint_box(
     clip: Rect,
 ) -> Option<BoxFrame> {
     let frame = box_frame(dom, id, clip)?;
-    if !frame.visible {
+    // CSS 2.1 §17.6.1.1: an empty cell under `empty-cells: hide` draws no
+    // border or background.
+    if !frame.visible || crate::render::layout_pass::hides_empty_cell(dom, id) {
         return Some(frame);
     }
     let (computed, outer, inner) = (&frame.computed, frame.outer, frame.inner);

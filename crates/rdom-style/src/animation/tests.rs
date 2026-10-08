@@ -228,6 +228,7 @@ const SPEC: &[(&str, Spec)] = &[
     ("border-spacing", L(V)),
     ("table-layout", L(D)),
     ("caption-side", L(D)),
+    ("empty-cells", L(D)),
     // CSS Generated Content 3, Lists 3
     ("content", L(D)),
     ("quotes", L(D)),

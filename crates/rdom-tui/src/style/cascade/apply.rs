@@ -285,6 +285,7 @@ pub(super) fn apply_style(
         // CSS 2.1 §17.5.2: not inherited; §17.4.1: inherits.
         table.table_layout: TABLE_LAYOUT,
         table.caption_side: CAPTION_SIDE,
+        table.empty_cells: EMPTY_CELLS,
     );
     // Positioning (M2), transitions (M3; latest list wins), animations
     // (CSS Animations 1 §4) and counters

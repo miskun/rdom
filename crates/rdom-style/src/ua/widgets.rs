@@ -3,7 +3,7 @@
 use super::css;
 use crate::color::named;
 use crate::color::system::{ACCENT, FIELD_BG, TEXT_MUTED};
-use crate::layout::{Display, Length, Overflow, Padding, Position, Size, TablePart};
+use crate::layout::{Display, Length, Overflow, Padding, Position, Size, TablePart, VerticalAlign};
 use crate::{Color, Content, TuiStyle};
 
 /// The UA rules of this group, in cascade order.
@@ -180,33 +180,32 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         ),
         (
             "thead",
-            TuiStyle::new().display(Display::TablePart(TablePart::HeaderGroup)),
+            TuiStyle::new()
+                .display(Display::TablePart(TablePart::HeaderGroup))
+                .vertical_align(VerticalAlign::Middle),
         ),
         (
             "tbody",
-            TuiStyle::new().display(Display::TablePart(TablePart::RowGroup)),
+            TuiStyle::new()
+                .display(Display::TablePart(TablePart::RowGroup))
+                .vertical_align(VerticalAlign::Middle),
         ),
         (
             "tfoot",
-            TuiStyle::new().display(Display::TablePart(TablePart::FooterGroup)),
+            TuiStyle::new()
+                .display(Display::TablePart(TablePart::FooterGroup))
+                .vertical_align(VerticalAlign::Middle),
         ),
         (
             "tr",
-            TuiStyle::new().display(Display::TablePart(TablePart::Row)),
-        ),
-        (
-            "td",
             TuiStyle::new()
-                .display(Display::TablePart(TablePart::Cell))
-                .padding(Padding::new(0, 1, 0, 1)),
+                .display(Display::TablePart(TablePart::Row))
+                .vertical_align(VerticalAlign::Middle),
         ),
-        (
-            "th",
-            TuiStyle::new()
-                .display(Display::TablePart(TablePart::Cell))
-                .padding(Padding::new(0, 1, 0, 1))
-                .bold(true),
-        ),
+        // HTML §15.3.8: rows and row groups are `middle` and cells
+        // inherit it, so a cell is centred in a taller row by default.
+        ("td", cell(false)),
+        ("th", cell(true)),
         // ── Gauge widgets ──
         // `<progress>` and `<meter>` paint a horizontal block-
         // character bar. Display:Block + fixed width so the
@@ -247,4 +246,18 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .fg(ACCENT),
         ),
     ]
+}
+
+/// The UA style of `<td>` (`<th>` when `header`): a table cell with
+/// rdom's one-cell inline padding, inheriting `vertical-align` (HTML
+/// §15.3.8), a header bold.
+fn cell(header: bool) -> TuiStyle {
+    let mut s = TuiStyle::new()
+        .display(Display::TablePart(TablePart::Cell))
+        .padding(Padding::new(0, 1, 0, 1));
+    if header {
+        s = s.bold(true);
+    }
+    s.vertical_align = Some(crate::Value::Inherit);
+    s
 }

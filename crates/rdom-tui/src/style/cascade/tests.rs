@@ -2347,6 +2347,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.background_clip = rdom_style::layout::VisualBox::ContentBox;
     parent.border_spacing.vertical = rdom_style::layout::GapValue::Cells(2);
     parent.table.caption_side = rdom_style::layout::CaptionSide::Bottom;
+    parent.table.empty_cells = rdom_style::layout::EmptyCells::Hide;
     parent.width = Size::Fixed(7);
     parent.height = Size::Fixed(8);
     parent.min_width = MinSize::Cells(1);
@@ -2734,6 +2735,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         (
             "caption-side",
             child.table.caption_side == parent.table.caption_side,
+        ),
+        (
+            "empty-cells",
+            child.table.empty_cells == parent.table.empty_cells,
         ),
         ("direction", child.text_direction == parent.text_direction),
         ("writing-mode", child.writing_mode == parent.writing_mode),

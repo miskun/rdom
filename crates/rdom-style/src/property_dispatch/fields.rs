@@ -310,6 +310,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "border-spacing" => &[BorderSpacing],
         "table-layout" => &[TableLayout],
         "caption-side" => &[CaptionSide],
+        "empty-cells" => &[EmptyCells],
         "content" => &[Content],
         "quotes" => &[Quotes],
         "list-style" => &[ListStylePosition, ListStyleImage, ListStyleType],

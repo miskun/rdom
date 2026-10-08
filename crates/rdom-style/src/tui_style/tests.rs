@@ -323,6 +323,7 @@ fn every_property_has_important_setter() {
         .resize_important(crate::layout::Resize::Both)
         .table_layout_important(crate::layout::TableLayout::Fixed)
         .caption_side_important(crate::layout::CaptionSide::Bottom)
+        .empty_cells_important(crate::layout::EmptyCells::Hide)
         .overscroll_behavior_x_important(crate::layout::OverscrollBehavior::Contain)
         .overscroll_behavior_y_important(crate::layout::OverscrollBehavior::None)
         .scroll_padding_top_important(crate::layout::ScrollPadding::Auto)

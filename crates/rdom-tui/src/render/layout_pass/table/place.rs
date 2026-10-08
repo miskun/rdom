@@ -16,7 +16,7 @@ use rdom_core::{Dom, NodeId};
 
 use super::grid::GridCell;
 use super::structure::{Cell, Structure};
-use super::{Model, Solved, TableBox, anonymous};
+use super::{Model, Solved, TableBox, align, anonymous};
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{Border, CaptionSide, Direction, Display, LayoutRect, TablePart};
 use crate::node::TuiNodeExt;
@@ -304,21 +304,39 @@ pub(super) fn place(
     for cell in &cells {
         let hidden = (cell.row..cell.row_end()).all(|r| solved.grid.rows[r].collapsed)
             || (cell.column..cell.column_end().min(n)).all(|c| solved.grid.collapsed_columns[c]);
+        let rect = cell_rect(dom, cell, &xs, &ys, model);
+        // §17.5.3: its content where its `vertical-align` puts it.
+        let lines = &solved.lines;
+        let row_baseline = solved.baselines.get(cell.row).copied().flatten();
+        let dy = (!hidden).then(|| {
+            align::offset(
+                dom,
+                cell,
+                lines,
+                model,
+                (rect.width, rect.height),
+                row_baseline,
+                cb,
+            )
+        });
         match &cell.cell {
             Cell::Element(e) => {
-                let rect = cell_rect(dom, cell, &xs, &ys, model);
                 if hidden {
                     tree::collapse_subtree_geometry(dom, *e);
                 } else {
                     layout_node(dom, *e, rect, cb);
+                    tree::shift_cell_content(dom, *e, i32::from(dy.unwrap_or(0)));
                 }
             }
             Cell::Anonymous(a) => {
                 if hidden {
                     continue;
                 }
-                let rect = cell_rect(dom, cell, &xs, &ys, model);
-                let boxes = anonymous::lay_out(dom, a, rect, cb);
+                let at = LayoutRect {
+                    y: rect.y + i32::from(dy.unwrap_or(0)),
+                    ..rect
+                };
+                let boxes = anonymous::lay_out(dom, a, at, cb);
                 anonymous.entry(a.container).or_default().extend(boxes);
             }
         }
@@ -364,38 +382,19 @@ fn cell_rect(dom: &Dom<TuiExt>, cell: &GridCell, xs: &Axis, ys: &Axis, model: Mo
 }
 
 /// The rows of a solved table's first and last row baselines, from the
-/// grid's top (CSS 2.1 §17.5.3: a row's baseline is its cells' — the
-/// first line box's in each cell that starts in it — lowest; a row with
-/// no line box has the bottom of its cells' content edge).
-pub(super) fn row_baselines(dom: &Dom<TuiExt>, solved: &Solved) -> Option<(u16, u16)> {
+/// grid's top (CSS 2.1 §17.5.3: a table's baseline is its first row's — the
+/// lowest of its `baseline` cells' first lines, else the bottom of the
+/// row).
+pub(super) fn row_baselines(solved: &Solved) -> Option<(u16, u16)> {
     let ys = Axis::new(0, &solved.lines.horizontal, &solved.rows);
-    let baseline = |r: usize| -> Option<u16> {
-        solved
-            .grid
-            .cells
-            .iter()
-            .filter(|c| c.row == r)
-            .filter_map(|c| {
-                let id = c.element()?;
-                let computed = dom.node(id).computed_rc()?;
-                let w =
-                    super::rows::cell_width(dom, c, &solved.lines, solved.model, &solved.columns);
-                let (first, _) = crate::render::layout_pass::baselines::content_rows(
-                    dom, id, &computed, w, solved.cb,
-                )?;
-                Some(first)
-            })
-            .max()
-            .map(|b| (ys.track[r] + i32::from(b)).clamp(0, i32::from(u16::MAX)) as u16)
+    let baseline = |r: usize| -> u16 {
+        let below_top = solved.baselines[r].unwrap_or_else(|| solved.rows[r].saturating_sub(1));
+        (ys.track[r] + i32::from(below_top)).clamp(0, i32::from(u16::MAX)) as u16
     };
     let live: Vec<usize> = (0..solved.rows.len())
         .filter(|&r| !solved.grid.rows[r].collapsed)
         .collect();
-    let first = live.iter().find_map(|&r| baseline(r))?;
-    let last = live
-        .iter()
-        .rev()
-        .find_map(|&r| baseline(r))
-        .unwrap_or(first);
+    let first = baseline(*live.first()?);
+    let last = baseline(*live.last()?);
     Some((first, last))
 }

@@ -60,6 +60,7 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     // `caption-side` too.
     working.border_spacing = parent.border_spacing.clone();
     working.table.caption_side = parent.table.caption_side;
+    working.table.empty_cells = parent.table.empty_cells;
     // CSS Writing Modes 4 §2.1 / §3.1: `direction` and `writing-mode`
     // inherit.
     working.text_direction = parent.text_direction;

@@ -26,8 +26,12 @@
 //!    every row (§17.5.3).
 //! 7. [`place`] — every box written: captions above and below
 //!    (`caption-side`, §17.4.1), row groups, rows, columns and cells at
-//!    their grid areas, each cell's content laid out in it; `visibility:
-//!    collapse` rows and columns taking no space (§17.5.5).
+//!    their grid areas, each cell's content laid out in it — moved by its
+//!    `vertical-align` ([`align`], §17.5.3); `visibility: collapse` rows
+//!    and columns taking no space (§17.5.5).
+//!
+//! [`stray`] wraps table parts outside a table in an anonymous table
+//! (§17.2.1 rule 3), which block flow lays out as one block-level box.
 //!
 //! [`solve`] runs steps 1–6 for a table border box of a given width — the
 //! layout and the table's intrinsic block size share it — and
@@ -39,6 +43,7 @@
 //! Whole cells throughout: a distribution hands out whole cells with the
 //! rolling floor flex and grid use (`shares::Rolling`, DIVERGENCES §1).
 
+mod align;
 mod anonymous;
 mod columns;
 #[cfg(test)]
@@ -47,6 +52,7 @@ mod grid;
 mod lines;
 mod place;
 mod rows;
+mod stray;
 mod structure;
 mod width;
 
@@ -60,6 +66,7 @@ use crate::style::ComputedStyle;
 use super::intrinsic::Measure;
 
 pub(crate) use place::is_column_box;
+pub(super) use stray::{anonymous_height, anonymous_width, layout_anonymous};
 
 /// A table box: a `display: table` / `inline-table` element, or the
 /// anonymous table wrapping a run of `parent`'s box items that are table
@@ -143,6 +150,8 @@ struct Solved {
     columns: Vec<u16>,
     /// Each row's height, between the lines.
     rows: Vec<u16>,
+    /// Each row's baseline from its track's top (§17.5.3).
+    baselines: Vec<Option<u16>>,
     /// The width cells resolve percentages against: the grid's.
     cb: u16,
 }
@@ -188,7 +197,7 @@ fn solve(
         let measures = columns::measures(dom, &structure, &grid, &lines, model);
         width::distribute(&measures, &grid.collapsed_columns, assignable)
     };
-    let rows = rows::heights(dom, &grid, &lines, model, &columns, cb);
+    let rows::Rows { heights, baselines } = rows::heights(dom, &grid, &lines, model, &columns, cb);
     Solved {
         structure,
         grid,
@@ -196,7 +205,8 @@ fn solve(
         model,
         chrome,
         columns,
-        rows,
+        rows: heights,
+        baselines,
         cb,
     }
 }
@@ -344,6 +354,58 @@ pub(crate) fn table_box(dom: &Dom<TuiExt>, id: NodeId) -> Option<LayoutRect> {
     ))
 }
 
+/// CSS 2.1 §17.6.1.1: whether the cell `id` draws no border or
+/// background — `empty-cells: hide` in the separated model (its table's
+/// `border-collapse: separate`; an anonymous table's always) on a cell with
+/// no content: no in-flow box, no text but white space, no `::before` /
+/// `::after`.
+pub(crate) fn hides_empty_cell(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    use crate::ext::PseudoSlot;
+    use crate::layout::{Display, EmptyCells, TablePart};
+    let node = dom.node(id);
+    let Some(c) = node.ext().and_then(|e| e.computed.as_deref()) else {
+        return false;
+    };
+    if c.display != Display::TablePart(TablePart::Cell) || c.table.empty_cells != EmptyCells::Hide {
+        return false;
+    }
+    let mut up = crate::render::box_tree::box_parent(dom, id);
+    while let Some(p) = up {
+        let pc = dom.node(p).ext().and_then(|e| e.computed.as_deref());
+        match pc {
+            Some(pc) if pc.flow == crate::layout::Flow::Table => {
+                if pc.border_collapse == BorderCollapse::Collapse {
+                    return false;
+                }
+                break;
+            }
+            Some(pc) if matches!(pc.display, Display::TablePart(_)) => {
+                up = crate::render::box_tree::box_parent(dom, p);
+            }
+            _ => break,
+        }
+    }
+    let empty_children = crate::render::box_tree::children(dom, id).all(|child| {
+        let n = dom.node(child);
+        match n.node_type() {
+            rdom_core::NodeType::Text => n.node_value().is_none_or(|t| {
+                t.chars()
+                    .all(|ch| matches!(ch, ' ' | '\t' | '\n' | '\r' | '\u{c}'))
+            }),
+            rdom_core::NodeType::Element => {
+                !super::is_in_flow(dom, child)
+                    || n.ext()
+                        .and_then(|e| e.computed.as_deref())
+                        .is_some_and(|s| s.display == Display::None)
+            }
+            _ => true,
+        }
+    });
+    empty_children
+        && crate::render::box_tree::generated_text(dom, id, PseudoSlot::Before).is_none()
+        && crate::render::box_tree::generated_text(dom, id, PseudoSlot::After).is_none()
+}
+
 /// The rows of the table `id`'s first and last baselines from its
 /// border-box top, `width` cells wide (CSS 2.1 §17.5.3: an inline table's
 /// baseline is its first row's).
@@ -356,102 +418,8 @@ pub(super) fn baselines(
 ) -> Option<(u16, u16)> {
     let solved = solve(dom, TableBox::Element(id), computed, width, cb);
     let (top, _) = place::caption_heights(dom, &solved.structure, width);
-    place::row_baselines(dom, &solved).map(|(first, last)| {
+    place::row_baselines(&solved).map(|(first, last)| {
         let at = top.saturating_add(solved.chrome.top);
         (at.saturating_add(first), at.saturating_add(last))
     })
-}
-
-// ── The anonymous table around stray parts (§17.2.1 rule 3) ────────
-
-/// The anonymous table's style: an anonymous box's (inheriting from
-/// `parent`, every other property initial) that is a `table`.
-fn anonymous_style(dom: &Dom<TuiExt>, parent: NodeId) -> ComputedStyle {
-    let parent = dom
-        .node(parent)
-        .ext()
-        .and_then(|e| e.computed.clone())
-        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
-    let mut style = crate::style::cascade::anonymous_box_style(&parent);
-    style.display = crate::layout::Display::Block;
-    style.flow = crate::layout::Flow::Table;
-    style
-}
-
-/// The min-content (`max_content` false) or max-content width of the
-/// anonymous table around `items`, a run of `parent`'s box items.
-pub(super) fn anonymous_width(
-    dom: &Dom<TuiExt>,
-    parent: NodeId,
-    items: &[BoxItem],
-    max_content: bool,
-) -> u16 {
-    let measure = if max_content {
-        Measure::MaxContent
-    } else {
-        Measure::MinContent
-    };
-    let style = anonymous_style(dom, parent);
-    let table = TableBox::Anonymous { parent, items };
-    size_of(dom, table, &style, Direction::Row, 0, 0, measure)
-}
-
-/// The anonymous table's used width in `available` cells: as an `auto`
-/// table's, shrink-to-fit (§17.5.2.2).
-fn anonymous_used_width(
-    dom: &Dom<TuiExt>,
-    parent: NodeId,
-    items: &[BoxItem],
-    available: u16,
-) -> u16 {
-    let min = anonymous_width(dom, parent, items, false);
-    let max = anonymous_width(dom, parent, items, true);
-    max.min(available.max(min))
-}
-
-/// The height of the anonymous table around `items` in a containing block
-/// `available` cells wide.
-pub(super) fn anonymous_height(
-    dom: &Dom<TuiExt>,
-    parent: NodeId,
-    items: &[BoxItem],
-    available: u16,
-) -> u16 {
-    let width = anonymous_used_width(dom, parent, items, available);
-    let style = anonymous_style(dom, parent);
-    let table = TableBox::Anonymous { parent, items };
-    size_of(
-        dom,
-        table,
-        &style,
-        Direction::Column,
-        width,
-        available,
-        Measure::MaxContent,
-    )
-}
-
-/// Lay the anonymous table around `items` out at `at` — its top-left
-/// corner and the containing block's width — and return its height.
-pub(super) fn layout_anonymous(
-    dom: &mut Dom<TuiExt>,
-    parent: NodeId,
-    items: &[BoxItem],
-    at: LayoutRect,
-) -> u16 {
-    let width = anonymous_used_width(dom, parent, items, at.width);
-    let style = anonymous_style(dom, parent);
-    let table = TableBox::Anonymous { parent, items };
-    let solved = solve(dom, table, &style, width, at.width);
-    let (top, bottom) = place::caption_heights(dom, &solved.structure, width);
-    let height = top
-        .saturating_add(solved.box_height())
-        .saturating_add(bottom);
-    let rect = LayoutRect::new(at.x, at.y, width, height);
-    let boxes = place::place(dom, table, rect, solved);
-    debug_assert!(
-        boxes.is_empty(),
-        "a run of table parts wraps no text of its parent"
-    );
-    height
 }

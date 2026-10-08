@@ -256,7 +256,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | done |
-| C13-TABLE-PROPS | `caption-side`, `empty-cells`, `border-spacing` (separated borders), `vertical-align` on cells | |
+| C13-TABLE-PROPS | `caption-side`, `empty-cells`, `border-spacing` (separated borders), `vertical-align` on cells | done |
 | C13-COLUMN | Column combinator `\|\|` (Selectors 4; was C11-COLUMN): `col.x \|\| td` matches the cells of the columns a `<col>` spans, from C13-TFC's column model | |
 
 ### Phase 14 — Conditional rules, containment (audit §3.21)
@@ -8547,3 +8547,27 @@ row comes from.
   joining table runs → 1 fails; the anonymous tables left out of the inline size → 1. C13-TFC is done:
   CSS-COVERAGE's `display: table` row Supported (§3.7 9 / 0 / 0 / 2; total 234 / 7 / 21 / 45);
   DIVERGENCES §3's display list is empty.
+- 2026-10-08 — C13-TABLE-PROPS (CSS 2.1 §17.5.3, §17.6.1.1). `caption-side` and `border-spacing` shipped with
+  C13-TFC (parts 2–4); `table-layout` too. New: (1) `vertical-align` on cells — `table/align.rs`: `top`,
+  `middle` (free rows halved, rounded down: the upper middle), `bottom`, and `baseline` for every other value
+  (§17.5.3); a cell's baseline is its first line box's text row (`baselines::content_rows`, C9G-ONE-BASELINE's
+  model) or the bottom of its content edge, counted from its track's top (a collapsed top border on the line
+  above taken off); a row's baseline is the lowest of its `baseline` cells', and `rows::heights` grows a row
+  to hold each shifted cell; `place` moves a laid-out cell's content down by the offset
+  (`tree::shift_cell_content`: its lines when it packs its own, its children and anonymous boxes) and an
+  anonymous cell's lines with it; the table's baselines (an `inline-table`'s, a table flex item's) are its
+  rows' (a row with no `baseline` cell: its last row). HTML §15.3.8's UA rules: `thead`, `tbody`, `tfoot`,
+  `tr { vertical-align: middle }`, `td, th { vertical-align: inherit }` — an HTML cell is centred in a taller
+  row (CHANGELOG silent change 8 gains it). (2) `empty-cells: show | hide`, inherited (`EmptyCells`, the
+  table group's third field, dispatched, discrete, builders, `!important` bit, inherited-set probes):
+  `table::hides_empty_cell` — a cell with no in-flow box, no text but white space and no `::before` /
+  `::after` in a separated table (its table's `border-collapse`; an anonymous table's always) — and
+  `paint_pass::box_paint` skips its shadows, background and border. DESIGN lists `EmptyCells` (closed).
+  Red: `css_phase13/props.rs` 4 of 4 failed (every cell top-aligned: `["Tamb", "", ""]`; `[" BC", "", "A"]`;
+  the HTML cell at row 0; the empty cell's box drawn), `table_tests.rs`'s `empty-cells` test failed to
+  compile; green after. Mutation (each alone, restored, touched): `middle` at the top → 2 fail; the
+  baseline shift not growing the row → 1 (after the test gained a two-line cell — the first version's row was
+  already tall enough and the mutation survived); the UA `inherit` gone → 1; the empty-cell check off → 1.
+  Also pinned (no red: it already worked): `tfc.rs::points_over_cells_resolve_to_their_text` — `position_at`
+  over a cell's text and an anonymous cell's. Split (SIZE-1): `table/mod.rs` would have reached 513 — the
+  anonymous table's entry points moved to `table/stray.rs` (moves only), leaving 421.

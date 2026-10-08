@@ -181,6 +181,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("resize", "both"),
     ("table-layout", "fixed"),
     ("caption-side", "bottom"),
+    ("empty-cells", "hide"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly

@@ -80,7 +80,15 @@ pub(super) fn cell_height(
     content.max(own).saturating_sub(borders)
 }
 
-/// Every row's height (see the module docs).
+/// The rows' heights and baselines.
+pub(super) struct Rows {
+    pub(super) heights: Vec<u16>,
+    /// Each row's baseline from its track's top (`align::row_baselines`).
+    pub(super) baselines: Vec<Option<u16>>,
+}
+
+/// Every row's height (see the module docs), its `baseline` cells aligned
+/// (`align`, §17.5.3).
 pub(super) fn heights(
     dom: &Dom<TuiExt>,
     grid: &Grid,
@@ -88,7 +96,7 @@ pub(super) fn heights(
     model: Model,
     columns: &[u16],
     cb: u16,
-) -> Vec<u16> {
+) -> Rows {
     let mut rows: Vec<u16> = grid
         .rows
         .iter()
@@ -102,15 +110,28 @@ pub(super) fn heights(
                 .unwrap_or(0)
         })
         .collect();
+    let widths: Vec<u16> = grid
+        .cells
+        .iter()
+        .map(|cell| cell_width(dom, cell, lines, model, columns))
+        .collect();
+    let baselines = super::align::row_baselines(dom, grid, lines, model, &widths, cb);
     let mut spanning = Vec::new();
-    for cell in &grid.cells {
-        let width = cell_width(dom, cell, lines, model, columns);
+    for (cell, &width) in grid.cells.iter().zip(&widths) {
         let h = cell_height(dom, cell, model, width, cb);
-        if cell.rows == 1 {
-            rows[cell.row] = rows[cell.row].max(h);
-        } else {
+        if cell.rows > 1 {
             spanning.push((cell, h));
+            continue;
         }
+        // A `baseline` cell needs its row deep enough to hold it moved
+        // down to the row's baseline.
+        let shift = match baselines[cell.row] {
+            Some(b) if super::align::of(dom, cell) == super::align::CellAlign::Baseline => {
+                b.saturating_sub(super::align::baseline(dom, cell, lines, model, width, cb))
+            }
+            _ => 0,
+        };
+        rows[cell.row] = rows[cell.row].max(h.saturating_add(shift));
     }
     spanning.sort_by_key(|(cell, _)| cell.rows);
     for (cell, h) in spanning {
@@ -124,7 +145,10 @@ pub(super) fn heights(
             rows[r] = 0;
         }
     }
-    rows
+    Rows {
+        heights: rows,
+        baselines,
+    }
 }
 
 /// Grow the rows `members` so they sum to at least `need`, the shortfall

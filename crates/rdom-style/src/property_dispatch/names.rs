@@ -186,6 +186,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "border-spacing",
     "table-layout",
     "caption-side",
+    "empty-cells",
     "content",
     "quotes",
     // Lists (CSS Lists 3)

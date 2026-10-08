@@ -226,6 +226,23 @@ pub(super) fn shift_content(dom: &mut Dom<TuiExt>, id: NodeId, dy: i32) {
     shift_children(dom, id, 0, dy, Keep::None);
 }
 
+/// Move a table cell's laid-out content down by `dy` rows (CSS 2.1
+/// §17.5.3, `vertical-align`): its lines, when it packs its own, and its
+/// children and anonymous boxes.
+pub(super) fn shift_cell_content(dom: &mut Dom<TuiExt>, id: NodeId, dy: i32) {
+    if dy <= 0 {
+        return;
+    }
+    if dom
+        .node(id)
+        .ext()
+        .is_some_and(|e| e.inline_layout.is_some())
+    {
+        shift_lines(dom, id, dy);
+    }
+    shift_content(dom, id, dy);
+}
+
 /// Move the lines of `id`'s inline formatting context down by `dy`
 /// rows (`align-content`, CSS Box Alignment 3 §5.1), with
 /// [`shift_content`] moving its atoms' boxes alongside. A line's rows

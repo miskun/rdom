@@ -113,6 +113,7 @@ pub(super) static LONGHANDS: &[Entry] = &[
     // CSS 2.1 §17.5.2, §17.4.1
     e("table-layout", Discrete, steps!(table.table_layout)),
     e("caption-side", Discrete, steps!(table.caption_side)),
+    e("empty-cells", Discrete, steps!(table.empty_cells)),
     // CSS Overflow 3 / 4, Scrollbars 1, Overscroll 1, Scroll Snap 1
     e(
         "overflow-x",

@@ -187,6 +187,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("border-spacing", "1 2"),
         ("table-layout", "fixed"),
         ("caption-side", "bottom"),
+        ("empty-cells", "hide"),
         ("content", "\"hello\""),
         ("quotes", "\"<\" \">\""),
         ("list-style", "inside square"),

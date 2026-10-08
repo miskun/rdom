@@ -9,6 +9,7 @@ use rdom_tui::{CascadeExt, LayoutExt, NodeId, PaintExt, TuiDom};
 
 mod display;
 mod html;
+mod props;
 mod tfc;
 
 /// A document holding `markup` under its root.

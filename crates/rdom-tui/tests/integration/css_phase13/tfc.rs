@@ -300,3 +300,21 @@ fn an_anonymous_table_sizes_its_parent() {
     let buf = paint(&mut dom, &css(".ib { display: inline-block }"), 20, 2);
     assert_eq!(rows(&buf)[0], "abcd|");
 }
+
+/// The caret and selection find text in cells — a cell's own lines and an
+/// anonymous cell's (stored on its row) — from a point (CSSOM View
+/// `caretPositionFromPoint`, `HitTestExt::position_at`).
+#[test]
+fn points_over_cells_resolve_to_their_text() {
+    let mut dom = doc(
+        r#"<div><div class="t"><div class="r"><div id="a" class="c">ab</div>cd</div></div></div>"#,
+    );
+    let buf = paint(&mut dom, &css(""), 10, 2);
+    assert_eq!(rows(&buf)[0], "abcd");
+    let a = dom.node(by_id(&dom, "a")).first_child().unwrap().id();
+    let row = dom.node(by_id(&dom, "a")).parent_node().unwrap().id();
+    let cd = dom.node(row).last_child().unwrap().id();
+    let at = |x| dom.position_at(x, 0).map(|p| (p.node, p.offset));
+    assert_eq!(at(1), Some((a, 1)));
+    assert_eq!(at(3), Some((cd, 1)));
+}

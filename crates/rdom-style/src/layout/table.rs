@@ -122,6 +122,30 @@ impl CaptionSide {
     }
 }
 
+/// `empty-cells` (CSS 2.1 §17.6.1.1): whether the separated model draws
+/// the border and background of a cell with no content. Inherited;
+/// initial `show`.
+///
+/// Closed (DESIGN): the two choices paint makes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub enum EmptyCells {
+    /// Drawn as any cell's.
+    #[default]
+    Show,
+    /// Not drawn.
+    Hide,
+}
+
+impl EmptyCells {
+    /// The keyword's CSS spelling.
+    pub fn keyword(self) -> &'static str {
+        match self {
+            EmptyCells::Show => "show",
+            EmptyCells::Hide => "hide",
+        }
+    }
+}
+
 /// The computed table properties of an element
 /// ([`ComputedStyle::table`](crate::ComputedStyle::table)).
 ///
@@ -133,4 +157,6 @@ pub struct TableStyle {
     pub table_layout: TableLayout,
     /// `caption-side` (§17.4.1). Inherited.
     pub caption_side: CaptionSide,
+    /// `empty-cells` (§17.6.1.1). Inherited.
+    pub empty_cells: EmptyCells,
 }

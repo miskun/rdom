@@ -107,7 +107,7 @@ pub use sizing::{
     valid_flex_factor,
 };
 pub use spacing::Spacing;
-pub use table::{CaptionSide, TableLayout, TablePart, TableStyle};
+pub use table::{CaptionSide, EmptyCells, TableLayout, TablePart, TableStyle};
 pub use text::TextStyle;
 pub use text_align::{
     TextAlign, TextAlignKeyword, TextAlignLast, TextCase, TextIndent, TextJustify, TextTransform,

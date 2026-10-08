@@ -147,3 +147,24 @@ pub(super) fn lay_out(
     }
     boxes
 }
+
+/// The row of the cell's first line box's text from its top at `width`
+/// (§17.5.3: its baseline), or its height when it holds none.
+pub(super) fn first_baseline(dom: &Dom<TuiExt>, cell: &AnonymousCell, width: u16, cb: u16) -> u16 {
+    let mut top = 0u16;
+    for s in segments(dom, cell) {
+        match s {
+            Segment::Inline(run) => {
+                let il = pack(dom, cell, run, width);
+                if let Some((first, _)) = il.baselines() {
+                    return top.saturating_add(first);
+                }
+                top = top.saturating_add(il.height());
+            }
+            Segment::Block(id) => {
+                top = top.saturating_add(intrinsic_size(dom, id, Direction::Column, width, cb));
+            }
+        }
+    }
+    top
+}

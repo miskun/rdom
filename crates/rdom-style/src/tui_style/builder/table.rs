@@ -3,7 +3,7 @@
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
-use crate::layout::{CaptionSide, TableLayout};
+use crate::layout::{CaptionSide, EmptyCells, TableLayout};
 
 /// A setter for one [`TableDeclarations`](crate::TableDeclarations) field
 /// and its `!important` twin.
@@ -37,5 +37,12 @@ impl TuiStyle {
         caption_side_important,
         CAPTION_SIDE,
         CaptionSide
+    );
+    table_setter!(
+        "empty-cells",
+        empty_cells,
+        empty_cells_important,
+        EMPTY_CELLS,
+        EmptyCells
     );
 }

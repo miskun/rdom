@@ -2,7 +2,7 @@
 //! properties, the specified side of [`TableStyle`](crate::layout::TableStyle).
 
 use crate::Value;
-use crate::layout::{CaptionSide, TableLayout};
+use crate::layout::{CaptionSide, EmptyCells, TableLayout};
 
 /// The table properties a [`TuiStyle`](crate::TuiStyle) declares
 /// ([`TuiStyle::table`](crate::TuiStyle::table)), one field per longhand,
@@ -15,4 +15,6 @@ pub struct TableDeclarations {
     pub table_layout: Option<Value<TableLayout>>,
     /// `caption-side` (§17.4.1).
     pub caption_side: Option<Value<CaptionSide>>,
+    /// `empty-cells` (§17.6.1.1).
+    pub empty_cells: Option<Value<EmptyCells>>,
 }

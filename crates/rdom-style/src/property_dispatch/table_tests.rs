@@ -4,7 +4,7 @@
 //! `caption-side` (§17.4.1).
 
 use super::*;
-use crate::layout::{CaptionSide, Display, Flow, TableLayout, TablePart};
+use crate::layout::{CaptionSide, Display, EmptyCells, Flow, TableLayout, TablePart};
 use crate::{TuiStyle, Value};
 
 fn spec<T: Clone>(v: &Option<Value<T>>) -> Option<T> {
@@ -155,5 +155,26 @@ fn caption_side_parses_serializes_and_inherits() {
     assert_eq!(
         crate::ComputedStyle::initial().table.caption_side,
         CaptionSide::Top
+    );
+}
+
+/// CSS 2.1 §17.6.1.1: `empty-cells: show | hide`, inherited, initial
+/// `show`.
+#[test]
+fn empty_cells_parses_serializes_and_inherits() {
+    let mut style = TuiStyle::new();
+    set("empty-cells", "HIDE", &mut style).unwrap();
+    assert_eq!(spec(&style.table.empty_cells), Some(EmptyCells::Hide));
+    assert_eq!(serialize("empty-cells", &style).as_deref(), Some("hide"));
+    set("empty-cells", "show", &mut style).unwrap();
+    assert_eq!(serialize("empty-cells", &style).as_deref(), Some("show"));
+    assert_eq!(
+        set("empty-cells", "none", &mut style),
+        Err(DispatchError::InvalidValue)
+    );
+    assert!(inherits("empty-cells"));
+    assert_eq!(
+        crate::ComputedStyle::initial().table.empty_cells,
+        EmptyCells::Show
     );
 }
