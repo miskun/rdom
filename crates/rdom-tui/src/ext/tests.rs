@@ -92,10 +92,14 @@ fn clone_copies_author_inputs_and_resets_runtime_state() {
 /// (`C1G-PROPERTY-RESTYLE`, one `Rc`); 448 for the floated `::before` /
 /// `::after` boxes a box's formatting context run places
 /// (`C8G-PSEUDO-ATOMS`, one thin `Box`); 456 for a list item's `::marker`
-/// style (`C10-LIST-ITEM`, one `Rc`).
+/// style (`C10-LIST-ITEM`, one `Rc`); 464 for a `<details>` element's
+/// `::details-content` style (`C10-DETAILS-CONTENT`, one `Rc` — the
+/// positioned pseudo-elements' boxes, `::first-line` / `::first-letter`
+/// and the highlight styles of C10-PSEUDO-UNIFY, -FIRST and -HIGHLIGHT
+/// fit in what the two `PseudoLayout`s freed).
 #[test]
 fn tui_ext_size_tripwire() {
-    const MAX: usize = 456;
+    const MAX: usize = 464;
     let size = std::mem::size_of::<TuiExt>();
     let computed = std::mem::size_of::<ComputedStyle>();
     let inline = std::mem::size_of::<TuiStyle>();

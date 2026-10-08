@@ -139,6 +139,11 @@ pub(super) fn compute_element_style(
         super::blockify::blockify(&mut working);
     }
     super::blockify::finalize_float(&mut working);
+    // Content a closed `<details>`'s slot hides generates no box (HTML
+    // §15.5.20's `content-visibility: hidden`, DIVERGENCES §2).
+    if parent_id.is_some_and(|p| super::details::hidden(dom, p, id)) {
+        working.display = crate::layout::Display::None;
+    }
     super::font::finalize_font(&mut working, parent);
     super::quotes::finalize_quotes(&mut working, parent, dom, parent_id);
     super::text_decoration::finalize_applied_decorations(&mut working, parent.applied_decorations);

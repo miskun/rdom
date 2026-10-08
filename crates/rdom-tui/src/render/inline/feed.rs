@@ -219,7 +219,11 @@ fn walk_subtree<'a>(dom: &'a Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'a
         match child.node_type() {
             NodeType::Text => {
                 // Owner is `id` — the direct element parent. Text
-                // node's id goes in too for source-offset tracking.
+                // node's id goes in too for source-offset tracking. Text
+                // a closed `<details>` hides has no box.
+                if crate::render::box_tree::is_hidden_text(dom, id, child.id()) {
+                    continue;
+                }
                 if let Some(data) = child.node_value() {
                     packer.push_text(id, child.id(), data, run_of(dom, id));
                 }

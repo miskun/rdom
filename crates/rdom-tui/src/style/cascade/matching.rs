@@ -96,9 +96,10 @@ pub(super) enum Slot {
     Marker,
     FirstLine,
     FirstLetter,
+    DetailsContent,
 }
 
-const SLOTS: usize = 11;
+const SLOTS: usize = 12;
 
 /// An element's matched rules per box, as of its last cascade, under one
 /// sheet set (`Sheets::stamp`). `None` for a box that was not matched

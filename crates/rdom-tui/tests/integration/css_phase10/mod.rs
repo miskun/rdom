@@ -10,6 +10,7 @@ pub(crate) use super::css_phase5::{el, lay_out, paint, rect, rows, size};
 mod content;
 mod counter_style;
 mod counters;
+mod details_content;
 mod first;
 mod highlight;
 mod legacy_colon;

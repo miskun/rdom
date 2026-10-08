@@ -215,7 +215,7 @@ row comes from.
 | C10-FIRST | `::first-line` / `::first-letter` | done |
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | done |
-| C10-DETAILS-CONTENT | `::details-content` | |
+| C10-DETAILS-CONTENT | `::details-content` | partial — the slot is no box: its box properties (background, border, padding, sizes, `overflow`) draw nothing, so it cannot be sized or animated (needs a generated block box holding element content in the box tree) |
 | C10-PSEUDO-CHAINS | Pseudo-element followed by user-action pseudo-classes (`::before:hover`) and nested pseudo-elements where defined | |
 | C10-PSEUDO-UNIFY | Positioned `::before` / `::after` on the generated-box path: the positioning layer places, stacks, hit-tests and scrolls them as elements (from C10-LIST-ITEM's note; `positioned_pseudos` gone) | done |
 
@@ -6344,3 +6344,24 @@ row comes from.
   selection tests. No existing expectation or snapshot changed (no test styled `::selection` with a property the
   subset drops). TECH_DEBT: `HIGHLIGHT-COST-1` (fragments × ranges). CSS-COVERAGE: `::highlight()` Missing →
   Supported, `::selection`'s row rewritten, §3.16 8 / 1 / 1 / 6, total 196 / 14 / 52 / 45.
+- 2026-10-13 — C10-DETAILS-CONTENT — partial. Found: a closed `<details>` was hidden by a UA rule
+  `details:not([open]) > *:not(summary) { display: none }` — elements only, so text directly inside showed, and any
+  `<summary>` (not just the first) stayed — and `::details-content` was rejected as unsupported. Decisions: (1)
+  rdom-style parses `::details-content` (`PseudoElementTarget::DetailsContent`); the UA rule becomes
+  `details::details-content { display: block }`. (2) rdom-tui cascades it onto every `<details>`
+  (`TuiExt::computed_details_content`, early pseudo-elements). The slot (`cascade/details.rs`): a child is slotted
+  unless it is the first `<summary>` element child (HTML §15.5.20); slotted children inherit from the slot (the three
+  places a child's parent style is chosen: the walk, a kept element's replay, a partial cascade's root); the slot
+  hides its content while the element lacks `open` (the UA's `content-visibility: hidden`) or the slot is
+  `display: none` — hidden elements compute `display: none` (the mechanism the UA rule used, so layout, paint,
+  hit-testing and focus already agree), hidden text is skipped where text joins the box tree
+  (`box_tree::is_hidden_text`: the box and item sequences, `holds_loose_text`, the packer's feed, the first-letter
+  scan). Not done: the slot is no box — rdom's box tree has no generated block holding element content, and adding
+  one reaches every walk that pairs a box with its children — so its background, border, padding, sizes and
+  `overflow` draw nothing and it cannot be animated (DIVERGENCES §2); `content-visibility` itself waits for
+  C14-CONTAIN. Red: `css_phase10/details_content.rs` — all 3 failed on HEAD (`loose` under a closed summary; the
+  strict sheet rejected `details::details-content`); the API assertion was compile-red (no
+  `computed_details_content`) and was left out of the behaviour red run. Green after. Mutations (restored,
+  touched): no slot inheritance and closed not hiding → all three. Changed expectation: the `TuiExt` size bound 456 →
+  464 (one `Rc`; the item's other fields fit in what the removed `PseudoLayout`s freed). No snapshot changed.
+  CSS-COVERAGE: Missing → Partial, §3.16 8 / 2 / 0 / 6, total 196 / 15 / 51 / 45.

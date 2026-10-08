@@ -12,8 +12,9 @@ use super::PseudoElementTarget;
 /// The supported pseudo-element suffixes. Longer suffixes go first:
 /// `::scrollbar` is a prefix of `::scrollbar-thumb`, which is a prefix
 /// of the axis forms.
-const SUFFIXES: [(&str, PseudoElementTarget); 12] = [
+const SUFFIXES: [(&str, PseudoElementTarget); 13] = [
     ("::before", PseudoElementTarget::Before),
+    ("::details-content", PseudoElementTarget::DetailsContent),
     ("::after", PseudoElementTarget::After),
     ("::backdrop", PseudoElementTarget::Backdrop),
     ("::placeholder", PseudoElementTarget::Placeholder),
@@ -84,7 +85,7 @@ pub(super) fn extract_pseudo_suffix(
     // A bare `::other` anywhere is rejected (unsupported pseudo-element).
     if pseudo_count == 1 {
         return Err(
-            "unsupported pseudo-element; only ::before, ::after, ::backdrop, ::selection, ::placeholder, ::first-line, ::first-letter, ::marker, ::highlight(<name>), ::scrollbar, ::scrollbar-thumb (optionally :vertical / :horizontal) allowed"
+            "unsupported pseudo-element; only ::before, ::after, ::backdrop, ::selection, ::placeholder, ::first-line, ::first-letter, ::marker, ::highlight(<name>), ::details-content, ::scrollbar, ::scrollbar-thumb (optionally :vertical / :horizontal) allowed"
                 .to_string(),
         );
     }

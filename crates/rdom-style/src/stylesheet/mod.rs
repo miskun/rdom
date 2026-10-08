@@ -136,6 +136,11 @@ pub enum PseudoElementTarget {
     /// only the properties CSS Pseudo-Elements 4 §3.2 lets apply are kept
     /// ([`TuiStyle::highlight_subset`]), as for `::selection`.
     Highlight(std::sync::Arc<str>),
+    /// `::details-content` (HTML §4.11.1, CSS Pseudo-Elements 4) — the
+    /// slot holding a `<details>` element's content, everything but its
+    /// first `<summary>` child: what the content inherits from, and what
+    /// hides it while the element is closed.
+    DetailsContent,
 }
 
 impl PseudoElementTarget {

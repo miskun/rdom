@@ -177,11 +177,14 @@ pub(super) fn cascade_subtree<'a>(
     };
     let mut child = first_child(dom, id);
     while let Some(c) = child {
+        // A `<details>` element's content inherits from its
+        // `::details-content` slot.
+        let slot = super::details::inherited_style(dom, id, c);
         flags.merge(cascade_subtree(
             dom,
             sheets,
             c,
-            &styled.computed,
+            slot.as_deref().unwrap_or(&styled.computed),
             counters,
             scratch,
             mode,
@@ -425,8 +428,10 @@ fn replay_kept<'a>(
             let mut child = first_child(dom, id);
             while let Some(c) = child {
                 if takes_part(dom, c) {
+                    let slot = super::details::inherited_style(dom, id, c);
+                    let parent = slot.as_deref().unwrap_or(computed);
                     flags.merge(cascade_subtree(
-                        dom, sheets, c, computed, counters, scratch, mode,
+                        dom, sheets, c, parent, counters, scratch, mode,
                     ));
                 }
                 child = next_sibling(dom, c);

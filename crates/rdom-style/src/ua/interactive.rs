@@ -34,16 +34,16 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             "details:open > summary::before",
             TuiStyle::new().content(Content::Str("▾ ".into())),
         ),
-        // Closed-details body suppression — when `<details>` lacks
-        // the `open` attribute, only the `<summary>` child renders.
-        // Every other direct child collapses out of layout per the
-        // HTML spec's disclosure widget semantics. The runtime
+        // The content slot (HTML §15.5.20): everything but the first
+        // `<summary>` child is `::details-content`'s, which hides it
+        // while `<details>` lacks `open` — the UA's `content-visibility:
+        // hidden` there, which rdom's backend applies to the slot (rdom
+        // has no `content-visibility` yet: C14-CONTAIN). The runtime
         // (`runtime::builtins::details`) toggles `open` on click /
-        // Enter / Space; this cascade rule is what makes the
-        // body actually vanish when closed.
+        // Enter / Space.
         (
-            "details:not([open]) > *:not(summary)",
-            TuiStyle::new().display(Display::None),
+            "details::details-content",
+            TuiStyle::new().display(Display::Block),
         ),
         // ── Tree (ARIA tree pattern) ──
         // rdom has no `<tree>` element — trees are built the

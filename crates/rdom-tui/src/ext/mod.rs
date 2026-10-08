@@ -319,6 +319,11 @@ pub struct TuiExt {
     /// `::first-line` (or the block without one), cut to §2.3.1's
     /// properties.
     pub computed_first_letter: Option<std::rc::Rc<ComputedStyle>>,
+    /// `::details-content` computed style (HTML §15.5.20): `Some` for a
+    /// `<details>` element. Its content — every child but its first
+    /// `<summary>` — inherits from it, and it hides that content while
+    /// the element is closed (`style::cascade::details`).
+    pub computed_details_content: Option<std::rc::Rc<ComputedStyle>>,
     /// Previous-cascade snapshots of the two pseudo-element styles, so
     /// the transition engine can diff them like `computed_prev`
     /// (`D-M3-3`).

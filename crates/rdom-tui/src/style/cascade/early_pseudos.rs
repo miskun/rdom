@@ -1,7 +1,7 @@
 //! The pseudo-element boxes an element's cascade computes before its
 //! children (`walk::style_element`): `::marker`, `::before`, `::backdrop`,
 //! `::selection`, the scrollbar parts, `::first-line`,
-//! `::first-letter` and `::highlight()`. `::after` waits for the children
+//! `::first-letter`, `::details-content` and `::highlight()`. `::after` waits for the children
 //! (`walk::finish_element`): a `counter()` in it sees their increments.
 
 use super::matching::{MatchedRules, Recorder, Slot};
@@ -22,6 +22,7 @@ pub(super) struct EarlyPseudos {
     thumb_horizontal: Option<ComputedStyle>,
     first_line: Option<ComputedStyle>,
     first_letter: Option<ComputedStyle>,
+    details_content: Option<ComputedStyle>,
     highlights: Vec<(std::sync::Arc<str>, ComputedStyle)>,
 }
 
@@ -35,6 +36,7 @@ impl EarlyPseudos {
         ext.computed_selection = self.selection.map(Rc::new);
         ext.computed_first_line = self.first_line.map(Rc::new);
         ext.computed_first_letter = self.first_letter.map(Rc::new);
+        ext.computed_details_content = self.details_content.map(Rc::new);
         ext.computed_highlights = (!self.highlights.is_empty()).then(|| {
             Box::new(
                 self.highlights
@@ -149,6 +151,17 @@ pub(super) fn compute(
             )
         })
         .flatten();
+    // `::details-content` (HTML §15.5.20): a `<details>` element's slot.
+    let details_content = (dom.node(id).tag_name() == Some("details"))
+        .then(|| {
+            pseudo(
+                cx,
+                Slot::DetailsContent,
+                computed,
+                &[PseudoElementTarget::DetailsContent],
+            )
+        })
+        .flatten();
     // `::highlight(name)` (CSS Custom Highlight API 1 §5.1), for each
     // name the sheets style — matched afresh, not cached per slot: there
     // is one per name.
@@ -164,6 +177,7 @@ pub(super) fn compute(
         }
     }
     EarlyPseudos {
+        details_content,
         highlights,
         marker,
         before,
