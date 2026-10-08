@@ -47,6 +47,7 @@ mod event;
 mod event_detail;
 mod form_assoc;
 mod form_control;
+mod form_pseudo;
 mod highlight;
 #[cfg(test)]
 mod highlight_tests;

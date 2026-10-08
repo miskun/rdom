@@ -34,6 +34,8 @@ mod pseudo;
 pub use caches::{CacheWork, SelectorCaches};
 use matcher::Cx;
 #[cfg(test)]
+mod form_state_tests;
+#[cfg(test)]
 mod has_tests;
 #[cfg(test)]
 mod linguistic_tests;

@@ -99,6 +99,8 @@ impl<Ext> Dom<Ext> {
             PseudoClass::Invalid => self.constraint_validity(id) == Some(false),
             PseudoClass::Required => self.is_required_control(id),
             PseudoClass::Optional => self.is_optional_control(id),
+            PseudoClass::ReadWrite => self.is_read_write(id),
+            PseudoClass::ReadOnly => node.tag_name().is_some() && !self.is_read_write(id),
         }
     }
 }

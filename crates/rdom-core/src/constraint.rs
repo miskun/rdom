@@ -199,7 +199,7 @@ impl<Ext> Dom<Ext> {
 
 /// The `<input>` states the `readonly` attribute applies to (HTML
 /// §4.10.5, the "readonly" row of the attribute table).
-fn readonly_applies(t: InputTypeState) -> bool {
+pub(crate) fn readonly_applies(t: InputTypeState) -> bool {
     use InputTypeState as T;
     matches!(
         t,

@@ -61,4 +61,21 @@ impl<Ext> Dom<Ext> {
         self.get_attribute(id, "contenteditable")
             .and_then(ContentEditableState::from_attribute)
     }
+
+    /// Whether `id` is an *editing host* or *editable* (HTML §6.8.1):
+    /// its own or its nearest ancestor's explicit `contenteditable`
+    /// state decides — `true` / `plaintext-only` make it so, `false`
+    /// stops it — and with none on the way up, it is neither. The
+    /// predicate behind `:read-write` for elements other than `<input>`
+    /// and `<textarea>` (Selectors 4 §14.3.1). rdom has no design mode.
+    pub fn is_editable_or_editing_host(&self, id: NodeId) -> bool {
+        let mut cur = Some(id);
+        while let Some(n) = cur {
+            if let Some(state) = self.content_editable_state(n) {
+                return state.is_editing_host();
+            }
+            cur = self.get_node(n).and_then(|node| node.parent);
+        }
+        false
+    }
 }

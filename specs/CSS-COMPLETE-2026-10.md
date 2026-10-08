@@ -229,7 +229,7 @@ row comes from.
 | C11-HAS | `:has()` with invalidation | done |
 | C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | done |
 | C11-SCOPE | `:scope` (query APIs and `@scope`) | done |
-| C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | |
+| C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | partial — `:read-only` / `:read-write` done; `:indeterminate`, `:default`, `:in-range` / `:out-of-range`, `:user-valid` / `:user-invalid` remain |
 | C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | |
 | C11-LINK-LANG | `:link` / `:any-link`, `:lang()` | done (with `:dir()`, deferred here by C5-WRITING, and `:visited` never matching) |
 | C11-COLUMN | Column combinator `\|\|` | moved to Phase 13 as C13-COLUMN: it selects the cells a column spans, which needs C13-TFC's real table columns |
@@ -7047,3 +7047,16 @@ row comes from.
   say so. §3.17 now: 25 Supported, 1 Partial (`:indeterminate`, part 2), 8 Missing (the part 2 form and
   display states, `:blank`, the column combinator), 4 N/A. Part 2 (C11-FORM-STATES, C11-MODAL-POPOVER) is
   not started.
+- 2026-10-14 — C11-FORM-STATES, part 1 of 4: `:read-only` / `:read-write` (Selectors 4 §14.3.1, HTML §4.16.3;
+  `PseudoClass::ReadOnly` / `ReadWrite`). rdom-core answers it from attributes and tree shape
+  (`form_pseudo.rs`, `Dom::is_read_write`): a mutable `<input>` that `readonly` applies to (the list
+  `will_validate` already used), a mutable `<textarea>` (mutable: no `readonly`, not actually disabled — a
+  `<fieldset disabled>` counts), and any other element that is an editing host or editable
+  (`Dom::is_editable_or_editing_host`, HTML §6.8.1: the nearest explicit `contenteditable` state up the
+  tree decides). `:read-only` is every other element. Invalidation needs nothing new: `readonly`,
+  `disabled` and `contenteditable` are attributes, whose changes mark the subtree, and `:has()` treats the
+  two as attribute-reading. Red: `form_state_tests` failed on "unsupported pseudo-class `:read-write`";
+  green after, with `css_phase11/form_states.rs` through a sheet and an App (green as written — the
+  implementation was in). Mutation (the inherited `contenteditable` walk cut to the element itself,
+  restored, touched): `read_write_follows_htmls_mutability_rules` fails. No snapshot or existing
+  expectation changed.

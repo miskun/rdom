@@ -400,6 +400,13 @@ pub enum PseudoClass {
     /// argument other than `ltr` / `rtl`, which is valid and matches
     /// nothing.
     Dir(Option<crate::Directionality>),
+    /// `:read-write` (Selectors 4 §14.3.1, HTML §4.16.3): a mutable
+    /// `<input>` that `readonly` applies to, a mutable `<textarea>`, or
+    /// any other element that is an editing host or editable
+    /// ([`Dom::is_read_write`](crate::Dom::is_read_write)).
+    ReadWrite,
+    /// `:read-only`: every element that is not `:read-write`.
+    ReadOnly,
     /// `:scope` (Selectors 4 §14.3) — the scoping root: an `@scope`
     /// rule's root (CSS Cascade 6 §2.5) when matched through
     /// [`Dom::matches_list_in_scope`](crate::Dom::matches_list_in_scope),
