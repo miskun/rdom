@@ -81,6 +81,8 @@ mod top_layer;
 mod top_layer_tests;
 mod traversal;
 mod tree;
+#[cfg(test)]
+mod tree_move_tests;
 mod validate;
 
 pub use abort::{AbortController, AbortSignal};

@@ -8228,3 +8228,24 @@ row comes from.
   longer says `Reset`. (5) SIZE-1 recounted (2026-10-08; the old date was one not yet reached):
   `animation/mod.rs` 558 joins the list, `rdom-css/src/block.rs` 543 is listed, `cascade/ladder.rs` is
   553 by the rule (untouched, so not split), `walk.rs` left it. CHANGELOG silent change 80.
+- 2026-10-08 — C12G-MOVE-RECORD (TECH_DEBT `MOVE-RECORD-1`; DOM §4.2.3 "insert" steps 4 and 7.1, "adopt"
+  step 2, "replace", "pre-insert" step 3). Found: `append_child` / `insert_before` of an attached node
+  unlinked it (`detach_from_parent`, which already ran focus / hover / selection purging, the top
+  layer's removing steps and the live ranges' "remove" steps) but fired only the insertion's record, so
+  an observer — the dirty tracker's C12G-DETACHED teardown among them — never saw the old parent lose
+  it; a fragment's emptying fired nothing; `replace_child`'s record did not name the replaced child;
+  and replacing a child with its own next sibling (or inserting a node before itself) linked it before
+  a node it had just unlinked, a cycle in the sibling list. Decided: one insertion path —
+  `take_for_insertion` (a fragment's children out of it with one record for the fragment, as step 4
+  queues; else the node out of its parent with that parent's removal record, as adopt's unsuppressed
+  "remove" does) then `link` (structure and highlight bookkeeping only) and the caller's record:
+  `append_child` / `insert_before` one insertion record per node, `replace_child` one record with the
+  arrivals and the replaced child. Nothing in rdom-tui special-cased the missing record; the
+  teardown now sees moves, so a moved element's transitions and animations are cancelled and restart
+  (CSS Animations 1 §4.1: removal cancels, insertion starts afresh — what browsers do on a DOM move).
+  `moveBefore()` (the state-preserving move) not added: it needs a record kind a renderer tells from a
+  removal plus the "move" algorithm's focus, top-layer and range steps — not cheap; DIVERGENCES §2
+  "DOM API shape" says so. Red: `rdom-core/src/tree_move_tests.rs` — 4 of 6 failed (no removal record,
+  no fragment record, `replace_child` without the replaced child), the next-sibling replace looped
+  forever in `children()` (the before-itself case was added with the fix); rdom-tui `teardown_tests::a_spinner_moved_with_one_append_restarts` width 6
+  for 2 (mutation-checked with the removal record turned off); green after. CHANGELOG silent change 78.

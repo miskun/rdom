@@ -86,9 +86,14 @@ pub enum Mutation {
         added: Vec<String>,
         removed: Vec<String>,
     },
-    /// A parent's child list was mutated. Fires once per top-level
-    /// operation — e.g. `append_child(parent, frag)` where frag has
-    /// three children fires three records, one per unwrapped child.
+    /// A parent's child list was mutated. Fires once per inserted node —
+    /// e.g. `append_child(parent, frag)` where frag has three children
+    /// fires three insertion records, one per unwrapped child, after one
+    /// record for the fragment naming all three as removed. Inserting a
+    /// node that has a parent moves it: its old parent's removal record
+    /// comes first (DOM §4.2.3 "insert" → "adopt" → "remove").
+    /// `replace_child` fires one record naming both the arrivals and the
+    /// replaced child.
     ChildListChanged {
         parent: NodeId,
         added: Vec<NodeId>,

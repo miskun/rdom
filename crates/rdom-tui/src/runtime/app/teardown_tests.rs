@@ -150,6 +150,35 @@ fn a_spinner_moved_out_and_back_restarts() {
     );
 }
 
+/// DOM §4.2.3: moving an attached element with one `append_child` is a
+/// removal and an insertion (insert → adopt → remove), so its running
+/// animation is cancelled and restarts from its first keyframe, as
+/// browsers restart CSS animations on a DOM move (C12G-MOVE-RECORD).
+#[test]
+fn a_spinner_moved_with_one_append_restarts() {
+    let (mut app, div) = animated(
+        "@keyframes grow { from { width: 2 } to { width: 10 } } \
+         #a { animation: grow 100ms linear infinite }",
+    );
+    let root = app.dom().root();
+    let host = app.dom_mut().create_element("section");
+    app.dom_mut().append_child(root, host).unwrap();
+    app.advance(0).unwrap();
+    let log = record(&mut app, div);
+    app.advance(50).unwrap();
+    assert_eq!(width(&app, div), 6);
+    app.dom_mut().append_child(host, div).unwrap();
+    app.advance(0).unwrap();
+    assert_eq!(width(&app, div), 2, "restarted at its first keyframe");
+    let got = log.borrow().clone();
+    let cancel = got.iter().position(|e| e == "animationcancel");
+    let start = got.iter().rposition(|e| e == "animationstart");
+    assert!(
+        matches!((cancel, start), (Some(c), Some(s)) if c < s),
+        "{got:?}"
+    );
+}
+
 // ── C12G-PSEUDO-GONE ─────────────────────────────────────────────
 
 /// The first row the app painted, trailing blanks trimmed.

@@ -46,52 +46,25 @@ impl<Ext: 'static> Dom<Ext> {
     /// Append `child` as the last child of `parent`. If `child` is a
     /// Fragment, its children are appended and the fragment is emptied.
     ///
+    /// A `child` that already has a parent is moved: it is removed from
+    /// that parent first, with its own `ChildListChanged` record, then
+    /// inserted (DOM §4.2.3 "insert" → "adopt" → "remove") — an observer
+    /// sees the old parent lose it before the new parent gains it, and
+    /// everything keyed on removal (focus, the top layer, live ranges, a
+    /// renderer's animations) treats the move as a removal.
+    ///
     /// Returns `Err(HierarchyRequest)` if `child` is an ancestor of
     /// `parent` (would create a cycle), `Err(InvalidNode)` for unknown ids.
     pub fn append_child(&mut self, parent: NodeId, child: NodeId) -> Result<()> {
         self.validate_insert(parent, child)?;
-
-        // Fragment: splice its children in, leave the fragment empty. Each
-        // child is removed from the fragment as any removal is (DOM §4.2.3
-        // "insert" step 4 — the live ranges inside it move out), by the
-        // detach that inserting it starts with.
-        if matches!(
-            self.get_node(child).map(|n| &n.data),
-            Some(NodeData::Fragment)
-        ) {
-            while let Some(c) = self.get_node(child).and_then(|n| n.first_child) {
-                self.append_child(parent, c)?;
-            }
-            return Ok(());
+        for node in self.take_for_insertion(child)? {
+            self.link(parent, node, None);
+            self.fire_mutation(Mutation::ChildListChanged {
+                parent,
+                added: vec![node],
+                removed: vec![],
+            });
         }
-
-        // Detach child from current parent if any.
-        self.detach_from_parent(child)?;
-
-        // Link child under parent at the end.
-        let last = self.get_node(parent).and_then(|n| n.last_child);
-        self.get_node_mut(child)
-            .ok_or(DomError::InvalidNode(child))?
-            .parent = Some(parent);
-        self.get_node_mut(child).unwrap().prev_sibling = last;
-        self.get_node_mut(child).unwrap().next_sibling = None;
-
-        match last {
-            Some(prev) => {
-                self.get_node_mut(prev).unwrap().next_sibling = Some(child);
-            }
-            None => {
-                // Empty parent — also becomes first_child.
-                self.get_node_mut(parent).unwrap().first_child = Some(child);
-            }
-        }
-        self.get_node_mut(parent).unwrap().last_child = Some(child);
-        self.highlights_inserted(parent, child);
-        self.fire_mutation(Mutation::ChildListChanged {
-            parent,
-            added: vec![child],
-            removed: vec![],
-        });
         Ok(())
     }
 
@@ -103,7 +76,10 @@ impl<Ext: 'static> Dom<Ext> {
 
     /// Insert `new_child` before `reference_child` within `parent`.
     /// If `reference_child` is `None`, appends at the end (matches spec
-    /// behavior).
+    /// behavior); if it is `new_child` itself, `new_child`'s next
+    /// sibling is the reference (DOM §4.2.3 "pre-insert" step 3). A
+    /// `new_child` with a parent is moved, as
+    /// [`append_child`](Self::append_child) describes.
     pub fn insert_before(
         &mut self,
         parent: NodeId,
@@ -119,46 +95,20 @@ impl<Ext: 'static> Dom<Ext> {
         if self.get_node(reference).and_then(|n| n.parent) != Some(parent) {
             return Err(DomError::NotFound);
         }
+        if reference == new_child {
+            let next = self.get_node(reference).and_then(|n| n.next_sibling);
+            return self.insert_before(parent, new_child, next);
+        }
 
         self.validate_insert(parent, new_child)?;
-
-        // Fragment unwrap — iterate children and insert each before reference.
-        if matches!(
-            self.get_node(new_child).map(|n| &n.data),
-            Some(NodeData::Fragment)
-        ) {
-            // As `append_child`: each child leaves the fragment through the
-            // detach its insertion starts with (DOM §4.2.3 step 4).
-            while let Some(c) = self.get_node(new_child).and_then(|n| n.first_child) {
-                self.insert_before(parent, c, Some(reference))?;
-            }
-            return Ok(());
+        for node in self.take_for_insertion(new_child)? {
+            self.link(parent, node, Some(reference));
+            self.fire_mutation(Mutation::ChildListChanged {
+                parent,
+                added: vec![node],
+                removed: vec![],
+            });
         }
-
-        self.detach_from_parent(new_child)?;
-
-        // Link: prev_of_reference <-> new_child <-> reference
-        let before = self.get_node(reference).and_then(|n| n.prev_sibling);
-        let new_node = self.get_node_mut(new_child).unwrap();
-        new_node.parent = Some(parent);
-        new_node.prev_sibling = before;
-        new_node.next_sibling = Some(reference);
-
-        match before {
-            Some(prev) => {
-                self.get_node_mut(prev).unwrap().next_sibling = Some(new_child);
-            }
-            None => {
-                self.get_node_mut(parent).unwrap().first_child = Some(new_child);
-            }
-        }
-        self.get_node_mut(reference).unwrap().prev_sibling = Some(new_child);
-        self.highlights_inserted(parent, new_child);
-        self.fire_mutation(Mutation::ChildListChanged {
-            parent,
-            added: vec![new_child],
-            removed: vec![],
-        });
         Ok(())
     }
 
@@ -188,6 +138,12 @@ impl<Ext: 'static> Dom<Ext> {
 
     /// Replace `old_child` with `new_child` under `parent`. `old_child`
     /// is detached and becomes an orphan.
+    ///
+    /// DOM §4.2.3 "replace": `new_child` is first removed from its own
+    /// parent (its own record — a Fragment is emptied with one record
+    /// for it), then one `ChildListChanged` record for `parent` names
+    /// what arrived and `old_child` as removed. Replacing a child with
+    /// its next sibling leaves that sibling in the child's place.
     pub fn replace_child(
         &mut self,
         parent: NodeId,
@@ -199,9 +155,30 @@ impl<Ext: 'static> Dom<Ext> {
         }
         self.validate_insert(parent, new_child)?;
 
-        let next = self.get_node(old_child).and_then(|n| n.next_sibling);
-        self.detach_from_parent(old_child)?;
-        self.insert_before(parent, new_child, next)
+        let next_of = |dom: &Self, id: NodeId| dom.get_node(id).and_then(|n| n.next_sibling);
+        let mut reference = next_of(self, old_child);
+        if reference == Some(new_child) {
+            reference = next_of(self, new_child);
+        }
+        let added = self.take_for_insertion(new_child)?;
+        // `new_child` may have been `old_child` itself, removed above.
+        let removed = if self.get_node(old_child).and_then(|n| n.parent) == Some(parent) {
+            self.detach_from_parent(old_child)?;
+            vec![old_child]
+        } else {
+            Vec::new()
+        };
+        for &node in &added {
+            self.link(parent, node, reference);
+        }
+        if !added.is_empty() || !removed.is_empty() {
+            self.fire_mutation(Mutation::ChildListChanged {
+                parent,
+                added,
+                removed,
+            });
+        }
+        Ok(())
     }
 
     /// `insertAdjacentElement(position, new_child)`. `reference` is the
@@ -364,6 +341,63 @@ impl<Ext: 'static> Dom<Ext> {
     }
 
     // ── Internal helpers ─────────────────────────────────────────────
+
+    /// The nodes inserting `node` inserts, each out of its old parent
+    /// (DOM §4.2.3 "insert" steps 4 and 7.1): a Fragment's children,
+    /// removed from it with one record for the fragment (step 4 removes
+    /// them with observers suppressed and queues that one record); else
+    /// `node`, removed from its parent with that parent's record if it
+    /// has one ("adopt" step 2 runs "remove").
+    fn take_for_insertion(&mut self, node: NodeId) -> Result<Vec<NodeId>> {
+        let data = &self.node_or_err(node)?.data;
+        if matches!(data, NodeData::Fragment) {
+            let mut kids = Vec::new();
+            while let Some(c) = self.get_node(node).and_then(|n| n.first_child) {
+                self.detach_from_parent(c)?;
+                kids.push(c);
+            }
+            if !kids.is_empty() {
+                self.fire_mutation(Mutation::ChildListChanged {
+                    parent: node,
+                    added: vec![],
+                    removed: kids.clone(),
+                });
+            }
+            return Ok(kids);
+        }
+        if let Some(old) = self.get_node(node).and_then(|n| n.parent) {
+            self.detach_from_parent(node)?;
+            self.fire_mutation(Mutation::ChildListChanged {
+                parent: old,
+                added: vec![],
+                removed: vec![node],
+            });
+        }
+        Ok(vec![node])
+    }
+
+    /// Link the parentless `child` under `parent`, before `reference`
+    /// (a child of `parent`) or last — the structural half of an
+    /// insertion; the caller fires its record.
+    fn link(&mut self, parent: NodeId, child: NodeId, reference: Option<NodeId>) {
+        let before = match reference {
+            Some(r) => self.get_node(r).and_then(|n| n.prev_sibling),
+            None => self.get_node(parent).and_then(|n| n.last_child),
+        };
+        let node = self.get_node_mut(child).expect("validated");
+        node.parent = Some(parent);
+        node.prev_sibling = before;
+        node.next_sibling = reference;
+        match before {
+            Some(prev) => self.get_node_mut(prev).unwrap().next_sibling = Some(child),
+            None => self.get_node_mut(parent).unwrap().first_child = Some(child),
+        }
+        match reference {
+            Some(r) => self.get_node_mut(r).unwrap().prev_sibling = Some(child),
+            None => self.get_node_mut(parent).unwrap().last_child = Some(child),
+        }
+        self.highlights_inserted(parent, child);
+    }
 
     /// Validate that inserting `child` under `parent` is legal.
     /// Cycle check + id existence.
