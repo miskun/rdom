@@ -8263,3 +8263,10 @@ row comes from.
   `bg` initial value. API table: `ImportantMask::TRANSITIONS` is the union of five bits
   (`TRANSITION_BEHAVIOR` included); the `TuiStyle` / `ComputedStyle` new-fields row names
   `interpolate_size`, `ui`, `overlay` and the timeline fields, with their items.
+- 2026-10-08 — C12G-DIVERGENCES (API B2; docs only). DIVERGENCES §2 "Timers & animations" no longer
+  says scroll-driven animations are scheduled (they shipped in C12-SCROLL-DRIVEN); §3 "Transitions and
+  animations" carries "(none)" like its siblings. Found while checking the section: its "Animation
+  events follow transition events" entry was made false by C12G-MISC, which merged the streams by time
+  (transitions first at one time, as Web Animations 1 §4.4's composite order puts them); rewritten to
+  the divergence that remains — transitions tied at one time keep their creation order, not tree
+  order then property name.

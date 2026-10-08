@@ -276,8 +276,8 @@ The web platform has no tree element — trees are built from `role="tree"` / `r
 - **CSS animations add numbers, lengths and colors; other values replace** (C12-KEYFRAMES; CSS Animations 2 §3.2, Web Animations 1 §5.4.4). Under `animation-composition: add` or `accumulate` a keyframe's value is added to the underlying one for the types rdom's values add — numbers and integers, `<length-percentage>`s (a `calc()` sum when they are not linear), colors (channel by channel in sRGB, clamped) — where `add` and `accumulate` agree; every other value (a shadow list, which `add` would concatenate, a keyword, a track list) replaces, as a discrete value does.
 - **A progress timeline's time is the animation's timing scaled to its range** (C12-SCROLL-DRIVEN; Scroll-driven Animations 1, CSS Animations 2 §3.3, Web Animations 2 §4.4). On a scroll or view timeline an `auto` duration shares the attachment range among the iterations and a time-based one keeps its proportions with the delay (`infinite` counts once), the end of the range shows the last keyframe (Web Animations 2's at-the-end rule), and a named range on a scroll timeline — which has none — is the whole timeline; a keyframe selector naming a range (`entry 20%`, §4.4) is placed in the animation's attachment range each frame — its whole active interval, so with several iterations it is a fraction of all of them — and is ignored on a timeline without named ranges. The offsets are whole cells from the scroll origin (`rtl` and the reversed flex axes count from the right or bottom edge), against the last layout's geometry; a timeline that layout moved is stepped again in the same frame (§5).
 - **`scroll(root)` follows the document element** (C12-SCROLL-DRIVEN; Scroll-driven Animations 1 §2.1.1). rdom has no viewport scrolling: the root scroller is the document element when it is a scroll container, and the timeline is inactive otherwise. A pseudo-element's `view()` follows its originating element's box.
-- **Animation events follow transition events** (C12-KEYFRAMES; CSS Animations 2 §4.2, CSS Transitions 2 §6). A frame's `transition*` events are dispatched first, then its `animation*` events — each batch by the time the event happened and in composite order; the specs sort the two kinds together.
-- **Not implemented:** the Web Animations API (`App::get_animations` lists an element's transitions and CSS animations, with their names, play states and current times, read-only — `Element.getAnimations()` without the `Animation` objects), `requestIdleCallback`, `cancelIdleCallback`, `setImmediate`. (Scroll-driven animations are scheduled, §3.)
+- **Transition events at one time go out in creation order** (C12-KEYFRAMES, C12G-MISC; Web Animations 1 §4.4, CSS Transitions 2 §6). A frame's `transition*` and `animation*` events form one stream sorted by the time each happened, transitions before animations at one time and the animations in their composite order (tree order, the element before its pseudo-elements, then `animation-name` order), as the specs sort them. Transitions tied at one time keep the order rdom created them in, where their composite order is tree order, then creation, then property name; the two differ only when one style change starts several transitions.
+- **Not implemented:** the Web Animations API (`App::get_animations` lists an element's transitions and CSS animations, with their names, play states and current times, read-only — `Element.getAnimations()` without the `Animation` objects), `requestIdleCallback`, `cancelIdleCallback`, `setImmediate`.
 
 ### HTML parsing (`rdom-parser`)
 
@@ -361,6 +361,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Transitions and animations
 
+(none)
 
 ### User interface
 
