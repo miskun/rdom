@@ -112,6 +112,10 @@ pub enum Mutation {
         prev: Option<crate::Selection>,
         next: Option<crate::Selection>,
     },
+    /// The document's highlight registry was taken for change
+    /// (`Dom::highlights_mut`, CSS Custom Highlight API 1): a renderer
+    /// repaints the `::highlight()` overlays.
+    HighlightsChanged,
     /// **About to detach** — fired in `detach_from_parent` BEFORE
     /// the structural unlink, so observers can dispatch implicit
     /// `blur` / `focusout` / `mouseleave` / `mouseout` events

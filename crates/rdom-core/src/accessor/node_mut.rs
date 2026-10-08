@@ -371,8 +371,17 @@ impl<'a, Ext: 'static> NodeMut<'a, Ext> {
     }
 
     /// Set Text/Comment node's own data. Errors on Element/Fragment.
-    /// Fires `Mutation::CharacterDataChanged`.
+    /// Fires `Mutation::CharacterDataChanged`. The live ranges into it
+    /// (registered highlights') treat it as all its data replaced (DOM
+    /// §4.10 "replace data" at 0, the old length).
     pub fn set_node_value(&mut self, data: &str) -> Result<()> {
+        self.write_data(data, None)
+    }
+
+    /// [`set_node_value`](Self::set_node_value), its live-range update
+    /// for `replaced` — `(offset, count, len)`: `count` bytes at `offset`
+    /// became `len` — or, `None`, for the whole data.
+    fn write_data(&mut self, data: &str, replaced: Option<(usize, usize, usize)>) -> Result<()> {
         let id = self.id;
         let old = match &self.dom.node_or_err(id)?.data {
             NodeData::Text { data: d } | NodeData::Comment { data: d } => d.clone(),
@@ -398,6 +407,8 @@ impl<'a, Ext: 'static> NodeMut<'a, Ext> {
             }
             _ => unreachable!("type-checked above"),
         }
+        let replaced = replaced.unwrap_or((0, old.len(), data.len()));
+        self.dom.highlights_replace_data(id, replaced);
         self.dom
             .fire_mutation(crate::Mutation::CharacterDataChanged {
                 id,
@@ -424,7 +435,9 @@ impl<'a, Ext: 'static> NodeMut<'a, Ext> {
     ///   or land mid-UTF-8-codepoint. Editors that derive offsets
     ///   from `Position` / grapheme walks won't hit this.
     ///
-    /// Fires `Mutation::CharacterDataChanged` (via `set_node_value`).
+    /// Fires `Mutation::CharacterDataChanged` (via `set_node_value`); the
+    /// live ranges into it move as DOM §4.10 "replace data" moves them for
+    /// exactly this range.
     pub fn edit_text(&mut self, start: usize, end: usize, replacement: &str) -> Result<()> {
         let id = self.id;
         let data = match &self.dom.node_or_err(id)?.data {
@@ -459,7 +472,7 @@ impl<'a, Ext: 'static> NodeMut<'a, Ext> {
         new_data.push_str(&data[..start]);
         new_data.push_str(replacement);
         new_data.push_str(&data[end..]);
-        self.set_node_value(&new_data)
+        self.write_data(&new_data, Some((start, end - start, replacement.len())))
     }
 }
 

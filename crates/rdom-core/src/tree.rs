@@ -97,6 +97,7 @@ impl<Ext: 'static> Dom<Ext> {
             }
         }
         self.get_node_mut(parent).unwrap().last_child = Some(child);
+        self.highlights_inserted(parent, child);
         self.fire_mutation(Mutation::ChildListChanged {
             parent,
             added: vec![child],
@@ -173,6 +174,7 @@ impl<Ext: 'static> Dom<Ext> {
             }
         }
         self.get_node_mut(reference).unwrap().prev_sibling = Some(new_child);
+        self.highlights_inserted(parent, new_child);
         self.fire_mutation(Mutation::ChildListChanged {
             parent,
             added: vec![new_child],
@@ -450,6 +452,9 @@ impl<Ext: 'static> Dom<Ext> {
         let purged = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             self.purge_interaction_state_for_subtree(id, true);
         }));
+
+        // The live ranges inside it move out (DOM §4.2.3 "remove").
+        self.highlights_removing(id);
 
         let node = self.node_or_err(id)?;
         let parent = node.parent;

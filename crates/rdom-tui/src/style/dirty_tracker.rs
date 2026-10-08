@@ -402,6 +402,12 @@ impl MutationObserver<TuiExt> for Shim {
                 // `select()`, a timer): flag a repaint.
                 state.selection_dirty = true;
             }
+            Mutation::HighlightsChanged => {
+                // The registered highlights (CSS Custom Highlight API 1)
+                // paint as overlays read from `dom.highlights()`, as the
+                // selection does: a repaint, no cascade.
+                state.selection_dirty = true;
+            }
             Mutation::PreDetach { .. } => {
                 // Cascade-relevant state changes (focused / hovered
                 // clearing to None) fire their own

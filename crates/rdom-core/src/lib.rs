@@ -46,6 +46,9 @@ mod event;
 mod event_detail;
 mod form_assoc;
 mod form_control;
+mod highlight;
+#[cfg(test)]
+mod highlight_tests;
 mod html_collection;
 mod indexes;
 mod input_type;
@@ -82,6 +85,7 @@ pub use event_detail::{
     KeyboardModifiers, MouseButton, MouseDetail, SubmitDetail, ToggleDetail, ToggleState,
     TransitionDetail,
 };
+pub use highlight::{Highlight, HighlightRegistry, HighlightType};
 pub use html_collection::{FormControlsCollection, HtmlCollection};
 pub use input_type::InputTypeState;
 pub use markup::{VOID_ELEMENTS, is_void_element};

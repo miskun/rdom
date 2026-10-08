@@ -116,6 +116,9 @@ pub struct Dom<Ext: 'static = ()> {
     pub(crate) selection: Option<crate::Selection>,
     /// Count of actual selection changes (see [`Dom::selection_serial`]).
     pub(crate) selection_serial: crate::SelectionSerial,
+    /// The document's highlights by name (CSS Custom Highlight API 1),
+    /// their ranges live.
+    pub(crate) highlights: crate::HighlightRegistry,
     /// Mutation observers. Fires `Mutation` records on every DOM change.
     pub(crate) observers: ObserverStore<Ext>,
     /// Re-entrancy guard: true while an observer callback is running.
@@ -150,6 +153,7 @@ impl<Ext: Default> Dom<Ext> {
             drag_autoscroll: false,
             selection: None,
             selection_serial: crate::SelectionSerial::new(0),
+            highlights: crate::HighlightRegistry::default(),
             observers: ObserverStore::default(),
             is_observing: false,
             activation_hook: crate::dispatch::ActivationSlot(None),
@@ -277,6 +281,7 @@ impl<Ext: Default> Dom<Ext> {
             drag_autoscroll: false,
             selection: None,
             selection_serial: crate::SelectionSerial::new(0),
+            highlights: crate::HighlightRegistry::default(),
             observers: ObserverStore::default(),
             is_observing: false,
             activation_hook: crate::dispatch::ActivationSlot(None),

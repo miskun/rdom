@@ -214,7 +214,7 @@ row comes from.
 | C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | done |
 | C10-FIRST | `::first-line` / `::first-letter` | done |
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
-| C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | |
+| C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | partial — `::highlight()` styles and paint (part 2) |
 | C10-DETAILS-CONTENT | `::details-content` | |
 | C10-PSEUDO-CHAINS | Pseudo-element followed by user-action pseudo-classes (`::before:hover`) and nested pseudo-elements where defined | |
 | C10-PSEUDO-UNIFY | Positioned `::before` / `::after` on the generated-box path: the positioning layer places, stacks, hit-tests and scrolls them as elements (from C10-LIST-ITEM's note; `positioned_pseudos` gone) | done |
@@ -6307,3 +6307,20 @@ row comes from.
   the letter never floating → the drop-cap test. No existing expectation or snapshot changed. CSS-COVERAGE: the row
   Partial → Supported, §3.16 7 / 1 / 2 / 6, total 195 / 14 / 53 / 45. DIVERGENCES: the §3 entry is gone; §2 records
   the non-floated letter's box properties, the punctuation table, nested letters and intrinsic sizes.
+- 2026-10-13 — C10-HIGHLIGHT, part 1 of 2 (the data model, rdom-core). Found: rdom-core had no live-range machinery
+  — `Range` is a value, the selection is cleared when its node leaves the tree (DIVERGENCES §2) and text edits do not
+  move it (the editor sets it after each edit) — so the brief's "existing Range boundary-update machinery" had to be
+  built. Decisions: (1) `rdom_core::highlight` (renderer-free, it holds only `Range`s): `Highlight` (a set of ranges in
+  insertion order, `priority`, `kind: HighlightType`; `#[non_exhaustive]`, built with `new` / `with_priority` /
+  `with_type`) and `HighlightRegistry` (CSS Custom Highlight API 1 §4: a map in registration order — re-setting a
+  name keeps its place, as a JS `Map` does — the tie-break of equal priorities, §5.2). `Dom::highlights` reads it;
+  `Dom::highlights_mut` fires the new `Mutation::HighlightsChanged` first (a renderer cannot tell what a `&mut`
+  borrower changed; rdom-tui's dirty tracker repaints on it, no cascade). (2) Every registered range is live (DOM
+  §5.3), the updates in the mutators: "replace data" (§4.10 steps 8–11) in `NodeMut::write_data` — precise for
+  `edit_text`, the whole data for `set_node_value` / `set_data`, as a browser's `.data =`; "insert" (§4.2.3 step 6)
+  after `append_child` / `insert_before` link a node; "remove" (steps 4–7) in `detach_from_parent` before the unlink
+  (the registry taken out so the subtree test can borrow the DOM). Each is a no-op with no highlight registered
+  (`is_empty`), so documents without highlights pay nothing; the child index is computed only then. `StaticRange` is
+  not modelled (DIVERGENCES §2). Red: rdom-core `highlight_tests` (4, compile-red: no `Highlight`), and the
+  registration test's record count first expected 6 for the 5 accesses it made (a test bug, fixed). Green after. No
+  existing expectation changed.

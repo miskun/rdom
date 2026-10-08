@@ -174,6 +174,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-core`
 
+- **The Custom Highlight API data model** (CSS Custom Highlight API 1 §3–§4): `Highlight` (a set of `Range`s with a `priority` and a `HighlightType`), the document's `HighlightRegistry` (`CSS.highlights`: `set` / `get` / `has` / `delete` / `clear` / `iter`, in registration order) through `Dom::highlights` / `highlights_mut`, which fires the new `Mutation::HighlightsChanged`. A registered range is live (DOM §5.3): `edit_text` / `set_data` ("replace data"), insertions and removals move its boundary points as a browser's `Range`. (C10-HIGHLIGHT)
 - **Selectors decode CSS escapes** (CSS Syntax 3 §4.3.7) in names and attribute values: `.\31 0` matches class `10`. The decoder is the new public module `rdom_core::css_syntax` (`consume_escape`, `consume_ident`, `consume_string`, `would_start_ident`, …), shared with rdom-style's tokenizer. (C1-ESCAPES)
 - **Nested rule selectors** (CSS Nesting 1 §2): `selectors::parse_nested(text, &parent)` — `&` anywhere, a leading combinator, an implicit `& ` prefix; `&` is the new `SimpleSelector::Is(list)` (`:is()` matching and specificity). `selectors` is a directory module. (C1-NESTING)
 - **`:scope`** (Selectors 4 §14.3): `PseudoClass::Scope` matches the root given to the new `Dom::matches_list_in_scope(id, list, scope)`, else `:root`; `selectors::parse_scoped(text)` parses a scoped rule's selector (CSS Cascade 6 §2.5.2). Query APIs do not set `:scope` yet (C11-SCOPE). (C1-SCOPE)
