@@ -6772,3 +6772,18 @@ row comes from.
   and so hangs its marker off-screen, which is correct, so the test wraps it in a `<div>`. DIVERGENCES §4's
   "inline list item has no marker" entry removed; CSS-COVERAGE `display: list-item` and `::marker` rows
   corrected (counts unchanged, both rows were already Supported). No existing expectation or snapshot changed.
+- 2026-10-13 — C10G-MIGRATION (API B1, N1). The six items Phase 10 reshaped from 0.5 had Breaking prose but no
+  API-table row and no hint group. All six existed in `v0.5.0` (checked against the tag), so their rows go in
+  the from-0.5 rdom-style table: `Length::Calc` (C9-CARRY-INDENT; `Box` → `Arc`, `Length::calc`), `CounterStyle`
+  (a name, not a `Copy` enum), `CounterOp` (`#[non_exhaustive]`, `new` / `reversed`), `parse_counter_ops` (third
+  argument), `Content` (`#[non_exhaustive]`, `Normal` for `normal`) and `PseudoElementTarget` (not `Copy`). The
+  "Compile breaks" summary gains a counters-and-content line. Hint groups in `migration_hints.rs`:
+  `counter_style_hints`, `counter_op_hints`, `generated_content_hints`, `pseudo_element_target_hints`; batch A's
+  `calc_payload_hints` already built `Length::calc`, but through `layout::Length`, so it now names `Length` at
+  the root and matches `Length::Calc`. Root re-exports added (N1): `CounterStyle`, `CounterStyleName`, `CounterOp`,
+  `ListStyleType`, `ListStylePosition`, `ListStyleImage`, `MarkerSide`, `Length`; the prelude adds `Highlight`,
+  `CounterStyle`, `ListStyleType` and `ListStylePosition`. Red: the new groups failed to compile under `use
+  rdom_tui::*;` (20 errors, `cannot find type CounterStyle` …); green after (49 hint tests). Decision: the
+  `@counter-style` rule types (`System`, `CounterStyleRule`, …) stay off the root (generic names) and are reached
+  as `rdom_tui::style::counters::…` (rdom-style's module, re-exported beside `style::parse`), so
+  `CounterStyle::symbols(System::Cyclic, …)` works with `rdom-tui` alone; the hint builds one. No existing expectation changed.

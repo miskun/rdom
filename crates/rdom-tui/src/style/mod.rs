@@ -45,6 +45,12 @@ pub use dirty_tracker::DirtyTracker;
 // Internal rdom-tui code uses `rdom_style::X` directly for clarity.
 
 pub use rdom_style::color::{ColorScheme, ColorSchemeList, SystemColor};
+/// The counter styles (CSS Counter Styles 3): `@counter-style` rules
+/// (`counters::CounterStyleRule`, `counters::System`, …), the predefined
+/// styles and the registry — rdom-style's module, so `CounterStyle::symbols`
+/// takes a `System` a consumer of `rdom-tui` alone can name.
+pub use rdom_style::counters;
+pub use rdom_style::counters::CounterStyleName;
 pub use rdom_style::transition;
 pub use rdom_style::{
     AnimatableProperty, Color, ColorContext, ColorFunction, ComputedStyle, Content, ContentContext,

@@ -69,6 +69,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 - **New variants to match**: `Value` (`Revert`, `RevertLayer`), `Overflow::Clip`, `Color::Rgba`, `TuiColor` (`CurrentColor`, `Function`, `System`), `Display::Contents`, `Flow::FlowRoot`, `Flow::Grid`, `WhiteSpace::{PreLine, BreakSpaces}`, the `Align` keywords — and `Align` is `#[non_exhaustive]` (a `_` arm).
 - **New fields on style records**: build `TuiStyle` / `ComputedStyle` with `TuiStyle::new()` / `ComputedStyle::initial()`; a destructuring pattern adds `..`.
 - **Layout records are `#[non_exhaustive]`**: `LineBox`, `InlineFragment`, `GeneratedFragment` and `AnonymousIfc` are built by constructor.
+- **Counters and generated content**: `CounterStyle` is a counter style name (`CounterStyle::named("upper-roman")`, no longer `Copy`), `CounterOp` is built by `CounterOp::new` / `reversed`, `parse_counter_ops` takes a third argument, `Content` (`content: normal` is `Content::Normal`) and `PseudoElementTarget` (no longer `Copy`) take a `_` arm, and `Length::Calc` holds an `Arc`.
 - **Removed helpers**: `parse_unsigned`, `round_half_to_even`, `Content::Attr`.
 
 Code written against git `main` between 0.5 and this release also meets the [changes to unreleased APIs](#changes-to-apis-added-after-05) — items that never shipped in 0.5.
@@ -125,6 +126,12 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | exhaustive `match` on `WhiteSpace` | add `WhiteSpace::{PreLine, BreakSpaces}` | C9-WHITE-SPACE | `white_space_hints` |
 | `TuiStyle::bold` / `italic: Option<Value<bool>>` | `TuiStyle::font` (`FontDeclarations`: `weight: FontWeight`, `style: FontStyle`, …); `ComputedStyle::font`; the `bold(…)` / `italic(…)` builders and `ImportantMask::BOLD` / `ITALIC` unchanged | C9-FONT | `font_hints` |
 | `TuiStyle::text_decoration: Option<Value<TextDecoration>>`; `parse_text_decoration` → `Option<(bool, bool)>`; `Modifier::UNDERLINED` / `CROSSED_OUT` in `ComputedStyle::modifiers` | `TuiStyle::text_decoration` (`TextDecorationDeclarations`: `line`, `style`, `color`, `thickness`); `TextDecorationShorthand`; `ComputedStyle::applied_decorations` (`underline`, `line_through`, …); the `text_decoration(…)` builder unchanged | C9-DECORATION | `text_decoration_hints` |
+| `Length::Calc(Box<CalcExpr>)` (`Length::Calc(Box::new(e))`) | an `Arc<CalcExpr>`: `Length::calc(e)` (`Length` now at the root) | C9-CARRY-INDENT | `calc_payload_hints` |
+| `CounterStyle` (`Copy` enum `Decimal` / `LowerAlpha` / `UpperAlpha` / `LowerRoman` / `UpperRoman`; `as_str()`) | a counter style name: `CounterStyle::Name(CounterStyleName)` / `Symbols(…)` — `decimal()`, `named("upper-roman")`, `parse(ident)`, `name()` (an `Option`), `.clone()`; at the root | C10-COUNTERS | `counter_style_hints` |
+| `CounterOp { name, value }` literal | `CounterOp::new(name, value)`; `CounterOp::reversed(name, Some(n))` (`#[non_exhaustive]`, at the root) | C10-COUNTERS | `counter_op_hints` |
+| `parse::values::parse_counter_ops(tokens, default)` | `parse_counter_ops(tokens, default, reversed)` (`true` for `counter-reset` only) | C10-COUNTERS | `counter_op_hints` |
+| exhaustive `match` on `Content`; `content: normal` as `Content::None` | `#[non_exhaustive]` (a `_` arm; new `Counters`, `Quote`, `WithAlt`); `Content::Normal` | C10-CONTENT, C10-LIST-ITEM | `generated_content_hints` |
+| `PseudoElementTarget` (`Copy`) | `.clone()`; a match adds `Highlight(_)` under its `_` arm | C10-HIGHLIGHT | `pseudo_element_target_hints` |
 
 #### `rdom-tui`
 
@@ -465,6 +472,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **The list and counter types are at the root, and the prelude names the common ones**: `CounterStyle`, `CounterStyleName`, `CounterOp`, `ListStyleType`, `ListStylePosition`, `ListStyleImage`, `MarkerSide` and `Length` are reachable as `rdom_tui::X` (they were `rdom_tui::style::…` / `rdom_tui::layout::…`), rdom-style's `counters` module (`System`, `CounterStyleRule`, …) as `rdom_tui::style::counters`, and `rdom_tui::prelude` adds `Highlight`, `CounterStyle`, `ListStyleType` and `ListStylePosition`, so `.list_style_type(ListStyleType::Style(CounterStyle::named("upper-roman")))` needs one import. (C10G-MIGRATION)
 - **`::before:hover` and friends match** (Selectors 4 §3.6.3): the `App` keeps which pseudo-element the pointer is over and which one is pressed, found by the new `HitTestExt::hit_test_pseudo(x, y) -> Option<(NodeId, PseudoSlot)>`, and restyles their hosts when they change — only while one of its sheets has such a rule. `UserActionState` is re-exported at the crate root. (C10-PSEUDO-CHAINS)
 - **`<details>` content is slotted into `::details-content`** (HTML §15.5.20): `TuiExt::computed_details_content`; every child but the first `<summary>` inherits from the slot, and the slot hides that content while the element is closed or the slot is `display: none`. (C10-DETAILS-CONTENT)
 - **`::details-content` is a box** (HTML §15.5.20, CSS Pseudo-Elements 4): a block box between a `<details>` and its content in the box tree — its background, border, padding, sizes and `overflow` apply (an `overflow: auto` slot scrolls), it counts in the element's intrinsic size and margin collapsing, a closed element keeps it empty, and its transitions run as an element's, their events on the `<details>` with `pseudoElement` `"::details-content"`. A hit on its border or padding targets the `<details>`. (C10G-DETAILS-CONTENT-BOX)

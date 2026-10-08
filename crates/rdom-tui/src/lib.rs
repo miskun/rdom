@@ -82,10 +82,11 @@ pub use layout::{
     ContainIntrinsicSize, Continue, CornerStyle, Corners, Direction, Display, FlexBasis,
     FlexDirection, FlexWrap, Float, FloatSide, Flow, Font, FontFamily, FontSize, FontSizeKeyword,
     FontStretch, FontStretchKeyword, FontStyle, FontVariant, FontWeight, GapValue, GridAutoFlow,
-    GridLine, GridTemplate, GridTemplateAreas, Hyphens, IntrinsicSize, LayoutRect, LineBreak,
-    LineHeight, LineNameItem, LineNameList, Margin, MarginTrim, MarginValue, MaxSize, MinSize,
-    NamedArea, Overflow, OverflowAlign, OverflowClipMargin, OverflowWrap, OverscrollBehavior,
-    Padding, PaddingValue, PaintLength, RepeatCount, RepeatStyle, ScrollPadding, ScrollSnapAlign,
+    GridLine, GridTemplate, GridTemplateAreas, Hyphens, IntrinsicSize, LayoutRect, Length,
+    LineBreak, LineHeight, LineNameItem, LineNameList, ListStyleImage, ListStylePosition,
+    ListStyleType, Margin, MarginTrim, MarginValue, MarkerSide, MaxSize, MinSize, NamedArea,
+    Overflow, OverflowAlign, OverflowClipMargin, OverflowWrap, OverscrollBehavior, Padding,
+    PaddingValue, PaintLength, RepeatCount, RepeatStyle, ScrollPadding, ScrollSnapAlign,
     ScrollSnapAxis, ScrollSnapStop, ScrollSnapStrictness, ScrollSnapType, ScrollbarColor,
     ScrollbarGutter, ScrollbarWidth, Sides, Size, SnapAlign, Spacing, SystemFont, TabSize,
     TextAlign, TextAlignKeyword, TextAlignLast, TextCase, TextDecoration, TextDecorationLine,
@@ -128,12 +129,12 @@ pub use runtime::{
 };
 pub use style::{
     CascadeExt, Color, ColorContext, ColorFunction, ColorScheme, ColorSchemeList, ComputedStyle,
-    Content, ContentContext, CustomValue, DirtyTracker, FontDeclarations, ImportantMask, LayerId,
-    Modifier, PropertyRegistration, PropertySyntax, PropertySyntaxError, PseudoElementTarget,
-    QuoteKind, QuotePair, Quotes, RegisterPropertyError, Rule, RuleContext, RuleOrigin,
-    Specificity, StyleError, StyleSelector, Stylesheet, SystemColor, TextDeclarations,
-    TextDecorationDeclarations, TuiColor, TuiStyle, UserActionState, Value, VarMap, parse_color,
-    resolve_tui_color,
+    Content, ContentContext, CounterOp, CounterStyle, CounterStyleName, CustomValue, DirtyTracker,
+    FontDeclarations, ImportantMask, LayerId, Modifier, PropertyRegistration, PropertySyntax,
+    PropertySyntaxError, PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError,
+    Rule, RuleContext, RuleOrigin, Specificity, StyleError, StyleSelector, Stylesheet, SystemColor,
+    TextDeclarations, TextDecorationDeclarations, TuiColor, TuiStyle, UserActionState, Value,
+    VarMap, parse_color, resolve_tui_color,
 };
 
 /// `Dom<TuiExt>` — the full TUI document.

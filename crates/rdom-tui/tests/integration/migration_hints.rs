@@ -1055,12 +1055,13 @@ fn font_hints() {
     assert_eq!(computed.font.weight(), 400.0);
 }
 
-/// C10G-INHERIT-COST: every `calc()` payload is an `Arc<CalcExpr>` (was a
-/// `Box`), built with the value's `calc()` constructor — `Size`,
-/// `MinSize`, `MaxSize`, `GapValue`, `PaddingValue`, `MarginValue`,
-/// `Spacing`, `LineHeight`, `VerticalAlign`, `PaintLength`, `FlexBasis`,
-/// `TrackBreadth`, as `Length` already was — and a match on `Calc(e)` reads
-/// `e` as before. The list strings and `block-ellipsis` hold `Arc<str>`.
+/// C10G-INHERIT-COST, C9-CARRY-INDENT: every `calc()` payload is an
+/// `Arc<CalcExpr>` (was a `Box`), built with the value's `calc()`
+/// constructor — `Size`, `MinSize`, `MaxSize`, `GapValue`, `PaddingValue`,
+/// `MarginValue`, `Spacing`, `LineHeight`, `VerticalAlign`, `PaintLength`,
+/// `FlexBasis`, `TrackBreadth` and `Length` (`Length::Calc(Box::new(e))` →
+/// `Length::calc(e)`) — and a match on `Calc(e)` reads `e` as before. The
+/// list strings and `block-ellipsis` hold `Arc<str>`.
 #[test]
 fn calc_payload_hints() {
     use calc::{CalcExpr, CalcOp};
@@ -1081,10 +1082,11 @@ fn calc_payload_hints() {
     let _ = (
         FlexBasis::calc(e()),
         TrackBreadth::calc(e()),
-        layout::Length::calc(e()),
+        Length::calc(e()),
     );
-    let _ = layout::ListStyleType::String("→ ".into());
-    let _ = layout::ListStyleImage::Image("url(a.png)".into());
+    assert!(matches!(Length::calc(e()), Length::Calc(expr) if expr.contains_percent()));
+    let _ = ListStyleType::String("→ ".into());
+    let _ = ListStyleImage::Image("url(a.png)".into());
     let _ = BlockEllipsis::Str("…".into());
 }
 
@@ -1106,4 +1108,93 @@ fn tui_ext_pseudo_hints() {
     assert!(ext.computed_first_letter().is_none() && ext.computed_details_content().is_none());
     assert!(ext.presentation_for(ext::StyleSlot::Before).is_none());
     let _: Option<&ext::PseudoStyles> = ext.pseudo_styles();
+}
+
+/// C10-COUNTERS: `CounterStyle` is a counter style name, no longer a
+/// closed `Copy` enum — `CounterStyle::UpperRoman` → `CounterStyle::named(
+/// "upper-roman")`, `Decimal` → `decimal()`, `as_str()` → `name()` (an
+/// `Option`: `None` for `symbols()`), a match on the old variants compares
+/// `name()`, and a copy is a `.clone()`. It and the list types are at the
+/// root, so a list style is built with one import.
+#[test]
+fn counter_style_hints() {
+    let upper = CounterStyle::named("upper-roman");
+    assert_eq!(upper.name(), Some("upper-roman"));
+    assert_eq!(upper.format(4), "IV");
+    assert_eq!(CounterStyle::decimal(), CounterStyle::default());
+    assert_eq!(CounterStyle::parse("lower-alpha").unwrap().format(2), "b");
+    let roman = matches!(upper.name(), Some("upper-roman" | "lower-roman"));
+    assert!(roman);
+    let copy = upper.clone();
+    let stars = CounterStyle::symbols(style::counters::System::Cyclic, &["*"]).unwrap();
+    assert_eq!((stars.name(), stars.format(3).as_str()), (None, "*"));
+    let _: CounterStyleName = match copy {
+        CounterStyle::Name(n) => n,
+        _ => unreachable!("a named style"),
+    };
+    let _ = TuiStyle::new()
+        .list_style_type(ListStyleType::Style(CounterStyle::named("upper-roman")))
+        .list_style_position(ListStylePosition::Inside)
+        .list_style_image(ListStyleImage::None)
+        .marker_side(MarkerSide::MatchParent);
+}
+
+/// C10-COUNTERS: `CounterOp` is `#[non_exhaustive]` — `CounterOp { name,
+/// value }` → `CounterOp::new(name, value)`, `CounterOp::reversed(name,
+/// Some(n))` for `counter-reset: reversed(name) n` — and
+/// `parse_counter_ops` takes a third argument, whether `reversed()` is
+/// allowed (`counter-reset` only).
+#[test]
+fn counter_op_hints() {
+    let op = CounterOp::new("item", 0);
+    assert_eq!((op.name.as_str(), op.value), ("item", 0));
+    let rev = CounterOp::reversed("item", Some(5));
+    assert!(!rev.is_auto_reversed());
+    assert!(CounterOp::reversed("item", None).is_auto_reversed());
+    let _ = TuiStyle::new()
+        .counter_reset(vec![op.clone()])
+        .counter_increment(vec![CounterOp::new("item", 1)]);
+    let tokens = style::parse::tokenize("reversed(item) 5").unwrap();
+    let ops = style::parse::values::parse_counter_ops(&tokens, 0, true).unwrap();
+    assert_eq!(ops, [rev]);
+    assert!(style::parse::values::parse_counter_ops(&tokens, 1, false).is_none());
+}
+
+/// C10-CONTENT, C10-LIST-ITEM: `Content` is `#[non_exhaustive]` (a match
+/// adds a `_` arm) and `content: normal` is `Content::Normal`, not
+/// `Content::None` — a match treating `None` as "no content" adds
+/// `Normal`.
+#[test]
+fn generated_content_hints() {
+    fn generates(c: &Content) -> bool {
+        match c {
+            Content::None | Content::Normal => false,
+            Content::Str(s) => !s.is_empty(),
+            _ => true,
+        }
+    }
+    let mut style = TuiStyle::new();
+    style::property_dispatch::set("content", "normal", &mut style).unwrap();
+    assert_eq!(style.content, Some(Value::Specified(Content::Normal)));
+    assert!(!generates(&Content::Normal));
+    assert!(generates(&Content::Quote(QuoteKind::Open)));
+}
+
+/// C10-HIGHLIGHT: `PseudoElementTarget` is no longer `Copy` (its
+/// `Highlight` variant names a `::highlight()`): `.clone()` where a copy
+/// was taken; a match adds `Highlight(_)` under its `_` arm.
+#[test]
+fn pseudo_element_target_hints() {
+    let target = PseudoElementTarget::Highlight("search".into());
+    let copy = target.clone();
+    let name = match target {
+        PseudoElementTarget::Before => "before",
+        PseudoElementTarget::Highlight(name) => {
+            assert_eq!(&*name, "search");
+            "highlight"
+        }
+        _ => "other",
+    };
+    assert_eq!(name, "highlight");
+    assert_eq!(copy, PseudoElementTarget::Highlight("search".into()));
 }

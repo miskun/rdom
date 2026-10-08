@@ -91,6 +91,7 @@ pub use crate::{
     ComputedStyle,
     Content,
     ControlFlow,
+    CounterStyle,
     CrosstermBackend,
     Direction,
     DirtyTracker,
@@ -109,6 +110,8 @@ pub use crate::{
     GridLine,
     GridTemplate,
     GridTemplateAreas,
+    // The Custom Highlight API (`dom.highlights_mut().set(name, Highlight::new(ranges))`)
+    Highlight,
     HitTestExt,
     ImportantMask,
     InteractionKind,
@@ -116,6 +119,9 @@ pub use crate::{
     LayoutExt,
     LayoutRect,
     LineHeight,
+    // List styles (`list_style_type(ListStyleType::Style(CounterStyle::named(…)))`)
+    ListStylePosition,
+    ListStyleType,
     ListenerOptions,
     Margin,
     MaxSize,
