@@ -7507,3 +7507,20 @@ row comes from.
   (`expected bool, found Option<bool>`); the three hint groups failed to compile without the re-exports
   (`TopLayerKind` … `ControlState` not found). Green after. Changed expectations: the three hooks in
   `form_state_tests.rs` return `Option<bool>` (`_ => false` → `_ => None`), with the same assertions.
+- 2026-10-14 — C11G-DIALOG-BEFORETOGGLE (left open by C11G-POPOVER-BOUND). HTML §4.11.4's current text (the
+  Living Standard of 2026-10-07) gives `<dialog>` a `beforetoggle`, which rdom did not fire. Followed: `show()`
+  steps 3–4 — a cancelable `beforetoggle` (`closed` → `open`), then return when it was canceled or a listener
+  opened the dialog; `showModal()` steps 6–9 — the same event (with the step-1–5 guards before it, so a refused
+  call fires nothing), then return when canceled or when a listener opened it, disconnected it or showed it as
+  a popover; "close the dialog" steps 2–3 — a non-cancelable `beforetoggle` (`open` → `closed`), then return
+  when a listener closed it first (its return value stands). These returns are not errors, as in HTML. The
+  dialog's `toggle` was dispatched cancelable (the `TuiEvent` default), which a `ToggleEvent` never is; one
+  helper (`fire_toggle_event`) now fires both, cancelable only for an opening `beforetoggle`. Step comments
+  renumbered to the current text. The DIVERGENCES §2 sentence is removed; `toggle` still fires synchronously,
+  uncoalesced (the same entry). Ranked into the upgrade guide (67: a dialog `beforetoggle` listener — one
+  written for popovers on a `<dialog popover>` — now also runs for `show()` / `showModal()` / `close()`). Red:
+  the four tests of the new section failed (no `beforetoggle` in the log and a cancelable `toggle`; the
+  canceled show opened the dialog; the listener's `show()` and disconnection did not end `showModal()`; the
+  outer close overwrote the inner's return value). Green after; no existing expectation changed. Mutations
+  (each alone, restored, touched): no step-7 re-check → `show_modal_rechecks_after_beforetoggle`; no close
+  step-3 re-check → `close_rechecks_after_beforetoggle`.

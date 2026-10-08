@@ -633,3 +633,169 @@ fn show_on_a_modal_dialog_throws() {
     ));
     assert!(dialog::is_modal(app.dom(), dlg));
 }
+
+// ── HTML §4.11.4 `beforetoggle` (Living Standard, 2026-10) ─────────
+
+/// One dialog in a bare document, with a log of its `beforetoggle` /
+/// `toggle` events: type, old → new, cancelable, and whether the dialog
+/// had `open` when the event was dispatched.
+type ToggleLog = Rc<RefCell<Vec<(String, &'static str, bool, bool)>>>;
+
+fn logged_dialog() -> (TuiDom, NodeId, ToggleLog) {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let dlg = dom.create_element("dialog");
+    dom.append_child(root, dlg).unwrap();
+    let log: ToggleLog = Rc::new(RefCell::new(Vec::new()));
+    for ty in ["beforetoggle", "toggle"] {
+        let log = log.clone();
+        dom.add_event_listener(dlg, ty, ListenerOptions::default(), move |ctx| {
+            let d = ctx.event.detail.as_toggle().expect("typed Toggle detail");
+            let change = match d.new_state {
+                rdom_core::ToggleState::Open => "closed->open",
+                rdom_core::ToggleState::Closed => "open->closed",
+            };
+            let open = ctx.dom.node(dlg).has_attribute("open");
+            log.borrow_mut().push((
+                ctx.event.event_type.clone(),
+                change,
+                ctx.event.cancelable,
+                open,
+            ));
+        })
+        .unwrap();
+    }
+    (dom, dlg, log)
+}
+
+/// `show()` step 3, `showModal()` step 6, "close the dialog" step 2: a
+/// `beforetoggle` fires before the change — cancelable `closed` → `open`
+/// before `open` is added, non-cancelable `open` → `closed` before it is
+/// removed — and then the `toggle`.
+#[test]
+fn show_show_modal_and_close_fire_beforetoggle_first() {
+    for modal in [false, true] {
+        let (mut dom, dlg, log) = logged_dialog();
+        if modal {
+            dialog::show_modal(&mut dom, dlg).unwrap();
+        } else {
+            dialog::show(&mut dom, dlg).unwrap();
+        }
+        dialog::close(&mut dom, dlg, "");
+        let got: Vec<_> = log
+            .borrow()
+            .iter()
+            .map(|(t, c, can, open)| (t.as_str().to_string(), *c, *can, *open))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("beforetoggle".to_string(), "closed->open", true, false),
+                ("toggle".to_string(), "closed->open", false, true),
+                ("beforetoggle".to_string(), "open->closed", false, true),
+                ("toggle".to_string(), "open->closed", false, false),
+            ],
+            "modal: {modal}"
+        );
+    }
+}
+
+/// A canceled `beforetoggle` stops the show: no `open`, no top layer, no
+/// `toggle`, no focus change — and it is not an error (the methods
+/// return).
+#[test]
+fn a_canceled_beforetoggle_keeps_the_dialog_closed() {
+    for modal in [false, true] {
+        let (mut dom, dlg, log) = logged_dialog();
+        let root = dom.root();
+        let inner = dom.create_element("button");
+        dom.append_child(dlg, inner).unwrap();
+        let outside = dom.create_element("button");
+        dom.append_child(root, outside).unwrap();
+        crate::runtime::focus::focus_node(&mut dom, Some(outside));
+        dom.add_event_listener(dlg, "beforetoggle", ListenerOptions::default(), |ctx| {
+            ctx.event.prevent_default();
+        })
+        .unwrap();
+        let shown = if modal {
+            dialog::show_modal(&mut dom, dlg)
+        } else {
+            dialog::show(&mut dom, dlg)
+        };
+        assert!(shown.is_ok(), "modal: {modal}");
+        assert!(!dom.node(dlg).has_attribute("open"), "modal: {modal}");
+        assert_eq!(dom.top_layer_kind(dlg), None, "modal: {modal}");
+        assert_eq!(dom.focused(), Some(outside), "modal: {modal}");
+        let types: Vec<String> = log.borrow().iter().map(|e| e.0.clone()).collect();
+        assert_eq!(types, ["beforetoggle"], "modal: {modal}");
+    }
+}
+
+/// `showModal()` steps 7–9: a `beforetoggle` listener that opens the
+/// dialog itself, or disconnects it, ends the show without an error and
+/// without a second `toggle`.
+#[test]
+fn show_modal_rechecks_after_beforetoggle() {
+    let (mut dom, dlg, log) = logged_dialog();
+    dom.add_event_listener(
+        dlg,
+        "beforetoggle",
+        ListenerOptions::default().with_once(true),
+        move |ctx| {
+            dialog::show(ctx.dom, dlg).unwrap();
+        },
+    )
+    .unwrap();
+    dialog::show_modal(&mut dom, dlg).unwrap();
+    assert!(dom.node(dlg).has_attribute("open"));
+    assert!(!dialog::is_modal(&dom, dlg), "the listener's show() won");
+    let toggles = log.borrow().iter().filter(|e| e.0 == "toggle").count();
+    assert_eq!(toggles, 1);
+
+    let (mut dom, dlg, log) = logged_dialog();
+    let root = dom.root();
+    dom.add_event_listener(
+        dlg,
+        "beforetoggle",
+        ListenerOptions::default(),
+        move |ctx| {
+            ctx.dom.remove_child(root, dlg).unwrap();
+        },
+    )
+    .unwrap();
+    dialog::show_modal(&mut dom, dlg).unwrap();
+    assert!(!dom.node(dlg).has_attribute("open"));
+    assert_eq!(dom.top_layer_kind(dlg), None);
+    assert!(log.borrow().iter().all(|e| e.0 != "toggle"));
+}
+
+/// "Close the dialog" step 3: a `beforetoggle` listener that closes the
+/// dialog first ends the outer close — one `close` event, one `toggle`.
+#[test]
+fn close_rechecks_after_beforetoggle() {
+    let (mut dom, dlg, log) = logged_dialog();
+    dialog::show(&mut dom, dlg).unwrap();
+    let closes = Rc::new(Cell::new(0u32));
+    {
+        let closes = closes.clone();
+        dom.add_event_listener(dlg, "close", ListenerOptions::default(), move |_| {
+            closes.set(closes.get() + 1);
+        })
+        .unwrap();
+    }
+    dom.add_event_listener(
+        dlg,
+        "beforetoggle",
+        ListenerOptions::default().with_once(true),
+        move |ctx| {
+            dialog::close(ctx.dom, dlg, "inner");
+        },
+    )
+    .unwrap();
+    dialog::close(&mut dom, dlg, "outer");
+    assert!(!dom.node(dlg).has_attribute("open"));
+    assert_eq!(closes.get(), 1);
+    assert_eq!(dialog::return_value(&dom, dlg), "inner");
+    let toggles = log.borrow().iter().filter(|e| e.0 == "toggle").count();
+    assert_eq!(toggles, 2, "one for the show, one for the close");
+}

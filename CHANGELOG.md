@@ -78,9 +78,10 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 63. **An inline list item shows its marker**: `display: inline list-item` — on an element, `::before` or `::after` — puts the marker before its content, in the line (CSS Lists 3 §3.5: `outside` acts as `inside` for an inline box); it showed none. (C10G-INLINE-LIST-ITEM)
 64. **`:scope` in the query methods is the node queried** (DOM §4.2.6, Selectors 4 §14.3): `query_selector_in(root, ":scope > p")` is `root`'s own `p` children, and `matches` / `closest` scope to the element; `:scope` was `:root` there. (C11-SCOPE)
 65. **`showModal()` hides open popovers** (HTML §4.11.4): showing a modal dialog hides every open auto and hint popover (with `beforetoggle` / `toggle`), and Esc closes the most recent of the modal dialogs and popovers. (C11-MODAL-POPOVER)
-66. **`dialog::show()` focuses into the dialog** (HTML §4.11.4 `show()` steps 7–10, as `showModal()` already did): it runs the dialog focusing steps — the `[autofocus]` element, else the first focusable one, else the dialog — remembers the previous focus for `close()`, and hides the auto popovers not holding it. (C11G-POPOVER-BOUND)
-67. **An indeterminate checkbox draws `[-]`** (HTML §4.10.5.1.15): a checkbox with its indeterminate flag (the `indeterminate` attribute) shows `[-] ` instead of `[x] ` / `[ ] `; override `input[type=checkbox]:indeterminate::before`. (C11-FORM-STATES)
-68. **`:first-child` / `:last-child` / `:only-child` match an element without a parent** (Selectors 4 §13.3): a detached or root element matches them, as `:nth-child(1)` does. (C11-NTH)
+66. **`dialog::show()` focuses into the dialog** (HTML §4.11.4 `show()` steps 10–16, as `showModal()` already did): it runs the dialog focusing steps — the `[autofocus]` element, else the first focusable one, else the dialog — remembers the previous focus for `close()`, and hides the auto popovers not holding it. (C11G-POPOVER-BOUND)
+67. **A `<dialog>` fires `beforetoggle`** (HTML §4.11.4, current Living Standard): `show()` / `showModal()` fire a cancelable `beforetoggle` (`closed` → `open`) before opening — canceled, the dialog stays closed — and `close()` a non-cancelable one (`open` → `closed`); the dialog's `toggle` is no longer cancelable. (C11G-DIALOG-BEFORETOGGLE)
+68. **An indeterminate checkbox draws `[-]`** (HTML §4.10.5.1.15): a checkbox with its indeterminate flag (the `indeterminate` attribute) shows `[-] ` instead of `[x] ` / `[ ] `; override `input[type=checkbox]:indeterminate::before`. (C11-FORM-STATES)
+69. **`:first-child` / `:last-child` / `:only-child` match an element without a parent** (Selectors 4 §13.3): a detached or root element matches them, as `:nth-child(1)` does. (C11-NTH)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -691,6 +692,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A `<dialog>` fires `beforetoggle`** (HTML §4.11.4's current show and close steps): a cancelable `closed` → `open` before `show()` / `showModal()` open it — canceled, or a listener that opened, disconnected or popover-showed it, ends the show — and a non-cancelable `open` → `closed` before `close()`, which a listener's own close ends. (C11G-DIALOG-BEFORETOGGLE)
 - **A highlight changed by a panicking caller repaints**: a `HighlightsMut` guard dropped while unwinding moves the registry's generation but may run no observer, so no repaint was scheduled; a frame now repaints when the generation is not the one it last painted. The form-state walk no longer parses `:default` per flush. (C11G-MINOR)
 - **Enter commits a single-line field, and date fields block implicit submission** (HTML §4.10.5.5, §4.10.21.2): Enter fires the field's `change` and sets its user validity before implicit submission, form or not; the date, month, week, time and datetime-local inputs count among a form's blocking fields and submit on Enter. (C11G-ENTER-COMMIT)
 - **Box-parent climbs pass through `::details-content`**: the pseudo-element hit test and blockification climbed DOM parents past the slot box, so `details > span::before:hover` never matched and a flex `<details>` with a `display: contents` slot left its content inline. (C11G-DETAILS-PARENT)

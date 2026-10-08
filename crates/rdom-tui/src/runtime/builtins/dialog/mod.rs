@@ -37,7 +37,7 @@
 //! value was last set. To clear, call `close("")` or remove the
 //! attribute manually.
 
-use rdom_core::{ListenerOptions, NodeId};
+use rdom_core::{ListenerOptions, NodeId, ToggleState};
 
 use crate::{TuiDom, TuiEvent};
 
@@ -47,10 +47,11 @@ const RETURN_VALUE_ATTR: &str = "data-rdom-return-value";
 
 /// `show()` (HTML §4.11.4): open the dialog non-modally. On a dialog
 /// already open non-modally it does nothing; on a modal one it is
-/// `DomError::InvalidState` (step 2). Otherwise it adds `open` (firing
-/// `toggle`), remembers the previously focused element for `close()`,
-/// hides the auto and hint popovers that do not hold the dialog, and runs
-/// the dialog focusing steps.
+/// `DomError::InvalidState` (step 2). Otherwise it fires a cancelable
+/// `beforetoggle` (`closed` → `open`) — canceled, it returns — then adds
+/// `open` (firing `toggle`), remembers the previously focused element for
+/// `close()`, hides the auto and hint popovers that do not hold the
+/// dialog, and runs the dialog focusing steps.
 pub fn show(dom: &mut TuiDom, dialog: NodeId) -> rdom_core::Result<()> {
     // Steps 1–2.
     if dom.node(dialog).has_attribute("open") {
@@ -61,14 +62,21 @@ pub fn show(dom: &mut TuiDom, dialog: NodeId) -> rdom_core::Result<()> {
         }
         return Ok(());
     }
-    // Steps 6–7 (the `toggle` fires synchronously: DIVERGENCES §2).
+    // Steps 3–4: a canceled `beforetoggle`, or a listener that opened the
+    // dialog, ends the show.
+    if !fire_toggle_event(dom, dialog, "beforetoggle", ToggleState::Closed)
+        || dom.node(dialog).has_attribute("open")
+    {
+        return Ok(());
+    }
+    // Steps 5–6 (the `toggle` fires synchronously: DIVERGENCES §2).
     dom.set_attribute(dialog, "open", "")?;
-    fire_toggle(dom, dialog, rdom_core::ToggleState::Closed);
-    // Step 8.
+    fire_toggle_event(dom, dialog, "toggle", ToggleState::Closed);
+    // Step 10.
     remember_previous_focus(dom, dialog);
-    // Steps 9–11.
+    // Steps 11–15.
     crate::runtime::builtins::popover::hide_unrelated_to(dom, dialog);
-    // Step 12.
+    // Step 16.
     focusing_steps(dom, dialog);
     Ok(())
 }
@@ -83,7 +91,10 @@ pub fn show(dom: &mut TuiDom, dialog: NodeId) -> rdom_core::Result<()> {
 /// HTML's guards: a dialog already modal is left as it is (step 1 — it
 /// does not move to the top); an open non-modal dialog (step 2), a
 /// disconnected one (step 4) and one showing as a popover (step 5) are
-/// `DomError::InvalidState`.
+/// `DomError::InvalidState`. Then a cancelable `beforetoggle` (`closed` →
+/// `open`) fires (step 6); canceled — or a listener that opened the
+/// dialog, disconnected it or showed it as a popover (steps 7–9) — the
+/// show ends without an error.
 ///
 /// If the dialog's subtree contains an element with `[autofocus]`, focus
 /// moves to the first such element in document order.
@@ -105,11 +116,19 @@ pub fn show_modal(dom: &mut TuiDom, dialog: NodeId) -> rdom_core::Result<()> {
             "showModal: the dialog is showing as a popover",
         ));
     }
+    // Steps 6–9.
+    if !fire_toggle_event(dom, dialog, "beforetoggle", ToggleState::Closed)
+        || dom.node(dialog).has_attribute("open")
+        || !dom.node(dialog).is_connected()
+        || crate::runtime::builtins::popover::is_showing(dom, dialog)
+    {
+        return Ok(());
+    }
     // Steps 11–15: `open`, "is modal", blocked by it, the top layer.
     dom.set_attribute(dialog, "open", "")?;
     dom.add_to_top_layer(dialog, rdom_core::TopLayerKind::ModalDialog)?;
     // Step 10 (synchronously: DIVERGENCES §2).
-    fire_toggle(dom, dialog, rdom_core::ToggleState::Closed);
+    fire_toggle_event(dom, dialog, "toggle", ToggleState::Closed);
     // Step 16.
     remember_previous_focus(dom, dialog);
     // Steps 17–19.
@@ -197,15 +216,22 @@ fn remove_modal(dom: &mut TuiDom, dialog: NodeId) {
     }
 }
 
-/// Close the dialog. Removes the `open` attribute, stores
-/// `return_value` for later reads, fires the `close` event
-/// (non-bubbling, non-cancelable per HTML).
+/// Close the dialog (HTML §4.11.4 "close the dialog"). Fires a
+/// non-cancelable `beforetoggle` (`open` → `closed`), then — unless a
+/// listener closed the dialog first — removes the `open` attribute,
+/// stores `return_value` for later reads, fires `toggle` and the `close`
+/// event (non-bubbling, non-cancelable per HTML).
 ///
 /// `return_value` may be empty — both browser-`close()` (no arg)
 /// and the empty-string overload land here.
 pub fn close(dom: &mut TuiDom, dialog: NodeId, return_value: &str) {
     if !dom.node(dialog).has_attribute("open") {
         return; // Already closed — no event, no state change.
+    }
+    // Steps 2–3.
+    fire_toggle_event(dom, dialog, "beforetoggle", ToggleState::Open);
+    if !dom.node(dialog).has_attribute("open") {
+        return;
     }
     let _ = dom.remove_attribute(dialog, "open");
     remove_modal(dom, dialog);
@@ -214,7 +240,7 @@ pub fn close(dom: &mut TuiDom, dialog: NodeId, return_value: &str) {
     // Fire `toggle` first (the state-change signal), then `close`
     // (the dialog-specific lifecycle event). MDN documents both
     // for HTMLDialogElement; order matches Firefox / Chrome.
-    fire_toggle(dom, dialog, rdom_core::ToggleState::Open);
+    fire_toggle_event(dom, dialog, "toggle", ToggleState::Open);
 
     let mut ev = TuiEvent::new("close");
     ev.event = ev.event.clone().with_bubbles(false);
@@ -241,21 +267,24 @@ pub fn close(dom: &mut TuiDom, dialog: NodeId, return_value: &str) {
     }
 }
 
-/// Fire a non-bubbling `toggle` event with typed
-/// `EventDetail::Toggle` carrying the state transition.
-/// `old_state` is the state before the transition; the new state
-/// is its inverse.
-fn fire_toggle(dom: &mut TuiDom, dialog: NodeId, old_state: rdom_core::ToggleState) {
+/// Fire a non-bubbling `beforetoggle` or `toggle` (a `ToggleEvent`)
+/// with typed `EventDetail::Toggle` carrying the state transition:
+/// `old_state` is the state before it, the new state its inverse. Only a
+/// `beforetoggle` that opens is cancelable (HTML §4.11.4: `show()` step 3,
+/// `showModal()` step 6; the close's is not). Returns whether it went
+/// uncanceled.
+fn fire_toggle_event(dom: &mut TuiDom, dialog: NodeId, ty: &str, old_state: ToggleState) -> bool {
     let new_state = match old_state {
-        rdom_core::ToggleState::Open => rdom_core::ToggleState::Closed,
-        rdom_core::ToggleState::Closed => rdom_core::ToggleState::Open,
+        ToggleState::Open => ToggleState::Closed,
+        ToggleState::Closed => ToggleState::Open,
     };
-    let mut ev = TuiEvent::new("toggle");
-    ev.event = ev.event.clone().with_bubbles(false);
+    let mut ev = TuiEvent::new(ty);
+    ev.event.bubbles = false;
+    ev.event.cancelable = ty == "beforetoggle" && new_state == ToggleState::Open;
     ev.event.detail = rdom_core::EventDetail::Toggle(Box::new(rdom_core::ToggleDetail::new(
         old_state, new_state,
     )));
-    crate::tui_event::dispatch_to_live(dom, dialog, &mut ev);
+    crate::tui_event::dispatch_to_live(dom, dialog, &mut ev) && !ev.event.default_prevented()
 }
 
 /// Read the dialog's `returnValue` (set by the last `close()`).
