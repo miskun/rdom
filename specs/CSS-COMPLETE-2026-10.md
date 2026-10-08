@@ -40,7 +40,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 8 | Positioning, floats, overflow, scrolling | done 2026-10-10 (both gates; 15 gate fixes `C8G-*`; their re-review rides with the Phase 9 gate) |
 | 9 | Inline text and decoration | done 2026-10-12 (both gates; 14 gate fixes `C9G-*`; their re-review rides with the Phase 10 gate) |
 | 10 | Lists, counters, generated content, pseudo-elements | done 2026-10-13 (both gates; 19 gate fixes `C10G-*`; their re-review rides with the Phase 11 gate) |
-| 11 | Selectors | |
+| 11 | Selectors | items done, gates pending |
 | 12 | Transitions, animations, user interface | |
 | 13 | Tables (real table formatting context) | |
 | 14 | Conditional rules, containment | |
@@ -230,7 +230,7 @@ row comes from.
 | C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | done |
 | C11-SCOPE | `:scope` (query APIs and `@scope`) | done |
 | C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | done |
-| C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | partial — the top layer, `:modal`, the `popover` attribute and `:popover-open` done; light dismiss remains |
+| C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | done |
 | C11-LINK-LANG | `:link` / `:any-link`, `:lang()` | done (with `:dir()`, deferred here by C5-WRITING, and `:visited` never matching) |
 | C11-COLUMN | Column combinator `\|\|` | moved to Phase 13 as C13-COLUMN: it selects the cells a column spans, which needs C13-TFC's real table columns |
 
@@ -7181,3 +7181,23 @@ row comes from.
   invoker test; no attribute watch → the attribute test; hints ignoring the stack rules → the hint test; the
   UA hide rule broken → the integration test. No snapshot or existing expectation changed besides the UA
   count.
+- 2026-10-14 — C11-MODAL-POPOVER, part 3 of 3 (item done): popover light dismiss (HTML §6.12.2 "light dismiss
+  open popovers", the close watchers of auto / hint popovers). `popover/light_dismiss.rs`: the mouse router
+  reports every button's press and release (`pointer_down` / `pointer_up`, before the `mousedown` /
+  `mouseup` dispatch, as Blink runs it with the pointer events); the release hides the popovers above the
+  *topmost clicked popover* (the open popover the point is in or whose invoker it is on, by stack position)
+  when the press began in the same one. Esc: `topmost_close_watcher` is the topmost modal dialog or auto /
+  hint popover in the top layer; the popover builtin hides a popover there, the dialog builtin defers to
+  it and otherwise cancels its dialog — each claims the key (`prevent_default`), so one press closes one
+  watcher. `dialog::show_modal` now runs HTML §4.11.4's popover step (hide the auto / hint popovers not
+  holding the dialog, `popover::hide_unrelated_to`). Decided — no focus-based light dismiss: HTML has none
+  (focus leaving a popover leaves it open, pinned by `focus_moving_out_does_not_dismiss`). Red: the light
+  dismiss tests failed with the popovers left showing and `under` nested wrongly — the latter was the
+  test's error (HTML: an auto popover inside a modal dialog nests in no popover, and `showModal()` hides
+  the unrelated ones), rewritten to the spec before the code; green after (a click point moved off the
+  nested popover's middle). Mutations (each alone, restored, touched): release hides nothing → the
+  outside and nested tests; no same-target check → the drag-out test; invokers not counted → the invoker
+  test; the dialog not deferring → the Esc order test; the dialog not claiming its Esc →
+  `one_esc_closes_one_watcher` (added for it); `showModal()` hiding nothing → the Esc order test; no
+  release hook for the other buttons → `a_right_click_outside_dismisses_too`. Phase 11's items are done;
+  its gates are pending.

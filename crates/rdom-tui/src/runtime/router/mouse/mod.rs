@@ -52,7 +52,10 @@ pub(super) fn route_mouse(
 /// `mousedown` does NOT suppress `contextmenu` — the two are
 /// independent dispatches per HTML.
 fn handle_right_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
-    let Some(target) = dom.hit_test(mouse.column, mouse.row) else {
+    let hit = dom.hit_test(mouse.column, mouse.row);
+    // Popover light dismiss follows every button's press (HTML §6.12.2).
+    crate::runtime::builtins::popover::light_dismiss::pointer_down(dom, hit);
+    let Some(target) = hit else {
         return RouteOutcome::default();
     };
     let mut tui_down = TuiEvent::mousedown(mouse);
@@ -67,7 +70,9 @@ fn handle_right_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -
 /// associated default action; no click synthesis (browsers only
 /// synthesize click for the left button).
 fn handle_nonleft_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
-    let Some(target) = dom.hit_test(mouse.column, mouse.row) else {
+    let hit = dom.hit_test(mouse.column, mouse.row);
+    crate::runtime::builtins::popover::light_dismiss::pointer_down(dom, hit);
+    let Some(target) = hit else {
         return RouteOutcome::default();
     };
     let mut tui = TuiEvent::mousedown(mouse);
@@ -79,12 +84,14 @@ fn handle_nonleft_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent)
 /// No click synthesis, no pointer-capture release path
 /// (capture is left-button-only in v1).
 fn handle_nonleft_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteOutcome {
-    let Some(target) = dom.hit_test(mouse.column, mouse.row) else {
-        return RouteOutcome::default();
+    let hit = dom.hit_test(mouse.column, mouse.row);
+    let dismissed = crate::runtime::builtins::popover::light_dismiss::pointer_up(dom, hit);
+    let Some(target) = hit else {
+        return RouteOutcome::redraw(dismissed);
     };
     let mut tui = TuiEvent::mouseup(mouse);
     dispatch(router, dom, target, &mut tui);
-    RouteOutcome::default()
+    RouteOutcome::redraw(dismissed)
 }
 
 /// `mousedown` with the left button. Hit-tests, remembers the
@@ -117,6 +124,9 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
 
     let hit = dom.hit_test(mouse.column, mouse.row);
     router.down_target = hit;
+    // Popover light dismiss notes where the press began (HTML §6.12.2,
+    // run as the pointer event is dispatched).
+    crate::runtime::builtins::popover::light_dismiss::pointer_down(dom, hit);
     crate::rdom_trace!(
         "handle_down: hit_test({}, {}) = {:?}; pre-capture={:?}",
         mouse.column,
@@ -253,6 +263,9 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
 
     // Routing target for mouseup: captured element (if any) else hit.
     let up_target = captured.or(hit);
+    // A press and release in the same popover stack — or both outside
+    // every popover — hide the popovers above it (HTML §6.12.2).
+    let dismissed = crate::runtime::builtins::popover::light_dismiss::pointer_up(dom, up_target);
 
     if let Some(target) = up_target {
         let mut tui_up = TuiEvent::mouseup(mouse);
@@ -313,7 +326,7 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
         dom.hovered()
     );
 
-    RouteOutcome::redraw(deactivated)
+    RouteOutcome::redraw(deactivated || dismissed)
 }
 
 /// `mousemove` (or drag with left button held). Hit-tests; if

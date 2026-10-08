@@ -344,7 +344,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Selectors
 
-- popover light dismiss (Esc, a click outside the popover stack) — C11-MODAL-POPOVER
 - Column combinator `||` — C13-COLUMN (Phase 13, with real table columns)
 
 ### Transitions and animations

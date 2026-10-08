@@ -32,6 +32,10 @@
 //! - **Attribute changes** — a showing popover whose `popover` attribute
 //!   changes state or goes is hidden, with its events, when the `App`
 //!   next handles an event or draws a frame (`attribute`).
+//! - **Light dismiss** — a press and release outside an auto / hint
+//!   popover (and its invoker) hides it and those above it; Esc hides the
+//!   topmost one when it is the most recent close watcher
+//!   (`light_dismiss`).
 //! - **Rendering** — the UA sheet hides `[popover]` until it shows and
 //!   centres it in the viewport (HTML's rendering rules); the top layer
 //!   paints it above the document (`paint_pass::top_layer`).
@@ -43,6 +47,9 @@
 mod algorithms;
 pub(crate) mod attribute;
 mod invoker;
+pub(crate) mod light_dismiss;
+
+pub use light_dismiss::topmost_close_watcher;
 
 #[cfg(test)]
 mod tests;
@@ -135,6 +142,17 @@ pub fn toggle_popover(
     Ok(is_showing(dom, id))
 }
 
+/// HTML §4.11.4 `showModal()`'s popover steps: hide every auto and hint
+/// popover that is not an ancestor of the dialog `id` about to be modal
+/// (the topmost one holding it, hint then auto, bounds the hiding).
+pub(crate) fn hide_unrelated_to(dom: &mut TuiDom, id: NodeId) {
+    let hint = algorithms::showing_list(dom, PopoverState::Hint);
+    let auto = algorithms::showing_list(dom, PopoverState::Auto);
+    let until = algorithms::topmost_popover_ancestor(dom, id, &hint, None, false)
+        .or_else(|| algorithms::topmost_popover_ancestor(dom, id, &auto, None, false));
+    algorithms::hide_all_until(dom, until, false, true);
+}
+
 /// The element that invoked `id`'s showing popover — its `popovertarget`
 /// button or the `showPopover()` source — while it shows.
 pub fn invoker_of(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
@@ -142,9 +160,28 @@ pub fn invoker_of(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
 }
 
 /// Install the popover default actions: a root-level `click` listener
-/// running a `popovertarget` button's activation behavior.
+/// running a `popovertarget` button's activation behavior, and a
+/// `keydown` one sending Esc to the topmost auto / hint popover when it
+/// is the most recent close watcher (`light_dismiss`). The mouse router
+/// runs the pointer half of light dismiss.
 pub fn install(dom: &mut TuiDom) {
     let root = dom.root();
+    dom.add_event_listener(root, "keydown", ListenerOptions::default(), move |ctx| {
+        if ctx.event.default_prevented() {
+            return;
+        }
+        let Some(key) = ctx.event.detail.as_keyboard() else {
+            return;
+        };
+        let m = key.modifiers;
+        if key.key != "Escape" || m.ctrl || m.shift || m.alt || m.meta {
+            return;
+        }
+        if light_dismiss::close_request(ctx.dom) {
+            ctx.event.prevent_default();
+        }
+    })
+    .expect("popover Esc listener install");
     dom.add_event_listener(root, "click", ListenerOptions::default(), move |ctx| {
         if ctx.event.default_prevented() {
             return;

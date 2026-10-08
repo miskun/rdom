@@ -46,6 +46,11 @@ fn opened(dom: &TuiDom, id: NodeId) -> Option<PopoverState> {
     dom.document_data::<Popovers>()?.opened.get(&id).copied()
 }
 
+/// The mode a showing popover was shown in (its stack).
+pub(super) fn opened_mode(dom: &TuiDom, id: NodeId) -> Option<PopoverState> {
+    opened(dom, id).filter(|_| is_showing(dom, id))
+}
+
 pub(super) fn invoker_of(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
     if !is_showing(dom, id) {
         return None;

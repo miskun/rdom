@@ -71,9 +71,12 @@ pub fn show_modal(dom: &mut TuiDom, dialog: NodeId) {
     if let Some(ext) = dom.node_mut(dialog).ext_mut() {
         ext.dialog_return_focus = previous;
     }
+    // HTML §4.11.4 showModal(): the auto and hint popovers that do not
+    // hold the dialog are hidden.
+    crate::runtime::builtins::popover::hide_unrelated_to(dom, dialog);
     let _ = dom.set_attribute(dialog, "open", "");
-    // HTML §4.11.4 showModal() step 11: "add an element to the top
-    // layer" — a disconnected dialog opens but cannot be modal.
+    // HTML §4.11.4 showModal(): "add an element to the top layer" — a
+    // disconnected dialog opens but cannot be modal.
     let _ = dom.add_to_top_layer(dialog, rdom_core::TopLayerKind::ModalDialog);
     if !was_open {
         fire_toggle(dom, dialog, rdom_core::ToggleState::Closed);
@@ -281,6 +284,16 @@ pub fn install(dom: &mut TuiDom) {
         let Some(dialog) = enclosing.or_else(|| top_modal(ctx.dom)) else {
             return;
         };
+        // A close request goes to the most recent close watcher: an auto
+        // or hint popover opened above the modal dialog closes first
+        // (`popover::light_dismiss`).
+        if let Some(top) = crate::runtime::builtins::popover::topmost_close_watcher(ctx.dom)
+            && ctx.dom.top_layer_kind(top) == Some(rdom_core::TopLayerKind::Popover)
+        {
+            return;
+        }
+        // The Esc is this close request's: no other handler acts on it.
+        ctx.event.prevent_default();
         // Fire `cancel` on the dialog — bubbling, cancelable.
         // If a handler `prevent_default`s, we leave the dialog
         // open. Otherwise fall through to close with the

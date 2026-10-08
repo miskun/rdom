@@ -409,3 +409,277 @@ fn changing_the_attribute_hides_a_showing_popover() {
             .any(|l| *l == format!("toggle {} open->closed", q.n()))
     );
 }
+
+// ── Light dismiss ──────────────────────────────────────────────────
+
+mod light_dismiss {
+    use crossterm::event::{
+        Event as CtEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
+    use rdom_core::NodeId;
+
+    use super::{app, el, showing};
+    use crate::TuiDom;
+    use crate::node::TuiNodeExt;
+    use crate::render::TestBackend;
+    use crate::runtime::app::App;
+    use crate::runtime::builtins::popover::{hide_popover, show_popover};
+
+    fn mouse(app: &mut App<TestBackend>, kind: MouseEventKind, x: u16, y: u16) {
+        app.handle_event(CtEvent::Mouse(MouseEvent {
+            kind,
+            column: x,
+            row: y,
+            modifiers: KeyModifiers::empty(),
+        }));
+        app.advance(0).unwrap();
+    }
+
+    fn click_at(app: &mut App<TestBackend>, (x, y): (u16, u16)) {
+        mouse(app, MouseEventKind::Down(MouseButton::Left), x, y);
+        mouse(app, MouseEventKind::Up(MouseButton::Left), x, y);
+    }
+
+    /// The middle cell of `id`'s box.
+    fn inside(app: &App<TestBackend>, id: NodeId) -> (u16, u16) {
+        let r = app.dom().node(id).layout_rect().expect("laid out");
+        (
+            (r.x + i32::from(r.width) / 2) as u16,
+            (r.y + i32::from(r.height) / 2) as u16,
+        )
+    }
+
+    fn esc(app: &mut App<TestBackend>) {
+        app.handle_event(CtEvent::Key(KeyEvent::new(
+            KeyCode::Esc,
+            KeyModifiers::empty(),
+        )));
+        app.advance(0).unwrap();
+    }
+
+    fn shown(app: &mut App<TestBackend>, ids: &[NodeId]) {
+        for &id in ids {
+            show_popover(app.dom_mut(), id).unwrap();
+        }
+        app.advance(0).unwrap();
+    }
+
+    /// HTML §6.12.2 "light dismiss open popovers": a press and release
+    /// outside every popover hides the auto popovers; a manual popover is
+    /// not light-dismissed.
+    #[test]
+    fn a_click_outside_hides_the_auto_popovers() {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let a = el(&mut dom, root, "div", &[("popover", "auto")]);
+        let m = el(&mut dom, root, "div", &[("popover", "manual")]);
+        for p in [a, m] {
+            let t = dom.create_text_node("xx");
+            dom.append_child(p, t).unwrap();
+        }
+        let mut app = app(dom);
+        shown(&mut app, &[a, m]);
+        click_at(&mut app, (0, 0));
+        assert!(!showing(app.dom(), a));
+        assert!(showing(app.dom(), m));
+    }
+
+    /// Light dismiss follows the pointer events of every button: a
+    /// right-button press and release outside hides the auto popovers too.
+    #[test]
+    fn a_right_click_outside_dismisses_too() {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let a = el(&mut dom, root, "div", &[("popover", "")]);
+        let t = dom.create_text_node("xx");
+        dom.append_child(a, t).unwrap();
+        let mut app = app(dom);
+        shown(&mut app, &[a]);
+        mouse(&mut app, MouseEventKind::Down(MouseButton::Right), 0, 0);
+        mouse(&mut app, MouseEventKind::Up(MouseButton::Right), 0, 0);
+        assert!(!showing(app.dom(), a));
+    }
+
+    /// Nested stacks: a click inside a popover keeps it and its
+    /// ancestors, and hides only the popovers nested above it.
+    #[test]
+    fn a_click_inside_a_popover_keeps_it_and_hides_what_is_above_it() {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let outer = el(
+            &mut dom,
+            root,
+            "div",
+            &[("popover", ""), ("class", "outer")],
+        );
+        let inner = el(
+            &mut dom,
+            outer,
+            "div",
+            &[("popover", ""), ("class", "inner")],
+        );
+        for p in [outer, inner] {
+            let t = dom.create_text_node("xx");
+            dom.append_child(p, t).unwrap();
+        }
+        let sheet = crate::style::Stylesheet::new()
+            .rule_unchecked(
+                ".outer",
+                crate::style::TuiStyle::new()
+                    .width(crate::layout::Size::Fixed(20))
+                    .height(crate::layout::Size::Fixed(6)),
+            )
+            .rule_unchecked(
+                ".inner",
+                crate::style::TuiStyle::new()
+                    .width(crate::layout::Size::Fixed(6))
+                    .height(crate::layout::Size::Fixed(3)),
+            );
+        let terminal = crate::render::Terminal::new(TestBackend::new(30, 8)).unwrap();
+        let mut app = App::with_backend(dom, sheet, terminal).unwrap();
+        shown(&mut app, &[outer, inner]);
+        let at = inside(&app, inner);
+        click_at(&mut app, at);
+        assert!(showing(app.dom(), outer) && showing(app.dom(), inner));
+        // Inside `outer` but beside `inner`, which sits in its middle.
+        let r = app.dom().node(outer).layout_rect().unwrap();
+        click_at(&mut app, ((r.x + 1) as u16, (r.y + 1) as u16));
+        assert!(showing(app.dom(), outer) && !showing(app.dom(), inner));
+    }
+
+    /// Only a press and a release in the same popover dismiss: pressing
+    /// inside and releasing outside (a drag out) hides nothing.
+    #[test]
+    fn a_press_inside_released_outside_dismisses_nothing() {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let a = el(&mut dom, root, "div", &[("popover", "")]);
+        let t = dom.create_text_node("xx");
+        dom.append_child(a, t).unwrap();
+        let mut app = app(dom);
+        shown(&mut app, &[a]);
+        let (x, y) = inside(&app, a);
+        mouse(&mut app, MouseEventKind::Down(MouseButton::Left), x, y);
+        mouse(&mut app, MouseEventKind::Up(MouseButton::Left), 0, 0);
+        assert!(showing(app.dom(), a));
+    }
+
+    /// Clicking the open popover's own `popovertarget` button hides it
+    /// once: the press lands on its invoker, which light dismiss counts as
+    /// inside the popover, and the activation then toggles it closed.
+    #[test]
+    fn clicking_the_invoker_of_an_open_popover_closes_it() {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let opener = el(&mut dom, root, "button", &[("popovertarget", "p")]);
+        let t = dom.create_text_node("open");
+        dom.append_child(opener, t).unwrap();
+        let p = el(&mut dom, root, "div", &[("popover", ""), ("id", "p")]);
+        let t = dom.create_text_node("xx");
+        dom.append_child(p, t).unwrap();
+        let mut app = app(dom);
+        let at = inside(&app, opener);
+        click_at(&mut app, at);
+        assert!(showing(app.dom(), p));
+        let at = inside(&app, opener);
+        click_at(&mut app, at);
+        assert!(!showing(app.dom(), p));
+    }
+
+    /// HTML close watchers: Esc hides the topmost auto popover — one per
+    /// press — and leaves manual popovers alone.
+    #[test]
+    fn esc_hides_the_topmost_auto_popover() {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let outer = el(&mut dom, root, "div", &[("popover", "")]);
+        let inner = el(&mut dom, outer, "div", &[("popover", "")]);
+        let m = el(&mut dom, root, "div", &[("popover", "manual")]);
+        let mut app = app(dom);
+        shown(&mut app, &[m, outer, inner]);
+        esc(&mut app);
+        assert!(showing(app.dom(), outer) && !showing(app.dom(), inner));
+        esc(&mut app);
+        assert!(!showing(app.dom(), outer));
+        esc(&mut app);
+        assert!(showing(app.dom(), m));
+    }
+
+    /// HTML §4.11.4 `showModal()` hides the popovers that do not contain
+    /// the dialog; Esc then goes to the most recent of the modal dialogs
+    /// and auto popovers — a popover opened inside the modal dialog
+    /// closes first, then the dialog cancels: one close per press.
+    #[test]
+    fn esc_closes_popovers_and_modal_dialogs_in_order() {
+        use crate::runtime::builtins::dialog;
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let under = el(&mut dom, root, "div", &[("popover", "")]);
+        let host = el(&mut dom, root, "div", &[("popover", "")]);
+        let d = el(&mut dom, host, "dialog", &[]);
+        let inner = el(&mut dom, d, "div", &[("popover", "")]);
+        let mut app = app(dom);
+        shown(&mut app, &[under]);
+        shown(&mut app, &[host]);
+        assert!(
+            !showing(app.dom(), under),
+            "`host` is no descendant of `under`"
+        );
+        dialog::show_modal(app.dom_mut(), d);
+        assert!(
+            showing(app.dom(), host),
+            "the popover holding the dialog stays"
+        );
+        shown(&mut app, &[under]);
+        assert!(!showing(app.dom(), host));
+        dialog::show_modal(app.dom_mut(), d);
+        assert!(
+            !showing(app.dom(), under),
+            "showModal hid the unrelated popover"
+        );
+        shown(&mut app, &[inner]);
+        esc(&mut app);
+        assert!(!showing(app.dom(), inner));
+        assert!(dialog::is_modal(app.dom(), d));
+        esc(&mut app);
+        assert!(!dialog::is_modal(app.dom(), d));
+    }
+
+    /// One Esc, one close: the dialog builtin claims the Esc it cancels a
+    /// modal dialog with, so the popover holding the dialog stays open
+    /// until the next press.
+    #[test]
+    fn one_esc_closes_one_watcher() {
+        use crate::runtime::builtins::dialog;
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let host = el(&mut dom, root, "div", &[("popover", "")]);
+        let d = el(&mut dom, host, "dialog", &[]);
+        let mut app = app(dom);
+        shown(&mut app, &[host]);
+        dialog::show_modal(app.dom_mut(), d);
+        esc(&mut app);
+        assert!(!dialog::is_modal(app.dom(), d));
+        assert!(showing(app.dom(), host));
+        esc(&mut app);
+        assert!(!showing(app.dom(), host));
+    }
+
+    /// HTML has no focus-based light dismiss: focus leaving an auto
+    /// popover leaves it open.
+    #[test]
+    fn focus_moving_out_does_not_dismiss() {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let outside = el(&mut dom, root, "button", &[]);
+        let p = el(&mut dom, root, "div", &[("popover", "")]);
+        let field = el(&mut dom, p, "input", &[]);
+        let mut app = app(dom);
+        shown(&mut app, &[p]);
+        crate::runtime::focus::focus_node(app.dom_mut(), Some(field));
+        crate::runtime::focus::focus_node(app.dom_mut(), Some(outside));
+        app.advance(0).unwrap();
+        assert!(showing(app.dom(), p));
+        hide_popover(app.dom_mut(), p).unwrap();
+    }
+}
