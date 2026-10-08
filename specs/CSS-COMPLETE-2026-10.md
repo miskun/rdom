@@ -8714,3 +8714,17 @@ row comes from.
   + border + caption); green after, with the `overflow-y: scroll` bar in the table box's rows and the
   caption hit at (2, 0). Mutation (each alone, restored, touched): `child_clip` never giving `outer` → the
   caption row blank again; the hit test's `reach` off → the caption point hits the table.
+- 2026-10-08 — C13G-COLUMN-INVALIDATION (architect N2; Selectors 4 §16.1, §4.5; HTML §4.9.12.1). Found: a
+  child-list change called `mark_column_change` from its parent whatever it was, and the climb passed
+  through `td` / `th` / `col` — so any text or element appended inside a cell restyled its whole table
+  while a sheet held a column selector (a live clock in one cell of 1000 rows re-cascaded every cell);
+  and `has_triggers` read `:nth-col()` as reading the span attributes but not `||`, so
+  `body:has(col.hl || td.x)` missed a `colspan` change. Decided: (1) `marks::moves_columns` — a
+  child-list change moves columns only when its parent is a `<table>`, row group, `<tr>` or `<colgroup>`
+  and an *element* came or went (rows, cells, columns; text and a cell's content never); the attribute
+  path is unchanged (`span` / `colspan` / `rowspan` anywhere in the structure); the tag tests are ASCII
+  case-insensitive, as the table model's (C13G-COLUMN-MATCH); (2) a complex selector with a `||` step
+  in a `:has()` argument adds the three span attributes to the triggers. Red: `dirty_tracker/tests.rs`
+  `only_structure_changes_restyle_the_table_for_columns` (failed at "text in a cell"),
+  `has_triggers::tests::a_column_combinator_in_has_reads_the_spans` (failed at `span`); green after.
+  Mutation: the reds are the old paths.

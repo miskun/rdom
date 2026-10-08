@@ -258,27 +258,55 @@ pub(crate) mod probe {
     }
 }
 
+/// Whether `id` is one of the HTML elements `tags`, ASCII
+/// case-insensitively, as the table model reads them
+/// (`rdom_core::table`).
+fn is_html(dom: &Dom<TuiExt>, id: NodeId, tags: &[&str]) -> bool {
+    dom.node(id)
+        .tag_name()
+        .is_some_and(|t| tags.iter().any(|w| t.eq_ignore_ascii_case(w)))
+}
+
+/// Whether a child-list change of `parent` adding `added` and removing
+/// `removed` can move cells between an HTML table's columns (HTML
+/// §4.9.12.1): an element coming or going among the children of a
+/// `<table>`, a row group, a row or a `<colgroup>` — its rows, cells and
+/// columns. Text, and anything inside a cell, moves none.
+pub(super) fn moves_columns(
+    dom: &Dom<TuiExt>,
+    parent: NodeId,
+    added: &[NodeId],
+    removed: &[NodeId],
+) -> bool {
+    is_html(
+        dom,
+        parent,
+        &["table", "thead", "tbody", "tfoot", "tr", "colgroup"],
+    ) && added
+        .iter()
+        .chain(removed)
+        .any(|&n| dom.node(n).node_type() == rdom_core::NodeType::Element)
+}
+
 /// A change at `id` that can move cells between an HTML table's columns
-/// (Selectors 4 §16: a `span` / `colspan` / `rowspan`, or the children of
-/// a `<table>`, row group, row or `<colgroup>` changing): `id`'s table —
-/// the `<table>` it is, or the nearest above it within a table's
-/// structure — is restyled whole, every cell's column selectors read
-/// anew.
+/// (Selectors 4 §16: a `span` / `colspan` / `rowspan`, or an element
+/// child of a `<table>`, row group, row or `<colgroup>` coming or going,
+/// [`moves_columns`]): `id`'s table — the `<table>` it is, or the nearest
+/// above it within a table's structure — is restyled whole, every cell's
+/// column selectors read anew.
 pub(super) fn mark_column_change(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId) {
     const PARTS: &[&str] = &[
         "td", "th", "tr", "thead", "tbody", "tfoot", "col", "colgroup",
     ];
     let mut cur = Some(id);
     while let Some(n) = cur {
-        match dom.node(n).tag_name() {
-            Some("table") => {
-                mark_style_dirty(dom, state, n);
-                return;
-            }
-            Some(t) if PARTS.contains(&t) => {
-                cur = dom.node(n).parent_node().map(|p| p.id());
-            }
-            _ => return,
+        if is_html(dom, n, &["table"]) {
+            mark_style_dirty(dom, state, n);
+            return;
         }
+        if !is_html(dom, n, PARTS) {
+            return;
+        }
+        cur = dom.node(n).parent_node().map(|p| p.id());
     }
 }

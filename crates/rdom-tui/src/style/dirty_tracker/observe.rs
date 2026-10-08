@@ -9,7 +9,7 @@ use rdom_core::{Dom, InteractionKind, Mutation, MutationObserver, NodeId};
 use super::DirtyState;
 use super::marks::{
     mark_auto_direction_host, mark_chain_change, mark_column_change, mark_has_anchors,
-    mark_placeholder_hosts, mark_state_dirty, mark_style_dirty,
+    mark_placeholder_hosts, mark_state_dirty, mark_style_dirty, moves_columns,
 };
 use crate::ext::TuiExt;
 use crate::style::sibling_triggers::Cause;
@@ -114,8 +114,9 @@ impl MutationObserver<TuiExt> for Shim {
                     mark_has_anchors(dom, &mut state, *parent, true);
                 }
                 // Rows, cells and columns coming or going move cells
-                // between an HTML table's columns.
-                if state.columns {
+                // between an HTML table's columns; a cell's content does
+                // not.
+                if state.columns && moves_columns(dom, *parent, added, removed) {
                     mark_column_change(dom, &mut state, *parent);
                 }
             }

@@ -156,6 +156,18 @@ impl HasTriggers {
         {
             self.sibling_reach = usize::MAX;
         }
+        // Selectors 4 §16.1: a column combinator relates a cell to the
+        // column elements of its columns, which its table's spans decide
+        // (child lists are always a trigger).
+        if complex
+            .ancestors
+            .iter()
+            .any(|(c, _)| *c == Combinator::Column)
+        {
+            for name in ["span", "colspan", "rowspan"] {
+                self.add_attribute(name);
+            }
+        }
         for simple in compounds(complex).flat_map(|c| &c.simples) {
             match simple {
                 SimpleSelector::Universal | SimpleSelector::Type(_) => {}
@@ -280,5 +292,17 @@ mod tests {
             "a nested sibling step"
         );
         assert!(t.fires(Cause::Attribute("class")));
+    }
+
+    /// Selectors 4 §16.1: a column combinator in a `:has()` argument reads
+    /// the table's spans — a `colspan` change moves a cell between columns
+    /// and can flip the anchor (C13G-COLUMN-INVALIDATION).
+    #[test]
+    fn a_column_combinator_in_has_reads_the_spans() {
+        let t = triggers("body:has(col.hl || td.x) { color: red }");
+        for name in ["span", "colspan", "rowspan", "class"] {
+            assert!(t.fires(Cause::Attribute(name)), "{name}");
+        }
+        assert!(!t.fires(Cause::Attribute("title")));
     }
 }

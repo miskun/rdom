@@ -873,3 +873,57 @@ fn a_column_change_without_column_selectors_marks_only_its_element() {
     dom.set_attribute(col, "span", "3").unwrap();
     assert!(tracker.take_roots().contains(&table));
 }
+
+/// C13G-COLUMN-INVALIDATION: only a change to a table's structure moves
+/// its cells between columns (Selectors 4 §16, HTML §4.9.12.1) — rows,
+/// cells or columns coming or going, a span attribute — so only that
+/// restyles the whole table. Text or an element inside a cell, a text
+/// node between rows, change no column: a live clock in one `<td>` of a
+/// long table restyles that cell, not every cell.
+#[test]
+fn only_structure_changes_restyle_the_table_for_columns() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let table = dom.create_element("table");
+    let tbody = dom.create_element("tbody");
+    let tr = dom.create_element("tr");
+    let td = dom.create_element("td");
+    dom.append_child(root, table).unwrap();
+    dom.append_child(table, tbody).unwrap();
+    dom.append_child(tbody, tr).unwrap();
+    dom.append_child(tr, td).unwrap();
+    let tracker = DirtyTracker::install(&mut dom);
+    crate::style::CascadeExt::cascade(&mut dom, &crate::style::Stylesheet::new());
+    tracker.set_column_selectors(true);
+    let _ = tracker.take_roots();
+    // Content of a cell: no column moves.
+    let text = dom.create_text_node("12:00");
+    dom.append_child(td, text).unwrap();
+    assert!(!tracker.take_roots().contains(&table), "text in a cell");
+    let span = dom.create_element("span");
+    dom.append_child(td, span).unwrap();
+    assert!(
+        !tracker.take_roots().contains(&table),
+        "an element in a cell"
+    );
+    let space = dom.create_text_node(" ");
+    dom.append_child(tbody, space).unwrap();
+    assert!(
+        !tracker.take_roots().contains(&table),
+        "white space in a row group"
+    );
+    // Structure: a cell, a row, a column.
+    let td2 = dom.create_element("td");
+    dom.append_child(tr, td2).unwrap();
+    assert!(tracker.take_roots().contains(&table), "a cell");
+    let tr2 = dom.create_element("tr");
+    dom.append_child(tbody, tr2).unwrap();
+    assert!(tracker.take_roots().contains(&table), "a row");
+    dom.remove_child(tbody, tr2).unwrap();
+    assert!(tracker.take_roots().contains(&table), "a row removed");
+    let col = dom.create_element("col");
+    dom.insert_before(table, col, Some(tbody)).unwrap();
+    assert!(tracker.take_roots().contains(&table), "a column");
+    dom.set_attribute(td, "colspan", "2").unwrap();
+    assert!(tracker.take_roots().contains(&table), "a colspan");
+}
