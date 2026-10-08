@@ -6807,3 +6807,18 @@ row comes from.
   `css_phase10/list_item.rs::marker_and_quote_values_are_closed` (an exhaustive match outside rdom-style) failed
   to compile with 4 × E0004 (`_` not covered); green after. No wildcard arm in the workspace became unreachable
   (clippy clean). No existing expectation changed.
+- 2026-10-13 — C10G-UPGRADE (API B3). The upgrade guide's silent changes from Phase 10 were item 10 (no ids)
+  and four batch-A/B items appended unranked at the end (43–46). Nine missing changes were added and Phase 10's
+  entries ranked by impact among the rest (55 items). Item 10 now carries its ids (C10-LIST-ITEM,
+  C10G-MARKER-CLIP) and both consequences: an `li::before { color }` no longer colours the bullet (use
+  `li::marker`), and `ul { padding: 0 }` hangs the bullets off-screen (use `list-style-position: inside`, or keep
+  the padding). Item 11, after it: nested `◦` / `▪` bullets. After the 0.5-era layout items comes the more
+  visible Phase 10 group: positioned pseudo-elements (43 → 24, trimmed from 939 to about 420 characters, dropping
+  the overflow, min-content and static-position-after-`text-align` clauses the Log keeps); the `<details>` content
+  box (46 → 25); a closed `<details>` hiding loose text (new); `<q>` quotes (new); the `type` hints (44 → 28); the
+  `::selection` paired defaults (45 → 29); the `::selection` highlight subset, with its bold dropped (new); and the
+  `::placeholder` subset (new). At the tail: `abbr[title]` dotted (moved from Fixed — rdom-style, where its bullet
+  is removed), outside-marker hit-testing, `li { counter-increment: none }`, and this batch's inline list-item
+  marker. The wider list padding is item 10's "four cells (two in 0.5)", so it gets no separate entry. "The
+  357-character bullet" matched no bullet in the guide by characters or bytes, so the trim went to the longest
+  Phase 10 one, item 43. Docs only, so no code or test changed.
