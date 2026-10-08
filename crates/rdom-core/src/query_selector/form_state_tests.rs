@@ -248,14 +248,42 @@ fn default_asks_the_backend_for_default_checkedness() {
     let initial = el(&mut dom, select, "option", &[("data-default", "")]);
     dom.set_control_state_hook(Some(|dom, id, state| match state {
         ControlState::DefaultChecked | ControlState::DefaultSelected => {
-            dom.has_attribute(id, "data-default")
+            Some(dom.has_attribute(id, "data-default"))
         }
-        _ => false,
+        _ => None,
     }));
     assert!(!is(&dom, flipped, ":default"));
     assert!(is(&dom, authored, ":default"));
     assert!(!is(&dom, picked, ":default"));
     assert!(is(&dom, initial, ":default"));
+}
+
+/// C11G-API: a hook answers `None` for a question it does not keep, and
+/// the substrate's default answers it (each `ControlState` variant
+/// documents its default) — so a backend written before a question was
+/// added does not silently answer `false`.
+#[test]
+fn a_hook_answering_none_defers_to_the_substrate_default() {
+    use crate::ControlState;
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let checked = el(
+        &mut dom,
+        root,
+        "input",
+        &[("type", "checkbox"), ("checked", "")],
+    );
+    let option = el(&mut dom, root, "option", &[("selected", "")]);
+    dom.set_control_state_hook(Some(|_, _, state| match state {
+        ControlState::UserValidity => Some(true),
+        _ => None,
+    }));
+    assert!(dom.control_state(checked, ControlState::DefaultChecked));
+    assert!(dom.control_state(option, ControlState::DefaultSelected));
+    assert!(!dom.control_state(checked, ControlState::RangeLimited));
+    assert!(dom.control_state(checked, ControlState::UserValidity));
+    assert!(is(&dom, checked, ":default"));
+    assert!(is(&dom, option, ":default"));
 }
 
 /// A pass finds each form's default button once (`SelectorCaches`):
@@ -317,9 +345,9 @@ fn in_range_asks_the_backend_about_limits_and_the_value() {
         assert!(!is(&dom, id, ":out-of-range"), "no hook: {id:?}");
     }
     dom.set_control_state_hook(Some(|dom, id, state| match state {
-        ControlState::RangeLimited => dom.has_attribute(id, "min"),
-        ControlState::OutOfRange => dom.has_attribute(id, "data-out"),
-        _ => false,
+        ControlState::RangeLimited => Some(dom.has_attribute(id, "min")),
+        ControlState::OutOfRange => Some(dom.has_attribute(id, "data-out")),
+        _ => None,
     }));
     for (id, range) in [
         (inside, Some(true)),
@@ -386,7 +414,7 @@ fn user_validity_combines_the_backends_flag_with_validity() {
     }
     dom.set_validity_hook(Some(|dom, id| !dom.has_attribute(id, "data-bad")));
     dom.set_control_state_hook(Some(|dom, id, state| {
-        state == ControlState::UserValidity && dom.has_attribute(id, "data-user")
+        (state == ControlState::UserValidity).then(|| dom.has_attribute(id, "data-user"))
     }));
     for (id, user) in [
         (fresh, None),

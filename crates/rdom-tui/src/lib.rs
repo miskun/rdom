@@ -119,6 +119,9 @@ pub use render::{
 /// `render::RenderContext` was removed in `RENDERCTX-DEDUP-1`.)
 pub use runtime::builtins::canvas::RenderContext;
 pub use runtime::builtins::form::SubmitOutcome;
+/// A `popover` attribute's state (HTML §6.12), what
+/// [`runtime::builtins::popover::popover_state`] returns.
+pub use runtime::builtins::popover::PopoverState;
 pub use runtime::builtins::validation::ValidityState;
 /// `focus(options)` (HTML `FocusOptions`), `TuiAccessorsMut::focus_with`.
 pub use runtime::focus::FocusOptions;
@@ -153,13 +156,17 @@ pub type TuiEventCtx<'a> = core::EventCtx<'a, TuiExt>;
 // a reasonable start. The full rdom-core API is accessible via
 // `rdom_tui::core_api::…` (re-exported below).
 pub use rdom_core as core_api;
+/// An attribute selector's case flag (Selectors 4 §6.3), the `case` of
+/// `core_api::selectors::SimpleSelector::Attribute`.
+pub use rdom_core::selectors::AttrCase;
 pub use rdom_core::{
-    AdjacentPosition, ContentEditableState, DocumentPosition, DomError, Event, EventDetail,
-    EventPhase, FormEnctype, FormMethod, Highlight, HighlightRegistry, HighlightType,
-    HighlightsMut, InputDetail, InputType, InputTypeState, InteractionKind, KeyboardDetail,
-    KeyboardModifiers, ListenerId, ListenerOptions, MouseButton, MouseDetail, Mutation,
-    MutationObserver, NodeData, NodeId, NodeType, ObserverId, Position, Range, Result, Selection,
-    SelectionSerial, SubmitDetail, ToggleDetail, ToggleState, TransitionDetail, ValidityHook,
+    AdjacentPosition, ContentEditableState, ControlState, Directionality, DocumentPosition,
+    DomError, Event, EventDetail, EventPhase, FormEnctype, FormMethod, Highlight,
+    HighlightRegistry, HighlightType, HighlightsMut, InputDetail, InputType, InputTypeState,
+    InteractionKind, KeyboardDetail, KeyboardModifiers, ListenerId, ListenerOptions, MouseButton,
+    MouseDetail, Mutation, MutationObserver, NodeData, NodeId, NodeType, ObserverId, Position,
+    Range, Result, Selection, SelectionSerial, SubmitDetail, ToggleDetail, ToggleState,
+    TopLayerKind, TransitionDetail, ValidityHook,
 };
 
 #[cfg(test)]

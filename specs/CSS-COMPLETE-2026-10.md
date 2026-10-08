@@ -7486,3 +7486,24 @@ row comes from.
   re-exports bring `AttrCase` and `PopoverState` into it. Red: the exhaustive matches of the three enums in
   `closed_by_spec_enums_match_exhaustively` (an external crate) failed to compile (`_` not covered); the
   check failed on the missing markers, then on 67 names. Green after both changes.
+- 2026-10-14 — C11G-API (API N1, N3, N8, N9). (1) Root re-exports: `TopLayerKind`, `Directionality` and
+  `ControlState` from rdom-core's root, `AttrCase` from `rdom_core::selectors`, and
+  `PopoverState` from the popover builtin — the types `top_layer_kind`, `directionality`, `control_state`,
+  an attribute selector's `case` and `popover_state` return; all now inside `design_types`' surface and
+  classified (C11G-DESIGN-TYPES). (2) The `SimpleSelector::Attribute` API row had no hint test though its
+  migration builds one: `selector_hints` builds it with `case: AttrCase::Default`, destructures it with
+  `..` and matches `type=CheckBox` through `Dom::matches_list`. (3) `ControlStateHook` returns
+  `Option<bool>`: `Dom::control_state` takes the hook's `Some`, else the substrate's default — so a sibling
+  backend's `_ => None` arm defers a question added later instead of answering it `false` (the
+  `DefaultChecked` default is an attribute, which a `false` silently overrode). rdom-tui's hook answers every
+  question it knows, `None` (with its `debug_assert!`) for one it does not. `ControlState` is new since 0.5,
+  so the row is in "Changes to APIs added after 0.5", with `control_state_hook_hints`. (4) `SelectorCaches`
+  says it is one pass's: the epoch moves only on mutation records, and user validity, default checkedness
+  and constraint validity are hook-backed, so caches kept across frames answer `:has(:user-invalid)` /
+  `:default` from before such a change. (5) Stale rustdoc: `PseudoClass::Indeterminate` (checkboxes and
+  radio groups since C11-FORM-STATES, not "`<progress>` only"), `Open` (no `data-rdom-open`; a modal dialog
+  has `open`), `Scope` (the query methods' scoping roots of DOM §4.2.6; `:root` only with no scoping root).
+  Red: `a_hook_answering_none_defers_to_the_substrate_default` and the updated hooks failed to compile
+  (`expected bool, found Option<bool>`); the three hint groups failed to compile without the re-exports
+  (`TopLayerKind` … `ControlState` not found). Green after. Changed expectations: the three hooks in
+  `form_state_tests.rs` return `Option<bool>` (`_ => false` → `_ => None`), with the same assertions.

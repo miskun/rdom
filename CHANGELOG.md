@@ -161,7 +161,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 
 | 0.5 | Unreleased | Item | Hint test |
 |---|---|---|---|
-| `SimpleSelector::Attribute { name, op, value }` | `Attribute { name, op, value, case }` (`case: AttrCase::Default` for the 0.5 behaviour; `{ name, .. }` in a pattern) | C11-ATTR-FLAGS | — |
+| `SimpleSelector::Attribute { name, op, value }` | `Attribute { name, op, value, case }` (`case: AttrCase::Default` for the 0.5 behaviour; `{ name, .. }` in a pattern) | C11-ATTR-FLAGS | `selector_hints` |
 
 #### `rdom-tui`
 
@@ -220,6 +220,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 | `Highlight::priority` / `kind` fields, `with_type`, `size()`; `Dom::highlights_mut() -> &mut HighlightRegistry`, firing `HighlightsChanged` on every call, before the change | `priority()` / `set_priority`, `kind()` / `set_kind`, `with_kind`, `len()` / `is_empty()`; a `HighlightsMut` guard (`Deref` / `DerefMut` to the registry; `&mut *guard` where a `&mut HighlightRegistry` is wanted) that fires once, after a change, and only when something changed | C10G-HIGHLIGHT-API | `highlight_hints` |
 | `counters::apply_descriptor` / `check_rule` → `Result<(), String>` | `Result<(), DescriptorError>` / `Result<(), CounterStyleRuleError>` (`Display` gives the old text) | C10G-API-SMALL | `generated_box_read_hints` |
 | rdom-css `WarningKind::InvalidCounterStyleRule { name, reason: String }`, for a rule that defines nothing and for a dropped descriptor | `InvalidCounterStyleRule { name, reason: CounterStyleRuleReason }` for a rule that defines nothing; `CounterStyleDescriptorDropped { name, descriptor, reason: CounterStyleDescriptorReason }` for a dropped declaration | C10G-API-SMALL | — |
+| `ControlStateHook<Ext>` = `fn(&Dom<Ext>, NodeId, ControlState) -> bool` | `-> Option<bool>` (`None`: the substrate's default answers); wrap answers in `Some`, a `_ => false` arm becomes `_ => None` | C11G-API | `control_state_hook_hints` |
 
 ### Breaking — `rdom-core`
 
@@ -252,6 +253,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Changed — `rdom-core`
 
+- **`ControlStateHook` returns `Option<bool>`**: `None` leaves a question to the substrate's default (the content attribute for `DefaultChecked` / `DefaultSelected`, else `false`), so a hook written before a `ControlState` question was added does not answer it `false`. Migration: `Some(answer)`, and `_ => None`. (C11G-API)
+- **`SelectorCaches` documents that it is one pass's**: hook-backed state (user validity, default checkedness, validity) moves no mutation epoch, so caches kept across frames go stale for it. (C11G-API)
 - **`Directionality`, `AttrCase` and `NthKind` are closed enums** (no `#[non_exhaustive]`): their specs fix them — `ltr` / `rtl` (HTML §3.2.6.4), no flag / `i` / `s` (Selectors 4 §6.3), the four child-indexed forms (§13.3–§13.4) — so a consumer matches them without a `_` arm. All three are new since 0.5. (C11G-DESIGN-TYPES)
 
 ### Fixed — `rdom-core`
@@ -541,6 +544,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **Phase 11's vocabularies at the root**: `TopLayerKind`, `Directionality`, `ControlState`, `AttrCase` and `PopoverState` are re-exported from `rdom_tui`, so `use rdom_tui::*;` names what `top_layer_kind`, `directionality`, `control_state`, an attribute selector's `case` and `popover_state` return. (C11G-API)
 - **`:has()` restyles when what it reads changes** (Selectors 4 §4.5): the cascade flags the elements a `:has()` was evaluated for; a change an argument can read — a class, id or attribute it tests, a state (`:has(:hover)`, `:has(:focus)`, `:has(:checked)`), any child-list change — restyles the flagged anchors among the changed element's ancestors and, for `+` / `~` arguments, their earlier siblings, and nothing else; without a `:has()` rule no change looks for anchors. (C11-HAS)
 - **An indeterminate checkbox**: activation clears its indeterminate flag with the flip, and a canceled click restores both (HTML §4.10.5.1.15); checking a radio restyles the other members of its group, whose `:indeterminate` it ends, and the `:has(:indeterminate)` anchors around them (the per-frame form-state marks, `FormStateMarks`, now track radio groups when an author sheet reads `:indeterminate`). (C11-FORM-STATES)
 - **The date-like `<input>` states check `min` / `max`**: `date`, `month`, `week`, `time` and `datetime-local` parse their `value` attribute, `min` and `max` with HTML §2.3.5's microsyntaxes (an unparsable value is no value), suffer `rangeUnderflow` / `rangeOverflow` — a `time` range whose `max` precedes its `min` wraps midnight — and match `:in-range` / `:out-of-range`; a `range` input always has range limitations. `validation::install` installs the control-state hook too (the defaults of `default_checked()` / `default_selected()`, the range states), and `set_default_checked` / `set_default_selected` restyle `:default`. (C11-FORM-STATES)

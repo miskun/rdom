@@ -35,6 +35,16 @@ use crate::node_id::NodeId;
 /// [`Dom::matches_list_with`](crate::Dom::matches_list_with) call of the
 /// pass; the matches come out the same with or without sharing it — only
 /// the work differs.
+///
+/// **One pass, not one frame.** The caches drop themselves when the
+/// `Dom`'s mutation epoch moves, which only a mutation record does
+/// (a tree, attribute, text or interaction change). State a backend keeps
+/// behind its hooks moves no epoch: a control's user validity, its
+/// default checkedness ([`ControlState`](crate::ControlState)), its
+/// constraint validity ([`Dom::set_validity_hook`](crate::Dom::set_validity_hook)).
+/// A `SelectorCaches` kept across frames therefore answers `:has()`
+/// arguments that read them (`form:has(:user-invalid)`, `:has(:invalid)`)
+/// and `:default` from before such a change. Make a new one per pass.
 #[derive(Debug, Default)]
 pub struct SelectorCaches {
     /// The `Dom` mutation epoch the entries were built under.

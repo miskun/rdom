@@ -1277,3 +1277,81 @@ fn dialog_show_hints() {
     let loose = dom.create_element("dialog");
     assert!(dialog::show_modal(&mut dom, loose).is_err());
 }
+
+/// C11-ATTR-FLAGS: `SimpleSelector::Attribute` gains `case: AttrCase` (the
+/// Selectors 4 §6.3 flag). Build it with `case: AttrCase::Default` — the
+/// 0.5 behaviour, HTML §4.16.2's case-insensitive list deciding — and
+/// match it with `{ name, op, value, .. }`.
+#[test]
+fn selector_hints() {
+    use core_api::selectors::{
+        AttrOp, ComplexSelector, CompoundSelector, SelectorList, SimpleSelector,
+    };
+    let attr = SimpleSelector::Attribute {
+        name: "type".into(),
+        op: Some(AttrOp::Exact),
+        value: Some("checkbox".into()),
+        case: AttrCase::Default,
+    };
+    let SimpleSelector::Attribute { ref name, .. } = attr else {
+        unreachable!("built as an attribute selector")
+    };
+    assert_eq!(name, "type");
+    let list = SelectorList(vec![ComplexSelector {
+        subject: CompoundSelector {
+            simples: vec![attr.clone()],
+        },
+        ancestors: Vec::new(),
+    }]);
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let input = dom.create_element("input");
+    dom.set_attribute(input, "type", "CheckBox").unwrap();
+    dom.append_child(root, input).unwrap();
+    assert!(dom.matches_list(input, &list), "`type` is case-insensitive");
+}
+
+/// C11G-API: a `ControlStateHook` returns `Option<bool>` — `None` for a
+/// question the backend does not keep, which the substrate's default then
+/// answers. A 0.5-era `bool` hook wraps its answers in `Some` and turns
+/// its `_ => false` arm into `_ => None`.
+#[test]
+fn control_state_hook_hints() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let check = dom.create_element("input");
+    dom.set_attribute(check, "type", "checkbox").unwrap();
+    dom.set_attribute(check, "checked", "").unwrap();
+    dom.append_child(root, check).unwrap();
+    let hook: core_api::ControlStateHook<TuiExt> = |_, _, state| match state {
+        ControlState::UserValidity => Some(false),
+        _ => None,
+    };
+    dom.set_control_state_hook(Some(hook));
+    assert!(dom.control_state(check, ControlState::DefaultChecked));
+    assert!(!dom.control_state(check, ControlState::UserValidity));
+}
+
+/// C11G-API: Phase 11's vocabularies are at the root — `TopLayerKind`,
+/// `Directionality`, `ControlState`, `AttrCase` and `PopoverState` — so
+/// `use rdom_tui::*;` names what `top_layer_kind`, `directionality`,
+/// `control_state`, an attribute selector and `popover_state` return.
+#[test]
+fn phase11_reexport_hints() {
+    use runtime::builtins::{dialog, popover};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("dialog");
+    dom.append_child(root, d).unwrap();
+    dialog::show_modal(&mut dom, d).unwrap();
+    let kind: Option<TopLayerKind> = dom.top_layer_kind(d);
+    assert_eq!(kind, Some(TopLayerKind::ModalDialog));
+    let dir: Directionality = dom.directionality(d);
+    assert_eq!(dir, Directionality::Ltr);
+    let p = dom.create_element("div");
+    dom.set_attribute(p, "popover", "hint").unwrap();
+    dom.append_child(root, p).unwrap();
+    let state: Option<PopoverState> = popover::popover_state(&dom, p);
+    assert_eq!(state, Some(PopoverState::Hint));
+    let _ = (ControlState::UserValidity, AttrCase::AsciiInsensitive);
+}

@@ -10,7 +10,9 @@ use crate::dom::Dom;
 use crate::node_id::NodeId;
 
 /// A question about one control's state the substrate asks its backend
-/// ([`Dom::set_control_state_hook`]).
+/// ([`Dom::set_control_state_hook`]). Open (`#[non_exhaustive]`): a hook
+/// answers `None` for a question it does not keep — one added after it
+/// was written included — and the substrate's default answers it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ControlState {
@@ -37,9 +39,11 @@ pub enum ControlState {
     UserValidity,
 }
 
-/// A backend's answer to a [`ControlState`] question about control `id`.
-/// Installed with [`Dom::set_control_state_hook`].
-pub type ControlStateHook<Ext> = fn(&Dom<Ext>, NodeId, ControlState) -> bool;
+/// A backend's answer to a [`ControlState`] question about control `id`:
+/// `Some(answer)`, or `None` to leave the question to the substrate's
+/// default (each variant documents it). Installed with
+/// [`Dom::set_control_state_hook`].
+pub type ControlStateHook<Ext> = fn(&Dom<Ext>, NodeId, ControlState) -> Option<bool>;
 
 /// Storage for the hook with a `Debug` impl.
 pub(crate) struct ControlStateSlot<Ext: 'static>(pub(crate) Option<ControlStateHook<Ext>>);
@@ -57,7 +61,8 @@ impl<Ext: 'static> std::fmt::Debug for ControlStateSlot<Ext> {
 impl<Ext: 'static> Dom<Ext> {
     /// Install (or remove, with `None`) the backend's answers to
     /// [`ControlState`] questions, behind `:default`, `:in-range`,
-    /// `:out-of-range`, `:user-valid` and `:user-invalid`. Without one, each question has the answer its
+    /// `:out-of-range`, `:user-valid` and `:user-invalid`. Without one — or
+    /// where the hook answers `None` — each question has the answer its
     /// variant documents: the defaults are the content attributes and no
     /// control has range limitations. rdom-tui's `App` installs its hook
     /// at construction; a bare `TuiDom` cascaded without an `App` calls
@@ -69,10 +74,15 @@ impl<Ext: 'static> Dom<Ext> {
 
 impl<Ext> Dom<Ext> {
     /// The backend's answer to `state` for `id`, or the substrate's
-    /// default without a hook (see each [`ControlState`] variant).
+    /// default without a hook or when the hook answers `None` (see each
+    /// [`ControlState`] variant).
     pub fn control_state(&self, id: NodeId, state: ControlState) -> bool {
-        if let Some(hook) = self.control_state_hook.0 {
-            return hook(self, id, state);
+        if let Some(answer) = self
+            .control_state_hook
+            .0
+            .and_then(|hook| hook(self, id, state))
+        {
+            return answer;
         }
         match state {
             ControlState::DefaultChecked => self.has_attribute(id, "checked"),

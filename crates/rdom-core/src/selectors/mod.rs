@@ -342,17 +342,15 @@ pub enum PseudoClass {
     /// content is empty. Used by UA rules to render the
     /// placeholder via `::before { content: attr(placeholder) }`.
     PlaceholderShown,
-    /// `:indeterminate` — matches elements in an indeterminate
-    /// state. In this v1 that means `<progress>` without a `value`
-    /// attribute; browsers also match indeterminate checkboxes
-    /// and orphan radio buttons, which we defer to polish (neither
-    /// has a concrete state model in rdom yet).
+    /// `:indeterminate` (Selectors 4 §14.4.3, HTML §4.16.3): a checkbox
+    /// whose indeterminate flag is set (reflected into the
+    /// `indeterminate` attribute), a radio whose radio button group has
+    /// no checked member, and a `<progress>` without a `value`
+    /// ([`Dom::is_indeterminate`](crate::Dom::is_indeterminate)).
     Indeterminate,
-    /// `:open` — matches elements with the `open` attribute
-    /// present. Covers `<details open>` and `<dialog open>` /
-    /// `<dialog data-rdom-open>`. Authors use it to style the
-    /// expanded state of disclosure widgets via CSS without having
-    /// to write attribute selectors themselves.
+    /// `:open` (Selectors 4, HTML §4.16.3): an element with the
+    /// `open` attribute — `<details open>` and an open `<dialog>`,
+    /// modal or not (`dialog::show` / `show_modal` set `open`).
     Open,
     /// `:disabled` — matches elements that are *actually disabled*
     /// (HTML §4.16.3): a form control with `disabled` or inside a
@@ -431,10 +429,17 @@ pub enum PseudoClass {
     /// `:popover-open` (Selectors 4 §11, HTML §4.16.3): an element whose
     /// popover is showing — in the top layer as a popover.
     PopoverOpen,
-    /// `:scope` (Selectors 4 §14.3) — the scoping root: an `@scope`
-    /// rule's root (CSS Cascade 6 §2.5) when matched through
-    /// [`Dom::matches_list_in_scope`](crate::Dom::matches_list_in_scope),
-    /// else `:root`. A nesting selector `&` with no parent rule is
+    /// `:scope` (Selectors 4 §14.3) — the scoping root. The query
+    /// methods set it as DOM §4.2.6 does: the node a
+    /// [`query_selector_in`](crate::Dom::query_selector_in) /
+    /// `query_selector_all_in` searches under, the element
+    /// [`matches`](crate::Dom::matches) / [`closest`](crate::Dom::closest)
+    /// is called on, and the document (rdom's root) for
+    /// `Dom::query_selector` / `query_selector_all`. In the cascade it is
+    /// an `@scope` rule's root (CSS Cascade 6 §2.5), through
+    /// [`Dom::matches_list_in_scope`](crate::Dom::matches_list_in_scope);
+    /// with no scoping root — [`Dom::matches_list`](crate::Dom::matches_list)
+    /// — it is `:root`. A nesting selector `&` with no parent rule is
     /// `:scope` too (CSS Nesting 1 §2).
     Scope,
 }
