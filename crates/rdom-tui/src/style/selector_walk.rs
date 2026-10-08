@@ -33,6 +33,23 @@ pub(crate) fn sheet_selectors(sheet: &Stylesheet) -> impl Iterator<Item = &Compl
     rules.chain(scopes)
 }
 
+/// [`sheet_selectors`] without the user-agent rules — for a check whose
+/// answer the UA's own rules are known not to need (each such caller
+/// pins that with a test of the UA sheet).
+pub(crate) fn author_selectors(sheet: &Stylesheet) -> impl Iterator<Item = &ComplexSelector> {
+    let rules = sheet
+        .rules()
+        .iter()
+        .filter(|r| r.origin != crate::style::RuleOrigin::UserAgent)
+        .flat_map(|r| r.selector.0.iter());
+    let scopes = sheet
+        .scopes()
+        .iter()
+        .flat_map(|s| s.start.iter().chain(s.end.iter()))
+        .flat_map(|list: &SelectorList| list.0.iter());
+    rules.chain(scopes)
+}
+
 /// `complex`'s compounds: the subject, then the ancestors right to left.
 pub(crate) fn compounds(complex: &ComplexSelector) -> impl Iterator<Item = &CompoundSelector> {
     std::iter::once(&complex.subject).chain(complex.ancestors.iter().map(|(_, c)| c))

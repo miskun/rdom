@@ -16,7 +16,8 @@
 //! 4. **scroll-focus marker** — move `data-rdom-scroll-focus` to the
 //!    container the keyboard scrolls (frames only);
 //! 5. **validity marks** — dirty the elements whose `:valid` /
-//!    `:invalid` flipped (`validation::ValidityMarks`);
+//!    `:invalid` or a radio group's `:indeterminate` flipped
+//!    (`validation::FormStateMarks`);
 //! 6. **caret blink** — flip the caret phase (a paint-only change);
 //! 7. **smooth scrolls** — step the scrolls in flight (frames only);
 //! 8. **painted check** — any scroll offset moved since the last paint
@@ -41,7 +42,7 @@ use crate::TuiDom;
 use crate::cssom::style_elements::StyleElements;
 use crate::runtime::builtins::input::ControlSeeding;
 use crate::runtime::builtins::select::Selectedness;
-use crate::runtime::builtins::validation::ValidityMarks;
+use crate::runtime::builtins::validation::FormStateMarks;
 use crate::runtime::caret_blink::CaretBlink;
 use crate::style::Stylesheet;
 use crate::style::dirty_tracker::DirtyTracker;
@@ -92,7 +93,7 @@ pub(super) struct FramePrelude {
     /// The element currently carrying `data-rdom-scroll-focus`.
     scroll_focus_marked: Option<NodeId>,
     /// Each element's `:valid` / `:invalid` state as of the last frame.
-    validity_marks: ValidityMarks,
+    validity_marks: FormStateMarks,
     /// Caret blink phase (`runtime::caret_blink`). Off unless enabled —
     /// `App::new` enables it at the default rate.
     pub(super) caret_blink: CaretBlink,
@@ -125,7 +126,7 @@ impl FramePrelude {
             registrations: crate::style::Stylesheet::bare(),
             registry: std::rc::Rc::default(),
             scroll_focus_marked: None,
-            validity_marks: ValidityMarks::default(),
+            validity_marks: FormStateMarks::default(),
             caret_blink: CaretBlink::new(None),
             smooth_scroll_next: None,
             touched: true,

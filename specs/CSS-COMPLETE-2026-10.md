@@ -229,7 +229,7 @@ row comes from.
 | C11-HAS | `:has()` with invalidation | done |
 | C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | done |
 | C11-SCOPE | `:scope` (query APIs and `@scope`) | done |
-| C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | partial — `:read-only` / `:read-write` done; `:indeterminate`, `:default`, `:in-range` / `:out-of-range`, `:user-valid` / `:user-invalid` remain |
+| C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | partial — `:read-only` / `:read-write`, `:indeterminate` done; `:default`, `:in-range` / `:out-of-range`, `:user-valid` / `:user-invalid` remain |
 | C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | |
 | C11-LINK-LANG | `:link` / `:any-link`, `:lang()` | done (with `:dir()`, deferred here by C5-WRITING, and `:visited` never matching) |
 | C11-COLUMN | Column combinator `\|\|` | moved to Phase 13 as C13-COLUMN: it selects the cells a column spans, which needs C13-TFC's real table columns |
@@ -7060,3 +7060,25 @@ row comes from.
   implementation was in). Mutation (the inherited `contenteditable` walk cut to the element itself,
   restored, touched): `read_write_follows_htmls_mutability_rules` fails. No snapshot or existing
   expectation changed.
+- 2026-10-14 — C11-FORM-STATES, part 2 of 4: `:indeterminate` (Selectors 4 §14.4.3, HTML §4.16.3) on checkboxes
+  and radio groups (the `<progress>` case was in). Decided — the checkbox's indeterminate flag stays reflected
+  into an `indeterminate` attribute, the storage `TuiAccessorsMut::set_indeterminate` already used: it is
+  rdom's model for live control state (`checked`, `value`, `selected` — DIVERGENCES §2, extended), and
+  attribute invalidation, `:has()` and serialization need nothing new. Activation clears it with the flip
+  and a canceled click restores both (HTML §4.10.5.1.15, `ToggleUndo::Checkbox { was_indeterminate }`); the
+  UA draws `[-] ` (one rule after `:checked`, UA count 178 → 179). A radio matches while its group has no
+  checked member (`Dom::is_indeterminate`; `SelectorCaches::radio_unchecked` answers a whole group per pass,
+  `CacheWork::radio_group_walks`). Invalidation: checking one radio changes its siblings' match with no
+  mutation on them, so the per-frame validity marks became `FormStateMarks` (bits per element: validity,
+  radio indeterminate), tracking radio groups only when an author sheet reads `:indeterminate` — the UA's
+  rule is checkbox-only (pinned: `the_uas_indeterminate_rules_are_checkbox_only`), so no App pays a walk for
+  it. Found and fixed on the way: the marks marked a flipped element with `mark_dirty`, around the
+  tracker's `:has()` walk, so `div:has(:invalid)` missed `set_custom_validity`; they now mark through
+  `DirtyTracker::mark_state_changed` (the state path). Red: the core tests failed to compile
+  (`is_indeterminate`, `radio_group_walks`) and, with those lines set aside, on `false` for an indeterminate
+  checkbox and the radio-pass assert; the toggle tests on the flag left set and `[ ]` painted; the App tests
+  with `Reset` for the group and the checkbox; the `:has(:invalid)` test with `Reset` (run against the old
+  `mark_dirty` path). Green after. Mutations (each alone, restored, touched): marks via `mark_dirty` →
+  `checking_a_radio_restyles_its_whole_group` (its `:has()` anchor) and the custom-validity test; no radio
+  tracking → the group test. Changed expectations: the UA rule count (one rule); the marks' one-walk test
+  reads the validity bit. No snapshot changed.

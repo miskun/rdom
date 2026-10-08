@@ -46,6 +46,9 @@ pub struct SelectorCaches {
     /// as a `:has()` anchor, has a match — and, for a plain descendant
     /// argument (`:has(.x)`), whether its subtree holds one.
     pub(super) has: HashMap<(usize, NodeId), bool>,
+    /// Per radio: whether its radio button group has no checked member
+    /// (`:indeterminate`), filled for a whole group at once.
+    pub(crate) radio_unchecked: HashMap<NodeId, bool>,
     /// The elements a `:has()` was evaluated for, in first-test order.
     has_anchors: Vec<NodeId>,
     has_anchor_set: HashSet<NodeId>,
@@ -61,6 +64,9 @@ pub struct CacheWork {
     pub nth_siblings: u64,
     /// Elements visited looking for `:has()` matches.
     pub has_nodes: u64,
+    /// Radio button groups gathered for `:indeterminate` — one per group
+    /// per pass.
+    pub radio_group_walks: u64,
 }
 
 /// Which siblings an nth index counts.
@@ -109,10 +115,15 @@ impl SelectorCaches {
             self.nth.clear();
             self.dir.clear();
             self.has.clear();
+            self.radio_unchecked.clear();
             self.has_anchors.clear();
             self.has_anchor_set.clear();
             self.epoch = Some(epoch);
         }
+    }
+
+    pub(crate) fn count_radio_group_walk(&mut self) {
+        self.work.radio_group_walks += 1;
     }
 
     /// Count one sibling visited while indexing.

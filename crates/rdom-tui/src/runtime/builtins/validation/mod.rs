@@ -38,7 +38,7 @@
 //!   canceled. [`validation_message`] is rdom's English message for the
 //!   first failing state (`messages`), `""` for a valid or barred control.
 //! - **Selectors** — [`install`] gives rdom-core's `:valid` /
-//!   `:invalid` their verdict; `ValidityMarks` (module `marks`) keeps
+//!   `:invalid` their verdict; `FormStateMarks` (module `marks`) keeps
 //!   them current in the App's incremental cascade.
 //! - **Submission** — `form::submit` runs `interactively_validate`
 //!   unless `SubmitDetail::no_validate` (the form's `novalidate`, the
@@ -58,7 +58,7 @@ use rdom_core::NodeId;
 
 use crate::{TuiDom, TuiEvent};
 
-pub(crate) use marks::ValidityMarks;
+pub(crate) use marks::FormStateMarks;
 pub(crate) use pattern::PatternCache;
 
 /// The validity states of a control (HTML `ValidityState`). Every flag
@@ -91,7 +91,7 @@ impl ValidityState {
 /// `App` construction calls it; a bare `TuiDom` that matches those
 /// pseudo-classes calls it once itself. The App also re-cascades the
 /// elements whose validity changed before each frame
-/// (`ValidityMarks`).
+/// (`FormStateMarks`).
 pub fn install(dom: &mut TuiDom) {
     dom.set_validity_hook(Some(satisfies));
 }

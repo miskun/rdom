@@ -40,12 +40,26 @@
 //! - `[type=checkbox]:checked::before{ content: "[x] " }`
 //! - `[type=radio]::before           { content: "( ) " }`
 //! - `[type=radio]:checked::before   { content: "(•) " }`
+//! - `[type=checkbox]:indeterminate::before { content: "[-] " }`
+//!
+//! ## Indeterminate
+//!
+//! A checkbox's indeterminate flag (HTML's `indeterminate` IDL
+//! attribute) is reflected into an `indeterminate` attribute, set by
+//! `TuiAccessorsMut::set_indeterminate`. Activation clears it with the
+//! flip and a canceled click restores both (HTML §4.10.5.1.15).
 
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
 use rdom_core::{ListenerOptions, NodeId};
 
 use crate::{TuiDom, TuiEvent};
+
+/// The attribute rdom reflects a checkbox's indeterminate flag (the
+/// `indeterminate` IDL attribute, which HTML keeps as element state)
+/// into, as it reflects checkedness into `checked`: what
+/// `:indeterminate` and the accessors read (DIVERGENCES §2).
+const INDETERMINATE: &str = "indeterminate";
 
 /// Install the checkbox/radio default actions: the Dom's activation
 /// hook (click → flip before dispatch, `input` + `change` or revert
@@ -169,8 +183,9 @@ pub fn install(dom: &mut TuiDom) {
 /// What `revert` needs to undo a pre-activation flip.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ToggleUndo {
-    /// Checkbox flipped; `revert` flips it back.
-    Checkbox,
+    /// Checkbox flipped and its indeterminate flag cleared; `revert`
+    /// flips it back and restores the flag.
+    Checkbox { was_indeterminate: bool },
     /// Radio checked; the group member that was checked before, if any.
     Radio { previously_checked: Option<NodeId> },
     /// Click on an already-checked radio: no state change.
@@ -209,7 +224,13 @@ fn pre_activate(dom: &mut TuiDom, widget: NodeId) -> ToggleUndo {
     } else {
         let _ = dom.set_attribute(widget, "checked", "");
     }
-    ToggleUndo::Checkbox
+    // HTML §4.10.5.1.15: "set its indeterminate IDL attribute to false"
+    // (reflected into the `indeterminate` attribute, DIVERGENCES §2).
+    let was_indeterminate = dom.node(widget).has_attribute(INDETERMINATE);
+    if was_indeterminate {
+        let _ = dom.remove_attribute(widget, INDETERMINATE);
+    }
+    ToggleUndo::Checkbox { was_indeterminate }
 }
 
 /// Record the widget's current checkedness as its `defaultChecked`
@@ -246,11 +267,14 @@ pub(crate) fn reset_to_default(dom: &mut TuiDom, widget: NodeId) {
 fn revert(dom: &mut TuiDom, widget: NodeId, undo: ToggleUndo) {
     match undo {
         ToggleUndo::Nothing => {}
-        ToggleUndo::Checkbox => {
+        ToggleUndo::Checkbox { was_indeterminate } => {
             if dom.node(widget).has_attribute("checked") {
                 let _ = dom.remove_attribute(widget, "checked");
             } else {
                 let _ = dom.set_attribute(widget, "checked", "");
+            }
+            if was_indeterminate {
+                let _ = dom.set_attribute(widget, INDETERMINATE, "");
             }
         }
         ToggleUndo::Radio { previously_checked } => {

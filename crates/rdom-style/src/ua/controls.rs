@@ -307,6 +307,14 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             "input[type=checkbox]:checked::before",
             TuiStyle::new().content(Content::Str("[x] ".into())),
         ),
+        // HTML §4.10.5.1.15: an indeterminate checkbox's selection is
+        // "obscured as if the control was in a third, indeterminate,
+        // state" — a dash, over either checkedness (later, so it wins
+        // the equal-specificity contest with `:checked`).
+        (
+            "input[type=checkbox]:indeterminate::before",
+            TuiStyle::new().content(Content::Str("[-] ".into())),
+        ),
         (
             "input[type=radio]::before",
             TuiStyle::new().content(Content::Str("( ) ".into())),

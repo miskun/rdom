@@ -1,88 +1,117 @@
-//! Keeps `:valid` / `:invalid` current in the App's incremental cascade.
+//! Keeps the form-state pseudo-classes current in the App's incremental
+//! cascade: `:valid` / `:invalid`, and a radio group's `:indeterminate`.
 //!
 //! The selector engine asks the validity hook at match time, so a query
 //! is always current. The cascade, though, only re-matches the subtrees
-//! the `DirtyTracker` saw mutate, and validity can change without a
-//! cascade-dirtying mutation: a textarea's text edit (character data),
-//! `set_custom_validity` (no mutation at all), checking one radio of a
-//! required group (its siblings), any control of a form or fieldset
-//! (the ancestor's `:invalid`). Before each frame's cascade,
-//! [`ValidityMarks::flush`] recomputes the validity of every candidate,
-//! form and fieldset and marks the ones that flipped since the last
-//! frame dirty — only when some stylesheet uses `:valid` / `:invalid`,
-//! which the UA sheet does not.
+//! the `DirtyTracker` saw mutate, and these states can change without a
+//! cascade-dirtying mutation on the element: a textarea's text edit
+//! (character data), `set_custom_validity` (no mutation at all), checking
+//! one radio of a group (its siblings' `:indeterminate`, and their
+//! `:invalid` when the group is required), any control of a form or
+//! fieldset (the ancestor's `:invalid`). Before each frame's cascade,
+//! [`FormStateMarks::flush`] recomputes these states for every element
+//! that has one and marks the ones that flipped since the last frame —
+//! through the tracker's state path, so a `:has()` anchor reading them
+//! is restyled too — and only for the states some stylesheet reads:
+//! validity when a sheet uses `:valid` / `:invalid`, which the UA sheet
+//! does not; radio `:indeterminate` when an author sheet uses
+//! `:indeterminate` (the UA's own rule is for checkboxes, whose flag is
+//! an attribute — pinned by `the_uas_indeterminate_rules_are_checkbox_only`).
 //!
 //! Cost (`P7G-IDLE-WALKS-1`): the App flushes only after code that can
-//! change validity ran (an event, a timer, an injected closure,
+//! change a state ran (an event, a timer, an injected closure,
 //! `dom_mut()`), so an idle tick pays nothing. A flush is one tree
-//! walk: each candidate's validity is computed once (radio groups once
-//! per group, [`RadioGroups`]), and form / fieldset verdicts are derived
-//! from the invalid candidates — a form is invalid when a candidate it
-//! owns is, a fieldset when a descendant candidate is — rather than by
-//! a walk per form or fieldset (the same verdicts
-//! `Dom::constraint_validity` gives, pinned by a test). Whether a sheet
-//! uses the pseudo-classes is cached until the stylesheets change
-//! ([`ValidityMarks::sheets_changed`]).
+//! walk: each candidate's validity is computed once and radio groups
+//! once per group ([`RadioGroups`]), and form / fieldset verdicts are
+//! derived from the invalid candidates — a form is invalid when a
+//! candidate it owns is, a fieldset when a descendant candidate is —
+//! rather than by a walk per form or fieldset (the same verdicts
+//! `Dom::constraint_validity` gives, pinned by a test). Which states the
+//! sheets read is cached until the stylesheets change
+//! ([`FormStateMarks::sheets_changed`]).
 
 use std::collections::HashMap;
 
 use rdom_core::selectors::{PseudoClass, SimpleSelector};
-use rdom_core::{NodeId, NodeType};
+use rdom_core::{InputTypeState, NodeId, NodeType};
 
 use super::states::{RadioGroups, compute_in};
 use crate::TuiDom;
 use crate::style::{DirtyTracker, Stylesheet};
 
-/// The `:valid` / `:invalid` state of every element that has one, as of
-/// the last frame's cascade.
+/// One element's tracked states, as bits.
+type States = u8;
+/// The element has a `:valid` / `:invalid` state.
+const HAS_VALIDITY: States = 1;
+/// … and it is `:valid`.
+const VALID: States = 1 << 1;
+/// A radio whose group has no checked member (`:indeterminate`).
+const INDETERMINATE: States = 1 << 2;
+
+/// Which tracked states the stylesheets read.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct Reads {
+    validity: bool,
+    indeterminate: bool,
+}
+
+impl Reads {
+    fn any(self) -> bool {
+        self.validity || self.indeterminate
+    }
+}
+
+/// The tracked states of every element that has one, as of the last
+/// frame's cascade.
 #[derive(Debug, Default)]
-pub(crate) struct ValidityMarks {
-    last: HashMap<NodeId, bool>,
+pub(crate) struct FormStateMarks {
+    last: HashMap<NodeId, States>,
     /// The map the next flush fills, kept to reuse its allocation.
-    scratch: HashMap<NodeId, bool>,
-    /// `last` holds the state a cascade saw. Until then (first frame,
-    /// or no validity rule before) there is nothing to compare with.
+    scratch: HashMap<NodeId, States>,
+    /// `last` holds the states a cascade saw. Until then (first frame,
+    /// or no tracked state read before) there is nothing to compare with.
     primed: bool,
-    /// Whether some stylesheet uses `:valid` / `:invalid`; `None` until
-    /// computed, and again after [`Self::sheets_changed`].
-    uses_validity: Option<bool>,
+    /// What the stylesheets read; `None` until computed, and again after
+    /// [`Self::sheets_changed`].
+    reads: Option<Reads>,
     radio_groups: RadioGroups,
 }
 
-impl ValidityMarks {
-    /// The stylesheets changed: recompute whether they use `:valid` /
-    /// `:invalid` on the next flush.
+impl FormStateMarks {
+    /// The stylesheets changed: recompute what they read on the next
+    /// flush.
     pub(crate) fn sheets_changed(&mut self) {
-        self.uses_validity = None;
+        self.reads = None;
     }
 
-    /// Mark every element whose `:valid` / `:invalid` state changed
-    /// since the previous flush style-dirty. Run before the frame takes
-    /// its dirty roots. Returns whether it walked the tree.
+    /// Mark every element whose tracked state changed since the
+    /// previous flush style-dirty. Run before the frame takes its dirty
+    /// roots. Returns whether it walked the tree.
     pub(crate) fn flush<'s>(
         &mut self,
         dom: &mut TuiDom,
         tracker: &DirtyTracker,
         sheets: impl IntoIterator<Item = &'s Stylesheet>,
     ) -> bool {
-        let uses = *self
-            .uses_validity
-            .get_or_insert_with(|| sheets.into_iter().any(uses_validity));
-        if !uses {
+        let reads = *self.reads.get_or_insert_with(|| reads_of(sheets));
+        if !reads.any() {
             self.last.clear();
             self.primed = false;
             return false;
         }
         let mut now = std::mem::take(&mut self.scratch);
-        current(dom, &mut now, &mut self.radio_groups);
+        current(dom, reads, &mut now, &mut self.radio_groups);
         if self.primed {
-            let changed: Vec<NodeId> = now
+            let changed: Vec<NodeId> = self
+                .last
                 .iter()
-                .filter(|(id, v)| self.last.get(id) != Some(v))
+                .filter(|(id, v)| now.get(id) != Some(v))
                 .map(|(&id, _)| id)
+                .chain(now.keys().filter(|id| !self.last.contains_key(id)).copied())
+                .filter(|&id| dom.contains(id) && dom.node(id).is_connected())
                 .collect();
             for id in changed {
-                tracker.mark_dirty(dom, id);
+                tracker.mark_state_changed(dom, id);
             }
         }
         self.scratch = std::mem::replace(&mut self.last, now);
@@ -92,9 +121,24 @@ impl ValidityMarks {
     }
 }
 
-/// Fill `out` with `Dom::constraint_validity` of every connected element
-/// that has one, in one walk (see the module doc).
-fn current(dom: &TuiDom, out: &mut HashMap<NodeId, bool>, groups: &mut RadioGroups) {
+/// What `sheets` read of the tracked states.
+fn reads_of<'s>(sheets: impl IntoIterator<Item = &'s Stylesheet>) -> Reads {
+    let mut reads = Reads::default();
+    for sheet in sheets {
+        reads.validity |= uses_validity(sheet);
+        reads.indeterminate |= uses_radio_indeterminate(sheet);
+    }
+    reads
+}
+
+/// Fill `out` with the tracked states of every connected element that
+/// has one, in one walk (see the module doc).
+fn current(
+    dom: &TuiDom,
+    reads: Reads,
+    out: &mut HashMap<NodeId, States>,
+    groups: &mut RadioGroups,
+) {
     out.clear();
     groups.clear();
     let mut invalid = Vec::new();
@@ -105,25 +149,36 @@ fn current(dom: &TuiDom, out: &mut HashMap<NodeId, bool>, groups: &mut RadioGrou
         if node.node_type() != NodeType::Element {
             continue;
         }
-        match node.tag_name() {
-            Some("form" | "fieldset") => {
-                out.insert(id, true);
-            }
-            _ if dom.will_validate(id) => {
-                let valid = compute_in(dom, id, groups).valid();
-                out.insert(id, valid);
-                if !valid {
-                    invalid.push(id);
+        let mut states = 0;
+        if reads.validity {
+            match node.tag_name() {
+                Some("form" | "fieldset") => states |= HAS_VALIDITY | VALID,
+                _ if dom.will_validate(id) => {
+                    states |= HAS_VALIDITY;
+                    if compute_in(dom, id, groups).valid() {
+                        states |= VALID;
+                    } else {
+                        invalid.push(id);
+                    }
                 }
+                _ => {}
             }
-            _ => {}
+        }
+        if reads.indeterminate
+            && dom.input_type_state(id) == Some(InputTypeState::Radio)
+            && groups.unchecked(dom, id)
+        {
+            states |= INDETERMINATE;
+        }
+        if states != 0 {
+            out.insert(id, states);
         }
     }
     for c in invalid {
         if let Some(form) = dom.form_owner(c)
             && let Some(v) = out.get_mut(&form)
         {
-            *v = false;
+            *v &= !VALID;
         }
         let mut up = dom.node(c).parent_node().map(|p| p.id());
         while let Some(a) = up {
@@ -131,7 +186,7 @@ fn current(dom: &TuiDom, out: &mut HashMap<NodeId, bool>, groups: &mut RadioGrou
             if node.tag_name() == Some("fieldset")
                 && let Some(v) = out.get_mut(&a)
             {
-                *v = false;
+                *v &= !VALID;
             }
             up = node.parent_node().map(|p| p.id());
         }
@@ -149,6 +204,18 @@ pub(super) fn uses_validity(sheet: &Stylesheet) -> bool {
                 s,
                 SimpleSelector::Pseudo(PseudoClass::Valid | PseudoClass::Invalid)
             )
+        })
+    })
+}
+
+/// Whether an author selector of `sheet` mentions `:indeterminate`,
+/// which a radio's group decides. The UA's rules are left out: they use
+/// it on checkboxes only, whose flag is an attribute the tracker sees.
+fn uses_radio_indeterminate(sheet: &Stylesheet) -> bool {
+    use crate::style::selector_walk::{any_simple, author_selectors};
+    author_selectors(sheet).any(|c| {
+        any_simple(c, &|s| {
+            matches!(s, SimpleSelector::Pseudo(PseudoClass::Indeterminate))
         })
     })
 }
@@ -230,7 +297,11 @@ mod tests {
         el(&mut dom, root, "textarea", &[]);
 
         let mut out = HashMap::new();
-        current(&dom, &mut out, &mut RadioGroups::default());
+        let reads = Reads {
+            validity: true,
+            indeterminate: false,
+        };
+        current(&dom, reads, &mut out, &mut RadioGroups::default());
         let mut all = Vec::new();
         let mut stack = vec![root];
         while let Some(id) = stack.pop() {
@@ -239,16 +310,42 @@ mod tests {
         }
         let mut checked = 0;
         for id in all {
-            assert_eq!(out.get(&id).copied(), dom.constraint_validity(id), "{id:?}");
+            let verdict = out.get(&id).map(|&v| v & VALID != 0);
+            assert_eq!(verdict, dom.constraint_validity(id), "{id:?}");
             checked += usize::from(out.contains_key(&id));
         }
         assert!(
             checked > 10,
             "the fixture exercises the verdicts: {checked}"
         );
-        assert_eq!(out.get(&f1), Some(&false));
-        assert_eq!(out.get(&f2), Some(&false));
-        assert_eq!(out.get(&quiet), Some(&true));
-        assert_eq!(out.get(&inner), Some(&false));
+        let valid = |id| out.get(&id).map(|&v| v & VALID != 0);
+        assert_eq!(valid(f1), Some(false));
+        assert_eq!(valid(f2), Some(false));
+        assert_eq!(valid(quiet), Some(true));
+        assert_eq!(valid(inner), Some(false));
+    }
+
+    /// The module doc's claim: every UA rule that reads `:indeterminate`
+    /// is a checkbox rule, so radio groups need no tracking for the UA.
+    #[test]
+    fn the_uas_indeterminate_rules_are_checkbox_only() {
+        use crate::style::RuleOrigin;
+        let sheet = Stylesheet::new();
+        let ua: Vec<_> = sheet
+            .rules()
+            .iter()
+            .filter(|r| r.origin == RuleOrigin::UserAgent)
+            .filter(|r| r.source_text.contains(":indeterminate"))
+            .collect();
+        assert!(!ua.is_empty(), "the UA has an `:indeterminate` rule");
+        for rule in ua {
+            assert!(
+                rule.source_text
+                    .starts_with("input[type=checkbox]:indeterminate"),
+                "{}",
+                rule.source_text
+            );
+        }
+        assert!(!uses_radio_indeterminate(&sheet));
     }
 }

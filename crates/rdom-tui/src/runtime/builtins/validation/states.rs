@@ -16,6 +16,8 @@ use crate::runtime::builtins::{input, select};
 #[derive(Debug, Default)]
 pub(super) struct RadioGroups {
     missing: std::collections::HashMap<NodeId, bool>,
+    /// Per radio: its group has no checked member (`:indeterminate`).
+    unchecked: std::collections::HashMap<NodeId, bool>,
 }
 
 impl RadioGroups {
@@ -31,9 +33,24 @@ impl RadioGroups {
         m
     }
 
+    /// Whether `id`'s radio group has no checked member — what
+    /// `:indeterminate` matches on a radio (HTML §4.16.3).
+    pub(super) fn unchecked(&mut self, dom: &TuiDom, id: NodeId) -> bool {
+        if let Some(&u) = self.unchecked.get(&id) {
+            return u;
+        }
+        let group = dom.radio_group(id);
+        let u = !group.iter().any(|&r| dom.node(r).has_attribute("checked"));
+        for r in group {
+            self.unchecked.insert(r, u);
+        }
+        u
+    }
+
     /// Forget the verdicts (the tree may have changed).
     pub(super) fn clear(&mut self) {
         self.missing.clear();
+        self.unchecked.clear();
     }
 }
 

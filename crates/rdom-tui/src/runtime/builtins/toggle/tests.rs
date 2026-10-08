@@ -547,3 +547,78 @@ fn uppercase_checkbox_type_toggles_and_gets_the_ua_glyph() {
         "the UA `input[type=checkbox]` rules match an uppercase type"
     );
 }
+
+// ── Checkbox: indeterminate ────────────────────────────────────────
+
+/// HTML §4.10.5.1.15: a checkbox's legacy-pre-activation behavior sets
+/// its checkedness to the opposite *and its indeterminate flag to
+/// false* (rdom reflects the flag into the `indeterminate` attribute).
+#[test]
+fn click_clears_a_checkboxs_indeterminate_flag() {
+    let (mut app, cb) = checkbox_app();
+    app.dom_mut()
+        .set_attribute(cb, "indeterminate", "")
+        .unwrap();
+    app.draw_if_dirty().unwrap();
+    click_at(&mut app, 1, 0);
+    assert!(app.dom().node(cb).has_attribute("checked"));
+    assert!(!app.dom().node(cb).has_attribute("indeterminate"));
+}
+
+/// HTML §4.10.5.1.15 legacy-canceled-activation behavior: a canceled
+/// click restores checkedness *and* the indeterminate flag.
+#[test]
+fn a_canceled_click_restores_the_indeterminate_flag() {
+    let (mut app, cb) = checkbox_app();
+    app.dom_mut()
+        .set_attribute(cb, "indeterminate", "")
+        .unwrap();
+    app.dom_mut()
+        .add_event_listener(cb, "click", ListenerOptions::default(), |ctx| {
+            assert!(
+                !ctx.dom
+                    .node(ctx.event.target.unwrap())
+                    .has_attribute("indeterminate"),
+                "listeners see the flag already cleared"
+            );
+            ctx.event.prevent_default();
+        })
+        .unwrap();
+    app.draw_if_dirty().unwrap();
+    click_at(&mut app, 1, 0);
+    assert!(!app.dom().node(cb).has_attribute("checked"));
+    assert!(app.dom().node(cb).has_attribute("indeterminate"));
+}
+
+/// HTML §4.10.5.1.15: with the indeterminate flag set, "the control's
+/// selection should be obscured as if the control was in a third,
+/// indeterminate, state" — the UA glyph is `[-]`, whatever `checked`
+/// says.
+#[test]
+fn an_indeterminate_checkbox_renders_a_dash() {
+    use crate::prelude::*;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    for checked in [false, true] {
+        let cb = dom.create_element("input");
+        dom.set_attribute(cb, "type", "checkbox").unwrap();
+        dom.set_attribute(cb, "indeterminate", "").unwrap();
+        if checked {
+            dom.set_attribute(cb, "checked", "").unwrap();
+        }
+        dom.append_child(root, cb).unwrap();
+        let br = dom.create_element("br");
+        dom.append_child(root, br).unwrap();
+    }
+    let area = crate::render::Rect::new(0, 0, 10, 2);
+    dom.cascade(&Stylesheet::new());
+    dom.layout_dom(area);
+    let mut buf = crate::render::Buffer::empty(area);
+    dom.paint_dom(&mut buf, area);
+    for y in 0..2 {
+        let row: String = (0..10)
+            .filter_map(|x| buf.cell(x, y).map(|c| c.symbol().to_string()))
+            .collect();
+        assert_eq!(row.trim_end(), "[-]", "row {y}");
+    }
+}

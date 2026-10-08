@@ -73,19 +73,7 @@ impl<Ext> Dom<Ext> {
                 })
                 .unwrap_or(false),
             PseudoClass::PlaceholderShown => self.is_placeholder_shown(id),
-            PseudoClass::Indeterminate => self
-                .get_node(id)
-                .map(|n| match &n.data {
-                    NodeData::Element { tag, attrs, .. } => {
-                        // v1: only `<progress>` without `value`
-                        // attribute. Checkbox `indeterminate` IDL
-                        // property + orphan radios deferred to
-                        // polish.
-                        tag == "progress" && !attrs.contains_key("value")
-                    }
-                    _ => false,
-                })
-                .unwrap_or(false),
+            PseudoClass::Indeterminate => self.indeterminate_with(id, cx.caches),
             PseudoClass::Open => self
                 .get_node(id)
                 .map(|n| match &n.data {

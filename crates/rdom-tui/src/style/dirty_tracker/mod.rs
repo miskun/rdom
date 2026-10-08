@@ -96,6 +96,7 @@ use crate::ext::TuiExt;
 use crate::style::has_triggers::HasTriggers;
 use crate::style::sibling_triggers::SiblingTriggers;
 
+use crate::style::sibling_triggers::Cause;
 use marks::mark_style_dirty;
 use observe::Shim;
 
@@ -298,6 +299,16 @@ impl DirtyTracker {
     pub fn mark_dirty(&self, dom: &mut Dom<TuiExt>, id: NodeId) {
         let mut state = self.inner.borrow_mut();
         mark_style_dirty(dom, &mut state, id);
+    }
+
+    /// `id`'s own selector state changed where no mutation record says
+    /// so (a validity verdict, a radio group's `:indeterminate`): mark it
+    /// as an interaction change is marked — its subtree, its siblings
+    /// when a `+` / `~` reads state, and the `:has()` anchors that read
+    /// state above it.
+    pub(crate) fn mark_state_changed(&self, dom: &mut Dom<TuiExt>, id: NodeId) {
+        let mut state = self.inner.borrow_mut();
+        marks::mark_state_dirty(dom, &mut state, id, Cause::State);
     }
 }
 
