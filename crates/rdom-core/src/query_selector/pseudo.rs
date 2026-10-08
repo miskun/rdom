@@ -1,28 +1,28 @@
 //! The pseudo-classes without an argument (Selectors 4 §8–§14).
 
+use super::matcher::Cx;
 use crate::dom::Dom;
 use crate::node::NodeData;
 use crate::node_id::NodeId;
 use crate::selectors::PseudoClass;
 
 impl<Ext> Dom<Ext> {
-    pub(super) fn match_pseudo(&self, id: NodeId, p: PseudoClass, scope: Option<NodeId>) -> bool {
+    pub(super) fn match_pseudo(&self, id: NodeId, p: PseudoClass, cx: &mut Cx<'_>) -> bool {
         let Some(node) = self.get_node(id) else {
             return false;
         };
         match p {
-            PseudoClass::FirstChild => {
-                // No previous *element* sibling.
-                self.prev_element_sibling_id(id).is_none() && node.parent.is_some()
-            }
-            PseudoClass::LastChild => {
-                self.next_element_sibling_id(id).is_none() && node.parent.is_some()
-            }
+            // Selectors 4 §13.3.3–§13.3.5: Level 4 drops the parent requirement — an
+            // element without a parent is its first and last child.
+            PseudoClass::FirstChild => self.prev_element_sibling_id(id).is_none(),
+            PseudoClass::LastChild => self.next_element_sibling_id(id).is_none(),
             PseudoClass::OnlyChild => {
-                node.parent.is_some()
-                    && self.prev_element_sibling_id(id).is_none()
+                self.prev_element_sibling_id(id).is_none()
                     && self.next_element_sibling_id(id).is_none()
             }
+            PseudoClass::FirstOfType => self.type_position(id, cx).is_some_and(|(s, _)| s == 1),
+            PseudoClass::LastOfType => self.type_position(id, cx).is_some_and(|(_, e)| e == 1),
+            PseudoClass::OnlyOfType => self.type_position(id, cx) == Some((1, 1)),
             PseudoClass::Empty => {
                 // Selectors 4 §14.2: no element children and no text
                 // children with non-empty data — comments and zero-length
@@ -44,7 +44,7 @@ impl<Ext> Dom<Ext> {
             }
             PseudoClass::Root => id == self.root(),
             // Selectors 4 §14.3: the scoping root; with none, `:root`.
-            PseudoClass::Scope => id == scope.unwrap_or_else(|| self.root()),
+            PseudoClass::Scope => id == cx.scope.unwrap_or_else(|| self.root()),
             // Selectors 4 §9.2 / §9.4 / §13.3: `:hover`, `:active` and
             // `:focus-within` match the element holding the state and
             // every ancestor of it (the flat tree is the node tree:

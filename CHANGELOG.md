@@ -211,6 +211,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-core`
 
+- **`:nth-child()` and its family** (Selectors 4 §13.3–§13.4): `:nth-child(An+B [of S])`, `:nth-last-child()`, `:nth-of-type()`, `:nth-last-of-type()` (the new `SimpleSelector::Nth(NthSelector)`, with `NthKind` and `NthSelector::matches_index`), and `:first-of-type` / `:last-of-type` / `:only-of-type` (new `PseudoClass` variants), over the whole An+B microsyntax of CSS Syntax 3 §6.2 (`odd`, `even`, `-n+3`, `2n + 1`, …). Matching is linear in a sibling list's length: `Dom::matches_list_with(id, list, scope, &mut SelectorCaches)` shares a pass's nth-index cache across its elements (the query APIs use one per call), dropped by any mutation; `SelectorCaches::work()` (`CacheWork`) counts what it did. (C11-NTH)
 - **Attribute selector case flags** (Selectors 4 §6.3): `[data-k="x" i]` compares the value ASCII case-insensitively, `[type="a" s]` exactly — overriding HTML §4.16.2's case-insensitive attributes either way — for every value operator; the flag is ASCII case-insensitive (`AttrCase`). (C11-ATTR-FLAGS)
 - **The Custom Highlight API data model** (CSS Custom Highlight API 1 §3–§4): `Highlight` (a set of `Range`s with a `priority` and a `HighlightType`), the document's `HighlightRegistry` (`CSS.highlights`: `set` / `get` / `has` / `delete` / `clear` / `iter`, in registration order) through `Dom::highlights` / `highlights_mut`, which fires the new `Mutation::HighlightsChanged`. A registered range is live (DOM §5.3): `edit_text` / `set_data` ("replace data"), insertions and removals move its boundary points as a browser's `Range`. (C10-HIGHLIGHT)
 - **Selectors decode CSS escapes** (CSS Syntax 3 §4.3.7) in names and attribute values: `.\31 0` matches class `10`. The decoder is the new public module `rdom_core::css_syntax` (`consume_escape`, `consume_ident`, `consume_string`, `would_start_ident`, …), shared with rdom-style's tokenizer. (C1-ESCAPES)
@@ -225,6 +226,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 ### Fixed — `rdom-core`
 
 - **Pseudo-class names are ASCII case-insensitive** (Selectors 4 §3.1): `a:HOVER` is `a:hover`. (C1-CASE)
+- **`:first-child` / `:last-child` / `:only-child` match an element without a parent** (Selectors 4 §13.3, Level 4 drops the parent requirement), as `:nth-child(1)` does. (C11-NTH)
 - **Live highlight ranges follow a `DocumentFragment` insertion** (DOM §4.2.3 "insert" step 4): a range inside the fragment's children moves to `(fragment, 0)` as they leave it; and appending, or inserting or removing where no boundary is, walks no siblings while a highlight is registered. (C10G-HIGHLIGHT-COST)
 
 ### Breaking — `rdom-style`
@@ -497,6 +499,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **The cascade restyles `:nth-*()` matches**: a pass shares one `SelectorCaches` across its elements, so a long list styled by `:nth-child()` is indexed once per pass, and a sibling's change of what an `:nth-child(… of S)`'s `S` reads (a class, an attribute) restyles its siblings — an inserted or removed child already restyled its parent's children. (C11-NTH)
 - **The list and counter types are at the root, and the prelude names the common ones**: `CounterStyle`, `CounterStyleName`, `CounterOp`, `ListStyleType`, `ListStylePosition`, `ListStyleImage`, `MarkerSide` and `Length` are reachable as `rdom_tui::X` (they were `rdom_tui::style::…` / `rdom_tui::layout::…`), rdom-style's `counters` module (`System`, `CounterStyleRule`, …) as `rdom_tui::style::counters`, and `rdom_tui::prelude` adds `Highlight`, `CounterStyle`, `ListStyleType` and `ListStylePosition`, so `.list_style_type(ListStyleType::Style(CounterStyle::named("upper-roman")))` needs one import. (C10G-MIGRATION)
 - **`::before:hover` and friends match** (Selectors 4 §3.6.3): the `App` keeps which pseudo-element the pointer is over and which one is pressed, found by the new `HitTestExt::hit_test_pseudo(x, y) -> Option<(NodeId, PseudoSlot)>`, and restyles their hosts when they change — only while one of its sheets has such a rule. `UserActionState` is re-exported at the crate root. (C10-PSEUDO-CHAINS)
 - **`<details>` content is slotted into `::details-content`** (HTML §15.5.20): `TuiExt::computed_details_content`; every child but the first `<summary>` inherits from the slot, and the slot hides that content while the element is closed or the slot is `display: none`. (C10-DETAILS-CONTENT)

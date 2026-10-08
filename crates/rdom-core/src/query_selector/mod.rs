@@ -19,8 +19,13 @@ use crate::node_id::NodeId;
 use crate::selectors::{self, ParseError, SelectorList};
 
 mod attribute;
+pub(crate) mod caches;
 mod matcher;
+mod nth;
 mod pseudo;
+
+pub use caches::{CacheWork, SelectorCaches};
+use matcher::Cx;
 #[cfg(test)]
 mod tests;
 
@@ -47,13 +52,14 @@ impl<Ext> Dom<Ext> {
         selector: &str,
     ) -> Result<Option<NodeId>, ParseError> {
         let list = selectors::parse(selector)?;
+        let mut caches = SelectorCaches::new();
         let mut found = None;
         self.walk_descendants(root_id, &mut |id, data| {
             if found.is_some() {
                 return;
             }
             if let NodeData::Element { .. } = data
-                && self.matches_list(id, &list)
+                && self.matches_list_with(id, &list, None, &mut caches)
             {
                 found = Some(id);
             }
@@ -71,9 +77,12 @@ impl<Ext> Dom<Ext> {
         selector: &str,
     ) -> Result<Vec<NodeId>, ParseError> {
         let list = selectors::parse(selector)?;
+        let mut caches = SelectorCaches::new();
         let mut out = Vec::new();
         self.walk_descendants(root_id, &mut |id, data| {
-            if matches!(data, NodeData::Element { .. }) && self.matches_list(id, &list) {
+            if matches!(data, NodeData::Element { .. })
+                && self.matches_list_with(id, &list, None, &mut caches)
+            {
                 out.push(id);
             }
         });
@@ -90,12 +99,13 @@ impl<Ext> Dom<Ext> {
     /// that matches `selector`. `None` if none does.
     pub fn closest(&self, id: NodeId, selector: &str) -> Result<Option<NodeId>, ParseError> {
         let list = selectors::parse(selector)?;
+        let mut caches = SelectorCaches::new();
         let mut cur = Some(id);
         while let Some(c) = cur {
             if matches!(
                 self.get_node(c).map(|n| &n.data),
                 Some(NodeData::Element { .. })
-            ) && self.matches_list(c, &list)
+            ) && self.matches_list_with(c, &list, None, &mut caches)
             {
                 return Ok(Some(c));
             }
@@ -123,8 +133,23 @@ impl<Ext> Dom<Ext> {
         list: &SelectorList,
         scope: Option<NodeId>,
     ) -> bool {
-        list.0
-            .iter()
-            .any(|complex| self.matches_complex(id, complex, scope))
+        self.matches_list_with(id, list, scope, &mut SelectorCaches::new())
+    }
+
+    /// [`Self::matches_list_in_scope`] with the caches of the matching
+    /// pass this call belongs to ([`SelectorCaches`]): a cascade or a
+    /// query matching many elements shares one, so `:nth-child()` and
+    /// its family index each sibling list once per pass instead of
+    /// counting siblings per element. The result is the same with fresh
+    /// caches.
+    pub fn matches_list_with(
+        &self,
+        id: NodeId,
+        list: &SelectorList,
+        scope: Option<NodeId>,
+        caches: &mut SelectorCaches,
+    ) -> bool {
+        caches.sync(self.mutation_epoch);
+        self.matches_list_cx(id, list, &mut Cx { scope, caches })
     }
 }

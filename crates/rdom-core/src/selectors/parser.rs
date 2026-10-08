@@ -18,9 +18,9 @@ pub fn parse(input: &str) -> Result<SelectorList, ParseError> {
 }
 
 pub(super) struct Parser<'a> {
-    src: &'a str,
-    bytes: &'a [u8],
-    pos: usize,
+    pub(super) src: &'a str,
+    pub(super) bytes: &'a [u8],
+    pub(super) pos: usize,
     /// The selector list `&` stands for (CSS Nesting 1 §2), when the
     /// text is a nested rule's selector; `&` is an error otherwise.
     nest: Option<&'a SelectorList>,
@@ -77,7 +77,7 @@ impl<'a> Parser<'a> {
         ParseError { msg, pos: self.pos }
     }
 
-    fn expect(&mut self, want: u8, ctx: &str) -> Result<(), ParseError> {
+    pub(super) fn expect(&mut self, want: u8, ctx: &str) -> Result<(), ParseError> {
         match self.peek() {
             Some(b) if b == want => {
                 self.pos += 1;
@@ -91,7 +91,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_selector_list(&mut self) -> Result<SelectorList, ParseError> {
+    pub(super) fn parse_selector_list(&mut self) -> Result<SelectorList, ParseError> {
         let mut items = Vec::new();
         loop {
             self.skip_ws();
@@ -118,7 +118,7 @@ impl<'a> Parser<'a> {
     /// complex selector is dropped, the others stand, and an empty list
     /// is valid (it matches nothing). Stops before the closing `)`; only
     /// a missing `)` is an error.
-    fn parse_forgiving_list(&mut self) -> Result<SelectorList, ParseError> {
+    pub(super) fn parse_forgiving_list(&mut self) -> Result<SelectorList, ParseError> {
         let mut items = Vec::new();
         loop {
             self.skip_ws();
@@ -402,73 +402,10 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_pseudo(&mut self) -> Result<SimpleSelector, ParseError> {
-        self.expect(b':', "pseudo-class")?;
-        // Reject pseudo-elements (`::before` etc.) — reserved.
-        if self.peek() == Some(b':') {
-            return Err(self.err("pseudo-elements are not supported yet".to_string()));
-        }
-        let name = self.parse_ident();
-        if name.is_empty() {
-            return Err(self.err("expected pseudo-class name".to_string()));
-        }
-        // Pseudo-class names are ASCII case-insensitive (Selectors 4
-        // §3.1, CSS Values 4 §2.1).
-        match name.to_ascii_lowercase().as_str() {
-            "not" => {
-                self.expect(b'(', ":not")?;
-                self.skip_ws();
-                let inner = self.parse_selector_list()?;
-                self.skip_ws();
-                self.expect(b')', ":not")?;
-                Ok(SimpleSelector::Not(Box::new(inner)))
-            }
-            "is" => {
-                self.expect(b'(', ":is")?;
-                let inner = self.parse_forgiving_list()?;
-                self.expect(b')', ":is")?;
-                Ok(SimpleSelector::Is(Box::new(inner)))
-            }
-            "where" => {
-                self.expect(b'(', ":where")?;
-                self.skip_ws();
-                let inner = self.parse_selector_list()?;
-                self.skip_ws();
-                self.expect(b')', ":where")?;
-                Ok(SimpleSelector::Where(Box::new(inner)))
-            }
-            "first-child" => Ok(SimpleSelector::Pseudo(PseudoClass::FirstChild)),
-            "last-child" => Ok(SimpleSelector::Pseudo(PseudoClass::LastChild)),
-            "only-child" => Ok(SimpleSelector::Pseudo(PseudoClass::OnlyChild)),
-            "empty" => Ok(SimpleSelector::Pseudo(PseudoClass::Empty)),
-            "root" => Ok(SimpleSelector::Pseudo(PseudoClass::Root)),
-            "scope" => {
-                self.scope_seen = true;
-                Ok(SimpleSelector::Pseudo(PseudoClass::Scope))
-            }
-            "hover" => Ok(SimpleSelector::Pseudo(PseudoClass::Hover)),
-            "active" => Ok(SimpleSelector::Pseudo(PseudoClass::Active)),
-            "focus" => Ok(SimpleSelector::Pseudo(PseudoClass::Focus)),
-            "focus-within" => Ok(SimpleSelector::Pseudo(PseudoClass::FocusWithin)),
-            "focus-visible" => Ok(SimpleSelector::Pseudo(PseudoClass::FocusVisible)),
-            "checked" => Ok(SimpleSelector::Pseudo(PseudoClass::Checked)),
-            "placeholder-shown" => Ok(SimpleSelector::Pseudo(PseudoClass::PlaceholderShown)),
-            "indeterminate" => Ok(SimpleSelector::Pseudo(PseudoClass::Indeterminate)),
-            "open" => Ok(SimpleSelector::Pseudo(PseudoClass::Open)),
-            "disabled" => Ok(SimpleSelector::Pseudo(PseudoClass::Disabled)),
-            "enabled" => Ok(SimpleSelector::Pseudo(PseudoClass::Enabled)),
-            "valid" => Ok(SimpleSelector::Pseudo(PseudoClass::Valid)),
-            "invalid" => Ok(SimpleSelector::Pseudo(PseudoClass::Invalid)),
-            "required" => Ok(SimpleSelector::Pseudo(PseudoClass::Required)),
-            "optional" => Ok(SimpleSelector::Pseudo(PseudoClass::Optional)),
-            other => Err(self.err(format!("unsupported pseudo-class `:{other}`"))),
-        }
-    }
-
     /// §4.3.11 "consume an ident sequence", escapes decoded (§4.3.7).
     /// The selector grammar is lenient about the start (`.10` is class
     /// `10`), so this does not check §4.3.9.
-    fn parse_ident(&mut self) -> String {
+    pub(super) fn parse_ident(&mut self) -> String {
         let (name, used) = css_syntax::consume_ident(&self.src[self.pos..]);
         self.pos += used;
         name

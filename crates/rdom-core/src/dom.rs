@@ -124,6 +124,10 @@ pub struct Dom<Ext: 'static = ()> {
     /// Re-entrancy guard: true while an observer callback is running.
     /// Mutations attempted during that window panic with a clear message.
     pub(crate) is_observing: bool,
+    /// Bumped by every mutation record (`fire_mutation`), observed or
+    /// not: selector caches built under one value are stale under any
+    /// other (`SelectorCaches`).
+    pub(crate) mutation_epoch: u64,
 }
 
 impl<Ext: Default> Default for Dom<Ext> {
@@ -156,6 +160,7 @@ impl<Ext: Default> Dom<Ext> {
             highlights: crate::HighlightRegistry::default(),
             observers: ObserverStore::default(),
             is_observing: false,
+            mutation_epoch: 0,
             activation_hook: crate::dispatch::ActivationSlot(None),
             validity_hook: crate::constraint::ValiditySlot(None),
             document_data: Default::default(),
@@ -284,6 +289,7 @@ impl<Ext: Default> Dom<Ext> {
             highlights: crate::HighlightRegistry::default(),
             observers: ObserverStore::default(),
             is_observing: false,
+            mutation_epoch: 0,
             activation_hook: crate::dispatch::ActivationSlot(None),
             validity_hook: crate::constraint::ValiditySlot(None),
             document_data: Default::default(),

@@ -405,7 +405,7 @@ fn is_arguments_are_forgiving() {
 }
 
 /// Selectors 4 §6.3: the case flag is part of the attribute selector,
-/// and adds nothing to its specificity (§17).
+/// and adds nothing to its specificity (§15).
 #[test]
 fn attribute_case_flag_parses_into_the_selector() {
     let flag = |src: &str| match &parse(src).unwrap().0[0].subject.simples[0] {

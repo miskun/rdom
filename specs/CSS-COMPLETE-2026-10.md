@@ -227,7 +227,7 @@ row comes from.
 | C11-ATTR-FLAGS | Attribute selector case flags `i` / `s` | done |
 | C11-IS | `:is()` | done (landed early as C1G-IS-PARSE) |
 | C11-HAS | `:has()` with invalidation | |
-| C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | |
+| C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | done |
 | C11-SCOPE | `:scope` (query APIs and `@scope`) | |
 | C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | |
 | C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | |
@@ -6919,3 +6919,33 @@ row comes from.
   implementation was in). Mutation (both flags made to defer to the HTML list, restored, touched): the
   matcher test and the sheet test fail. Changed tests: the two parser tests that build or destructure
   `Attribute` gained `case` / `..` (API shape, no expectation). No snapshot changed.
+- 2026-10-14 — C11-NTH (Phase 11 cites Selectors 4 by the W3C WD of 2022-11-11, where child-indexed
+  pseudo-classes are §13.3, typed ones §13.4, specificity §15; older citations in the code follow an earlier
+  draft's numbering — §17 specificity, §14.x the structural pseudo-classes): `:nth-child(An+B [of S])`, `:nth-last-child()`, `:nth-of-type()`, `:nth-last-of-type()`
+  (Selectors 4 §13.3–§13.4; `SimpleSelector::Nth(Box<NthSelector>)`, `NthKind`, specificity one pseudo-class
+  plus `S`'s most specific, §15) and `:first-of-type` / `:last-of-type` / `:only-of-type` (`PseudoClass` variants).
+  An+B (CSS Syntax 3 §6.2) is scanned from the text in `selectors/anb.rs`, token shapes kept: white space
+  allowed around a binary sign and before `of`, none between a sign or coefficient and its `n` (`+ n`, `2 n`
+  rejected), `odd` / `even` / `n` ASCII case-insensitive, terms clamped to `i32`. The pseudo-class parsing
+  moved to `selectors/pseudo_parser.rs` (`parser.rs` would have passed 500). Matching cost: a per-pass
+  nth-index cache (`rdom_core::SelectorCaches`, `query_selector/caches.rs`), as Blink's / Servo's — the first
+  match under a parent indexes all its children for that kind of count (every element, per type, or per `of
+  S` list keyed by the list's address), later matches read it. `Dom::matches_list_with(id, list, scope,
+  &mut caches)` is the pass API (`matches_list_in_scope` uses fresh caches); the query APIs share one per
+  call; rdom-tui's `matching::Scratch` holds one per cascade pass, threaded through `scope::match_rule`.
+  Safety: `Dom::mutation_epoch` moves with every mutation record (observed or not), and caches built under
+  another epoch are dropped before use. Invalidation: a child-list change already marks every child of the
+  parent (once per drain), which covers indices moving at either end — not the document; an `of S` reads
+  its siblings' state, so `SiblingTriggers` records `S`'s compounds as left-of-sibling compounds wherever the
+  `:nth-*()` sits, and a class / attribute change `S` reads marks the parent's children. Decided — Selectors
+  4 §13.3 (Level 4) lets a parentless element match: it is index 1 of 1, and `:first-child` / `:last-child` /
+  `:only-child`, which required a parent, now match one too (a Fixed bullet). Red: the rdom-core matching
+  tests failed with "unsupported pseudo-class `:nth-child`", the counting test to compile (no
+  `caches::probe`), the rdom-tui integration tests on `selector_walk`'s unknown-selector assert, the
+  parentless test with `:first-child` → `Ok(false)`; green after. Mutations (each alone, restored, touched):
+  no cache reuse in rdom-core → `nth_matching_over_a_long_sibling_list_is_linear` (2000 siblings); no epoch
+  guard → `selector_caches_do_not_outlive_a_mutation`; fresh caches per rule in rdom-tui →
+  `cost_tests::nth_child_over_a_long_list_indexes_it_once_per_pass`; no `of S` trigger →
+  `nth_of_s_reads_what_s_reads` and `css_phase11/nth.rs::a_sibling_matching_of_s_or_not_restyles_the_others`.
+  The counting test's bound counts child nodes (the list interleaves text nodes): 4002 steps for 2000
+  elements on first run, bound set to 3N. No existing expectation or snapshot changed.

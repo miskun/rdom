@@ -97,6 +97,7 @@ pub use node_list::NodeList;
 pub use node_or_string::NodeOrString;
 pub use observer::{InteractionKind, Mutation, MutationObserver, ObserverId};
 pub use position::DocumentPosition;
+pub use query_selector::{CacheWork, SelectorCaches};
 pub use selection::{Position, Range, Selection, SelectionSerial};
 pub use token_list::{DomTokenList, DomTokenListMut};
 pub use traversal::Descendants;

@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use rdom_core::{Dom, NodeId, NodeType};
+use rdom_core::{Dom, NodeId, NodeType, SelectorCaches};
 
 use crate::ext::TuiExt;
 use crate::style::{Rule, Stylesheet};
@@ -55,12 +55,17 @@ pub(super) fn match_rule(
     sheet: SheetRef<'_>,
     rule: &Rule,
     memo: &mut ScopeMemo,
+    caches: &mut SelectorCaches,
 ) -> Option<u32> {
     match rule.scope {
-        None => dom.matches_list(id, &rule.selector).then_some(UNSCOPED),
-        Some(scope) => roots_of(dom, id, sheet, scope, memo)
+        None => dom
+            .matches_list_with(id, &rule.selector, None, caches)
+            .then_some(UNSCOPED),
+        Some(scope) => roots_of(dom, id, sheet, scope, memo, caches)
             .iter()
-            .find(|(root, _)| counted(dom.matches_list_in_scope(id, &rule.selector, Some(*root))))
+            .find(|(root, _)| {
+                counted(dom.matches_list_with(id, &rule.selector, Some(*root), caches))
+            })
             .map(|(_, hops)| *hops),
     }
 }
@@ -74,24 +79,25 @@ fn roots_of(
     sheet: SheetRef<'_>,
     scope: ScopeId,
     memo: &mut ScopeMemo,
+    caches: &mut SelectorCaches,
 ) -> Roots {
     let key = (sheet.index, scope, node);
     if let Some(roots) = memo.roots.get(&key) {
         return roots.clone();
     }
     let above = match dom.node(node).parent_node().map(|p| p.id()) {
-        Some(parent) => roots_of(dom, parent, sheet, scope, memo),
+        Some(parent) => roots_of(dom, parent, sheet, scope, memo, caches),
         None => Rc::from([]),
     };
     let mut roots = Vec::with_capacity(above.len() + 1);
-    if is_root(dom, node, sheet, scope, memo) {
+    if is_root(dom, node, sheet, scope, memo, caches) {
         roots.push((node, 0));
     }
     let end = sheet.sheet.scopes()[scope.index()].end.as_ref();
     for &(root, hops) in above.iter() {
         // `node` is a scoping limit for `root`: out of its scope.
         let limit =
-            end.is_some_and(|end| counted(dom.matches_list_in_scope(node, end, Some(root))));
+            end.is_some_and(|end| counted(dom.matches_list_with(node, end, Some(root), caches)));
         if !limit {
             roots.push((root, hops + 1));
         }
@@ -108,6 +114,7 @@ fn is_root(
     sheet: SheetRef<'_>,
     scope: ScopeId,
     memo: &mut ScopeMemo,
+    caches: &mut SelectorCaches,
 ) -> bool {
     let key = (sheet.index, scope, node);
     if let Some(&known) = memo.is_root.get(&key) {
@@ -121,16 +128,20 @@ fn is_root(
         None => {
             node == implicit_root(dom, s.owner_in(sheet.sheet))
                 && s.parent
-                    .is_none_or(|outer| !roots_of(dom, node, sheet, outer, memo).is_empty())
+                    .is_none_or(|outer| !roots_of(dom, node, sheet, outer, memo, caches).is_empty())
         }
         Some(start) => {
             dom.node(node).node_type() == NodeType::Element
                 && match s.parent {
-                    None => counted(dom.matches_list(node, start)),
+                    None => counted(dom.matches_list_with(node, start, None, caches)),
                     // Matched with each enclosing root as `:scope`.
-                    Some(outer) => roots_of(dom, node, sheet, outer, memo)
-                        .iter()
-                        .any(|(r, _)| counted(dom.matches_list_in_scope(node, start, Some(*r)))),
+                    Some(outer) => {
+                        roots_of(dom, node, sheet, outer, memo, caches)
+                            .iter()
+                            .any(|(r, _)| {
+                                counted(dom.matches_list_with(node, start, Some(*r), caches))
+                            })
+                    }
                 }
         }
     };

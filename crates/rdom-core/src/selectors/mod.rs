@@ -9,6 +9,9 @@
 //! - Combinators: descendant (space), child `>`, adjacent `+`, general `~`
 //! - Pseudo-classes: `:not(selector)`, `:where(selector-list)`,
 //!   `:first-child`, `:last-child`, `:only-child`, `:empty`, `:root`,
+//!   `:nth-child(An+B [of S])`, `:nth-last-child()`, `:nth-of-type()`,
+//!   `:nth-last-of-type()`, `:first-of-type`, `:last-of-type`,
+//!   `:only-of-type` (the An+B microsyntax of CSS Syntax 3 §6),
 //!   plus the interaction pseudos (`:hover`, `:focus`, `:focus-within`, …)
 //!   and the form-state pseudos (`:checked`, `:disabled`, `:enabled`,
 //!   `:valid`, `:invalid`, `:required`, `:optional`, …)
@@ -35,7 +38,7 @@
 //! any author rule overrides freely.
 //!
 //! Not supported yet (reserved for later phases):
-//! - `:nth-child(an+b)`, `:has(...)`, namespaces, pseudo-elements
+//! - `:has(...)`, namespaces, pseudo-elements
 //!   (`::before`, `::after`).
 
 use std::fmt;
@@ -129,6 +132,17 @@ fn add_compound_specificity(abc: &mut (u16, u16, u16), compound: &CompoundSelect
                 abc.1 += b;
                 abc.2 += c;
             }
+            // Selectors 4 §15: a pseudo-class, plus its `of S` list's
+            // most specific selector.
+            SimpleSelector::Nth(nth) => {
+                abc.1 += 1;
+                if let Some(of) = &nth.of {
+                    let (a, b, c) = of.max_specificity();
+                    abc.0 += a;
+                    abc.1 += b;
+                    abc.2 += c;
+                }
+            }
         }
     }
 }
@@ -168,6 +182,52 @@ pub enum SimpleSelector {
     Where(Box<SelectorList>),
     /// Structural pseudo-classes.
     Pseudo(PseudoClass),
+    /// `:nth-child()` / `:nth-last-child()` / `:nth-of-type()` /
+    /// `:nth-last-of-type()` (Selectors 4 §13.3.1–§13.3.2, §13.4.1–§13.4.2).
+    Nth(Box<NthSelector>),
+}
+
+/// An `:nth-*()` pseudo-class (Selectors 4 §13.3–§13.4): it matches an
+/// element whose 1-based index among the siblings [`NthKind`] counts is
+/// `a·n + b` for some integer `n >= 0`.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct NthSelector {
+    /// Which siblings count, from which end.
+    pub kind: NthKind,
+    /// `A` of `An+B` (CSS Syntax 3 §6).
+    pub a: i32,
+    /// `B` of `An+B`.
+    pub b: i32,
+    /// `of S` (`:nth-child` / `:nth-last-child` only): only the siblings
+    /// matching `S` count, and the element must match `S` itself.
+    pub of: Option<SelectorList>,
+}
+
+impl NthSelector {
+    /// Whether the 1-based `index` is `a·n + b` for some `n >= 0`.
+    pub fn matches_index(&self, index: u32) -> bool {
+        let (a, b, i) = (i64::from(self.a), i64::from(self.b), i64::from(index));
+        if a == 0 {
+            return i == b;
+        }
+        let steps = i - b;
+        steps % a == 0 && steps / a >= 0
+    }
+}
+
+/// The siblings an [`NthSelector`] counts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum NthKind {
+    /// `:nth-child()`: element siblings, from the first.
+    Child,
+    /// `:nth-last-child()`: element siblings, from the last.
+    LastChild,
+    /// `:nth-of-type()`: siblings of the element's type, from the first.
+    OfType,
+    /// `:nth-last-of-type()`: siblings of its type, from the last.
+    LastOfType,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -208,6 +268,12 @@ pub enum PseudoClass {
     FirstChild,
     LastChild,
     OnlyChild,
+    /// `:first-of-type` — `:nth-of-type(1)` (Selectors 4 §13.4.3).
+    FirstOfType,
+    /// `:last-of-type` — `:nth-last-of-type(1)` (Selectors 4 §13.4.4).
+    LastOfType,
+    /// `:only-of-type` — both (Selectors 4 §13.4.5).
+    OnlyOfType,
     Empty,
     Root,
     /// `:hover` — matches the Dom's currently-hovered node (tracked via
@@ -308,8 +374,10 @@ impl fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 
+mod anb;
 mod nesting;
 mod parser;
+mod pseudo_parser;
 #[cfg(test)]
 mod tests;
 

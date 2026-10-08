@@ -8,7 +8,8 @@
 //!   rule selectors but decide which elements a scoped rule styles;
 //! - inside each, every complex selector nested in a `:not()` / `:is()`
 //!   / `:where()` argument (`SimpleSelector::Is` is also the nesting
-//!   selector `&`, CSS Nesting 1 §2).
+//!   selector `&`, CSS Nesting 1 §2) and in an `:nth-child(… of S)`'s
+//!   `S`.
 //!
 //! `SimpleSelector` is `#[non_exhaustive]` and defined in rdom-core: a
 //! variant this module does not know answers "yes" (the conservative
@@ -44,6 +45,7 @@ pub(crate) fn argument(simple: &SimpleSelector) -> Result<Option<&SelectorList>,
         SimpleSelector::Not(list) | SimpleSelector::Is(list) | SimpleSelector::Where(list) => {
             Ok(Some(list))
         }
+        SimpleSelector::Nth(nth) => Ok(nth.of.as_ref()),
         SimpleSelector::Universal
         | SimpleSelector::Type(_)
         | SimpleSelector::Id(_)

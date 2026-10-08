@@ -235,6 +235,7 @@ impl<Ext: 'static> Dom<Ext> {
     /// re-entrancy is detected even while an observer is taken out of
     /// its slot for its own call.
     pub(crate) fn fire_mutation(&mut self, record: Mutation) {
+        self.mutation_epoch = self.mutation_epoch.wrapping_add(1);
         if self.is_observing {
             panic!(
                 "rdom-core: mutation attempted inside MutationObserver callback: {:?}. \

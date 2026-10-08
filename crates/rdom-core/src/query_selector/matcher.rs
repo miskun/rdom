@@ -2,20 +2,37 @@
 //! each compound's simple selectors in turn.
 
 use super::attribute::match_attribute;
+use super::caches::SelectorCaches;
 use crate::dom::Dom;
 use crate::node::NodeData;
 use crate::node_id::NodeId;
-use crate::selectors::{self, Combinator, CompoundSelector, PseudoClass, SimpleSelector};
+use crate::selectors::{
+    self, Combinator, CompoundSelector, PseudoClass, SelectorList, SimpleSelector,
+};
+
+/// What one match reads beyond the tree: the scoping root `:scope`
+/// matches (Selectors 4 §14.3) and the pass's caches.
+pub(super) struct Cx<'c> {
+    pub scope: Option<NodeId>,
+    pub caches: &'c mut SelectorCaches,
+}
 
 impl<Ext> Dom<Ext> {
+    /// Whether `id` matches any complex selector of `list`.
+    pub(super) fn matches_list_cx(&self, id: NodeId, list: &SelectorList, cx: &mut Cx<'_>) -> bool {
+        list.0
+            .iter()
+            .any(|complex| self.matches_complex(id, complex, cx))
+    }
+
     pub(super) fn matches_complex(
         &self,
         id: NodeId,
         complex: &selectors::ComplexSelector,
-        scope: Option<NodeId>,
+        cx: &mut Cx<'_>,
     ) -> bool {
         // Subject must match.
-        if !self.matches_compound(id, &complex.subject, scope) {
+        if !self.matches_compound(id, &complex.subject, cx) {
             return false;
         }
         // Walk ancestors/siblings per combinator. Each step's "candidate
@@ -28,7 +45,7 @@ impl<Ext> Dom<Ext> {
                     let mut anc = self.get_node(cur).and_then(|n| n.parent);
                     let mut matched = None;
                     while let Some(a) = anc {
-                        if self.matches_compound(a, compound, scope) {
+                        if self.matches_compound(a, compound, cx) {
                             matched = Some(a);
                             break;
                         }
@@ -43,7 +60,7 @@ impl<Ext> Dom<Ext> {
                     let Some(parent) = self.get_node(cur).and_then(|n| n.parent) else {
                         return false;
                     };
-                    if !self.matches_compound(parent, compound, scope) {
+                    if !self.matches_compound(parent, compound, cx) {
                         return false;
                     }
                     cur = parent;
@@ -52,7 +69,7 @@ impl<Ext> Dom<Ext> {
                     let Some(prev) = self.get_node(cur).and_then(|n| n.prev_sibling) else {
                         return false;
                     };
-                    if !self.matches_compound(prev, compound, scope) {
+                    if !self.matches_compound(prev, compound, cx) {
                         return false;
                     }
                     cur = prev;
@@ -61,7 +78,7 @@ impl<Ext> Dom<Ext> {
                     let mut sib = self.get_node(cur).and_then(|n| n.prev_sibling);
                     let mut matched = None;
                     while let Some(s) = sib {
-                        if self.matches_compound(s, compound, scope) {
+                        if self.matches_compound(s, compound, cx) {
                             matched = Some(s);
                             break;
                         }
@@ -77,12 +94,7 @@ impl<Ext> Dom<Ext> {
         true
     }
 
-    fn matches_compound(
-        &self,
-        id: NodeId,
-        compound: &CompoundSelector,
-        scope: Option<NodeId>,
-    ) -> bool {
+    fn matches_compound(&self, id: NodeId, compound: &CompoundSelector, cx: &mut Cx<'_>) -> bool {
         let Some(node) = self.get_node(id) else {
             return false;
         };
@@ -96,7 +108,7 @@ impl<Ext> Dom<Ext> {
             // A non-element is matched only as the scoping root — the
             // document, for a prelude-less `@scope` in a sheet with no
             // owner node (CSS Cascade 6 §2.5.1).
-            return scope == Some(id) && compound.simples.iter().all(names_only_scope);
+            return cx.scope == Some(id) && compound.simples.iter().all(names_only_scope);
         };
         for s in &compound.simples {
             match s {
@@ -127,7 +139,7 @@ impl<Ext> Dom<Ext> {
                     }
                 }
                 SimpleSelector::Not(inner) => {
-                    if self.matches_list_in_scope(id, inner, scope) {
+                    if self.matches_list_cx(id, inner, cx) {
                         return false;
                     }
                 }
@@ -135,12 +147,17 @@ impl<Ext> Dom<Ext> {
                     // `:is()` matching — any complex selector in the list must
                     // match this element as its subject. Specificity (zero for
                     // `:where()`) is `ComplexSelector::specificity`'s.
-                    if !self.matches_list_in_scope(id, inner, scope) {
+                    if !self.matches_list_cx(id, inner, cx) {
                         return false;
                     }
                 }
                 SimpleSelector::Pseudo(p) => {
-                    if !self.match_pseudo(id, *p, scope) {
+                    if !self.match_pseudo(id, *p, cx) {
+                        return false;
+                    }
+                }
+                SimpleSelector::Nth(nth) => {
+                    if !self.matches_nth(id, nth, cx) {
                         return false;
                     }
                 }

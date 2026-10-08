@@ -79,7 +79,9 @@ value       := token+
   (`[lang]`, `[lang="en"]`, `~=`, `|=`, `^=`, `$=`, `*=`, the `i` / `s` case
   flags), pseudo-classes
   (`:hover`, `:active`, `:focus`, `:not(...)`, `:first-child`, `:last-child`,
-  `:only-child`, `:empty`, `:root`, `:checked`, `:indeterminate`,
+  `:only-child`, `:nth-child(An+B [of S])`, `:nth-last-child()`, `:nth-of-type()`,
+  `:nth-last-of-type()`, `:first-of-type`, `:last-of-type`, `:only-of-type`,
+  `:empty`, `:root`, `:checked`, `:indeterminate`,
   `:open`, `:is(...)`, `:where(...)`, …), pseudo-elements (`::before`, `::after`, `::marker`,
   `::first-line`, `::first-letter`, `::selection`, `::highlight(name)`, `::details-content`, `::backdrop`,
   the nested `::before::marker` / `::after::marker`; the CSS 2.1 spellings

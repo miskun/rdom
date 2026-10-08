@@ -342,7 +342,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 ### Selectors
 
 - `:has()` — C11-HAS
-- `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` — C11-NTH
 - `:scope` as the scoping root of the query APIs (`query_selector_in`, `matches`, `closest`); in `@scope` and stylesheets it ships — C11-SCOPE
 - `:indeterminate` on checkboxes and radio groups, `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` — C11-FORM-STATES
 - `:modal`, the `popover` attribute and `:popover-open` — C11-MODAL-POPOVER

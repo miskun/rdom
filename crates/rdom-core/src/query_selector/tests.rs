@@ -917,3 +917,231 @@ fn attribute_case_flags_reject_what_the_grammar_does_not_allow() {
     }
     assert_eq!(dom.matches(p, "[a=bi]"), Ok(true));
 }
+
+// ─── :nth-child() and the structural family (C11-NTH) ───────────────
+
+/// A parent `ul` with `tags.len()` element children, interleaved with
+/// text and comment nodes (which never count), and the children.
+fn nth_list(tags: &[&str]) -> (Dom, Vec<NodeId>) {
+    let mut dom: Dom = Dom::new();
+    let ul = dom.create_element("ul");
+    dom.append_child(dom.root(), ul).unwrap();
+    let mut kids = Vec::new();
+    for (i, tag) in tags.iter().enumerate() {
+        let t = dom.create_text_node(" ");
+        dom.append_child(ul, t).unwrap();
+        let (tag, class) = tag.split_once('.').unwrap_or((tag, ""));
+        let el = dom.create_element(tag);
+        dom.set_attribute(el, "id", &format!("k{}", i + 1)).unwrap();
+        if !class.is_empty() {
+            dom.add_class(el, class).unwrap();
+        }
+        dom.append_child(ul, el).unwrap();
+        kids.push(el);
+    }
+    let c = dom.create_comment("c");
+    dom.append_child(ul, c).unwrap();
+    (dom, kids)
+}
+
+/// The 1-based positions (in `kids`) of the children matching `sel`.
+fn nth_matches(dom: &Dom, kids: &[NodeId], sel: &str) -> Vec<usize> {
+    kids.iter()
+        .enumerate()
+        .filter(|(_, k)| {
+            dom.matches(**k, sel)
+                .unwrap_or_else(|e| panic!("{sel}: {e}"))
+        })
+        .map(|(i, _)| i + 1)
+        .collect()
+}
+
+/// CSS Syntax 3 §6.2: the An+B microsyntax — `odd` / `even`, an
+/// integer, `n` with or without a coefficient, the signs and the white
+/// space the grammar allows, ASCII case-insensitive. Selectors 4 §13.3.1:
+/// `:nth-child(An+B)` matches the element whose 1-based index among its
+/// element siblings is `An+B` for some `n >= 0`.
+#[test]
+fn nth_child_parses_every_an_plus_b_form() {
+    let (dom, kids) = nth_list(&["li"; 10]);
+    let all: Vec<usize> = (1..=10).collect();
+    for (arg, want) in [
+        ("odd", vec![1, 3, 5, 7, 9]),
+        ("ODD", vec![1, 3, 5, 7, 9]),
+        ("even", vec![2, 4, 6, 8, 10]),
+        ("3", vec![3]),
+        ("+3", vec![3]),
+        ("-3", vec![]),
+        ("0", vec![]),
+        ("n", all.clone()),
+        ("+n", all.clone()),
+        ("N", all.clone()),
+        ("-n+3", vec![1, 2, 3]),
+        ("-N+3", vec![1, 2, 3]),
+        ("2n", vec![2, 4, 6, 8, 10]),
+        ("2N+1", vec![1, 3, 5, 7, 9]),
+        (" 2n + 1 ", vec![1, 3, 5, 7, 9]),
+        ("2n+ 1", vec![1, 3, 5, 7, 9]),
+        ("2n +1", vec![1, 3, 5, 7, 9]),
+        ("2n- 1", vec![1, 3, 5, 7, 9]),
+        ("2n -1", vec![1, 3, 5, 7, 9]),
+        ("2n-1", vec![1, 3, 5, 7, 9]),
+        ("n-1", all.clone()),
+        ("+n-2", all.clone()),
+        ("-n-1", vec![]),
+        ("-n- 1", vec![]),
+        ("-2n+5", vec![1, 3, 5]),
+        ("0n+2", vec![2]),
+        ("3n-6", vec![3, 6, 9]),
+        ("10n-1", vec![9]),
+        ("n- 2", all.clone()),
+        ("+4", vec![4]),
+        ("007", vec![7]),
+    ] {
+        assert_eq!(
+            nth_matches(&dom, &kids, &format!(":nth-child({arg})")),
+            want,
+            ":nth-child({arg})"
+        );
+    }
+}
+
+/// CSS Syntax 3 §6.2: what the An+B grammar rejects — white space
+/// between a sign and `n` or between the coefficient and `n`, a sign
+/// after a sign, a non-integer, a trailing sign, `of` without a list.
+#[test]
+fn nth_child_rejects_what_the_an_plus_b_grammar_does_not_allow() {
+    let (dom, kids) = nth_list(&["li"]);
+    for arg in [
+        "- n", "+ n", "2 n", "n + -1", "n - +1", "2.5n", "1.0", "odd + 1", "+odd", "-even", "n+",
+        "n -", "", "3n+1x", "2n1", "n-+1", "--n", "+-n", "2n+1 of", "n of", "a", "2n + 1 2",
+    ] {
+        assert!(
+            dom.matches(kids[0], &format!(":nth-child({arg})")).is_err(),
+            ":nth-child({arg})"
+        );
+    }
+}
+
+/// Selectors 4 §13.3.1–§13.3.2: `:nth-last-child` counts from the end;
+/// `of S` counts only the siblings matching `S`, and the element must
+/// match `S` itself.
+#[test]
+fn nth_last_child_and_the_of_s_form() {
+    let (dom, kids) = nth_list(&["li.x", "li", "li.x", "li.x", "li", "li.x"]);
+    assert_eq!(nth_matches(&dom, &kids, ":nth-last-child(2)"), vec![5]);
+    assert_eq!(
+        nth_matches(&dom, &kids, ":nth-last-child(-n+2)"),
+        vec![5, 6]
+    );
+    assert_eq!(
+        nth_matches(&dom, &kids, ":nth-child(odd of .x)"),
+        vec![1, 4]
+    );
+    assert_eq!(
+        nth_matches(&dom, &kids, ":nth-child(2 OF .x, #k2)"),
+        vec![2]
+    );
+    assert_eq!(
+        nth_matches(&dom, &kids, ":nth-last-child(1 of .x)"),
+        vec![6]
+    );
+    assert_eq!(
+        nth_matches(&dom, &kids, ":nth-last-child(1 of :not(.x))"),
+        vec![5]
+    );
+    assert_eq!(
+        nth_matches(&dom, &kids, ":not(:nth-child(-n+4))"),
+        vec![5, 6]
+    );
+}
+
+/// Selectors 4 §13.4: the `-of-type` family counts the
+/// siblings with the element's own type.
+#[test]
+fn the_of_type_family_counts_siblings_of_the_same_type() {
+    let (dom, kids) = nth_list(&["p", "span", "p", "em", "p", "span"]);
+    assert_eq!(nth_matches(&dom, &kids, ":nth-of-type(2)"), vec![3, 6]);
+    assert_eq!(nth_matches(&dom, &kids, "p:nth-of-type(odd)"), vec![1, 5]);
+    assert_eq!(
+        nth_matches(&dom, &kids, ":nth-last-of-type(1)"),
+        vec![4, 5, 6]
+    );
+    assert_eq!(nth_matches(&dom, &kids, ":first-of-type"), vec![1, 2, 4]);
+    assert_eq!(nth_matches(&dom, &kids, ":last-of-type"), vec![4, 5, 6]);
+    assert_eq!(nth_matches(&dom, &kids, ":only-of-type"), vec![4]);
+    assert_eq!(nth_matches(&dom, &kids, ":FIRST-OF-TYPE"), vec![1, 2, 4]);
+    // `of S` belongs to the `-child` forms only (§13.4.1).
+    assert!(dom.matches(kids[0], ":nth-of-type(1 of p)").is_err());
+}
+
+/// Selectors 4 §13.3 (Level 4 drops the parent requirement): an element
+/// without a parent is the first and only of its siblings.
+#[test]
+fn a_parentless_element_is_the_first_of_its_siblings() {
+    let mut dom: Dom = Dom::new();
+    let lone = dom.create_element("li");
+    for sel in [
+        ":first-child",
+        ":last-child",
+        ":only-child",
+        ":nth-child(1)",
+        ":nth-last-child(1)",
+        ":nth-of-type(1)",
+        ":first-of-type",
+        ":only-of-type",
+    ] {
+        assert_eq!(dom.matches(lone, sel), Ok(true), "{sel}");
+    }
+    assert_eq!(dom.matches(lone, ":nth-child(2)"), Ok(false));
+}
+
+/// Matching is not quadratic in the number of siblings: one matching
+/// pass (`query_selector_all_in` shares its caches across the walk)
+/// indexes each sibling list once per kind — the nth-index cache Blink
+/// and Servo keep. Without it the 2000 children cost ~2 000 000
+/// sibling steps per selector.
+#[test]
+fn nth_matching_over_a_long_sibling_list_is_linear() {
+    const N: usize = 2000;
+    let tags: Vec<&str> = (0..N)
+        .map(|i| if i % 3 == 0 { "li.x" } else { "li" })
+        .collect();
+    let (dom, kids) = nth_list(&tags);
+    for (sel, matched) in [
+        (":nth-child(2n+1)", N / 2),
+        (":nth-last-child(odd)", N / 2),
+        (":nth-of-type(3)", 1),
+        (":nth-last-of-type(-n+3)", 3),
+        (":nth-child(odd of .x)", 334),
+        (":last-of-type", 1),
+    ] {
+        crate::query_selector::caches::probe::take();
+        let found = dom.query_selector_all_in(dom.root(), sel).unwrap();
+        let steps = crate::query_selector::caches::probe::take();
+        let found = found.iter().filter(|f| kids.contains(f)).count();
+        assert_eq!(found, matched, "{sel}");
+        // The list holds 2N + 1 child nodes (a text node before each
+        // element, a comment after them), each one step to index.
+        assert!(
+            steps <= 3 * N,
+            "{sel}: {steps} sibling steps for {N} siblings"
+        );
+    }
+}
+
+/// Caches kept across a mutation do not answer from the old tree: every
+/// mutation record moves the `Dom`'s epoch, and caches built under
+/// another one start over (`SelectorCaches`).
+#[test]
+fn selector_caches_do_not_outlive_a_mutation() {
+    let (mut dom, kids) = nth_list(&["li", "li"]);
+    let list = crate::selectors::parse(":nth-child(1)").unwrap();
+    let mut caches = crate::SelectorCaches::new();
+    assert!(dom.matches_list_with(kids[0], &list, None, &mut caches));
+    let ul = dom.node(kids[0]).parent_node().unwrap().id();
+    let first = dom.create_element("li");
+    dom.insert_before(ul, first, Some(kids[0])).unwrap();
+    assert!(!dom.matches_list_with(kids[0], &list, None, &mut caches));
+    assert!(dom.matches_list_with(first, &list, None, &mut caches));
+}

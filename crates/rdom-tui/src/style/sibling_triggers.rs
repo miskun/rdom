@@ -23,6 +23,13 @@
 //! - `[name]`, `.class`, `#id` → a change of that attribute (`name`,
 //!   `class`, `id`) does.
 //!
+//! An `:nth-child(… of S)` / `:nth-last-child(… of S)` anywhere reads its
+//! siblings the same way (Selectors 4 §13.3.1: only the siblings matching
+//! `S` count), so every compound of its `S` is recorded as a left
+//! compound too. The plain structural forms (`:nth-child(2)`,
+//! `:first-of-type`) change only with the child list, whose change marks
+//! every child of the parent already.
+//!
 //! The selectors walked are every one the cascade matches with — rule
 //! selectors and `@scope` starts / ends — and the `:not()` / `:is()` /
 //! `:where()` arguments inside them, wherever they appear
@@ -114,6 +121,16 @@ impl SiblingTriggers {
                     self.add_left(compound);
                 }
             }
+            // `of S` counts the siblings matching `S` (module doc).
+            for simple in compounds(c).flat_map(|c| &c.simples) {
+                if let SimpleSelector::Nth(nth) = simple
+                    && let Some(of) = &nth.of
+                {
+                    for compound in of.0.iter().flat_map(compounds) {
+                        self.add_left(compound);
+                    }
+                }
+            }
             false
         });
         if unknown {
@@ -145,6 +162,13 @@ impl SiblingTriggers {
                         }
                     }
                 }
+                // The index reads the child list (marked on its change);
+                // an `of S` reads what `S` reads of the same element.
+                SimpleSelector::Nth(nth) => {
+                    for c in nth.of.iter().flat_map(|of| &of.0).flat_map(compounds) {
+                        self.add_left(c);
+                    }
+                }
                 // `SimpleSelector` is `#[non_exhaustive]`: an unknown
                 // kind marks everything (`selector_walk`).
                 other => {
@@ -171,6 +195,9 @@ fn reads_attributes(p: PseudoClass) -> bool {
         PseudoClass::FirstChild
             | PseudoClass::LastChild
             | PseudoClass::OnlyChild
+            | PseudoClass::FirstOfType
+            | PseudoClass::LastOfType
+            | PseudoClass::OnlyOfType
             | PseudoClass::Empty
             | PseudoClass::Root
             | PseudoClass::Hover
@@ -233,6 +260,19 @@ mod tests {
         let t = triggers("p:not(.x + *) { color: red; }");
         assert!(t.fires(Cause::Attribute("class")));
         assert!(!t.fires(Cause::State));
+    }
+
+    /// Selectors 4 §13.3.1: `of S` counts the siblings matching `S`, so a
+    /// change of what `S` reads reaches the siblings; a plain index
+    /// reads no attribute.
+    #[test]
+    fn nth_of_s_reads_what_s_reads() {
+        let t = triggers("li:nth-child(odd of .x[data-k]) { color: red }");
+        assert!(t.fires(Cause::Attribute("class")));
+        assert!(t.fires(Cause::Attribute("data-k")));
+        assert!(!t.fires(Cause::State));
+        let plain = triggers("li:nth-child(odd) { color: red } p:first-of-type { color: red }");
+        assert_eq!(plain, SiblingTriggers::none());
     }
 
     #[test]

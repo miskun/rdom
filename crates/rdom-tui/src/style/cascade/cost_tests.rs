@@ -457,3 +457,30 @@ fn every_inherited_value_is_shared_not_copied() {
         "allocations per 20 elements: {copied:#?}"
     );
 }
+
+/// Selectors 4 §13.3 (C11-NTH): a cascade pass shares one nth-index
+/// cache across its elements (`matching::Scratch`), so styling every
+/// child of a long list by `:nth-child()` indexes the list once per kind
+/// of count — not once per child (~4 000 000 sibling steps here).
+#[test]
+fn nth_child_over_a_long_list_indexes_it_once_per_pass() {
+    const N: u64 = 2000;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let ul = dom.create_element("ul");
+    dom.append_child(root, ul).unwrap();
+    for _ in 0..N {
+        let li = dom.create_element("li");
+        dom.append_child(ul, li).unwrap();
+    }
+    let css = sheet("li:nth-child(odd) { color: red } li:nth-last-of-type(2) { color: blue }");
+    super::matching::probe::take_nth();
+    dom.cascade(&css);
+    let steps = super::matching::probe::take_nth();
+    // At least one indexing went through the pass's caches (sharing
+    // them is the claim), and no more than a few per sibling.
+    assert!(
+        (N..=3 * N).contains(&steps),
+        "{steps} sibling steps to index {N} siblings for two kinds of count"
+    );
+}

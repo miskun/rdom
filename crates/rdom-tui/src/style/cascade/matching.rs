@@ -11,7 +11,7 @@
 use std::cmp::Reverse;
 use std::rc::Rc;
 
-use rdom_core::{Dom, NodeId};
+use rdom_core::{Dom, NodeId, SelectorCaches};
 
 use super::ladder::Plan;
 use super::registered::PropertyRegistry;
@@ -31,6 +31,9 @@ pub(super) struct Scratch<'a> {
     candidates: Vec<u32>,
     /// `@scope` roots learned this pass.
     scopes: ScopeMemo,
+    /// The selector matcher's caches for this pass (`:nth-*()`'s
+    /// sibling indices, C11-NTH).
+    selectors: SelectorCaches,
     matching: Vec<Matched<'a>>,
     pub(super) sorted: Vec<&'a Rule>,
     pub(super) ranks: Vec<u32>,
@@ -353,6 +356,7 @@ impl<'a> Scratch<'a> {
                         },
                         rule,
                         &mut self.scopes,
+                        &mut self.selectors,
                     )
                 {
                     self.matching.push(Matched {
@@ -395,14 +399,29 @@ fn applies(dom: &Dom<TuiExt>, id: NodeId, rule: &Rule) -> bool {
     crate::style::pseudo_pointer::matches(dom, id, &rule.pseudo, rule.pseudo_state)
 }
 
-/// Test-only: how many rule-matching passes ran on this thread.
+/// Test-only: a pass's selector cache work, counted when it ends.
+#[cfg(test)]
+impl Drop for Scratch<'_> {
+    fn drop(&mut self) {
+        let steps = self.selectors.work().nth_siblings;
+        probe::NTH.with(|c| c.set(c.get() + steps));
+    }
+}
+
+/// Test-only: how many rule-matching passes ran on this thread, and the
+/// sibling steps the passes' nth indices took.
 #[cfg(test)]
 pub(crate) mod probe {
     thread_local! {
         pub static COLLECTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        pub static NTH: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
     }
 
     pub fn take() -> usize {
         COLLECTS.with(|c| c.replace(0))
+    }
+
+    pub fn take_nth() -> u64 {
+        NTH.with(|c| c.replace(0))
     }
 }
