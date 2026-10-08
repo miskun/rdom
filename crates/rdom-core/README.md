@@ -77,7 +77,7 @@ Full spec-subset matching via `query_selector`, `query_selector_all`,
 | universal | `*` |
 | id | `#app` |
 | class | `.hero` |
-| attribute | `[lang]`, `[lang="en"]`, `[class~="a"]`, `[class|="a"]`, `[href^="http"]`, `[src$=".png"]`, `[href*="://"]` |
+| attribute | `[lang]`, `[lang="en"]`, `[class~="a"]`, `[class|="a"]`, `[href^="http"]`, `[src$=".png"]`, `[href*="://"]`, case flags `[type="a" s]` / `[data-k="x" i]` |
 | compound | `a.active[href="#"]` |
 | descendant | `ul li` |
 | child | `ul > li` |

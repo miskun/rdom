@@ -142,6 +142,12 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | exhaustive `match` on `Content`; `content: normal` as `Content::None` | `#[non_exhaustive]` (a `_` arm; new `Counters`, `Quote`, `WithAlt`); `Content::Normal` | C10-CONTENT, C10-LIST-ITEM | `generated_content_hints` |
 | `PseudoElementTarget` (`Copy`) | `.clone()`; a match adds `Highlight(_)` under its `_` arm | C10-HIGHLIGHT | `pseudo_element_target_hints` |
 
+#### `rdom-core`
+
+| 0.5 | Unreleased | Item | Hint test |
+|---|---|---|---|
+| `SimpleSelector::Attribute { name, op, value }` | `Attribute { name, op, value, case }` (`case: AttrCase::Default` for the 0.5 behaviour; `{ name, .. }` in a pattern) | C11-ATTR-FLAGS | — |
+
 #### `rdom-tui`
 
 | 0.5 | Unreleased | Item | Hint test |
@@ -199,8 +205,13 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 | `counters::apply_descriptor` / `check_rule` → `Result<(), String>` | `Result<(), DescriptorError>` / `Result<(), CounterStyleRuleError>` (`Display` gives the old text) | C10G-API-SMALL | `generated_box_read_hints` |
 | rdom-css `WarningKind::InvalidCounterStyleRule { name, reason: String }`, for a rule that defines nothing and for a dropped descriptor | `InvalidCounterStyleRule { name, reason: CounterStyleRuleReason }` for a rule that defines nothing; `CounterStyleDescriptorDropped { name, descriptor, reason: CounterStyleDescriptorReason }` for a dropped declaration | C10G-API-SMALL | — |
 
+### Breaking — `rdom-core`
+
+- **`SimpleSelector::Attribute` gains a `case: AttrCase` field**: the attribute selector's case flag (Selectors 4 §6.3). Migration: construct it with `case: AttrCase::Default` (the 0.5 behaviour: HTML §4.16.2's case-insensitive list), and match it with `{ name, op, value, .. }`. (C11-ATTR-FLAGS)
+
 ### Added — `rdom-core`
 
+- **Attribute selector case flags** (Selectors 4 §6.3): `[data-k="x" i]` compares the value ASCII case-insensitively, `[type="a" s]` exactly — overriding HTML §4.16.2's case-insensitive attributes either way — for every value operator; the flag is ASCII case-insensitive (`AttrCase`). (C11-ATTR-FLAGS)
 - **The Custom Highlight API data model** (CSS Custom Highlight API 1 §3–§4): `Highlight` (a set of `Range`s with a `priority` and a `HighlightType`), the document's `HighlightRegistry` (`CSS.highlights`: `set` / `get` / `has` / `delete` / `clear` / `iter`, in registration order) through `Dom::highlights` / `highlights_mut`, which fires the new `Mutation::HighlightsChanged`. A registered range is live (DOM §5.3): `edit_text` / `set_data` ("replace data"), insertions and removals move its boundary points as a browser's `Range`. (C10-HIGHLIGHT)
 - **Selectors decode CSS escapes** (CSS Syntax 3 §4.3.7) in names and attribute values: `.\31 0` matches class `10`. The decoder is the new public module `rdom_core::css_syntax` (`consume_escape`, `consume_ident`, `consume_string`, `would_start_ident`, …), shared with rdom-style's tokenizer. (C1-ESCAPES)
 - **Nested rule selectors** (CSS Nesting 1 §2): `selectors::parse_nested(text, &parent)` — `&` anywhere, a leading combinator, an implicit `& ` prefix; `&` is the new `SimpleSelector::Is(list)` (`:is()` matching and specificity). `selectors` is a directory module. (C1-NESTING)

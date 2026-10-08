@@ -866,3 +866,54 @@ fn scope_matches_the_scoping_root() {
         dom.matches(ids[1], ":root").unwrap()
     );
 }
+
+// ─── Attribute case flags (C11-ATTR-FLAGS) ──────────────────────────
+
+/// Selectors 4 §6.3: `[a=b i]` compares the value ASCII
+/// case-insensitively and `[a=b s]` case-sensitively, whatever HTML
+/// §4.16.2's list says about the attribute; the flag itself is ASCII
+/// case-insensitive, may follow a string or an identifier with or
+/// without white space, and applies to every value operator.
+#[test]
+fn attribute_case_flags_override_the_default_case() {
+    let mut dom: Dom = Dom::new();
+    let ol = dom.create_element("ol");
+    dom.set_attribute(ol, "type", "A").unwrap();
+    dom.set_attribute(ol, "data-x", "FooBar").unwrap();
+    dom.append_child(dom.root(), ol).unwrap();
+    for (sel, want) in [
+        // `data-x` is case-sensitive by default; `i` folds case.
+        ("[data-x=foobar]", false),
+        ("[data-x=foobar i]", true),
+        ("[data-x='foobar' I]", true),
+        ("[data-x=\"foobar\"i]", true),
+        ("[data-x^=foo i]", true),
+        ("[data-x$=BAR i]", true),
+        ("[data-x*=ob i]", true),
+        ("[data-x~=FOOBAR i]", true),
+        ("[data-x|=foobar i]", true),
+        ("[ data-x = foobar  i ]", true),
+        // `type` is case-insensitive by default; `s` makes it exact.
+        ("[type=a]", true),
+        ("[type=a s]", false),
+        ("[type=A s]", true),
+        ("[type=A S]", true),
+        ("[type^=a s]", false),
+    ] {
+        assert_eq!(dom.matches(ol, sel), Ok(want), "{sel}");
+    }
+}
+
+/// Selectors 4 §6.3: a flag needs a value (`[a i]` is invalid), and
+/// only `i` / `s` are flags; `[a=bi]` is the value `bi`.
+#[test]
+fn attribute_case_flags_reject_what_the_grammar_does_not_allow() {
+    let mut dom: Dom = Dom::new();
+    let p = dom.create_element("p");
+    dom.set_attribute(p, "a", "bi").unwrap();
+    dom.append_child(dom.root(), p).unwrap();
+    for bad in ["[a i]", "[a=b x]", "[a=b i s]", "[a=b ii]", "[a=b 'i']"] {
+        assert!(dom.matches(p, bad).is_err(), "{bad}");
+    }
+    assert_eq!(dom.matches(p, "[a=bi]"), Ok(true));
+}

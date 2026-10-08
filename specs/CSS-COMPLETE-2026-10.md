@@ -224,7 +224,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C11-ATTR-FLAGS | Attribute selector case flags `i` / `s` | |
+| C11-ATTR-FLAGS | Attribute selector case flags `i` / `s` | done |
 | C11-IS | `:is()` | done (landed early as C1G-IS-PARSE) |
 | C11-HAS | `:has()` with invalidation | |
 | C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | |
@@ -6900,3 +6900,22 @@ row comes from.
   gate. Carried forward: geometry transitions reaching layout (C12-ANIMATABLE, flagged on its row),
   `interpolate-size` for `::details-content`, and closed `<details>` content computing `display: none` until
   C14-CONTAIN brings `content-visibility`.
+- 2026-10-14 — C11-SPLIT (before Phase 11): `rdom-core/src/query_selector.rs` (519 production lines) split by
+  concern — `query_selector/mod.rs` (the query APIs), `matcher.rs`, `pseudo.rs`, `attribute.rs`, `tests.rs`.
+  Pure move.
+- 2026-10-14 — C11-ATTR-FLAGS: attribute selector case flags (Selectors 4 §6.3). `SimpleSelector::Attribute`
+  gains `case: AttrCase` (`Default` / `AsciiInsensitive` / `Sensitive`, `#[non_exhaustive]`; a Breaking
+  bullet); the parser reads an `i` / `s` identifier (ASCII case-insensitive) after the value — after a string
+  or an identifier, white space optional between a string and the flag — and rejects any other identifier
+  there and a flag without a value (`[a i]`). The flag overrides HTML §4.16.2's case-insensitive list either
+  way, for every operator. Decided — the `<ol type>` / `<ul type>` / `<li type>` mapping stays a
+  presentational hint: HTML §15.3.8 writes it as `ol[type=a s]` rules "expected to apply, as presentational
+  hints", not as UA-sheet rules, so C10G-MARKER-HIT's DIVERGENCES §2 sentence (a browser's UA rule would
+  survive an author `revert`) was wrong — a browser's hint is author-level too. The sentence went; the
+  §2 list-attribute entry now names `type` among the hints and how its values compare, and `hints.rs` cites
+  HTML's text. Red: `query_selector::tests::attribute_case_flags_override_the_default_case` failed with
+  `Err("expected `]` in attribute selector, got `i`")`; the parse test failed to compile (`case`,
+  `AttrCase`); green after, with `css_phase11/attr_flags.rs` through a sheet (green as written — the
+  implementation was in). Mutation (both flags made to defer to the HTML list, restored, touched): the
+  matcher test and the sheet test fail. Changed tests: the two parser tests that build or destructure
+  `Attribute` gained `case` / `..` (API shape, no expectation). No snapshot changed.

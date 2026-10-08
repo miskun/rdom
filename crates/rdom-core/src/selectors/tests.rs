@@ -85,6 +85,7 @@ fn parse_attribute_presence() {
             name: "disabled".into(),
             op: None,
             value: None,
+            case: AttrCase::Default,
         }]
     );
 }
@@ -93,7 +94,9 @@ fn parse_attribute_presence() {
 fn parse_attribute_exact_unquoted() {
     let sl = parse("[role=banner]").unwrap();
     match &sl.0[0].subject.simples[0] {
-        SimpleSelector::Attribute { name, op, value } => {
+        SimpleSelector::Attribute {
+            name, op, value, ..
+        } => {
             assert_eq!(name, "role");
             assert_eq!(*op, Some(AttrOp::Exact));
             assert_eq!(value.as_deref(), Some("banner"));
@@ -399,4 +402,18 @@ fn is_arguments_are_forgiving() {
     assert!(parse(":is(.a").is_err(), "unclosed");
     assert!(parse(":is(.a) !!").is_err());
     assert!(parse(":not(!!, .a)").is_err(), ":not() is not forgiving");
+}
+
+/// Selectors 4 §6.3: the case flag is part of the attribute selector,
+/// and adds nothing to its specificity (§17).
+#[test]
+fn attribute_case_flag_parses_into_the_selector() {
+    let flag = |src: &str| match &parse(src).unwrap().0[0].subject.simples[0] {
+        SimpleSelector::Attribute { case, .. } => *case,
+        other => panic!("{src}: {other:?}"),
+    };
+    assert_eq!(flag("[a=b]"), AttrCase::Default);
+    assert_eq!(flag("[a=b i]"), AttrCase::AsciiInsensitive);
+    assert_eq!(flag("[a=b s]"), AttrCase::Sensitive);
+    assert_eq!(parse("[a=b i]").unwrap().0[0].specificity(), (0, 1, 0));
 }

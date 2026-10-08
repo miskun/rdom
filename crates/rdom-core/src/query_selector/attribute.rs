@@ -1,14 +1,14 @@
 //! Attribute selectors (Selectors 4 §6): the value operators and the
 //! case-sensitivity of the comparison.
 
-use crate::selectors::AttrOp;
+use crate::selectors::{AttrCase, AttrOp};
 
 /// HTML §4.16.2 "case-sensitivity of selectors": attribute selectors on
 /// an HTML element treat the values of these attributes as ASCII
 /// case-insensitive (a `match`: this runs on every attribute-selector
 /// test of the cascade). Every rdom element is an HTML element in an HTML
-/// document. (HTML exempts `type` in its rendering section's `ol[type]`
-/// rules via the `s` flag, which rdom does not parse.)
+/// document. A case flag overrides it (Selectors 4 §6.3: HTML's own
+/// `ol[type=a s]` hints tell `a` from `A` that way).
 fn is_html_case_insensitive_attr(name: &str) -> bool {
     matches!(
         name,
@@ -66,13 +66,19 @@ pub(super) fn match_attribute(
     name: &str,
     op: Option<AttrOp>,
     want: Option<&str>,
+    case: AttrCase,
 ) -> bool {
     let Some(have) = attrs.get(name) else {
         return false;
     };
     let Some(op) = op else { return true }; // `[name]` — presence only.
     let want = want.unwrap_or("");
-    if is_html_case_insensitive_attr(name) {
+    let insensitive = match case {
+        AttrCase::AsciiInsensitive => true,
+        AttrCase::Sensitive => false,
+        AttrCase::Default => is_html_case_insensitive_attr(name),
+    };
+    if insensitive {
         match_value::<AsciiCaseInsensitive>(op, have, want)
     } else {
         match_value::<CaseSensitive>(op, have, want)

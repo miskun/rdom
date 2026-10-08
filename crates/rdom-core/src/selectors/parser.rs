@@ -1,8 +1,8 @@
 //! The selector parser: text → [`SelectorList`].
 
 use super::{
-    AttrOp, Combinator, ComplexSelector, CompoundSelector, ParseError, PseudoClass, SelectorList,
-    SimpleSelector,
+    AttrCase, AttrOp, Combinator, ComplexSelector, CompoundSelector, ParseError, PseudoClass,
+    SelectorList, SimpleSelector,
 };
 use crate::css_syntax;
 
@@ -351,8 +351,32 @@ impl<'a> Parser<'a> {
             None
         };
         self.skip_ws();
+        let case = if value.is_some() && self.peek() != Some(b']') {
+            self.parse_attr_case()?
+        } else {
+            AttrCase::Default
+        };
+        self.skip_ws();
         self.expect(b']', "attribute selector")?;
-        Ok(SimpleSelector::Attribute { name, op, value })
+        Ok(SimpleSelector::Attribute {
+            name,
+            op,
+            value,
+            case,
+        })
+    }
+
+    /// Selectors 4 §6.3 `<attr-modifier>`: `i` or `s`, ASCII
+    /// case-insensitive, after the value.
+    fn parse_attr_case(&mut self) -> Result<AttrCase, ParseError> {
+        let flag = self.parse_ident();
+        match flag.to_ascii_lowercase().as_str() {
+            "i" => Ok(AttrCase::AsciiInsensitive),
+            "s" => Ok(AttrCase::Sensitive),
+            _ => Err(self.err(format!(
+                "expected `i`, `s` or `]` after the attribute value, got `{flag}`"
+            ))),
+        }
     }
 
     fn parse_attr_value(&mut self) -> Result<String, ParseError> {

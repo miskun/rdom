@@ -3,7 +3,8 @@
 //! Supports a practical subset of CSS Level 3:
 //!
 //! - Simple selectors: `*`, `tag`, `#id`, `.class`, `[attr]`, `[attr=v]`,
-//!   `[attr="v"]`, `[attr^=v]`, `[attr$=v]`, `[attr*=v]`, `[attr~=v]`, `[attr|=v]`
+//!   `[attr="v"]`, `[attr^=v]`, `[attr$=v]`, `[attr*=v]`, `[attr~=v]`, `[attr|=v]`,
+//!   each with an optional case flag (`[attr=v i]`, `[attr=v s]`)
 //! - Compound: `tag.foo#bar[attr=x]`
 //! - Combinators: descendant (space), child `>`, adjacent `+`, general `~`
 //! - Pseudo-classes: `:not(selector)`, `:where(selector-list)`,
@@ -22,7 +23,10 @@
 //! Attribute values match case-sensitively, except the attributes HTML
 //! §4.16.2 lists as ASCII case-insensitive on HTML elements (`type`,
 //! `method`, `enctype`, `lang`, `checked`, …), so the UA sheet's
-//! `input[type=checkbox]` matches `<input type="CheckBox">`.
+//! `input[type=checkbox]` matches `<input type="CheckBox">`. The case
+//! flags of Selectors 4 §6.3 override that either way: `[a=b i]`
+//! compares ASCII case-insensitively, `[a=b s]` case-sensitively
+//! ([`AttrCase`]).
 //!
 //! `:is()` matches an element any item of its (forgiving) list matches,
 //! with the specificity of the most specific item; `:where()` matches
@@ -31,8 +35,8 @@
 //! any author rule overrides freely.
 //!
 //! Not supported yet (reserved for later phases):
-//! - `:nth-child(an+b)`, `:has(...)`, namespaces, attribute
-//!   case flags (`[attr="v" i]`), pseudo-elements (`::before`, `::after`).
+//! - `:nth-child(an+b)`, `:has(...)`, namespaces, pseudo-elements
+//!   (`::before`, `::after`).
 
 use std::fmt;
 
@@ -145,6 +149,8 @@ pub enum SimpleSelector {
         name: String,
         op: Option<AttrOp>,
         value: Option<String>,
+        /// The case flag (`[a=b i]` / `[a=b s]`, Selectors 4 §6.3).
+        case: AttrCase,
     },
     /// `:not(...)` — the negated selector list.
     Not(Box<SelectorList>),
@@ -178,6 +184,22 @@ pub enum AttrOp {
     Suffix,
     /// `[attr*=value]` — substring.
     Substring,
+}
+
+/// How an attribute selector compares the attribute's value
+/// (Selectors 4 §6.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum AttrCase {
+    /// No flag: the document language decides — ASCII case-insensitive
+    /// for the attributes HTML §4.16.2 lists (`type`, `lang`, …),
+    /// case-sensitive for every other.
+    #[default]
+    Default,
+    /// `i`: ASCII case-insensitive.
+    AsciiInsensitive,
+    /// `s`: case-sensitive (identical code points).
+    Sensitive,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

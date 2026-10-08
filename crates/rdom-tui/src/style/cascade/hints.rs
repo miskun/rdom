@@ -11,10 +11,10 @@
 //!   `circle`, `square`, matched ASCII case-insensitively.
 //!
 //! (`ol[reversed]` without `start` is the UA rule `counter-reset:
-//! reversed(list-item)`. HTML writes the `type` mappings as UA rules with
-//! the `s` attribute-selector flag; rdom matches `type` values
-//! case-insensitively (DIVERGENCES §2), so no UA selector can tell `a`
-//! from `A`, and they are hints — DIVERGENCES §2.)
+//! reversed(list-item)`. HTML §15.3.8 writes the `type` mappings as
+//! selectors with the `s` / `i` attribute flags — `ol[type=a s]` — that
+//! are "expected to apply, as presentational hints"; this module is that
+//! mapping, comparing the values as the flags say.)
 
 use rdom_core::{Dom, NodeId};
 

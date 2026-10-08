@@ -116,8 +116,13 @@ impl<Ext> Dom<Ext> {
                         return false;
                     }
                 }
-                SimpleSelector::Attribute { name, op, value } => {
-                    if !match_attribute(attrs, name, *op, value.as_deref()) {
+                SimpleSelector::Attribute {
+                    name,
+                    op,
+                    value,
+                    case,
+                } => {
+                    if !match_attribute(attrs, name, *op, value.as_deref(), *case) {
                         return false;
                     }
                 }
