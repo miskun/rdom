@@ -42,7 +42,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 10 | Lists, counters, generated content, pseudo-elements | done 2026-10-08 (both gates; 19 gate fixes `C10G-*`; their re-review rides with the Phase 11 gate) |
 | 11 | Selectors | done 2026-10-08 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
 | 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
-| 13 | Tables (real table formatting context) | items done, gates pending (2026-10-08) |
+| 13 | Tables (real table formatting context) | gates run 2026-10-08; `C13G-*` fixes in progress |
 | 14 | Conditional rules, containment | |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
@@ -8604,3 +8604,33 @@ row comes from.
   `border-spacing`, `empty-cells`, cell `vertical-align`, captions, the column selectors). TECH_DEBT `SIZE-1`
   recounted for the files Phase 13 touched. CSS-COVERAGE: §3.20 4 / 0 / 0 / 0, §3.17 33 / 0 / 1 / 4, §3.7 9 / 0 /
   0 / 2, §3.5 14 / 0 / 0 / 2; total 237 / 7 / 18 / 45.
+- 2026-10-08 — Phase 13 gates (with the C12G re-review: all 18 hold; the 2-layouts-per-frame bound is
+  real; `Stylesheet::append` dropped only `@keyframes`; slot assignment follows HTML §4.9.12.1 with
+  HTML's span caps). Architect: 2 blocking — the `||` candidate loop stops at the first candidate
+  that reports "no match anywhere" (a cell spanning two colgroups is missed); hostile column spans
+  cost quadratic time (each column box's range found by scanning all columns; ~8·10⁸ comparisons for
+  20 `<colgroup span=1000>` collapsed). API: 3 blocking — `<th>` / `<caption>` not centred (HTML
+  §15.3.8, undocumented); the UA `table` lacks `box-sizing: border-box`, so the documented
+  `width: 100%` migration overflows a bordered table; no public read of a table's used column widths
+  (`table_used_width` removed, nothing like `grid_tracks()`). Non-blocking: paint-time table geometry
+  disagrees with the scrollport / clip / resizer / hit test (captions clipped, scrollbars beside them);
+  column invalidation too broad (any `<td>` text change) and missing under `:has()`; duplicated span
+  logic with different tag case-sensitivity, `CellSpan` public fields skip the clamp,
+  `columns: usize::MAX` overflows; spec gaps not in DIVERGENCES (fixed layout extra width, percentages
+  over 100%, spanning baseline cells, a part misparented in an anonymous cell, "Three departures" lists
+  four); per-pass table cost (structure rebuilt 4–5×, anonymous cells re-packed ~6×, quadratic group
+  lookups; only solves pinned, at 20 rows); nested `calc-size` pays d+2 passes on every layout while
+  authored; teardown O(roots × animations × depth); `after([fragment,x])` / `replace_with([self])` /
+  `replace_children` corruption-shaped bugs; BEFORE-CHANGE nuance not in DIVERGENCES; the DESIGN type
+  check ignores `pub mod` paths; `append` should destructure exhaustively; a bare `<col>` ignored by
+  `||`; silent change #8 under-ranked with an incomplete migration (box-sizing, spread width, wrapping,
+  cell width as minimum, no cell margins / gap / flex); UA `tr` sets `vertical-align` instead of
+  inheriting, `table{text-indent:initial}` missing; missing tests (zebra, `width:100%`, `th`, wrapper);
+  stale docs; a README data-table recipe. Design decision: make the document root a block container
+  (`flow-root`) with a definite viewport height instead of a flex column — it removes four documented
+  root special cases (additive margins, no floats, percentage-height definiteness, the no-stretch
+  exception); breaking, so its own item C13-ROOT-BLOCK. rdom-virtualtable (0.3.14, read-only): compile
+  breaks on `size_columns` and `table_used_width`; header widths become minimums (use
+  `table-layout: fixed`); cell-margin pinning stops. Full reports:
+  `target/claude-logs/c13_gate_{architect,api}.md`. Fix as `C13G-*`, three batches (A correctness and
+  cost, B API / UA / docs, C the root block container).
