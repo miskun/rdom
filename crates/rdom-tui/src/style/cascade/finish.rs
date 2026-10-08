@@ -101,10 +101,9 @@ pub(super) fn finish_element<'a>(
 /// transitions (`TuiExt::overlay`).
 fn write_pseudo(ext: &mut TuiExt, slot: crate::ext::StyleSlot, style: Option<Rc<ComputedStyle>>) {
     let Some(style) = style else {
-        match slot {
-            crate::ext::StyleSlot::Before => ext.computed_before = None,
-            _ => ext.computed_after = None,
-        }
+        // No box: nothing of it is kept, its running values included
+        // (C12G-PSEUDO-GONE); the transition hook cancels what ran.
+        ext.drop_pseudo(slot);
         return;
     };
     let overlaid = ext.overlay(slot, &style).map(Rc::new);

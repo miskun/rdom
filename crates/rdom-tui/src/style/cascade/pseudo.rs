@@ -202,6 +202,21 @@ pub(super) fn compute_pseudo_style(
     // the pseudo-elements that are boxes of the tree (CSS Lists 3 §4).
     // It is a child of the host, so its instances are scoped to the
     // host's subtree.
+    // `content: none` / `normal` — declared, or no declaration and no
+    // legacy text — on `::before` / `::after` generates no box (CSS
+    // Pseudo-Elements 4 §2, CSS Generated Content 3 §2): no style, no
+    // counter ops (CSS Lists 3 §4.5) and nothing for a transition to run
+    // on (C12G-PSEUDO-GONE).
+    let declared = declared_content(plan, decls);
+    if matches!(
+        target,
+        PseudoElementTarget::Before | PseudoElementTarget::After
+    ) && match &declared {
+        None => fallback.is_none(),
+        Some(c) => matches!(c, Content::None | Content::Normal),
+    } {
+        return None;
+    }
     let slot = match target {
         PseudoElementTarget::Before => Some(super::counters::OpBox::Before),
         PseudoElementTarget::After => Some(super::counters::OpBox::After),
@@ -218,7 +233,7 @@ pub(super) fn compute_pseudo_style(
         // not among the properties that apply to `::marker`.
         working.text.text_transform = crate::layout::TextTransform::NONE;
     }
-    match declared_content(plan, decls) {
+    match declared {
         // `content: normal` on `::marker`: the marker `list-style-type`
         // makes — the `list-item` counter in a counter style, between its
         // prefix and suffix, or a string (CSS Lists 3 §3.2, §3.4).

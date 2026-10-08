@@ -430,11 +430,31 @@ fn content_none_suppresses_pseudo() {
         Stylesheet::bare().rule_unchecked("div::before", TuiStyle::new().content(Content::None));
     dom.cascade(&sheet);
     let ext = dom.node(div).ext().unwrap();
-    // Content::None yields `None` content; the rule did match so a
-    // ComputedStyle is created, but content is None — paint decides
-    // to skip based on content.is_none().
-    let before = ext.computed_before.as_ref().unwrap();
-    assert!(before.content.is_none());
+    // `content: none` generates no box (CSS Pseudo-Elements 4 §2), so the
+    // pseudo-element has no computed style at all, though a rule matched
+    // and legacy text is set (C12G-PSEUDO-GONE: nothing for a transition
+    // to keep running on).
+    assert!(ext.computed_before.is_none());
+}
+
+/// CSS Pseudo-Elements 4 §2 / CSS Lists 3 §4.5: a `::before` styled by a
+/// rule but with `content: normal` (its initial value) generates no box —
+/// no style, and its counter ops do not apply.
+#[test]
+fn content_normal_before_generates_no_box_and_no_counter_ops() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+    let css = rdom_css::parse(
+        "div { counter-reset: n } div::before { color: red; counter-increment: n 5 } \
+         div::after { content: counter(n) }",
+    );
+    dom.cascade(&css.stylesheet);
+    let ext = dom.node(div).ext().unwrap();
+    assert!(ext.computed_before.is_none());
+    let after = ext.computed_after.as_ref().unwrap();
+    assert_eq!(after.content.as_deref(), Some("0"));
 }
 
 // ── :hover / :focus ──────────────────────────────────────────────

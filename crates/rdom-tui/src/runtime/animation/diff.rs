@@ -89,6 +89,10 @@ fn diff(
         let was_rendered = rendered.get(&id).copied().unwrap_or(false);
         for slot in [StyleSlot::Host, StyleSlot::Before, StyleSlot::After] {
             let changed = snapshot(dom, id, slot);
+            // A `::before` / `::after` that generated a box at the last
+            // style change and generates none now.
+            let gone =
+                slot != StyleSlot::Host && changed.is_none() && stopped_generating(dom, id, slot);
             if let Some((inputs, sheets_changed, rendered_now, animated)) = &css {
                 let now_rendered = rendered_now.get(&id).copied().unwrap_or(false);
                 update_css(
@@ -97,9 +101,16 @@ fn diff(
                     (*inputs, preferred, now),
                     (id, slot),
                     animated.contains(&id),
-                    changed.is_some() || *sheets_changed || now_rendered != was_rendered,
+                    changed.is_some() || gone || *sheets_changed || now_rendered != was_rendered,
                     now_rendered,
                 );
+            }
+            if gone {
+                // CSS Transitions 1 §3: its transitions are cancelled.
+                for l in registry.running_on(id, slot) {
+                    registry.cancel(id, slot, l, now);
+                }
+                continue;
             }
             let Some((prev, curr)) = changed else {
                 continue;
@@ -242,6 +253,20 @@ fn snapshot(
         return None;
     }
     Some((prev.cloned(), curr.clone()))
+}
+
+/// Whether `slot` of `id` had a previous style (a box at the last style
+/// change) and has none now.
+fn stopped_generating(dom: &Dom<TuiExt>, id: NodeId, slot: StyleSlot) -> bool {
+    let Some(ext) = dom.node(id).ext() else {
+        return false;
+    };
+    let prev = match slot {
+        StyleSlot::Before => ext.computed_before_prev(),
+        StyleSlot::After => ext.computed_after_prev(),
+        _ => None,
+    };
+    prev.is_some() && ext.cascaded_for(slot).is_none()
 }
 
 /// Update the CSS animations of `(id, slot)` when its style, the sheets

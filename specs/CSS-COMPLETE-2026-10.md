@@ -8081,3 +8081,28 @@ row comes from.
   registry test. Found and recorded (TECH_DEBT `MOVE-RECORD-1`): moving an attached node with
   `append_child` fires no removal record, so a moved element keeps its animations. CHANGELOG silent
   change 77.
+- 2026-10-08 — C12G-PSEUDO-GONE (architect B2; CSS Pseudo-Elements 4 §2, CSS Transitions 1 §3, CSS
+  Animations 1 §4.1, CSS Lists 3 §4.5). Found: a slot whose cascade gave `None` cleared only
+  `computed_before` / `computed_after`; `presentation_*.base` stayed, `cascaded_for` preferred it, so the
+  diff saw no change, the transitions and animations ran on and `composite` put the stale style back.
+  And rdom kept a style for a rule-matched `::before` / `::after` whose content was `none` / `normal` — a
+  pseudo-element with no box, on which a transition still ran (the architect's hover tooltip, its
+  content only on `:hover`, kept a style that reversed its color). Decided, at the roots: (1) the
+  cascade gives such a pseudo-element no style at all — `compute_pseudo_style` returns `None` before its
+  counter ops when the declared content is `none` / `normal` (or undeclared without legacy text), so it
+  also stops counting (CSS Lists 3 §4.5); a `var()` / `attr()` content that resolves to nothing keeps
+  its style, as before; (2) `write_pseudo(None)` drops the slot's presentation record
+  (`TuiExt::drop_pseudo`), and `cascaded_for` is `None` whenever `computed_for` is — no style of either
+  kind comes back; (3) the diff notes a slot that had a previous style and has none
+  (`stopped_generating`): its transitions are cancelled (`transitioncancel`) and its CSS animations
+  updated with no style (`animationcancel`). Red: `app/teardown_tests.rs` — the spinner `::after` with
+  `.s` removed kept animating (no `animationcancel`), the tooltip `::after` kept a style; green after.
+  Mutation-checked, each alone: the content rule off fails the tooltip and both cascade tests; the
+  presentation drop and `cascaded_for` guard off fail both teardown tests; the diff's cancel off fails
+  both. Changed test: `cascade::tests::content_none_suppresses_pseudo` expected a style with no content
+  (the old model); it now expects none — the suppression it pins stands. New
+  `content_normal_before_generates_no_box_and_no_counter_ops`. Checked: `::marker` takes no animation
+  overrides (no presentation slot), so it cannot keep a base; a `::details-content` box always has the
+  UA's style, and its `<details>` leaving the document is C12G-DETACHED's (the box is matched by its
+  host); a box dropped by `sync_content_box` (a sheet set without the UA's rule) drops its effects
+  silently with the node. CHANGELOG silent change 78.

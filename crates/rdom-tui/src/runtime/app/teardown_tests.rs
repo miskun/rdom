@@ -144,3 +144,77 @@ fn a_spinner_moved_out_and_back_restarts() {
         "{got:?}"
     );
 }
+
+// ── C12G-PSEUDO-GONE ─────────────────────────────────────────────
+
+/// The first row the app painted, trailing blanks trimmed.
+fn first_row(app: &App<TestBackend>) -> String {
+    let mut screen = crate::render::VirtualScreen::new(40, 12);
+    screen.apply(app.terminal().backend().bytes());
+    (0..40)
+        .map(|x| screen.cell(x, 0).unwrap().symbol().to_string())
+        .collect::<String>()
+        .trim_end()
+        .to_string()
+}
+
+fn after_style(app: &App<TestBackend>, id: NodeId) -> bool {
+    let ext = app.dom().node(id).ext().unwrap();
+    ext.computed_for(crate::ext::StyleSlot::After).is_some()
+        || ext.cascaded_for(crate::ext::StyleSlot::After).is_some()
+}
+
+/// CSS Animations 1 §4.1 / CSS Pseudo-Elements 4 §2: a `::after` that
+/// stops generating a box (its host lost the class giving it `content`)
+/// has no animations — `animationcancel`, no glyph, no frames — and the
+/// cascade's style for it is gone, not kept under the animation.
+#[test]
+fn a_spinner_after_that_stops_generating_is_gone() {
+    let (mut app, div) = animated(
+        "@keyframes spin { from { color: rgb(255,0,0) } to { color: rgb(0,0,255) } } \
+         #a.s::after { content: '*'; animation: spin 1s infinite }",
+    );
+    let log = record(&mut app, div);
+    app.dom_mut().set_attribute(div, "class", "s").unwrap();
+    app.advance(0).unwrap();
+    app.advance(100).unwrap();
+    assert_eq!(first_row(&app), "x*");
+    assert!(needs_frames(&app));
+    app.dom_mut().set_attribute(div, "class", "").unwrap();
+    app.advance(16).unwrap();
+    assert!(has(&log, "animationcancel"), "{:?}", log.borrow());
+    assert!(!after_style(&app, div), "no ::after style left");
+    assert_eq!(first_row(&app), "x", "no glyph");
+    assert!(!needs_frames(&app), "no frames");
+    app.advance(500).unwrap();
+    assert_eq!(first_row(&app), "x");
+}
+
+/// CSS Transitions 1 §3: a tooltip `::after` whose content goes (the
+/// pointer left) while its color transitions is no longer rendered — the
+/// transition is cancelled and the tip does not come back from the style
+/// it had.
+#[test]
+fn a_tooltip_after_leaving_mid_transition_is_gone() {
+    let (mut app, div) = animated(
+        "#a::after { color: rgb(255,0,0); transition: color 200ms linear } \
+         #a.on::after { content: 'tip' } #a.on.hot::after { color: rgb(0,0,255) }",
+    );
+    let log = record(&mut app, div);
+    app.dom_mut().set_attribute(div, "class", "on").unwrap();
+    app.advance(0).unwrap();
+    app.dom_mut().set_attribute(div, "class", "on hot").unwrap();
+    app.advance(0).unwrap();
+    app.advance(50).unwrap();
+    assert!(has(&log, "transitionstart"), "{:?}", log.borrow());
+    assert_eq!(first_row(&app), "xtip");
+    app.dom_mut().set_attribute(div, "class", "").unwrap();
+    app.advance(16).unwrap();
+    assert!(has(&log, "transitioncancel"), "{:?}", log.borrow());
+    assert!(!after_style(&app, div));
+    assert_eq!(first_row(&app), "x");
+    assert!(!needs_frames(&app));
+    app.advance(300).unwrap();
+    assert_eq!(first_row(&app), "x", "the stale style is not put back");
+    assert!(!has(&log, "transitionend"), "{:?}", log.borrow());
+}

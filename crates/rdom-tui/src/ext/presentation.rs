@@ -222,10 +222,32 @@ impl TuiExt {
     /// The cascade's style for `slot` — its computed style without the
     /// running transitions' values: the *after-change style* of CSS
     /// Transitions 1 §3. The computed style itself while nothing runs.
+    ///
+    /// `None` exactly when [`computed_for`](Self::computed_for) is: a
+    /// pseudo-element that generates no box has no style of either kind.
     pub fn cascaded_for(&self, slot: StyleSlot) -> Option<&Rc<ComputedStyle>> {
+        let computed = self.computed_for(slot)?;
         self.presentation_for(slot)
             .and_then(PresentationStyle::cascaded)
-            .or_else(|| self.computed_for(slot))
+            .or(Some(computed))
+    }
+
+    /// `::before` / `::after` generates no box: drop its computed style
+    /// and the transition engine's record for it — the cascade's style
+    /// kept under running values is not a style to come back to
+    /// (C12G-PSEUDO-GONE). The cascade's write-back.
+    pub(crate) fn drop_pseudo(&mut self, slot: StyleSlot) {
+        match slot {
+            StyleSlot::Before => {
+                self.computed_before = None;
+                self.update_pseudo(false, |p| p.presentation_before = None);
+            }
+            StyleSlot::After => {
+                self.computed_after = None;
+                self.update_pseudo(false, |p| p.presentation_after = None);
+            }
+            _ => {}
+        }
     }
 
     /// `fresh`, a new cascade result for `slot`, with the values the
