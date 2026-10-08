@@ -29,8 +29,9 @@ pub(super) struct Structure {
     /// One per column its `table-column` / `table-column-group` boxes
     /// make, in order: the column box and its group.
     pub(super) columns: Vec<ColumnSource>,
-    /// Its column and column-group boxes, each once.
-    pub(super) column_boxes: Vec<NodeId>,
+    /// Its column and column-group boxes, each once with the columns it
+    /// spans — found as the columns are made, so no reader scans for them.
+    pub(super) column_boxes: Vec<ColumnBox>,
     /// Its row groups in display order; consecutive rows that are not in
     /// a row group (and anonymous rows) form one group with no box.
     pub(super) groups: Vec<Group>,
@@ -41,6 +42,15 @@ pub(super) struct Structure {
 pub(super) struct ColumnSource {
     pub(super) column: Option<NodeId>,
     pub(super) group: Option<NodeId>,
+}
+
+/// A `table-column` or `table-column-group` box and its columns
+/// `start..end` (empty for a box past the grid's cap).
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ColumnBox {
+    pub(super) id: NodeId,
+    pub(super) start: usize,
+    pub(super) end: usize,
 }
 
 /// A row group: its box (none for loose rows) and its rows.
@@ -195,14 +205,23 @@ impl Structure {
     /// `column`, a `table-column` box, in `group`: as many columns as its
     /// `span` (HTML §4.9.4, for `<col>`; one otherwise).
     fn push_column(&mut self, dom: &Dom<TuiExt>, column: NodeId, group: Option<NodeId>) {
-        self.column_boxes.push(column);
+        let start = self.columns.len();
         let span = rdom_core::table::column_span_of(dom, column);
-        for _ in 0..span {
-            self.columns.push(ColumnSource {
-                column: Some(column),
-                group,
-            });
-        }
+        self.push_columns(span, Some(column), group);
+        self.column_boxes.push(ColumnBox {
+            id: column,
+            start,
+            end: self.columns.len(),
+        });
+    }
+
+    /// `span` columns from `column` in `group`, none past the grid's cap.
+    fn push_columns(&mut self, span: usize, column: Option<NodeId>, group: Option<NodeId>) {
+        let room = super::MAX_COLUMNS.saturating_sub(self.columns.len());
+        self.columns.extend(std::iter::repeat_n(
+            ColumnSource { column, group },
+            span.min(room),
+        ));
     }
 
     /// A `table-column-group` box: its `table-column` children's columns,
@@ -210,23 +229,25 @@ impl Structure {
     /// `<colgroup>`; one otherwise). §17.2.1 rule 1.2: its other children
     /// are ignored.
     fn push_column_group(&mut self, dom: &Dom<TuiExt>, group: NodeId) {
-        self.column_boxes.push(group);
+        let (slot, start) = (self.column_boxes.len(), self.columns.len());
+        self.column_boxes.push(ColumnBox {
+            id: group,
+            start,
+            end: start,
+        });
         let columns: Vec<NodeId> = items(dom, group)
             .into_iter()
             .filter(|&(_, _, k)| k == Kind::Part(TablePart::Column))
             .filter_map(|(_, item, _)| item.node())
             .collect();
         if columns.is_empty() {
-            for _ in 0..rdom_core::table::column_span_of(dom, group) {
-                self.columns.push(ColumnSource {
-                    column: None,
-                    group: Some(group),
-                });
-            }
+            let span = rdom_core::table::column_span_of(dom, group);
+            self.push_columns(span, None, Some(group));
         }
         for column in columns {
             self.push_column(dom, column, Some(group));
         }
+        self.column_boxes[slot].end = self.columns.len();
     }
 }
 

@@ -787,6 +787,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **Hostile column spans cost linear time**: each `<col>` / `<colgroup>`'s columns are found once, as the table's structure is built — twenty `<colgroup span=1000>` in a collapsed table scanned ~1.5·10⁹ columns a layout — and a table's grid stops at 65 535 columns (a cell past it has no box). (C13G-SPAN-COST)
 - **A table reads its spans as the column selectors do**: a `create_element("TD")` cell's `colspan` and a `COL`'s `span` were ignored by layout (an exact-case tag test) while `:nth-col()` honoured them; both now read `rdom_core::table::cell_span_of` / `column_span_of`. (C13G-COLUMN-MATCH)
 - **A `steps()` transition wakes the app only at its steps** (CSS Easing 1 §2.3), not every frame; a restyle that leaves the cascade unchanged keeps the base style, so the transition hook skips it; nested `calc-size()` boxes resolve inside out (CSS Values 5 §10), the outer `auto` counting the inner box at its resolved size. (C12G-CARRYOVER)
 - **Transition and animation timing follows the specs** (CSS Transitions 1 §3, §6, CSS Animations 2 §4.2): a transition reversed back to its start value runs over the share it covered; `transitioncancel` reports the active time; a frame's transition and animation events merge by time; keyframe steps take the before flag; a re-stepped scroll timeline restyles children that frame. (C12G-MISC)

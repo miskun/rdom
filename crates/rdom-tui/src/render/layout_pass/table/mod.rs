@@ -80,6 +80,13 @@ pub(super) enum TableBox<'a> {
     },
 }
 
+/// The widest grid a table lays out: 65 535 columns. HTML caps each
+/// `colspan` and `span` at 1000 (§4.9.11, §4.9.3) but not their sum; a
+/// terminal cell offset is a `u16`, so a column past this could never
+/// show — and every per-column list a pass builds stays bounded, whatever
+/// the attributes say (DIVERGENCES §2).
+const MAX_COLUMNS: usize = u16::MAX as usize;
+
 /// The table's two border models (CSS 2.1 §17.6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Model {
@@ -169,6 +176,15 @@ impl Solved {
 thread_local! {
     /// Tables [`solve`]d (cost tests).
     pub(super) static SOLVES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Column sources examined to find a column box's columns (cost
+    /// tests).
+    pub(super) static COLUMN_SCANS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Count one column source examined (cost tests).
+fn count_column_scan() {
+    #[cfg(test)]
+    COLUMN_SCANS.with(|c| c.set(c.get() + 1));
 }
 
 /// Solve the table `table` (styled `computed`, in a containing block `cb`

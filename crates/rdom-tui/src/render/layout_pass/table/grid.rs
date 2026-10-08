@@ -1,11 +1,14 @@
 //! The table grid (CSS 2.1 §17.5, CSS Tables 3 §3.3): each cell in its
 //! slots, placed by `rdom_core::table::assign_slots` — the HTML table
 //! model's row processing, which the column combinator shares — and the
-//! rows and columns that `visibility: collapse` removes (§17.5.5).
+//! rows and columns that `visibility: collapse` removes (§17.5.5). The
+//! grid stops at [`MAX_COLUMNS`]: a cell reaching past it is cut there,
+//! one starting past it has no box.
 
 use rdom_core::table::{CellSpan, assign_slots, cell_span_of};
 use rdom_core::{Dom, NodeId};
 
+use super::MAX_COLUMNS;
 use super::structure::{Cell, Structure};
 use crate::ext::TuiExt;
 use crate::layout::Visibility;
@@ -20,6 +23,9 @@ pub(super) struct Grid {
     pub(super) rows: Vec<GridRow>,
     /// Every cell placed.
     pub(super) cells: Vec<GridCell>,
+    /// The cells whose first column is past the grid's cap
+    /// ([`MAX_COLUMNS`](super::MAX_COLUMNS)): no box.
+    pub(super) beyond: Vec<Cell>,
     /// By column: removed by `visibility: collapse` on its column or
     /// column group box (§17.5.5).
     pub(super) collapsed_columns: Vec<bool>,
@@ -96,6 +102,7 @@ impl Grid {
         let slots = assign_slots(&spans);
         let mut rows = Vec::with_capacity(slots.rows);
         let mut cells = Vec::new();
+        let mut beyond = Vec::new();
         let mut placed = slots.cells.into_iter();
         for group in &structure.groups {
             let group_collapsed = collapsed(dom, group.element);
@@ -107,17 +114,22 @@ impl Grid {
                 });
                 let row_slots = placed.next().unwrap_or_default();
                 for (cell, slot) in row.cells.iter().zip(row_slots) {
+                    if slot.column >= MAX_COLUMNS {
+                        beyond.push(cell.clone());
+                        continue;
+                    }
                     cells.push(GridCell {
                         cell: cell.clone(),
                         row: slot.row,
                         column: slot.column,
                         rows: slot.rows,
-                        columns: slot.columns,
+                        // Cut at the cap.
+                        columns: slot.columns.min(MAX_COLUMNS - slot.column),
                     });
                 }
             }
         }
-        let columns = slots.columns.max(structure.columns.len());
+        let columns = slots.columns.max(structure.columns.len()).min(MAX_COLUMNS);
         let collapsed_columns = (0..columns)
             .map(|c| {
                 structure
@@ -130,6 +142,7 @@ impl Grid {
             columns,
             rows,
             cells,
+            beyond,
             collapsed_columns,
         }
     }

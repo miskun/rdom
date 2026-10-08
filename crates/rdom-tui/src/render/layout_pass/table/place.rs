@@ -256,18 +256,21 @@ pub(super) fn place(
     let (n, m) = (solved.grid.columns, solved.grid.rows.len());
     let model = solved.model;
     // Columns and column groups (§17.5.1): their tracks over every row.
-    for &col in &solved.structure.column_boxes {
-        let mine =
-            |s: &super::structure::ColumnSource| s.column == Some(col) || s.group == Some(col);
-        let first = solved.structure.columns.iter().position(mine);
-        let last = solved.structure.columns.iter().rposition(mine);
-        let rect = match (first, last) {
-            (Some(a), Some(b)) if b < n => {
-                area(&xs, &ys, model, (a, b + 1), (0, m), borders(dom, Some(col)))
-            }
-            _ => LayoutRect::new(content.x, content.y, 0, 0),
+    for col in &solved.structure.column_boxes {
+        super::count_column_scan();
+        let rect = if col.start < col.end && col.end <= n {
+            area(
+                &xs,
+                &ys,
+                model,
+                (col.start, col.end),
+                (0, m),
+                borders(dom, Some(col.id)),
+            )
+        } else {
+            LayoutRect::new(content.x, content.y, 0, 0)
         };
-        set_rect(dom, col, rect);
+        set_rect(dom, col.id, rect);
     }
     // Row groups and rows: every column.
     let mut groups: Vec<NodeId> = Vec::new();
@@ -295,6 +298,12 @@ pub(super) fn place(
         if let Some(e) = row.element {
             let rect = area(&xs, &ys, model, (0, n), (r, r + 1), borders(dom, Some(e)));
             set_rect(dom, e, rect);
+        }
+    }
+    // Cells past the grid's cap: no box.
+    for cell in std::mem::take(&mut solved.grid.beyond) {
+        if let Cell::Element(e) = cell {
+            tree::collapse_subtree_geometry(dom, e);
         }
     }
     // Cells, their content laid out in them.

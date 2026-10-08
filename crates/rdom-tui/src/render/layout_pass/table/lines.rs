@@ -111,20 +111,10 @@ impl Lines {
                 .unwrap_or(first);
             mark(border(dom, id), 0, n, first, last + 1);
         }
-        for (c, source) in structure.columns.iter().enumerate() {
-            for id in [source.column, source.group].into_iter().flatten() {
-                // A group's sides are its first and last columns'.
-                let first = structure
-                    .columns
-                    .iter()
-                    .position(|s| s.column == Some(id) || s.group == Some(id))
-                    .unwrap_or(c);
-                let last = structure
-                    .columns
-                    .iter()
-                    .rposition(|s| s.column == Some(id) || s.group == Some(id))
-                    .unwrap_or(c);
-                mark(border(dom, id), first, last + 1, 0, m);
+        for col in &structure.column_boxes {
+            super::count_column_scan();
+            if col.start < col.end {
+                mark(border(dom, col.id), col.start, col.end, 0, m);
             }
         }
         for cell in &grid.cells {

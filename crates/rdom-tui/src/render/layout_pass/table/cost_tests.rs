@@ -5,7 +5,8 @@
 
 use std::cell::Cell;
 
-use super::SOLVES;
+use super::{COLUMN_SCANS, SOLVES};
+use crate::node::TuiNodeExt;
 use crate::render::Rect;
 use crate::render::layout_pass::intrinsic::memo_tests::{COLUMN_WALKS, ROW_WALKS};
 use crate::{CascadeExt, LayoutExt, TuiDom};
@@ -70,4 +71,88 @@ fn a_table_pass_measures_each_cell_a_bounded_number_of_times() {
             "{rows} rows: {column_walks} Column walks"
         );
     }
+}
+
+/// An HTML table of `groups` `<colgroup span=1000>`s (a collapsed border
+/// on each) and one row of `cells` `<td colspan=1000>`s, laid out once.
+fn wide_table(groups: usize, cells: usize) -> (TuiDom, Vec<rdom_core::NodeId>) {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let t = dom.create_element("table");
+    dom.append_child(root, t).unwrap();
+    for _ in 0..groups {
+        let g = dom.create_element("colgroup");
+        dom.set_attribute(g, "span", "1000").unwrap();
+        dom.append_child(t, g).unwrap();
+    }
+    let tr = dom.create_element("tr");
+    dom.append_child(t, tr).unwrap();
+    let mut tds = Vec::new();
+    for i in 0..cells {
+        let td = dom.create_element("td");
+        dom.set_attribute(td, "colspan", "1000").unwrap();
+        dom.append_child(tr, td).unwrap();
+        let text = dom.create_text_node(&format!("{i}"));
+        dom.append_child(td, text).unwrap();
+        tds.push(td);
+    }
+    let sheet = rdom_css::from_css_strict(
+        "table { display: table; border-collapse: collapse } \
+         colgroup { display: table-column-group; border: solid } \
+         tr { display: table-row } td { display: table-cell }",
+    )
+    .expect("sheet parses");
+    dom.cascade(&sheet);
+    (dom, tds)
+}
+
+/// A hostile `span` costs linear time (C13G-SPAN-COST): twenty
+/// `<colgroup span=1000>`s make 20 000 columns (HTML §4.9.3 caps each
+/// span at 1000, not their sum), and a collapsed table marks each column
+/// box's border lines and places each box from its column range — found
+/// once, when the structure is built, not by scanning every column for
+/// every column (~8·10⁸ comparisons a pass).
+#[test]
+fn hostile_column_spans_cost_linear_time() {
+    let (mut dom, _) = wide_table(20, 1);
+    COLUMN_SCANS.with(|c| c.set(0));
+    dom.layout_dom(Rect::new(0, 0, 60, 10));
+    let scans = COLUMN_SCANS.with(Cell::get);
+    assert!(
+        scans <= 4 * 20_000,
+        "{scans} column scans for 20 000 columns"
+    );
+}
+
+/// The grid is capped at 65 535 columns (C13G-SPAN-COST): no terminal
+/// cell offset reaches past `u16::MAX`, so a column there could never
+/// show. A cell reaching past the cap is cut at it; one starting past it
+/// has no box (an empty rect), as a cell in a
+/// collapsed column (§17.5.5).
+#[test]
+fn the_grid_is_capped_at_u16_max_columns() {
+    let (mut dom, tds) = wide_table(0, 70);
+    dom.layout_dom(Rect::new(0, 0, 60, 10));
+    let solved = {
+        let t = dom.query_selector("table").unwrap().id();
+        let c = dom.node(t).computed_rc().unwrap();
+        super::solve(&dom, super::TableBox::Element(t), &c, 60, 60)
+    };
+    assert_eq!(solved.grid.columns, usize::from(u16::MAX));
+    let cut = solved
+        .grid
+        .cells
+        .iter()
+        .find(|c| c.column == 65_000)
+        .unwrap();
+    assert_eq!(cut.columns, 535);
+    assert!(
+        solved
+            .grid
+            .cells
+            .iter()
+            .all(|c| c.column_end() <= usize::from(u16::MAX))
+    );
+    let past = dom.node(tds[66]).layout_rect().unwrap();
+    assert_eq!((past.width, past.height), (0, 0));
 }

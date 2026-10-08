@@ -8656,3 +8656,17 @@ row comes from.
   green after, with `table/tests.rs`' `spans_are_read_from_html_elements_only` and
   `spans_are_clamped_however_made` and the upper-case column-model pin. Mutation: each red above is
   the old code path restored alone.
+- 2026-10-08 — C13G-SPAN-COST (architect B2; CSS 2.1 §17.6.2, §17.5.1, HTML §4.9.3, §4.9.11). Found: the
+  collapsing model's border marks (`lines.rs`) and the column boxes' rects (`place.rs`) found each box's
+  columns by `position` / `rposition` over every column, for every column — quadratic in the columns, and
+  a column count is ~1000× its attributes. Decided: (1) `Structure::column_boxes` holds each box with its
+  range `start..end`, recorded as `push_column*` makes the columns (a group's patched after its `<col>`s);
+  the marks and the rects read it, one visit per box; (2) the grid stops at `MAX_COLUMNS` = 65 535: HTML
+  caps each span at 1000 but not their sum, and a terminal cell offset is a `u16`, so a column past it
+  could never show — `Structure` makes no column past it, `Grid` cuts a cell reaching past it and keeps a
+  cell starting past it in `Grid::beyond`, which `place` gives an empty rect (as a collapsed column's
+  cell). DIVERGENCES §2's table entry says so. Red: `cost_tests.rs`
+  `hostile_column_spans_cost_linear_time` — 1 520 540 040 column scans for 20 000 columns (20
+  `<colgroup span=1000>`, collapsed, one layout; 27 s in a debug build); `the_grid_is_capped_at_u16_max_columns`
+  — 70 000 columns for 65 535. Green after: ≤ 4 scans a column box, the grid 65 535 wide, the 67th
+  `colspan=1000` cell empty. Mutation: the red runs are the old lookups and the uncapped grid.
