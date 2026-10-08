@@ -403,7 +403,7 @@ impl<Ext: 'static> Dom<Ext> {
 
     /// Validate that inserting `child` under `parent` is legal.
     /// Cycle check + id existence.
-    fn validate_insert(&self, parent: NodeId, child: NodeId) -> Result<()> {
+    pub(crate) fn validate_insert(&self, parent: NodeId, child: NodeId) -> Result<()> {
         self.node_or_err(parent)?;
         self.node_or_err(child)?;
         if self.is_ancestor(child, parent) {

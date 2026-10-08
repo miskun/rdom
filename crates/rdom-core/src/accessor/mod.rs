@@ -424,6 +424,7 @@ impl<'a, Ext: 'static> NodeRef<'a, Ext> {
     }
 }
 
+mod convert;
 mod node_mut;
 pub use node_mut::NodeMut;
 
@@ -489,5 +490,7 @@ impl<Ext> Dom<Ext> {
     }
 }
 
+#[cfg(test)]
+mod convert_tests;
 #[cfg(test)]
 mod tests;

@@ -8776,3 +8776,24 @@ row comes from.
   Red: `app/teardown_tests.rs` `sorting_a_list_of_spinners_tears_down_in_linear_time` — 5050 steps at 100
   rows (bound 8 a row); green after at 100 and 1000 rows, the C12G-DETACHED tests unchanged. Mutation:
   the old loop is the red count.
+- 2026-10-08 — C13G-DOM-CONVENIENCE (architect N8; DOM §4.2.6, §4.2.3 "ensure pre-insertion validity").
+  Found: the variadic helpers inserted one item at a time — `after([fragment, x])` walked its cursor onto
+  the emptied, parentless fragment and failed with `HierarchyRequest` after a partial insert;
+  `replace_with([self])` inserted self before self, then removed it; `replace_children` cleared before an
+  invalid node failed; `prepend([first child, x])` put `x` first; any invalid node after a valid one left
+  a partial insert. Audit, step by step: `append` (convert, append), `prepend` (convert, before the first
+  child *after* conversion), `before` (the viable previous sibling — first preceding sibling not in the
+  list — then its next sibling, or the first child), `after` (the viable next sibling), `replaceWith`
+  (the viable next sibling; replace when the receiver is not in the list, else pre-insert),
+  `replaceChildren` (validity first, then replace all). Decided: `accessor/convert.rs` keeps the spec's
+  result without its fragment — `check_insertable` validates every node first (exists, not an inclusive
+  ancestor of the parent), `first_not_in` finds the viable reference among the siblings the list leaves in
+  place, `insert_items` inserts in list order before it (each moved as it goes; the spec moves them all
+  into a fragment first — the same tree, and no temporary fragment's records reach the observers, which
+  would have counted fresh nodes as detached, C12G-DETACHED). `Dom::validate_insert` is `pub(crate)`.
+  Red: `accessor/convert_tests.rs` (new, a section per method) — 10 of 15 failed (the four
+  invalid-node partial inserts, `replace_children`'s clear, `after` with a fragment, `prepend` with the
+  first child, `replace_with` with itself, alone and with another); the other five pin cases that already
+  held (a fragment appended, a sibling in `before` / `after`, `replace_with([])`, a current child in
+  `replace_children`); the existing `accessor/tests.rs` helpers' tests unchanged and green. CHANGELOG
+  silent change 85.

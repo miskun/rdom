@@ -97,6 +97,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 82. **An indeterminate checkbox draws `[-]`** (HTML §4.10.5.1.15): a checkbox with its indeterminate flag (the `indeterminate` attribute) shows `[-] ` instead of `[x] ` / `[ ] `; override `input[type=checkbox]:indeterminate::before`. (C11-FORM-STATES)
 83. **`:first-child` / `:last-child` / `:only-child` match an element without a parent** (Selectors 4 §13.3): a detached or root element matches them, as `:nth-child(1)` does. (C11-NTH)
 84. **The pointer changes shape over the page** (CSS UI 4 §4.1): in kitty, foot, WezTerm and Ghostty an `App` now sets the terminal pointer — the text pointer over text, `pointer` over links, a sheet's `cursor` elsewhere — where it was left alone. `App::with_pointer_shapes(PointerShapes::None)` keeps the terminal's own. (C12-CURSOR)
+85. **`append` / `prepend` / `before` / `after` / `replace_with` / `replace_children` follow DOM §4.2.6**: they check every node before any moves (an invalid one used to leave a partial insert, or an emptied parent for `replace_children`); `replace_with([self])` keeps the node; a sibling or first child in the list moves with the rest, in list order. (C13G-DOM-CONVENIENCE)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -297,6 +298,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-core`
 
+- **The `ParentNode` / `ChildNode` helpers follow DOM §4.2.6** ("converting nodes into a node", viable siblings): `NodeMut::after([fragment, x])` failed after a partial insert, `replace_with([self])` removed the node, `replace_children` cleared before validating; each now checks every node first and inserts before the viable sibling. (C13G-DOM-CONVENIENCE)
 - **`||` tries every column a cell spans, and a bare `<col>` is a column** (Selectors 4 §16.1, §3.1; HTML §13.2.6.4.9): a cell spanning two `<colgroup>`s missed `.hl col || td` when the first group's column failed it; a `<col>` child of the `<table>` before its rows (an HTML parser's implied `<colgroup>`) now counts, as in layout. (C13G-COLUMN-MATCH)
 - **Moving a node records its removal** (DOM §4.2.3 "insert" → "adopt" → "remove", "replace"): `append_child` / `insert_before` of a node with a parent fire the old parent's `ChildListChanged` removal first; a fragment insertion fires one record emptying the fragment; `replace_child` names the replaced child, and replacing a child with its next sibling no longer corrupts the list. (C12G-MOVE-RECORD)
 - **Removing a node under a large highlight costs a few hops per boundary point** (DOM §4.2.3 "remove" steps 4–7): each boundary's "inside the removed node?" walked to the root — 1000 search hits 60 levels deep cost 250 000 hops per removed log line; the answers now share their ancestors. (C11G-MINOR)

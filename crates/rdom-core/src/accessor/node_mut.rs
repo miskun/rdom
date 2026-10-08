@@ -220,101 +220,100 @@ impl<'a, Ext: 'static> NodeMut<'a, Ext> {
 
     /// Append each item to the end of this node's child list, in
     /// order. Text items create fresh text nodes. DOM
-    /// `ParentNode.append`.
+    /// `ParentNode.append` (§4.2.6): every node is checked before any
+    /// moves, so an invalid one inserts nothing.
     pub fn append(&mut self, children: impl IntoIterator<Item = NodeOrString>) -> Result<()> {
+        let items: Vec<NodeOrString> = children.into_iter().collect();
         let parent = self.id;
-        for item in children {
-            let new_id = match item {
-                NodeOrString::Node(n) => n,
-                NodeOrString::Text(s) => self.dom.create_text_node(&s),
-            };
-            self.dom.append_child(parent, new_id)?;
-        }
-        Ok(())
+        self.dom.check_insertable(parent, &items)?;
+        self.dom.insert_items(parent, items, None)
     }
 
     /// Insert each item at the start of this node's child list, in
     /// order — the first item of `children` becomes the new first
-    /// child. DOM `ParentNode.prepend`.
+    /// child. DOM `ParentNode.prepend` (§4.2.6): before the first child
+    /// the list leaves in place; nothing inserted when a node is invalid.
     pub fn prepend(&mut self, children: impl IntoIterator<Item = NodeOrString>) -> Result<()> {
+        let items: Vec<NodeOrString> = children.into_iter().collect();
         let parent = self.id;
-        let reference = self.dom.get_node(parent).and_then(|n| n.first_child);
-        for item in children {
-            let new_id = match item {
-                NodeOrString::Node(n) => n,
-                NodeOrString::Text(s) => self.dom.create_text_node(&s),
-            };
-            self.dom.insert_before(parent, new_id, reference)?;
-        }
-        Ok(())
+        self.dom.check_insertable(parent, &items)?;
+        let first = self.dom.get_node(parent).and_then(|n| n.first_child);
+        let reference = self.dom.first_not_in(first, &items);
+        self.dom.insert_items(parent, items, reference)
     }
 
     /// Insert each item as a sibling immediately before this node,
-    /// in order. DOM `ChildNode.before`.
+    /// in order. DOM `ChildNode.before` (§4.2.6): after the viable
+    /// previous sibling — the first preceding sibling not in the list —
+    /// so a sibling in the list moves with the rest; nothing inserted
+    /// when a node is invalid.
     ///
     /// Silently no-ops when this node has no parent (browser-
     /// faithful). Text items create fresh text nodes only when
     /// insertion actually happens.
     pub fn before(&mut self, siblings: impl IntoIterator<Item = NodeOrString>) -> Result<()> {
         let id = self.id;
-        let parent = match self.dom.get_node(id).and_then(|n| n.parent) {
-            Some(p) => p,
-            None => return Ok(()),
+        let Some(parent) = self.dom.get_node(id).and_then(|n| n.parent) else {
+            return Ok(());
         };
-        for item in siblings {
-            let new_id = match item {
-                NodeOrString::Node(n) => n,
-                NodeOrString::Text(s) => self.dom.create_text_node(&s),
-            };
-            self.dom.insert_before(parent, new_id, Some(id))?;
+        let items: Vec<NodeOrString> = siblings.into_iter().collect();
+        self.dom.check_insertable(parent, &items)?;
+        let listed = |n: NodeId| {
+            items
+                .iter()
+                .any(|i| matches!(i, NodeOrString::Node(m) if *m == n))
+        };
+        let mut previous = self.dom.get_node(id).and_then(|n| n.prev_sibling);
+        while let Some(p) = previous.filter(|&p| listed(p)) {
+            previous = self.dom.get_node(p).and_then(|n| n.prev_sibling);
         }
-        Ok(())
+        let from = match previous {
+            Some(p) => self.dom.get_node(p).and_then(|n| n.next_sibling),
+            None => self.dom.get_node(parent).and_then(|n| n.first_child),
+        };
+        let reference = self.dom.first_not_in(from, &items);
+        self.dom.insert_items(parent, items, reference)
     }
 
     /// Insert each item as a sibling immediately after this node,
-    /// in order. DOM `ChildNode.after`.
+    /// in order. DOM `ChildNode.after` (§4.2.6): before the viable next
+    /// sibling — the first following sibling not in the list; nothing
+    /// inserted when a node is invalid.
     ///
     /// Silently no-ops when this node has no parent (browser-
     /// faithful).
     pub fn after(&mut self, siblings: impl IntoIterator<Item = NodeOrString>) -> Result<()> {
         let id = self.id;
-        if self.dom.get_node(id).and_then(|n| n.parent).is_none() {
+        let Some(parent) = self.dom.get_node(id).and_then(|n| n.parent) else {
             return Ok(());
-        }
-        let mut cursor = id;
-        for item in siblings {
-            let new_id = match item {
-                NodeOrString::Node(n) => n,
-                NodeOrString::Text(s) => self.dom.create_text_node(&s),
-            };
-            self.dom
-                .insert_adjacent(cursor, AdjacentPosition::AfterEnd, new_id)?;
-            cursor = new_id;
-        }
-        Ok(())
+        };
+        let items: Vec<NodeOrString> = siblings.into_iter().collect();
+        self.dom.check_insertable(parent, &items)?;
+        let next = self.dom.get_node(id).and_then(|n| n.next_sibling);
+        let reference = self.dom.first_not_in(next, &items);
+        self.dom.insert_items(parent, items, reference)
     }
 
     /// Clear this node's children and append the new ones. DOM
-    /// `ParentNode.replaceChildren`.
+    /// `ParentNode.replaceChildren` (§4.2.6): the nodes are checked
+    /// before anything is removed, so an invalid one leaves the children
+    /// as they were.
     pub fn replace_children(
         &mut self,
         children: impl IntoIterator<Item = NodeOrString>,
     ) -> Result<()> {
+        let items: Vec<NodeOrString> = children.into_iter().collect();
         let parent = self.id;
+        self.dom.check_insertable(parent, &items)?;
         self.dom.clear_children(parent)?;
-        for item in children {
-            let new_id = match item {
-                NodeOrString::Node(n) => n,
-                NodeOrString::Text(s) => self.dom.create_text_node(&s),
-            };
-            self.dom.append_child(parent, new_id)?;
-        }
-        Ok(())
+        self.dom.insert_items(parent, items, None)
     }
 
     /// Replace this node with `siblings`, inserted at its position
     /// in the parent, then detach this node. DOM
-    /// `ChildNode.replaceWith`.
+    /// `ChildNode.replaceWith` (§4.2.6): the nodes go before the viable
+    /// next sibling; a node replaced with a list holding itself stays,
+    /// in its list position; nothing changes when a node is invalid.
     ///
     /// **Consumes `self`** — the receiver is detached from the
     /// tree, so the handle is no longer usable. Silently no-ops
@@ -332,18 +331,20 @@ impl<'a, Ext: 'static> NodeMut<'a, Ext> {
     /// ```
     pub fn replace_with(self, siblings: impl IntoIterator<Item = NodeOrString>) -> Result<()> {
         let NodeMut { dom, id } = self;
-        let parent = match dom.get_node(id).and_then(|n| n.parent) {
-            Some(p) => p,
-            None => return Ok(()),
+        let Some(parent) = dom.get_node(id).and_then(|n| n.parent) else {
+            return Ok(());
         };
-        for item in siblings {
-            let new_id = match item {
-                NodeOrString::Node(n) => n,
-                NodeOrString::Text(s) => dom.create_text_node(&s),
-            };
-            dom.insert_before(parent, new_id, Some(id))?;
+        let items: Vec<NodeOrString> = siblings.into_iter().collect();
+        dom.check_insertable(parent, &items)?;
+        let next = dom.get_node(id).and_then(|n| n.next_sibling);
+        let reference = dom.first_not_in(next, &items);
+        let listed = items
+            .iter()
+            .any(|i| matches!(i, NodeOrString::Node(n) if *n == id));
+        dom.insert_items(parent, items, reference)?;
+        if !listed {
+            dom.remove_child(parent, id)?;
         }
-        dom.remove_child(parent, id)?;
         Ok(())
     }
 
