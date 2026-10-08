@@ -90,7 +90,7 @@ pub(in crate::render::layout_pass) fn layout_anonymous(
     let style = anonymous_style(dom, parent);
     let table = TableBox::Anonymous { parent, items };
     let solved = solve(dom, table, &style, width, at.width);
-    let (top, bottom) = place::caption_heights(dom, &solved.structure, width);
+    let (top, bottom) = place::caption_heights(dom, &solved.skeleton.structure, width);
     let height = top
         .saturating_add(solved.box_height())
         .saturating_add(bottom);

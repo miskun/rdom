@@ -32,12 +32,14 @@ pub(super) type Key = (NodeId, bool, bool, u16, u16);
 /// Document data while a layout pass runs: its measurements, and its
 /// subgrid work (`grid::SubgridMemo`, keyed by what each subgrid
 /// inherits), so nested subgrids are measured and flattened once a pass
-/// whatever their depth.
+/// whatever their depth; its baselines; and its tables' shapes and sizes
+/// (`table::TableMemo`).
 #[derive(Debug, Default)]
 struct PassMemo(
     RefCell<HashMap<Key, u16>>,
     RefCell<crate::render::layout_pass::grid::SubgridMemo>,
     RefCell<HashMap<BaselineKey, Option<(u16, u16)>>>,
+    RefCell<crate::render::layout_pass::table::TableMemo>,
 );
 
 /// What a baseline measurement is for (`baselines::content_rows`): the
@@ -94,6 +96,15 @@ pub(in crate::render::layout_pass) fn with_subgrids<R>(
     f: impl FnOnce(&mut crate::render::layout_pass::grid::SubgridMemo) -> R,
 ) -> Option<R> {
     Some(f(&mut table(dom)?.1.borrow_mut()))
+}
+
+/// `f` on the open pass's table memo (`table::memo`); `None` outside a
+/// pass. The memo is borrowed only while `f` runs: `f` must not measure.
+pub(in crate::render::layout_pass) fn with_tables<R>(
+    dom: &Dom<TuiExt>,
+    f: impl FnOnce(&mut crate::render::layout_pass::table::TableMemo) -> R,
+) -> Option<R> {
+    Some(f(&mut table(dom)?.3.borrow_mut()))
 }
 
 fn table(dom: &Dom<TuiExt>) -> Option<&PassMemo> {

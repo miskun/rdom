@@ -99,17 +99,10 @@ impl Lines {
             }
         }
         // A row group's top and bottom are its first and last rows'.
-        for group in structure.groups.iter() {
-            let Some(id) = group.element else { continue };
-            let Some(first) = grid.rows.iter().position(|r| r.group == Some(id)) else {
-                continue;
-            };
-            let last = grid
-                .rows
-                .iter()
-                .rposition(|r| r.group == Some(id))
-                .unwrap_or(first);
-            mark(border(dom, id), 0, n, first, last + 1);
+        for group in grid.groups.iter().filter(|g| g.start < g.end) {
+            #[cfg(test)]
+            super::count(&super::GROUP_SCANS);
+            mark(border(dom, group.element), 0, n, group.start, group.end);
         }
         for col in &structure.column_boxes {
             super::count_column_scan();

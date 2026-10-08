@@ -78,7 +78,7 @@ pub(crate) fn children(dom: &Dom<TuiExt>, id: NodeId) -> PaintOrder<'_> {
 /// node, or the static `::before` / `::after` of a box-less child that
 /// holds a block-level box (its pseudo-elements are inline boxes in
 /// the container's flow, CSS Display 3 §2.5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum BoxItem {
     Node(NodeId),
     Generated(NodeId, PseudoSlot),

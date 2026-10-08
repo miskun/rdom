@@ -21,6 +21,9 @@ pub(super) struct Grid {
     pub(super) columns: usize,
     /// Every row, in display order.
     pub(super) rows: Vec<GridRow>,
+    /// Every row group with a box, with its rows `start..end` — found as
+    /// the rows are listed, so no reader scans for them.
+    pub(super) groups: Vec<GroupRows>,
     /// Every cell placed.
     pub(super) cells: Vec<GridCell>,
     /// The cells whose first column is past the grid's cap
@@ -35,10 +38,16 @@ pub(super) struct Grid {
 #[derive(Debug, Clone, Copy)]
 pub(super) struct GridRow {
     pub(super) element: Option<NodeId>,
-    /// Its row group's box.
-    pub(super) group: Option<NodeId>,
     /// `visibility: collapse` on the row (or its group): no height.
     pub(super) collapsed: bool,
+}
+
+/// A row group box and its rows `start..end`.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct GroupRows {
+    pub(super) element: NodeId,
+    pub(super) start: usize,
+    pub(super) end: usize,
 }
 
 /// A cell in its slots: rows `row..row + rows`, columns `column..column
@@ -103,13 +112,20 @@ impl Grid {
         let mut rows = Vec::with_capacity(slots.rows);
         let mut cells = Vec::new();
         let mut beyond = Vec::new();
+        let mut groups = Vec::new();
         let mut placed = slots.cells.into_iter();
         for group in &structure.groups {
+            if let Some(element) = group.element {
+                groups.push(GroupRows {
+                    element,
+                    start: rows.len(),
+                    end: rows.len() + group.rows.len(),
+                });
+            }
             let group_collapsed = collapsed(dom, group.element);
             for row in &group.rows {
                 rows.push(GridRow {
                     element: row.element,
-                    group: group.element,
                     collapsed: group_collapsed || collapsed(dom, row.element),
                 });
                 let row_slots = placed.next().unwrap_or_default();
@@ -141,6 +157,7 @@ impl Grid {
         Grid {
             columns,
             rows,
+            groups,
             cells,
             beyond,
             collapsed_columns,

@@ -205,14 +205,14 @@ pub(super) fn place(
         TableBox::Anonymous { .. } => None,
     };
     let width = outer.width;
-    let captions = caption_boxes(dom, &solved.structure, width);
-    let (top, bottom) = caption_heights(dom, &solved.structure, width);
+    let captions = caption_boxes(dom, &solved.skeleton.structure, width);
+    let (top, bottom) = caption_heights(dom, &solved.skeleton.structure, width);
     // §17.5.3: a table box taller than its rows gives them the rest.
     let given = outer.height.saturating_sub(top.saturating_add(bottom));
     let need = solved.box_height();
     if given > need {
         let live: Vec<usize> = (0..solved.rows.len())
-            .filter(|&r| !solved.grid.rows[r].collapsed)
+            .filter(|&r| !solved.skeleton.grid.rows[r].collapsed)
             .collect();
         let total = solved.rows.iter().fold(0u16, |a, &r| a.saturating_add(r));
         let want = total.saturating_add(given - need);
@@ -231,8 +231,16 @@ pub(super) fn place(
     let (sx, sy) = element
         .and_then(|id| dom.node(id).ext())
         .map_or((0, 0), |e| (e.scroll_x, e.scroll_y));
-    let xs = Axis::new(content.x - sx, &solved.lines.vertical, &solved.columns);
-    let ys = Axis::new(content.y - sy, &solved.lines.horizontal, &solved.rows);
+    let xs = Axis::new(
+        content.x - sx,
+        &solved.skeleton.lines.vertical,
+        &solved.columns,
+    );
+    let ys = Axis::new(
+        content.y - sy,
+        &solved.skeleton.lines.horizontal,
+        &solved.rows,
+    );
 
     // Captions (§17.4.1): above and below the table box, in tree order.
     let (mut above, mut below) = (outer.y, table_box.y + i32::from(box_height));
@@ -253,10 +261,12 @@ pub(super) fn place(
         *y += i32::from(got) + i32::from(c.margin_bottom);
     }
 
-    let (n, m) = (solved.grid.columns, solved.grid.rows.len());
-    let model = solved.model;
+    let skeleton = std::rc::Rc::clone(&solved.skeleton);
+    let (structure, grid) = (&skeleton.structure, &skeleton.grid);
+    let (n, m) = (grid.columns, grid.rows.len());
+    let model = skeleton.model;
     // Columns and column groups (§17.5.1): their tracks over every row.
-    for col in &solved.structure.column_boxes {
+    for col in &structure.column_boxes {
         super::count_column_scan();
         let rect = if col.start < col.end && col.end <= n {
             area(
@@ -273,49 +283,34 @@ pub(super) fn place(
         set_rect(dom, col.id, rect);
     }
     // Row groups and rows: every column.
-    let mut groups: Vec<NodeId> = Vec::new();
-    for (r, row) in solved.grid.rows.iter().enumerate() {
-        if let Some(g) = row.group
-            && !groups.contains(&g)
-        {
-            groups.push(g);
-            let last = solved
-                .grid
-                .rows
-                .iter()
-                .rposition(|x| x.group == Some(g))
-                .unwrap_or(r);
-            let rect = area(
-                &xs,
-                &ys,
-                model,
-                (0, n),
-                (r, last + 1),
-                borders(dom, Some(g)),
-            );
-            set_rect(dom, g, rect);
-        }
+    for group in grid.groups.iter().filter(|g| g.start < g.end) {
+        #[cfg(test)]
+        super::count(&super::GROUP_SCANS);
+        let b = borders(dom, Some(group.element));
+        let rect = area(&xs, &ys, model, (0, n), (group.start, group.end), b);
+        set_rect(dom, group.element, rect);
+    }
+    for (r, row) in grid.rows.iter().enumerate() {
         if let Some(e) = row.element {
             let rect = area(&xs, &ys, model, (0, n), (r, r + 1), borders(dom, Some(e)));
             set_rect(dom, e, rect);
         }
     }
     // Cells past the grid's cap: no box.
-    for cell in std::mem::take(&mut solved.grid.beyond) {
+    for cell in &grid.beyond {
         if let Cell::Element(e) = cell {
-            tree::collapse_subtree_geometry(dom, e);
+            tree::collapse_subtree_geometry(dom, *e);
         }
     }
     // Cells, their content laid out in them.
     let cb = solved.cb;
     let mut anonymous: HashMap<NodeId, Vec<AnonymousIfc>> = HashMap::new();
-    let cells = std::mem::take(&mut solved.grid.cells);
-    for cell in &cells {
-        let hidden = (cell.row..cell.row_end()).all(|r| solved.grid.rows[r].collapsed)
-            || (cell.column..cell.column_end().min(n)).all(|c| solved.grid.collapsed_columns[c]);
+    for cell in &grid.cells {
+        let hidden = (cell.row..cell.row_end()).all(|r| grid.rows[r].collapsed)
+            || (cell.column..cell.column_end().min(n)).all(|c| grid.collapsed_columns[c]);
         let rect = cell_rect(dom, cell, &xs, &ys, model);
         // §17.5.3: its content where its `vertical-align` puts it.
-        let lines = &solved.lines;
+        let lines = &skeleton.lines;
         let row_baseline = solved.baselines.get(cell.row).copied().flatten();
         let dy = (!hidden).then(|| {
             align::offset(
@@ -395,13 +390,13 @@ fn cell_rect(dom: &Dom<TuiExt>, cell: &GridCell, xs: &Axis, ys: &Axis, model: Mo
 /// lowest of its `baseline` cells' first lines, else the bottom of the
 /// row).
 pub(super) fn row_baselines(solved: &Solved) -> Option<(u16, u16)> {
-    let ys = Axis::new(0, &solved.lines.horizontal, &solved.rows);
+    let ys = Axis::new(0, &solved.skeleton.lines.horizontal, &solved.rows);
     let baseline = |r: usize| -> u16 {
         let below_top = solved.baselines[r].unwrap_or_else(|| solved.rows[r].saturating_sub(1));
         (ys.track[r] + i32::from(below_top)).clamp(0, i32::from(u16::MAX)) as u16
     };
     let live: Vec<usize> = (0..solved.rows.len())
-        .filter(|&r| !solved.grid.rows[r].collapsed)
+        .filter(|&r| !solved.skeleton.grid.rows[r].collapsed)
         .collect();
     let first = baseline(*live.first()?);
     let last = baseline(*live.last()?);

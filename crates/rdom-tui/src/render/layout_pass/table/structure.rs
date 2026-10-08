@@ -140,6 +140,8 @@ fn items(dom: &Dom<TuiExt>, container: NodeId) -> Vec<(usize, BoxItem, Kind)> {
 impl Structure {
     /// The structure of `table`.
     pub(super) fn of(dom: &Dom<TuiExt>, table: super::TableBox<'_>) -> Self {
+        #[cfg(test)]
+        super::count(&super::STRUCTURES);
         let (table, entries) = match table {
             super::TableBox::Element(id) => (id, items(dom, id)),
             super::TableBox::Anonymous { parent, items } => (

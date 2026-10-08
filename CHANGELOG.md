@@ -787,6 +787,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A table costs one build a layout pass**: its structure, grid, lines and column measures are kept for the pass (they were rebuilt for each of its min-, max-content, height, baseline and layout questions), it is solved once per width, an anonymous cell's runs are packed once per question, and row groups' rows are found once — a `<tbody>` per row was quadratic. (C13G-TABLE-COST)
 - **Hostile column spans cost linear time**: each `<col>` / `<colgroup>`'s columns are found once, as the table's structure is built — twenty `<colgroup span=1000>` in a collapsed table scanned ~1.5·10⁹ columns a layout — and a table's grid stops at 65 535 columns (a cell past it has no box). (C13G-SPAN-COST)
 - **A table reads its spans as the column selectors do**: a `create_element("TD")` cell's `colspan` and a `COL`'s `span` were ignored by layout (an exact-case tag test) while `:nth-col()` honoured them; both now read `rdom_core::table::cell_span_of` / `column_span_of`. (C13G-COLUMN-MATCH)
 - **A `steps()` transition wakes the app only at its steps** (CSS Easing 1 §2.3), not every frame; a restyle that leaves the cascade unchanged keeps the base style, so the transition hook skips it; nested `calc-size()` boxes resolve inside out (CSS Values 5 §10), the outer `auto` counting the inner box at its resolved size. (C12G-CARRYOVER)

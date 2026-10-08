@@ -50,6 +50,7 @@ mod columns;
 mod cost_tests;
 mod grid;
 mod lines;
+mod memo;
 mod place;
 mod rows;
 mod stray;
@@ -65,6 +66,7 @@ use crate::style::ComputedStyle;
 
 use super::intrinsic::Measure;
 
+pub(in crate::render::layout_pass) use memo::TableMemo;
 pub(crate) use place::is_column_box;
 pub(super) use stray::{anonymous_height, anonymous_width, layout_anonymous};
 
@@ -145,13 +147,10 @@ impl Chrome {
     }
 }
 
-/// A table laid out at one width: its structure, grid, lines and the
-/// sizes of its columns and rows.
+/// A table laid out at one width: its skeleton (structure, grid, lines,
+/// kept for the pass) and the sizes of its columns and rows.
 struct Solved {
-    structure: structure::Structure,
-    grid: grid::Grid,
-    lines: lines::Lines,
-    model: Model,
+    skeleton: std::rc::Rc<memo::Skeleton>,
     chrome: Chrome,
     /// Each column's width, between the lines.
     columns: Vec<u16>,
@@ -166,9 +165,10 @@ struct Solved {
 impl Solved {
     /// The table box's border-box height: its chrome, lines and rows.
     fn box_height(&self) -> u16 {
+        let s = &self.skeleton;
         self.chrome
             .vertical()
-            .saturating_add(self.lines.total_rows(&self.grid, &self.rows))
+            .saturating_add(s.lines.total_rows(&s.grid, &self.rows))
     }
 }
 
@@ -179,6 +179,18 @@ thread_local! {
     /// Column sources examined to find a column box's columns (cost
     /// tests).
     pub(super) static COLUMN_SCANS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Tables' structures built (cost tests).
+    pub(super) static STRUCTURES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Rows examined to find a row group's rows (cost tests).
+    pub(super) static GROUP_SCANS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Anonymous cells' inline runs packed (cost tests).
+    pub(super) static ANONYMOUS_PACKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Count one more of `counter` (cost tests).
+#[cfg(test)]
+fn count(counter: &'static std::thread::LocalKey<std::cell::Cell<usize>>) {
+    counter.with(|c| c.set(c.get() + 1));
 }
 
 /// Count one column source examined (cost tests).
@@ -190,6 +202,7 @@ fn count_column_scan() {
 /// Solve the table `table` (styled `computed`, in a containing block `cb`
 /// wide) at a border-box width of `width`: its columns sized into it (or
 /// past it, when its content needs more) and its rows to their content.
+/// A pass solves a table once per width (`memo`).
 fn solve(
     dom: &Dom<TuiExt>,
     table: TableBox<'_>,
@@ -197,33 +210,34 @@ fn solve(
     width: u16,
     cb: u16,
 ) -> Solved {
-    #[cfg(test)]
-    SOLVES.with(|c| c.set(c.get() + 1));
-    let model = Model::of(computed);
-    let chrome = Chrome::of(computed, model, cb);
-    let structure = structure::Structure::of(dom, table);
-    let grid = grid::Grid::of(dom, &structure);
-    let lines = lines::Lines::of(dom, computed, &structure, &grid, model);
+    let skeleton = memo::skeleton(dom, table, computed);
+    let s = &*skeleton;
+    let chrome = Chrome::of(computed, s.model, cb);
     let grid_width = width.saturating_sub(chrome.horizontal());
-    let assignable = grid_width.saturating_sub(lines.total_columns(&grid));
-    let cb = grid_width;
-    let columns = if uses_fixed_layout(computed) {
-        width::fixed(dom, &structure, &grid, &lines, model, assignable)
-    } else {
-        let measures = columns::measures(dom, &structure, &grid, &lines, model);
-        width::distribute(&measures, &grid.collapsed_columns, assignable)
-    };
-    let rows::Rows { heights, baselines } = rows::heights(dom, &grid, &lines, model, &columns, cb);
+    let sizes = memo::sizes(dom, table, width, cb, || {
+        #[cfg(test)]
+        count(&SOLVES);
+        let assignable = grid_width.saturating_sub(s.lines.total_columns(&s.grid));
+        let columns = if uses_fixed_layout(computed) {
+            width::fixed(dom, &s.structure, &s.grid, &s.lines, s.model, assignable)
+        } else {
+            width::distribute(s.measures(dom), &s.grid.collapsed_columns, assignable)
+        };
+        let rows::Rows { heights, baselines } =
+            rows::heights(dom, &s.grid, &s.lines, s.model, &columns, grid_width);
+        memo::Sizes {
+            columns,
+            rows: heights,
+            baselines,
+        }
+    });
     Solved {
-        structure,
-        grid,
-        lines,
-        model,
         chrome,
-        columns,
-        rows: heights,
-        baselines,
-        cb,
+        columns: sizes.columns.clone(),
+        rows: sizes.rows.clone(),
+        baselines: sizes.baselines.clone(),
+        cb: grid_width,
+        skeleton,
     }
 }
 
@@ -276,30 +290,28 @@ fn size_of(
 ) -> u16 {
     match direction {
         Direction::Row => {
-            let model = Model::of(computed);
-            let chrome = Chrome::of(computed, model, cb_width);
-            let structure = structure::Structure::of(dom, table);
-            let grid = grid::Grid::of(dom, &structure);
-            let lines = lines::Lines::of(dom, computed, &structure, &grid, model);
+            let s = memo::skeleton(dom, table, computed);
+            let chrome = Chrome::of(computed, s.model, cb_width);
             let columns = if uses_fixed_layout(computed) {
-                let fixed = width::fixed(dom, &structure, &grid, &lines, model, 0);
+                let fixed = width::fixed(dom, &s.structure, &s.grid, &s.lines, s.model, 0);
                 fixed.iter().map(|&w| u32::from(w)).sum::<u32>()
             } else {
-                let measures = columns::measures(dom, &structure, &grid, &lines, model);
+                let measures = s.measures(dom);
                 match measure {
-                    Measure::MinContent => width::grid_min(&measures, &grid.collapsed_columns),
-                    Measure::MaxContent => width::grid_max(&measures, &grid.collapsed_columns),
+                    Measure::MinContent => width::grid_min(measures, &s.grid.collapsed_columns),
+                    Measure::MaxContent => width::grid_max(measures, &s.grid.collapsed_columns),
                 }
             };
             let table = columns
-                .saturating_add(u32::from(lines.total_columns(&grid)))
+                .saturating_add(u32::from(s.lines.total_columns(&s.grid)))
                 .saturating_add(u32::from(chrome.horizontal()))
                 .min(u32::from(u16::MAX)) as u16;
-            table.max(place::caption_min(dom, &structure, cb_width))
+            table.max(place::caption_min(dom, &s.structure, cb_width))
         }
         Direction::Column => {
             let solved = solve(dom, table, computed, cross_budget, cb_width);
-            let (top, bottom) = place::caption_heights(dom, &solved.structure, cross_budget);
+            let (top, bottom) =
+                place::caption_heights(dom, &solved.skeleton.structure, cross_budget);
             top.saturating_add(solved.box_height())
                 .saturating_add(bottom)
         }
@@ -433,7 +445,7 @@ pub(super) fn baselines(
     cb: u16,
 ) -> Option<(u16, u16)> {
     let solved = solve(dom, TableBox::Element(id), computed, width, cb);
-    let (top, _) = place::caption_heights(dom, &solved.structure, width);
+    let (top, _) = place::caption_heights(dom, &solved.skeleton.structure, width);
     place::row_baselines(&solved).map(|(first, last)| {
         let at = top.saturating_add(solved.chrome.top);
         (at.saturating_add(first), at.saturating_add(last))

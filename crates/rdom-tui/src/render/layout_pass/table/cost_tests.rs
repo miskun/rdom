@@ -5,7 +5,7 @@
 
 use std::cell::Cell;
 
-use super::{COLUMN_SCANS, SOLVES};
+use super::{ANONYMOUS_PACKS, COLUMN_SCANS, GROUP_SCANS, SOLVES, STRUCTURES};
 use crate::node::TuiNodeExt;
 use crate::render::Rect;
 use crate::render::layout_pass::intrinsic::memo_tests::{COLUMN_WALKS, ROW_WALKS};
@@ -138,8 +138,9 @@ fn the_grid_is_capped_at_u16_max_columns() {
         let c = dom.node(t).computed_rc().unwrap();
         super::solve(&dom, super::TableBox::Element(t), &c, 60, 60)
     };
-    assert_eq!(solved.grid.columns, usize::from(u16::MAX));
+    assert_eq!(solved.skeleton.grid.columns, usize::from(u16::MAX));
     let cut = solved
+        .skeleton
         .grid
         .cells
         .iter()
@@ -148,6 +149,7 @@ fn the_grid_is_capped_at_u16_max_columns() {
     assert_eq!(cut.columns, 535);
     assert!(
         solved
+            .skeleton
             .grid
             .cells
             .iter()
@@ -156,3 +158,121 @@ fn the_grid_is_capped_at_u16_max_columns() {
     let past = dom.node(tds[66]).layout_rect().unwrap();
     assert_eq!((past.width, past.height), (0, 0));
 }
+
+/// A `display: table` of `rows` rows, each in its own row group (as a
+/// generator emitting one `<tbody>` per row does), each row two text
+/// cells and a run of loose text — an anonymous cell (§17.2.1 rule 2.3)
+/// — under a block, cascaded.
+fn long_table(rows: usize) -> TuiDom {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let wrap = dom.create_element("div");
+    dom.append_child(root, wrap).unwrap();
+    let t = dom.create_element("div");
+    dom.set_attribute(t, "class", "t").unwrap();
+    dom.append_child(wrap, t).unwrap();
+    for r in 0..rows {
+        let group = dom.create_element("div");
+        dom.set_attribute(group, "class", "g").unwrap();
+        dom.append_child(t, group).unwrap();
+        let row = dom.create_element("div");
+        dom.set_attribute(row, "class", "r").unwrap();
+        dom.append_child(group, row).unwrap();
+        for c in 0..2 {
+            let cell = dom.create_element("div");
+            dom.set_attribute(cell, "class", "c").unwrap();
+            dom.append_child(row, cell).unwrap();
+            let text = dom.create_text_node(&format!("cell {r} {c}"));
+            dom.append_child(cell, text).unwrap();
+        }
+        let loose = dom.create_text_node(&format!("loose {r} text"));
+        dom.append_child(row, loose).unwrap();
+    }
+    let sheet = rdom_css::from_css_strict(
+        ".t { display: table; border-collapse: collapse } \
+         .g { display: table-row-group; border-top: solid } \
+         .r { display: table-row } .c { display: table-cell; padding: 0 1 }",
+    )
+    .expect("sheet parses");
+    dom.cascade(&sheet);
+    dom
+}
+
+/// C13G-TABLE-COST — a table's work in one layout pass is linear in its
+/// size: its structure, grid and lines are built once a pass (they are
+/// pure while it runs), each row group's rows found once (not by
+/// scanning every row for every group: a generator emitting a `<tbody>`
+/// per row made that quadratic), each anonymous cell's runs packed a
+/// bounded number of times (its measures memoized with the pass, as an
+/// element's are), each element cell measured a bounded number of times —
+/// at 1000 rows as at 10.
+#[test]
+fn a_long_table_costs_linear_work_a_pass() {
+    for rows in [10, 1000] {
+        let mut dom = long_table(rows);
+        for c in [
+            &SOLVES,
+            &STRUCTURES,
+            &GROUP_SCANS,
+            &ANONYMOUS_PACKS,
+            &ROW_WALKS,
+            &COLUMN_WALKS,
+        ] {
+            c.with(|c| c.set(0));
+        }
+        dom.layout_dom(Rect::new(0, 0, 60, 80));
+        let get = |c: &'static std::thread::LocalKey<Cell<usize>>| c.with(Cell::get);
+        let cells = 2 * rows;
+        eprintln!(
+            "{rows} rows: {} solves, {} structures, {} group scans, {} anonymous packs, \
+             {} Row walks, {} Column walks",
+            get(&SOLVES),
+            get(&STRUCTURES),
+            get(&GROUP_SCANS),
+            get(&ANONYMOUS_PACKS),
+            get(&ROW_WALKS),
+            get(&COLUMN_WALKS)
+        );
+        assert_eq!(get(&STRUCTURES), 1, "{rows} rows: structures");
+        assert!(
+            get(&GROUP_SCANS) <= 4 * rows,
+            "{rows} rows: {} group scans",
+            get(&GROUP_SCANS)
+        );
+        assert!(
+            get(&ANONYMOUS_PACKS) <= 4 * rows,
+            "{rows} rows: {} anonymous packs",
+            get(&ANONYMOUS_PACKS)
+        );
+        assert!(
+            get(&ROW_WALKS) <= 2 * cells + 4,
+            "{rows} rows: {} Row walks",
+            get(&ROW_WALKS)
+        );
+        assert!(
+            get(&COLUMN_WALKS) <= cells + 4,
+            "{rows} rows: {} Column walks",
+            get(&COLUMN_WALKS)
+        );
+    }
+}
+
+/// C13G-TABLE-COST — the allocations of a table's layout pass, per row,
+/// are pinned: a pass that rebuilds the structure, or copies it per
+/// solve, shows here.
+#[test]
+fn a_long_table_allocates_a_bounded_amount_per_row() {
+    use crate::test_alloc::allocations_in;
+    let per_row = |rows: usize| {
+        let mut dom = long_table(rows);
+        dom.layout_dom(Rect::new(0, 0, 60, 80));
+        allocations_in(|| dom.layout_dom(Rect::new(0, 0, 60, 80))) / rows as u64
+    };
+    let (small, large) = (per_row(100), per_row(1000));
+    eprintln!("allocations a row: {small} at 100 rows, {large} at 1000");
+    assert!(large <= ALLOCATIONS_PER_ROW, "{large} allocations a row");
+}
+
+/// The allocations one row of `long_table` costs a layout pass, measured
+/// when C13G-TABLE-COST landed (with a little room).
+const ALLOCATIONS_PER_ROW: u64 = 230;

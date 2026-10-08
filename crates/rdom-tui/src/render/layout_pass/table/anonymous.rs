@@ -9,6 +9,7 @@
 
 use rdom_core::{Dom, NodeId};
 
+use super::memo;
 use super::structure::AnonymousCell;
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{Direction, LayoutRect};
@@ -58,6 +59,8 @@ fn pack(
     run: &[(usize, BoxItem)],
     width: u16,
 ) -> InlineLayout {
+    #[cfg(test)]
+    super::count(&super::ANONYMOUS_PACKS);
     let items: Vec<BoxItem> = run.iter().map(|&(_, item)| item).collect();
     pack_run(
         dom,
@@ -69,37 +72,80 @@ fn pack(
     )
 }
 
+/// The memo key of `cell`: its container and first item (`memo::cell`).
+fn first_item(cell: &AnonymousCell) -> Option<BoxItem> {
+    cell.content.first().map(|&(_, item)| item)
+}
+
 /// The cell's min-content (`max_content` false) or max-content width
 /// (CSS Sizing 3 §5.1): its widest inline run packed at that constraint
-/// or block-level child's contribution.
+/// or block-level child's contribution. Measured once a pass.
 pub(super) fn width(dom: &Dom<TuiExt>, cell: &AnonymousCell, max_content: bool, cb: u16) -> u16 {
-    segments(dom, cell)
-        .into_iter()
-        .map(|s| match s {
-            Segment::Inline(run) => {
-                let at = if max_content { u16::MAX } else { 0 };
-                pack(dom, cell, run, at)
-                    .lines
-                    .iter()
-                    .map(|l| l.width)
-                    .max()
-                    .unwrap_or(0)
-            }
-            Segment::Block(id) => contribution(dom, id, Direction::Row, 0, cb, max_content),
-        })
-        .max()
-        .unwrap_or(0)
+    let measure = || {
+        let w = segments(dom, cell)
+            .into_iter()
+            .map(|s| match s {
+                Segment::Inline(run) => {
+                    let at = if max_content { u16::MAX } else { 0 };
+                    pack(dom, cell, run, at)
+                        .lines
+                        .iter()
+                        .map(|l| l.width)
+                        .max()
+                        .unwrap_or(0)
+                }
+                Segment::Block(id) => contribution(dom, id, Direction::Row, 0, cb, max_content),
+            })
+            .max()
+            .unwrap_or(0);
+        (w, 0)
+    };
+    let Some(first) = first_item(cell) else {
+        return 0;
+    };
+    let query = memo::CellQuery::Width { max_content };
+    memo::cell(dom, cell.container, first, query, cb, measure).0
+}
+
+/// The cell's height at `width` — its pieces stacked — and the row of its
+/// first line box's text from its top (§17.5.3: its baseline; its height
+/// when it holds none): one packing of each run, once a pass a width.
+fn at_width(dom: &Dom<TuiExt>, cell: &AnonymousCell, width: u16, cb: u16) -> (u16, u16) {
+    let measure = || {
+        let (mut height, mut baseline) = (0u16, None);
+        for s in segments(dom, cell) {
+            let h = match s {
+                Segment::Inline(run) => {
+                    let il = pack(dom, cell, run, width);
+                    if baseline.is_none()
+                        && let Some((first, _)) = il.baselines()
+                    {
+                        baseline = Some(height.saturating_add(first));
+                    }
+                    il.height()
+                }
+                Segment::Block(id) => intrinsic_size(dom, id, Direction::Column, width, cb),
+            };
+            height = height.saturating_add(h);
+        }
+        (height, baseline.unwrap_or(height))
+    };
+    let Some(first) = first_item(cell) else {
+        return (0, 0);
+    };
+    memo::cell(
+        dom,
+        cell.container,
+        first,
+        memo::CellQuery::At(width),
+        cb,
+        measure,
+    )
 }
 
 /// The cell's height at `width`: its pieces stacked.
 pub(super) fn height(dom: &Dom<TuiExt>, cell: &AnonymousCell, width: u16, cb: u16) -> u16 {
-    segments(dom, cell)
-        .into_iter()
-        .map(|s| match s {
-            Segment::Inline(run) => pack(dom, cell, run, width).height(),
-            Segment::Block(id) => intrinsic_size(dom, id, Direction::Column, width, cb),
-        })
-        .fold(0u16, u16::saturating_add)
+    at_width(dom, cell, width, cb).0
 }
 
 /// Lay the cell out with its content box at `rect`: its inline runs
@@ -151,20 +197,5 @@ pub(super) fn lay_out(
 /// The row of the cell's first line box's text from its top at `width`
 /// (§17.5.3: its baseline), or its height when it holds none.
 pub(super) fn first_baseline(dom: &Dom<TuiExt>, cell: &AnonymousCell, width: u16, cb: u16) -> u16 {
-    let mut top = 0u16;
-    for s in segments(dom, cell) {
-        match s {
-            Segment::Inline(run) => {
-                let il = pack(dom, cell, run, width);
-                if let Some((first, _)) = il.baselines() {
-                    return top.saturating_add(first);
-                }
-                top = top.saturating_add(il.height());
-            }
-            Segment::Block(id) => {
-                top = top.saturating_add(intrinsic_size(dom, id, Direction::Column, width, cb));
-            }
-        }
-    }
-    top
+    at_width(dom, cell, width, cb).1
 }

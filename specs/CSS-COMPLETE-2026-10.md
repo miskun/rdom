@@ -8670,3 +8670,24 @@ row comes from.
   `<colgroup span=1000>`, collapsed, one layout; 27 s in a debug build); `the_grid_is_capped_at_u16_max_columns`
   — 70 000 columns for 65 535. Green after: ≤ 4 scans a column box, the grid 65 535 wide, the 67th
   `colspan=1000` cell empty. Mutation: the red runs are the old lookups and the uncapped grid.
+- 2026-10-08 — C13G-TABLE-COST (architect N5; CSS 2.1 §17.5). Found: each of a table's questions in a
+  pass — min- and max-content width (`size_of`, `min_width`), height at a width (the parent's measure),
+  baselines, layout — rebuilt `Structure` / `Grid` / `Lines` and the column measures (5 builds a pass);
+  an anonymous cell packed its runs for each of its min, max, height and baseline asks, per solve (19
+  packs a cell); `lines.rs` and `place.rs` found each row group's rows by scanning every row (quadratic
+  for a `<tbody>` per row). Decided: (1) `table/memo.rs` — a `TableMemo` in the pass's document data
+  beside the intrinsic memo (`intrinsic::with_tables`): a table's `Skeleton` (structure, grid, lines,
+  model and its column measures in a `OnceCell`) once a pass, keyed by its element or, for an anonymous
+  table, its parent and first item; its `Sizes` (column widths, row heights, baselines) once per
+  `(width, cb)`; an anonymous cell's min / max width and its height-and-baseline at a width (one pack
+  gives both) once per question, keyed by container and first item (an anonymous cell has no node for
+  the intrinsic memo). Pure for the reason the intrinsic memo is: styles and tree do not change while a
+  pass runs; outside a pass nothing is kept. The memo is borrowed only to read or write, never while
+  measuring (a cell may hold a nested table). `Solved` holds the `Rc<Skeleton>`. (2) `Grid::groups` lists
+  each row group box with its rows `start..end` as the rows are listed; `GridRow::group` is gone. Red:
+  `cost_tests.rs` `a_long_table_costs_linear_work_a_pass` — at 10 rows 5 structures, 650 group scans,
+  190 anonymous packs; `a_long_table_allocates_a_bounded_amount_per_row` — 500 allocations a row (pin
+  unset). Green after: 1 structure, 1 solve, 2 group scans a row, 4 packs an anonymous cell, 2 Row and 1
+  Column walks a cell, at 10 and 1000 rows; 212 allocations a row at 100 and at 1000 rows, pinned at
+  230. Mutation (restored, touched): the pass memo off (`with_tables` → `None`) fails both tests (5
+  structures, 190 packs, 500 allocations a row); the old group lookups were the red group count.
