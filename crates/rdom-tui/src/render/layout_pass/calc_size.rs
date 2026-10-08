@@ -29,6 +29,9 @@ pub(super) fn lay_out(dom: &mut Dom<TuiExt>, viewport: Rect, pass: fn(&mut Dom<T
         Vec::new()
     };
     if sized.is_empty() {
+        // None is left (an `interpolate-size` transition ended): stop
+        // paying for the walk.
+        crate::style::doc_flags::clear_calc_sizes(dom);
         pass(dom, viewport);
         return;
     }

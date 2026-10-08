@@ -336,16 +336,26 @@ impl TuiExt {
         }
     }
 
-    /// Forget what the transition engine keeps for this element's boxes
-    /// once it leaves the document (C12G-DETACHED): the composited values
-    /// (each slot's computed style goes back to the cascade's) and the
-    /// before-change styles — an element no longer rendered has none (CSS
-    /// Transitions 1 §3), so it is rendered afresh when inserted again.
-    pub(crate) fn forget_rendering(&mut self) {
-        for slot in [StyleSlot::Host, StyleSlot::Before, StyleSlot::After] {
-            if let Some(base) = self.presentation_for(slot).and_then(|p| p.base.clone()) {
-                self.put_computed(slot, Some(base));
+    /// Forget what was rendered of this element once it left the document
+    /// (C12G-DETACHED): its before-change styles — an element no longer
+    /// rendered has none (CSS Transitions 1 §3), so it is rendered afresh
+    /// — and the running values composited on its computed styles (each
+    /// goes back to the cascade's). `connected`: it is back in the
+    /// document already (removed and inserted in one task), its computed
+    /// styles kept for the cascade to reuse or replace; otherwise they go
+    /// too, so an insertion styles it from scratch (and the cascade notes
+    /// what its styles need, as `calc-size()`'s second layout pass).
+    pub(crate) fn forget_rendering(&mut self, connected: bool) {
+        if connected {
+            for slot in [StyleSlot::Host, StyleSlot::Before, StyleSlot::After] {
+                if let Some(base) = self.presentation_for(slot).and_then(|p| p.base.clone()) {
+                    self.put_computed(slot, Some(base));
+                }
             }
+        } else {
+            self.computed = None;
+            self.computed_before = None;
+            self.computed_after = None;
         }
         self.presentation = None;
         self.computed_prev = None;

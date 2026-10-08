@@ -5,7 +5,8 @@
 //! A flag about the elements is conservative across partial cascades, as
 //! the bottom-up `TuiExt::tree_has_*` flags are: a cascade that adds what
 //! it names sets it, and nothing clears it — a stale `true` costs a walk, a
-//! stale `false` would lose output. A flag about the sheets is set by every
+//! stale `false` would lose output — except `calc_sizes`, which the walk
+//! it gates clears when it finds no such box. A flag about the sheets is set by every
 //! cascade run from the sheets it cascades with.
 
 use rdom_core::Dom;
@@ -58,6 +59,17 @@ pub(crate) fn note_calc_size(dom: &mut Dom<TuiExt>) {
     if !flags(dom).calc_sizes {
         let mut next = flags(dom);
         next.calc_sizes = true;
+        dom.set_document_data(next);
+    }
+}
+
+/// Record that no element's `width` or `height` is a `calc-size()`:
+/// layout's collecting walk found none (`layout_pass::calc_size`), so
+/// later layouts skip it until a cascade or a composite notes one again.
+pub(crate) fn clear_calc_sizes(dom: &mut Dom<TuiExt>) {
+    if flags(dom).calc_sizes {
+        let mut next = flags(dom);
+        next.calc_sizes = false;
         dom.set_document_data(next);
     }
 }

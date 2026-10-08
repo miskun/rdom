@@ -146,7 +146,16 @@ impl Timing {
 
     /// §4.9.1: the directed progress.
     fn directed(&self, simple: f64, iteration: f64) -> f64 {
-        let forwards = match self.direction {
+        if self.forwards(iteration) {
+            simple
+        } else {
+            1.0 - simple
+        }
+    }
+
+    /// §4.9.1: whether iteration `iteration` runs forwards.
+    pub(crate) fn forwards(&self, iteration: f64) -> bool {
+        match self.direction {
             AnimationDirection::Normal => true,
             AnimationDirection::Reverse => false,
             AnimationDirection::Alternate | AnimationDirection::AlternateReverse => {
@@ -157,8 +166,7 @@ impl Timing {
                 };
                 d.is_infinite() || d % 2.0 == 0.0
             }
-        };
-        if forwards { simple } else { 1.0 - simple }
+        }
     }
 
     /// CSS Animations 2 §4.2: the interval start — `elapsedTime` of an

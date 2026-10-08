@@ -73,6 +73,7 @@ impl<B: Backend> App<B> {
         // Animation events (`transitionend`) fire from in here; their
         // listeners may schedule timers.
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
+        self.service_animation_clock();
         // Before the roots are taken, so what the stages dirty is
         // cascaded in this frame.
         self.run_prelude(PreludeRun::Frame);
@@ -101,7 +102,7 @@ impl<B: Backend> App<B> {
                 (&sheets, registry),
                 (animations, now),
                 (redraw, cascaded_viewport),
-                (&dirty_roots, flushed),
+                (&dirty_roots, &flushed),
                 buf.area,
             );
             dom.paint_dom(buf, buf.area);
@@ -157,6 +158,20 @@ impl<B: Backend> App<B> {
         dirty_roots
     }
 
+    /// What the animations' clock calls for at the start of a frame
+    /// (C12G-FRAME-COST): an animation with an empty effect whose event is
+    /// due is stepped and its events dispatched, with no frame; a frame is
+    /// noted when a transition or animation is due to move — every frame
+    /// for a continuous one, a stepped one only at its steps.
+    fn service_animation_clock(&mut self) {
+        let now = self.scheduler.borrow().now();
+        if self.animations.step_events(&self.dom, now) {
+            self.dispatch_animation_events();
+        }
+        self.redraw
+            .note_if(self.animations.needs_frames(now), Redraw::Paint);
+    }
+
     /// Cancel the transitions and animations of the elements removed
     /// since the last frame and forget their before-change styles
     /// (C12G-DETACHED) — before the cascade, so one inserted again is
@@ -175,9 +190,9 @@ impl<B: Backend> App<B> {
     /// Whether a style flush cascaded subtrees since the last frame
     /// (`runtime::style_flush`): the frame lays out (noted on `redraw`)
     /// and runs its transition hook for them.
-    fn take_flushed(&mut self) -> bool {
+    fn take_flushed(&mut self) -> Vec<NodeId> {
         let flushed = self.tracker.take_flushed();
-        self.redraw.note_if(flushed, Redraw::Layout);
+        self.redraw.note_if(!flushed.is_empty(), Redraw::Layout);
         flushed
     }
 
@@ -324,7 +339,7 @@ impl<B: Backend> App<B> {
             (&sheets, &self.prelude.registry),
             (&mut self.animations, now),
             (redraw, &mut self.cascaded_viewport),
-            (&dirty_roots, flushed),
+            (&dirty_roots, &flushed),
             area,
         );
         self.note_pass(pass, false);
@@ -392,7 +407,7 @@ fn style_and_layout(
     (sheets, registry): (&[&Stylesheet], &Rc<PropertyRegistry>),
     (animations, now): (&mut AnimationRegistry, std::time::Instant),
     (redraw, cascaded_viewport): (Redraw, &mut Option<Viewport>),
-    (dirty_roots, flushed): (&[NodeId], bool),
+    (dirty_roots, flushed): (&[NodeId], &[NodeId]),
     area: Rect,
 ) -> Pass {
     // The viewport-percentage units resolve against the terminal (CSS
@@ -406,25 +421,37 @@ fn style_and_layout(
         Redraw::Cascade
     };
     // The cascade, then the transition and animation hook under its sheets.
+    let mut cascaded: Vec<NodeId> = Vec::new();
     let cascade = if redraw == Redraw::Cascade {
         cascade_all_with(dom, sheets, Some(registry.clone()));
         *cascaded_viewport = Some(viewport);
         Some(CascadeScope::Full)
     } else if !dirty_roots.is_empty() {
-        cascade_subtrees_all_with(dom, sheets, Some(registry.clone()), dirty_roots);
+        cascaded = cascade_subtrees_all_with(dom, sheets, Some(registry.clone()), dirty_roots);
         Some(CascadeScope::Subtrees)
     } else {
         None
     };
-    if cascade.is_some() || flushed {
+    let flushed_any = !flushed.is_empty();
+    if cascade.is_some() || flushed_any {
         animations.set_registered_properties(registry.clone());
         // A newly rendered element's transitions start from its starting
         // style (CSS Transitions 2 §3, `@starting-style`); its CSS
         // animations follow its `animation-*` lists (CSS Animations 1 §4).
+        // The hook visits what was cascaded: the whole tree, or the dirty
+        // and flushed subtrees (C12G-FRAME-COST).
         let inputs = crate::runtime::animation::CssInputs { sheets, registry };
-        crate::runtime::animation::diff_and_register_in(dom, animations, now, inputs);
+        let scope: Option<Vec<NodeId>> = (cascade != Some(CascadeScope::Full))
+            .then(|| cascaded.iter().chain(flushed).copied().collect());
+        crate::runtime::animation::diff_and_register_in(
+            dom,
+            animations,
+            now,
+            inputs,
+            scope.as_deref(),
+        );
     }
-    let must_lay_out = cascade.is_some() || flushed || redraw >= Redraw::Layout;
+    let must_lay_out = cascade.is_some() || flushed_any || redraw >= Redraw::Layout;
     // A frame the animation pump asked for (`Redraw::Paint`) steps the
     // transitions and animations — the one that ends them too — and lays
     // out only when they moved a longhand layout reads. Stepping one that
@@ -464,18 +491,18 @@ fn style_and_layout(
         let resnapped = crate::runtime::scroll_snap::resnap(dom);
         let focused = crate::runtime::focus::service_focus_scroll(dom);
         let revealed = crate::runtime::scrollbar::service_caret_reveal(dom);
-        if resnapped || focused || revealed {
-            dom.layout_dom(area);
-        }
         // Scroll-driven Animations 1 §5: a scroll or view timeline this
-        // layout moved is stale — step it again, and lay out once more
-        // when it moved geometry.
+        // layout or those scrolls moved is stale — step it again (the
+        // timelines read the offsets as they are now, against this layout),
+        // and share the one relayout: a frame lays out at most twice.
+        let mut restepped = false;
         if animations.has_progress_timelines() {
             let again = animations.restep_progress(dom, now);
             composites += again.composites;
-            if again.layout {
-                dom.layout_dom(area);
-            }
+            restepped = again.layout;
+        }
+        if resnapped || focused || revealed || restepped {
+            dom.layout_dom(area);
         }
     }
     Pass {

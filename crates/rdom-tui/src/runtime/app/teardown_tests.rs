@@ -65,12 +65,17 @@ fn a_detached_spinner_is_cancelled_and_needs_no_frames() {
     let (mut app, div) = animated(SPIN);
     let log = record(&mut app, div);
     app.advance(100).unwrap();
-    assert!(needs_frames(&app), "the spinner runs");
+    let wake = |app: &App<TestBackend>| app.animations.next_wake(app.scheduler.borrow().now());
+    assert!(
+        wake(&app).is_some(),
+        "the spinner wakes the app at its steps"
+    );
     let root = app.dom().root();
     app.dom_mut().remove_child(root, div).unwrap();
     app.advance(16).unwrap();
     assert!(has(&log, "animationcancel"), "{:?}", log.borrow());
     assert!(!needs_frames(&app), "a detached spinner asks for no frames");
+    assert!(wake(&app).is_none(), "nor wakes the app");
     app.take_frame_stats();
     app.advance(16).unwrap();
     let idle = app.take_frame_stats();

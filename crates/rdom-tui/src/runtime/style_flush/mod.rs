@@ -98,6 +98,7 @@ pub fn flush_style(dom: &mut TuiDom, id: NodeId) -> bool {
         return false;
     }
     let sheets: Vec<&Stylesheet> = sheets.iter().map(|s| &**s).collect();
-    cascade_subtrees_all_with(dom, &sheets, Some(registry), &roots);
+    let cascaded = cascade_subtrees_all_with(dom, &sheets, Some(registry), &roots);
+    tracker.note_flushed(&cascaded);
     true
 }

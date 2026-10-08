@@ -152,8 +152,10 @@ fn one_frames_events_follow_composite_order() {
 }
 
 /// Cost: an infinite animation costs one composite per frame, and a
-/// layout only when it moves a property layout reads — a background
-/// color is painted without one; nothing runs once the page is idle.
+/// layout only when it moves the value of a property layout reads — a
+/// background color is painted without one, a height lays out on the
+/// frames its whole-cell value moves (C12G-FRAME-COST); nothing runs once
+/// the page is idle.
 #[test]
 fn an_infinite_animation_costs_a_composite_per_frame_and_layout_only_for_geometry() {
     let (mut app, _) = animated(
@@ -173,21 +175,36 @@ fn an_infinite_animation_costs_a_composite_per_frame_and_layout_only_for_geometr
     );
     assert_eq!(paint_only.full_cascades + paint_only.subtree_cascades, 0);
 
-    let (mut app, _) = animated(
+    let (mut app, div) = animated(
         "@keyframes h { from { height: 1 } to { height: 5 } } \
          #a { animation: h 100ms linear infinite }",
     );
     app.advance(16).unwrap();
     app.take_frame_stats();
+    let height = |app: &App<TestBackend>, id| {
+        app.dom()
+            .node(id)
+            .ext()
+            .unwrap()
+            .computed
+            .as_ref()
+            .unwrap()
+            .height
+            .clone()
+    };
+    let mut moved = 0;
     for _ in 0..4 {
+        let before = height(&app, div);
         app.advance(16).unwrap();
+        moved += u32::from(height(&app, div) != before);
     }
     let geometry = app.take_frame_stats();
     assert_eq!(
         (geometry.paints, geometry.layouts, geometry.composites),
-        (4, 4, 4),
+        (4, moved, 4),
         "{geometry:?}"
     );
+    assert!((1..4).contains(&moved), "{moved}");
 
     let (mut app, _) = animated(&format!("{GROW} #a {{ animation: grow 20ms linear }}"));
     app.advance(30).unwrap();

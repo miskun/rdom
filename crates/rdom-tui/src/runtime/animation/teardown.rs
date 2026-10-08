@@ -34,7 +34,8 @@ impl AnimationRegistry {
                     self.cancel_for_node(node, now);
                 }
             }
-            forget_subtree(dom, root);
+            let connected = dom.node(root).is_connected();
+            forget_subtree(dom, root, connected);
         }
     }
 
@@ -76,15 +77,15 @@ fn subject(dom: &Dom<TuiExt>, node: NodeId) -> NodeId {
 }
 
 /// Forget the rendering state of the elements of the box tree under
-/// `root`: no before-change style, no composited values.
-fn forget_subtree(dom: &mut Dom<TuiExt>, root: NodeId) {
+/// `root` (`TuiExt::forget_rendering`).
+fn forget_subtree(dom: &mut Dom<TuiExt>, root: NodeId, connected: bool) {
     let mut stack = vec![root];
     while let Some(id) = stack.pop() {
         if dom.node(id).node_type() != NodeType::Element {
             continue;
         }
         if let Some(ext) = dom.node_mut(id).ext_mut() {
-            ext.forget_rendering();
+            ext.forget_rendering(connected);
         }
         stack.extend(crate::render::box_tree::children(dom, id));
     }

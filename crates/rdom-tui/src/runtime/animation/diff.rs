@@ -42,22 +42,32 @@ pub fn diff_and_register_with(
             .then(|| starting(dom, id))
             .flatten()
     };
-    diff(dom, registry, now, &starting, None);
+    diff(dom, registry, now, &starting, None, None);
 }
 
 /// [`diff_and_register_with`] under the cascade's sheets: the starting
 /// styles they give, and the CSS animations their `@keyframes` rules run
-/// (CSS Animations 1 §4) — what an `App`'s frame does.
+/// (CSS Animations 1 §4) — what an `App`'s frame does. `scope`: the
+/// roots of the subtrees the cascade recomputed — only their elements can
+/// have changed style or rendered state, so only they are visited
+/// (C12G-FRAME-COST); `None` after a whole-tree cascade.
 pub(crate) fn diff_and_register_in(
     dom: &mut Dom<TuiExt>,
     registry: &mut AnimationRegistry,
     now: Instant,
     inputs: super::CssInputs<'_>,
+    scope: Option<&[NodeId]>,
 ) {
     let starting = |dom: &Dom<TuiExt>, id: NodeId, slot: StyleSlot| {
         crate::style::cascade::starting_style(dom, (inputs.sheets, inputs.registry), id, slot)
     };
-    diff(dom, registry, now, &starting, Some(inputs));
+    diff(dom, registry, now, &starting, Some(inputs), scope);
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Elements the transition hook visited (test instrumentation).
+    pub(crate) static DIFF_VISITS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
 /// A box's starting style (`@starting-style`), `None` when it has none.
@@ -69,8 +79,15 @@ fn diff(
     now: Instant,
     starting: &StartingStyle<'_>,
     css: Option<super::CssInputs<'_>>,
+    scope: Option<&[NodeId]>,
 ) {
-    let ids = collect_element_ids(dom, dom.root());
+    // A changed sheet set re-resolves every animation's `@keyframes`:
+    // the whole tree, whatever was cascaded.
+    let sheets_changed = css.is_some_and(|inputs| registry.css_stamp != inputs.stamp());
+    let ids = match scope.filter(|_| !sheets_changed) {
+        Some(roots) => scoped_element_ids(dom, roots),
+        None => collect_element_ids(dom, dom.root()),
+    };
     let preferred = crate::style::CascadeExt::color_scheme(dom);
     // Whether each element was rendered at the last style update, read
     // before any snapshot below moves on (parents come first).
@@ -86,6 +103,8 @@ fn diff(
         (inputs, sheets_changed, is_rendered(dom, &ids), animated)
     });
     for id in ids {
+        #[cfg(test)]
+        DIFF_VISITS.with(|c| c.set(c.get() + 1));
         let was_rendered = rendered.get(&id).copied().unwrap_or(false);
         for slot in [StyleSlot::Host, StyleSlot::Before, StyleSlot::After] {
             let changed = snapshot(dom, id, slot);
@@ -309,36 +328,77 @@ fn update_css(
 /// Whether each of `ids` (in tree order, parents first) is rendered now:
 /// styled, not `display: none`, and under a box parent that is.
 fn is_rendered(dom: &Dom<TuiExt>, ids: &[NodeId]) -> std::collections::HashMap<NodeId, bool> {
-    let mut out = std::collections::HashMap::with_capacity(ids.len());
-    for &id in ids {
-        let own = dom
-            .node(id)
+    rendered(dom, ids, |dom, id| {
+        dom.node(id)
             .ext()
             .and_then(|e| e.cascaded_for(StyleSlot::Host))
-            .is_some_and(|c| c.display != crate::layout::Display::None);
-        let parent = crate::render::box_tree::box_parent(dom, id)
-            .and_then(|p| out.get(&p).copied())
-            .unwrap_or(true);
-        out.insert(id, own && parent);
-    }
-    out
+            .is_some_and(|c| c.display != crate::layout::Display::None)
+    })
 }
 
 /// Whether each of `ids` (in tree order, parents first) was rendered at
 /// the last style update: styled then, its before-change `display` not
 /// `none`, and under a box parent that was rendered.
 fn was_rendered(dom: &Dom<TuiExt>, ids: &[NodeId]) -> std::collections::HashMap<NodeId, bool> {
-    let mut out = std::collections::HashMap::with_capacity(ids.len());
-    for &id in ids {
-        let own = dom
-            .node(id)
+    rendered(dom, ids, |dom, id| {
+        dom.node(id)
             .ext()
             .and_then(before_change_display)
-            .is_some_and(|d| d != crate::layout::Display::None);
-        let parent = crate::render::box_tree::box_parent(dom, id)
-            .and_then(|p| out.get(&p).copied())
-            .unwrap_or(true);
-        out.insert(id, own && parent);
+            .is_some_and(|d| d != crate::layout::Display::None)
+    })
+}
+
+/// Whether each of `ids` (parents first within each subtree) and every
+/// element box above it is `own`: a parent outside `ids` — above a
+/// subtree root — answers by climbing its box ancestors, O(depth) per
+/// root.
+fn rendered(
+    dom: &Dom<TuiExt>,
+    ids: &[NodeId],
+    own: impl Fn(&Dom<TuiExt>, NodeId) -> bool,
+) -> std::collections::HashMap<NodeId, bool> {
+    let chain = |mut cur: Option<NodeId>| {
+        while let Some(n) = cur {
+            if dom.node(n).node_type() == NodeType::Element && !own(dom, n) {
+                return false;
+            }
+            cur = crate::render::box_tree::box_parent(dom, n);
+        }
+        true
+    };
+    let mut out = std::collections::HashMap::with_capacity(ids.len());
+    for &id in ids {
+        let parent = crate::render::box_tree::box_parent(dom, id);
+        let above = match parent.and_then(|p| out.get(&p).copied()) {
+            Some(above) => above,
+            None => chain(parent),
+        };
+        out.insert(id, own(dom, id) && above);
+    }
+    out
+}
+
+/// The elements of the box-tree subtrees at `roots` — each still in the
+/// document and not inside another of them — parents first.
+fn scoped_element_ids(dom: &Dom<TuiExt>, roots: &[NodeId]) -> Vec<NodeId> {
+    let set: std::collections::HashSet<NodeId> = roots.iter().copied().collect();
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for &root in roots {
+        if !dom.contains(root) || !seen.insert(root) {
+            continue;
+        }
+        let mut top = root;
+        let mut nested = false;
+        let mut cur = crate::render::box_tree::box_parent(dom, root);
+        while let Some(n) = cur {
+            nested |= set.contains(&n);
+            top = n;
+            cur = crate::render::box_tree::box_parent(dom, n);
+        }
+        if top == dom.root() && !nested {
+            walk(dom, root, &mut out);
+        }
     }
     out
 }

@@ -39,6 +39,7 @@ use crate::style::{
 mod effect;
 mod events;
 mod info;
+mod schedule;
 mod timeline;
 mod timing;
 mod update;
@@ -247,18 +248,6 @@ impl CssAnimation {
         }
     }
 
-    /// Whether it changes with the clock: running on the document
-    /// timeline, not yet past its active interval. (A scroll-driven one
-    /// moves with its scroller, frame by frame as scrolling asks.)
-    pub(super) fn needs_frames(&self, now: Instant) -> bool {
-        self.hold.is_none()
-            && self.timeline == AnimationTimeline::Auto
-            && self
-                .timing
-                .phase(now.saturating_duration_since(self.start).as_secs_f64() * 1000.0)
-                != Phase::After
-    }
-
     /// Write its keyframe values, at the progress its last step reached,
     /// into `out` over `out`'s own (the underlying values: the cascade's
     /// and the transitions'). The longhands it wrote, empty when it has
@@ -281,7 +270,7 @@ impl CssAnimation {
     /// Advance it to `now`, queueing the events its phase change calls
     /// for (CSS Animations 2 §4.2); `true` when its composited value moved
     /// (or it was changed) and its target must be composited again.
-    fn step(
+    pub(in crate::runtime::animation) fn step(
         &mut self,
         dom: &Dom<TuiExt>,
         now: Instant,

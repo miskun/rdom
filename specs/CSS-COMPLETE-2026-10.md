@@ -8122,3 +8122,41 @@ row comes from.
   `starting_style_tests::a_popover_reopened_during_its_fade_out_reverses_from_where_it_is` — red 33 after
   76 (fading on to black); green after (it rises, ends at 200 with nothing running). N2b (re-insertion)
   was C12G-DETACHED's.
+- 2026-10-08 — C12G-FRAME-COST (architect N3, N4; API N9; Web Animations 1 §4–§5, CSS Easing 1 §2.3,
+  Scroll-driven Animations 1 §5). Six parts, one counting test each in `app/frame_cost_tests.rs`, all red
+  first. (1) Layout by value: `composite` compares each layout-read longhand (animated now or before) of
+  the previous composited style with the new one (`Longhand::differs`) — not "is one animating"; a
+  continuous color pulse beside a `step-end` `visibility` blink painted 63 frames and laid out 63, now 2
+  (red 63). `visibility` and `z-index` stay layout longhands (`collapse` is layout; the value test
+  covers the blink). (2) Next-change scheduling (`css/schedule.rs`, `animation/schedule.rs`): an
+  animation whose every keyframe interval is `steps()` (`KeyframeEffect::change_points`: each interval's
+  n divisions and its ends) wakes at the next such point after its last step — mirrored in a backwards
+  iteration (§4.9.1) — or the iteration's end; in its delay at the active start; continuous ones every
+  frame. `needs_frames` is "a frame is due now"; the App notes the frame at a frame's start
+  (`service_animation_clock`) and the live loop's poll timeout wakes at `next_wake`. A `blink 1s
+  step-end infinite` over one second: 2 paints and 2 composites (red 63 / 63); the alternate test pins the
+  mirroring (mutation-checked: the forward mapping leaves it hidden at 1760 ms). (3) An empty effect (its
+  keyframes name only what rdom does not render — `transform` until Phase 15): no frames; its events
+  (start, iterations, end) are due at their local times (`next_event`) and stepped without a frame
+  (`step_events`) — 0 paints, events at 0 / 100 / 200 / 300 ms (red: `needs_frames` true). (4) The
+  transition hook visits only what the cascade recomputed: `cascade_subtrees_all_with` returns its roots
+  (the widened ones too), a style flush records its roots (`DirtyTracker::note_flushed`, was a flag),
+  and `diff_and_register_in` walks those subtrees (`scoped_element_ids`: connected, outermost), the
+  rendered maps answering a parent outside them by climbing its box ancestors; a full cascade or a changed
+  sheet set walks the tree. A class change on one of 300 rows: 1 visit (red 300). (5) The `calc_sizes`
+  flag clears when layout's collecting walk finds no `calc-size()` box; to keep a re-inserted subtree
+  from hiding one, C12G-DETACHED's forgetting now drops the computed styles of a subtree still out of
+  the document at the frame (one re-inserted in the same task keeps them, its running values put back to
+  the cascade's), so its insertion is styled afresh and noted. (6) The scroll-driven re-step shares the
+  services' relayout (re-snap, focus scroll, caret reveal — the timelines read the offsets as the
+  services left them, against the first layout): at most 2 `layout_dom` a frame; a frame needing a focus
+  scroll, a re-step and a `calc-size()` box ran 6 phase runs, now 4. TECH_DEBT `ANIM-RELAYOUT-1`
+  rewritten with the bound: 2 × 2 × `MAX_ROUNDS` = 12 per frame, 24 with an autoscroll tick's off-frame
+  pass (was 18 / 36). Combined mutation run (all six reverted): the six tests fail. Changed tests:
+  `animation_event_tests::an_infinite_animation_costs_a_composite_per_frame_and_layout_only_for_geometry`
+  expected a layout on every frame of a whole-cell `height` animation; it now expects one on the frames
+  whose height moved (2 of 4), the contract changed; `teardown_tests::a_detached_spinner…` asserted
+  `needs_frames` for a `steps(4)` spinner between steps — it now asserts the spinner wakes the app
+  (`next_wake`), and no longer does once removed. CHANGELOG silent change 79. Not done here: transitions
+  with `steps()` still run every frame (their cost is bounded by their duration); `keep_cascaded`'s
+  per-restyle `Rc` (architect N3's last line) and nested `calc-size()` (N4) are left for batch B.

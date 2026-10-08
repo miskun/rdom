@@ -341,8 +341,8 @@ pub(crate) fn cascade_subtrees_all_with(
     stylesheets: &[&Stylesheet],
     registry: Option<Rc<PropertyRegistry>>,
     roots: &[NodeId],
-) {
-    subtrees::subtrees(dom, stylesheets, registry, roots, walk::Mode::Cascade);
+) -> Vec<NodeId> {
+    subtrees::subtrees(dom, stylesheets, registry, roots, walk::Mode::Cascade)
 }
 
 /// Restyle the subtrees at `roots` after a change no selector can see —

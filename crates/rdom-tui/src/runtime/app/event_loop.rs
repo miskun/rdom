@@ -168,6 +168,11 @@ impl<B: Backend> App<B> {
         if let Some(flip) = self.prelude.caret_blink.next_deadline() {
             base = base.min(flip.saturating_duration_since(now));
         }
+        // A stepped animation's next step, an event-only animation's next
+        // event (C12G-FRAME-COST).
+        if let Some(wake) = self.animations.next_wake(now) {
+            base = base.min(wake.saturating_duration_since(now));
+        }
         if let Some(step) = self.prelude.smooth_scroll_next {
             base = base.min(step.saturating_duration_since(now));
         }

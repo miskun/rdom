@@ -183,16 +183,6 @@ impl AnimationRegistry {
         self.active.len() + self.custom.len() + self.css.len()
     }
 
-    /// Whether the next frame must step something with the clock: a
-    /// transition runs, or a CSS animation plays on the document
-    /// timeline before or in its active interval. A paused or finished
-    /// animation holds its value without frames.
-    pub fn needs_frames(&self, now: Instant) -> bool {
-        !self.active.is_empty()
-            || !self.custom.is_empty()
-            || self.css.iter().any(|a| a.needs_frames(now))
-    }
-
     pub fn take_pending_events(&mut self) -> Vec<PendingEvent> {
         std::mem::take(&mut self.pending_events)
     }
@@ -348,7 +338,9 @@ impl AnimationRegistry {
     /// Composite the running transitions of `(node, slot)` onto its
     /// cascaded style, then its CSS animations over them (Web Animations
     /// 1 §5.4.5: CSS animations sort above CSS transitions). `true` when
-    /// a longhand layout reads was or is animated: the frame lays out.
+    /// the value of a longhand layout reads — animated now or before —
+    /// changed: the frame lays out (a stepped `visibility` blink only at
+    /// its flips).
     fn composite(
         &mut self,
         dom: &mut Dom<TuiExt>,
@@ -370,6 +362,7 @@ impl AnimationRegistry {
             .presentation_for(slot)
             .map(|p| p.animated().to_vec())
             .unwrap_or_default();
+        let old = ext.computed_for(slot).cloned();
         let mut animated: Vec<Longhand> = running.iter().map(|a| a.property).collect();
         let style = if running.is_empty() && css.is_empty() {
             None
@@ -391,11 +384,20 @@ impl AnimationRegistry {
             Some(style)
         };
         let reaches = animated.iter().any(|l| l.reaches_descendants());
-        let layout = animated.iter().chain(&before).any(|l| l.affects_layout());
         let calc_size = style
             .as_ref()
             .is_some_and(crate::style::doc_flags::is_calc_sized);
+        let moved: Vec<Longhand> = animated
+            .iter()
+            .chain(&before)
+            .copied()
+            .filter(|l| l.affects_layout())
+            .collect();
         ext.composite(slot, animated, style);
+        let layout = match (old.as_deref(), ext.computed_for(slot)) {
+            (Some(old), Some(new)) => moved.iter().any(|l| l.differs(old, new)),
+            _ => !moved.is_empty(),
+        };
         if calc_size {
             crate::style::doc_flags::note_calc_size(dom);
         }
@@ -478,6 +480,7 @@ mod diff;
 #[cfg(test)]
 mod longhand_tests;
 mod rule;
+mod schedule;
 mod teardown;
 #[cfg(test)]
 mod tests;
@@ -490,6 +493,8 @@ pub use crate::style::AnimationPlayState;
 pub use css::{AnimationEventKind, AnimationInfo, AnimationKind};
 pub(crate) use css::{CssInputs, slot_order};
 pub use custom::PendingCustomEvent;
+#[cfg(test)]
+pub(crate) use diff::DIFF_VISITS;
 pub(crate) use diff::diff_and_register_in;
 pub use diff::{diff_and_register, diff_and_register_with, settle_restyled};
 #[cfg(test)]

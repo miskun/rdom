@@ -127,6 +127,42 @@ impl KeyframeEffect {
         self.properties.iter().map(|p| p.longhand)
     }
 
+    /// Whether it animates nothing — every keyframe named only what rdom
+    /// does not render (`transform`, an unknown property).
+    pub(crate) fn is_empty(&self) -> bool {
+        self.properties.is_empty()
+    }
+
+    /// The iteration progresses at which its value can change, sorted,
+    /// when every keyframe interval is stepped (CSS Easing 1 §2.3: a
+    /// `steps(n)` interval changes only at its `n` equal divisions, and
+    /// at its ends) — `None` when one moves continuously, or a keyframe
+    /// sits on a timeline range. 0 and 1, the iteration's ends, are
+    /// always in it.
+    pub(crate) fn change_points(&self) -> Option<Vec<f64>> {
+        let mut out = vec![0.0, 1.0];
+        for p in &self.properties {
+            if p.ranged {
+                return None;
+            }
+            for w in p.frames.windows(2) {
+                let (a, b) = (&w[0], &w[1]);
+                let span = b.offset - a.offset;
+                match a.easing {
+                    TimingFunction::Steps { count, .. } => {
+                        let n = f64::from(count.max(1));
+                        out.extend((0..=count.max(1)).map(|k| a.offset + span * f64::from(k) / n));
+                    }
+                    _ if span > 0.0 => return None,
+                    _ => out.push(a.offset),
+                }
+            }
+        }
+        out.sort_by(f64::total_cmp);
+        out.dedup();
+        Some(out)
+    }
+
     /// Write each longhand's value at `progress` into `out`, `underlying`
     /// being the value below this effect (Web Animations 1 §5.3.3).
     /// `place` positions the keyframes on timeline ranges; without it

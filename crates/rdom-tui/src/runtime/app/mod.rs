@@ -68,6 +68,8 @@ mod control_click_tests;
 #[cfg(test)]
 mod control_seeding_tests;
 #[cfg(test)]
+mod frame_cost_tests;
+#[cfg(test)]
 mod frame_work_tests;
 #[cfg(test)]
 mod geometry_transition_tests;
