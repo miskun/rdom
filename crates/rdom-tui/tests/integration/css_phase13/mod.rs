@@ -13,6 +13,7 @@ mod gaps;
 mod html;
 mod props;
 mod tfc;
+mod ua;
 
 /// A document holding `markup` under its root.
 pub(crate) fn doc(markup: &str) -> TuiDom {

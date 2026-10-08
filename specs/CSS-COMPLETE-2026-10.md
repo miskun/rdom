@@ -8842,3 +8842,23 @@ row comes from.
   `a_caption_is_centred_and_plain` (`"Cap"` at column 0 for column 4); green after. One existing test
   changed: `paint_pass/tests.rs`' `table_caption_uses_italic_dim_style` pinned the old caption look, which
   this item removes; it is now `table_caption_is_centred_and_plain`. No snapshot paints a `th` or a caption.
+- 2026-10-09 — C13G-TABLE-UA (API B2, N4; HTML §15.3.8). Found: the UA `table` lacked HTML's `box-sizing:
+  border-box`, so `table { width: 100%; border: solid }` was its container plus two (the documented
+  `width: 100%` migration overflowed every bordered table, in both border models); `tr` set `vertical-align:
+  middle` itself, so `tbody { vertical-align: top }` never reached its cells; `table { text-indent: initial }`
+  was missing, so an indented page indented every cell. Checked against the section's whole table sheet:
+  `table { box-sizing: border-box; border-spacing: 2px; border-collapse: separate; text-indent: initial }`,
+  `td, th { padding: 1px }`, `th { font-weight: bold }`, `caption { text-align: center }`, `thead, tbody,
+  tfoot, table > tr { vertical-align: middle }`, `tr, td, th { vertical-align: inherit }`, `thead, tbody,
+  tfoot, tr { border-color: inherit }`, the `rules` / `frame` attributes' `border-color: black` (presentational
+  attributes rdom does not map), and the quirks-mode `table` font / `line-height` / `white-space` /
+  `text-align` reset (no quirks mode here; HTML has no `border-color: gray` today). Decided: the UA takes
+  every rule above but the 2px spacing and the 1px padding — `table` `border-box` and `text-indent:
+  initial`, the row groups `middle` and `border-color: inherit`, `tr` inheriting both, a new `table > tr {
+  vertical-align: middle }` (UA rule count 186 → 187). The earlier decision on spacing and padding stands:
+  a 2px gap rounds to 0 cells and the one-cell inline padding keeps text two blank cells apart, rows
+  touching — not cramped at terminal scale; DIVERGENCES' table entry now says so. Red (`css_phase13/ua.rs`,
+  new): `a_full_width_bordered_table_fits_its_container` (42 for 40), `rows_inherit_vertical_align_from_their_group`
+  (`Middle` for `Top`), `a_table_resets_text_indent` (`"   abc"` for `" abc"`),
+  `rows_and_groups_inherit_the_tables_border_color` (`Reset` for red); green after. `ua_total_rule_count`
+  recounted. No snapshot changed.

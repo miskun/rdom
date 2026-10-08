@@ -155,15 +155,29 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // ── Tables ──
         // HTML §15.3.8: the table elements take the CSS table model's
         // `display` values, laid out by rdom-tui's table formatting
-        // context (CSS 2.1 §17). Borders are author CSS — none by
-        // default, as in HTML. Cells keep rdom's one-cell inline padding
-        // (a browser's is 1px); `border-spacing` stays its initial 0
-        // (HTML's 2px is no whole cell, DIVERGENCES §2).
+        // context (CSS 2.1 §17), and the section's other rules: `table {
+        // box-sizing: border-box; text-indent: initial }` (a `width: 100%`
+        // table fits its container border and all), `thead, tbody,
+        // tfoot, table > tr { vertical-align: middle }` with `tr, td, th`
+        // inheriting it, `thead, tbody, tfoot, tr { border-color: inherit
+        // }`. Borders are author CSS — none by default, as in HTML. Cells
+        // keep rdom's one-cell inline padding (a browser's is 1px);
+        // `border-spacing` stays its initial 0 (HTML's 2px is no whole
+        // cell, DIVERGENCES §2). HTML's quirks-mode `table` resets do not
+        // apply: rdom has no quirks mode.
         (
             "table",
-            TuiStyle::new()
-                .display(Display::Block)
-                .flow(crate::layout::Flow::Table),
+            css(
+                css(
+                    TuiStyle::new()
+                        .display(Display::Block)
+                        .flow(crate::layout::Flow::Table),
+                    "box-sizing",
+                    "border-box",
+                ),
+                "text-indent",
+                "initial",
+            ),
         ),
         // HTML §15.3.8: `caption { text-align: center }`, no font or
         // colour of its own.
@@ -181,32 +195,16 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             "col",
             TuiStyle::new().display(Display::TablePart(TablePart::Column)),
         ),
+        ("thead", row_part(TablePart::HeaderGroup, true)),
+        ("tbody", row_part(TablePart::RowGroup, true)),
+        ("tfoot", row_part(TablePart::FooterGroup, true)),
+        ("tr", row_part(TablePart::Row, false)),
         (
-            "thead",
-            TuiStyle::new()
-                .display(Display::TablePart(TablePart::HeaderGroup))
-                .vertical_align(VerticalAlign::Middle),
+            "table > tr",
+            TuiStyle::new().vertical_align(VerticalAlign::Middle),
         ),
-        (
-            "tbody",
-            TuiStyle::new()
-                .display(Display::TablePart(TablePart::RowGroup))
-                .vertical_align(VerticalAlign::Middle),
-        ),
-        (
-            "tfoot",
-            TuiStyle::new()
-                .display(Display::TablePart(TablePart::FooterGroup))
-                .vertical_align(VerticalAlign::Middle),
-        ),
-        (
-            "tr",
-            TuiStyle::new()
-                .display(Display::TablePart(TablePart::Row))
-                .vertical_align(VerticalAlign::Middle),
-        ),
-        // HTML §15.3.8: rows and row groups are `middle` and cells
-        // inherit it, so a cell is centred in a taller row by default.
+        // HTML §15.3.8: cells inherit `vertical-align`, so a cell is
+        // centred in a taller row by default.
         ("td", cell(false)),
         ("th", cell(true)),
         // ── Gauge widgets ──
@@ -249,6 +247,23 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .fg(ACCENT),
         ),
     ]
+}
+
+/// The UA style of a row group (`middle` when `group`) or a `<tr>`
+/// (inheriting `vertical-align`), each inheriting `border-color` (HTML
+/// §15.3.8).
+fn row_part(part: TablePart, group: bool) -> TuiStyle {
+    let mut s = css(
+        TuiStyle::new().display(Display::TablePart(part)),
+        "border-color",
+        "inherit",
+    );
+    if group {
+        s = s.vertical_align(VerticalAlign::Middle);
+    } else {
+        s.vertical_align = Some(crate::Value::Inherit);
+    }
+    s
 }
 
 /// The UA style of `<td>` (`<th>` when `header`): a table cell with

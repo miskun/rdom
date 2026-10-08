@@ -64,7 +64,9 @@ fn ua_total_rule_count() {
     // 186: an open drop-down's options on the field background, its
     // picker overlaying the page from the top layer (C12-SELECT-TOP-LAYER,
     // +1).
-    assert_eq!(ua.len(), 186);
+    // 187: HTML §15.3.8's `table > tr { vertical-align: middle }`, `tr`
+    // inheriting it (C13G-TABLE-UA, +1).
+    assert_eq!(ua.len(), 187);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")
