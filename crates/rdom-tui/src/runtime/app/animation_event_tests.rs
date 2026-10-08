@@ -264,3 +264,29 @@ fn a_details_content_animation_reports_to_its_details() {
         ]
     );
 }
+
+/// CSS Animations 2 §4.2 / Web Animations 1 §4.4 (C12G-MISC): one
+/// frame's events go out by the time each happened, transitions' and
+/// animations' merged — an `animationstart` at 10 ms before a
+/// `transitionend` at 30 ms, though transitions sort first at equal times.
+#[test]
+fn transition_and_animation_events_merge_by_time() {
+    let (mut app, div) = animated(
+        "@keyframes tint { from { color: rgb(0,0,0) } to { color: rgb(9,9,9) } } \
+         #a { width: 2; transition: width 30ms linear } \
+         #a.on { width: 6; animation: tint 100ms linear 10ms }",
+    );
+    let order: Rc<RefCell<Vec<String>>> = Rc::default();
+    for name in ["transitionend", "animationstart"] {
+        let order = order.clone();
+        app.dom_mut()
+            .add_event_listener(div, name, ListenerOptions::default(), move |ctx| {
+                order.borrow_mut().push(ctx.event.event_type.clone());
+            })
+            .unwrap();
+    }
+    app.dom_mut().set_attribute(div, "class", "on").unwrap();
+    app.advance(0).unwrap();
+    app.advance(50).unwrap();
+    assert_eq!(*order.borrow(), ["animationstart", "transitionend"]);
+}

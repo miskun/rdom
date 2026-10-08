@@ -163,13 +163,15 @@ impl KeyframeEffect {
         Some(out)
     }
 
-    /// Write each longhand's value at `progress` into `out`, `underlying`
+    /// Write each longhand's value at `progress` — `before`: in the
+    /// animation's before phase, where a step easing takes its before
+    /// flag (CSS Easing 1 §2.3.1) — into `out`, `underlying`
     /// being the value below this effect (Web Animations 1 §5.3.3).
     /// `place` positions the keyframes on timeline ranges; without it
     /// (not a progress timeline) they are ignored.
     pub(crate) fn apply(
         &self,
-        progress: f64,
+        (progress, before): (f64, bool),
         scheme: ColorScheme,
         underlying: &ComputedStyle,
         out: &mut ComputedStyle,
@@ -177,7 +179,14 @@ impl KeyframeEffect {
     ) {
         for p in &self.properties {
             if !p.ranged {
-                sample(p.longhand, &p.frames, progress, scheme, underlying, out);
+                sample(
+                    p.longhand,
+                    &p.frames,
+                    (progress, before),
+                    scheme,
+                    underlying,
+                    out,
+                );
                 continue;
             }
             // §4.4: each keyframe on a range at its place in the
@@ -199,7 +208,14 @@ impl KeyframeEffect {
                 .collect();
             frames.sort_by(|a, b| a.offset.total_cmp(&b.offset));
             add_implicit(&mut frames, &self.easing, self.composite);
-            sample(p.longhand, &frames, progress, scheme, underlying, out);
+            sample(
+                p.longhand,
+                &frames,
+                (progress, before),
+                scheme,
+                underlying,
+                out,
+            );
         }
     }
 }
@@ -231,7 +247,7 @@ fn add_implicit(frames: &mut Vec<Frame>, easing: &TimingFunction, composite: Ani
 fn sample(
     longhand: Longhand,
     frames: &[Frame],
-    progress: f64,
+    (progress, before): (f64, bool),
     scheme: ColorScheme,
     underlying: &ComputedStyle,
     out: &mut ComputedStyle,
@@ -251,7 +267,12 @@ fn sample(
     } else {
         1.0
     };
-    let eased = f64::from(a.easing.ease(local as f32));
+    // CSS Easing 1 §2.3.1: the before flag in the before phase.
+    let eased = f64::from(if before {
+        a.easing.ease_before(local as f32)
+    } else {
+        a.easing.ease(local as f32)
+    });
     let from = endpoint(longhand, a, underlying, scheme);
     let to = endpoint(longhand, b, underlying, scheme);
     longhand.interpolate(&from, &to, eased, scheme, out);

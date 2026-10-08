@@ -80,8 +80,10 @@ pub fn parse_duration_list(value: &[Token]) -> Option<Vec<u32>> {
 /// whole milliseconds, rounding half away from zero. The literal is one
 /// `Dimension` token (CSS Syntax 3 §4.3.3).
 pub fn parse_time_ms(tokens: &[Token]) -> Option<u32> {
+    // CSS Syntax 3 §4.3.13: the numeric part may carry a `+` sign.
     let (n, unit) = match tokens {
-        [Token::Dimension { value, unit, .. }] => (*value, unit),
+        [Token::Dimension { value, unit, .. }]
+        | [Token::Delim('+'), Token::Dimension { value, unit, .. }] => (*value, unit),
         _ => return None,
     };
     if n < 0.0 {
@@ -100,7 +102,7 @@ pub fn parse_time_ms(tokens: &[Token]) -> Option<u32> {
 }
 
 /// A `<time>` of any sign (`-500ms` is `Delim('-')` then the
-/// dimension), in whole milliseconds.
+/// dimension, `+500ms` `Delim('+')`), in whole milliseconds.
 pub fn parse_signed_time_ms(tokens: &[Token]) -> Option<i32> {
     let (negative, rest) = match tokens {
         [Token::Delim('-'), rest @ ..] => (true, rest),
@@ -254,8 +256,8 @@ pub fn parse_transition_shorthand_single(value: &[Token]) -> Option<TransitionSh
 /// Try to parse a `<time>` value starting at `value[start]`.
 /// Returns `(ms, tokens_consumed)`.
 fn try_parse_time_at(value: &[Token], start: usize) -> Option<(i32, usize)> {
-    // A `<time>` is one `Dimension` token, after a `-` when negative.
-    if let (Some(Token::Delim('-')), Some(Token::Dimension { .. })) =
+    // A `<time>` is one `Dimension` token, after a `-` or a `+` sign.
+    if let (Some(Token::Delim('-' | '+')), Some(Token::Dimension { .. })) =
         (value.get(start), value.get(start + 1))
     {
         return Some((parse_signed_time_ms(value.get(start..start + 2)?)?, 2));
@@ -304,6 +306,20 @@ mod number_value_tests {
         assert_eq!(parse_time_ms(&t("1.6ms")), Some(2));
         assert_eq!(parse_time_ms(&t("-1s")), None);
         assert_eq!(parse_time_ms(&t("1.5")), None, "unitless is not a time");
+    }
+
+    /// CSS Syntax 3 §4.3.13: a numeric token may carry a `+` sign, so
+    /// `+1s` is a `<time>` — in a list, in the shorthand, as a delay
+    /// (C12G-MISC).
+    #[test]
+    fn a_time_may_carry_a_plus_sign() {
+        assert_eq!(parse_time_ms(&t("+1s")), Some(1000));
+        assert_eq!(parse_time_list(&t("+250ms, -1s")), Some(vec![250, -1000]));
+        let rules = parse_transition_shorthand(&t("color +1s ease +2s")).unwrap();
+        assert_eq!((rules[0].duration, rules[0].delay), (1000, 2000));
+        let pieces =
+            super::super::animation::parse_animation_shorthand(&t("spin +1s +2s")).unwrap();
+        assert_eq!(pieces.len(), 1);
     }
 
     /// `D-M3-2`: `cubic-bezier()` and `steps()` parse in the longhand

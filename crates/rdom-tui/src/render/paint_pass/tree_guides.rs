@@ -182,10 +182,11 @@ fn paint_item(
         _ => (rect.height as i32).max(1),
     };
 
-    // Row-background highlight. The cascade sets a non-`Reset` `bg`
-    // only on the selected (`aria-selected`) / cursor
-    // (`[role=tree]:focus [data-rdom-active]`) row, so reading
-    // `computed.bg` covers both — and the cursor case is already
+    // Row-background highlight. The cascade sets a painting `bg` (one
+    // `fills` accepts: not transparent) only on the selected
+    // (`aria-selected`) / cursor (`[role=tree]:focus
+    // [data-rdom-active]`) row, so reading `computed.bg` covers both —
+    // and the cursor case is already
     // focus-gated by the selector. Fill the FULL tree-width row
     // (set `bg` only, preserving the label glyphs painted in the
     // main walk and the guide glyphs the joiner draws after). Fill

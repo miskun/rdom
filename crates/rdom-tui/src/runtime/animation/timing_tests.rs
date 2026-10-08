@@ -106,3 +106,51 @@ fn a_jump_start_step_waits_out_the_delay() {
         "the first jump at the start"
     );
 }
+
+/// CSS Transitions 1 §6.1 (C12G-MISC): `transitioncancel`'s `elapsedTime`
+/// is the transition's active time when cancelled — the delay not
+/// counted, clamped to its duration: 0 inside the delay, 30 ms 30 ms past
+/// it; a negative delay's skipped part counts.
+#[test]
+fn transitioncancel_reports_the_active_time() {
+    let cancel_at = |delay: &str, ms: u64| {
+        let (mut dom, mut reg, div, start) = changed(delay, "linear");
+        let now = start + Duration::from_millis(ms);
+        reg.advance(&mut dom, now);
+        let _ = reg.take_pending_events();
+        reg.cancel_for_node(div, now);
+        let events = reg.take_pending_events();
+        let cancel = events
+            .iter()
+            .find(|e| e.kind == TransitionEventKind::Cancel)
+            .expect("transitioncancel");
+        (cancel.elapsed_seconds * 1000.0).round()
+    };
+    assert_eq!(cancel_at("100ms", 50), 0.0, "in the delay");
+    assert_eq!(cancel_at("100ms", 130), 30.0);
+    assert_eq!(cancel_at("-40ms", 10), 50.0);
+}
+
+/// CSS Transitions 1 §3, reversing (C12G-MISC): a transition interrupted
+/// by a change back to its start value runs back over the share of its
+/// duration it had covered — `0 → 10` over 100 ms reversed at 30 ms
+/// (eased output 0.3) takes 30 ms back to 0, not 100.
+#[test]
+fn a_reversed_transition_is_shortened() {
+    let (mut dom, mut reg, div, start) = changed("0s", "linear");
+    let at = |ms: u64| start + Duration::from_millis(ms);
+    reg.advance(&mut dom, at(30));
+    assert_eq!(height(&dom, div), Size::Fixed(3));
+    let back = rdom_css::parse("div { height: 0; transition: height 100ms linear 0s }").stylesheet;
+    dom.cascade(&back);
+    diff_and_register(&mut dom, &mut reg, at(30));
+    let _ = reg.take_pending_events();
+    reg.advance(&mut dom, at(61));
+    assert_eq!(height(&dom, div), Size::Fixed(0), "back in 30 ms");
+    let ends = reg.take_pending_events();
+    assert!(
+        ends.iter()
+            .any(|e| e.kind == TransitionEventKind::End && (e.elapsed_seconds - 0.03).abs() < 1e-3),
+        "{ends:?}"
+    );
+}

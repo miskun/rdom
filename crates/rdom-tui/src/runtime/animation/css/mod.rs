@@ -262,8 +262,14 @@ impl CssAnimation {
                 .as_ref()?
                 .place(name, fraction, (&self.range.0, &self.range.1))
         };
-        self.effect
-            .apply(progress, self.scheme, &underlying, out, Some(&place));
+        let before = self.seen.is_some_and(|(phase, _)| phase == Phase::Before);
+        self.effect.apply(
+            (progress, before),
+            self.scheme,
+            &underlying,
+            out,
+            Some(&place),
+        );
         self.effect.longhands().collect()
     }
 

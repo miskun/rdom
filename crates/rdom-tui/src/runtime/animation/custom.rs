@@ -194,6 +194,14 @@ impl CustomAnimation {
     fn is_done(&self, now: Instant) -> bool {
         now.saturating_duration_since(self.started_at) >= self.delay + self.duration
     }
+
+    /// Its active time at `now`, a `transitioncancel`'s `elapsedTime`
+    /// (CSS Transitions 1 §6.1), as `ActiveAnimation::active_time`.
+    fn active_time(&self, now: Instant) -> std::time::Duration {
+        now.saturating_duration_since(self.started_at)
+            .saturating_sub(self.delay)
+            .min(self.duration)
+    }
 }
 
 /// A transition event of a custom property, for the App to dispatch.
@@ -230,6 +238,15 @@ impl AnimationRegistry {
     /// The custom-property transition events queued since the last
     /// call.
     pub fn take_pending_custom_events(&mut self) -> Vec<PendingCustomEvent> {
+        self.take_timed_custom_events()
+            .into_iter()
+            .map(|(_, e)| e)
+            .collect()
+    }
+
+    /// [`take_pending_custom_events`](Self::take_pending_custom_events),
+    /// each with the time on the app's clock it happened.
+    pub(crate) fn take_timed_custom_events(&mut self) -> Vec<(Instant, PendingCustomEvent)> {
         std::mem::take(&mut self.custom_events)
     }
 
@@ -268,12 +285,16 @@ impl AnimationRegistry {
             let to = curr.vars.get(&name).and_then(|v| kind.parse(v));
             if let Some(i) = running {
                 let old = self.custom.swap_remove(i);
-                self.custom_events.push(PendingCustomEvent {
-                    node: id,
-                    kind: TransitionEventKind::Cancel,
-                    property: format!("--{name}"),
-                    elapsed_seconds: now.saturating_duration_since(old.started_at).as_secs_f32(),
-                });
+                super::push_at(
+                    &mut self.custom_events,
+                    now,
+                    PendingCustomEvent {
+                        node: id,
+                        kind: TransitionEventKind::Cancel,
+                        property: format!("--{name}"),
+                        elapsed_seconds: old.active_time(now).as_secs_f32(),
+                    },
+                );
                 self.restyle.push(id);
             }
             let (Some(from), Some(to)) = (from, to) else {
@@ -286,12 +307,16 @@ impl AnimationRegistry {
             }
             let clock = rule.clock(now);
             // CSS Transitions 1 §6: `transitionrun` when it is created.
-            self.custom_events.push(PendingCustomEvent {
-                node: id,
-                kind: TransitionEventKind::Run,
-                property: format!("--{name}"),
-                elapsed_seconds: clock.skipped.as_secs_f32(),
-            });
+            super::push_at(
+                &mut self.custom_events,
+                now,
+                PendingCustomEvent {
+                    node: id,
+                    kind: TransitionEventKind::Run,
+                    property: format!("--{name}"),
+                    elapsed_seconds: clock.skipped.as_secs_f32(),
+                },
+            );
             self.custom.push(CustomAnimation {
                 node: id,
                 name,
@@ -320,12 +345,17 @@ impl AnimationRegistry {
                 && now.saturating_duration_since(anim.started_at) >= anim.delay
             {
                 anim.started_dispatched = true;
-                self.custom_events.push(PendingCustomEvent {
-                    node: anim.node,
-                    kind: TransitionEventKind::Start,
-                    property: property.clone(),
-                    elapsed_seconds: anim.skipped.as_secs_f32(),
-                });
+                let at = (anim.started_at + anim.delay).min(now);
+                super::push_at(
+                    &mut self.custom_events,
+                    at,
+                    PendingCustomEvent {
+                        node: anim.node,
+                        kind: TransitionEventKind::Start,
+                        property: property.clone(),
+                        elapsed_seconds: anim.skipped.as_secs_f32(),
+                    },
+                );
             }
             let (node, name) = (anim.node, anim.name.clone());
             // Restyle only when the animated value moved: inside the
@@ -335,12 +365,17 @@ impl AnimationRegistry {
                 if write(dom, node, &name, None) {
                     self.restyle.push(node);
                 }
-                self.custom_events.push(PendingCustomEvent {
-                    node,
-                    kind: TransitionEventKind::End,
-                    property,
-                    elapsed_seconds: done.duration.as_secs_f32(),
-                });
+                let at = (done.started_at + done.delay + done.duration).min(now);
+                super::push_at(
+                    &mut self.custom_events,
+                    at,
+                    PendingCustomEvent {
+                        node,
+                        kind: TransitionEventKind::End,
+                        property,
+                        elapsed_seconds: done.duration.as_secs_f32(),
+                    },
+                );
             } else {
                 let value = anim.kind.format(anim.current(now));
                 if write(dom, node, &name, Some(value)) {
@@ -362,12 +397,16 @@ impl AnimationRegistry {
         while i < self.custom.len() {
             if self.custom[i].node == node {
                 let a = self.custom.swap_remove(i);
-                self.custom_events.push(PendingCustomEvent {
-                    node,
-                    kind: TransitionEventKind::Cancel,
-                    property: format!("--{}", a.name),
-                    elapsed_seconds: now.saturating_duration_since(a.started_at).as_secs_f32(),
-                });
+                super::push_at(
+                    &mut self.custom_events,
+                    now,
+                    PendingCustomEvent {
+                        node,
+                        kind: TransitionEventKind::Cancel,
+                        property: format!("--{}", a.name),
+                        elapsed_seconds: a.active_time(now).as_secs_f32(),
+                    },
+                );
             } else {
                 i += 1;
             }
@@ -417,6 +456,6 @@ fn write(dom: &mut Dom<TuiExt>, node: NodeId, name: &str, value: Option<String>)
 impl AnimationRegistry {
     /// Queue a custom-property event directly (App event tests).
     pub(crate) fn queue_custom_event_for_test(&mut self, e: PendingCustomEvent) {
-        self.custom_events.push(e);
+        self.custom_events.push((Instant::now(), e));
     }
 }

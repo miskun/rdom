@@ -124,8 +124,11 @@ fn hit_layers(
     for e in entries.iter().rev() {
         // A layered box inside an `inert` subtree is inert with it (HTML
         // §6.3.1): its context's walk reaches it without passing the
-        // ancestor that carries the attribute.
-        if dom.is_inert(e.id) {
+        // ancestor that carries the attribute. A `::details-content` box
+        // is outside the DOM tree, which `Dom::is_inert` climbs: it is as
+        // inert as its `<details>`.
+        let subject = crate::render::box_tree::slot::host_of(dom, e.id).unwrap_or(e.id);
+        if dom.is_inert(subject) {
             continue;
         }
         let mark = path.len();

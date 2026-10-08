@@ -537,3 +537,22 @@ fn interpolate_size_lets_auto_interpolate_through_calc_size() {
     b.width = Size::Fixed(10);
     assert!(w.interpolable(&a, &b), "a calc-size() with a length");
 }
+
+/// CSS Values 4 §3.2 (`<integer>` "interpolated as real numbers, then
+/// converted to an integer by rounding to the nearest integer, with
+/// values halfway between adjacent integers rounded towards positive
+/// infinity"): `order` 0 → 1 is 1 half-way, 2 → 3 is 3, -1 → 0 is 0 —
+/// not to the even neighbour (C12G-MISC).
+#[test]
+fn integers_round_half_toward_positive_infinity() {
+    let pair = |x: i32, y: i32| {
+        let (mut a, mut b) = (style(), style());
+        a.order = x;
+        b.order = y;
+        at("order", &a, &b, 0.5).order
+    };
+    assert_eq!(pair(0, 1), 1);
+    assert_eq!(pair(2, 3), 3);
+    assert_eq!(pair(-1, 0), 0);
+    assert_eq!(pair(-2, -1), -1);
+}

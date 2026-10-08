@@ -8202,3 +8202,29 @@ row comes from.
   `an_inline_element_draws_its_outline` and `a_wrapped_inline_element_rings_each_line_fragment` (no
   ring); green after. DIVERGENCES §1's outline entry gains the per-fragment sentence; CHANGELOG silent
   change 20 names inline elements. No snapshot changed.
+- 2026-10-08 — C12G-MISC (the C11G re-review's `is_inert`; architect N8, N9's restyle lag and recursion;
+  the stale comment; SIZE-1). (1) Inertness: `Dom::is_inert` climbs DOM parents, and a positioned
+  `::details-content` box is a parentless layer entry; rdom-core cannot know the box, so the one caller
+  that meets it — `hit_test::descend::hit_layers` — asks for its `<details>` (`slot::host_of`); the
+  other readers (focus, Tab, selection, the top layer, generated hosts) are handed DOM elements. Red:
+  `inert_tests` — in a modal dialog the click was swallowed (0 for 1), under `[inert]` it landed (1 for
+  0). (2) Timing and events (each red first): reversing (CSS Transitions 1 §3) — `reversing.rs` keeps, for
+  a transition a reversal started, its reversing-adjusted start value and shortening factor; a change
+  back to a running transition's adjusted start shortens the new one's duration (and a negative delay)
+  by |output · factor + 1 − factor| — red: `0 → 10` reversed at 30 ms was still at 2 after 31 ms, now 0
+  with a 30 ms `transitionend`; `transitioncancel`'s `elapsedTime` is the active time (delay excluded,
+  clamped to the duration), for registered custom properties too — red 50 ms for 0 inside the delay; one
+  frame's events merge by time — transitions and custom properties carry the time they happened
+  (`take_timed_events`, the public `take_pending_events` unchanged), the dispatch moved to
+  `app/animation_events.rs` and sorts the three streams by time, transitions before animations at one
+  time — red `transitionend` (30 ms) before `animationstart` (10 ms); keyframe step easings take the
+  before flag in the before phase (`KeyframeEffect::apply` gets it) — red width 6 for 2 in a
+  backwards-filled delay; rdom-style: `<integer>` interpolation rounds a half toward +∞ (red: `order`
+  0 → 1 half-way was 0), a `<time>` may carry `+` (red: `+1s` rejected, in lists and both shorthands).
+  (3) Scroll-driven: the post-layout re-step now drains the restyle queue (`restyle_animated`, shared
+  with the main step) and its relayout counts it — red: a scroll-driven `color` reached `#bar`'s span a
+  frame late; `descendants_declaring` walks with an explicit stack. Left: a `::before` `view()`
+  timeline still takes its host as the subject (N9's third bullet). (4) `tree_guides.rs`'s comment no
+  longer says `Reset`. (5) SIZE-1 recounted (2026-10-08; the old date was one not yet reached):
+  `animation/mod.rs` 558 joins the list, `rdom-css/src/block.rs` 543 is listed, `cascade/ladder.rs` is
+  553 by the rule (untouched, so not split), `walk.rs` left it. CHANGELOG silent change 80.

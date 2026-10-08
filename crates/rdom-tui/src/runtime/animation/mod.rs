@@ -84,21 +84,36 @@ impl ActiveAnimation {
         now.saturating_duration_since(self.started_at) < self.delay
     }
 
+    /// Its active time at `now` (CSS Transitions 1 §6.1, a
+    /// `transitioncancel`'s `elapsedTime`): the time since its delay
+    /// ended — a negative delay's skipped part included — within its
+    /// duration.
+    fn active_time(&self, now: Instant) -> Duration {
+        now.saturating_duration_since(self.started_at)
+            .saturating_sub(self.delay)
+            .min(self.duration)
+    }
+
     /// True once `now >= started_at + delay + duration`.
     fn is_done(&self, now: Instant) -> bool {
         now.saturating_duration_since(self.started_at) >= self.delay + self.duration
     }
 
-    /// Write the eased current value into `out`.
-    fn apply(&self, now: Instant, out: &mut ComputedStyle) {
+    /// The output of its timing function at `now`.
+    fn eased(&self, now: Instant) -> f32 {
         // CSS Easing 1 §2.3.1: the before flag holds a step back in the
         // delay.
         let p = self.progress(now);
-        let t = f64::from(if self.in_delay(now) {
+        if self.in_delay(now) {
             self.timing.ease_before(p)
         } else {
             self.timing.ease(p)
-        });
+        }
+    }
+
+    /// Write the eased current value into `out`.
+    fn apply(&self, now: Instant, out: &mut ComputedStyle) {
+        let t = f64::from(self.eased(now));
         self.property
             .interpolate(&self.from, &self.to, t, self.scheme, out);
     }
@@ -123,12 +138,14 @@ pub struct AnimationRegistry {
     /// Events the engine wants the runtime to dispatch on the
     /// next event-pump cycle. The App drains this via
     /// `take_pending_events` after every tick.
-    pending_events: Vec<PendingEvent>,
+    /// Each with the time on the app's clock it happened, so a frame's
+    /// transition and animation events go out merged by time.
+    pending_events: Vec<(Instant, PendingEvent)>,
     /// Running transitions of registered custom properties
     /// (`custom.rs`), their events, the registrations they follow, and
     /// the elements whose animated values moved.
     custom: Vec<custom::CustomAnimation>,
-    custom_events: Vec<PendingCustomEvent>,
+    custom_events: Vec<(Instant, PendingCustomEvent)>,
     registered: Rc<crate::style::cascade::PropertyRegistry>,
     restyle: Vec<NodeId>,
     /// The CSS animations (`css`), their queued events, the targets whose
@@ -138,6 +155,8 @@ pub struct AnimationRegistry {
     css_events: Vec<css::PendingAnimationEvent>,
     css_cancelled: Vec<(NodeId, StyleSlot)>,
     css_stamp: usize,
+    /// The transitions a reversal started (`reversing`).
+    reversing: Vec<reversing::Reversing>,
 }
 
 /// What one frame's [`AnimationRegistry::advance`] did.
@@ -184,17 +203,31 @@ impl AnimationRegistry {
     }
 
     pub fn take_pending_events(&mut self) -> Vec<PendingEvent> {
+        self.take_timed_events()
+            .into_iter()
+            .map(|(_, e)| e)
+            .collect()
+    }
+
+    /// [`take_pending_events`](Self::take_pending_events), each with the
+    /// time on the app's clock it happened (CSS Transitions 1 §6: a
+    /// transition's start and end at its delay's and duration's end).
+    pub(crate) fn take_timed_events(&mut self) -> Vec<(Instant, PendingEvent)> {
         std::mem::take(&mut self.pending_events)
     }
 
     fn cancel_event(&mut self, old: &ActiveAnimation, now: Instant) {
-        self.pending_events.push(PendingEvent {
-            node: old.node,
-            slot: old.slot,
-            kind: TransitionEventKind::Cancel,
-            property: old.property,
-            elapsed_seconds: now.saturating_duration_since(old.started_at).as_secs_f32(),
-        });
+        push_at(
+            &mut self.pending_events,
+            now,
+            PendingEvent {
+                node: old.node,
+                slot: old.slot,
+                kind: TransitionEventKind::Cancel,
+                property: old.property,
+                elapsed_seconds: old.active_time(now).as_secs_f32(),
+            },
+        );
     }
 
     /// The running transition of `property` on `(node, slot)`.
@@ -211,16 +244,21 @@ impl AnimationRegistry {
         if let Some(pos) = self.running(anim.node, anim.slot, anim.property) {
             let old = self.active.swap_remove(pos);
             self.cancel_event(&old, now);
+            self.reverse(&old, &mut anim, now);
             anim.from = old.current_style(now);
         }
         // CSS Transitions 1 §6: `transitionrun` when it is created.
-        self.pending_events.push(PendingEvent {
-            node: anim.node,
-            slot: anim.slot,
-            kind: TransitionEventKind::Run,
-            property: anim.property,
-            elapsed_seconds: anim.skipped.as_secs_f32(),
-        });
+        push_at(
+            &mut self.pending_events,
+            now,
+            PendingEvent {
+                node: anim.node,
+                slot: anim.slot,
+                kind: TransitionEventKind::Run,
+                property: anim.property,
+                elapsed_seconds: anim.skipped.as_secs_f32(),
+            },
+        );
         self.active.push(anim);
     }
 
@@ -298,24 +336,34 @@ impl AnimationRegistry {
             }
             if !anim.started_dispatched && !anim.in_delay(now) {
                 anim.started_dispatched = true;
-                self.pending_events.push(PendingEvent {
-                    node: anim.node,
-                    slot: anim.slot,
-                    kind: TransitionEventKind::Start,
-                    property: anim.property,
-                    elapsed_seconds: anim.skipped.as_secs_f32(),
-                });
+                let at = (anim.started_at + anim.delay).min(now);
+                push_at(
+                    &mut self.pending_events,
+                    at,
+                    PendingEvent {
+                        node: anim.node,
+                        slot: anim.slot,
+                        kind: TransitionEventKind::Start,
+                        property: anim.property,
+                        elapsed_seconds: anim.skipped.as_secs_f32(),
+                    },
+                );
             }
             if anim.is_done(now) {
                 // The cascade's style holds the end value from now on.
                 let done = self.active.swap_remove(i);
-                self.pending_events.push(PendingEvent {
-                    node: done.node,
-                    slot: done.slot,
-                    kind: TransitionEventKind::End,
-                    property: done.property,
-                    elapsed_seconds: done.duration.as_secs_f32(),
-                });
+                let at = (done.started_at + done.delay + done.duration).min(now);
+                push_at(
+                    &mut self.pending_events,
+                    at,
+                    PendingEvent {
+                        node: done.node,
+                        slot: done.slot,
+                        kind: TransitionEventKind::End,
+                        property: done.property,
+                        elapsed_seconds: done.duration.as_secs_f32(),
+                    },
+                );
                 if done.property.reaches_descendants() && done.slot == StyleSlot::Host {
                     self.restyle_children(dom, done.node);
                 }
@@ -323,6 +371,7 @@ impl AnimationRegistry {
                 i += 1;
             }
         }
+        self.prune_reversing();
         self.step_css(dom, now, &mut targets);
         let mut out = Advanced::default();
         for (node, slot) in targets {
@@ -424,8 +473,13 @@ impl AnimationRegistry {
     /// `advance`. Lets tests drive `dispatch_animation_events`
     /// without setting up a real-time-driven transition.
     pub(crate) fn queue_event_for_test(&mut self, e: PendingEvent) {
-        self.pending_events.push(e);
+        self.pending_events.push((Instant::now(), e));
     }
+}
+
+/// Queue `event`, which happened at `at`.
+fn push_at<E>(queue: &mut Vec<(Instant, E)>, at: Instant, event: E) {
+    queue.push((at, event));
 }
 
 /// Whether `style`'s transitions take the longhand `name` when its values
@@ -479,6 +533,7 @@ mod custom;
 mod diff;
 #[cfg(test)]
 mod longhand_tests;
+mod reversing;
 mod rule;
 mod schedule;
 mod teardown;
@@ -491,7 +546,7 @@ mod visibility_tests;
 
 pub use crate::style::AnimationPlayState;
 pub use css::{AnimationEventKind, AnimationInfo, AnimationKind};
-pub(crate) use css::{CssInputs, slot_order};
+pub(crate) use css::{CssInputs, PendingAnimationEvent, slot_order};
 pub use custom::PendingCustomEvent;
 #[cfg(test)]
 pub(crate) use diff::DIFF_VISITS;

@@ -92,6 +92,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 77. **A removed element's transitions and animations are cancelled** (CSS Transitions 1 §3, CSS Animations 1 §4.1): `remove_child` fires `transitioncancel` / `animationcancel` for what runs in the subtree (a transition ran on to `transitionend`), and an element inserted again has no before-change style, so it takes its values at once and restarts its animations. (C12G-DETACHED)
 78. **A `::before` / `::after` without content has no style** (CSS Pseudo-Elements 4 §2, CSS Lists 3 §4.5): with `content: none` or `normal` (its initial value) it generates no box, so `computed_pseudo` / `computed_before` read `None` (they held a style with no content) and its `counter-increment` / `-reset` / `-set` no longer apply. (C12G-PSEUDO-GONE)
 79. **A removed element keeps no style, and `AnimationRegistry::needs_frames` means a frame is due now**: an element taken out of the document (and not inserted again before the next frame) reads `computed` `None`, as `getComputedStyle` reads nothing there, and is styled afresh when inserted (C12G-DETACHED); `needs_frames` is `false` between a stepped animation's steps and for an animation of nothing rdom renders. (C12G-FRAME-COST)
+80. **A reversed transition is shortened, and `transitioncancel` reports the active time** (CSS Transitions 1 §3, §6.1): a change back to a running transition's start value (a hover leaving half-way) now runs back over the share it had covered instead of the whole `transition-duration`, and a cancel's `elapsedTime` no longer counts the delay. (C12G-MISC)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -506,6 +507,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-style`
 
+- **Integer interpolation rounds a half up, and a `<time>` may carry `+`** (CSS Values 4 §3.2, CSS Syntax 3 §4.3.13): an animated `order` or `z-index` half-way between two integers takes the higher (it took the even one); `transition: color +1s` parses. (C12G-MISC)
 - **A `content` string serializes as a CSS string**: a `"` or `\` in it is escaped (it was copied raw, so `content: "a\"b"` read back unparseable). (C10-CONTENT)
 - **Form controls reset the inherited text properties** (HTML §15.5, Chromium's and Gecko's UA sheets): `input, textarea, select, button` get `line-height: normal`, `text-transform: none`, `text-indent: 0`, `text-align: start` and a normal weight and style, so a page's `line-height: 2` no longer gives an input a scrollable second row or a 4-row textarea two lines. (C9G-UA-LINE-HEIGHT)
 - **A shorthand's `unset` is each longhand's** (CSS Cascade 4 §7.3.3): `line-clamp: unset` (and `all: unset`) inherits `block-ellipsis` and resets the others. (C8-LINE-CLAMP)
@@ -755,6 +757,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **Transition and animation timing follows the specs** (CSS Transitions 1 §3, §6, CSS Animations 2 §4.2): a transition reversed back to its start value runs over the share it covered; `transitioncancel` reports the active time; a frame's transition and animation events merge by time; keyframe steps take the before flag; a re-stepped scroll timeline restyles children that frame. (C12G-MISC)
+- **A positioned `::details-content` is as inert as its `<details>`** (HTML §6.3): the hit test asked `Dom::is_inert` of the parentless box, so content inside a modal dialog was swallowed by the backdrop and content inside `[inert]` took clicks. (C12G-MISC)
 - **Outlines draw on inline elements** (CSS UI 4 §5): `a:focus-visible { outline: auto }` drew nothing on a link in a line; an inline element with an outline is ringed on each line it has a fragment on — one rectangle per line around its text, generated content and atoms there. (C12G-OUTLINE-INLINE)
 - **Resizing and the `<select>` picker behave**: a one-cell drag is a one-cell resize (a percentage padding was resolved against the box, not its containing block), a drag writes only the axis it moved, `overflow: clip` is not resizable; an open select removed from the document or disabled closes its picker. (C12G-RESIZE-PICKER)
 - **Running animations cost what they change** (Web Animations 1 §4–§5): a frame lays out only when a layout value moved, a `steps()` animation wakes the App at its steps (a `step-end` blink twice a second, not 60 times), one of nothing rdom renders asks for no frames, the transition hook visits only restyled subtrees, and a frame lays out at most twice. (C12G-FRAME-COST)

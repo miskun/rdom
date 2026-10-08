@@ -323,3 +323,20 @@ fn composition_adds_keyframes_to_the_underlying_value() {
     app.advance(50).unwrap();
     assert_eq!(width(&app, div), 4, "4 + 0 → 4");
 }
+
+/// CSS Easing 1 §2.3.1 / Web Animations 1 §5.3.3 (C12G-MISC): a
+/// keyframe interval's step easing takes the before flag in the
+/// animation's before phase — `steps(2, jump-start)` filled backwards
+/// through a delay shows the first keyframe (progress 0 is the step
+/// before the jump), not the first step.
+#[test]
+fn keyframe_steps_take_the_before_flag_in_the_delay() {
+    let (mut app, div) = animated(&format!(
+        "{GROW} #a {{ width: 4 }} #a.on {{ animation: grow 100ms steps(2, jump-start) 50ms backwards }}"
+    ));
+    app.dom_mut().set_attribute(div, "class", "on").unwrap();
+    app.advance(0).unwrap();
+    assert_eq!(width(&app, div), 2, "the before phase: progress 0, no jump");
+    app.advance(60).unwrap();
+    assert_eq!(width(&app, div), 6, "past the delay: the first jump");
+}

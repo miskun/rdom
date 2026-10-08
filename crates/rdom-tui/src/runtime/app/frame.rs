@@ -196,117 +196,6 @@ impl<B: Backend> App<B> {
         flushed
     }
 
-    /// Dispatch transition lifecycle events queued by the
-    /// animation registry during this frame.
-    ///
-    /// Event detail is a typed `EventDetail::Transition` carrying
-    /// the CSS property name and elapsed-seconds. Apps read via
-    /// `event.detail.as_transition()`.
-    pub(super) fn dispatch_animation_events(&mut self) {
-        use crate::runtime::animation::{PendingEvent, TransitionEventKind};
-        let pending = self.animations.take_pending_events();
-        // Their listeners are code the next frame's checks must see.
-        self.prelude.touched |= !pending.is_empty();
-        for PendingEvent {
-            node,
-            slot,
-            kind,
-            property,
-            elapsed_seconds,
-        } in pending
-        {
-            let event_name = match kind {
-                TransitionEventKind::Run => "transitionrun",
-                TransitionEventKind::Start => "transitionstart",
-                TransitionEventKind::End => "transitionend",
-                TransitionEventKind::Cancel => "transitioncancel",
-            };
-            // A `::details-content` box's transitions are its
-            // `<details>`'s, for that pseudo-element (CSS Transitions 1
-            // §6.1).
-            let (node, pseudo_element) = match self
-                .dom
-                .contains(node)
-                .then(|| crate::render::box_tree::slot::host_of(&self.dom, node))
-                .flatten()
-            {
-                Some(host) => (host, Some("::details-content")),
-                None => (node, slot.pseudo_element()),
-            };
-            let mut ev = rdom_core::Event::new(event_name);
-            ev.detail =
-                rdom_core::EventDetail::Transition(Box::new(rdom_core::TransitionDetail::new(
-                    property.css_name(),
-                    elapsed_seconds.into(),
-                    pseudo_element.map(str::to_string),
-                )));
-            // A listener of an earlier event in the batch may have dropped
-            // `node`; a dropped element's transition events go nowhere.
-            crate::tui_event::dispatch_event_to_live(&mut self.dom, node, &mut ev);
-        }
-        // Registered custom properties (`--name`).
-        let custom = self.animations.take_pending_custom_events();
-        self.prelude.touched |= !custom.is_empty();
-        for e in custom {
-            let event_name = match e.kind {
-                TransitionEventKind::Run => "transitionrun",
-                TransitionEventKind::Start => "transitionstart",
-                TransitionEventKind::End => "transitionend",
-                TransitionEventKind::Cancel => "transitioncancel",
-            };
-            let mut ev = rdom_core::Event::new(event_name);
-            ev.detail = rdom_core::EventDetail::Transition(Box::new(
-                rdom_core::TransitionDetail::new(&e.property, e.elapsed_seconds.into(), None),
-            ));
-            crate::tui_event::dispatch_event_to_live(&mut self.dom, e.node, &mut ev);
-        }
-        self.dispatch_css_animation_events();
-    }
-
-    /// Dispatch the CSS animation events of this frame (CSS Animations 2
-    /// §4.2): by the time each happened, then in composite order — tree
-    /// order of their elements, the element before its pseudo-elements,
-    /// then `animation-name` order.
-    fn dispatch_css_animation_events(&mut self) {
-        let mut pending = self.animations.take_pending_animation_events();
-        if pending.is_empty() {
-            return;
-        }
-        self.prelude.touched = true;
-        let dom = &self.dom;
-        pending.sort_by(|a, b| {
-            a.scheduled
-                .cmp(&b.scheduled)
-                .then_with(|| tree_order(dom, a.node, b.node))
-                .then_with(|| {
-                    let order = crate::runtime::animation::slot_order;
-                    order(a.slot).cmp(&order(b.slot))
-                })
-                .then_with(|| a.index.cmp(&b.index))
-        });
-        for e in pending {
-            // A `::details-content` box's animations are its
-            // `<details>`'s, for that pseudo-element (CSS Animations 1
-            // §5.1), as its transitions are.
-            let (node, pseudo_element) = match self
-                .dom
-                .contains(e.node)
-                .then(|| crate::render::box_tree::slot::host_of(&self.dom, e.node))
-                .flatten()
-            {
-                Some(host) => (host, Some("::details-content".to_string())),
-                None => (e.node, e.slot.pseudo_element().map(str::to_string)),
-            };
-            // AnimationEvent bubbles and is not cancelable (CSS
-            // Animations 1 §5.1).
-            let mut ev = rdom_core::Event::new(e.kind.event_type()).with_cancelable(false);
-            ev.detail = rdom_core::EventDetail::Animation(Box::new(
-                rdom_core::AnimationDetail::new(&*e.name, e.elapsed_seconds, pseudo_element),
-            ));
-            crate::tui_event::dispatch_event_to_live(&mut self.dom, node, &mut ev);
-        }
-    }
-
     /// The animations running on `node` and its pseudo-elements at the
     /// app's clock — `Element.getAnimations()` (Web Animations 1 §6.7):
     /// its transitions, then its CSS animations in composite order, each
@@ -385,6 +274,28 @@ struct Pass {
     laid_out: bool,
     /// Element styles the transition engine composited.
     composites: u32,
+}
+
+/// Carry the animated values the last step moved to where the cascade
+/// takes them: a registered custom property's to its `var()` consumers,
+/// an inherited longhand's to the element's descendants. `true` when
+/// something was restyled.
+fn restyle_animated(
+    dom: &mut TuiDom,
+    (sheets, registry): (&[&Stylesheet], &Rc<PropertyRegistry>),
+    animations: &mut AnimationRegistry,
+) -> bool {
+    let restyle = animations.take_restyle();
+    if restyle.is_empty() {
+        return false;
+    }
+    // No selector can see the change: reuse the matches.
+    let restyled = restyle_vars(dom, sheets, registry.clone(), &restyle);
+    // The animated result is the before-change style of the next style
+    // change (CSS Transitions 1 §3) — for the elements whose counters it
+    // moved too.
+    crate::runtime::animation::settle_restyled(dom, &restyled);
+    true
 }
 
 /// The frame pipeline up to paint, shared by [`App::draw_if_dirty`] and
@@ -467,18 +378,7 @@ fn style_and_layout(
         // `overlay` is not `auto` (CSS Position 4 §3.3); the removal
         // re-cascades them next frame (its mutation dirties them).
         crate::runtime::top_layer::finish_removals(dom);
-        // A registered custom property's animated value reaches its
-        // `var()` consumers through the cascade, and an inherited
-        // longhand's running value the element's descendants.
-        let restyle = animations.take_restyle();
-        if !restyle.is_empty() {
-            // No selector can see the change: reuse the matches.
-            let restyled = restyle_vars(dom, sheets, registry.clone(), &restyle);
-            // The animated result is the before-change style of the
-            // next style change (CSS Transitions 1 §3) — for the
-            // elements whose counters it moved too.
-            crate::runtime::animation::settle_restyled(dom, &restyled);
-        }
+        restyle_animated(dom, (sheets, registry), animations);
     }
     if laid_out {
         dom.layout_dom(area);
@@ -499,7 +399,9 @@ fn style_and_layout(
         if animations.has_progress_timelines() {
             let again = animations.restep_progress(dom, now);
             composites += again.composites;
-            restepped = again.layout;
+            // An inherited value it moved reaches the descendants in this
+            // frame, not the next (C12G-MISC).
+            restepped = again.layout || restyle_animated(dom, (sheets, registry), animations);
         }
         if resnapped || focused || revealed || restepped {
             dom.layout_dom(area);
@@ -509,19 +411,5 @@ fn style_and_layout(
         cascade,
         laid_out,
         composites,
-    }
-}
-
-/// `a` before `b` in tree order (`Ordering::Less`); equal for one node.
-fn tree_order(dom: &TuiDom, a: NodeId, b: NodeId) -> std::cmp::Ordering {
-    use rdom_core::DocumentPosition;
-    if a == b || !dom.contains(a) || !dom.contains(b) {
-        return std::cmp::Ordering::Equal;
-    }
-    let p = dom.compare_document_position(a, b);
-    if p.contains(DocumentPosition::FOLLOWING) {
-        std::cmp::Ordering::Less
-    } else {
-        std::cmp::Ordering::Greater
     }
 }

@@ -48,6 +48,7 @@ pub mod context;
 pub mod handle;
 pub mod panic_hook;
 
+mod animation_events;
 mod autoscroll;
 mod event_loop;
 mod frame;

@@ -359,3 +359,55 @@ fn keyframes_can_sit_on_a_named_range() {
     scroll_top(&mut app, s, 3);
     assert_eq!(width(&app, bar), 6, "the range keyframe ignored: 0 → 18");
 }
+
+/// Scroll-driven Animations 1 §5 (C12G-MISC, API N9): the re-step after
+/// layout carries an inherited value to the descendants in the same
+/// frame — a scroll-driven `color` on `#bar` reaches the text inside it
+/// in the first frame, not one input later.
+#[test]
+fn a_restepped_inherited_value_reaches_the_children_in_its_frame() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let s = dom.create_element("div");
+    dom.set_attribute(s, "id", "s").unwrap();
+    let bar = dom.create_element("div");
+    dom.set_attribute(bar, "id", "bar").unwrap();
+    let span = dom.create_element("span");
+    let t = dom.create_text_node("x");
+    dom.append_child(span, t).unwrap();
+    dom.append_child(bar, span).unwrap();
+    dom.append_child(s, bar).unwrap();
+    for _ in 0..12 {
+        let p = dom.create_element("p");
+        let t = dom.create_text_node("x");
+        dom.append_child(p, t).unwrap();
+        dom.append_child(s, p).unwrap();
+    }
+    dom.append_child(root, s).unwrap();
+    let sheet = rdom_css::parse(
+        "@keyframes tint { from { color: rgb(200,0,0) } to { color: rgb(0,0,200) } } \
+         #s { height: 4; overflow: auto } p { margin: 0; height: 1 } \
+         #bar { height: 1; color: rgb(0,200,0); animation: tint linear; animation-timeline: scroll() }",
+    );
+    assert!(sheet.warnings.is_empty(), "{:?}", sheet.warnings);
+    let terminal = Terminal::new(TestBackend::new(30, 10)).unwrap();
+    let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
+    app.push_stylesheet(sheet.stylesheet);
+    app.advance(0).unwrap();
+    let fg = |id| {
+        app.dom()
+            .node(id)
+            .ext()
+            .unwrap()
+            .computed
+            .as_ref()
+            .unwrap()
+            .fg
+    };
+    assert_eq!(
+        fg(bar),
+        crate::style::Color::Rgb(200, 0, 0),
+        "the timeline's 0%"
+    );
+    assert_eq!(fg(span), fg(bar), "inherited in the same frame");
+}

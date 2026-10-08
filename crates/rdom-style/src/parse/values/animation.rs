@@ -164,9 +164,9 @@ fn animation_piece(value: &[Token]) -> Option<AnimationPiece> {
     let mut p = AnimationPiece::default();
     let mut i = 0;
     while i < value.len() {
-        // A `<time>`: one dimension, after a `-` when negative.
+        // A `<time>`: one dimension, after a `-` or a `+` sign.
         let time_len = match (value.get(i), value.get(i + 1)) {
-            (Some(Token::Delim('-')), Some(Token::Dimension { .. })) => 2,
+            (Some(Token::Delim('-' | '+')), Some(Token::Dimension { .. })) => 2,
             (Some(Token::Dimension { .. }), _) => 1,
             _ => 0,
         };

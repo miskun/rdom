@@ -379,21 +379,28 @@ fn declared(dom: &Dom<TuiExt>, a: NodeId, name: &str) -> Option<Resolved> {
     Some(view(dom, a, cycled(&c.view_timeline_axis, i), &inset))
 }
 
-/// The elements under `a` declaring a timeline named `name`.
+/// The elements under `a` declaring a timeline named `name`, in tree
+/// order — walked with an explicit stack, so a deep subtree cannot
+/// overflow the call stack (C12G-MISC).
 fn descendants_declaring(dom: &Dom<TuiExt>, a: NodeId, name: &str, out: &mut Vec<NodeId>) {
-    let mut child = dom.node(a).first_child().map(|c| c.id());
-    while let Some(c) = child {
-        if dom.node(c).node_type() == NodeType::Element {
-            if style(dom, c).is_some_and(|s| {
-                s.scroll_timeline_name
-                    .iter()
-                    .chain(&s.view_timeline_name)
-                    .any(|n| n.name() == Some(name))
-            }) {
-                out.push(c);
-            }
-            descendants_declaring(dom, c, name, out);
+    let children = |id: NodeId| {
+        let mut ids: Vec<NodeId> = dom.node(id).children().map(|c| c.id()).collect();
+        ids.reverse();
+        ids
+    };
+    let mut stack = children(a);
+    while let Some(c) = stack.pop() {
+        if dom.node(c).node_type() != NodeType::Element {
+            continue;
         }
-        child = dom.node(c).next_sibling().map(|n| n.id());
+        if style(dom, c).is_some_and(|s| {
+            s.scroll_timeline_name
+                .iter()
+                .chain(&s.view_timeline_name)
+                .any(|n| n.name() == Some(name))
+        }) {
+            out.push(c);
+        }
+        stack.extend(children(c));
     }
 }

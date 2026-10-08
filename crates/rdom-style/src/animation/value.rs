@@ -81,11 +81,13 @@ impl Animate for f32 {
     }
 }
 
-/// An `<integer>` interpolates as a real number and rounds (CSS Values 4
-/// §3.2).
+/// An `<integer>` interpolates as a real number and rounds to the
+/// nearest integer, a half toward positive infinity (CSS Values 4 §3.2).
 impl Animate for i32 {
     fn animate(&self, to: &Self, p: f64, _: &Cx) -> Option<Self> {
-        Some(to_cells(lerp(f64::from(*self), f64::from(*to), p)))
+        Some(to_cells(
+            (lerp(f64::from(*self), f64::from(*to), p) + 0.5).floor(),
+        ))
     }
     fn add(&self, other: &Self, _: &Cx) -> Option<Self> {
         Some(self.saturating_add(*other))

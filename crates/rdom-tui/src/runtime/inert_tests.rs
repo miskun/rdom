@@ -243,3 +243,55 @@ fn inert_text_is_not_selectable() {
     let pos = app.dom().position_at(r.x as u16 + 1, r.y as u16);
     assert!(pos.is_none_or(|pos| pos.node != t), "{pos:?}");
 }
+
+/// `<details open>` under `parent` with a button in its content, and a
+/// positioned `::details-content` box — a layer entry of its own.
+fn details_with_button(app: &mut App<TestBackend>, parent: NodeId) -> NodeId {
+    let dom = app.dom_mut();
+    let details = el(dom, parent, "details");
+    dom.set_attribute(details, "open", "").unwrap();
+    let summary = el(dom, details, "summary");
+    let t = dom.create_text_node("s");
+    dom.append_child(summary, t).unwrap();
+    let b = button(dom, details, "in");
+    let sheet = rdom_css::parse("details::details-content { position: relative }");
+    assert!(sheet.warnings.is_empty(), "{:?}", sheet.warnings);
+    app.push_stylesheet(sheet.stylesheet);
+    b
+}
+
+/// HTML §6.3 / C12G-MISC (the C11G re-review): a positioned
+/// `::details-content` box is a layer entry, parentless in the DOM; its
+/// inertness is its `<details>`'s. Inside a modal dialog its content is
+/// live — a click reaches the button, not the backdrop.
+#[test]
+fn a_details_content_box_in_a_modal_dialog_is_live() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let dlg = el(&mut dom, root, "dialog");
+    let mut app = app(dom);
+    let b = details_with_button(&mut app, dlg);
+    let clicks = count_clicks(app.dom_mut(), b);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
+    app.draw_if_dirty().unwrap();
+    let at = centre(&app, b);
+    click(&mut app, at);
+    assert_eq!(clicks.get(), 1);
+}
+
+/// …and inside an `inert` subtree its content is inert with it: a click
+/// on the button dispatches nothing to it.
+#[test]
+fn a_details_content_box_in_an_inert_subtree_is_inert() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let wrap = el(&mut dom, root, "div");
+    dom.set_attribute(wrap, "inert", "").unwrap();
+    let mut app = app(dom);
+    let b = details_with_button(&mut app, wrap);
+    let clicks = count_clicks(app.dom_mut(), b);
+    app.draw_if_dirty().unwrap();
+    let at = centre(&app, b);
+    click(&mut app, at);
+    assert_eq!(clicks.get(), 0);
+}
