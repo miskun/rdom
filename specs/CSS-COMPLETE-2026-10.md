@@ -7404,3 +7404,19 @@ row comes from.
   `a_restyled_contents_slot_reblockifies_its_content` for the restyle path. Mutations (each alone,
   restored, touched): a DOM climb in the hit test → the hit test; the DOM parent passed to
   `children_are_items` → both blockify tests; a DOM climb inside it → both blockify tests.
+- 2026-10-14 — C11G-ENTER-COMMIT (API N4). Found: Enter in a single-line field fired no `change` and set no
+  user validity — a one-field TUI prompt (`<input required pattern=…>`) never showed `:user-invalid` until
+  a Tab it may never get — and implicit submission counted only rdom's text-family inputs as fields that
+  block it. Decided — HTML §4.10.5.5 leaves the moment of a text control's commit to the user agent;
+  every engine commits a single-line field on Enter, before the implicit submission (§4.10.21.2) the
+  key starts. The form builtin's Enter listener (moved with its helper into `form/implicit.rs`; `form/mod.rs`
+  573 → 522 lines) now runs `form_state::commit_pending_change` first — `change` when the user edited the
+  value since the last commit, and user validity, with or without a form owner — then, if the field is
+  still in the tree, implicit submission. The trigger and the count use HTML's exact list of fields that
+  block implicit submission (`blocks_implicit_submission`: Text, Search, Telephone, URL, Email, Password,
+  Date, Month, Week, Time, Local Date and Time, Number), so a date field counts against a form's one-field
+  submission and submits from Enter itself. The DIVERGENCES §2 entry "A text control commits its value on
+  losing focus only" is removed. Red: `enter_commits_a_single_line_field` (0 `change`s),
+  `enter_commits_before_implicit_submission` (`["submit"]`, no `change`),
+  `date_fields_block_implicit_submission` (a text + date form submitted); green after. Mutation (restored,
+  touched): no commit → both Enter tests.

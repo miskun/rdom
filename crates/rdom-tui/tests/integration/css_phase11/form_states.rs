@@ -475,6 +475,96 @@ mod user {
         );
     }
 
+    /// Browsers commit a single-line text field on Enter (HTML §4.10.5.5:
+    /// the user agent decides when the user commits; every engine does on
+    /// Enter, before implicit submission §4.10.21.2): a one-field prompt
+    /// outside any form fires `change` and becomes `:user-invalid` without
+    /// losing focus; a second Enter with no edit fires nothing.
+    #[test]
+    fn enter_commits_a_single_line_field() {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let field = node(&mut dom, root, "input", &[("pattern", "[0-9]+")]);
+        let mut app = app(dom, "input:user-invalid { color: red }");
+        let changes = Rc::new(RefCell::new(0));
+        let c = changes.clone();
+        app.dom_mut()
+            .add_event_listener(field, "change", ListenerOptions::default(), move |_| {
+                *c.borrow_mut() += 1
+            })
+            .unwrap();
+        focus(&mut app, field);
+        type_text(&mut app, "x");
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(*changes.borrow(), 1);
+        assert_eq!(app_fg(&app, field), RED);
+        assert_eq!(app.dom().focused(), Some(field), "still focused");
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(*changes.borrow(), 1, "nothing new to commit");
+    }
+
+    /// In a form, Enter commits the field, then submits implicitly: its
+    /// `change` comes before the `submit`, and the blur after a later Tab
+    /// fires no second `change`.
+    #[test]
+    fn enter_commits_before_implicit_submission() {
+        let (mut app, [form, digits, other, _, _]) = form_app();
+        // The required `other` is empty: skip validation, so the submission
+        // reaches `submit`.
+        app.dom_mut().set_attribute(form, "novalidate", "").unwrap();
+        let events = Rc::new(RefCell::new(Vec::new()));
+        for (id, ty) in [(digits, "change"), (form, "submit")] {
+            let log = events.clone();
+            app.dom_mut()
+                .add_event_listener(id, ty, ListenerOptions::default(), move |ctx| {
+                    log.borrow_mut().push(ty);
+                    ctx.event.prevent_default();
+                })
+                .unwrap();
+        }
+        focus(&mut app, digits);
+        type_text(&mut app, "12");
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(*events.borrow(), ["change", "submit"]);
+        focus(&mut app, other);
+        assert_eq!(*events.borrow(), ["change", "submit"]);
+    }
+
+    /// HTML §4.10.21.2: with no submit button, Enter submits only when the
+    /// form has one field that blocks implicit submission — the text,
+    /// search, tel, URL, email, password, date, month, week, time,
+    /// datetime-local and number inputs. A text field beside a date field
+    /// submits nothing; Enter in the date field of a form holding only it
+    /// submits.
+    #[test]
+    fn date_fields_block_implicit_submission() {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let form = node(&mut dom, root, "form", &[]);
+        let text = node(&mut dom, form, "input", &[]);
+        let date = node(&mut dom, form, "input", &[("type", "date")]);
+        let solo_form = node(&mut dom, root, "form", &[]);
+        let solo = node(&mut dom, solo_form, "input", &[("type", "month")]);
+        let mut app = app(dom, "");
+        let submits = Rc::new(RefCell::new(Vec::new()));
+        for f in [form, solo_form] {
+            let log = submits.clone();
+            app.dom_mut()
+                .add_event_listener(f, "submit", ListenerOptions::default(), move |ctx| {
+                    log.borrow_mut().push(f);
+                    ctx.event.prevent_default();
+                })
+                .unwrap();
+        }
+        focus(&mut app, text);
+        press(&mut app, KeyCode::Enter);
+        assert!(submits.borrow().is_empty(), "two blocking fields");
+        let _ = date;
+        focus(&mut app, solo);
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(*submits.borrow(), [solo_form]);
+    }
+
     /// A value the script sets is no user edit: no `change` on blur, no
     /// user validity — even right after the user typed.
     #[test]

@@ -54,13 +54,15 @@
 //!
 //! - No `formdata` event (would require a `FormData` shim).
 
+mod implicit;
+
 use rdom_core::{FormMethod, InputTypeState, ListenerOptions, NodeId};
 
 use crate::{TuiDom, TuiEvent};
 
 /// Install the form default actions. Two root-level listeners:
-/// click (submit / reset trigger), keydown (implicit Enter
-/// submit on single-text-input forms).
+/// click (submit / reset trigger), keydown (Enter in a single-line
+/// field: its commit, then implicit submission — `implicit`).
 pub fn install(dom: &mut TuiDom) {
     let root = dom.root();
 
@@ -94,51 +96,7 @@ pub fn install(dom: &mut TuiDom) {
     })
     .expect("form click listener install");
 
-    // Implicit submission (HTML §4.10.21.2), from Enter in a
-    // single-line text-family input.
-    dom.add_event_listener(root, "keydown", ListenerOptions::default(), move |ctx| {
-        if ctx.event.default_prevented() {
-            return;
-        }
-        let Some(focused) = ctx.dom.focused() else {
-            return;
-        };
-        let Some(key) = ctx.event.detail.as_keyboard() else {
-            return;
-        };
-        let no_mods = !key.modifiers.ctrl
-            && !key.modifiers.shift
-            && !key.modifiers.alt
-            && !key.modifiers.meta;
-        if !no_mods || key.key != "Enter" {
-            return;
-        }
-        if !crate::node::is_text_input(ctx.dom, focused) {
-            return;
-        }
-        let Some(form) = ctx.dom.form_owner(focused) else {
-            return;
-        };
-        if let Some(default) = default_button(ctx.dom, form) {
-            // The default button's activation behavior does the
-            // submitting (and the `method="dialog"` close) through the
-            // click listener above, with it as the submitter. A
-            // disabled default button blocks implicit submission.
-            if !ctx.dom.is_actually_disabled(default) {
-                use crate::accessors::TuiAccessorsMut;
-                ctx.dom.node_mut(default).click();
-            }
-            return;
-        }
-        // No submit button: submit from the form itself, only when
-        // the focused input is the one field that blocks implicit
-        // submission.
-        if count_text_inputs(ctx.dom, form) != 1 {
-            return;
-        }
-        submit(ctx.dom, form, None);
-    })
-    .expect("form implicit-enter submit listener install");
+    implicit::install(dom);
 }
 
 /// The form's entry list with no submitter — `new FormData(form)`:
@@ -224,7 +182,7 @@ fn button_action(dom: &TuiDom, id: NodeId) -> ButtonAction {
 
 /// The form's default button (HTML §4.10.21.2): the first submit button
 /// in tree order whose form owner is `form`, disabled or not.
-fn default_button(dom: &TuiDom, form: NodeId) -> Option<NodeId> {
+pub(super) fn default_button(dom: &TuiDom, form: NodeId) -> Option<NodeId> {
     dom.form_listed_elements(form)
         .into_iter()
         .find(|&id| dom.is_submit_button(id))
@@ -469,15 +427,6 @@ fn reset_controls(dom: &mut TuiDom, form: NodeId) {
 fn fire_reset(dom: &mut TuiDom, form: NodeId) -> bool {
     let mut ev = TuiEvent::new("reset");
     crate::tui_event::dispatch_to_live(dom, form, &mut ev) && !ev.event.default_prevented()
-}
-
-/// The form's fields that block implicit submission (HTML §4.10.21.2):
-/// its owned single-line text inputs.
-fn count_text_inputs(dom: &TuiDom, form: NodeId) -> usize {
-    dom.form_listed_elements(form)
-        .into_iter()
-        .filter(|&id| crate::node::is_text_input(dom, id))
-        .count()
 }
 
 /// The entries one owned control contributes to the entry list.
