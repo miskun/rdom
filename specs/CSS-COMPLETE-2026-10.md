@@ -7848,3 +7848,10 @@ row comes from.
   no longer excluded; a starting style still inherits from the parent's computed style. The `<details>`
   closing animation still waits for C14's `content-visibility`. Phase 12 part 2 (C12-KEYFRAMES,
   C12-SCROLL-DRIVEN, the part 1 leftovers) done.
+- 2026-10-16 — Phase 12 part 2 docs: CSS-COVERAGE's priority table row 21 (`@keyframes` + `animation-*`)
+  marked shipped (the §3.18 and §3.11 rows and the §1 counts moved with each item: 3.18 is 10 / 0 / 0,
+  3.11 14 / 0 / 0, the total 222 Supported, 8 Partial, 32 Missing). ACID gains I17 (a keyframe
+  animation at fixed clock times: keyframe easing, directions, fills, `!important`, the order above
+  transitions, `add`, the four events) and I18 (a scroll-driven progress bar: `scroll()` with no clock
+  tick, `rtl`, a `view()` item with a range and a range keyframe, `timeline-scope`, an inactive
+  timeline). Docs only.
