@@ -69,7 +69,7 @@ mod test_alloc;
 
 pub use accessors::{
     GridTracks, ScrollBehaviorOption, ScrollIntoViewOptions, ScrollLogicalPosition, ScrollRange,
-    ScrollToOptions, TuiAccessors, TuiAccessorsMut, TuiDocAccessors,
+    ScrollToOptions, TableTracks, TuiAccessors, TuiAccessorsMut, TuiDocAccessors,
 };
 pub use cssom::{extend_from_style_tags, extend_from_style_tags_with_loader, seed_inline_styles};
 pub use tui_event::{TuiDispatchExt, TuiEvent};

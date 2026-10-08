@@ -32,6 +32,9 @@ pub(super) struct Lines {
     pub(super) vertical: Vec<u16>,
     /// Before row `i`, and after the last (`rows + 1` lines).
     pub(super) horizontal: Vec<u16>,
+    /// The columns run from the right (`direction: rtl`, CSS 2.1 §17.5):
+    /// the line before a column is on its right.
+    pub(super) rtl: bool,
 }
 
 /// `id`'s used border sides (a missing style is none).
@@ -52,14 +55,17 @@ impl Lines {
         model: Model,
     ) -> Self {
         let (columns, rows) = (grid.columns, grid.rows.len());
+        let rtl = computed.text_direction == crate::layout::TextDirection::Rtl;
         let mut lines = match model {
             Model::Separate { h, v } => Lines {
                 vertical: vec![if columns == 0 { 0 } else { h }; columns + 1],
                 horizontal: vec![if rows == 0 { 0 } else { v }; rows + 1],
+                rtl,
             },
             Model::Collapse => Lines {
                 vertical: vec![0; columns + 1],
                 horizontal: vec![0; rows + 1],
+                rtl,
             },
         };
         if model == Model::Collapse {
@@ -117,8 +123,15 @@ impl Lines {
     }
 
     /// Mark the sides of `b` that have a border on the lines `left`,
-    /// `right` (vertical) and `top`, `bottom` (horizontal).
+    /// `right` (vertical: before the box's first column and after its
+    /// last — its physical right and left sides in an `rtl` table) and
+    /// `top`, `bottom` (horizontal).
     fn mark(&mut self, b: Border, left: usize, right: usize, top: usize, bottom: usize) {
+        let (start, end) = if self.rtl {
+            (b.right, b.left)
+        } else {
+            (b.left, b.right)
+        };
         let set = |list: &mut Vec<u16>, line: usize, side: crate::layout::BorderStyle| {
             if !side.is_none()
                 && let Some(w) = list.get_mut(line)
@@ -126,8 +139,8 @@ impl Lines {
                 *w = (*w).max(1);
             }
         };
-        set(&mut self.vertical, left, b.left);
-        set(&mut self.vertical, right, b.right);
+        set(&mut self.vertical, left, start);
+        set(&mut self.vertical, right, end);
         set(&mut self.horizontal, top, b.top);
         set(&mut self.horizontal, bottom, b.bottom);
     }

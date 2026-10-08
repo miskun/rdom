@@ -1,8 +1,11 @@
 //! What a formatting context keeps of its last layout for the readers
 //! after it: a grid container's lines (CSS Grid 2 §9.1), a table's table
-//! box inside its wrapper (CSS 2.1 §17.4, C13G-TABLE-GEOMETRY). One boxed
+//! box inside its wrapper (CSS 2.1 §17.4, C13G-TABLE-GEOMETRY) and its
+//! tracks (`TuiAccessors::table_tracks`, C13G-TABLE-TRACKS). One boxed
 //! record on [`TuiExt`] — a box is a grid or a table, never both — so the
 //! common box pays one pointer for either and nothing more.
+
+use std::ops::Range;
 
 use super::TuiExt;
 use crate::layout::LayoutRect;
@@ -13,8 +16,20 @@ use crate::render::layout_pass::GridLines;
 pub(crate) enum KeptLayout {
     /// A grid container's lines.
     Grid(GridLines),
-    /// A table's table box in its wrapper box.
-    Table(TableInsets),
+    /// A table's table box in its wrapper box, and its tracks.
+    Table(TableKept),
+}
+
+/// What a laid-out table keeps: where its table box sits in its wrapper,
+/// and its columns and rows — each a cell range from the table box's
+/// content edge, unscrolled, in column / row order (the shape
+/// [`TableTracks`](crate::TableTracks) reports). Relative, as the
+/// insets, so a subtree shift keeps them true.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(crate) struct TableKept {
+    pub(crate) insets: TableInsets,
+    pub(crate) columns: Vec<Range<i32>>,
+    pub(crate) rows: Vec<Range<i32>>,
 }
 
 /// Where a table's table box sits in its wrapper box (`TuiExt::layout`,
@@ -37,6 +52,22 @@ impl TuiExt {
         }
     }
 
+    /// A table's kept layout after its last layout; `None` for any other
+    /// box.
+    pub(crate) fn table_kept(&self) -> Option<&TableKept> {
+        match self.kept.as_deref()? {
+            KeptLayout::Table(t) => Some(t),
+            KeptLayout::Grid(_) => None,
+        }
+    }
+
+    /// Whether this is a table with captions: its wrapper box is taller
+    /// than its table box (CSS 2.1 §17.4).
+    pub(crate) fn has_captions(&self) -> bool {
+        self.table_kept()
+            .is_some_and(|t| t.insets.above > 0 || t.insets.below > 0)
+    }
+
     /// The box this element's border, background, scrollport, overflow
     /// clip and resizer are on — one answer for paint, the scroll
     /// machinery, clipping and hit-testing: a table's table box (CSS 2.1
@@ -45,7 +76,7 @@ impl TuiExt {
     /// (`layout`).
     pub(crate) fn border_box(&self) -> LayoutRect {
         match self.kept.as_deref() {
-            Some(KeptLayout::Table(t)) => {
+            Some(KeptLayout::Table(TableKept { insets: t, .. })) => {
                 let l = self.layout;
                 LayoutRect::new(
                     l.x,

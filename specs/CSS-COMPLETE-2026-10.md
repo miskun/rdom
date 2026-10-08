@@ -8862,3 +8862,30 @@ row comes from.
   (`Middle` for `Top`), `a_table_resets_text_indent` (`"   abc"` for `" abc"`),
   `rows_and_groups_inherit_the_tables_border_color` (`Reset` for red); green after. `ua_total_rule_count`
   recounted. No snapshot changed.
+- 2026-10-09 — C13G-TABLE-TRACKS (API B3; CSS 2.1 §17.4, §17.5, §17.6; CSS Writing Modes 4 §2.1). Found: removing
+  `TuiExt::table_used_width` left no public read of a table's column widths (grid has `grid_tracks()`; `Solved`
+  is private; a cell's `layout_rect` is its column only for a non-spanning cell in the separated model). And,
+  writing the rtl case: an `rtl` table laid its first column on the left — the table formatting context never
+  read `direction` (CSS 2.1 §17.5: the columns follow the table's direction), an undocumented gap. Decided:
+  (1) `TuiAccessors::table_tracks() -> Option<TableTracks>`, `GridTracks`' shape (private fields, `new`,
+  `columns()` / `rows()`, sealed by private fields in DESIGN, re-exported at the root): each track the cells
+  between its two lines, from the table box's content edge (captions outside it, §17.4), unscrolled, in
+  column / row order — an `rtl` table's first column its rightmost range, as an `rtl` grid's; separated:
+  `border-spacing` the gaps and before the first range, the table's border and padding outside the edge (a
+  column is the border box of a cell spanning only it); collapsing: no padding, the border the grid's outer
+  line, so the edge is the border edge and each one-cell line a gap; a collapsed column / row an empty range.
+  (2) Read, not solved: `place` keeps the tracks in the table's kept record — `KeptLayout::Table(TableKept {
+  insets, columns, rows })`, now kept for every laid-out table element (it was only for one with captions;
+  `TuiExt::has_captions` answers the stacking question that `matches!(kept, Table(_))` did), relative to the
+  content edge so a subtree shift keeps it true; the accessor clones it. (3) `rtl` tables: `Lines::rtl` — a
+  box's right border marks the line before its first column (`mark` swaps the sides) — and `place::Axis`
+  lays the column lines and tracks right to left (`Axis::columns`, `span` mapping column order to physical
+  order); one source, so cells, rows, column boxes, junctions and the kept tracks agree. CHANGELOG: Added
+  bullet, the Fixed `rtl` bullet, silent change 8 gains it, and the `table_used_width` Breaking bullet and
+  API-table row name `table_tracks()` as the migration (`table_layout_hints` asserts it). Red:
+  `css_phase13/tracks.rs` (new) failed to compile without the accessor; with it,
+  `an_rtl_tables_first_column_is_on_the_right` failed (`[(0, 3), (3, 8)]` for `[(5, 8), (0, 5)]`); green after,
+  with the separated, spacing, collapsed, caption, collapsed-column and not-a-table cases and
+  `cost_tests.rs`' `table_tracks_read_the_kept_layout_without_solving` (0 structures, 0 solves). Mutation:
+  `mark` without the swap → the `td { border-right: solid }` rtl case gives `[(7, 10), (1, 6)]` for
+  `[(6, 9), (0, 5)]`.

@@ -276,3 +276,30 @@ fn a_long_table_allocates_a_bounded_amount_per_row() {
 /// The allocations one row of `long_table` costs a layout pass, measured
 /// when C13G-TABLE-COST landed (with a little room).
 const ALLOCATIONS_PER_ROW: u64 = 230;
+
+/// C13G-TABLE-TRACKS: `table_tracks()` reads what the last layout kept —
+/// no structure is built and nothing is solved to answer it.
+#[test]
+fn table_tracks_read_the_kept_layout_without_solving() {
+    use crate::TuiAccessors;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let t = dom.create_element("table");
+    dom.append_child(root, t).unwrap();
+    let tr = dom.create_element("tr");
+    dom.append_child(t, tr).unwrap();
+    for text in ["a", "bbb"] {
+        let td = dom.create_element("td");
+        dom.append_child(tr, td).unwrap();
+        let x = dom.create_text_node(text);
+        dom.append_child(td, x).unwrap();
+    }
+    dom.cascade(&crate::Stylesheet::new());
+    dom.layout_dom(Rect::new(0, 0, 20, 4));
+    for c in [&SOLVES, &STRUCTURES] {
+        c.with(|c| c.set(0));
+    }
+    let tracks = dom.node(t).table_tracks().expect("a laid-out table");
+    assert_eq!(tracks.columns(), [0..3, 3..8]);
+    assert_eq!((SOLVES.with(Cell::get), STRUCTURES.with(Cell::get)), (0, 0));
+}

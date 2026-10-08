@@ -103,22 +103,48 @@ pub(super) fn caption_min(dom: &Dom<TuiExt>, structure: &Structure, cb: u16) -> 
 }
 
 /// The positions of a solved table's lines and tracks on one axis, from
-/// `origin`: `line[k]` where line `k` starts, `track[k]` where track `k`
-/// starts (after line `k`).
+/// `origin`, left to right (top to bottom): `line[k]` where physical line
+/// `k` starts, `track[k]` where physical track `k` starts (after line
+/// `k`). Callers name tracks and lines in column / row order; an `rtl`
+/// table's columns (`mirrored`, CSS 2.1 §17.5) are laid right to left, so
+/// its column `k` is physical track `n - 1 - k`.
 struct Axis {
     line: Vec<i32>,
     track: Vec<i32>,
     widths: Vec<u16>,
+    mirrored: bool,
 }
 
 impl Axis {
     fn new(origin: i32, lines: &[u16], tracks: &[u16]) -> Self {
+        Self::laid(origin, lines.iter().copied(), tracks.iter().copied(), false)
+    }
+
+    /// The columns of `lines`: right to left when `lines.rtl`.
+    fn columns(origin: i32, lines: &super::lines::Lines, tracks: &[u16]) -> Self {
+        let (l, t) = (lines.vertical.iter().copied(), tracks.iter().copied());
+        if lines.rtl {
+            Self::laid(origin, l.rev(), t.rev(), true)
+        } else {
+            Self::laid(origin, l, t, false)
+        }
+    }
+
+    fn laid(
+        origin: i32,
+        lines: impl ExactSizeIterator<Item = u16>,
+        tracks: impl Iterator<Item = u16>,
+        mirrored: bool,
+    ) -> Self {
         let mut at = origin;
         let (mut line, mut track) = (Vec::with_capacity(lines.len()), Vec::new());
-        for (k, &l) in lines.iter().enumerate() {
+        let mut widths = Vec::with_capacity(lines.len());
+        let mut tracks = tracks;
+        for l in lines {
             line.push(at);
+            widths.push(l);
             at += i32::from(l);
-            if let Some(&t) = tracks.get(k) {
+            if let Some(t) = tracks.next() {
                 track.push(at);
                 at += i32::from(t);
             }
@@ -126,13 +152,32 @@ impl Axis {
         Axis {
             line,
             track,
-            widths: lines.to_vec(),
+            widths,
+            mirrored,
         }
     }
 
-    /// The extent of tracks `from..to` of a box whose borders on their
-    /// two sides are `start_border` / `end_border` (see the module docs).
+    /// Each track's cells, from `origin`, in column / row order.
+    fn tracks(&self, origin: i32) -> Vec<std::ops::Range<i32>> {
+        let n = self.track.len();
+        (0..n)
+            .map(|k| {
+                let p = if self.mirrored { n - 1 - k } else { k };
+                self.track[p] - origin..self.line[p + 1] - origin
+            })
+            .collect()
+    }
+
+    /// The extent of tracks `from..to` (column / row order) of a box
+    /// whose physical start and end sides — left and right, top and
+    /// bottom — have a border (`borders`; see the module docs).
     fn span(&self, from: usize, to: usize, model: Model, borders: (bool, bool)) -> (i32, u16) {
+        let n = self.track.len();
+        let (from, to) = if self.mirrored {
+            (n.saturating_sub(to), n.saturating_sub(from))
+        } else {
+            (from, to)
+        };
         let collapse = model == Model::Collapse;
         let start = if from >= to {
             self.line.get(from).copied().unwrap_or(0)
@@ -231,11 +276,7 @@ pub(super) fn place(
     let (sx, sy) = element
         .and_then(|id| dom.node(id).ext())
         .map_or((0, 0), |e| (e.scroll_x, e.scroll_y));
-    let xs = Axis::new(
-        content.x - sx,
-        &solved.skeleton.lines.vertical,
-        &solved.columns,
-    );
+    let xs = Axis::columns(content.x - sx, &solved.skeleton.lines, &solved.columns);
     let ys = Axis::new(
         content.y - sy,
         &solved.skeleton.lines.horizontal,
@@ -370,13 +411,20 @@ pub(super) fn place(
         ext.layout = wrapper;
         ext.content_layout = content;
         // §17.4: the table box between the captions — the box its border,
-        // background, scrollport and clip are on (`TuiExt::border_box`).
-        ext.kept = (top > 0 || bottom > 0).then(|| {
-            Box::new(crate::ext::KeptLayout::Table(crate::ext::TableInsets {
-                above: top,
-                below: bottom,
-            }))
-        });
+        // background, scrollport and clip are on (`TuiExt::border_box`) —
+        // and its tracks from its content edge, unscrolled
+        // (`TuiAccessors::table_tracks`).
+        let origin = (content.x - sx, content.y - sy);
+        ext.kept = Some(Box::new(crate::ext::KeptLayout::Table(
+            crate::ext::TableKept {
+                insets: crate::ext::TableInsets {
+                    above: top,
+                    below: bottom,
+                },
+                columns: xs.tracks(origin.0),
+                rows: ys.tracks(origin.1),
+            },
+        )));
     }
     own
 }

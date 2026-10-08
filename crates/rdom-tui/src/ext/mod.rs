@@ -13,7 +13,7 @@ mod pseudo_styles;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use kept_layout::{KeptLayout, TableInsets};
+pub(crate) use kept_layout::{KeptLayout, TableInsets, TableKept};
 pub(crate) use layout_cache::MarginChainMemo;
 pub use layout_cache::{AnonymousIfc, GeneratedBox, PositionedPseudo, StaticPosition};
 pub use presentation::{PresentationStyle, PseudoSlot, StyleSlot};

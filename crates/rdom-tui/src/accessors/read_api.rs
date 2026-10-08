@@ -155,6 +155,14 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// non-element nodes.
     fn grid_tracks(&self) -> Option<super::GridTracks>;
 
+    /// The used columns and rows of a laid-out table (CSS 2.1 §17.5),
+    /// each a cell range from the table box's content edge, in column /
+    /// row order ([`TableTracks`](super::TableTracks)) — read from what
+    /// the last layout kept, never solved again. `None` for an element
+    /// that is not a `table` / `inline-table` or has not been laid out
+    /// as one, and for non-element nodes.
+    fn table_tracks(&self) -> Option<super::TableTracks>;
+
     /// `Element.scrollWidth` — the width of the scrolling area (CSSOM
     /// View §4): the scrollport ∪ the content, the content extended by
     /// the end padding (CSS Overflow 3 §2.2), measured from the scrolling

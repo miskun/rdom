@@ -13,6 +13,7 @@ mod gaps;
 mod html;
 mod props;
 mod tfc;
+mod tracks;
 mod ua;
 
 /// A document holding `markup` under its root.

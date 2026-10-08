@@ -249,9 +249,7 @@ pub(crate) fn children_clip(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle, cl
 /// `overflow` applies to (CSS 2.1 §17.4; layout keeps the table box,
 /// `TuiExt::border_box`).
 pub(crate) fn has_unclipped_children(dom: &Dom<TuiExt>, parent: NodeId) -> bool {
-    dom.node(parent)
-        .ext()
-        .is_some_and(|e| matches!(e.kept.as_deref(), Some(crate::ext::KeptLayout::Table(_))))
+    dom.node(parent).ext().is_some_and(TuiExt::has_captions)
 }
 
 /// The clip the box child `child` of `parent` paints and is hit in:

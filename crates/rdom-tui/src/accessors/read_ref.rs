@@ -117,6 +117,15 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
         Some(super::GridTracks::new(columns, rows))
     }
 
+    fn table_tracks(&self) -> Option<super::TableTracks> {
+        use crate::node::TuiNodeExt;
+        let kept = self.tui_ext()?.table_kept()?;
+        Some(super::TableTracks::new(
+            kept.columns.clone(),
+            kept.rows.clone(),
+        ))
+    }
+
     fn scroll_width(&self) -> Option<i32> {
         use crate::node::TuiNodeExt;
         Some(self.tui_ext()?.scroll_content_width as i32)

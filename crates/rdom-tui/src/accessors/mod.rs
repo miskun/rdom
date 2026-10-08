@@ -38,6 +38,7 @@ mod helpers;
 mod read_api;
 mod read_mut;
 mod read_ref;
+mod table_tracks;
 mod write;
 mod write_api;
 
@@ -50,4 +51,5 @@ pub use crate::runtime::smooth_scroll::{
 pub use doc::TuiDocAccessors;
 pub use grid_tracks::GridTracks;
 pub use read_api::{DomRect, ScrollRange, TuiAccessors};
+pub use table_tracks::TableTracks;
 pub use write_api::TuiAccessorsMut;

@@ -423,6 +423,7 @@ fn table_display_hints() {
 
 /// C13-TFC: no column-sync pass — a `<table>` sizes its columns as it
 /// lays out; a fixed column is a `width` on its `<col>` (or its cells).
+/// `TuiExt::table_used_width` is `table_tracks()` (C13G-TABLE-TRACKS).
 #[test]
 fn table_layout_hints() {
     let mut dom = TuiDom::new();
@@ -440,6 +441,8 @@ fn table_layout_hints() {
     dom.cascade(&Stylesheet::new());
     dom.layout_dom(render::Rect::new(0, 0, 20, 2));
     assert_eq!(dom.node(td).layout_rect().unwrap().width, 8);
+    let tracks = rdom_tui::TuiAccessors::table_tracks(&dom.node(table)).unwrap();
+    assert_eq!(tracks.columns()[0].len(), 8);
 }
 
 /// C6-VISIBILITY: the `visibility` field, its value type, builder and
