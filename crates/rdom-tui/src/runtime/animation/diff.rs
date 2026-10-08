@@ -325,22 +325,39 @@ fn is_rendered(dom: &Dom<TuiExt>, ids: &[NodeId]) -> std::collections::HashMap<N
 }
 
 /// Whether each of `ids` (in tree order, parents first) was rendered at
-/// the last style update: styled then, not `display: none`, and under a
-/// box parent that was rendered.
+/// the last style update: styled then, its before-change `display` not
+/// `none`, and under a box parent that was rendered.
 fn was_rendered(dom: &Dom<TuiExt>, ids: &[NodeId]) -> std::collections::HashMap<NodeId, bool> {
     let mut out = std::collections::HashMap::with_capacity(ids.len());
     for &id in ids {
         let own = dom
             .node(id)
             .ext()
-            .and_then(|e| e.computed_prev.as_deref())
-            .is_some_and(|p| p.display != crate::layout::Display::None);
+            .and_then(before_change_display)
+            .is_some_and(|d| d != crate::layout::Display::None);
         let parent = crate::render::box_tree::box_parent(dom, id)
             .and_then(|p| out.get(&p).copied())
             .unwrap_or(true);
         out.insert(id, own && parent);
     }
     out
+}
+
+/// The `display` of `ext`'s before-change style (CSS Transitions 1 §3:
+/// the previous style with its declarative animations "updated to the
+/// current time"): the previous cascade's, or — while a transition or an
+/// animation holds it (`allow-discrete` on an exit) — the running value,
+/// which the cascade's write-back carried into the computed style
+/// (`TuiExt::overlay`). `None` for an element not styled then.
+fn before_change_display(ext: &TuiExt) -> Option<crate::layout::Display> {
+    let prev = ext.computed_prev.as_deref()?;
+    let held = ext
+        .presentation_for(StyleSlot::Host)
+        .is_some_and(|p| p.animated().iter().any(|l| l.css_name() == "display"));
+    Some(match ext.computed.as_deref() {
+        Some(now) if held => now.display,
+        _ => prev.display,
+    })
 }
 
 fn collect_element_ids(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {

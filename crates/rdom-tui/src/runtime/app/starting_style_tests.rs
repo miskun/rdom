@@ -181,3 +181,66 @@ fn a_new_pseudo_element_transitions_from_its_starting_style() {
     app.advance(60).unwrap();
     assert_eq!(before(&app), Some(1.0));
 }
+
+/// C12G-BEFORE-CHANGE — CSS Transitions 1 §3: the before-change style is
+/// the previous style "with any styles derived from declarative
+/// animations ... updated to the current time", so whether the element was
+/// rendered is read from what is on screen. A popover reopened halfway
+/// through its fade-out (`display` held by `allow-discrete`) was rendered:
+/// every running transition reverses from where it is — its color too,
+/// which no starting style names — rather than finishing the exit and
+/// snapping back.
+#[test]
+fn a_popover_reopened_during_its_fade_out_reverses_from_where_it_is() {
+    let (mut app, pop) = app_with(
+        "[popover] { opacity: 0; color: rgb(0,0,0); transition: opacity 100ms linear, \
+         color 100ms linear, display 100ms allow-discrete, overlay 100ms allow-discrete } \
+         [popover]:popover-open { opacity: 1; color: rgb(200,200,200) } \
+         @starting-style { [popover]:popover-open { opacity: 0 } }",
+        |dom| {
+            let root = dom.root();
+            let pop = dom.create_element("div");
+            dom.set_attribute(pop, "popover", "").unwrap();
+            let t = dom.create_text_node("pop");
+            dom.append_child(pop, t).unwrap();
+            dom.append_child(root, pop).unwrap();
+            pop
+        },
+    );
+    let red = |app: &App<TestBackend>| match app
+        .dom()
+        .node(pop)
+        .ext()
+        .unwrap()
+        .computed
+        .as_ref()
+        .unwrap()
+        .fg
+    {
+        crate::style::Color::Rgb(r, _, _) => r,
+        other => panic!("{other:?}"),
+    };
+    popover::show_popover(app.dom_mut(), pop).unwrap();
+    app.advance(0).unwrap();
+    app.advance(150).unwrap();
+    assert_eq!((opacity(&app, pop), red(&app)), (1.0, 200));
+
+    popover::hide_popover(app.dom_mut(), pop).unwrap();
+    app.advance(0).unwrap();
+    app.advance(50).unwrap();
+    let (half_opacity, half_red) = (opacity(&app, pop), red(&app));
+    assert!(half_red > 0 && half_red < 200, "{half_red}");
+
+    popover::show_popover(app.dom_mut(), pop).unwrap();
+    app.advance(0).unwrap();
+    app.advance(20).unwrap();
+    assert!(
+        red(&app) > half_red,
+        "the color reverses toward the open one: {} after {half_red}",
+        red(&app)
+    );
+    assert!(opacity(&app, pop) > half_opacity, "{}", opacity(&app, pop));
+    app.advance(200).unwrap();
+    assert_eq!((opacity(&app, pop), red(&app)), (1.0, 200));
+    assert!(app.animations.is_empty());
+}

@@ -8106,3 +8106,19 @@ row comes from.
   UA's style, and its `<details>` leaving the document is C12G-DETACHED's (the box is matched by its
   host); a box dropped by `sync_content_box` (a sheet set without the UA's rule) drops its effects
   silently with the node. CHANGELOG silent change 78.
+- 2026-10-08 — C12G-BEFORE-CHANGE (architect N2a; CSS Transitions 1 §3, the before-change style "with any
+  styles derived from declarative animations ... updated to the current time"). Found: `was_rendered`
+  read the previous *cascaded* `display`, so a popover reopened halfway through its fade-out — its
+  `display: none` held as `block` by `allow-discrete` — counted as newly rendered: the starting-style
+  branch ran, which names only `opacity`, and the running `color` transition went on to the closed color
+  and snapped back at its end. Decided: the rendered state reads the before-change `display` — the
+  running value while a transition or animation holds it, which the cascade's write-back
+  (`TuiExt::overlay`) carried into the computed style, else the previous cascade's
+  (`diff::before_change_display`). The longhand values already start from the composite: a transition
+  replacing a running one starts from its current value (`register`). Remaining nuance, recorded here: a
+  longhand a CSS animation drives is compared cascade to cascade, so a cascade change to it can start a
+  transition under the animation (the spec's before- and after-change styles both carry the animation's
+  value, so none starts); it is masked while the animation applies. Red:
+  `starting_style_tests::a_popover_reopened_during_its_fade_out_reverses_from_where_it_is` — red 33 after
+  76 (fading on to black); green after (it rises, ends at 200 with nothing running). N2b (re-insertion)
+  was C12G-DETACHED's.

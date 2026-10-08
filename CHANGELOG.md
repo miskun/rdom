@@ -754,6 +754,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **Reopening during an exit transition reverses it** (CSS Transitions 1 §3): whether an element was rendered is read from its before-change style with running values, so a popover or dialog reopened while it fades out (`display` held by `allow-discrete`) reverses every running transition from where it is; its color finished the exit, then snapped back. (C12G-BEFORE-CHANGE)
 - **A `::before` / `::after` that stops generating is gone** (CSS Pseudo-Elements 4 §2, CSS Transitions 1 §3): one whose content went (a hover tooltip, a spinner's class removed) mid-transition or mid-animation stayed painted from its old style and kept the frames running; its transitions and animations are cancelled, with their events. (C12G-PSEUDO-GONE)
 - **A removed element stops animating** (CSS Animations 1 §4.1, CSS Transitions 1 §3): an element taken out with `remove_child` and kept ran its transitions and animations on — 60 frames a second for an infinite one; they are cancelled (`transitioncancel` / `animationcancel`), and one inserted again starts afresh. (C12G-DETACHED)
 - **Geometry transitions move layout**: a running transition's value is the element's computed value, so `width`, `height`, `padding`, `margin`, insets, `gap`, `flex-basis` and grid tracks animate frame by frame — on `::before` / `::after` and `::details-content` too — and descendants inherit it. Transitions run on the app's clock (`App::advance` drives it). (C12-ANIMATABLE)
