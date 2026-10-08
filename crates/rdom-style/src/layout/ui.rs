@@ -1,6 +1,6 @@
 //! The CSS Basic User Interface 4 values: the outline (§5), the cursor
-//! (§4.1) — and [`UiStyle`], the computed group of the user-interface
-//! properties.
+//! (§4.1), the caret's shape and animation (§6.2) — and [`UiStyle`], the
+//! computed group of the user-interface properties.
 
 use super::{BorderStyle, BorderWidth, PaintLength};
 
@@ -103,6 +103,10 @@ pub struct UiStyle {
     pub outline_offset: PaintLength,
     /// `cursor` (§4.1). Inherited.
     pub cursor: Cursor,
+    /// `caret-shape` (§6.2.2). Inherited.
+    pub caret_shape: CaretShape,
+    /// `caret-animation` (§6.2.1). Inherited.
+    pub caret_animation: CaretAnimation,
 }
 
 impl Default for UiStyle {
@@ -113,6 +117,8 @@ impl Default for UiStyle {
             outline_color: OutlineColor::Auto,
             outline_offset: PaintLength::Cells(0.0),
             cursor: Cursor::default(),
+            caret_shape: CaretShape::Auto,
+            caret_animation: CaretAnimation::Auto,
         }
     }
 }
@@ -244,6 +250,67 @@ impl From<CursorKeyword> for Cursor {
         Cursor {
             images: std::sync::Arc::default(),
             keyword,
+        }
+    }
+}
+
+/// `caret-shape` (CSS UI 4 §6.2.2): `auto | bar | block | underscore`.
+/// Inherited; initial `auto`, which rdom draws as `block` — the caret a
+/// terminal's own text cursor shows.
+///
+/// Closed (DESIGN): the caret painter draws each one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub enum CaretShape {
+    #[default]
+    Auto,
+    Bar,
+    Block,
+    Underscore,
+}
+
+impl CaretShape {
+    /// Every keyword with its CSS spelling.
+    pub const KEYWORDS: &'static [(&'static str, CaretShape)] = &[
+        ("auto", CaretShape::Auto),
+        ("bar", CaretShape::Bar),
+        ("block", CaretShape::Block),
+        ("underscore", CaretShape::Underscore),
+    ];
+
+    /// The keyword's CSS spelling.
+    pub fn keyword(self) -> &'static str {
+        Self::KEYWORDS
+            .iter()
+            .find(|(_, k)| *k == self)
+            .map_or("auto", |(name, _)| name)
+    }
+}
+
+/// `caret-animation` (CSS UI 4 §6.2.1): `auto | manual` — whether the UA
+/// blinks the caret. Inherited; initial `auto`.
+///
+/// Closed (DESIGN): the blink is on or off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub enum CaretAnimation {
+    /// The UA's blink (`App::with_caret_blink`).
+    #[default]
+    Auto,
+    /// No blink: the caret stays shown, for an author animation.
+    Manual,
+}
+
+impl CaretAnimation {
+    /// Every keyword with its CSS spelling.
+    pub const KEYWORDS: &'static [(&'static str, CaretAnimation)] = &[
+        ("auto", CaretAnimation::Auto),
+        ("manual", CaretAnimation::Manual),
+    ];
+
+    /// The keyword's CSS spelling.
+    pub fn keyword(self) -> &'static str {
+        match self {
+            CaretAnimation::Auto => "auto",
+            CaretAnimation::Manual => "manual",
         }
     }
 }

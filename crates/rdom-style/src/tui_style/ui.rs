@@ -2,7 +2,9 @@
 //! properties, the specified side of [`UiStyle`](crate::layout::UiStyle).
 
 use crate::Value;
-use crate::layout::{BorderWidth, Cursor, OutlineColor, OutlineStyle, PaintLength};
+use crate::layout::{
+    BorderWidth, CaretAnimation, CaretShape, Cursor, OutlineColor, OutlineStyle, PaintLength,
+};
 
 /// The CSS Basic User Interface 4 properties a
 /// [`TuiStyle`](crate::TuiStyle) declares
@@ -23,4 +25,8 @@ pub struct UiDeclarations {
     pub outline_offset: Option<Value<PaintLength>>,
     /// `cursor` (§4.1).
     pub cursor: Option<Value<Cursor>>,
+    /// `caret-shape` (§6.2.2); the `caret` shorthand writes it.
+    pub caret_shape: Option<Value<CaretShape>>,
+    /// `caret-animation` (§6.2.1); the `caret` shorthand writes it.
+    pub caret_animation: Option<Value<CaretAnimation>>,
 }

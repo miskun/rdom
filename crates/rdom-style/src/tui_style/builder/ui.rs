@@ -3,7 +3,9 @@
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
-use crate::layout::{BorderWidth, Cursor, OutlineColor, OutlineStyle, PaintLength};
+use crate::layout::{
+    BorderWidth, CaretAnimation, CaretShape, Cursor, OutlineColor, OutlineStyle, PaintLength,
+};
 
 /// A setter for one [`UiDeclarations`](crate::UiDeclarations) field and
 /// its `!important` twin, as `setter!` is for a `TuiStyle` field.
@@ -53,4 +55,18 @@ impl TuiStyle {
         PaintLength
     );
     ui_setter!("cursor", cursor, cursor_important, CURSOR, Cursor);
+    ui_setter!(
+        "caret-shape",
+        caret_shape,
+        caret_shape_important,
+        CARET_SHAPE,
+        CaretShape
+    );
+    ui_setter!(
+        "caret-animation",
+        caret_animation,
+        caret_animation_important,
+        CARET_ANIMATION,
+        CaretAnimation
+    );
 }

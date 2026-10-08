@@ -3,8 +3,9 @@
 //! Browsers blink the text caret — Chromium and Firefox follow the OS
 //! setting, about 530 ms on and 530 ms off — restart it visible on every
 //! caret move and every edit, and paint no caret at all while the window
-//! is inactive. No CSS property controls blinking (`caret-color` /
-//! `caret-shape` do not), so the rate is an [`App`](crate::runtime::App) option:
+//! is inactive. The rate is an [`App`](crate::runtime::App) option —
+//! CSS controls only whether the UA blinks (`caret-animation: manual`,
+//! CSS UI 4 §6.2.1, a caret that stays shown):
 //! [`App::with_caret_blink`](crate::runtime::App::with_caret_blink).
 //! [`App::new`](crate::runtime::App::new) blinks at
 //! [`DEFAULT_CARET_BLINK`]; [`App::with_backend`](crate::runtime::App::with_backend)
@@ -125,6 +126,9 @@ impl CaretBlink {
             };
             let off = if !self.terminal_focused {
                 true
+            } else if animates_manually(dom) {
+                // CSS UI 4 §6.2.1: no UA blink — the caret stays shown.
+                false
             } else if let Some(period) = self.period {
                 let phases = now.saturating_duration_since(epoch).as_nanos() / period.as_nanos();
                 // Phase k runs from epoch + k·period; the next flip is at
@@ -160,6 +164,15 @@ fn caret_host(dom: &TuiDom) -> Option<NodeId> {
     }
     let focused = dom.focused()?;
     crate::node::nearest_editable_ancestor(dom, focused)
+}
+
+/// Whether the focused element — whose style the caret paints in — has
+/// `caret-animation: manual` (as of the last style update).
+fn animates_manually(dom: &TuiDom) -> bool {
+    dom.focused()
+        .and_then(|f| dom.node(f).ext())
+        .and_then(|e| e.computed.as_deref())
+        .is_some_and(|c| c.ui.caret_animation == crate::layout::CaretAnimation::Manual)
 }
 
 /// Write `off` to `host`'s flag; `true` when it changed. A host that left

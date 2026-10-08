@@ -1,19 +1,30 @@
-//! The outline properties (CSS UI 4 §5) — `outline` and its four
-//! longhands — and `cursor` (§4.1): their `set` and `serialize` arms.
+//! The CSS UI 4 properties: the outline (§5) — `outline` and its four
+//! longhands — `cursor` (§4.1), and the caret's `caret-shape`,
+//! `caret-animation` and the `caret` shorthand (§6.2; `caret-color` is
+//! `set.rs`'s): their `set` and `serialize` arms.
 
 use super::border::{serialize_line_width, serialize_paint_length};
 use super::value_serializers::{serialize_color, specified};
-use crate::layout::{BorderWidth, OutlineColor, OutlineStyle};
+use crate::layout::{
+    BorderWidth, CaretAnimation, CaretColor, CaretShape, OutlineColor, OutlineStyle,
+};
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_cursor, parse_line_width, parse_outline, parse_outline_color, parse_outline_offset,
-    parse_outline_style,
+    parse_caret, parse_caret_animation, parse_caret_shape, parse_cursor, parse_line_width,
+    parse_outline, parse_outline_color, parse_outline_offset, parse_outline_style,
 };
 use crate::{TuiStyle, Value};
 
 /// Parse and write one of the names. `None` when `name` is not one;
 /// `Some(None)` when its value is invalid.
 pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<Option<()>> {
+    if name == "caret" {
+        return Some(parse_caret(value).map(|(color, animation, shape)| {
+            style.ui.caret_animation = Some(Value::Specified(animation));
+            style.ui.caret_shape = Some(Value::Specified(shape));
+            style.caret_color = Some(Value::Specified(color));
+        }));
+    }
     let ui = &mut style.ui;
     Some(match name {
         "outline" => parse_outline(value).map(|(color, s, width)| {
@@ -35,6 +46,12 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         }),
         "cursor" => parse_cursor(value).map(|c| {
             ui.cursor = Some(Value::Specified(c));
+        }),
+        "caret-shape" => parse_caret_shape(value).map(|s| {
+            ui.caret_shape = Some(Value::Specified(s));
+        }),
+        "caret-animation" => parse_caret_animation(value).map(|a| {
+            ui.caret_animation = Some(Value::Specified(a));
         }),
         _ => return None,
     })
@@ -63,6 +80,46 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .and_then(specified)
             .map(serialize_paint_length),
         "cursor" => ui.cursor.as_ref().and_then(specified).map(serialize_cursor),
+        "caret-shape" => ui
+            .caret_shape
+            .as_ref()
+            .and_then(specified)
+            .map(|s| s.keyword().to_string()),
+        "caret-animation" => ui
+            .caret_animation
+            .as_ref()
+            .and_then(specified)
+            .map(|a| a.keyword().to_string()),
+        // The shortest form: the components off their initial `auto`, in
+        // grammar order; `auto` when all are.
+        "caret" => {
+            let color = style.caret_color.as_ref().and_then(specified);
+            let animation = ui.caret_animation.as_ref().and_then(specified);
+            let shape = ui.caret_shape.as_ref().and_then(specified);
+            match (color, animation, shape) {
+                (Some(c), Some(a), Some(s)) => {
+                    let mut parts = Vec::new();
+                    if *c != CaretColor::Auto {
+                        parts.push(match c {
+                            CaretColor::Color(c) => serialize_color(c),
+                            _ => "transparent".to_string(),
+                        });
+                    }
+                    if *a != CaretAnimation::Auto {
+                        parts.push(a.keyword().to_string());
+                    }
+                    if *s != CaretShape::Auto {
+                        parts.push(s.keyword().to_string());
+                    }
+                    Some(if parts.is_empty() {
+                        "auto".to_string()
+                    } else {
+                        parts.join(" ")
+                    })
+                }
+                _ => None,
+            }
+        }
         // The shortest form (CSSOM §6.7.2): the components that are not
         // at their initial value, color, style, width; `none` when all
         // are.

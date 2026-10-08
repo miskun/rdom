@@ -367,6 +367,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`caret-shape`, `caret-animation` and the `caret` shorthand** (CSS UI 4 §6.2): `auto | bar | block | underscore` and `auto | manual`, inherited and discrete (`CaretShape`, `CaretAnimation` in `ComputedStyle::ui`), the shorthand also setting `caret-color`; `parse_caret_color` is the one `caret-color` parser. (C12-CARET)
 - **`cursor`** (CSS UI 4 §4.1): every `<cursor-predefined>` keyword after `url()` fallbacks with optional hotspots (kept and serialized; a terminal draws no image), inherited, discrete — `Cursor`, `CursorKeyword`, `CursorImage` in `ComputedStyle::ui`. (C12-CURSOR)
 - **The outline properties** (CSS UI 4 §5): `outline-style` (`auto` and every line style but `hidden`), `outline-width`, `outline-color` (`auto | <color>`), `outline-offset` and the `outline` shorthand — in `TuiStyle::ui` / `ComputedStyle::ui` (`UiDeclarations`, `UiStyle`), with `OutlineStyle`, `OutlineColor`, builder setters and their interpolation. (C12-OUTLINE)
 - **The scroll-driven animation properties** (Scroll-driven Animations 1 §2–§4): `scroll-timeline` / `view-timeline` and their longhands, `timeline-scope`, `animation-timeline`'s `scroll()` / `view()` / `<dashed-ident>`, `animation-range` and its longhands with range names (`TimelineAxis`, `TimelineInset`, `RangeBoundary`, …). (C12-SCROLL-DRIVEN)
@@ -578,6 +579,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **Caret shapes and a steady caret** (CSS UI 4 §6.2): the painted caret takes `caret-shape` — `block` (and `auto`) a cell, `underscore` an underline in `caret-color`, `bar` a `▏` on a blank cell and the underline over a glyph — and `caret-animation: manual` stops the blink, with no wakeups for it. (C12-CARET)
 - **`cursor` sets the terminal pointer** (CSS UI 4 §4.1): the `App` sends the shape of the element under the pointer over OSC 22 to kitty, foot, WezTerm and Ghostty (`PointerShapes::detect`, `App::with_pointer_shapes`), `default` back on exit or panic; `auto` is the text pointer over selectable text, and links show `pointer` (HTML §15.3.4). (C12-CURSOR)
 - **Outlines** (CSS UI 4 §5): `outline` draws a ring of box-drawing cells outside the border box, `outline-offset` cells out, taking no room — drawn last in its stacking context (CSS 2.1 Appendix E step 10) and clipped by `overflow` ancestors; `outline-style: auto` is a rounded ring in the accent color. (C12-OUTLINE)
 - **`focus()` flushes style first** (HTML §6.6.6): on a document an `App` runs, `focus()` / `focus_with()` cascade the element's dirty subtrees before deciding focusability, so a panel a handler just showed lets its input take the focus; `runtime::style_flush::flush_style(dom, id)` does the same before reading `computed()`. (C12-FOCUS-FLUSH)

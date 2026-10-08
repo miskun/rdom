@@ -101,6 +101,9 @@ const SPEC: &[(&str, Spec)] = &[
     ("pointer-events", L(D)),
     ("caret-color", L(V)),
     ("caret-text-color", L(V)),
+    ("caret-shape", L(D)),
+    ("caret-animation", L(D)),
+    ("caret", S),
     // CSS Overflow 3 / 4
     ("overflow", S),
     ("overflow-x", L(D)),

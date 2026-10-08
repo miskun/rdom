@@ -271,6 +271,9 @@ pub(super) fn apply_style(
         ui.outline_offset: OUTLINE_OFFSET,
         // CSS UI 4 §4.1; inherits.
         ui.cursor: CURSOR,
+        // §6.2; inherit.
+        ui.caret_shape: CARET_SHAPE,
+        ui.caret_animation: CARET_ANIMATION,
     );
     // Positioning (M2), transitions (M3; latest list wins), animations
     // (CSS Animations 1 §4) and counters

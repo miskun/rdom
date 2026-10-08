@@ -98,6 +98,8 @@ const SAMPLES: &[(&str, &str, &str, Mid)] = &[
     ),
     ("outline-offset", "2", "4", Is("3")),
     ("cursor", "pointer", "help", Flips),
+    ("caret-shape", "bar", "block", Flips),
+    ("caret-animation", "auto", "manual", Flips),
     ("overscroll-behavior-x", "auto", "contain", Flips),
     ("overscroll-behavior-y", "auto", "contain", Flips),
     ("scroll-padding-top", "2", "4", Is("3")),

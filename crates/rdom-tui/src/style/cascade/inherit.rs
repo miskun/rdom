@@ -49,6 +49,9 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     working.caret_text_color = parent.caret_text_color.clone();
     // CSS UI 4 §4.1: `cursor` inherits.
     working.ui.cursor = parent.ui.cursor.clone();
+    // §6.2: the caret's shape and animation inherit.
+    working.ui.caret_shape = parent.ui.caret_shape;
+    working.ui.caret_animation = parent.ui.caret_animation;
     // CSS Color Adjust 1 §2: `color-scheme` inherits.
     working.color_scheme = parent.color_scheme.clone();
     // CSS 2.1 §17.6.1: `border-spacing` inherits.

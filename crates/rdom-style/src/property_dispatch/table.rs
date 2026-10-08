@@ -181,6 +181,8 @@ define_fields! {
     OutlineColor => ui.outline_color : OUTLINE_COLOR,
     OutlineOffset => ui.outline_offset : OUTLINE_OFFSET,
     Cursor => ui.cursor : CURSOR,
+    CaretShape => ui.caret_shape : CARET_SHAPE,
+    CaretAnimation => ui.caret_animation : CARET_ANIMATION,
     OverscrollBehaviorX => overscroll_behavior_x : OVERSCROLL_BEHAVIOR_X,
     OverscrollBehaviorY => overscroll_behavior_y : OVERSCROLL_BEHAVIOR_Y,
     ScrollPaddingTop => scroll_padding.top : SCROLL_PADDING_TOP,
@@ -453,6 +455,9 @@ pub fn inherits(name: &str) -> bool {
             | "block-ellipsis"
             | "scrollbar-color"
             | "cursor"
+            | "caret-shape"
+            | "caret-animation"
+            | "caret"
     )
 }
 

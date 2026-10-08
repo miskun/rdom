@@ -174,6 +174,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("outline", "auto red thick"),
     ("outline-offset", "2"),
     ("cursor", "pointer"),
+    ("caret", "rgb(1 2 3) bar manual"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly

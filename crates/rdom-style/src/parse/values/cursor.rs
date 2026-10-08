@@ -1,8 +1,11 @@
-//! `cursor` (CSS UI 4 §4.1): `[<url> [<x> <y>]?,]* <cursor-predefined>`.
+//! `cursor` (CSS UI 4 §4.1): `[<url> [<x> <y>]?,]* <cursor-predefined>` —
+//! and the caret's values (§6.2): `caret-shape`, `caret-animation`, the
+//! `caret` shorthand.
 
+use super::color::parse_color;
 use super::keyword::parse_keyword;
 use super::numeric::{components, split_commas};
-use crate::layout::{Cursor, CursorImage, CursorKeyword};
+use crate::layout::{CaretAnimation, CaretColor, CaretShape, Cursor, CursorImage, CursorKeyword};
 use crate::parse::token::Token;
 
 /// `cursor`: image fallbacks, each a URL with an optional hotspot of two
@@ -49,4 +52,56 @@ fn parse_image(item: &[Token]) -> Option<CursorImage> {
         _ => return None,
     };
     Some(CursorImage { url, hotspot })
+}
+
+/// `caret-color` (§6.1): `auto | <color>` — and rdom's `transparent`
+/// keyword, a color that suppresses the caret.
+pub fn parse_caret_color(value: &[Token]) -> Option<CaretColor> {
+    parse_keyword(
+        value,
+        &[
+            ("auto", CaretColor::Auto),
+            ("transparent", CaretColor::Transparent),
+        ],
+    )
+    .or_else(|| parse_color(value).map(CaretColor::Color))
+}
+
+/// `caret-shape` (§6.2.2).
+pub fn parse_caret_shape(value: &[Token]) -> Option<CaretShape> {
+    parse_keyword(value, CaretShape::KEYWORDS)
+}
+
+/// `caret-animation` (§6.2.1).
+pub fn parse_caret_animation(value: &[Token]) -> Option<CaretAnimation> {
+    parse_keyword(value, CaretAnimation::KEYWORDS)
+}
+
+/// The `caret` shorthand (§6.2.3): `<'caret-color'> || <'caret-animation'>
+/// || <'caret-shape'>`, each omitted one at its initial value; an `auto`
+/// goes to the first of them not yet given.
+pub fn parse_caret(value: &[Token]) -> Option<(CaretColor, CaretAnimation, CaretShape)> {
+    let (mut color, mut animation, mut shape) = (None, None, None);
+    for part in components(value)? {
+        if color.is_none()
+            && let Some(c) = parse_caret_color(part)
+        {
+            color = Some(c);
+        } else if animation.is_none()
+            && let Some(a) = parse_caret_animation(part)
+        {
+            animation = Some(a);
+        } else if shape.is_none()
+            && let Some(s) = parse_caret_shape(part)
+        {
+            shape = Some(s);
+        } else {
+            return None;
+        }
+    }
+    Some((
+        color.unwrap_or_default(),
+        animation.unwrap_or_default(),
+        shape.unwrap_or_default(),
+    ))
 }

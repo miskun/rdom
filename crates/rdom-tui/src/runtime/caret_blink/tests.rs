@@ -178,3 +178,20 @@ fn blink_is_off_unless_enabled_on_a_custom_backend() {
     app.advance(PERIOD * 3).unwrap();
     assert!(caret_shown_at(&app, 2), "a steady caret");
 }
+
+/// C12-CARET — CSS UI 4 §6.2.1 `caret-animation: manual`: the UA does not
+/// blink the caret — it stays shown past a period, and no wakeup is
+/// scheduled for it.
+#[test]
+fn caret_animation_manual_does_not_blink() {
+    let (mut app, _p, _t, _button) = blinking();
+    app.push_stylesheet(Stylesheet::bare().rule_unchecked(
+        "p",
+        TuiStyle::new().caret_animation(crate::layout::CaretAnimation::Manual),
+    ));
+    app.advance(0).unwrap();
+    app.advance(0).unwrap();
+    assert_eq!(app.caret_blink_deadline(), None, "nothing to flip");
+    app.advance(PERIOD + 10).unwrap();
+    assert!(caret_shown_at(&app, 2), "still shown after a period");
+}

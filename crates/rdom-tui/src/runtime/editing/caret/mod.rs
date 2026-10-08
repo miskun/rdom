@@ -6,4 +6,6 @@
 pub use crate::render::inline::cell_of_position;
 
 #[cfg(test)]
+mod shape_tests;
+#[cfg(test)]
 mod tests;

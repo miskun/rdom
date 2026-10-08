@@ -155,3 +155,55 @@ fn cursor_takes_image_fallbacks_and_a_keyword() {
     }
     assert!(inherits("cursor"));
 }
+
+/// §6.2: `caret-shape: auto | bar | block | underscore`, `caret-animation:
+/// auto | manual`, and `caret` — `<'caret-color'> || <'caret-animation'> ||
+/// <'caret-shape'>`, omitted ones reset, shortest serialization; all
+/// inherit.
+#[test]
+fn the_caret_longhands_and_shorthand() {
+    use crate::layout::{CaretAnimation, CaretColor, CaretShape};
+    let mut style = TuiStyle::new();
+    set("caret", "bar manual red", &mut style).unwrap();
+    assert_eq!(spec(&style.ui.caret_shape), Some(CaretShape::Bar));
+    assert_eq!(
+        spec(&style.ui.caret_animation),
+        Some(CaretAnimation::Manual)
+    );
+    assert!(matches!(
+        spec(&style.caret_color),
+        Some(CaretColor::Color(_))
+    ));
+    assert_eq!(
+        serialize("caret", &style).as_deref(),
+        Some("red manual bar")
+    );
+    set("caret", "auto", &mut style).unwrap();
+    assert_eq!(spec(&style.ui.caret_shape), Some(CaretShape::Auto));
+    assert_eq!(serialize("caret", &style).as_deref(), Some("auto"));
+    set("caret-shape", "UNDERSCORE", &mut style).unwrap();
+    assert_eq!(
+        serialize("caret-shape", &style).as_deref(),
+        Some("underscore")
+    );
+    set("caret-animation", "manual", &mut style).unwrap();
+    assert_eq!(
+        serialize("caret-animation", &style).as_deref(),
+        Some("manual")
+    );
+    for (name, bad) in [
+        ("caret-shape", "beam"),
+        ("caret-animation", "blink"),
+        ("caret", "bar block"),
+        ("caret", "manual manual"),
+    ] {
+        assert_eq!(
+            set(name, bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{name}: {bad}"
+        );
+    }
+    for name in ["caret-shape", "caret-animation", "caret"] {
+        assert!(inherits(name), "{name}");
+    }
+}

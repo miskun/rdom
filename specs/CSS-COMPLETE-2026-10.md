@@ -246,7 +246,7 @@ row comes from.
 | C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | done |
 | C12-OUTLINE | `outline` / `-color` / `-style` / `-width` / `-offset` (non-layout ring) | done |
 | C12-CURSOR | `cursor` (OSC 22 pointer shapes) | done |
-| C12-CARET | `caret-shape` / `caret-animation` / `caret` | |
+| C12-CARET | `caret-shape` / `caret-animation` / `caret` | done |
 | C12-FOCUS-FLUSH | `focus()` (and other style-reading DOM calls) flushes pending style for the element first, as browsers do — TECH_DEBT `FOCUS-FLUSH-1`; needs the sheet set / transition registry / dirty tracker reachable from a handler's `Dom` | done |
 | C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | |
 
@@ -7934,3 +7934,21 @@ row comes from.
   dispatch by `ui_tests::cursor_takes_image_fallbacks_and_a_keyword`. `property_dispatch/outline.rs` became
   `ui.rs` (with its tests), the home of the CSS UI 4 arms. CHANGELOG silent change: the pointer changes shape
   in those terminals.
+- 2026-10-17 — C12-CARET (CSS UI 4 §6.1–§6.2). Checked first: rdom paints its own caret (the hardware cursor
+  is hidden at startup and never shown; `inline_paint/caret.rs`, a cell in `caret-color` / rdom's
+  `caret-text-color`, its blink a phase the runtime writes, `runtime::caret_blink`), so `caret-shape` maps to
+  the painted caret, not DECSCUSR. `caret-color` was already complete (`auto | transparent | <color>`,
+  inherited, interpolated, `currentcolor` / `var()` / `light-dark()` resolved at paint under the element's
+  scheme); its parser moved to `parse_caret_color`, shared with the shorthand. rdom-style: `caret-shape: auto |
+  bar | block | underscore`, `caret-animation: auto | manual` (both inherited, discrete, paint-only) in the
+  `ui` group, and `caret: <'caret-color'> || <'caret-animation'> || <'caret-shape'>` (an `auto` to the first
+  component still free, omitted ones reset; shortest serialization). Paint, per cell: `auto` and `block` as
+  before (no existing caret paint changes); `underscore` keeps the glyph, its colors and background and
+  underlines the cell with `caret-color` as the underline color (SGR 58 where the terminal has it); `bar` is
+  `▏` (U+258F) in `caret-color` on a blank cell, the underscore's underline over a glyph — a cell holds one
+  glyph (DIVERGENCES §2). `caret-animation: manual`: the blink controller keeps the phase on and schedules no
+  flip for a focused element with it (an unfocused terminal still hides the caret), and the painter ignores
+  an off phase under it. Red: `editing/caret/shape_tests.rs` 4 of 5 failed (underscore and bar painted the
+  block; the manual caret hidden by the off phase; the shorthand's underline missing — `block_and_auto`
+  passing, pinning the unchanged default), `caret_blink/tests.rs::caret_animation_manual_does_not_blink`
+  failed (a flip still scheduled); green after. Dispatch: `ui_tests::the_caret_longhands_and_shorthand`.

@@ -1,6 +1,7 @@
-//! The caret overlay: a REVERSED cell at the focused editable's
-//! collapsed-selection caret, painted once per inline-flow container
-//! after that container's fragments so it sits on top of them.
+//! The caret overlay at the focused editable's collapsed-selection caret,
+//! painted once per inline-flow container after that container's
+//! fragments so it sits on top of them: a cell in the caret colors, or —
+//! by `caret-shape` (CSS UI 4 §6.2.2) — an underline or a one-eighth bar.
 //!
 //! Colors come from the cascade (`caret-color` / `caret-text-color`);
 //! `Auto` swaps the focused element's cascaded `color` and
@@ -38,11 +39,6 @@ pub(in crate::render::paint_pass) fn paint_caret_if_editable(
     let Some(host) = crate::node::nearest_editable_ancestor(dom, focused) else {
         return;
     };
-    // The runtime's caret blink is in its off phase (or the terminal is
-    // unfocused) — `runtime::caret_blink`.
-    if dom.node(host).ext().is_some_and(|e| e.caret_blink_off) {
-        return;
-    }
     let caret_ifc = inline_flow_container(dom, sel.focus.node);
     if caret_ifc != Some(id) {
         return;
@@ -55,6 +51,15 @@ pub(in crate::render::paint_pass) fn paint_caret_if_editable(
         None => return,
     };
     if matches!(computed.caret_color, CaretColor::Transparent) {
+        return;
+    }
+    // The runtime's caret blink is in its off phase (or the terminal is
+    // unfocused) — `runtime::caret_blink`; `caret-animation: manual` (CSS
+    // UI 4 §6.2.1) has no UA blink to follow, and the runtime leaves its
+    // phase on (only an unfocused terminal turns it off).
+    if dom.node(host).ext().is_some_and(|e| e.caret_blink_off)
+        && computed.ui.caret_animation != crate::layout::CaretAnimation::Manual
+    {
         return;
     }
     let Some((x, y)) = crate::render::inline::cell_of_position(dom, sel.focus) else {
@@ -114,6 +119,26 @@ pub(in crate::render::paint_pass) fn paint_caret_if_editable(
         CaretTextColor::Color(tc) => tc.resolve(&computed.vars, &cx).unwrap_or(cascaded_bg),
     };
 
+    // CSS UI 4 §6.2.2: the shape. A cell holds one glyph, so a `bar` is
+    // a one-eighth block only where the cell shows none (the line's end, a
+    // space), and the underscore's underline over a glyph.
+    let blank = buf
+        .cell(x, y)
+        .is_none_or(|c| c.symbol().chars().all(char::is_whitespace));
+    match computed.ui.caret_shape {
+        crate::layout::CaretShape::Auto | crate::layout::CaretShape::Block => {}
+        crate::layout::CaretShape::Bar if blank => {
+            buf.set_symbol(x, y, "▏", Style::new().fg(caret_bg));
+            return;
+        }
+        crate::layout::CaretShape::Bar | crate::layout::CaretShape::Underscore => {
+            let underline = Style::new()
+                .underline_color(caret_bg)
+                .add_modifier(Modifier::UNDERLINED);
+            buf.set_style(x, y, underline);
+            return;
+        }
+    }
     let mut new_style = Style::new().fg(caret_fg).bg(caret_bg);
     // Preserve non-color modifiers (bold/italic etc.) that were on
     // the underlying cell so the caret doesn't strip them. `Modifier`

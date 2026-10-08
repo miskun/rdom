@@ -109,7 +109,9 @@ pub use calc_size::{parse_calc_size, parse_interpolate_size};
 pub(crate) use color::{ColorExpr, compute_function as compute_color_function};
 pub use color::{MAX_COLOR_NESTING, parse_color, parse_color_at, parse_rgb_args, parse_rgba_args};
 pub use content::{parse_content, parse_counter_ops, parse_quotes};
-pub use cursor::parse_cursor;
+pub use cursor::{
+    parse_caret, parse_caret_animation, parse_caret_color, parse_caret_shape, parse_cursor,
+};
 pub use display::{is_legacy_box, parse_display, serialize_display};
 pub use easing::{
     parse_timing_function_at, parse_timing_function_keyword, parse_timing_function_list,

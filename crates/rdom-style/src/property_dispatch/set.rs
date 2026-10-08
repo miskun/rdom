@@ -7,7 +7,7 @@
 use super::DispatchError;
 use super::css_wide::{css_wide_keyword, set_css_wide};
 use super::table::canonical_property_name;
-use crate::layout::{CaretColor, CaretTextColor, Sides, TextDirection, UserSelect};
+use crate::layout::{CaretTextColor, Sides, TextDirection, UserSelect};
 use crate::parse::token::Token;
 use crate::parse::values::{
     parse_aspect_ratio, parse_color, parse_content, parse_counter_ops, parse_flex_factor,
@@ -215,15 +215,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         // bg matches the underlying cell's fg (classic swap visual).
         // Transparent suppresses the caret paint entirely. A color
         // value paints the caret cell's bg with that color.
-        "caret-color" => parse_keyword(
-            value,
-            &[
-                ("auto", CaretColor::Auto),
-                ("transparent", CaretColor::Transparent),
-            ],
-        )
-        .or_else(|| parse_color(value).map(CaretColor::Color))
-        .map(|c| {
+        "caret-color" => crate::parse::values::parse_caret_color(value).map(|c| {
             style.caret_color = Some(Value::Specified(c));
         }),
         // rdom-extension `caret-text-color: auto | <color>`. Auto =
