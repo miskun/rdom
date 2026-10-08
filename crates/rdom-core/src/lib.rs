@@ -74,6 +74,7 @@ mod radio_group;
 mod range;
 mod selection;
 pub mod selectors;
+pub mod table;
 mod text;
 mod token_list;
 mod top_layer;

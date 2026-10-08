@@ -259,6 +259,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-core`
 
+- **The table grid** (HTML §4.9.12.1, CSS Tables 3 §3.3): `rdom_core::table::assign_slots` places each cell of a table's row groups in its slots — `colspan` / `rowspan`, rowspans ending at their row group, `rowspan="0"` to its end — and `CellSpan::from_attributes` / `column_span` read the HTML attributes. Shared by rdom-tui's tables and the column combinator. (C13-TFC)
 - **`TopLayerKind::Picker`**: an open drop-down `<select>`'s picker in the top layer — neither `:modal` nor `:popover-open`. (C12-SELECT-TOP-LAYER)
 - **`AnimationDetail`** (CSS Animations 1 §5.1): the `animationstart` / `-iteration` / `-end` / `-cancel` payload — `animation_name`, `elapsed`, `pseudo_element` — as `EventDetail::Animation`, read through `as_animation`. (C12-KEYFRAMES)
 - **Pending top-layer removal** (CSS Position 4 §3.3): `Dom::request_remove_from_top_layer` keeps an element in the top layer, in its place, but no longer modal or a showing popover (`top_layer_kind` is `None`), until the backend removes it; `is_pending_top_layer_removal`, `pending_top_layer_removals`. (C12-BEHAVIOR)

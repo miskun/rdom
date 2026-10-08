@@ -255,7 +255,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | |
+| C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | partial — the grid's slot assignment is in (rdom-core); the `display` values, the layout and the HTML migration follow |
 | C13-TABLE-PROPS | `caption-side`, `empty-cells`, `border-spacing` (separated borders), `vertical-align` on cells | |
 | C13-COLUMN | Column combinator `\|\|` (Selectors 4; was C11-COLUMN): `col.x \|\| td` matches the cells of the columns a `<col>` spans, from C13-TFC's column model | |
 
@@ -8416,3 +8416,15 @@ row comes from.
   subject (C12G-CARRYOVER, DIVERGENCES §2) and `moveBefore()` (C12G-MOVE-RECORD, DIVERGENCES §2) stay
   documented divergences; TECH_DEBT `MOVE-RECORD-1` is closed. The re-review of the `C12G-*` fixes
   rides with the Phase 13 gate.
+- 2026-10-08 — C13-TFC, part 1: the table grid's slot assignment (HTML §4.9.12.1 "forming a table",
+  the algorithm for processing rows; CSS Tables 3 §3.3), as pure DOM-free logic in rdom-core
+  (`rdom_core::table`): `assign_slots` takes row groups of rows of `CellSpan`s and places each cell in
+  the first slot of its row no earlier rowspan covers, the grid as wide as its widest row. Decided:
+  a rowspan ends at its row group's last row (CSS Tables 3 §3.3 and every browser; HTML's algorithm
+  adds empty rows, which nothing renders), `rowspan="0"` spans to it. `CellSpan::from_attributes` and
+  `column_span` read `colspan` / `rowspan` / `span` by HTML §2.3.4.2's rules for parsing non-negative
+  integers (`" +4px"` is 4) and §4.9.11's clamps (1000, 65534). rdom-core owns it because both
+  consumers need one placement: C13-TFC's table formatting context and C13-COLUMN's column
+  combinator, which rdom-core matches. DESIGN: the three records are closed (geometry). Red:
+  `table/tests.rs` 8 of 8 failed against a stub; green after. Mutation: rowspans not clamped to the
+  group → 1 fails.
