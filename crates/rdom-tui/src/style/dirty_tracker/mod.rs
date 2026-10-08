@@ -163,6 +163,12 @@ pub(super) struct DirtyState {
     /// (`style::has_triggers`, C11-HAS). Every change until the App says
     /// otherwise; none while no cascade has flagged an anchor.
     pub(super) has: HasTriggers,
+    /// Whether a column selector (`||`, `:nth-col()`, Selectors 4 §16)
+    /// can be in the sheets: a change to an HTML table's columns —
+    /// `span`, `colspan`, `rowspan`, its rows or cells — then restyles the
+    /// table (`marks::mark_column_change`). True until the App says
+    /// otherwise.
+    pub(super) columns: bool,
 }
 
 impl Default for DirtyState {
@@ -179,6 +185,7 @@ impl Default for DirtyState {
             detached: Vec::new(),
             siblings: SiblingTriggers::all(),
             has: HasTriggers::all(),
+            columns: true,
         }
     }
 }
@@ -364,6 +371,13 @@ impl DirtyTracker {
         self.inner.borrow_mut().has = triggers;
     }
 
+    /// Say whether the sheets now cascaded hold a column selector (`||`,
+    /// `:nth-col()`, `:nth-last-col()`; [`uses_column_selectors`]): with
+    /// none, a change to a table's columns restyles only what changed.
+    pub(crate) fn set_column_selectors(&self, used: bool) {
+        self.inner.borrow_mut().columns = used;
+    }
+
     /// Manually mark a subtree dirty. Escape hatch for cases the
     /// `MutationObserver` doesn't cover — a direct write to a `TuiExt`
     /// field the cascade reads, such as `TuiExt::set_inline_style`
@@ -407,5 +421,21 @@ pub fn uses_sibling_combinators(sheet: &crate::style::Stylesheet) -> bool {
                 )
             })
         })
+    })
+}
+
+/// Whether a selector of `sheet` reads HTML's table columns (Selectors 4
+/// §16): a column combinator `||`, or `:nth-col()` / `:nth-last-col()` —
+/// in a rule's selector or an `@scope`'s, inside `:not()` / `:is()` /
+/// `:where()` / `:has()` too (`style::selector_walk`).
+pub(crate) fn uses_column_selectors(sheet: &crate::style::Stylesheet) -> bool {
+    use crate::style::selector_walk::{any_complex, any_simple, sheet_selectors};
+    use rdom_core::selectors::{Combinator, SimpleSelector};
+    sheet_selectors(sheet).any(|c| {
+        any_complex(c, &mut |c| {
+            c.ancestors
+                .iter()
+                .any(|(comb, _)| *comb == Combinator::Column)
+        }) || any_simple(c, &|s| matches!(s, SimpleSelector::NthColumn(_)))
     })
 }

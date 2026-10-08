@@ -261,6 +261,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-core`
 
+- **The column combinator `||` and `:nth-col()` / `:nth-last-col()`** (Selectors 4 §16): `Combinator::Column`, `SimpleSelector::NthColumn(NthColumnSelector)`, matched from HTML's table model (`<col>` / `<colgroup>` spans, `colspan` / `rowspan`), formed once per table per pass (`CacheWork::table_models`). (C13-COLUMN)
 - **The table grid** (HTML §4.9.12.1, CSS Tables 3 §3.3): `rdom_core::table::assign_slots` places each cell of a table's row groups in its slots — `colspan` / `rowspan`, rowspans ending at their row group, `rowspan="0"` to its end — and `CellSpan::from_attributes` / `column_span` read the HTML attributes. Shared by rdom-tui's tables and the column combinator. (C13-TFC)
 - **`TopLayerKind::Picker`**: an open drop-down `<select>`'s picker in the top layer — neither `:modal` nor `:popover-open`. (C12-SELECT-TOP-LAYER)
 - **`AnimationDetail`** (CSS Animations 1 §5.1): the `animationstart` / `-iteration` / `-end` / `-cancel` payload — `animation_name`, `elapsed`, `pseudo_element` — as `EventDetail::Animation`, read through `as_animation`. (C12-KEYFRAMES)
@@ -614,6 +615,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **Column selectors restyle on column changes**: with `||` or `:nth-col()` in the sheets, a `span` / `colspan` / `rowspan` change or a row, cell or column coming or going restyles the whole `<table>` (`DirtyTracker`). (C13-COLUMN)
 - **`vertical-align` on table cells and `empty-cells`** (CSS 2.1 §17.5.3, §17.6.1.1): `top`, `middle`, `bottom` and `baseline` — rows share their cells' baseline and grow to hold it, HTML's UA centring rows — and `empty-cells: hide` drawing no border or background around an empty cell of a separated table. (C13-TABLE-PROPS)
 - **The table formatting context** (CSS 2.1 §17, CSS Tables 3): `display: table` / `inline-table` and the table parts on any element — anonymous table boxes (§17.2.1), `colspan` / `rowspan`, the automatic and fixed width algorithms, percentage columns, captions by `caption-side`, separated (`border-spacing`) and collapsed borders, `visibility: collapse` rows and columns. (C13-TFC)
 - **The transition and animation-inspection types at the root**: `TransitionProperty`, `PropertyName`, `TimingFunction`, `LinearStop`, `StepPosition`, `TransitionBehavior` and `TransitionRule` beside the `@keyframes` types, and `AnimationInfo`, `AnimationKind` and `Longhand`, so `use rdom_tui::*;` names what `App::get_animations` returns. (C12G-API-HYGIENE)

@@ -257,7 +257,7 @@ row comes from.
 |---|---|---|
 | C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | done |
 | C13-TABLE-PROPS | `caption-side`, `empty-cells`, `border-spacing` (separated borders), `vertical-align` on cells | done |
-| C13-COLUMN | Column combinator `\|\|` (Selectors 4; was C11-COLUMN): `col.x \|\| td` matches the cells of the columns a `<col>` spans, from C13-TFC's column model | |
+| C13-COLUMN | Column combinator `\|\|` (Selectors 4; was C11-COLUMN): `col.x \|\| td` matches the cells of the columns a `<col>` spans, from C13-TFC's column model | done |
 
 ### Phase 14 — Conditional rules, containment (audit §3.21)
 
@@ -8571,3 +8571,31 @@ row comes from.
   Also pinned (no red: it already worked): `tfc.rs::points_over_cells_resolve_to_their_text` — `position_at`
   over a cell's text and an anonymous cell's. Split (SIZE-1): `table/mod.rs` would have reached 513 — the
   anonymous table's entry points moved to `table/stray.rs` (moves only), leaving 421.
+- 2026-10-08 — C13-COLUMN (Selectors 4 §16.1–§16.3; was C11-COLUMN). rdom-core: `Combinator::Column` (`||`, white
+  space optional) and `SimpleSelector::NthColumn(NthColumnSelector)` (`:nth-col(An+B)` / `:nth-last-col(An+B)`,
+  no `of S`; a pseudo-class's specificity, `(0, 1, 0)`). The column model is HTML's, from the DOM alone —
+  `table/html.rs` (crate-private): the `<colgroup>`s before the first row group or row make the columns (a
+  `<col>` its `span`, an empty `<colgroup>` its own; a `<col>` outside a `<colgroup>` and a later
+  `<colgroup>` none, as HTML §4.9.12.1 forms them), the rows are the table's `<tr>`s and its `<thead>` /
+  `<tbody>`s' in tree order then its `<tfoot>`s', the cells placed by C13-TFC part 1's `assign_slots` — the
+  same placement the table formatting context uses. Matching (`query_selector/column.rs`): a cell's column
+  elements are each `<col>` / `<colgroup>` whose columns overlap the cell's; `match_chain` tries them in turn
+  for a `||` step (no tree direction: a failure lets the next subject on the right try,
+  `RestartFromClosestLaterSibling`); `:nth-col()` matches when any column the cell spans is `An+B` from the
+  first (from the last: the table's width minus the column). The model is formed once per table per pass and
+  kept in `SelectorCaches` (`CacheWork::table_models` counts it). Decided: (1) a `<colgroup>` represents its
+  columns, so `colgroup.g || td` matches the cells of its columns — Selectors 4 speaks of "column elements"
+  and HTML's column groups are made of columns; (2) column membership is the document language's (§16.1), so
+  only HTML's `<td>` / `<th>` of a `<table>` belong to columns — a CSS `display: table-cell` does not, and
+  neither does a `<td>` outside a table; this is the spec, not a divergence. rdom-tui: the dirty tracker
+  restyles the whole `<table>` (`marks::mark_column_change`, walking up through the table elements) on a
+  `span` / `colspan` / `rowspan` change or a child-list change of the table, a row group, a row or a
+  `<colgroup>` — only while the sheets hold a column selector (`uses_column_selectors`, set by the App's
+  prelude with the sibling and `:has()` triggers; true until it says otherwise); `selector_walk`,
+  `has_triggers` and `sibling_triggers` read `:nth-col()` as reading the three span attributes. Red:
+  `column_tests.rs` (rdom-core) failed to compile (no `Combinator::Column` / `NthColumn`);
+  `css_phase13/columns.rs::changing_the_columns_restyles_the_cells` failed before the tracker change (a `span`
+  on the first `<col>` left `b` and `d` red); green after, with the tracker's two unit tests. Mutation (each
+  alone, restored, touched): no column elements for a cell → 1 fails; the model not cached → the cost test
+  (150 models for 1); `:nth-last-col()` counted from the first → 2. DESIGN lists `NthColumnSelector` (open,
+  a parser output). CSS-COVERAGE §3.17's column-combinator row Supported (33 / 0 / 1 / 4).

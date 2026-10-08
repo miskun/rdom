@@ -132,6 +132,9 @@ impl<Ext> Dom<Ext> {
                     sib = self.next_element_sibling_id(s);
                 }
             }
+            // A relative selector leads with `>`, `+`, `~` or nothing
+            // (Selectors 4 §3.4): the parser makes no `||` lead.
+            Combinator::Column => {}
         }
         let mut stack: Vec<NodeId> = roots.into_iter().rev().collect();
         while let Some(c) = stack.pop() {
@@ -159,7 +162,7 @@ impl<Ext> Dom<Ext> {
         false
     }
 
-    fn first_element_child_id(&self, id: NodeId) -> Option<NodeId> {
+    pub(crate) fn first_element_child_id(&self, id: NodeId) -> Option<NodeId> {
         let mut cur = self.get_node(id)?.first_child;
         while let Some(c) = cur {
             let n = self.get_node(c)?;

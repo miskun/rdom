@@ -7,6 +7,7 @@
 use rdom_tui::render::{Buffer, Rect};
 use rdom_tui::{CascadeExt, LayoutExt, NodeId, PaintExt, TuiDom};
 
+mod columns;
 mod display;
 mod html;
 mod props;

@@ -86,6 +86,30 @@ impl<Ext> Dom<Ext> {
             },
         };
         let rest = chain.get(1..).unwrap_or_default();
+        // Selectors 4 §16.1: a column combinator relates a cell to each
+        // column element of the columns it spans — candidates elsewhere
+        // in the tree, tried in turn.
+        if comb == Combinator::Column {
+            for candidate in self.column_elements_of(el, cx) {
+                cx.caches.count_chain_step();
+                let result = match target {
+                    Target::Node(node) if candidate == node => Outcome::Matched,
+                    Target::Node(_) => continue,
+                    Target::Compound(compound)
+                        if self.matches_compound(candidate, compound, cx) =>
+                    {
+                        self.match_chain(candidate, rest, anchor, cx)
+                    }
+                    Target::Compound(_) => continue,
+                };
+                if matches!(result, Outcome::Matched | Outcome::NotMatchedGlobally) {
+                    return result;
+                }
+            }
+            // No column of this cell matched: a different subject to the
+            // right may still (`||` searches no tree direction).
+            return Outcome::RestartFromClosestLaterSibling;
+        }
         let not_found = match comb {
             Combinator::AdjacentSibling | Combinator::GeneralSibling => {
                 Outcome::RestartFromClosestDescendant
@@ -151,6 +175,8 @@ impl<Ext> Dom<Ext> {
             Combinator::AdjacentSibling | Combinator::GeneralSibling => {
                 self.prev_element_sibling_id(el)
             }
+            // `match_chain` tries a cell's column elements itself.
+            Combinator::Column => None,
         }
     }
 
@@ -237,6 +263,11 @@ impl<Ext> Dom<Ext> {
                         return false;
                     }
                 }
+                SimpleSelector::NthColumn(nth) => {
+                    if !self.matches_nth_column(id, nth, cx) {
+                        return false;
+                    }
+                }
             }
         }
         true
@@ -254,7 +285,7 @@ impl<Ext> Dom<Ext> {
         None
     }
 
-    pub(super) fn next_element_sibling_id(&self, id: NodeId) -> Option<NodeId> {
+    pub(crate) fn next_element_sibling_id(&self, id: NodeId) -> Option<NodeId> {
         let mut cur = self.get_node(id).and_then(|n| n.next_sibling);
         while let Some(c) = cur {
             let n = self.get_node(c)?;

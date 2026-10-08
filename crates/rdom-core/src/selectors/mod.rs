@@ -78,6 +78,9 @@ pub enum Combinator {
     AdjacentSibling,
     /// `a ~ b` — b is a following sibling of a.
     GeneralSibling,
+    /// `a || b` — b is a cell of a column a represents (Selectors 4
+    /// §16.1), by HTML's table model.
+    Column,
 }
 
 /// A compound selector: one or more simple selectors that must *all* match.
@@ -134,7 +137,7 @@ fn add_compound_specificity(abc: &mut (u16, u16, u16), compound: &CompoundSelect
                 abc.1 += b;
                 abc.2 += c;
             }
-            SimpleSelector::Lang(_) => abc.1 += 1,
+            SimpleSelector::Lang(_) | SimpleSelector::NthColumn(_) => abc.1 += 1,
             // Selectors 4 §15: like `:is()`, its most specific argument.
             SimpleSelector::Has(relative) => {
                 let (a, b, c) = relative
@@ -207,6 +210,36 @@ pub enum SimpleSelector {
     /// `:nth-child()` / `:nth-last-child()` / `:nth-of-type()` /
     /// `:nth-last-of-type()` (Selectors 4 §13.3.1–§13.3.2, §13.4.1–§13.4.2).
     Nth(Box<NthSelector>),
+    /// `:nth-col()` / `:nth-last-col()` (Selectors 4 §16.2–§16.3): a cell
+    /// of a table column counted from the first or the last.
+    NthColumn(NthColumnSelector),
+}
+
+/// An `:nth-col()` / `:nth-last-col()` pseudo-class (Selectors 4
+/// §16.2–§16.3): it matches a cell belonging to a column with `a·n + b -
+/// 1` columns before it (`:nth-col`) or after it (`:nth-last-col`), for
+/// some integer `n >= 0`, by HTML's table model.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct NthColumnSelector {
+    /// Counted from the last column (`:nth-last-col`).
+    pub last: bool,
+    /// `A` of `An+B`.
+    pub a: i32,
+    /// `B` of `An+B`.
+    pub b: i32,
+}
+
+impl NthColumnSelector {
+    /// Whether the 1-based column `index` is `a·n + b` for some `n >= 0`.
+    pub fn matches_index(&self, index: u32) -> bool {
+        let (a, b, i) = (i64::from(self.a), i64::from(self.b), i64::from(index));
+        if a == 0 {
+            return i == b;
+        }
+        let steps = i - b;
+        steps % a == 0 && steps / a >= 0
+    }
 }
 
 /// A relative selector (Selectors 4 §3.4), the argument of `:has()`: a

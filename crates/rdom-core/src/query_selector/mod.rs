@@ -26,6 +26,7 @@ use crate::selectors::{self, ParseError, SelectorList};
 
 mod attribute;
 pub(crate) mod caches;
+mod column;
 mod has;
 mod matcher;
 mod nth;
@@ -33,6 +34,8 @@ mod pseudo;
 
 pub use caches::{CacheWork, SelectorCaches};
 use matcher::Cx;
+#[cfg(test)]
+mod column_tests;
 #[cfg(test)]
 mod form_state_tests;
 #[cfg(test)]

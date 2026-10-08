@@ -152,5 +152,6 @@ pub fn assign_slots(groups: &[Vec<Vec<CellSpan>>]) -> TableSlots {
     out
 }
 
+pub(crate) mod html;
 #[cfg(test)]
 mod tests;

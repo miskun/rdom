@@ -74,6 +74,7 @@ pub(crate) fn arguments(simple: &SimpleSelector) -> Result<Vec<&ComplexSelector>
         | SimpleSelector::Class(_)
         | SimpleSelector::Attribute { .. }
         | SimpleSelector::Lang(_)
+        | SimpleSelector::NthColumn(_)
         | SimpleSelector::Pseudo(_) => Ok(Vec::new()),
         other => {
             debug_assert!(false, "selector_walk: unknown simple selector {other:?}");

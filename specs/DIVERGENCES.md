@@ -356,7 +356,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Selectors
 
-- Column combinator `||` — C13-COLUMN (Phase 13, with real table columns)
+(none)
 
 ### Transitions and animations
 

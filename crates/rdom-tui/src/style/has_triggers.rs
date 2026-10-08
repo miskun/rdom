@@ -166,6 +166,13 @@ impl HasTriggers {
                     self.add_attribute("lang");
                     self.add_attribute("xml:lang");
                 }
+                // A cell's column reads its table's spans (and child
+                // lists, always a trigger).
+                SimpleSelector::NthColumn(_) => {
+                    for name in ["span", "colspan", "rowspan"] {
+                        self.add_attribute(name);
+                    }
+                }
                 SimpleSelector::Pseudo(p) => {
                     self.state = true;
                     self.attribute_state |= reads_attributes(*p);

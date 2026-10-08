@@ -314,6 +314,11 @@ impl FramePrelude {
         tracker.set_has_triggers(crate::style::has_triggers::HasTriggers::of_sheets(
             self.cascade_order(app_sheets),
         ));
+        tracker.set_column_selectors(
+            self.cascade_order(app_sheets)
+                .into_iter()
+                .any(crate::style::dirty_tracker::uses_column_selectors),
+        );
     }
 
     /// Every sheet the cascade reads, in cascade order: the document's

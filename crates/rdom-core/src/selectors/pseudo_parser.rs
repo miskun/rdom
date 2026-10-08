@@ -50,6 +50,8 @@ impl Parser<'_> {
             "nth-last-child" => self.parse_nth(NthKind::LastChild),
             "nth-of-type" => self.parse_nth(NthKind::OfType),
             "nth-last-of-type" => self.parse_nth(NthKind::LastOfType),
+            "nth-col" => self.parse_nth_column(false),
+            "nth-last-col" => self.parse_nth_column(true),
             "first-of-type" => Ok(SimpleSelector::Pseudo(PseudoClass::FirstOfType)),
             "last-of-type" => Ok(SimpleSelector::Pseudo(PseudoClass::LastOfType)),
             "only-of-type" => Ok(SimpleSelector::Pseudo(PseudoClass::OnlyOfType)),
@@ -129,6 +131,21 @@ impl Parser<'_> {
             b: anb.b,
             of,
         })))
+    }
+
+    /// Selectors 4 §16.2 / §16.3: `( <an+b> )`.
+    fn parse_nth_column(&mut self, last: bool) -> Result<SimpleSelector, ParseError> {
+        let name = if last { ":nth-last-col" } else { ":nth-col" };
+        self.expect(b'(', name)?;
+        let (anb, used) = parse_anb(&self.src[self.pos..]).map_err(|msg| self.err(msg))?;
+        self.pos += used;
+        self.skip_ws();
+        self.expect(b')', name)?;
+        Ok(SimpleSelector::NthColumn(super::NthColumnSelector {
+            last,
+            a: anb.a,
+            b: anb.b,
+        }))
     }
 
     /// `of` followed by white space at the cursor.

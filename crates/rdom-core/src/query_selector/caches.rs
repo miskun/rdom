@@ -63,6 +63,9 @@ pub struct SelectorCaches {
     pub(crate) radio_unchecked: HashMap<NodeId, bool>,
     /// Per form: its default button (`:default`), once found.
     pub(crate) default_buttons: HashMap<NodeId, Option<NodeId>>,
+    /// Per `<table>`: HTML's table model (the column selectors), once
+    /// formed.
+    pub(super) tables: HashMap<NodeId, std::rc::Rc<crate::table::html::HtmlTableModel>>,
     /// The elements a `:has()` was evaluated for, in first-test order —
     /// facts for a backend to flag, not cached answers: a mutation in the
     /// middle of a pass keeps them (`sync`).
@@ -89,6 +92,9 @@ pub struct CacheWork {
     /// Forms whose controls were walked for their default button
     /// (`:default`) — one per form per pass.
     pub default_button_walks: u64,
+    /// Tables whose HTML table model was formed for the column selectors
+    /// (`||`, `:nth-col()`) — one per table per pass.
+    pub table_models: u64,
 }
 
 /// Which siblings an nth index counts.
@@ -171,8 +177,13 @@ impl SelectorCaches {
             self.has.clear();
             self.radio_unchecked.clear();
             self.default_buttons.clear();
+            self.tables.clear();
             self.epoch = Some(epoch);
         }
+    }
+
+    pub(super) fn count_table_model(&mut self) {
+        self.work.table_models += 1;
     }
 
     pub(crate) fn count_default_button_walk(&mut self) {

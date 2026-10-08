@@ -833,3 +833,43 @@ fn a_nested_sibling_step_before_the_anchor_restyles_it() {
         assert!(covered(&dom, &roots, anchor), "{css}: {roots:?}");
     }
 }
+
+/// C13-COLUMN: the tracker restyles a table on a column change only when
+/// a sheet can read columns (Selectors 4 §16) — `||`, `:nth-col()`,
+/// `:nth-last-col()`, nested in a functional pseudo-class too.
+#[test]
+fn column_selectors_are_found_in_the_sheets() {
+    let uses = |css: &str| uses_column_selectors(&rdom_css::parse(css).stylesheet);
+    assert!(uses("col || td { color: red }"));
+    assert!(uses("td:nth-col(2) { color: red }"));
+    assert!(uses(":is(td:nth-last-col(1)) { color: red }"));
+    assert!(!uses("td:nth-child(2), col + td { color: red }"));
+    assert!(!uses_column_selectors(&crate::style::Stylesheet::new()));
+}
+
+/// C13-COLUMN: with no column selector in the sheets, a `span` change
+/// marks only the element whose attribute changed.
+#[test]
+fn a_column_change_without_column_selectors_marks_only_its_element() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let table = dom.create_element("table");
+    let colgroup = dom.create_element("colgroup");
+    let col = dom.create_element("col");
+    let tr = dom.create_element("tr");
+    let td = dom.create_element("td");
+    dom.append_child(root, table).unwrap();
+    dom.append_child(table, colgroup).unwrap();
+    dom.append_child(colgroup, col).unwrap();
+    dom.append_child(table, tr).unwrap();
+    dom.append_child(tr, td).unwrap();
+    let tracker = DirtyTracker::install(&mut dom);
+    crate::style::CascadeExt::cascade(&mut dom, &crate::style::Stylesheet::new());
+    let _ = tracker.take_roots();
+    tracker.set_column_selectors(false);
+    dom.set_attribute(col, "span", "2").unwrap();
+    assert_eq!(tracker.take_roots(), [col]);
+    tracker.set_column_selectors(true);
+    dom.set_attribute(col, "span", "3").unwrap();
+    assert!(tracker.take_roots().contains(&table));
+}

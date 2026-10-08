@@ -210,6 +210,12 @@ impl<'a> Parser<'a> {
                     self.skip_ws();
                     Combinator::GeneralSibling
                 }
+                // Selectors 4 §16.1: the column combinator.
+                b'|' if self.bytes.get(self.pos + 1) == Some(&b'|') => {
+                    self.pos += 2;
+                    self.skip_ws();
+                    Combinator::Column
+                }
                 _ if had_ws => Combinator::Descendant,
                 _ => {
                     return Ok(self.finalize(pending, chain));

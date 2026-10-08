@@ -8,8 +8,8 @@ use rdom_core::{Dom, InteractionKind, Mutation, MutationObserver, NodeId};
 
 use super::DirtyState;
 use super::marks::{
-    mark_auto_direction_host, mark_chain_change, mark_has_anchors, mark_placeholder_hosts,
-    mark_state_dirty, mark_style_dirty,
+    mark_auto_direction_host, mark_chain_change, mark_column_change, mark_has_anchors,
+    mark_placeholder_hosts, mark_state_dirty, mark_style_dirty,
 };
 use crate::ext::TuiExt;
 use crate::style::sibling_triggers::Cause;
@@ -25,6 +25,9 @@ impl MutationObserver<TuiExt> for Shim {
         match record {
             Mutation::AttributeChanged { id, name, .. } => {
                 mark_state_dirty(dom, &mut state, *id, Cause::Attribute(name));
+                if state.columns && matches!(name.as_str(), "span" | "colspan" | "rowspan") {
+                    mark_column_change(dom, &mut state, *id);
+                }
             }
             Mutation::ClassChanged { id, .. } => {
                 mark_state_dirty(dom, &mut state, *id, Cause::Attribute("class"));
@@ -109,6 +112,11 @@ impl MutationObserver<TuiExt> for Shim {
                 // or went — are marked above already.
                 if state.has.any() {
                     mark_has_anchors(dom, &mut state, *parent, true);
+                }
+                // Rows, cells and columns coming or going move cells
+                // between an HTML table's columns.
+                if state.columns {
+                    mark_column_change(dom, &mut state, *parent);
                 }
             }
             Mutation::CharacterDataChanged { id, old, new } => {

@@ -257,3 +257,28 @@ pub(crate) mod probe {
         STEPS.with(|c| c.replace(0))
     }
 }
+
+/// A change at `id` that can move cells between an HTML table's columns
+/// (Selectors 4 §16: a `span` / `colspan` / `rowspan`, or the children of
+/// a `<table>`, row group, row or `<colgroup>` changing): `id`'s table —
+/// the `<table>` it is, or the nearest above it within a table's
+/// structure — is restyled whole, every cell's column selectors read
+/// anew.
+pub(super) fn mark_column_change(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId) {
+    const PARTS: &[&str] = &[
+        "td", "th", "tr", "thead", "tbody", "tfoot", "col", "colgroup",
+    ];
+    let mut cur = Some(id);
+    while let Some(n) = cur {
+        match dom.node(n).tag_name() {
+            Some("table") => {
+                mark_style_dirty(dom, state, n);
+                return;
+            }
+            Some(t) if PARTS.contains(&t) => {
+                cur = dom.node(n).parent_node().map(|p| p.id());
+            }
+            _ => return,
+        }
+    }
+}
