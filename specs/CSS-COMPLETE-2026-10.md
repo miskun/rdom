@@ -40,7 +40,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 8 | Positioning, floats, overflow, scrolling | done 2026-10-10 (both gates; 15 gate fixes `C8G-*`; their re-review rides with the Phase 9 gate) |
 | 9 | Inline text and decoration | done 2026-10-12 (both gates; 14 gate fixes `C9G-*`; their re-review rides with the Phase 10 gate) |
 | 10 | Lists, counters, generated content, pseudo-elements | done 2026-10-13 (both gates; 19 gate fixes `C10G-*`; their re-review rides with the Phase 11 gate) |
-| 11 | Selectors | items done, gates pending |
+| 11 | Selectors | gates run 2026-10-14; `C11G-*` fixes in progress |
 | 12 | Transitions, animations, user interface | |
 | 13 | Tables (real table formatting context) | |
 | 14 | Conditional rules, containment | |
@@ -7207,3 +7207,30 @@ row comes from.
   dialog, a manual popover) exercise them. CSS-COVERAGE §3.17: 32 Supported, 0 Partial, 2 Missing (`:blank`,
   a decided exclusion; the column combinator, C13-COLUMN), 4 N/A. Phase 11: items done, gates pending (the
   Phase 10 fixes' re-review rides with them).
+- 2026-10-14 — Phase 11 gates (with the C10G re-review: all 19 at the root but one parent climb).
+  Architect: 2 blocking — a modal dialog does not make the page inert to the keyboard (focusing steps
+  focus nothing when the dialog has no focusable content; Enter activates the button underneath);
+  popover hide loops (`close_entire_list`, `hide_stack_until`) have no progress bound, so ping-ponging
+  `beforetoggle` handlers hang the App in raw mode. API: 3 blocking — no Phase 11 silent change is in
+  the upgrade guide (modal centring / inertness, `change` on blur, `dir=auto`, backtracking, `+` / `~`
+  skip text, `:scope` in queries, `showModal` hides popovers, `[-]` glyph, parentless `:first-child`)
+  and "Compile breaks" lacks `SimpleSelector::Attribute`; top-layer elements paint no fill (`Canvas`
+  resolves to `Reset`, which `fills` treats as none; the initial background is `Reset`; `dialog` has
+  no UA background — a modal over text shows the page through); DESIGN classifies no Phase 11 type.
+  Non-blocking: the pseudo hit test and `children_are_items` skip the `::details-content` box (hover on
+  generated content in `<details>` never matches); `:has(p div)` climbs past the anchor (~N³);
+  the `:has()` sibling walk is global and unbounded; `dir=auto` restyles its subtree on every edit;
+  `showModal()` misses HTML's guards and swallows `add_to_top_layer` errors; popover removing steps
+  (nested-through-invoker, unpruned maps, stale auto ancestor), an unrendered modal leaves the page
+  clickable, a popover above a modal stays hit-testable; a mid-pass mutation drops `:has()` anchors;
+  selector cache keys ignore the scoping root; `NthKind` / `AttrCase` / `Directionality` closed by spec
+  but `#[non_exhaustive]`; SIZE-1 stale (`popover/algorithms.rs` 523 unlisted); highlighted-node
+  removal cost; `":default"` re-parsed per flush; a panic in `HighlightsMut` schedules no repaint; no
+  cost pin on `match_chain`; re-exports and a `selector_hints` group; `ControlStateHook` returns `bool`
+  (want `Option<bool>`); Enter does not commit a text field; `input:user-invalid{border-color}` paints
+  nothing (no UA text-field border); READMEs lack popover / top layer / form states (and say 175 UA
+  rules); popover placement recipe until C15; `SelectorCaches` docs must say it goes stale across
+  frames for hook-backed state; stale rustdoc on three `PseudoClass` variants. Process: the brief now
+  requires silent changes, DESIGN classification, re-exports and migration rows in the same commit.
+  Full reports: `target/claude-logs/c11_gate_{architect,api}.md`. Fix as `C11G-*`, two batches
+  (A correctness and cost, B API and docs).
