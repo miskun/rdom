@@ -1022,12 +1022,15 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                   animation: pulse 100ms linear 2 alternate }",
     )?;
     let mut dom: TuiDom = TuiDom::new();
-    let root = dom.root();
+    // The bars in a `<body>`: the document element's background is the
+    // canvas's, painted over the whole screen.
+    let body = dom.create_element("body");
+    dom.append_child(dom.root(), body)?;
     let (bar, pulse) = (dom.create_element("div"), dom.create_element("div"));
     dom.set_attribute(bar, "class", "bar")?;
     dom.set_attribute(pulse, "class", "pulse")?;
-    dom.append_child(root, bar)?;
-    dom.append_child(root, pulse)?;
+    dom.append_child(body, bar)?;
+    dom.append_child(body, pulse)?;
     let events = Rc::new(RefCell::new(Vec::new()));
     for kind in ["animationiteration", "animationend"] {
         let events = events.clone();

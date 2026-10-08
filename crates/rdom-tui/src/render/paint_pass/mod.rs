@@ -17,6 +17,9 @@
 //! `::before` / own text / `::after` path, or the IFC fragment path —
 //! its in-flow children and its scrollbars.
 //!
+//! First of all, the canvas (`canvas`): the root element's background
+//! fills the viewport (CSS Backgrounds 3 §2.11.2).
+//!
 //! Between boxes the order is CSS 2.1 Appendix E's (`stacking_walk`):
 //! within each paint unit — a stacking context, a `z-index: auto`
 //! positioned box, a float, an atomic box — the in-flow block-level
@@ -56,6 +59,8 @@
 //!   content (`paint_content`), the border priority, and `fills`.
 //! - `background` — the `background-color` fill, clipped by
 //!   `background-clip`.
+//! - `canvas` — the canvas background the root element's (or `body`'s)
+//!   propagates.
 //! - `shadow` — `box-shadow`: outer shades under the background, inset
 //!   ones above it.
 //! - `border` — border drawing: per-direction contributions for the
@@ -76,6 +81,7 @@ mod background;
 mod border;
 mod border_join;
 mod box_paint;
+mod canvas;
 mod generated_box;
 mod group;
 mod inline_paint;
@@ -121,6 +127,9 @@ impl PaintExt for Dom<TuiExt> {
         // Translucent paints blend the terminal's default colors as the
         // canvas of the document's color scheme.
         buf.set_color_scheme(crate::style::CascadeExt::color_scheme(self));
+        // The root element's background is the canvas's, beneath
+        // everything (CSS Backgrounds 3 §2.11.2).
+        canvas::paint(self, buf, clip);
         // The document is the root stacking context (CSS 2.1 Appendix
         // E): positioned descendants — positioned `::before` / `::after`
         // included — paint from its layers, nested contexts recursively.

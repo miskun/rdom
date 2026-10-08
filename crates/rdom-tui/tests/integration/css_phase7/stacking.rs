@@ -60,7 +60,10 @@ fn z_index_lifts_a_static_flex_item() {
 #[test]
 fn a_negative_z_index_item_paints_under_its_container() {
     let mut dom = TuiDom::new();
+    // In a `body`: a document element's background is the canvas's,
+    // beneath its negative layer (CSS Backgrounds 3 §2.11.2).
     let root = dom.root();
+    let root = el(&mut dom, root, "body", "");
     let g = el(&mut dom, root, "div", "g");
     let a = el(&mut dom, g, "span", "a");
     let t = dom.create_text_node("x");

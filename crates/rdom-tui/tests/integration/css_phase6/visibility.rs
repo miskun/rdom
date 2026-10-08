@@ -16,7 +16,10 @@ fn text(dom: &mut TuiDom, parent: rdom_tui::NodeId, t: &str) {
 #[test]
 fn hidden_keeps_its_space_and_a_visible_child_shows() {
     let mut dom = TuiDom::new();
+    // In a `body`: the document element's background would be the
+    // canvas's (CSS Backgrounds 3 §2.11.2), drawn whatever its visibility.
     let root = dom.root();
+    let root = el(&mut dom, root, "body", "");
     let a = el(&mut dom, root, "div", "a");
     text(&mut dom, a, "aa");
     let v = el(&mut dom, a, "span", "v");

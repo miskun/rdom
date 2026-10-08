@@ -305,7 +305,7 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `background-color` | Supported | Any parsed color; the initial value is `transparent`, which paints nothing, while `Canvas` / `reset` paint the terminal's default background (C11G-CANVAS-FILL). | — | `DISP/set.rs` |
+| `background-color` | Supported | Any parsed color; the initial value is `transparent`, which paints nothing, while `Canvas` / `reset` paint the terminal's default background (C11G-CANVAS-FILL). The root element's (an `<html>`'s `<body>`'s when it has none) paints the whole canvas (CSS Backgrounds 3 §2.11.2, C13-ROOT-CANVAS). | — | `DISP/set.rs` |
 | `background` | Supported | The full Backgrounds 3 §3.10 grammar: layers, the color on the final one; image layers parse and are stored but draw nothing (documented, C4-BACKGROUND). | — | `DISP/background.rs`, `V/background.rs` |
 | `background-image` / `-position` / `-size` / `-repeat` / `-attachment` / `-origin` | N/A | No images (documented); they parse and are stored, inert (C4-BACKGROUND). | — | `DISP/background.rs` |
 | `background-clip` | Supported | `border-box` (initial: under the border) / `padding-box` / `content-box`, the final layer's clipping the color; a half-block border keeps its cells clear (documented); `text` is N/A (documented) (C4-BG-CLIP). | — | `PAINT/background.rs::clip_box`, `CASC/decoration.rs` |

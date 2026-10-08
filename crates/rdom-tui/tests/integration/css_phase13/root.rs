@@ -5,6 +5,7 @@
 //! viewport flex column. Each test pins one root special case the column
 //! made and the block container removes.
 
+use rdom_tui::render::{Buffer, Color};
 use rdom_tui::{LayoutRect, TuiAccessors, TuiDocAccessors, TuiDom, TuiNodeExt};
 
 use super::{by_id, doc, paint, rows};
@@ -15,6 +16,10 @@ fn rect(dom: &TuiDom, id: &str) -> LayoutRect {
 
 fn hit(dom: &TuiDom, x: i32, y: i32) -> Option<rdom_tui::NodeId> {
     dom.element_from_point(x, y).map(|n| n.id())
+}
+
+fn bg(buf: &Buffer, x: u16, y: u16) -> Color {
+    buf.cell(x, y).expect("in the buffer").bg
 }
 
 /// CSS 2.1 §8.3.1: adjacent vertical margins of in-flow block siblings
@@ -176,6 +181,38 @@ fn flex_on_a_root_child_does_not_grow_it_but_a_full_height_shell_does() {
     );
     assert_eq!(rect(&dom, "m"), LayoutRect::new(0, 1, 20, 8));
     assert_eq!(rect(&dom, "f").y, 9);
+}
+
+/// CSS Backgrounds 3 §2.11.2: the root element's background paints the
+/// whole canvas — the viewport below a content-high root element too.
+#[test]
+fn the_root_elements_background_paints_the_canvas() {
+    let mut dom = doc(r#"<div id="app">hi</div>"#);
+    let buf = paint(&mut dom, "#app { background: rgb(1, 2, 3) }", 10, 4);
+    assert_eq!(rect(&dom, "app").height, 1);
+    for (x, y) in [(0, 0), (9, 0), (0, 3), (9, 3)] {
+        assert_eq!(bg(&buf, x, y), Color::Rgb(1, 2, 3), "({x}, {y})");
+    }
+}
+
+/// CSS Backgrounds 3 §2.11.2: "the used value of `background` [on the
+/// root element] is transparent" once it is the canvas's — so a
+/// translucent one composites once, its box no darker than the canvas.
+#[test]
+fn the_propagated_background_paints_once() {
+    let mut dom = doc(r#"<div id="app">hi</div>"#);
+    let buf = paint(&mut dom, "#app { background: rgb(200 0 0 / 50%) }", 10, 4);
+    assert_eq!(bg(&buf, 5, 0), bg(&buf, 5, 3), "the box as the canvas");
+    assert_ne!(bg(&buf, 5, 3), Color::Reset);
+}
+
+/// CSS Backgrounds 3 §2.11.2: for an HTML document whose `html` element
+/// has a transparent background, `body`'s background is the canvas's.
+#[test]
+fn a_transparent_html_propagates_bodys_background() {
+    let mut dom = doc(r#"<html><body id="b">hi</body></html>"#);
+    let buf = paint(&mut dom, "body { background: rgb(4, 5, 6) }", 10, 4);
+    assert_eq!(bg(&buf, 9, 3), Color::Rgb(4, 5, 6));
 }
 
 /// CSS 2.1 §10.1, §10.3.3, §10.6.3: an element root is laid out as a block

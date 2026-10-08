@@ -125,8 +125,10 @@ pub(super) fn paint_box(
     // normal box fill here would both stop at the indented box's
     // left edge AND tint the whole open subtree (the box
     // contains the nested group).
+    // The element whose background the canvas took paints none of its
+    // own (CSS Backgrounds 3 §2.11.2, `canvas`).
     let is_tree_row = dom.node(id).get_attribute("role") == Some("treeitem");
-    if !is_tree_row {
+    if !is_tree_row && super::canvas::source(dom) != Some(id) {
         paint_background(buf, computed, outer, inner, clip);
     }
     // Inset shadows, above the background and below the border.

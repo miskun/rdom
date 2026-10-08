@@ -489,8 +489,12 @@ fn emoji_paints() {
 fn bg_fills_outer_rect_css_way() {
     let mut dom = TuiDom::new();
     let root = dom.root();
+    // The subject sits in a `body`: a document element's background
+    // would be the canvas's (CSS Backgrounds 3 §2.11.2).
+    let body = dom.create_element("body");
+    dom.append_child(root, body).unwrap();
     let d = dom.create_element("d");
-    dom.append_child(root, d).unwrap();
+    dom.append_child(body, d).unwrap();
 
     let sheet = Stylesheet::bare().rule_unchecked(
         "d",
@@ -2644,11 +2648,15 @@ fn modal_dialog_repaints_over_backdrop() {
     use crate::style::Color;
     let mut dom = TuiDom::new();
     let root = dom.root();
+    // The subject sits in a `body`: a document element's background
+    // would be the canvas's (CSS Backgrounds 3 §2.11.2).
+    let body = dom.create_element("body");
+    dom.append_child(root, body).unwrap();
     let dlg = dom.create_element("dialog");
     dom.set_attribute(dlg, "open", "").unwrap();
     let t = dom.create_text_node("hi");
     dom.append_child(dlg, t).unwrap();
-    dom.append_child(root, dlg).unwrap();
+    dom.append_child(body, dlg).unwrap();
     dom.add_to_top_layer(dlg, rdom_core::TopLayerKind::ModalDialog)
         .unwrap();
 
@@ -3034,10 +3042,14 @@ fn positioned_paints_above_in_flow_content() {
     // top regardless of document order.
     let mut dom = TuiDom::new();
     let root = dom.root();
+    // The subject sits in a `body`: a document element's background
+    // would be the canvas's (CSS Backgrounds 3 §2.11.2).
+    let body = dom.create_element("body");
+    dom.append_child(root, body).unwrap();
     let bar = dom.create_element("bar");
     let tip = dom.create_element("tip");
-    dom.append_child(root, tip).unwrap(); // earlier in document
-    dom.append_child(root, bar).unwrap(); // later in document
+    dom.append_child(body, tip).unwrap(); // earlier in document
+    dom.append_child(body, bar).unwrap(); // later in document
 
     let sheet = Stylesheet::bare()
         .rule_unchecked(
@@ -3107,10 +3119,14 @@ fn negative_z_index_paints_before_zero() {
 fn higher_z_paints_on_top_of_lower_z() {
     let mut dom = TuiDom::new();
     let root = dom.root();
+    // The subject sits in a `body`: a document element's background
+    // would be the canvas's (CSS Backgrounds 3 §2.11.2).
+    let body = dom.create_element("body");
+    dom.append_child(root, body).unwrap();
     let lo = dom.create_element("lo");
     let hi = dom.create_element("hi");
-    dom.append_child(root, lo).unwrap();
-    dom.append_child(root, hi).unwrap();
+    dom.append_child(body, lo).unwrap();
+    dom.append_child(body, hi).unwrap();
 
     let base = || {
         TuiStyle::new()
@@ -3397,10 +3413,14 @@ fn opacity_zero_overlay_is_invisible_keeps_symbols() {
 fn translucent_card_own_text_does_not_double_blend_bg() {
     let mut dom = TuiDom::new();
     let root = dom.root();
+    // The subject sits in a `body`: a document element's background
+    // would be the canvas's (CSS Backgrounds 3 §2.11.2).
+    let body = dom.create_element("body");
+    dom.append_child(root, body).unwrap();
     let card = dom.create_element("c");
     let txt = dom.create_text_node("hi");
     dom.append_child(card, txt).unwrap();
-    dom.append_child(root, card).unwrap();
+    dom.append_child(body, card).unwrap();
 
     let sheet = Stylesheet::bare().rule_unchecked(
         "c",
@@ -4563,10 +4583,14 @@ fn nested_opacity_multiplies() {
 fn pseudo_background_under_opacity_blends_once() {
     let mut dom = TuiDom::new();
     let root = dom.root();
+    // The subject sits in a `body`: a document element's background
+    // would be the canvas's (CSS Backgrounds 3 §2.11.2).
+    let body = dom.create_element("body");
+    dom.append_child(root, body).unwrap();
     let host = dom.create_element("host");
     let t = dom.create_text_node("x");
     dom.append_child(host, t).unwrap();
-    dom.append_child(root, host).unwrap();
+    dom.append_child(body, host).unwrap();
     let sheet = Stylesheet::bare()
         .rule_unchecked(
             "host",

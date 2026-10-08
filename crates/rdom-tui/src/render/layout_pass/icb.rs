@@ -13,6 +13,10 @@
 //! - An element root (`Dom::with_root_tag`): the root element, laid out as
 //!   a block in the ICB — the viewport's width less its margins, its
 //!   height its content's unless set (`html { height: 100% }` fills it).
+//!
+//! Nothing here sizes a top-level box to the viewport: the canvas does
+//! that for the root element's background (CSS Backgrounds 3 §2.11.2,
+//! `paint_pass::canvas`).
 
 use rdom_core::{Dom, NodeId, NodeType};
 

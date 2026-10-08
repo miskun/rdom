@@ -8993,3 +8993,25 @@ row comes from.
   change 2 (the old 2–85 move to 3–86, "Porting a column-synced table" cites 5), a Breaking bullet, two Fixed
   bullets, a showcase bullet; README "The document root and a full-screen app" with a doctested shell. DESIGN: the
   ICB paragraph in "Layout passes" and a decision-archive entry. TECH_DEBT `SIZE-1` recounted.
+- 2026-10-09 — C13-ROOT-CANVAS (C13-ROOT-BLOCK's second half; CSS Backgrounds 3 §2.11.2). Found: paint had no
+  canvas — the root element's background painted its own box only, which C13-ROOT-BLOCK made as tall as its
+  content, so an app's background no longer reached the bottom of the screen. Decided: `paint_pass/canvas.rs` —
+  `source` is the root element when its background paints (`fills`), else, the root element being an `html`, its
+  first `body` child's (§2.11.2's HTML rule); `paint_dom` fills the viewport with it before the root stacking
+  context (a translucent one composited once over the terminal default), and `paint_box` skips that element's own
+  background ("the used value … is transparent"). The root element is `Dom::document_element` — rdom-core's one
+  definition (an element root, else the root fragment's first element child), not a sole-child rule tried first:
+  that made the canvas flicker off when a `<dialog>` was appended beside the app (DIVERGENCES' `Dom::root()` entry
+  says so). It needs a box (`display: none` / `contents` paint nothing); `visibility` does not stop it (the canvas
+  draws it, not the box). Red (`css_phase13/root.rs`, at C13-ROOT-BLOCK's head): the canvas below a content-high
+  root element (`Reset` for the colour at (0, 3)), `body`'s background under a transparent `html` (`Reset` at
+  (9, 3)); `the_propagated_background_paints_once` (a translucent root background as dark on its box as on the
+  canvas) holds only with the box's own fill skipped. Green after. Mutation (each alone, restored, touched): the
+  canvas fill out → both canvas tests; the `html` / `body` rule out → the `body` test; the box's own fill back →
+  the paints-once test. Existing tests changed — each read a box's own background where its box is the document
+  element, which the canvas now covers (a browser draws the same): `paint_pass/tests.rs`' `bg_fills_outer_rect…`,
+  `higher_z_paints…`, `modal_dialog_repaints…`, `positioned_paints_above…`, `pseudo_background_under_opacity…`,
+  `translucent_card…`, `css_phase4`'s background and `background-clip` tests, `css_phase6`'s `visibility: hidden`
+  test, `css_phase7`'s negative-`z-index` test (a root element's negative layer paints over its canvas, as in a
+  browser) and the README's transitions example put their boxes in a `<body>`. CHANGELOG silent change 3 (the old
+  3–86 move to 4–87; the table port cites 6) and an Added bullet; CSS-COVERAGE's `background-color` row.

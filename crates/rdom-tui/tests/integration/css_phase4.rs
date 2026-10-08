@@ -19,6 +19,16 @@ fn el(dom: &mut TuiDom, parent: NodeId, class: &str, text: &str) -> NodeId {
     id
 }
 
+/// A `body` under the root, the parent of a test's boxes: a document
+/// element's background would be the canvas's, painted everywhere (CSS
+/// Backgrounds 3 §2.11.2), where these tests read a box's own.
+fn body(dom: &mut TuiDom) -> NodeId {
+    let root = dom.root();
+    let body = dom.create_element("body");
+    dom.append_child(root, body).unwrap();
+    body
+}
+
 /// Cascade `css` (no warning allowed), lay out and paint into a
 /// `w` × `h` buffer.
 fn paint(dom: &mut TuiDom, css: &str, w: u16, h: u16) -> Buffer {
@@ -44,7 +54,7 @@ fn cell(buf: &Buffer, x: u16, y: u16) -> &Cell {
 #[test]
 fn background_shorthand_with_an_image_layer_paints_its_color() {
     let mut dom = TuiDom::new();
-    let root = dom.root();
+    let root = body(&mut dom);
     el(&mut dom, root, "b", "");
     let buf = paint(
         &mut dom,
@@ -82,7 +92,7 @@ fn background_layers_paint_the_final_layers_color() {
 /// for none declared); the buffer it paints.
 fn clipped_box(clip: Option<&str>) -> Buffer {
     let mut dom = TuiDom::new();
-    let root = dom.root();
+    let root = body(&mut dom);
     el(&mut dom, root, "b", "");
     let clip = clip.map_or(String::new(), |c| format!("background-clip: {c};"));
     paint(
@@ -145,7 +155,7 @@ fn background_clip_of_the_final_layer_clips_the_color() {
     let buf = clipped_box(Some("content-box, border-box"));
     assert_eq!(cell(&buf, 0, 0).bg, RED);
     let mut dom = TuiDom::new();
-    let root = dom.root();
+    let root = body(&mut dom);
     el(&mut dom, root, "b", "");
     let buf = paint(
         &mut dom,
