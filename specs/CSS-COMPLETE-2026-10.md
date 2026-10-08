@@ -41,7 +41,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 9 | Inline text and decoration | done 2026-10-06 (both gates; 14 gate fixes `C9G-*`; their re-review rides with the Phase 10 gate) |
 | 10 | Lists, counters, generated content, pseudo-elements | done 2026-10-08 (both gates; 19 gate fixes `C10G-*`; their re-review rides with the Phase 11 gate) |
 | 11 | Selectors | done 2026-10-08 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
-| 12 | Transitions, animations, user interface | gates run 2026-10-08; `C12G-*` fixes in progress |
+| 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
 | 13 | Tables (real table formatting context) | |
 | 14 | Conditional rules, containment | |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | |
@@ -8411,3 +8411,8 @@ row comes from.
   recount; CHANGELOG, DIVERGENCES, ACID and the READMEs carry no date past today. Left as written: the
   status line's "started 2026-10-03" (the audit commits of 10-03 that the program grew from) and the
   "HTML Living Standard of 2026-10-07" citations (a spec snapshot's date, not a commit's).
+- 2026-10-08 — Phase 12 closed. Both gates' findings are fixed (18 `C12G-*` commits: batch A's seven,
+  batch B's ten and the C12G-SPLITS hygiene split) or recorded: the `::before` / `::after` `view()`
+  subject (C12G-CARRYOVER, DIVERGENCES §2) and `moveBefore()` (C12G-MOVE-RECORD, DIVERGENCES §2) stay
+  documented divergences; TECH_DEBT `MOVE-RECORD-1` is closed. The re-review of the `C12G-*` fixes
+  rides with the Phase 13 gate.
