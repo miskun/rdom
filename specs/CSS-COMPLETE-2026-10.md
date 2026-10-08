@@ -117,7 +117,7 @@ row comes from.
 | C4-BORDER-WIDTH | `border-width` mapping (`0` = none, thin / medium = light, thick = heavy glyphs) | done |
 | C4-RADIUS | `border-radius` and per-corner longhands → rounded corner glyphs | done |
 | C4-SHADOW | `box-shadow` (one-cell offset shade; blur / spread documented N/A) | done |
-| C4-SPACING | `border-spacing` (lands with the table phase if it needs the TFC) | partial — layout lands with C13-TFC |
+| C4-SPACING | `border-spacing` (lands with the table phase if it needs the TFC) | done |
 
 ### Phase 5 — Box model and sizing (audit §3.6, §3.22)
 
@@ -255,7 +255,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | partial — the slot assignment, the `display` values and the table formatting context for `display: table` are in; the HTML migration (UA sheet, the old column-sync pass deleted) and the anonymous table around stray parts follow |
+| C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | partial — the slot assignment, the `display` values, the table formatting context and the HTML migration are in; the anonymous table around stray parts outside a table follows |
 | C13-TABLE-PROPS | `caption-side`, `empty-cells`, `border-spacing` (separated borders), `vertical-align` on cells | |
 | C13-COLUMN | Column combinator `\|\|` (Selectors 4; was C11-COLUMN): `col.x \|\| td` matches the cells of the columns a `<col>` spans, from C13-TFC's column model | |
 
@@ -8497,3 +8497,33 @@ row comes from.
   touched): the inline table on its last baseline → 1 fails; no spanning spread → 1; the header group
   kept in place → 1; no collapsed line marked → 1; each cell's height walked twice → the cost test.
   No existing test expectation or snapshot changed.
+- 2026-10-08 — C13-TFC, part 4: HTML tables on the table formatting context. The UA sheet gives the table
+  elements HTML §15.3.8's `display` values (`table`, `table-caption`, `table-column(-group)`,
+  `table-header-group` / `-row-group` / `-footer-group`, `table-row`, `table-cell`); `<tr>`'s flex row
+  and its `height: 1` and `colgroup` / `col`'s `display: none` are gone; cells keep their one-cell inline
+  padding and `<th>` its bold; HTML's `border-spacing: 2px` is not taken (no whole cell; the initial 0,
+  DIVERGENCES §2). The flex-row model's pieces are deleted: `runtime::builtins::table` (`size_all_tables`,
+  `size_columns`), its call in `App::build`, `TuiExt::table_used_width` and its two readers (flex's main
+  size, the intrinsic contribution), `tree::is_collapsed_table_row` (a collapsed row is the table's
+  business now, §17.5.5). This closes the `TABLE-TFC-1` divergence (STABILIZE-2026-09) and DIVERGENCES §2's
+  "tables are flex rows" entry; C4-SPACING's layout part is done (separated borders space HTML tables
+  too) and C6-VISIBILITY's `<col>` note with it. Found while migrating: (1) the document root's children
+  are items of rdom's viewport column, which stretches them — a browser's `<body>` would not stretch a
+  table (CSS 2.1 §17.5.2.2): `flex::cross::hugs_as_inline_level` now also keeps a root-level table at its
+  content width, as it keeps an inline block; (2) copy recognised table parts by tag — HTML §3.2.7 reads
+  the used `display` — so a `display: table-cell` copied no tab and a `<tr>`, no longer `block`, would
+  have lost its line break: `clipboard::serialize` keys the tab on `table-cell` and the line breaks on
+  `table-row` / `table-caption` / block-level (DIVERGENCES' clipboard entry loses its tag departure).
+  Red: `css_phase13/html.rs` 5 of 5 failed against part 3 (`table` computed `block flow`, a `<col>`'s width
+  ignored — 3 for 6, no spacing — `(0, 0)` for `(2, 1)`, a wrapped cell's row one high, `<tfoot>` first and
+  `rowspan` ignored); `rendered_text_tests::css_table_cells_and_rows_copy_by_their_display` copied `abcd`;
+  green after. Changed expectations: `ua_colgroup_and_col_are_none` → `ua_colgroup_and_col_are_table_columns`
+  (HTML gives them their table-column display; `none` was the flex-row model's); `layout_pass::tests::
+  table_in_a_horizontal_scroll_wrapper_…` cascades the UA sheet — with `Stylesheet::bare()` its `<table>`
+  is nested blocks, and only the deleted builtin's stamped widths made it overflow; the stale-glyph app
+  test gives its flex cells inline widths instead of stamping `table_used_width`; the C6 visibility test
+  and `table_column_sync_makes_cells_align_across_rows` drop the builtin call — same assertions. CHANGELOG:
+  the Breaking bullet and API row (`table_layout_hints`), and silent change 8 (HTML tables lay out as CSS
+  tables: a shrink-to-fit width, rows as tall as their cells, rowspan / col / tfoot / caption placement).
+  No showcase demo has a table; no snapshot changed. Mutation (each alone, restored, touched): a root-level
+  table stretched → the C6 collapsed-row test fails (its cell 20 wide); rows without line breaks in copy → 2.

@@ -81,7 +81,8 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   `-position`, `text-decoration-skip-ink`, `pointer-events`,
   `user-select`.
 - **Block model** — `display` (the CSS Display 3 keywords: `contents`,
-  `flow-root`, the two-keyword forms, `list-item`), `visibility`, `flex-direction` (+ `-reverse`), `flex-wrap`, `flex-flow`, `justify-content`, `align-content`, `align-items`, `align-self`, `justify-items`, `justify-self`, the `place-*` shorthands, `flex`, `flex-grow`,
+  `flow-root`, the two-keyword forms, `list-item`, `table` /
+  `inline-table` and the table parts), `visibility`, `flex-direction` (+ `-reverse`), `flex-wrap`, `flex-flow`, `justify-content`, `align-content`, `align-items`, `align-self`, `justify-items`, `justify-self`, the `place-*` shorthands, `flex`, `flex-grow`,
   `flex-shrink`, `flex-basis`, `order`,
   `white-space` (with `white-space-collapse` / `text-wrap-mode`), `text-wrap`
   (with `text-wrap-style`), `text-align` (with `text-align-all` /
@@ -105,8 +106,8 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   in any order: `border: 1px solid red`), `border-style`,
   `border-color` and `border-width` (1–4 values, + four per-side
   longhands each), `border-radius` (+ four per-corner longhands),
-  `box-shadow`, `border-collapse`, `border-spacing` (parsed and inherited;
-  table layout uses it from C13-TFC).
+  `box-shadow`, `border-collapse`, `border-spacing`, `table-layout`,
+  `caption-side`.
 - **Writing modes and logical properties** — `direction`, `writing-mode`
   (horizontal; the vertical values parse and lay out horizontally), and
   the flow-relative forms, mapped for the element's `direction`:

@@ -26,15 +26,6 @@ pub(super) fn box_contribution(
     cb_width: u16,
     measure: Measure,
 ) -> u16 {
-    // TABLE-COLSYNC-1: a table cell's resolved column width is its used
-    // main size (a width → Row axis), so a table measures to its laid-out
-    // column widths (e.g. when it's a flex item being sized by a scroll
-    // wrapper) — final, like a definite size.
-    if direction == Direction::Row
-        && let Some(w) = dom.node(id).ext().and_then(|e| e.table_used_width)
-    {
-        return w;
-    }
     let kw = Keywords::new(dom, id, computed, direction, cross_budget, cb_width);
     // A percentage resolves against a definite containing block: the
     // width when known; a height's basis is indefinite here.

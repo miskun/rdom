@@ -3382,10 +3382,11 @@ fn relative_cell_glyph_paints_once_after_sibling_hidden_and_abspos_child_dropped
         s.position = Some(Value::Specified(Position::Relative));
         dom.node_mut(chip).set_inline_style(s);
     }
-    // Like the `<table>` builtin's `size_columns`: stamp a used main-axis width
-    // on each cell (flex reads `table_used_width` as the cell's main size).
-    for (cell, w) in [(a, 3u16), (b1, 6), (b2, 6), (chip, 3)] {
-        dom.node_mut(cell).ext_mut().unwrap().table_used_width = Some(w);
+    // A fixed main-axis width on each cell (the old `<table>` builtin
+    // stamped one; the widths are what this regression needs).
+    for (cell, w) in [(a, 3u16), (b1, 6), (b2, 6)] {
+        dom.node_mut(cell)
+            .set_inline_style(TuiStyle::new().width(Size::Fixed(w)));
     }
 
     // `[hide]` → display:none (an attribute toggle, like the real contract).

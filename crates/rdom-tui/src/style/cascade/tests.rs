@@ -1417,10 +1417,20 @@ fn ua_aria_tree_selectors_match() {
     );
 }
 
+/// HTML §15.3.8: `colgroup { display: table-column-group }`, `col {
+/// display: table-column }` (C13-TFC; they were `none` while tables were
+/// flex rows).
 #[test]
-fn ua_colgroup_and_col_are_none() {
-    assert_eq!(ua_computed_for("colgroup").display, Display::None);
-    assert_eq!(ua_computed_for("col").display, Display::None);
+fn ua_colgroup_and_col_are_table_columns() {
+    use crate::layout::TablePart;
+    assert_eq!(
+        ua_computed_for("colgroup").display,
+        Display::TablePart(TablePart::ColumnGroup)
+    );
+    assert_eq!(
+        ua_computed_for("col").display,
+        Display::TablePart(TablePart::Column)
+    );
 }
 
 #[test]

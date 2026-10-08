@@ -2696,9 +2696,8 @@ fn table_renders_rows_stacked_vertically_cells_horizontally() {
     let r0 = row(&buf, 0);
     let r1 = row(&buf, 1);
     // Cells use Auto width + padding 0 1 0 1 so each cell has a
-    // leading and trailing 1-cell padding. Without column sync
-    // (C.8b) cells don't align across rows — we just assert both
-    // values appear on their respective rows.
+    // leading and trailing 1-cell padding; both values appear on their
+    // respective rows.
     assert!(r0.contains("Alice") && r0.contains("30"), "row 0: {r0:?}");
     assert!(r1.contains("Bob") && r1.contains("25"), "row 1: {r1:?}");
 }
@@ -2771,9 +2770,9 @@ fn bare_tr_without_tbody_still_renders() {
 
 #[test]
 fn table_column_sync_makes_cells_align_across_rows() {
-    // Verifies the C.8b pre-pass: cell widths are equalized per
-    // column, so the boundary between column 0 and column 1
-    // lands on the same x coordinate in every row.
+    // The table formatting context (C13-TFC) sizes each column to its
+    // widest cell, so the boundary between column 0 and column 1 lands
+    // on the same x coordinate in every row — no pre-pass.
     let mut dom = TuiDom::new();
     let root = dom.root();
     let table = dom.create_element("table");
@@ -2790,11 +2789,6 @@ fn table_column_sync_makes_cells_align_across_rows() {
     }
     dom.append_child(table, tbody).unwrap();
     dom.append_child(root, table).unwrap();
-
-    // Run the sync pre-pass before the cascade/layout. App::build
-    // does this automatically, but pipeline() operates on a bare
-    // dom — sync manually first.
-    crate::runtime::builtins::table::size_all_tables(&mut dom);
 
     let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 30, 2));
     let r0 = row(&buf, 0);

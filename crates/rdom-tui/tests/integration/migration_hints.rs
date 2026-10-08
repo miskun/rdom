@@ -421,6 +421,27 @@ fn table_display_hints() {
     assert!(ImportantMask::TABLE_LAYOUT.intersects(ImportantMask::all()));
 }
 
+/// C13-TFC: no column-sync pass — a `<table>` sizes its columns as it
+/// lays out; a fixed column is a `width` on its `<col>` (or its cells).
+#[test]
+fn table_layout_hints() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let table = dom.create_element("table");
+    let col = dom.create_element("col");
+    let tr = dom.create_element("tr");
+    let td = dom.create_element("td");
+    dom.append_child(root, table).unwrap();
+    dom.append_child(table, col).unwrap();
+    dom.append_child(table, tr).unwrap();
+    dom.append_child(tr, td).unwrap();
+    dom.node_mut(col)
+        .set_inline_style(TuiStyle::new().width(Size::Fixed(8)));
+    dom.cascade(&Stylesheet::new());
+    dom.layout_dom(render::Rect::new(0, 0, 20, 2));
+    assert_eq!(dom.node(td).layout_rect().unwrap().width, 8);
+}
+
 /// C6-VISIBILITY: the `visibility` field, its value type, builder and
 /// bit, and the animatable property.
 #[test]

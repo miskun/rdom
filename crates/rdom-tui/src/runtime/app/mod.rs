@@ -355,11 +355,6 @@ impl<B: Backend> App<B> {
         // and on each select whose options change from here on.
         crate::runtime::builtins::select::seed_all(&mut dom);
         let prelude = prelude::FramePrelude::install(&mut dom);
-        // Sync column widths across every `<table>` so cells in
-        // different rows align. v1 uses content-based measurement;
-        // apps that mutate tables at runtime can call the helper
-        // themselves to re-sync (see `runtime::builtins::table`).
-        crate::runtime::builtins::table::size_all_tables(&mut dom);
         // Install the implicit-detach event observer: dispatches
         // `blur` / `focusout` / `mouseout` / `mouseleave` when the
         // focused or hovered element is removed from the tree,

@@ -3393,10 +3393,9 @@ fn table_in_a_horizontal_scroll_wrapper_scrolls_header_and_body_together() {
     // Browser-faithful horizontal scroll for a wide table: wrap it in a
     // Row-flex `overflow-x` container (the TUI analogue of
     // `<div style="overflow-x:auto"><table>…`). The whole table is one child,
-    // so header and body translate together and stay column-aligned. A
-    // `<table>` is itself a column-flex container, so it can't be the
-    // horizontal (cross-axis) scroll container directly — see TECH_DEBT
-    // `cross-axis-scroll`.
+    // so header and body translate together and stay column-aligned. The
+    // table is at least its min-content width (CSS 2.1 §17.5.2.2), wider
+    // than the wrapper.
     let mut dom = tui_dom();
     let root = dom.root();
     let wrap = dom.create_element("div");
@@ -3426,8 +3425,9 @@ fn table_in_a_horizontal_scroll_wrapper_scrolls_header_and_body_together() {
     dom.append_child(wrap, table).unwrap();
     dom.append_child(root, wrap).unwrap();
 
-    crate::runtime::builtins::table::size_columns(&mut dom, table);
-    let sheet = Stylesheet::bare().rule_unchecked(
+    // The UA sheet makes the `<table>` a table (C13-TFC); bare, it is
+    // nested blocks.
+    let sheet = Stylesheet::new().rule_unchecked(
         "div",
         TuiStyle::new()
             .flow(Flow::Flex)

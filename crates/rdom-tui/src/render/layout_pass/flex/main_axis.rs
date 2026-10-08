@@ -218,18 +218,6 @@ pub(super) fn collect_main_axis_items(
         // `min-*` / `max-*` percentages resolve against the container's
         // main size, as the main size's own do (CSS Sizing 3 §5.2).
         let max = kw.max(max, main_basis, main_budget);
-        // TABLE-COLSYNC-1: a table cell's *used* column width — computed by
-        // `size_columns` from the column's author widths + content and stored
-        // on the cell's ext (layout output, NOT author `inline_style`) —
-        // overrides the normal main-size resolution so every cell in the
-        // column lines up. A width drives the Row main axis only.
-        let used_column_width = match direction {
-            Direction::Row => item
-                .node()
-                .and_then(|id| dom.node(id).ext().and_then(|e| e.table_used_width)),
-            Direction::Column => None,
-        };
-
         // Main-axis margins (M5.3b). Cells contribute to consumed
         // space; Auto absorbs remaining free space after flex
         // distribution (CSS rule).
@@ -256,9 +244,7 @@ pub(super) fn collect_main_axis_items(
         // size, and as `content` when that is indefinite); `auto` takes
         // the main size property; `content`, or `auto` with an `auto`
         // main size, the item's content size. `width: <n>fr` (rdom) is
-        // a basis of 0 growing by `n`. A table cell's used column width
-        // (TABLE-COLSYNC-1) is its base and does not grow. The result
-        // is a fixed cell value — percentages resolve here, not in the
+        // a basis of 0 growing by `n`. The result is a fixed cell value — percentages resolve here, not in the
         // distribution.
         let used_size = |size: &Size, basis: Option<u16>| match (direction, size) {
             // A keyword height is the content height, as `auto` is (CSS
@@ -318,10 +304,7 @@ pub(super) fn collect_main_axis_items(
                 },
             }
         };
-        let (base, content_base) = if let Some(w) = used_column_width {
-            grow = 0.0;
-            (w, false)
-        } else if let FlexBasis::CalcSize(cs) = &c.flex_basis {
+        let (base, content_base) = if let FlexBasis::CalcSize(cs) = &c.flex_basis {
             let (keyword_base, _) = base_of(&cs.basis_flex_basis());
             let sizer = kw.sizer();
             let size = cs.resolve(sizer.inner(keyword_base), main_basis.unwrap_or(0));

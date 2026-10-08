@@ -236,15 +236,20 @@ pub(super) fn baseline_box(
     )
 }
 
-/// An inline-level child of the document root. A flex item's `display`
-/// is blockified at computed-value time (CSS Display 3 §2.7, the
-/// cascade's `blockify`), so an atomic inline here is a child of the
-/// document root, which rdom lays out in its viewport column only as a
-/// layout device standing in for a browser's `<body>` — whose children
-/// are not flex items: an inline block sits in a line at its content
-/// width, so it is not stretched.
-fn hugs_as_inline_level(computed: &ComputedStyle) -> bool {
+/// A child of the document root that a browser's `<body>` would not
+/// stretch. rdom lays the root's children out in its viewport column only
+/// as a layout device standing in for `<body>`, whose children are not
+/// flex items: an inline block sits in a line at its content width, and a
+/// table is as wide as its content asks (CSS 2.1 §17.5.2.2) — neither is
+/// stretched. (A flex item's `display` is blockified at computed-value
+/// time, CSS Display 3 §2.7, so an atomic inline here is a root child; a
+/// table can be either, so its box parent tells.)
+fn hugs_as_inline_level(dom: &Dom<TuiExt>, item: &Item, computed: &ComputedStyle) -> bool {
     computed.is_atomic_inline()
+        || (computed.flow == crate::layout::Flow::Table
+            && item
+                .box_parent(dom)
+                .is_none_or(|p| dom.node(p).node_type() != rdom_core::NodeType::Element))
 }
 
 /// What the cross-axis resolver needs to know about the main axis and
@@ -346,7 +351,7 @@ fn resolve_cross_size(
                 })
             {
                 cross
-            } else if stretch && !hugs_as_inline_level(computed) {
+            } else if stretch && !hugs_as_inline_level(dom, item, computed) {
                 // A flex item is blockified (CSS Display 3 §2.7), so it
                 // stretches as a block does.
                 line

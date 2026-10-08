@@ -147,7 +147,6 @@ fn a_collapsed_table_row_takes_no_space_but_sizes_its_columns() {
     text(&mut dom, cell, "x");
     let sheet = rdom_css::from_css_strict(".c { visibility: collapse }").unwrap();
     dom.cascade(&sheet);
-    rdom_tui::runtime::builtins::table::size_all_tables(&mut dom);
     dom.layout_dom(Rect::new(0, 0, 20, 4));
     let mut buf = Buffer::empty(Rect::new(0, 0, 20, 4));
     dom.paint_dom(&mut buf, Rect::new(0, 0, 20, 4));

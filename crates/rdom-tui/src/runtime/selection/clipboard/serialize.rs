@@ -38,7 +38,7 @@
 use rdom_core::{Dom, NodeId, NodeType, Range};
 
 use crate::ext::TuiExt;
-use crate::layout::{Display, MarginValue, UserSelect, WhiteSpaceCollapse};
+use crate::layout::{Display, MarginValue, TablePart, UserSelect, WhiteSpaceCollapse};
 use crate::runtime::selection::user_select;
 
 /// The rendered text of `range`. Empty when the range is collapsed or
@@ -90,25 +90,35 @@ impl Walk<'_> {
                     self.skip_subtree(id);
                     return;
                 }
-                match node.tag_name() {
-                    Some("br") => {
-                        let selected = self.state == WalkState::Inside;
-                        self.out.preserved('\n', selected);
-                        return;
-                    }
-                    Some("td" | "th") => {
-                        self.out.edge();
-                        self.children(id, used);
-                        self.out.edge();
-                        if self.next_cell(id) {
-                            let selected = self.state == WalkState::Inside;
-                            self.out.preserved('\t', selected);
-                        }
-                        return;
-                    }
-                    _ => {}
+                if node.tag_name() == Some("br") {
+                    let selected = self.state == WalkState::Inside;
+                    self.out.preserved('\n', selected);
+                    return;
                 }
+                // §3.2.7: a `table-cell` box that is not its row's last
+                // ends with a tab — by its used `display`, not its tag.
+                if computed.is_some_and(|c| c.display == Display::TablePart(TablePart::Cell)) {
+                    self.out.edge();
+                    self.children(id, used);
+                    self.out.edge();
+                    if self.next_cell(id) {
+                        let selected = self.state == WalkState::Inside;
+                        self.out.preserved('\t', selected);
+                    }
+                    return;
+                }
+                // A block-level box, a `table-caption` and a `table-row`
+                // (whose line feed between rows the required line breaks
+                // make) are set off by one line break.
                 let breaks = match computed {
+                    Some(c)
+                        if matches!(
+                            c.display,
+                            Display::TablePart(TablePart::Row | TablePart::Caption)
+                        ) =>
+                    {
+                        1
+                    }
                     Some(c) if c.display == Display::Block => {
                         if node.tag_name() == Some("p") && has_vertical_margin(c) {
                             2
@@ -243,11 +253,10 @@ impl Walk<'_> {
         let mut sib = self.dom.node(cell).next_sibling().map(|n| n.id());
         while let Some(s) = sib {
             let node = self.dom.node(s);
-            if matches!(node.tag_name(), Some("td" | "th"))
-                && !node
-                    .ext()
-                    .and_then(|e| e.computed.as_ref())
-                    .is_some_and(|c| c.display == Display::None)
+            if node
+                .ext()
+                .and_then(|e| e.computed.as_ref())
+                .is_some_and(|c| c.display == Display::TablePart(TablePart::Cell))
             {
                 return true;
             }

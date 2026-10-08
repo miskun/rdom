@@ -43,27 +43,8 @@ pub(crate) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     c.display == Display::Contents
         || (c.display != Display::None
             && !matches!(c.position, Position::Absolute | Position::Fixed)
-            && !is_collapsed_table_row(dom, id)
             && (c.float == crate::layout::Float::None
                 || super::float::float_side(dom, id).is_none()))
-}
-
-/// A `visibility: collapse` table row (CSS 2.1 §17.5.5): removed from
-/// the table's flow — the rows close up — while its cells still size
-/// the columns (`runtime::builtins::table` sizes them from every row).
-/// rdom's table rows are the `<tr>` children of a `<table>` or its row
-/// groups (DIVERGENCES: tables are flex rows).
-pub(crate) fn is_collapsed_table_row(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    let node = dom.node(id);
-    // The visibility first: it is a field read, and almost never
-    // `collapse`; the tag compare runs for every in-flow element.
-    node.ext()
-        .and_then(|e| e.computed.as_ref())
-        .is_some_and(|c| c.visibility == crate::layout::Visibility::Collapse)
-        && node.tag_name() == Some("tr")
-        && node
-            .parent_node()
-            .is_some_and(|p| matches!(p.tag_name(), Some("table" | "thead" | "tbody" | "tfoot")))
 }
 
 /// Zero the layout geometry of every `display:none` child subtree of `id`.
@@ -83,8 +64,7 @@ pub(crate) fn collapse_hidden_children(dom: &mut Dom<TuiExt>, id: NodeId, origin
             .ext()
             .and_then(|e| e.computed.as_ref())
             .map(|c| c.display == crate::layout::Display::None)
-            .unwrap_or(false)
-            || is_collapsed_table_row(dom, child);
+            .unwrap_or(false);
         if hidden {
             collapse_subtree_geometry(dom, child);
         }

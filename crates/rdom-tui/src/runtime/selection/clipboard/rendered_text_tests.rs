@@ -138,6 +138,49 @@ fn br_is_a_line_break() {
     assert_eq!(copy(&mut dom, &Stylesheet::new(), (a, 0), (b, 1)), "a\nb");
 }
 
+/// HTML §3.2.7 reads the used `display`: a `table-cell` box that is not
+/// its row's last ends with a tab, a `table-row` box that is not its
+/// table's last with a newline — whatever the elements (C13-TFC).
+#[test]
+fn css_table_cells_and_rows_copy_by_their_display() {
+    use crate::layout::{Display, Flow, TablePart};
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let table = dom.create_element("div");
+    dom.set_attribute(table, "class", "t").unwrap();
+    dom.append_child(root, table).unwrap();
+    let mut first = None;
+    let mut last = None;
+    for pair in [["a", "b"], ["c", "d"]] {
+        let row = dom.create_element("div");
+        dom.set_attribute(row, "class", "r").unwrap();
+        dom.append_child(table, row).unwrap();
+        for s in pair {
+            let (cell, t) = el(&mut dom, row, "span", s);
+            dom.set_attribute(cell, "class", "c").unwrap();
+            first.get_or_insert(t);
+            last = Some(t);
+        }
+    }
+    let sheet = Stylesheet::new()
+        .rule_unchecked(
+            ".t",
+            TuiStyle::new().display(Display::Block).flow(Flow::Table),
+        )
+        .rule_unchecked(
+            ".r",
+            TuiStyle::new().display(Display::TablePart(TablePart::Row)),
+        )
+        .rule_unchecked(
+            ".c",
+            TuiStyle::new().display(Display::TablePart(TablePart::Cell)),
+        );
+    assert_eq!(
+        copy(&mut dom, &sheet, (first.unwrap(), 0), (last.unwrap(), 1)),
+        "a\tb\nc\td"
+    );
+}
+
 #[test]
 fn table_cells_are_tab_separated_and_rows_newline_separated() {
     let mut dom = TuiDom::new();

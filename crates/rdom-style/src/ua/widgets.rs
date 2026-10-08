@@ -3,7 +3,7 @@
 use super::css;
 use crate::color::named;
 use crate::color::system::{ACCENT, FIELD_BG, TEXT_MUTED};
-use crate::layout::{Direction, Display, Length, Overflow, Padding, Position, Size};
+use crate::layout::{Display, Length, Overflow, Padding, Position, Size, TablePart};
 use crate::{Color, Content, TuiStyle};
 
 /// The UA rules of this group, in cascade order.
@@ -151,64 +151,62 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // element the app paints) never gets a background fill on focus —
         // matching the web, where focusing a canvas never touches its pixels.
         // ── Tables ──
-        // `<table>` is the layout primitive for tabular data.
-        // Structure: optional `<caption>`, optional `<thead>` /
-        // `<tbody>` / `<tfoot>` row groups (or bare `<tr>`s),
-        // and `<td>` / `<th>` cells inside rows.
-        //
-        // V1 uses plain block and flex layout: the table and row
-        // groups are block containers, their rows stacking
-        // vertically; each `<tr>` is a row flex container whose children
-        // are the cells. Column widths sync across rows via a
-        // pre-pass that computes max content width per column
-        // index and writes Fixed widths to each cell.
-        //
-        // Borders are author CSS — no default borders (matches
-        // HTML5 default). Authors style with `td { border: 1 }`
-        // etc. No colspan/rowspan in v1.
-        ("table", TuiStyle::new().display(Display::Block)),
+        // HTML §15.3.8: the table elements take the CSS table model's
+        // `display` values, laid out by rdom-tui's table formatting
+        // context (CSS 2.1 §17). Borders are author CSS — none by
+        // default, as in HTML. Cells keep rdom's one-cell inline padding
+        // (a browser's is 1px); `border-spacing` stays its initial 0
+        // (HTML's 2px is no whole cell, DIVERGENCES §2).
+        (
+            "table",
+            TuiStyle::new()
+                .display(Display::Block)
+                .flow(crate::layout::Flow::Table),
+        ),
         (
             "caption",
             TuiStyle::new()
-                .display(Display::Block)
+                .display(Display::TablePart(TablePart::Caption))
                 .italic(true)
                 .fg(TEXT_MUTED),
         ),
-        ("thead", TuiStyle::new().display(Display::Block)),
-        ("tbody", TuiStyle::new().display(Display::Block)),
-        ("tfoot", TuiStyle::new().display(Display::Block)),
+        (
+            "colgroup",
+            TuiStyle::new().display(Display::TablePart(TablePart::ColumnGroup)),
+        ),
+        (
+            "col",
+            TuiStyle::new().display(Display::TablePart(TablePart::Column)),
+        ),
+        (
+            "thead",
+            TuiStyle::new().display(Display::TablePart(TablePart::HeaderGroup)),
+        ),
+        (
+            "tbody",
+            TuiStyle::new().display(Display::TablePart(TablePart::RowGroup)),
+        ),
+        (
+            "tfoot",
+            TuiStyle::new().display(Display::TablePart(TablePart::FooterGroup)),
+        ),
         (
             "tr",
-            // `<tr>` lays its `<td>`/`<th>` cells out horizontally.
-            // Pre-BFC-1 this worked implicitly because every container
-            // ran flex; post-BFC-1 the UA must explicitly opt the row
-            // into flex flow (CSS3 Display Module: `display: flex` =
-            // outer `block` + inner `flex`).
-            TuiStyle::new()
-                .display(Display::Block)
-                .flow(crate::layout::Flow::Flex)
-                .direction(Direction::Row)
-                .height(Size::Fixed(1)),
+            TuiStyle::new().display(Display::TablePart(TablePart::Row)),
         ),
         (
             "td",
             TuiStyle::new()
-                .display(Display::Block)
+                .display(Display::TablePart(TablePart::Cell))
                 .padding(Padding::new(0, 1, 0, 1)),
         ),
         (
             "th",
             TuiStyle::new()
-                .display(Display::Block)
+                .display(Display::TablePart(TablePart::Cell))
                 .padding(Padding::new(0, 1, 0, 1))
                 .bold(true),
         ),
-        // `<colgroup>` and `<col>` carry column metadata. Not
-        // rendered — hidden via `display: none` so apps that
-        // target them via CSS for other reasons still have the
-        // element available in the tree.
-        ("colgroup", TuiStyle::new().display(Display::None)),
-        ("col", TuiStyle::new().display(Display::None)),
         // ── Gauge widgets ──
         // `<progress>` and `<meter>` paint a horizontal block-
         // character bar. Display:Block + fixed width so the
