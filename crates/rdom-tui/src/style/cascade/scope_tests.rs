@@ -173,6 +173,34 @@ fn scope_outside_scope_is_root() {
     assert_eq!(fg(&amp, amp.c1), fg(&root, root.c1));
 }
 
+/// Selectors 4 §8.4 (C11-SCOPE): with no scoping root `:scope` is
+/// `:root` — in a tree whose root is an element, that element.
+#[test]
+fn top_level_scope_is_the_root_element() {
+    let mut dom: TuiDom = TuiDom::with_root_tag("html");
+    let html = dom.root();
+    let body = el(&mut dom, html, "body", &[]);
+    dom.cascade(&sheet(
+        ":scope { color: red } :scope > body { background-color: blue }",
+    ));
+    assert_eq!(computed_of(&dom, html).fg, RED);
+    assert_eq!(computed_of(&dom, body).bg, BLUE);
+    assert_eq!(computed_of(&dom, body).fg, RED, "inherited, not matched");
+}
+
+/// CSS Cascade 6 §2.5.2 with Selectors 4 §4.2 / §4.3 (C11-SCOPE):
+/// inside a scoped rule, `:scope` in an `:is()` / `:not()` argument is
+/// the scoping root too.
+#[test]
+fn scope_inside_is_and_not_is_the_scoping_root() {
+    let t = cascade("@scope (#c1) { :not(:scope) { color: red } :is(:scope) { color: blue } }");
+    assert_eq!(fg(&t, t.c1), BLUE);
+    for id in [t.a, t.content, t.b, t.c2, t.c] {
+        assert_eq!(fg(&t, id), RED);
+    }
+    assert_eq!(fg(&t, t.out), initial(), "out of scope");
+}
+
 // ── Scope proximity (Cascade 6 §6.1) ─────────────────────────────────
 
 /// Cascade 6 §6.1: after specificity, the declaration whose scoping

@@ -228,7 +228,7 @@ row comes from.
 | C11-IS | `:is()` | done (landed early as C1G-IS-PARSE) |
 | C11-HAS | `:has()` with invalidation | |
 | C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | done |
-| C11-SCOPE | `:scope` (query APIs and `@scope`) | |
+| C11-SCOPE | `:scope` (query APIs and `@scope`) | done |
 | C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | |
 | C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | |
 | C11-LINK-LANG | `:link` / `:any-link`, `:lang()` | done (with `:dir()`, deferred here by C5-WRITING, and `:visited` never matching) |
@@ -6979,3 +6979,13 @@ row comes from.
   after. Mutation (the auto host left unmarked, restored, touched): the editing test fails. Changed
   expectation: the UA rule count 175 → 178 (`ua_total_rule_count`: the two `dir` rules now hold five selectors).
   No snapshot changed.
+- 2026-10-14 — C11-SCOPE: the query methods match with the node they were called on as the scoping root
+  (DOM §4.2.6 "scope-match a selectors string", Selectors 4 §8.4): `query_selector_in` /
+  `query_selector_all_in` with their root (the document's `query_selector` / `query_selector_all` with the
+  document node, so `:scope > div` finds the top-level elements and `:scope` alone none), `matches` and
+  `closest` with their element. Checked, no change needed: `:scope` in `@scope` (the scoping root, also
+  inside `:is()` / `:not()` arguments) and at a sheet's top level (`:root`, the root element in a tree whose
+  root is one) — two cascade tests pin them (`scope_tests.rs`). Red:
+  `query_methods_scope_to_the_node_they_are_called_on` (`[]` for the two `span`s) and
+  `matches_and_closest_scope_to_their_element` (`matches(em, ":scope")` was `false`); green after; the two
+  cascade checks green as written. No existing expectation or snapshot changed.

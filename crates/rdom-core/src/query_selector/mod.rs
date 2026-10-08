@@ -8,10 +8,16 @@
 //! [`Dom::query_selector_all`](crate::Dom::query_selector_all) live on
 //! `Dom` directly and pass `self.root()` as the root_id.
 //!
+//! Each query method matches with the node it was called on as the
+//! scoping root (DOM §4.2.6 "scope-match a selectors string", Selectors 4
+//! §8.4): `query_selector_in(div, ":scope > p")` finds `div`'s own `p`
+//! children, `matches(id, ":scope")` and `closest(id, ":scope")` are
+//! `id`. Each call shares one [`SelectorCaches`] across the elements it
+//! tests.
+//!
 //! The matcher evaluates each `ComplexSelector` right-to-left starting from
 //! the candidate element (subject), then walks ancestors/siblings per
-//! combinator. Good enough for small-to-medium subtrees; Phase 4 will add
-//! indexes and selector "bloom" fast-rejection.
+//! combinator.
 
 use crate::dom::Dom;
 use crate::node::NodeData;
@@ -61,7 +67,7 @@ impl<Ext> Dom<Ext> {
                 return;
             }
             if let NodeData::Element { .. } = data
-                && self.matches_list_with(id, &list, None, &mut caches)
+                && self.matches_list_with(id, &list, Some(root_id), &mut caches)
             {
                 found = Some(id);
             }
@@ -83,7 +89,7 @@ impl<Ext> Dom<Ext> {
         let mut out = Vec::new();
         self.walk_descendants(root_id, &mut |id, data| {
             if matches!(data, NodeData::Element { .. })
-                && self.matches_list_with(id, &list, None, &mut caches)
+                && self.matches_list_with(id, &list, Some(root_id), &mut caches)
             {
                 out.push(id);
             }
@@ -94,7 +100,7 @@ impl<Ext> Dom<Ext> {
     /// Does `id` match `selector`? Errors on malformed selector.
     pub fn matches(&self, id: NodeId, selector: &str) -> Result<bool, ParseError> {
         let list = selectors::parse(selector)?;
-        Ok(self.matches_list(id, &list))
+        Ok(self.matches_list_in_scope(id, &list, Some(id)))
     }
 
     /// Walk from `id` (inclusive) up the tree and return the first ancestor
@@ -107,7 +113,7 @@ impl<Ext> Dom<Ext> {
             if matches!(
                 self.get_node(c).map(|n| &n.data),
                 Some(NodeData::Element { .. })
-            ) && self.matches_list_with(c, &list, None, &mut caches)
+            ) && self.matches_list_with(c, &list, Some(id), &mut caches)
             {
                 return Ok(Some(c));
             }

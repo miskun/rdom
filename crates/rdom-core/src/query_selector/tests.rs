@@ -1145,3 +1145,44 @@ fn selector_caches_do_not_outlive_a_mutation() {
     assert!(!dom.matches_list_with(kids[0], &list, None, &mut caches));
     assert!(dom.matches_list_with(first, &list, None, &mut caches));
 }
+
+// ─── :scope in the query APIs (C11-SCOPE) ───────────────────────────
+
+/// Selectors 4 §8.4 / DOM §4.2.6 "scope-match a selectors string": the
+/// query methods match with the node they were called on as the scoping
+/// root, so `:scope > span` finds that element's own children and
+/// `:scope` itself is never one of its descendants.
+#[test]
+fn query_methods_scope_to_the_node_they_are_called_on() {
+    let (dom, [div, s1, s2, p, em]) = build();
+    assert_eq!(
+        dom.query_selector_all_in(div, ":scope > span").unwrap(),
+        vec![s1, s2]
+    );
+    assert_eq!(
+        dom.query_selector_all_in(div, ":scope > em").unwrap(),
+        vec![]
+    );
+    assert_eq!(dom.query_selector_all_in(p, ":scope em").unwrap(), vec![em]);
+    assert_eq!(dom.query_selector_in(div, ":scope").unwrap(), None);
+    assert_eq!(
+        dom.query_selector_in(div, ":scope > .last").unwrap(),
+        Some(p)
+    );
+    // The document's query methods scope to the document.
+    let top = dom.query_selector_all(":scope > div");
+    assert_eq!(top.iter().map(|n| n.id()).collect::<Vec<_>>(), vec![div]);
+}
+
+/// DOM §4.2.6: `matches()` and `closest()` match with the element they
+/// were called on as the scoping root.
+#[test]
+fn matches_and_closest_scope_to_their_element() {
+    let (dom, [div, _, _, p, em]) = build();
+    assert_eq!(dom.matches(em, ":scope"), Ok(true));
+    assert_eq!(dom.matches(em, "p > :scope"), Ok(true));
+    assert_eq!(dom.matches(p, ":scope > em"), Ok(false));
+    assert_eq!(dom.closest(em, ":scope"), Ok(Some(em)));
+    assert_eq!(dom.closest(em, ":not(:scope)"), Ok(Some(p)));
+    assert_eq!(dom.closest(em, ".outer:not(:scope)"), Ok(Some(div)));
+}
