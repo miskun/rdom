@@ -276,6 +276,8 @@ pub(super) fn apply_style(
         ui.caret_animation: CARET_ANIMATION,
         // §6.3; inherits.
         ui.accent_color: ACCENT_COLOR,
+        // §7.1; not inherited.
+        ui.appearance: APPEARANCE,
     );
     // Positioning (M2), transitions (M3; latest list wins), animations
     // (CSS Animations 1 §4) and counters

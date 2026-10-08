@@ -10,8 +10,8 @@ use crate::layout::{
 };
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_accent_color, parse_caret, parse_caret_animation, parse_caret_shape, parse_cursor,
-    parse_line_width, parse_outline, parse_outline_color, parse_outline_offset,
+    parse_accent_color, parse_appearance, parse_caret, parse_caret_animation, parse_caret_shape,
+    parse_cursor, parse_line_width, parse_outline, parse_outline_color, parse_outline_offset,
     parse_outline_style,
 };
 use crate::{TuiStyle, Value};
@@ -57,6 +57,10 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "accent-color" => parse_accent_color(value).map(|a| {
             ui.accent_color = Some(Value::Specified(a));
         }),
+        // §7.1; `-webkit-appearance` is its legacy name (Compat §5).
+        "appearance" | "-webkit-appearance" => parse_appearance(value).map(|a| {
+            ui.appearance = Some(Value::Specified(a));
+        }),
         _ => return None,
     })
 }
@@ -91,6 +95,11 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .map(|s| s.keyword().to_string()),
         "caret-animation" => ui
             .caret_animation
+            .as_ref()
+            .and_then(specified)
+            .map(|a| a.keyword().to_string()),
+        "appearance" | "-webkit-appearance" => ui
+            .appearance
             .as_ref()
             .and_then(specified)
             .map(|a| a.keyword().to_string()),

@@ -74,3 +74,83 @@ fn accent_color_tints_progress_and_range_not_meter() {
     assert_ne!(cell(&buf, 0, 1).fg, RED, "meter");
     assert_eq!(cell(&buf, 0, 2).fg, RED, "range track");
 }
+
+// ── C12-CONTROLS: appearance (§7.1) ───────────────────────────────
+
+/// §7.1 `appearance: none`: the control is drawn without its native
+/// chrome — rdom's toggle marks, button brackets and the select's `▾` are
+/// the UA's `::before` / `::after` rules, which it no longer takes — so
+/// author CSS draws it; an author `::before` still applies. `auto`, `base`
+/// and the compat keywords keep the chrome; `-webkit-appearance` is the
+/// legacy name.
+#[test]
+fn appearance_none_strips_the_pseudo_element_chrome() {
+    let render = |css: &str| {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        input(&mut dom, root, "checkbox", true);
+        let b = dom.create_element("button");
+        let t = dom.create_text_node("OK");
+        dom.append_child(b, t).unwrap();
+        dom.append_child(root, b).unwrap();
+        let s = dom.create_element("select");
+        let o = dom.create_element("option");
+        dom.set_attribute(o, "selected", "").unwrap();
+        let ot = dom.create_text_node("one");
+        dom.append_child(o, ot).unwrap();
+        dom.append_child(s, o).unwrap();
+        dom.append_child(root, s).unwrap();
+        let buf = paint(
+            &mut dom,
+            &format!("input, button {{ display: block }} {css}"),
+            30,
+            4,
+        );
+        rows(&buf)
+    };
+    let chrome = render("");
+    assert_eq!(chrome[..2], ["[x]", "[ OK ]"]);
+    assert!(chrome[2].contains('▾'), "{chrome:?}");
+    for css in [
+        "input, button, select { appearance: none }",
+        "input, button, select { -webkit-appearance: none }",
+    ] {
+        let bare = render(css);
+        assert_eq!(bare[..2], ["", "OK"], "{css}");
+        assert!(!bare[2].contains('▾'), "{css}: {bare:?}");
+    }
+    for css in [
+        "input, button, select { appearance: auto }",
+        "input, button, select { appearance: base }",
+        "input { appearance: checkbox } button { appearance: button }",
+    ] {
+        assert_eq!(render(css), chrome, "{css}");
+    }
+    let authored = render("input { appearance: none } input::before { content: '✓' }");
+    assert_eq!(authored[0], "✓");
+}
+
+/// §7.1: a progress bar's and a range slider's chrome is their painted
+/// bar and track; under `appearance: none` they draw nothing.
+#[test]
+fn appearance_none_strips_painted_chrome() {
+    let render = |css: &str| {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let p = dom.create_element("progress");
+        dom.set_attribute(p, "value", "1").unwrap();
+        dom.append_child(root, p).unwrap();
+        input(&mut dom, root, "range", false);
+        rdom_tui::runtime::builtins::range::attach_all(&mut dom);
+        let buf = paint(
+            &mut dom,
+            &format!("progress, input {{ width: 6 }} {css}"),
+            8,
+            2,
+        );
+        rows(&buf)
+    };
+    let chrome = render("");
+    assert!(!chrome[0].is_empty() && !chrome[1].is_empty(), "{chrome:?}");
+    assert_eq!(render("progress, input { appearance: none }"), ["", ""]);
+}

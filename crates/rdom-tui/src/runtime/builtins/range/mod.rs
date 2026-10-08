@@ -172,7 +172,8 @@ pub fn set_value(dom: &mut TuiDom, input: NodeId, v: f64) {
 fn paint_track(dom: &Dom<TuiExt>, input: NodeId, ctx: &mut canvas::RenderContext<'_>) {
     let style = style_from_dom(dom, input);
     let w = ctx.width();
-    if w == 0 || ctx.height() == 0 {
+    // CSS UI 4 §7.1: `appearance: none` draws no track or thumb.
+    if w == 0 || ctx.height() == 0 || crate::style::accent::appearance_none(dom, input) {
         return;
     }
     for x in 0..w {

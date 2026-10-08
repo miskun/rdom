@@ -6,7 +6,8 @@ use super::color::parse_color;
 use super::keyword::parse_keyword;
 use super::numeric::{components, split_commas};
 use crate::layout::{
-    AccentColor, CaretAnimation, CaretColor, CaretShape, Cursor, CursorImage, CursorKeyword,
+    AccentColor, Appearance, CaretAnimation, CaretColor, CaretShape, Cursor, CursorImage,
+    CursorKeyword,
 };
 use crate::parse::token::Token;
 
@@ -112,4 +113,9 @@ pub fn parse_caret(value: &[Token]) -> Option<(CaretColor, CaretAnimation, Caret
 pub fn parse_accent_color(value: &[Token]) -> Option<AccentColor> {
     parse_keyword(value, &[("auto", AccentColor::Auto)])
         .or_else(|| parse_color(value).map(AccentColor::Color))
+}
+
+/// `appearance` (§7.1).
+pub fn parse_appearance(value: &[Token]) -> Option<Appearance> {
+    parse_keyword(value, Appearance::KEYWORDS)
 }

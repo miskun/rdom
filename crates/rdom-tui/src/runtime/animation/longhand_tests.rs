@@ -100,6 +100,7 @@ const SAMPLES: &[(&str, &str, &str, Mid)] = &[
     ("cursor", "pointer", "help", Flips),
     ("caret-shape", "bar", "block", Flips),
     ("caret-animation", "auto", "manual", Flips),
+    ("appearance", "auto", "none", Flips),
     (
         "accent-color",
         "rgb(0, 0, 0)",

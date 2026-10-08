@@ -140,6 +140,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "caret-animation" => &[CaretAnimation],
         "caret" => &[CaretColor, CaretAnimation, CaretShape],
         "accent-color" => &[AccentColor],
+        "appearance" | "-webkit-appearance" => &[Appearance],
         "overflow" => &[OverflowX, OverflowY],
         "overflow-x" => &[OverflowX],
         "overflow-y" => &[OverflowY],

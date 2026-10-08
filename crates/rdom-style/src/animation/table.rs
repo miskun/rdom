@@ -104,6 +104,8 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("caret-animation", Discrete, steps!(ui.caret_animation)),
     // CSS UI 4 §6.3
     e("accent-color", ByComputedValue, value!(ui.accent_color)),
+    // CSS UI 4 §7.1
+    e("appearance", Discrete, steps!(ui.appearance)),
     // CSS Overflow 3 / 4, Scrollbars 1, Overscroll 1, Scroll Snap 1
     e(
         "overflow-x",

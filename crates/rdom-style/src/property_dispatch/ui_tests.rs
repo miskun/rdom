@@ -230,3 +230,32 @@ fn accent_color_is_auto_or_a_color() {
     }
     assert!(inherits("accent-color"));
 }
+
+/// §7.1: `appearance: none | auto | base | <compat-auto> |
+/// <compat-special>`, and the legacy `-webkit-appearance` (one storage);
+/// not inherited.
+#[test]
+fn appearance_keywords_and_the_legacy_name() {
+    use crate::layout::Appearance;
+    let mut style = TuiStyle::new();
+    for (name, kw) in Appearance::KEYWORDS {
+        set("appearance", name, &mut style).unwrap();
+        assert_eq!(spec(&style.ui.appearance), Some(*kw), "{name}");
+        assert_eq!(serialize("appearance", &style).as_deref(), Some(*name));
+    }
+    set("-webkit-appearance", "NONE", &mut style).unwrap();
+    assert_eq!(spec(&style.ui.appearance), Some(Appearance::None));
+    assert_eq!(
+        serialize("-webkit-appearance", &style).as_deref(),
+        Some("none")
+    );
+    assert!(Appearance::None.is_none() && !Appearance::Base.is_none());
+    for bad in ["slider-vertical", "none auto", "-webkit-none"] {
+        assert_eq!(
+            set("appearance", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+    assert!(!inherits("appearance"));
+}

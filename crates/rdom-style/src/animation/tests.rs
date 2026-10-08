@@ -105,6 +105,8 @@ const SPEC: &[(&str, Spec)] = &[
     ("caret-animation", L(D)),
     ("caret", S),
     ("accent-color", L(V)),
+    ("appearance", L(D)),
+    ("-webkit-appearance", S),
     // CSS Overflow 3 / 4
     ("overflow", S),
     ("overflow-x", L(D)),

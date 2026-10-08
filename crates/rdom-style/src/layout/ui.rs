@@ -109,6 +109,8 @@ pub struct UiStyle {
     pub caret_animation: CaretAnimation,
     /// `accent-color` (§6.3). Inherited.
     pub accent_color: AccentColor,
+    /// `appearance` (§7.1). Not inherited.
+    pub appearance: Appearance,
 }
 
 impl Default for UiStyle {
@@ -122,6 +124,7 @@ impl Default for UiStyle {
             caret_shape: CaretShape::Auto,
             caret_animation: CaretAnimation::Auto,
             accent_color: AccentColor::Auto,
+            appearance: Appearance::Auto,
         }
     }
 }
@@ -330,4 +333,63 @@ pub enum AccentColor {
     #[default]
     Auto,
     Color(crate::TuiColor),
+}
+
+/// `appearance` (CSS UI 4 §7.1): `none | auto | base | <compat-auto> |
+/// <compat-special>`. Not inherited; initial `auto`. Only `none` changes
+/// what rdom draws ([`is_none`](Self::is_none)): the control drops its
+/// UA chrome. `base` (the WD's restylable base appearance) and the compat
+/// keywords are `auto` for rdom, whose controls are drawn with CSS.
+///
+/// Closed (DESIGN): every keyword of the grammar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub enum Appearance {
+    None,
+    #[default]
+    Auto,
+    Base,
+    Searchfield,
+    Textarea,
+    Checkbox,
+    Radio,
+    Menulist,
+    Listbox,
+    Meter,
+    ProgressBar,
+    Button,
+    Textfield,
+    MenulistButton,
+}
+
+impl Appearance {
+    /// Every keyword with its CSS spelling.
+    pub const KEYWORDS: &'static [(&'static str, Appearance)] = &[
+        ("none", Appearance::None),
+        ("auto", Appearance::Auto),
+        ("base", Appearance::Base),
+        ("searchfield", Appearance::Searchfield),
+        ("textarea", Appearance::Textarea),
+        ("checkbox", Appearance::Checkbox),
+        ("radio", Appearance::Radio),
+        ("menulist", Appearance::Menulist),
+        ("listbox", Appearance::Listbox),
+        ("meter", Appearance::Meter),
+        ("progress-bar", Appearance::ProgressBar),
+        ("button", Appearance::Button),
+        ("textfield", Appearance::Textfield),
+        ("menulist-button", Appearance::MenulistButton),
+    ];
+
+    /// The keyword's CSS spelling.
+    pub fn keyword(self) -> &'static str {
+        Self::KEYWORDS
+            .iter()
+            .find(|(_, k)| *k == self)
+            .map_or("auto", |(name, _)| name)
+    }
+
+    /// Whether the control is drawn without its native (UA) chrome.
+    pub fn is_none(self) -> bool {
+        self == Appearance::None
+    }
 }

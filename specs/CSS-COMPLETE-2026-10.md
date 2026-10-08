@@ -248,7 +248,7 @@ row comes from.
 | C12-CURSOR | `cursor` (OSC 22 pointer shapes) | done |
 | C12-CARET | `caret-shape` / `caret-animation` / `caret` | done |
 | C12-FOCUS-FLUSH | `focus()` (and other style-reading DOM calls) flushes pending style for the element first, as browsers do — TECH_DEBT `FOCUS-FLUSH-1`; needs the sheet set / transition registry / dirty tracker reachable from a handler's `Dom` | done |
-| C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | partial — `accent-color` done; `appearance`, `field-sizing`, `resize` next |
+| C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | partial — `accent-color`, `appearance` done; `field-sizing`, `resize` next |
 
 ### Phase 13 — Tables (audit §3.20)
 
@@ -7963,3 +7963,17 @@ row comes from.
   paint changes (`auto` everywhere). Red, by mutation of the finished code (an accent never resolving):
   both `css_phase12/controls.rs` tests fail at the checked checkbox and the progress bar; dispatch pinned by
   `ui_tests::accent_color_is_auto_or_a_color`. Remaining: `appearance`, `field-sizing`, `resize`.
+- 2026-10-17 — C12-CONTROLS (2/4), `appearance` (CSS UI 4 §7.1). rdom-style: `none | auto | base |
+  <compat-auto> | <compat-special>` (`Appearance`, not inherited, discrete) and the legacy alias
+  `-webkit-appearance` on the same storage (as `word-wrap` is `overflow-wrap`'s). "Chrome", per built-in —
+  defined because a browser's "native appearance" is a platform widget and rdom's is CSS and paint: the
+  toggles' marks, the buttons' `[ ` / ` ]` and a drop-down `<select>`'s `▾` are the UA origin's `::before` /
+  `::after` rules (`style::accent::draws_pseudo_chrome` names those controls), which a control with
+  `appearance: none` does not take — `compute_pseudo_style` drops the UA rules from its gather
+  (`Scratch::drop_user_agent`, `sorted` and `ranks` together; the ladder comes from the author rules, and
+  what the gather recorded for reuse is untouched), so an author `::before` still draws; the gauges' bar
+  (the inline chrome supplier gives empty text) and the range track (its canvas paint) are the painted
+  chrome. A text field's `Field` background is ordinary UA CSS and stays (browsers keep the UA's
+  declarations under `none`). `base` and the compat keywords are `auto`. Red, by mutation of the finished
+  code (no control counted as chrome, no `none` read by paint): both appearance tests in
+  `css_phase12/controls.rs` fail; dispatch pinned by `ui_tests::appearance_keywords_and_the_legacy_name`.

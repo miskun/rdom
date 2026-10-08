@@ -61,6 +61,16 @@ pub(super) fn compute_pseudo_style(
     // Collect matching rules for this pseudo across all sheets, with
     // sheet_idx as the secondary tiebreaker.
     cx.scratch.gather(dom, cx.sheets, id, targets, rules);
+    // CSS UI 4 §7.1: a control drawn with `appearance: none` does not take
+    // its chrome — the UA's `::before` / `::after` rules for it.
+    if matches!(
+        target,
+        PseudoElementTarget::Before | PseudoElementTarget::After
+    ) && host_computed.ui.appearance.is_none()
+        && crate::style::accent::draws_pseudo_chrome(dom, id)
+    {
+        cx.scratch.drop_user_agent();
+    }
     let fallback = legacy_content(dom, id, target);
     // A keyframe style's keyframe, in the animation origin.
     if !cx.sheets.animation().is_empty() {

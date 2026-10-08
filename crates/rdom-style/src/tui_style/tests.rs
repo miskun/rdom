@@ -318,6 +318,7 @@ fn every_property_has_important_setter() {
         .caret_shape_important(crate::layout::CaretShape::Bar)
         .caret_animation_important(crate::layout::CaretAnimation::Manual)
         .accent_color_important(crate::layout::AccentColor::Auto)
+        .appearance_important(crate::layout::Appearance::None)
         .overscroll_behavior_x_important(crate::layout::OverscrollBehavior::Contain)
         .overscroll_behavior_y_important(crate::layout::OverscrollBehavior::None)
         .scroll_padding_top_important(crate::layout::ScrollPadding::Auto)

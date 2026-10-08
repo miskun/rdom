@@ -302,6 +302,24 @@ impl<'a> Scratch<'a> {
     }
 
     /// Whether a rule the last `gather` kept satisfies `f`.
+    /// Drop the user-agent rules from the last gather — `sorted` and its
+    /// parallel `ranks` together; the ladder is built from the author
+    /// rules alone, so it stands. What a gather recorded for reuse is
+    /// untouched.
+    pub(super) fn drop_user_agent(&mut self) {
+        let mut ranks = self.ranks.iter();
+        let mut kept = Vec::with_capacity(self.ranks.len());
+        self.sorted.retain(|r| {
+            let rank = ranks.next().copied().unwrap_or_default();
+            let keep = r.origin != crate::style::RuleOrigin::UserAgent;
+            if keep {
+                kept.push(rank);
+            }
+            keep
+        });
+        self.ranks = kept;
+    }
+
     pub(super) fn matched_any(&self, f: impl Fn(&Rule) -> bool) -> bool {
         self.sorted.iter().any(|r| f(r))
     }

@@ -3,8 +3,8 @@
 
 use crate::Value;
 use crate::layout::{
-    AccentColor, BorderWidth, CaretAnimation, CaretShape, Cursor, OutlineColor, OutlineStyle,
-    PaintLength,
+    AccentColor, Appearance, BorderWidth, CaretAnimation, CaretShape, Cursor, OutlineColor,
+    OutlineStyle, PaintLength,
 };
 
 /// The CSS Basic User Interface 4 properties a
@@ -32,4 +32,6 @@ pub struct UiDeclarations {
     pub caret_animation: Option<Value<CaretAnimation>>,
     /// `accent-color` (§6.3).
     pub accent_color: Option<Value<AccentColor>>,
+    /// `appearance` (§7.1), and its legacy name `-webkit-appearance`.
+    pub appearance: Option<Value<Appearance>>,
 }

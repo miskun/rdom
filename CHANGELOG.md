@@ -367,6 +367,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`appearance`** (CSS UI 4 §7.1) and its legacy name `-webkit-appearance`: `none | auto | base` and the compat keywords, not inherited, discrete (`Appearance`). (C12-CONTROLS)
 - **`accent-color`** (CSS UI 4 §6.3): `auto | <color>`, inherited, interpolated between colors (`AccentColor` in `ComputedStyle::ui`). (C12-CONTROLS)
 - **`caret-shape`, `caret-animation` and the `caret` shorthand** (CSS UI 4 §6.2): `auto | bar | block | underscore` and `auto | manual`, inherited and discrete (`CaretShape`, `CaretAnimation` in `ComputedStyle::ui`), the shorthand also setting `caret-color`; `parse_caret_color` is the one `caret-color` parser. (C12-CARET)
 - **`cursor`** (CSS UI 4 §4.1): every `<cursor-predefined>` keyword after `url()` fallbacks with optional hotspots (kept and serialized; a terminal draws no image), inherited, discrete — `Cursor`, `CursorKeyword`, `CursorImage` in `ComputedStyle::ui`. (C12-CURSOR)
@@ -580,6 +581,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **`appearance: none`** (CSS UI 4 §7.1): a checkbox, radio, button or drop-down `<select>` drops the UA's `::before` / `::after` chrome (`[x] `, `[ … ]`, `▾`) so author CSS draws it, and `<progress>`, `<meter>` and a range slider draw no bar or track. (C12-CONTROLS)
 - **`accent-color` tints the controls** (CSS UI 4 §6.3): a checked checkbox's or radio's mark, the range slider and the progress bar draw in the element's accent; `auto` keeps the UA colors and `<meter>` its zone colors. (C12-CONTROLS)
 - **Caret shapes and a steady caret** (CSS UI 4 §6.2): the painted caret takes `caret-shape` — `block` (and `auto`) a cell, `underscore` an underline in `caret-color`, `bar` a `▏` on a blank cell and the underline over a glyph — and `caret-animation: manual` stops the blink, with no wakeups for it. (C12-CARET)
 - **`cursor` sets the terminal pointer** (CSS UI 4 §4.1): the `App` sends the shape of the element under the pointer over OSC 22 to kitty, foot, WezTerm and Ghostty (`PointerShapes::detect`, `App::with_pointer_shapes`), `default` back on exit or panic; `auto` is the text pointer over selectable text, and links show `pointer` (HTML §15.3.4). (C12-CURSOR)

@@ -60,6 +60,8 @@ const PROPERTY_NAMES: &[&str] = &[
     "caret-animation",
     "caret",
     "accent-color",
+    "appearance",
+    "-webkit-appearance",
     // Layout — overflow
     "overflow",
     "overflow-x",

@@ -1,5 +1,7 @@
-//! `accent-color` (CSS UI 4 §6.3): the accent of the form controls' UA
-//! chrome. rdom's chrome is in the UA sheet (a toggle's mark is its
+//! The form controls' UA chrome under CSS UI 4: what `accent-color`
+//! (§6.3) tints and what `appearance: none` (§7.1) strips.
+//!
+//! `accent-color` is the accent of the controls' chrome. rdom's chrome is in the UA sheet (a toggle's mark is its
 //! `::before` text) and the built-ins' paint (a progress bar, a range
 //! slider), so each reads the element's used accent here: its
 //! `accent-color` resolved against the element — `None` for `auto`, which
@@ -51,4 +53,34 @@ pub(crate) fn tint_mark(
     if let Some(accent) = resolve(host, crate::style::CascadeExt::color_scheme(dom)) {
         before.fg = accent;
     }
+}
+
+/// Whether element `id` is a control whose UA chrome is generated
+/// content — the toggles' marks, the buttons' brackets, a drop-down
+/// `<select>`'s `▾` — which `appearance: none` (CSS UI 4 §7.1) strips.
+pub(crate) fn draws_pseudo_chrome(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    match dom.node(id).tag_name() {
+        Some("button" | "select") => true,
+        Some("input") => matches!(
+            dom.input_type_state(id),
+            Some(
+                InputTypeState::Checkbox
+                    | InputTypeState::Radio
+                    | InputTypeState::Button
+                    | InputTypeState::Submit
+                    | InputTypeState::Reset
+                    | InputTypeState::Image
+            )
+        ),
+        _ => false,
+    }
+}
+
+/// Whether element `id` (its last computed style) is drawn without its
+/// UA chrome (`appearance: none`, CSS UI 4 §7.1).
+pub(crate) fn appearance_none(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    dom.node(id)
+        .ext()
+        .and_then(|e| e.computed.as_deref())
+        .is_some_and(|c| c.ui.appearance.is_none())
 }

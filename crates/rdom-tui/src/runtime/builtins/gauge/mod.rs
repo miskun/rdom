@@ -186,6 +186,14 @@ pub fn override_fg(base: ComputedStyle, color: Option<Color>) -> ComputedStyle {
 /// `None` for anything that is not a gauge.
 pub(crate) fn inline_chrome(dom: &TuiDom, id: NodeId, width: u16) -> Option<ChromeText> {
     let (text, fg) = gauge_text(dom, id, width)?;
+    // CSS UI 4 §7.1: under `appearance: none` the bar is not drawn; the
+    // gauge's content stays fallback, unpainted.
+    if crate::style::accent::appearance_none(dom, id) {
+        return Some(ChromeText {
+            text: String::new(),
+            fg: None,
+        });
+    }
     Some(ChromeText { text, fg })
 }
 
