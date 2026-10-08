@@ -320,6 +320,9 @@ fn style_element<'a>(
         };
     }
     counters.note_ops(previous.as_deref(), Some(&computed));
+    if computed.list_item {
+        crate::style::doc_flags::note_list_item(dom);
+    }
 
     // Compute under a shared borrow. `::after` is computed after the
     // children (`finish_element`): it sits after them in tree order, so

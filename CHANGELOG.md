@@ -680,6 +680,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **A `::before` / `::after` flex item is a box of its own** (CSS Flexbox §4): its sizes, `flex`, `order`, margins, padding, border, alignment and background apply. (C6G-PSEUDO-FLEX-ITEMS)
 - **`align-content` moves inline content, and `justify-self` / `align-self` place absolutely positioned boxes** (CSS Box Alignment 3 §5.1 / §6.1 / §6.2): lines and their atoms move like block content; an abspos box aligns in its inset-modified containing block, an aligned `auto` size `fit-content`. (C6G-DOCS)
 - **Small layout and scroll fixes**: a scroll container's last baseline in a flex line is its block-end margin edge (CSS Box Alignment 3 §9.1); no intrinsic `row-gap` beside an inline child; an `rtl` / reversed caret reveal keeps its origin side. (C6G-MINOR)
+- **Laying out many sibling blocks is linear again**: placing list markers (CSS Lists 3 §3.5) walked a parent's whole box sequence for every packed line — 8 million box visits for 2000 rows, now 18 000 — and is skipped in a document with no list item. (C10G-MARKER-COST)
 
 ### Changed — `rdom-showcase`
 

@@ -24,6 +24,10 @@ use crate::layout::{Display, ListStylePosition, MarkerSide, TextDirection};
 use crate::node::TuiNodeExt;
 use crate::render::box_tree::BoxItem;
 
+#[cfg(test)]
+#[path = "markers_tests.rs"]
+mod tests;
+
 /// A list item's marker: the item, the marker's text (its `::marker`
 /// `content`) and whether it hangs outside.
 #[derive(Debug, Clone, Copy)]
@@ -89,7 +93,15 @@ fn first_line_holder(dom: &Dom<TuiExt>, el: NodeId) -> Option<NodeId> {
 
 /// The markers riding `holder`'s first line, outermost item first:
 /// `holder`'s own, and those of the ancestors whose first line it holds.
+///
+/// A document with no list item has none to place: the climb is skipped
+/// (`style::doc_flags`), and each step finds the parent's first
+/// line-bearing child from its start, so a row among thousands of
+/// siblings costs a step, not a walk of them (C10G-MARKER-COST).
 pub(crate) fn line_markers(dom: &Dom<TuiExt>, holder: NodeId) -> Vec<Marker<'_>> {
+    if !crate::style::doc_flags::has_list_items(dom) {
+        return Vec::new();
+    }
     let mut items = Vec::new();
     if marker_line_holder(dom, holder) == Some(holder) {
         items.push(holder);
@@ -99,6 +111,8 @@ pub(crate) fn line_markers(dom: &Dom<TuiExt>, holder: NodeId) -> Vec<Marker<'_>>
     // path can an ancestor's first line be `holder`'s.
     let mut cur = holder;
     while let Some(parent) = crate::render::box_tree::box_parent(dom, cur) {
+        #[cfg(test)]
+        tests::CLIMB_STEPS.with(|c| c.set(c.get() + 1));
         if !is_block_flow_container(dom, parent)
             || before_is_inline_content(dom, parent)
             || line_bearing_child(dom, parent, false) != Some(BoxItem::Node(cur))

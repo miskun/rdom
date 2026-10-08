@@ -6473,3 +6473,23 @@ row comes from.
   `Default`) + `computed/queries.rs` 55 (`flex_direction`, `is_scroll_container`, `is_atomic_inline`,
   `clips_overflow`, `normalize_overflow`). TECH_DEBT `SIZE-1` recounted against the tree (21 files between
   500 and 575, none past). Public paths unchanged; no test or snapshot changed.
+- 2026-10-13 — C10G-MARKER-COST (architect B1). Found: `line_markers` (CSS Lists 3 §3.5: a marker rides the
+  first line of the block holding the item's first line box) climbed from every packed and measured flow,
+  in every document, and each step's `line_bearing_child` built the parent's whole `box_sequence` Vec — a
+  row among N siblings visited all N. Fixed at the root, two parts: (1) `box_tree::find_in_sequence` finds
+  the first (last) accepted item of a box sequence by walking the child list in place from that end — the
+  same items `box_sequence` yields, through box-less children (`find_in_sequence_agrees_with_box_sequence`
+  pins it against `box_sequence` both ways) — so `line_bearing_child` and its callers (the climb,
+  `first_line_holder`, `inline_content_at_edge`, `run_pseudos`, `own_line_pseudos`) stop at the first
+  line-bearing item and allocate nothing; (2) the climb runs only in a document with a list item: a new
+  document flag (`style::doc_flags`, document data, the first of the cascade's document-wide facts) is set
+  when an element computes `list_item`, and is conservative like the `tree_has_*` flags (never cleared).
+  Decision: a document flag, not a per-node "inside a list item" bit — the bit would need its own
+  invalidation when an ancestor's `display` changes in a partial cascade, and with (1) a climb step is O(1)
+  anyway. Red: `box_tree_tests::sibling_rows_lay_out_in_linear_box_tree_visits` (≤ 16 visits per row
+  for 2000 sibling `<div>row</div>` in a `<div>`) failed with 8 018 000 visits (81 800 for 200). Green:
+  18 000 with no list item, 26 000 with every row a list item, 22 002 with one list item elsewhere. Pin
+  added: `markers_tests::the_marker_climb_runs_only_in_a_document_with_list_items` (0 steps without, > 0
+  with). Mutation (each alone, restored, touched): the eager `box_sequence` lookup → the visit test fails
+  (8 022 000 for the list-item rows); the gate removed → the climb test (6 steps for 0). No existing
+  expectation or snapshot changed.

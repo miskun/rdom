@@ -100,6 +100,65 @@ pub(crate) fn box_sequence(dom: &Dom<TuiExt>, id: NodeId) -> Vec<BoxItem> {
     out
 }
 
+/// The first (`from_end = false`) or last item of `id`'s [`box_sequence`]
+/// that `pred` accepts, found by walking the child list in place from that
+/// end: it visits the items before the one it finds, not the whole
+/// sequence, and allocates nothing (C10G-MARKER-COST — a line's lookups
+/// run once per packed flow, and a whole sequence per lookup made sibling
+/// rows quadratic).
+pub(crate) fn find_in_sequence(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    from_end: bool,
+    pred: &mut dyn FnMut(BoxItem) -> bool,
+) -> Option<BoxItem> {
+    let own = crate::render::inline::generated::sequence_pseudos(dom, id);
+    find_framed(dom, id, (own.before, own.after), from_end, pred)
+}
+
+/// [`find_in_sequence`] over `id`'s box-tree children framed by its
+/// `::before` / `::after` items where `pseudos` has them.
+fn find_framed(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    (before, after): (bool, bool),
+    from_end: bool,
+    pred: &mut dyn FnMut(BoxItem) -> bool,
+) -> Option<BoxItem> {
+    let before = before.then_some(BoxItem::Generated(id, PseudoSlot::Before));
+    let after = after.then_some(BoxItem::Generated(id, PseudoSlot::After));
+    let (lead, trail) = if from_end {
+        (after, before)
+    } else {
+        (before, after)
+    };
+    if let Some(g) = lead.filter(|&g| pred(g)) {
+        return Some(g);
+    }
+    let mut each = |child: NodeId| {
+        visit();
+        if is_hidden_text(dom, id, child) {
+            return None;
+        }
+        // A box-less child holding a block-level box is its items in its
+        // place, between its inline-level `::before` / `::after`
+        // ([`push_sequence`]); any other child is one item.
+        if is_contents(dom, child) && holds_block_box(dom, child) {
+            let p = crate::render::inline::generated::inline_level_pseudos(dom, child);
+            return find_framed(dom, child, (p.before, p.after), from_end, pred);
+        }
+        let item = BoxItem::Node(child);
+        pred(item).then_some(item)
+    };
+    let mut children = PaintOrder::tree(dom, id);
+    let found = if from_end {
+        children.rev().find_map(&mut each)
+    } else {
+        children.find_map(&mut each)
+    };
+    found.or_else(|| trail.filter(|&g| pred(g)))
+}
+
 /// Push `id`'s box-tree children onto `out`; whether they include a
 /// block-level box. One walk decides and collects: a box-less child's
 /// items are collected in place and kept when they hold a block box,

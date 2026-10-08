@@ -254,7 +254,8 @@ pub(crate) fn run_pseudos(
 /// `host`'s first (`from_end = false`) or last in-flow box item that
 /// can hold content of a line (see [`bears_line`]), in box-tree order
 /// (`box_tree::box_sequence`: a generated item of a box-less child
-/// holds its text).
+/// holds its text) — found from that end, without building the sequence
+/// (`box_tree::find_in_sequence`).
 pub(super) fn line_bearing_child(
     dom: &Dom<TuiExt>,
     host: NodeId,
@@ -265,12 +266,7 @@ pub(super) fn line_bearing_child(
         // A float holds no line (CSS 2.1 §9.5).
         BoxItem::Generated(h, slot) => !is_float_pseudo(dom, h, slot.into()),
     };
-    let children = crate::render::box_tree::box_sequence(dom, host);
-    if from_end {
-        children.into_iter().rev().find(bears)
-    } else {
-        children.into_iter().find(bears)
-    }
+    crate::render::box_tree::find_in_sequence(dom, host, from_end, &mut |c| bears(&c))
 }
 
 /// Whether `child`, a child node of `host`, can hold content of a line:

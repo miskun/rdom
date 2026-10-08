@@ -124,3 +124,102 @@ fn paint_order_allocates_only_for_reordered_items() {
     let back: Vec<_> = super::paint_order_children(&dom, flex).rev().collect();
     assert_eq!(back, [items[1], items[0], items[2]]);
 }
+
+/// The box-tree visits a layout of `rows` sibling `<div>row</div>` blocks in
+/// one plain block container makes (`sheet` cascaded first).
+fn layout_visits(rows: usize, sheet: &str) -> usize {
+    use crate::prelude::*;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let list = dom.create_element("div");
+    dom.set_attribute(list, "class", "list").unwrap();
+    dom.append_child(root, list).unwrap();
+    for _ in 0..rows {
+        let row = dom.create_element("div");
+        let t = dom.create_text_node("row");
+        dom.append_child(row, t).unwrap();
+        dom.append_child(list, row).unwrap();
+    }
+    dom.cascade(&rdom_css::from_css_strict(sheet).unwrap());
+    VISITS.with(|c| c.set(0));
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    VISITS.with(std::cell::Cell::get)
+}
+
+/// C10G-MARKER-COST — a list item's marker rides the first line of the
+/// block holding it (CSS Lists 3 §3.5), so placing markers climbs from a
+/// packed line toward list-item ancestors. A document with no list item
+/// must not pay for that: 2000 sibling rows in a plain `<div>` cost a
+/// bounded number of box-tree visits per row (each row's pack climbed to
+/// its parent and rebuilt the parent's whole box sequence — quadratic).
+#[test]
+fn sibling_rows_lay_out_in_linear_box_tree_visits() {
+    for sheet in [
+        "",
+        // Every row a list item: each marker rides its own row's line.
+        ".list > div { display: list-item }",
+        // A list item elsewhere: the climb runs for every row.
+        ".list > div:first-child { display: list-item }",
+    ] {
+        let (small, large) = (layout_visits(200, sheet), layout_visits(2000, sheet));
+        assert!(
+            large <= 16 * 2000,
+            "{sheet:?}: {large} visits for 2000 rows ({small} for 200)"
+        );
+    }
+}
+
+/// `find_in_sequence` finds what a search of `box_sequence` finds, from
+/// either end, through box-less children that hold a block box (their
+/// items in place, between their inline-level pseudo-elements) and those
+/// that do not (one item), skipping a closed `<details>`' hidden text.
+#[test]
+fn find_in_sequence_agrees_with_box_sequence() {
+    use crate::prelude::*;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("div");
+    dom.append_child(root, host).unwrap();
+    // host: span.c("a"), div.c[ p("b"), span("c") ], "  "
+    let add = |dom: &mut TuiDom, parent, tag: &str, class: &str, text: Option<&str>| {
+        let el = dom.create_element(tag);
+        if !class.is_empty() {
+            dom.set_attribute(el, "class", class).unwrap();
+        }
+        if let Some(text) = text {
+            let t = dom.create_text_node(text);
+            dom.append_child(el, t).unwrap();
+        }
+        dom.append_child(parent, el).unwrap();
+        el
+    };
+    add(&mut dom, host, "span", "c", Some("a"));
+    let boxless = add(&mut dom, host, "div", "c", None);
+    add(&mut dom, boxless, "p", "", Some("b"));
+    add(&mut dom, boxless, "span", "", Some("c"));
+    let ws = dom.create_text_node("  ");
+    dom.append_child(host, ws).unwrap();
+    let sheet = rdom_css::from_css_strict(
+        ".c { display: contents } .c::before { content: \"[\" } .c::after { content: \"]\" }\
+         div::after { content: \"z\"; display: block }",
+    )
+    .unwrap();
+    dom.cascade(&sheet);
+    let seq = super::box_sequence(&dom, host);
+    assert!(seq.len() >= 5, "{seq:?}");
+    let preds: [&dyn Fn(super::BoxItem) -> bool; 3] = [&|_| true, &|i| i.node().is_none(), &|i| {
+        i.node()
+            .is_some_and(|n| dom.node(n).tag_name() == Some("p"))
+    }];
+    for pred in preds {
+        for from_end in [false, true] {
+            let want = if from_end {
+                seq.iter().rev().copied().find(|&i| pred(i))
+            } else {
+                seq.iter().copied().find(|&i| pred(i))
+            };
+            let got = super::find_in_sequence(&dom, host, from_end, &mut |i| pred(i));
+            assert_eq!(got, want, "from_end {from_end}");
+        }
+    }
+}
