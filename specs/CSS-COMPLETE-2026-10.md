@@ -39,7 +39,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 7 | Grid | done 2026-10-09 (both gates; 15 gate fixes `C7G-*`; their re-review rides with the Phase 8 gate) |
 | 8 | Positioning, floats, overflow, scrolling | done 2026-10-10 (both gates; 15 gate fixes `C8G-*`; their re-review rides with the Phase 9 gate) |
 | 9 | Inline text and decoration | done 2026-10-12 (both gates; 14 gate fixes `C9G-*`; their re-review rides with the Phase 10 gate) |
-| 10 | Lists, counters, generated content, pseudo-elements | |
+| 10 | Lists, counters, generated content, pseudo-elements | items done, gates pending (C10-DETAILS-CONTENT and C10-PSEUDO-CHAINS partial) |
 | 11 | Selectors | |
 | 12 | Transitions, animations, user interface | |
 | 13 | Tables (real table formatting context) | |
@@ -6422,3 +6422,14 @@ row comes from.
   (`text-indent: calc(50% + 2)` against `text-indent: 2`, `cascade_allocations` as the family-list test). Green
   after. Mutation: HEAD's `Box` is the reverse change (the red run). Changed expectations: three tests build a
   `Length::Calc` (`Length::calc(…)` / `.into()`); no behaviour or snapshot changed.
+- 2026-10-13 — Phase 10 part 2 closed (C10-PSEUDO-UNIFY, -FIRST in three parts, -HIGHLIGHT in two,
+  -DETAILS-CONTENT, -PSEUDO-CHAINS, and C9-CARRY-INDENT from the Phase 9 close): every Phase 10 row is done but
+  two, honestly partial — C10-DETAILS-CONTENT (the slot is no box) and C10-PSEUDO-CHAINS (nested
+  pseudo-elements). CSS-COVERAGE §3.15 10 / 0 / 0 / 2, §3.16 8 / 2 / 0 / 6, total 196 / 15 / 51 / 45; ACID
+  tiles 9 and 17 extended and an interactive step I12 added. Open for the Phase 10 gate: the
+  `::details-content` slot box (a generated block holding element content; DIVERGENCES §2); `::before::marker`
+  / `::after::marker` (DIVERGENCES §3); `HIGHLIGHT-COST-1` (TECH_DEBT: overlay cost fragments × ranges);
+  outside markers outside the hit-test set, so `::marker:hover` reaches inside markers only (DIVERGENCES §2);
+  whether an inherited `calc()` `letter-spacing` / `word-spacing` / `line-height` clones per element as
+  `text-indent` did (C9-CARRY-INDENT); and the re-review of the Phase 9 gate fixes (`C9G-*`) that rides with
+  this gate.
