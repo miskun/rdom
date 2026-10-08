@@ -17,17 +17,20 @@ use crate::layout::{Display, Position, ZIndex};
 use crate::render::Rect;
 
 /// An ancestor on the walk from the context root down: whether it is
-/// positioned (a containing-block candidate) and the clip its content
-/// paints into.
+/// positioned (a containing-block candidate), the clip its content paints
+/// into and the clip it paints in (its captions', for a table —
+/// `child_clip`).
 #[derive(Clone, Copy)]
 struct Frame {
     positioned: bool,
     content_clip: Rect,
+    own_clip: Rect,
 }
 
 /// Gather the positioned descendants that belong to the stacking
 /// context rooted at `root`, and its units' background-phase boxes and
-/// floats. `content_clip` is the clip the root's content paints into;
+/// floats. `content_clip` is the clip the root's content paints into,
+/// `own_clip` the clip it paints in;
 /// `viewport` the document's clip (the clip of `position: fixed`
 /// descendants).
 ///
@@ -38,7 +41,7 @@ struct Frame {
 pub(crate) fn collect_layers(
     dom: &Dom<TuiExt>,
     root: NodeId,
-    content_clip: Rect,
+    (content_clip, own_clip): (Rect, Rect),
     viewport: Rect,
 ) -> Layers {
     let mut layers = Layers::default();
@@ -50,6 +53,7 @@ pub(crate) fn collect_layers(
     let chain = vec![Frame {
         positioned: root_positioned,
         content_clip,
+        own_clip,
     }];
     let mut walk = Walk {
         dom,
@@ -124,13 +128,16 @@ impl Walk<'_> {
             if dom.is_in_top_layer(cid) {
                 continue;
             }
-            let current = self.content_clip();
+            let frame = *self.chain.last().expect("the context root frame");
+            let current =
+                super::child_clip(dom, box_parent, cid, frame.content_clip, frame.own_clip);
             let Some(c) = child.ext().and_then(|e| e.computed.as_ref()) else {
                 // Not cascaded: an in-flow box with nothing to clip.
                 self.background(cid, box_parent, unit, current);
                 self.chain.push(Frame {
                     positioned: false,
                     content_clip: current,
+                    own_clip: current,
                 });
                 self.children(cid, cid, unit);
                 self.chain.pop();
@@ -162,6 +169,7 @@ impl Walk<'_> {
                     self.chain.push(Frame {
                         positioned: false,
                         content_clip: children_clip(dom, cid, c, current),
+                        own_clip: current,
                     });
                     self.children(cid, cid, None);
                     self.chain.pop();
@@ -177,6 +185,7 @@ impl Walk<'_> {
                     self.chain.push(Frame {
                         positioned: true,
                         content_clip: children_clip(dom, cid, c, clip),
+                        own_clip: clip,
                     });
                     self.children(cid, cid, Some(entry.unit()));
                     self.chain.pop();
@@ -195,6 +204,7 @@ impl Walk<'_> {
                 self.chain.push(Frame {
                     positioned: false,
                     content_clip: children_clip(dom, cid, c, current),
+                    own_clip: current,
                 });
                 self.children(cid, cid, if atomic { None } else { unit });
                 self.chain.pop();

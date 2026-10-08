@@ -260,7 +260,7 @@ fn nested_subgrids_are_placed_a_bounded_number_of_times() {
 }
 
 /// C7G-SUBGRID-COST — a grid's line names (CSS Grid 2 §7.2) are copied
-/// into its kept lines (`TuiExt::grid_lines`, §9.1) only when it is laid
+/// into its kept lines (`TuiExt::kept`, §9.1) only when it is laid
 /// out: measuring it (§5.2) allocates, for three named lines holding six
 /// names, only the three lists placement (§8.3) reads them from — each
 /// name borrowed from the style, none copied.

@@ -31,25 +31,28 @@ pub(crate) struct UnitFloat {
 }
 
 /// The phases of the unit rooted at `root`, whose content paints into
-/// `content_clip`: `f` gets each in-flow block-level box in tree order
+/// `content_clip` (its captions, for a table, into `outer`, the clip it
+/// paints in — `child_clip`): `f` gets each in-flow block-level box in tree order
 /// (the background phase, painted as it is met), `floats` each float.
 /// Allocates nothing unless a flex item is reordered
 /// (`paint_order_children`) or the unit holds a float.
 pub(crate) fn for_each_unit_box(
     dom: &Dom<TuiExt>,
     root: NodeId,
-    content_clip: Rect,
+    (content_clip, outer): (Rect, Rect),
     f: &mut impl FnMut(BoxEntry),
     floats: &mut Vec<UnitFloat>,
 ) {
-    walk(dom, root, root, content_clip, f, floats);
+    walk(dom, root, root, (content_clip, outer), f, floats);
 }
 
+/// Walk `id`'s children, whose box parent is `box_parent`: `clip` the
+/// clip its content paints into, `outer` the clip it paints in.
 fn walk(
     dom: &Dom<TuiExt>,
     id: NodeId,
     box_parent: NodeId,
-    clip: Rect,
+    (clip, outer): (Rect, Rect),
     f: &mut impl FnMut(BoxEntry),
     floats: &mut Vec<UnitFloat>,
 ) {
@@ -66,11 +69,11 @@ fn walk(
         let child = dom.node(cid);
         match child.node_type() {
             NodeType::Fragment => {
-                walk(dom, cid, box_parent, clip, f, floats);
+                walk(dom, cid, box_parent, (clip, outer), f, floats);
                 continue;
             }
             NodeType::Element if crate::render::box_tree::is_contents(dom, cid) => {
-                walk(dom, cid, box_parent, clip, f, floats);
+                walk(dom, cid, box_parent, (clip, outer), f, floats);
                 continue;
             }
             NodeType::Element => {}
@@ -78,9 +81,10 @@ fn walk(
         }
         let Some(c) = child.ext().and_then(|e| e.computed.as_ref()) else {
             box_entry(dom, box_parent, cid, clip, f);
-            walk(dom, cid, cid, clip, f, floats);
+            walk(dom, cid, cid, (clip, clip), f, floats);
             continue;
         };
+        let clip = super::child_clip(dom, box_parent, cid, clip, outer);
         if c.display == Display::None {
             continue;
         }
@@ -99,7 +103,14 @@ fn walk(
             continue;
         }
         box_entry(dom, box_parent, cid, clip, f);
-        walk(dom, cid, cid, children_clip(dom, cid, c, clip), f, floats);
+        walk(
+            dom,
+            cid,
+            cid,
+            (children_clip(dom, cid, c, clip), clip),
+            f,
+            floats,
+        );
     }
     if id == box_parent {
         generated(dom, id, clip, PseudoSlot::After, f, floats);

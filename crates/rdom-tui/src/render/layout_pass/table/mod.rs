@@ -360,28 +360,6 @@ pub(super) fn layout_table(
     )
 }
 
-/// The table box of the laid-out table `id` (CSS 2.1 §17.4: the box its
-/// border and background paint on, between its captions): its content box
-/// grown by its chrome. `None` for any other box.
-pub(crate) fn table_box(dom: &Dom<TuiExt>, id: NodeId) -> Option<LayoutRect> {
-    let node = dom.node(id);
-    let computed = node.ext()?.computed.as_deref()?;
-    if computed.flow != crate::layout::Flow::Table {
-        return None;
-    }
-    let content = node.ext()?.content_layout;
-    let cb = crate::render::box_tree::box_parent(dom, id)
-        .and_then(|p| dom.node(p).ext().map(|e| e.content_layout.width))
-        .unwrap_or(content.width);
-    let chrome = Chrome::of(computed, Model::of(computed), cb);
-    Some(LayoutRect::new(
-        content.x - i32::from(chrome.left),
-        content.y - i32::from(chrome.top),
-        content.width.saturating_add(chrome.horizontal()),
-        content.height.saturating_add(chrome.vertical()),
-    ))
-}
-
 /// CSS 2.1 §17.6.1.1: whether the cell `id` draws no border or
 /// background — `empty-cells: hide` in the separated model (its table's
 /// `border-collapse: separate`; an anonymous table's always) on a cell with

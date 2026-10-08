@@ -81,8 +81,8 @@ fn lay_out_children(
         ext.anonymous_blocks.clear();
         // Every arm that places a floated pseudo-element keeps it again.
         ext.floated_pseudos = None;
-        // Only the grid arm records its lines.
-        ext.grid_lines = None;
+        // Only the grid arm records its lines, the table arm its table box.
+        ext.kept = None;
     }
 
     let kind = children_layout(dom, id, computed);

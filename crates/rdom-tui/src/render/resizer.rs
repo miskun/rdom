@@ -25,7 +25,8 @@ pub(crate) fn cell(dom: &Dom<TuiExt>, id: NodeId) -> Option<(i32, i32)> {
     if style.ui.resize.axes() == (false, false) || !is_scroll_container(style) {
         return None;
     }
-    let pb = crate::render::layout_pass::geometry::compute_padding_box(ext.layout, style.border);
+    let pb =
+        crate::render::layout_pass::geometry::compute_padding_box(ext.border_box(), style.border);
     if pb.width == 0 || pb.height == 0 {
         return None;
     }

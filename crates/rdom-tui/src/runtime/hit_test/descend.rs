@@ -56,7 +56,7 @@ pub(super) fn hit_stacking_context(
     let content_clip = root_box
         .as_ref()
         .map_or(clip, |(c, _)| children_clip(dom, root, c, clip));
-    let layers = collect_layers(dom, root, content_clip, viewport);
+    let layers = collect_layers(dom, root, (content_clip, clip), viewport);
     // A hit inside a layer reports the full ancestor chain: the
     // entries between this root and the hit (`hit_layers`), and the
     // root itself, ahead of what the layer pushed.
@@ -78,18 +78,18 @@ pub(super) fn hit_stacking_context(
     }
     let Some((_, outer)) = root_box else {
         // The document root: in-flow content, then the negative layer.
-        return descend_children_reverse(dom, root, x, y, content_clip, viewport, path)
+        return descend_children_reverse(dom, root, x, y, (content_clip, clip), viewport, path)
             || hit_layers(dom, root, &layers.negative, x, y, viewport, path);
     };
     let contains = rect_contains(outer, x, y);
     // A `<select>` picker (in the top layer) is its option list, which
     // overflows the select's own row: its content is hit outside its box.
     let picker = dom.top_layer_kind(root) == Some(rdom_core::TopLayerKind::Picker);
-    if (contains || picker) && content_clip.contains(x, y) {
+    if (contains || picker) && reach(dom, root, content_clip, clip).contains(x, y) {
         if !transparent {
             path.push(root);
         }
-        if hit_content(dom, root, x, y, content_clip, viewport, path) {
+        if hit_content(dom, root, x, y, (content_clip, clip), viewport, path) {
             return true;
         }
         path.truncate(mark);
@@ -256,16 +256,16 @@ fn descend_plain(
     // never on the path; with no hittable descendant the point falls
     // through to earlier siblings / the parent.
     if computed.pointer_events == crate::layout::PointerEvents::None {
-        return content_clip.contains(x, y)
-            && hit_content(dom, id, x, y, content_clip, viewport, path);
+        return reach(dom, id, content_clip, clip).contains(x, y)
+            && hit_content(dom, id, x, y, (content_clip, clip), viewport, path);
     }
     // `visibility: hidden` (CSS Display 3 §4): the box draws nothing and
     // is no target, but a `visible` descendant is — with the hidden
     // element on its ancestor path, as the DOM has it.
     if !crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host) {
         let mark = path.len();
-        let hit =
-            content_clip.contains(x, y) && hit_content(dom, id, x, y, content_clip, viewport, path);
+        let hit = reach(dom, id, content_clip, clip).contains(x, y)
+            && hit_content(dom, id, x, y, (content_clip, clip), viewport, path);
         if hit {
             path.insert(mark, id);
         }
@@ -276,10 +276,21 @@ fn descend_plain(
     // Overflow clipping (CSS Overflow 3 §3 = padding-box; the same rect
     // paint clips to): outside the scrollport the hit stays on THIS
     // element's padding / border — no descent.
-    if content_clip.contains(x, y) {
-        hit_content(dom, id, x, y, content_clip, viewport, path);
+    if reach(dom, id, content_clip, clip).contains(x, y) {
+        hit_content(dom, id, x, y, (content_clip, clip), viewport, path);
     }
     true
+}
+
+/// Where a point can hit `id`'s content: its content clip — or, for a
+/// table with captions, the clip it is hit in, as its captions are
+/// (`stacking::child_clip`; its other children are narrowed again each).
+fn reach(dom: &Dom<TuiExt>, id: NodeId, content_clip: Rect, clip: Rect) -> Rect {
+    if crate::render::stacking::has_unclipped_children(dom, id) {
+        clip
+    } else {
+        content_clip
+    }
 }
 
 /// Search an element's content for the point: the inline fragment's
@@ -291,14 +302,15 @@ fn hit_content(
     id: NodeId,
     x: u16,
     y: u16,
-    content_clip: Rect,
+    (content_clip, outer): (Rect, Rect),
     viewport: Rect,
     path: &mut Vec<NodeId>,
 ) -> bool {
     if has_inline_layout(dom, id) {
-        return super::inline_hit::hit_inline_content(dom, id, x, y, content_clip, viewport, path);
+        return content_clip.contains(x, y)
+            && super::inline_hit::hit_inline_content(dom, id, x, y, content_clip, viewport, path);
     }
-    descend_children_reverse(dom, id, x, y, content_clip, viewport, path)
+    descend_children_reverse(dom, id, x, y, (content_clip, outer), viewport, path)
 }
 
 /// Recurse into the in-flow element children in reverse document
@@ -311,7 +323,7 @@ fn descend_children_reverse(
     id: NodeId,
     x: u16,
     y: u16,
-    clip: Rect,
+    (clip, outer): (Rect, Rect),
     viewport: Rect,
     path: &mut Vec<NodeId>,
 ) -> bool {
@@ -325,13 +337,15 @@ fn descend_children_reverse(
         }
         let mark = path.len();
         let hit = match node.node_type() {
-            NodeType::Fragment => descend_children_reverse(dom, child, x, y, clip, viewport, path),
+            NodeType::Fragment => {
+                descend_children_reverse(dom, child, x, y, (clip, outer), viewport, path)
+            }
             // A box-less element (CSS Display 3 §2.5) is never hit
             // itself; its children are where they are, with it on their
             // ancestor path.
             NodeType::Element if crate::render::box_tree::is_contents(dom, child) => {
                 let mark = path.len();
-                let hit = descend_children_reverse(dom, child, x, y, clip, viewport, path);
+                let hit = descend_children_reverse(dom, child, x, y, (clip, outer), viewport, path);
                 if hit {
                     path.insert(mark, child);
                 }
@@ -341,6 +355,7 @@ fn descend_children_reverse(
             // with its lines: a point on it is the item's (CSS Lists 3
             // §3.5).
             NodeType::Element => {
+                let clip = crate::render::stacking::child_clip(dom, id, child, clip, outer);
                 hit_in_flow_element(dom, child, x, y, clip, viewport, path)
                     || (super::pseudo::on_outside_marker(dom, child, x, y, clip) && {
                         path.push(child);

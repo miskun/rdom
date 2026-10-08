@@ -33,9 +33,10 @@ use crate::layout::LayoutRect;
 use crate::style::ComputedStyle;
 
 /// `ext`'s scrollport for its style `c`: the padding box less the
-/// gutters layout reserved.
+/// gutters layout reserved — a table's table box's (CSS 2.1 §17.4,
+/// `TuiExt::border_box`), its captions outside it.
 pub(crate) fn scrollport_of(ext: &TuiExt, c: &ComputedStyle) -> LayoutRect {
-    let pb = super::geometry::compute_padding_box(ext.layout, c.border);
+    let pb = super::geometry::compute_padding_box(ext.border_box(), c.border);
     let g = crate::runtime::scrollbar::state::gutters(ext);
     LayoutRect::new(
         pb.x + i32::from(g.left),
@@ -51,7 +52,7 @@ pub(crate) fn scrollport(dom: &Dom<TuiExt>, id: NodeId) -> Option<LayoutRect> {
     let ext = dom.node(id).ext()?;
     Some(match ext.computed.as_deref() {
         Some(c) => scrollport_of(ext, c),
-        None => ext.layout,
+        None => ext.border_box(),
     })
 }
 

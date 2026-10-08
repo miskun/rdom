@@ -4831,7 +4831,10 @@ fn fixed_box_inside_a_nested_context_keeps_the_viewport_clip() {
     let layers = crate::render::stacking::collect_layers(
         &dom,
         ctx,
-        crate::render::Rect::new(0, 0, 5, 2),
+        (
+            crate::render::Rect::new(0, 0, 5, 2),
+            crate::render::Rect::new(0, 0, 5, 2),
+        ),
         crate::render::Rect::new(0, 0, 20, 10),
     );
     let entry = layers
@@ -4860,8 +4863,8 @@ fn a_grid_turned_contents_keeps_no_grid_lines() {
     };
     cascade(&mut dom, &sheet("grid"));
     dom.layout_dom(Rect::new(0, 0, 20, 5));
-    assert!(dom.node(g).ext().unwrap().grid_lines.is_some());
+    assert!(dom.node(g).ext().unwrap().grid_lines().is_some());
     cascade(&mut dom, &sheet("contents"));
     dom.layout_dom(Rect::new(0, 0, 20, 5));
-    assert!(dom.node(g).ext().unwrap().grid_lines.is_none());
+    assert!(dom.node(g).ext().unwrap().grid_lines().is_none());
 }

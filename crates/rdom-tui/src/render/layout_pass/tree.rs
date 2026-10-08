@@ -121,7 +121,7 @@ pub(super) fn clear_box_state(ext: &mut TuiExt, rect: LayoutRect) {
     ext.scroll_y = 0;
     ext.scroll_state = None;
     ext.static_position = None;
-    ext.grid_lines = None;
+    ext.kept = None;
     ext.floated_pseudos = None;
     ext.positioned_pseudos = None;
 }

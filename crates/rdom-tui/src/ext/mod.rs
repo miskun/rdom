@@ -6,12 +6,14 @@
 //! post-cascade `ComputedStyle`. `rdom-core` never sees any of this —
 //! it just holds the `TuiExt` payload behind its `Ext` generic.
 
+mod kept_layout;
 mod layout_cache;
 mod presentation;
 mod pseudo_styles;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use kept_layout::{KeptLayout, TableInsets};
 pub(crate) use layout_cache::MarginChainMemo;
 pub use layout_cache::{AnonymousIfc, GeneratedBox, PositionedPseudo, StaticPosition};
 pub use presentation::{PresentationStyle, PseudoSlot, StyleSlot};
@@ -272,10 +274,13 @@ pub struct TuiExt {
     /// Populated by `layout_pass::block::layout_block_children` per
     /// CSS 2.1 §9.2.1.1.
     pub anonymous_blocks: Vec<AnonymousIfc>,
-    /// A grid container's lines after its last layout (CSS Grid 2 §9.1):
-    /// the grid areas of the absolutely positioned boxes it is the
-    /// containing block of. `None` for any other box.
-    pub(crate) grid_lines: Option<Box<crate::render::layout_pass::GridLines>>,
+    /// What its formatting context keeps of its last layout: a grid
+    /// container's lines (CSS Grid 2 §9.1: the grid areas of the
+    /// absolutely positioned boxes it is the containing block of), a
+    /// table's table box in its wrapper (CSS 2.1 §17.4). `None` for any
+    /// other box. Read through [`grid_lines`](Self::grid_lines) and
+    /// [`border_box`](Self::border_box).
+    pub(crate) kept: Option<Box<KeptLayout>>,
     /// The floated `::before` / `::after` boxes laid out in this box's
     /// formatting context run (CSS Pseudo 4 §2, CSS 2.1 §9.5; its own,
     /// and its box-less children's), each with its border box

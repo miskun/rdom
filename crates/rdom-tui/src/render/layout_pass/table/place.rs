@@ -369,6 +369,14 @@ pub(super) fn place(
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.layout = wrapper;
         ext.content_layout = content;
+        // §17.4: the table box between the captions — the box its border,
+        // background, scrollport and clip are on (`TuiExt::border_box`).
+        ext.kept = (top > 0 || bottom > 0).then(|| {
+            Box::new(crate::ext::KeptLayout::Table(crate::ext::TableInsets {
+                above: top,
+                below: bottom,
+            }))
+        });
     }
     own
 }

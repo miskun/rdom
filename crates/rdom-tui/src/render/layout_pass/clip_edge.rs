@@ -34,10 +34,11 @@ impl ClipEdges {
         let (edge, grow) = if c.is_scroll_container() {
             (super::scrollport::scrollport_of(ext, c), 0)
         } else {
-            let padding_box = super::geometry::compute_padding_box(ext.layout, c.border);
+            let border_box = ext.border_box();
+            let padding_box = super::geometry::compute_padding_box(border_box, c.border);
             let m = c.overflow_clip_margin;
             let base = match m.visual_box {
-                VisualBox::BorderBox => ext.layout,
+                VisualBox::BorderBox => border_box,
                 VisualBox::PaddingBox => padding_box,
                 VisualBox::ContentBox => ext.content_layout,
             };

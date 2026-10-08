@@ -75,6 +75,11 @@ pub(crate) fn record_scroll_content_size(
         })
     };
     for child in element_children_of(dom, id) {
+        // A table's captions are outside its table box (CSS 2.1 §17.4),
+        // so outside the area it scrolls.
+        if crate::render::stacking::outside_content_clip(dom, id, child) {
+            continue;
+        }
         extend_scrollable_overflow(dom, child, ClipEdges::NONE, &mut extend);
     }
     // Its anonymous block boxes and their line boxes (§2.2), with
@@ -105,7 +110,7 @@ pub(crate) fn record_scroll_content_size(
     // settle of this document found them (`positioned_overflow`, which
     // runs the layout again when they moved), from its border box.
     if let Some(r) = super::positioned_overflow::reach_of(dom, id) {
-        let origin = dom.node(id).ext().map_or(inner, |e| e.layout);
+        let origin = dom.node(id).ext().map_or(inner, TuiExt::border_box);
         x.reach((origin.x + r.left, origin.x + r.right), 0);
         y.reach((origin.y + r.top, origin.y + r.bottom), 0);
     }

@@ -244,6 +244,47 @@ pub(crate) fn children_clip(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle, cl
     layout_rect_to_grid(edge, clip).unwrap_or_else(|| Rect::new(clip.x, clip.y, 0, 0))
 }
 
+/// Whether `parent` has box children outside its content clip: a table
+/// with captions, which sit in the table wrapper box beside the table box
+/// `overflow` applies to (CSS 2.1 §17.4; layout keeps the table box,
+/// `TuiExt::border_box`).
+pub(crate) fn has_unclipped_children(dom: &Dom<TuiExt>, parent: NodeId) -> bool {
+    dom.node(parent)
+        .ext()
+        .is_some_and(|e| matches!(e.kept.as_deref(), Some(crate::ext::KeptLayout::Table(_))))
+}
+
+/// The clip the box child `child` of `parent` paints and is hit in:
+/// `content`, the clip `parent`'s content paints into ([`children_clip`]),
+/// except a table's caption — outside the table box (CSS 2.1 §17.4) —
+/// which takes `outer`, the clip its table paints in. Every paint and
+/// hit-test walk asks it of each child.
+pub(crate) fn child_clip(
+    dom: &Dom<TuiExt>,
+    parent: NodeId,
+    child: NodeId,
+    content: Rect,
+    outer: Rect,
+) -> Rect {
+    if content != outer && outside_content_clip(dom, parent, child) {
+        outer
+    } else {
+        content
+    }
+}
+
+/// Whether `child`, a box child of `parent`, is outside `parent`'s
+/// content clip: a caption of a table with captions (CSS 2.1 §17.4) — the
+/// one case. Its scrollable overflow leaves it out too.
+pub(crate) fn outside_content_clip(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool {
+    has_unclipped_children(dom, parent)
+        && dom
+            .node(child)
+            .ext()
+            .and_then(|e| e.computed.as_deref())
+            .is_some_and(|c| c.display == Display::TablePart(crate::layout::TablePart::Caption))
+}
+
 mod collect;
 mod unit;
 

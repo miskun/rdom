@@ -86,7 +86,7 @@ pub(super) fn arrange(
         if let Some(id) = owner.element()
             && let Some(ext) = dom.node_mut(id).ext_mut()
         {
-            ext.grid_lines = Some(Box::new(lines));
+            ext.kept = Some(Box::new(crate::ext::KeptLayout::Grid(lines)));
         }
     }
     let right = container.x + i32::from(container.width);

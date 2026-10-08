@@ -184,7 +184,8 @@ fn containing_scroller(dom: &Dom<TuiExt>, item: BoxItem) -> Option<(NodeId, Clip
 /// [`Reach`] is measured from.
 fn unscrolled_origin(dom: &Dom<TuiExt>, scroller: NodeId) -> Option<(i32, i32)> {
     let ext = dom.node(scroller).ext()?;
-    Some((ext.layout.x - ext.scroll_x, ext.layout.y - ext.scroll_y))
+    let b = ext.border_box();
+    Some((b.x - ext.scroll_x, b.y - ext.scroll_y))
 }
 
 /// The side of `scroller`'s scrolled content that scrolling can reach:

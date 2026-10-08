@@ -8691,3 +8691,26 @@ row comes from.
   Column walks a cell, at 10 and 1000 rows; 212 allocations a row at 100 and at 1000 rows, pinned at
   230. Mutation (restored, touched): the pass memo off (`with_tables` → `None`) fails both tests (5
   structures, 190 packs, 500 allocations a row); the old group lookups were the red group count.
+- 2026-10-08 — C13G-TABLE-GEOMETRY (architect N1; CSS 2.1 §17.4: `overflow` and the border apply to the table
+  box, not the wrapper around it and its captions). Found: paint recomputed the table box at paint time
+  (`table::table_box`, the content box grown by the chrome), while the scrollport, the clip edges, the
+  resizer, the scrollable extent and the hit test took `TuiExt::layout`, the wrapper — so a clipping table
+  clipped its caption's first row behind the border inset and ran its scrollbars down beside the captions.
+  Decided: (1) one source — layout keeps the table box as `TableInsets { above, below }` (the captions'
+  rows, relative to the wrapper, so a subtree shift moves it) in a side record that replaces
+  `TuiExt::grid_lines`: `kept: Option<Box<KeptLayout>>`, `KeptLayout::{Grid(GridLines), Table(TableInsets)}` —
+  a box is a grid or a table, never both, so `TuiExt` stays 384 bytes and a box that is neither pays the
+  pointer it already paid; set only for a table with captions. `TuiExt::border_box()` answers the table
+  box for a table and `layout` for every other box; the box paint, `scrollport_of`, `ClipEdges::of`,
+  the resizer and the positioned-overflow origin read it; `table::table_box` is gone. (2) Captions keep
+  their table's own clip: `stacking::child_clip(parent, child, content, outer)` gives a caption of a
+  table with captions `outer`, the clip the table paints in, and every other child `content` — asked by
+  each walk (the paint-unit walk, the layer collection, the content recursion, the hit-test descent,
+  each now carrying the parent's own clip beside its content clip), and the hit test descends into such a
+  table where the point is within its own clip (`reach`); the scrollable extent leaves captions out
+  (`stacking::outside_content_clip`). The wrapper stays the element's `layout_rect()` and its hit region
+  (the table element generates the wrapper box). Red: `css_phase13/tfc.rs`
+  `a_clipping_table_clips_its_table_box_not_its_captions` — row 0 `""` for `"Caption"` (`overflow: hidden`
+  + border + caption); green after, with the `overflow-y: scroll` bar in the table box's rows and the
+  caption hit at (2, 0). Mutation (each alone, restored, touched): `child_clip` never giving `outer` → the
+  caption row blank again; the hit test's `reach` off → the caption point hits the table.

@@ -174,13 +174,13 @@ fn a_subgrids_size_is_not_memoized_across_its_parents_lines() {
     );
     dom.cascade(&parsed.stylesheet);
     dom.layout_dom(Rect::new(0, 0, 20, 10));
-    let lines = dom.node_mut(g).ext_mut().unwrap().grid_lines.take();
+    let lines = dom.node_mut(g).ext_mut().unwrap().kept.take();
     assert!(lines.is_some(), "the parent's lines");
 
     super::begin_pass(&mut dom);
     let height = |dom: &TuiDom| super::intrinsic_size(dom, s, Direction::Column, 6, 6);
     assert_eq!(height(&dom), 2, "no parent lines yet: one column");
-    dom.node_mut(g).ext_mut().unwrap().grid_lines = lines;
+    dom.node_mut(g).ext_mut().unwrap().kept = lines;
     assert_eq!(height(&dom), 1, "the parent's two columns");
     super::end_pass(&mut dom);
 }

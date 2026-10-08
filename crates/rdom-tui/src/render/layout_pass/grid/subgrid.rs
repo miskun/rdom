@@ -279,7 +279,7 @@ pub(super) fn from_parent(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle) -> I
     let Some(parent) = crate::render::box_tree::box_parent(dom, id) else {
         return Inherit::default();
     };
-    let Some(lines) = dom.node(parent).ext().and_then(|e| e.grid_lines.as_deref()) else {
+    let Some(lines) = dom.node(parent).ext().and_then(|e| e.grid_lines()) else {
         return Inherit::default();
     };
     let Some(&(_, columns, rows)) = lines.subgrids.iter().find(|s| s.0 == id) else {

@@ -66,7 +66,7 @@ fn paint_stacking_context_body(
 fn paint_layers_of(dom: &Dom<TuiExt>, root: NodeId, buf: &mut Buffer, clip: Rect, viewport: Rect) {
     if dom.node(root).node_type() == NodeType::Fragment {
         // The document root: no box of its own.
-        let layers = collect_layers(dom, root, clip, viewport);
+        let layers = collect_layers(dom, root, (clip, clip), viewport);
         paint_layers(dom, &layers, &layers.negative, buf, viewport);
         paint_unit(dom, &layers, 0, (root, None), buf, (clip, viewport));
         paint_layers(dom, &layers, &layers.zero_auto, buf, viewport);
@@ -76,7 +76,7 @@ fn paint_layers_of(dom: &Dom<TuiExt>, root: NodeId, buf: &mut Buffer, clip: Rect
     let Some(frame) = paint_box(dom, root, buf, clip) else {
         return;
     };
-    let layers = collect_layers(dom, root, frame.children_clip, viewport);
+    let layers = collect_layers(dom, root, (frame.children_clip, clip), viewport);
     paint_layers(dom, &layers, &layers.negative, buf, viewport);
     paint_unit(dom, &layers, 0, (root, Some(&frame)), buf, (clip, viewport));
     paint_layers(dom, &layers, &layers.zero_auto, buf, viewport);
@@ -109,7 +109,7 @@ fn paint_unit(
     }
     match frame {
         Some(frame) => paint_content(dom, root, buf, clip, viewport, frame),
-        None => recurse_children(dom, root, buf, clip, viewport),
+        None => recurse_children(dom, root, buf, (clip, clip), viewport),
     }
 }
 
@@ -198,7 +198,7 @@ fn paint_atomic(dom: &Dom<TuiExt>, id: NodeId, buf: &mut Buffer, clip: Rect, vie
     for_each_unit_box(
         dom,
         id,
-        frame.children_clip,
+        (frame.children_clip, clip),
         &mut |e| paint_background_phase(dom, &e, buf),
         &mut floats,
     );
@@ -230,22 +230,24 @@ pub(super) fn recurse_children(
     dom: &Dom<TuiExt>,
     id: NodeId,
     buf: &mut Buffer,
-    clip: Rect,
+    clips: (Rect, Rect),
     viewport: Rect,
 ) {
-    children_of(dom, id, id, buf, clip, viewport);
+    children_of(dom, id, id, buf, clips, viewport);
 }
 
 /// [`recurse_children`] over the child nodes of `node`, whose box
 /// parent is `id` (`node` itself, or a `display: contents` element in
 /// `id`, whose children are `id`'s in the box tree — CSS Display 3
-/// §2.5; it paints nothing of its own).
+/// §2.5; it paints nothing of its own). `clip` is the clip `id`'s
+/// content paints into, `outer` the clip `id` paints in (its captions',
+/// for a table — `stacking::child_clip`).
 fn children_of(
     dom: &Dom<TuiExt>,
     node: NodeId,
     id: NodeId,
     buf: &mut Buffer,
-    clip: Rect,
+    (clip, outer): (Rect, Rect),
     viewport: Rect,
 ) {
     // A flex container's items paint in order-modified document order
@@ -260,7 +262,7 @@ fn children_of(
         let child = dom.node(cid);
         match child.node_type() {
             NodeType::Element if crate::render::box_tree::is_contents(dom, cid) => {
-                children_of(dom, cid, id, buf, clip, viewport);
+                children_of(dom, cid, id, buf, (clip, outer), viewport);
             }
             NodeType::Element => {
                 // Display:inline children outside an IFC context are
@@ -281,9 +283,10 @@ fn children_of(
                 if orphan_inline(dom, cid) || in_a_line(dom, id, cid) {
                     continue;
                 }
+                let clip = crate::render::stacking::child_clip(dom, id, cid, clip, outer);
                 paint_in_flow(dom, id, cid, buf, clip, viewport);
             }
-            NodeType::Fragment => recurse_children(dom, cid, buf, clip, viewport),
+            NodeType::Fragment => recurse_children(dom, cid, buf, (clip, outer), viewport),
             // Text is consumed by the parent's inline pass; comments and
             // any later node kind (`NodeType` is `#[non_exhaustive]`)
             // do not render.

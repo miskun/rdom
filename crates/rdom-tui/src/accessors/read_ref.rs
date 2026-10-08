@@ -113,10 +113,7 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
     fn grid_tracks(&self) -> Option<super::GridTracks> {
         use crate::node::TuiNodeExt;
         let ext = self.tui_ext()?;
-        let (columns, rows) = ext
-            .grid_lines
-            .as_deref()?
-            .used_tracks(ext.content_layout.width);
+        let (columns, rows) = ext.grid_lines()?.used_tracks(ext.content_layout.width);
         Some(super::GridTracks::new(columns, rows))
     }
 

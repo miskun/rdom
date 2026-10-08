@@ -63,9 +63,11 @@ pub(super) fn box_frame(dom: &Dom<TuiExt>, id: NodeId, clip: Rect) -> Option<Box
     }
 
     // A table with captions paints its box between them (CSS 2.1 §17.4):
-    // its border and background are its table box's.
-    let outer = crate::render::layout_pass::table_box(dom, id)
-        .or_else(|| dom.node(id).layout_rect())
+    // its border and background are its table box's, as layout kept it.
+    let outer = dom
+        .node(id)
+        .ext()
+        .map(crate::ext::TuiExt::border_box)
         .unwrap_or_default();
     let inner = dom.node(id).content_layout_rect().unwrap_or(outer);
     let visible = crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host);
@@ -228,7 +230,7 @@ pub(super) fn paint_content(
 
     // Recurse into in-flow element children (they paint at their own
     // layouts).
-    recurse_children(dom, id, buf, children_clip, viewport);
+    recurse_children(dom, id, buf, (children_clip, clip), viewport);
 
     // Paint each anonymous block box synthesized by the block
     // layout pass (BFC-1 phase 3). Anonymous boxes wrap runs of

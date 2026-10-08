@@ -1,4 +1,4 @@
-//! A laid-out grid's lines, kept on its container (`TuiExt::grid_lines`)
+//! A laid-out grid's lines, kept on its container (`TuiExt::kept`)
 //! for the absolutely positioned boxes whose containing block it is
 //! (CSS Grid 2 §9.1): "the containing block corresponds to the grid area
 //! determined by its grid-placement properties", an `auto` line — or one
@@ -140,7 +140,7 @@ pub(crate) fn abspos_area(
     cb: LayoutRect,
 ) -> Option<LayoutRect> {
     let ext = dom.node(grid).ext()?;
-    let lines = ext.grid_lines.as_deref()?;
+    let lines = ext.grid_lines()?;
     // The lines count from the content box the grid has now — moved
     // with it, if it moved after its layout.
     let content = ext.content_layout;

@@ -139,6 +139,49 @@ fn captions_sit_above_and_below_the_table_box() {
     assert_eq!(rect(&dom, "t"), LayoutRect::new(0, 0, 6, 5));
 }
 
+/// CSS 2.1 §17.4: `overflow` applies to the table box, not the wrapper
+/// around it and its captions — the caption is not clipped, the border
+/// is the table box's, and a scroll container's scrollbar runs down
+/// beside the table box's rows only. The resizer sits in the table box's
+/// corner; the caption is hit where it shows.
+#[test]
+fn a_clipping_table_clips_its_table_box_not_its_captions() {
+    let markup = r#"<div><div id="t" class="t"><div id="cap" class="cap">Caption</div><div class="r"><div class="c">a</div></div><div class="r"><div class="c">b</div></div></div></div>"#;
+    let mut dom = doc(markup);
+    let buf = paint(
+        &mut dom,
+        &css(".t { overflow: hidden; border: solid; width: 9 }"),
+        12,
+        6,
+    );
+    assert_eq!(
+        rows(&buf)[..5],
+        [
+            "Caption",
+            "┌─────────┐",
+            "│a        │",
+            "│b        │",
+            "└─────────┘"
+        ]
+    );
+    // The caption is hit where it shows.
+    assert_eq!(dom.hit_test(2, 0), Some(by_id(&dom, "cap")));
+    let mut dom = doc(markup);
+    let buf = paint(
+        &mut dom,
+        &css(".t { overflow-y: scroll; border: solid; width: 9; resize: both }"),
+        12,
+        6,
+    );
+    let painted = rows(&buf);
+    assert_eq!(painted[0], "Caption", "{painted:#?}");
+    assert_eq!(painted[1], "┌─────────┐", "{painted:#?}");
+    // The bar is in the table box's right column, inside its border.
+    let bar = |row: &str| row.chars().nth(9).unwrap_or(' ');
+    assert!(painted[2..4].iter().all(|r| bar(r) != ' '), "{painted:#?}");
+    assert_eq!(painted[4], "└─────────┘", "{painted:#?}");
+}
+
 // ── Width algorithms ───────────────────────────────────────────────
 
 /// CSS 2.1 §17.5.2.1: `table-layout: fixed` sizes the columns from the
