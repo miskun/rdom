@@ -68,3 +68,28 @@ fn clearance_is_not_scanned_without_floats() {
     dom.layout_dom(Rect::new(0, 0, 40, 30));
     assert_eq!(CLEARANCE_SCANS.with(|c| c.get()), 0);
 }
+
+/// C10G-IDLE-SCANS — the first formatted line (CSS Pseudo-Elements 4
+/// §2.2) is looked for only in a document whose sheets style
+/// `::first-line` or `::first-letter`: nested blocks of text, none styled,
+/// climb no ancestor per packed flow (each flow climbed to the root).
+#[test]
+fn no_first_line_rule_no_climb() {
+    use crate::render::inline::first_line::cost::HOST_CLIMBS;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let mut parent = root;
+    for _ in 0..6 {
+        let div = dom.create_element("div");
+        dom.append_child(parent, div).unwrap();
+        let t = dom.create_text_node("x");
+        dom.append_child(div, t).unwrap();
+        let inner = dom.create_element("div");
+        dom.append_child(div, inner).unwrap();
+        parent = inner;
+    }
+    dom.cascade(&rdom_css::from_css_strict("div { color: red }").unwrap());
+    HOST_CLIMBS.with(|c| c.set(0));
+    dom.layout_dom(Rect::new(0, 0, 40, 30));
+    assert_eq!(HOST_CLIMBS.with(|c| c.get()), 0);
+}

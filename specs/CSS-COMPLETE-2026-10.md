@@ -6587,3 +6587,27 @@ row comes from.
   touched): no append fast path → 1 075 250 hops; no removal gate → 195 050 hops; the prepared index
   ignored → 15 000 copies; no node index → 15 000 range tests; no style sharing → 220 allocations for
   160; highlight matches never reloaded → 1 match. No existing expectation or snapshot changed.
+- 2026-10-13 — C10G-IDLE-SCANS (architect N4, N10, N11). Found, by counting (red first, each): (1)
+  `first_line::hosts` climbed every ancestor of every packed and measured flow looking for a
+  `::first-line` / `::first-letter` host — 84 steps for six nested blocks of text with no such rule
+  anywhere; (2) every cascade run rescanned its sheets for `styles_first`, `highlight_names` and the
+  `@counter-style` registry (rebuilt by cloning every rule) — 9 scans for two full cascades and a partial
+  one over one sheet set; (3) the pseudo hit test (`hit_test_pseudo`, what `::before:hover` reads) looked
+  at every line of every block above the hit — 2001 lines for a point in a 2000-line `<pre>`. Fixed: (1)
+  a second document flag (`style::doc_flags::has_first_rules`), set by every cascade run (full or
+  partial) from its sheets, gates the climb; unlike the list-item flag it follows the sheets both ways;
+  (2) the three facts move from the per-run `Sheets` to `SheetFacts` on the sheet set's
+  `PropertyRegistry` — the set's identity (`Sheets::stamp`), which an `App` rebuilds exactly when its
+  sheets change and the stateless forms keep per unchanged sheet set — so they are found once per set;
+  (3) the lines are read by row (`InlineLayout::line_at_row`), all of them only when the block's subtree
+  holds a positioned `::before` / `::after` (`tree_has_positioned_pseudo`: a relatively positioned one is
+  drawn off its line). The router already asks the pseudo hit test only while a sheet has a chained rule
+  (`pseudo_pointer::is_tracked`). Decision: cache the facts on the registry rather than precompute them on
+  each `Stylesheet` (the gate's suggestion) — the counter-style registry orders definitions across sheets
+  by layer, so it is a fact of the set, and one place keeps all three. Tests:
+  `idle_cost_tests.rs::no_first_line_rule_no_climb` (0 steps), `cascade/cost_tests.rs::a_sheet_set_is_scanned_once`
+  (3 scans: one per fact) and `hit_test/tests.rs::the_pseudo_hit_test_reads_the_line_at_the_row` (≤ 8 lines;
+  and a relatively positioned `::before` a row below its line still found there). Red on HEAD as quoted,
+  green after. Mutation (restored, touched): no first-rules gate → 84 steps; every line read → 2001
+  lines; never every line → the moved `::before` is missed (`None`). No existing expectation or snapshot
+  changed.

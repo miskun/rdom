@@ -78,8 +78,15 @@ fn needs_viewport(value: &CustomValue) -> bool {
 /// change (`FramePrelude::sheets_changed`) and shares it; the
 /// stateless [`CascadeExt`](super::CascadeExt) entry points keep one on
 /// the document ([`document_registry`]).
+///
+/// It is also the sheet set's identity (`Sheets::stamp`), so it keeps what
+/// the cascade asks of the whole set — found once per set
+/// ([`SheetFacts`](super::sheets::SheetFacts)).
 #[derive(Debug, Default)]
-pub(crate) struct PropertyRegistry(HashMap<String, Entry>);
+pub(crate) struct PropertyRegistry {
+    entries: HashMap<String, Entry>,
+    pub(super) facts: super::sheets::SheetFacts,
+}
 
 /// The document-data slot holding the registry of the sheet set the
 /// document was last cascaded with through a stateless form, keyed by
@@ -122,20 +129,23 @@ impl PropertyRegistry {
                 map.insert(reg.name.clone(), Entry::new(reg));
             }
         }
-        PropertyRegistry(map)
+        PropertyRegistry {
+            entries: map,
+            facts: Default::default(),
+        }
     }
 
     pub(crate) fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.entries.is_empty()
     }
 
     /// Every registration, by name, in no particular order.
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&str, &PropertyRegistration)> {
-        self.0.iter().map(|(name, e)| (name.as_str(), &e.reg))
+        self.entries.iter().map(|(name, e)| (name.as_str(), &e.reg))
     }
 
     pub(super) fn get(&self, name: &str) -> Option<&PropertyRegistration> {
-        self.0.get(name).map(|e| &e.reg)
+        self.entries.get(name).map(|e| &e.reg)
     }
 
     /// The value of the CSS-wide keyword `initial` / `unset` for a
@@ -148,7 +158,7 @@ impl PropertyRegistry {
         unset: bool,
         viewport: Viewport,
     ) -> Option<Option<CustomValue>> {
-        let e = self.0.get(name)?;
+        let e = self.entries.get(name)?;
         if unset && e.reg.inherits {
             return None;
         }
@@ -164,7 +174,7 @@ impl PropertyRegistry {
         declared: &HashSet<&str>,
         viewport: Viewport,
     ) {
-        for (name, e) in &self.0 {
+        for (name, e) in &self.entries {
             if declared.contains(name.as_str()) {
                 continue;
             }
@@ -210,7 +220,7 @@ impl PropertyRegistry {
         inherited: &Map,
         viewport: Viewport,
     ) -> Option<CustomValue> {
-        let Some(e) = self.0.get(name) else {
+        let Some(e) = self.entries.get(name) else {
             return value;
         };
         if let Some(v) = value
@@ -233,7 +243,7 @@ impl PropertyRegistry {
     /// initial value, so a dependent can read it (§2.1). Validation runs
     /// during resolution ([`computed_value`](Self::computed_value)).
     pub(super) fn seed_root(&self, map: &mut Map, viewport: Viewport) {
-        for (name, e) in &self.0 {
+        for (name, e) in &self.entries {
             if map.contains_key(name) {
                 continue;
             }

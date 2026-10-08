@@ -125,30 +125,46 @@ fn in_lines_of(
     y: i32,
 ) -> Option<(NodeId, PseudoSlot)> {
     let ext = dom.node(block).ext()?;
+    // A relatively positioned `::before` / `::after` in these lines is
+    // drawn off its line's rows (`GeneratedFragment::offset`): only then
+    // is every line looked at.
+    let moved = ext.tree_has_positioned_pseudo;
     if let Some(layout) = ext.inline_layout.as_ref()
         && let Some(content) = crate::render::inline::scrolled_content_rect(dom, block)
-        && let Some(hit) = in_layout(dom, layout, content, target, x, y)
+        && let Some(hit) = in_layout(dom, layout, content, target, (x, y), moved)
     {
         return Some(hit);
     }
     ext.anonymous_blocks
         .iter()
         .filter(|anon| anon.generated.is_none())
-        .find_map(|anon| in_layout(dom, &anon.inline_layout, anon.rect, target, x, y))
+        .find_map(|anon| in_layout(dom, &anon.inline_layout, anon.rect, target, (x, y), moved))
 }
 
 /// The pseudo-element under `(x, y)` on `layout`'s lines (laid out at
-/// `content`) that belongs to `target`.
+/// `content`) that belongs to `target`: on the line at the point's row
+/// (`InlineLayout::line_at_row`), or — when a generated run was `moved`
+/// off its line — on any line.
 fn in_layout(
     dom: &Dom<TuiExt>,
     layout: &InlineLayout,
     content: LayoutRect,
     target: NodeId,
-    x: i32,
-    y: i32,
+    (x, y): (i32, i32),
+    moved: bool,
 ) -> Option<(NodeId, PseudoSlot)> {
     let (x, row) = (x - content.x, y - content.y);
-    for line in &layout.lines {
+    let lines = if moved {
+        &layout.lines[..]
+    } else {
+        match u16::try_from(row).ok().and_then(|r| layout.line_at_row(r)) {
+            Some(i) => std::slice::from_ref(&layout.lines[i]),
+            None => &[],
+        }
+    };
+    for line in lines {
+        #[cfg(test)]
+        cost::LINES_SCANNED.with(|c| c.set(c.get() + 1));
         // A first letter in the element's own text (CSS Pseudo 4 §2.3).
         let letter = line
             .fragments
@@ -214,4 +230,13 @@ fn targets(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> bool {
 
 fn contains(r: LayoutRect, x: i32, y: i32) -> bool {
     x >= r.x && x < r.x + i32::from(r.width) && y >= r.y && y < r.y + i32::from(r.height)
+}
+
+/// Test-only counters of the pseudo hit test.
+#[cfg(test)]
+pub(crate) mod cost {
+    thread_local! {
+        /// Line boxes the pseudo hit test looked at.
+        pub(crate) static LINES_SCANNED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
 }

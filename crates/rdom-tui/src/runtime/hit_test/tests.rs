@@ -1489,3 +1489,44 @@ fn hit_test_on_an_inline_elements_generated_cell_targets_the_host() {
     let (dom, p, _a) = build(Some(PointerEvents::None));
     assert_eq!(dom.hit_test(2, 0), Some(p));
 }
+
+/// C10G-IDLE-SCANS — the pseudo-element hit test (Selectors 4 §3.6.3's
+/// `::before:hover`) finds the line under the point by its row, not by
+/// looking at every line of every block above the hit: a 2000-line
+/// `<pre>` costs a few line boxes per point.
+#[test]
+fn the_pseudo_hit_test_reads_the_line_at_the_row() {
+    use crate::runtime::hit_test::pseudo::cost::LINES_SCANNED;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let pre = dom.create_element("pre");
+    dom.append_child(root, pre).unwrap();
+    let t = dom.create_text_node(&"x\n".repeat(2000));
+    dom.append_child(pre, t).unwrap();
+    dom.cascade(&rdom_css::from_css_strict("pre::before { content: '>' }").unwrap());
+    dom.layout_dom(Rect::new(0, 0, 20, 2001));
+    LINES_SCANNED.with(|c| c.set(0));
+    assert_eq!(
+        dom.hit_test_pseudo(0, 0),
+        Some((pre, crate::ext::PseudoSlot::Before))
+    );
+    assert_eq!(dom.hit_test_pseudo(0, 1500), None);
+    let scanned = LINES_SCANNED.with(|c| c.get());
+    assert!(scanned <= 8, "{scanned} lines scanned");
+
+    // A relatively positioned `::before` (CSS 2.1 §9.4.3) is drawn a row
+    // below its line: it is found where it is drawn.
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    dom.append_child(root, p).unwrap();
+    let t = dom.create_text_node("ab\ncd");
+    dom.append_child(p, t).unwrap();
+    let css = "p { white-space: pre } p::before { content: '>'; position: relative; top: 1 }";
+    dom.cascade(&rdom_css::from_css_strict(css).unwrap());
+    dom.layout_dom(Rect::new(0, 0, 20, 3));
+    assert_eq!(
+        dom.hit_test_pseudo(0, 1),
+        Some((p, crate::ext::PseudoSlot::Before))
+    );
+}

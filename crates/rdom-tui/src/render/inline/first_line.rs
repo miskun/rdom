@@ -37,7 +37,7 @@ use crate::style::ComputedStyle;
 /// a `::first-line` or `::first-letter`, which is what makes the walk
 /// worth its cost: it climbs only as far as the outermost one that does.
 pub(crate) fn hosts(dom: &Dom<TuiExt>, block: NodeId, first_formatted: bool) -> Vec<NodeId> {
-    if !first_formatted {
+    if !first_formatted || !crate::style::doc_flags::has_first_rules(dom) {
         return Vec::new();
     }
     let has_first = |id: NodeId| {
@@ -50,6 +50,8 @@ pub(crate) fn hosts(dom: &Dom<TuiExt>, block: NodeId, first_formatted: bool) -> 
     let mut top = None;
     let mut cur = Some(block);
     while let Some(id) = cur {
+        #[cfg(test)]
+        cost::HOST_CLIMBS.with(|c| c.set(c.get() + 1));
         if has_first(id) {
             top = Some(id);
         }
@@ -241,5 +243,14 @@ pub(super) fn configure<'a>(
     match letter {
         Some((host, spans, run, float)) => packer.first_letter(host, spans, run, float),
         None => packer,
+    }
+}
+
+/// Test-only counters of the first-line walk.
+#[cfg(test)]
+pub(crate) mod cost {
+    thread_local! {
+        /// Boxes `hosts` climbed through.
+        pub(crate) static HOST_CLIMBS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     }
 }

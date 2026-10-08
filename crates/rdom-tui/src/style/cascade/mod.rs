@@ -278,6 +278,7 @@ pub(crate) fn cascade_all_with(
         document_viewport(dom),
         document_color_scheme(dom),
     );
+    note_first_rules(dom, &sheets);
     let merged_vars = walk::merge_root_vars(dom, &sheets);
     let root = dom.root();
     // The root's parent carries the sheet-level (`define_var` /
@@ -311,6 +312,14 @@ pub(crate) fn cascade_all_with(
             walk::Mode::Cascade,
         );
     }
+}
+
+/// Record on the document whether `sheets` style `::first-line` or
+/// `::first-letter`, which layout asks before looking for a first
+/// formatted line (`render::inline::first_line::hosts`).
+fn note_first_rules(dom: &mut Dom<TuiExt>, sheets: &walk::Sheets<'_>) {
+    let (line, letter) = sheets.styles_first();
+    crate::style::doc_flags::set_first_rules(dom, line || letter);
 }
 
 /// [`CascadeExt::cascade_subtrees_all`] with the sheets' registrations

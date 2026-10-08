@@ -27,13 +27,20 @@ pub(super) struct Sheets<'a> {
     registry: Rc<PropertyRegistry>,
     viewport: Viewport,
     color_scheme: ColorScheme,
-    /// The counter styles the sheets define over the predefined ones,
-    /// built on first use.
+}
+
+/// What a sheet set holds that every element's cascade asks, each found
+/// on first use and kept for the set — on its registry, the set's
+/// identity (`stamp`): an `App`'s frames and the stateless cascades over
+/// unchanged sheets scan the rules once, not once per run.
+#[derive(Debug, Default)]
+pub(super) struct SheetFacts {
+    /// The counter styles the sheets define over the predefined ones.
     counter_styles: std::cell::OnceCell<CounterStyleRegistry>,
-    /// Whether any rule styles `::first-line` / `::first-letter`, found
-    /// on first use: an element's are matched only then.
+    /// Whether any rule styles `::first-line` / `::first-letter`: an
+    /// element's are matched only then.
     first_rules: std::cell::OnceCell<(bool, bool)>,
-    /// The names `::highlight()` rules style, found on first use.
+    /// The names `::highlight()` rules style.
     highlight_names: std::cell::OnceCell<Vec<std::sync::Arc<str>>>,
 }
 
@@ -53,9 +60,6 @@ impl<'a> Sheets<'a> {
             registry,
             viewport,
             color_scheme,
-            counter_styles: std::cell::OnceCell::new(),
-            first_rules: std::cell::OnceCell::new(),
-            highlight_names: std::cell::OnceCell::new(),
         }
     }
 
@@ -63,7 +67,9 @@ impl<'a> Sheets<'a> {
     /// Custom Highlight API 1 §5.1), each once: an element's highlight
     /// styles are matched for these alone.
     pub(super) fn highlight_names(&self) -> &[std::sync::Arc<str>] {
-        self.highlight_names.get_or_init(|| {
+        self.registry.facts.highlight_names.get_or_init(|| {
+            #[cfg(test)]
+            cost::FACT_BUILDS.with(|c| c.set(c.get() + 1));
             let mut names: Vec<std::sync::Arc<str>> = Vec::new();
             for rule in self.list.iter().flat_map(|s| s.rules()) {
                 if let crate::style::PseudoElementTarget::Highlight(name) = &rule.pseudo
@@ -79,7 +85,9 @@ impl<'a> Sheets<'a> {
     /// Whether any of the sheets has a `::first-line` rule, and a
     /// `::first-letter` one (CSS Pseudo-Elements 4 §2.2, §2.3).
     pub(super) fn styles_first(&self) -> (bool, bool) {
-        *self.first_rules.get_or_init(|| {
+        *self.registry.facts.first_rules.get_or_init(|| {
+            #[cfg(test)]
+            cost::FACT_BUILDS.with(|c| c.set(c.get() + 1));
             let has = |target| {
                 self.list
                     .iter()
@@ -98,7 +106,9 @@ impl<'a> Sheets<'a> {
     /// (unlayered last), then sheet, then source order (CSS Cascade 5
     /// §6.4.3).
     pub(super) fn counter_styles(&self) -> &CounterStyleRegistry {
-        self.counter_styles.get_or_init(|| {
+        self.registry.facts.counter_styles.get_or_init(|| {
+            #[cfg(test)]
+            cost::FACT_BUILDS.with(|c| c.set(c.get() + 1));
             let mut defs: Vec<(u32, usize, usize, &CounterStyleDefinition)> = Vec::new();
             for (sheet, s) in self.list.iter().enumerate() {
                 for (i, def) in s.counter_styles().iter().enumerate() {
@@ -164,5 +174,15 @@ impl<'a> std::ops::Deref for Sheets<'a> {
 
     fn deref(&self) -> &Self::Target {
         self.list
+    }
+}
+
+/// Test-only counters of the sheet scans.
+#[cfg(test)]
+pub(crate) mod cost {
+    thread_local! {
+        /// Scans of a sheet set's rules for what it holds (the first-line
+        /// and highlight rules, the counter styles).
+        pub(crate) static FACT_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     }
 }

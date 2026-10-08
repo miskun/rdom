@@ -338,3 +338,30 @@ fn a_restyle_reuses_the_highlight_matches() {
     let ext = dom.node(div).ext().unwrap();
     assert!(ext.computed_highlight("search").is_some());
 }
+
+/// C10G-IDLE-SCANS. What a sheet set holds that every element's cascade
+/// asks — whether it styles `::first-line` / `::first-letter`, the names
+/// its `::highlight()` rules style, its `@counter-style` registry — is
+/// found once per sheet set (its registry stamp), not rescanned by every
+/// cascade run over the same sheets.
+#[test]
+fn a_sheet_set_is_scanned_once() {
+    use super::sheets::cost::FACT_BUILDS;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let ol = dom.create_element("ol");
+    dom.append_child(root, ol).unwrap();
+    let li = dom.create_element("li");
+    dom.append_child(ol, li).unwrap();
+    let css = sheet(
+        "p::first-line { color: red } ::highlight(h) { color: blue } \
+         @counter-style x { system: cyclic; symbols: '*' }",
+    );
+    let sheets = [&css];
+    let registry = Rc::new(PropertyRegistry::new(&sheets));
+    FACT_BUILDS.with(|c| c.set(0));
+    cascade_all_with(&mut dom, &sheets, Some(registry.clone()));
+    cascade_all_with(&mut dom, &sheets, Some(registry.clone()));
+    cascade_subtrees_all_with(&mut dom, &sheets, Some(registry), &[li]);
+    assert_eq!(FACT_BUILDS.with(|c| c.get()), 3, "one scan per fact");
+}

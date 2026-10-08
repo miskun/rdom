@@ -685,6 +685,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **A pointer on an outside list marker hits its list item** (CSS Lists 3 §3.5): a click on a bullet targets the `li` (it reached the list under it), `hit_test_pseudo` names the marker and `li::marker:hover` applies; an absolutely positioned inline `::before` starts where its host's first line does (CSS 2.1 §10.3.7). (C10G-MARKER-HIT)
 - **`::selection`'s UA colors apply as a pair** (CSS Pseudo-Elements 4 §3.4): an author `color` or `background-color` on `::selection` drops the UA's other half, so `::selection { background-color: yellow }` no longer paints white text. (C10G-SELECTION-PAIRED)
 - **Highlights cost what they touch**: the ranges are indexed by text node once per layout, not copied per inline flow per paint; a `*::highlight()` style is shared by elements that compute the same; a restyle reuses its matches; every element and pseudo-element cascades with two fewer allocations. (C10G-HIGHLIGHT-COST)
+- **Idle documents skip three scans**: a flow climbs for a first formatted line only when the sheets style `::first-line` or `::first-letter`; what a sheet set holds (those rules, `::highlight()` names, `@counter-style`s) is found once per set, not per cascade; the pseudo hit test reads the line at the row. (C10G-IDLE-SCANS)
 
 ### Changed — `rdom-showcase`
 
