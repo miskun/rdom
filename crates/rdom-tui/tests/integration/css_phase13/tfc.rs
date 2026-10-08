@@ -263,3 +263,40 @@ fn cells_are_hit_and_columns_are_not() {
     paint(&mut dom, &css(""), 10, 2);
     assert_eq!(dom.hit_test(0, 0), Some(by_id(&dom, "a")));
 }
+
+// ── The anonymous table around stray parts ─────────────────────────
+
+/// CSS 2.1 §17.2.1 rule 3: table parts outside a table are wrapped in an
+/// anonymous table, block-level in their parent's flow — consecutive
+/// cells one row of it, the white space between them no box.
+#[test]
+fn stray_cells_are_wrapped_in_an_anonymous_table() {
+    let mut dom = doc(
+        "<div>before<div class=\"c\">a</div> <div class=\"c\">bb</div>\n<div class=\"c\">c</div>after</div>",
+    );
+    let buf = paint(&mut dom, &css(""), 20, 4);
+    assert_eq!(rows(&buf)[..3], ["before", "abbc", "after"]);
+}
+
+/// §17.2.1 rule 3: stray rows share one anonymous table, so their cells
+/// line up in its columns.
+#[test]
+fn stray_rows_share_one_anonymous_table() {
+    let mut dom = doc(
+        r#"<div><div class="r"><div class="c">a</div><div class="c">bbb</div></div><div class="r"><div class="c">cc</div><div class="c">d</div></div></div>"#,
+    );
+    let buf = paint(&mut dom, &css(""), 20, 3);
+    assert_eq!(rows(&buf)[..2], ["a bbb", "ccd"]);
+}
+
+/// The anonymous table's width is its parent's content width
+/// (CSS Sizing 3 §5.1): an inline block around two stray cells is as wide
+/// as the row, not as its widest cell.
+#[test]
+fn an_anonymous_table_sizes_its_parent() {
+    let mut dom = doc(
+        r#"<div><span class="ib"><span class="c">ab</span><span class="c">cd</span></span>|</div>"#,
+    );
+    let buf = paint(&mut dom, &css(".ib { display: inline-block }"), 20, 2);
+    assert_eq!(rows(&buf)[0], "abcd|");
+}

@@ -66,7 +66,44 @@ pub(in crate::render::layout_pass) fn partition(
             }),
         }
     }
-    runs
+    merge_table_runs(dom, runs)
+}
+
+/// CSS 2.1 §17.2.1 rule 1.4: white space alone between two table parts
+/// generates no box — the two table runs it separates are one anonymous
+/// table.
+fn merge_table_runs(dom: &Dom<TuiExt>, runs: Vec<Run>) -> Vec<Run> {
+    let blank = |run: &Run| {
+        run.kind == RunKind::Inline
+            && run.children.iter().all(|c| match *c {
+                BoxItem::Node(n) => {
+                    let node = dom.node(n);
+                    node.node_type() == NodeType::Text
+                        && node.node_value().is_none_or(|t| {
+                            t.chars()
+                                .all(|ch| matches!(ch, ' ' | '\t' | '\n' | '\r' | '\u{c}'))
+                        })
+                }
+                BoxItem::Generated(..) => false,
+            })
+    };
+    let mut out: Vec<Run> = Vec::with_capacity(runs.len());
+    for run in runs {
+        let joins = run.kind == RunKind::Table
+            && out.len() >= 2
+            && out[out.len() - 2].kind == RunKind::Table
+            && blank(&out[out.len() - 1]);
+        if joins {
+            let space = out.pop().expect("two runs");
+            let table = out.last_mut().expect("one run");
+            table.children.extend(space.children);
+            table.children.extend(run.children);
+            table.child_range.1 = run.child_range.1;
+        } else {
+            out.push(run);
+        }
+    }
+    out
 }
 
 /// Whether the child `id` floats (CSS 2.1 §9.5): out of flow, but laid
@@ -186,6 +223,18 @@ pub(in crate::render::layout_pass) enum RunKind {
     /// Floats with no inline run to join (CSS 2.1 §9.5): placed at the
     /// flow's cursor, holding no line.
     Float,
+    /// Table parts outside a table (a `table-cell`, a `table-row`, …):
+    /// one anonymous table wraps the run, a block-level box of the flow
+    /// (CSS 2.1 §17.2.1 rule 3).
+    Table,
+}
+
+impl RunKind {
+    /// A block-level box of the flow — a block run's children, or the
+    /// anonymous table a table run is.
+    pub(in crate::render::layout_pass) fn is_block_level(self) -> bool {
+        matches!(self, RunKind::Block | RunKind::Table)
+    }
 }
 
 /// Classify a box item as block-level vs inline-level. Text
@@ -220,9 +269,8 @@ pub(super) fn child_level(dom: &Dom<TuiExt>, item: BoxItem) -> RunKind {
                 crate::layout::Display::Inline
                 | crate::layout::Display::InlineBlock
                 | crate::layout::Display::Contents => RunKind::Inline,
-                crate::layout::Display::Block
-                | crate::layout::Display::None
-                | crate::layout::Display::TablePart(_) => RunKind::Block,
+                crate::layout::Display::Block | crate::layout::Display::None => RunKind::Block,
+                crate::layout::Display::TablePart(_) => RunKind::Table,
             }
         }
         // Comments, fragments — treat as inline-level (effectively
@@ -258,7 +306,7 @@ pub(in crate::render::layout_pass) fn inline_runs(
                 open = true;
             }
             // `child_level` never gives `Float`: floats are filtered above.
-            RunKind::Block | RunKind::Float => open = false,
+            RunKind::Block | RunKind::Float | RunKind::Table => open = false,
         }
     }
     runs
@@ -267,5 +315,5 @@ pub(in crate::render::layout_pass) fn inline_runs(
 /// Whether the element `id` is block-level in its parent's flow (it
 /// ends an inline run, [`inline_runs`]).
 pub(in crate::render::layout_pass) fn is_block_level(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    child_level(dom, BoxItem::Node(id)) == RunKind::Block
+    child_level(dom, BoxItem::Node(id)).is_block_level()
 }

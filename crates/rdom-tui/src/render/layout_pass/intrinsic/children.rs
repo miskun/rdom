@@ -136,8 +136,17 @@ pub(super) fn children_size(
     // min-content contributions apply: its items' largest.)
     // A block container's block-level children; its inline-level ones
     // are measured in their runs.
+    // (Table parts outside a table are measured as their anonymous
+    // tables, below.)
+    let table_part = |c: &Item| match c {
+        Item::Element(e) => crate::node::TuiNodeExt::computed(&dom.node(*e))
+            .is_some_and(|s| matches!(s.display, crate::layout::Display::TablePart(_))),
+        Item::Anonymous(_) => false,
+    };
     let block_level = |c: &Item| match c {
-        Item::Element(e) => crate::render::layout_pass::block::is_block_level(dom, *e),
+        Item::Element(e) => {
+            crate::render::layout_pass::block::is_block_level(dom, *e) && !table_part(c)
+        }
         Item::Anonymous(_) => false,
     };
     // A child's outer size, by node, for the float-aware measurements
@@ -248,7 +257,28 @@ pub(super) fn children_size(
             })
             .max()
             .unwrap_or(0);
-        blocks.max(runs)
+        // CSS 2.1 §17.2.1 rule 3: each run of table parts is one
+        // anonymous table (the flow partitioned only when it holds one).
+        let has_parts = children.iter().any(table_part);
+        let table_runs = if has_parts {
+            crate::render::layout_pass::block::flow_runs(dom, id)
+        } else {
+            Vec::new()
+        };
+        let tables = table_runs
+            .iter()
+            .filter(|r| r.kind == crate::render::layout_pass::block::RunKind::Table)
+            .map(|r| {
+                crate::render::layout_pass::table::anonymous_width(
+                    dom,
+                    id,
+                    &r.children,
+                    measure == Measure::MaxContent,
+                )
+            })
+            .max()
+            .unwrap_or(0);
+        blocks.max(runs).max(tables)
     } else {
         // Children stack across the queried axis — the largest outer size.
         children

@@ -16,7 +16,7 @@ use rdom_core::{Dom, NodeId};
 
 use super::grid::GridCell;
 use super::structure::{Cell, Structure};
-use super::{Model, Solved, anonymous};
+use super::{Model, Solved, TableBox, anonymous};
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{Border, CaptionSide, Direction, Display, LayoutRect, TablePart};
 use crate::node::TuiNodeExt;
@@ -196,10 +196,14 @@ fn set_rect(dom: &mut Dom<TuiExt>, id: NodeId, rect: LayoutRect) {
 /// the anonymous boxes `id` holds.
 pub(super) fn place(
     dom: &mut Dom<TuiExt>,
-    id: NodeId,
+    table: TableBox<'_>,
     outer: LayoutRect,
     mut solved: Solved,
 ) -> Vec<AnonymousIfc> {
+    let element = match table {
+        TableBox::Element(id) => Some(id),
+        TableBox::Anonymous { .. } => None,
+    };
     let width = outer.width;
     let captions = caption_boxes(dom, &solved.structure, width);
     let (top, bottom) = caption_heights(dom, &solved.structure, width);
@@ -224,9 +228,8 @@ pub(super) fn place(
         box_height.saturating_sub(chrome.vertical()),
     );
     // The grid scrolls with the table's offsets (a scroll container).
-    let (sx, sy) = dom
-        .node(id)
-        .ext()
+    let (sx, sy) = element
+        .and_then(|id| dom.node(id).ext())
         .map_or((0, 0), |e| (e.scroll_x, e.scroll_y));
     let xs = Axis::new(content.x - sx, &solved.lines.vertical, &solved.columns);
     let ys = Axis::new(content.y - sy, &solved.lines.horizontal, &solved.rows);
@@ -320,13 +323,18 @@ pub(super) fn place(
             }
         }
     }
-    let own = anonymous.remove(&id).unwrap_or_default();
+    let own = element
+        .and_then(|id| anonymous.remove(&id))
+        .unwrap_or_default();
     for (container, mut boxes) in anonymous {
         boxes.sort_by_key(|b| b.child_range.0);
         if let Some(ext) = dom.node_mut(container).ext_mut() {
             ext.anonymous_blocks = boxes;
         }
     }
+    let Some(id) = element else {
+        return own;
+    };
     for n in positioning::out_of_flow_positioned_children(dom, id) {
         positioning::record_static_position(dom, n, content.x - sx, content.y - sy);
     }

@@ -54,11 +54,24 @@ use rdom_core::{Dom, NodeId};
 
 use crate::ext::{AnonymousIfc, TuiExt};
 use crate::layout::{BorderCollapse, Direction, LayoutRect, Size, TableLayout};
+use crate::render::box_tree::BoxItem;
 use crate::style::ComputedStyle;
 
 use super::intrinsic::Measure;
 
 pub(crate) use place::is_column_box;
+
+/// A table box: a `display: table` / `inline-table` element, or the
+/// anonymous table wrapping a run of `parent`'s box items that are table
+/// parts outside a table (CSS 2.1 §17.2.1 rule 3).
+#[derive(Debug, Clone, Copy)]
+pub(super) enum TableBox<'a> {
+    Element(NodeId),
+    Anonymous {
+        parent: NodeId,
+        items: &'a [BoxItem],
+    },
+}
 
 /// The table's two border models (CSS 2.1 §17.6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -149,15 +162,21 @@ thread_local! {
     pub(super) static SOLVES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
-/// Solve the table `id` (styled `computed`, in a containing block `cb`
+/// Solve the table `table` (styled `computed`, in a containing block `cb`
 /// wide) at a border-box width of `width`: its columns sized into it (or
 /// past it, when its content needs more) and its rows to their content.
-fn solve(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedStyle, width: u16, cb: u16) -> Solved {
+fn solve(
+    dom: &Dom<TuiExt>,
+    table: TableBox<'_>,
+    computed: &ComputedStyle,
+    width: u16,
+    cb: u16,
+) -> Solved {
     #[cfg(test)]
     SOLVES.with(|c| c.set(c.get() + 1));
     let model = Model::of(computed);
     let chrome = Chrome::of(computed, model, cb);
-    let structure = structure::Structure::of(dom, id);
+    let structure = structure::Structure::of(dom, table);
     let grid = grid::Grid::of(dom, &structure);
     let lines = lines::Lines::of(dom, computed, &structure, &grid, model);
     let grid_width = width.saturating_sub(chrome.horizontal());
@@ -208,11 +227,32 @@ pub(super) fn content_size(
     cb_width: u16,
     measure: Measure,
 ) -> u16 {
+    size_of(
+        dom,
+        TableBox::Element(id),
+        computed,
+        direction,
+        cross_budget,
+        cb_width,
+        measure,
+    )
+}
+
+/// [`content_size`] for any table box.
+fn size_of(
+    dom: &Dom<TuiExt>,
+    table: TableBox<'_>,
+    computed: &ComputedStyle,
+    direction: Direction,
+    cross_budget: u16,
+    cb_width: u16,
+    measure: Measure,
+) -> u16 {
     match direction {
         Direction::Row => {
             let model = Model::of(computed);
             let chrome = Chrome::of(computed, model, cb_width);
-            let structure = structure::Structure::of(dom, id);
+            let structure = structure::Structure::of(dom, table);
             let grid = grid::Grid::of(dom, &structure);
             let lines = lines::Lines::of(dom, computed, &structure, &grid, model);
             let columns = if uses_fixed_layout(computed) {
@@ -232,7 +272,7 @@ pub(super) fn content_size(
             table.max(place::caption_min(dom, &structure, cb_width))
         }
         Direction::Column => {
-            let solved = solve(dom, id, computed, cross_budget, cb_width);
+            let solved = solve(dom, table, computed, cross_budget, cb_width);
             let (top, bottom) = place::caption_heights(dom, &solved.structure, cross_budget);
             top.saturating_add(solved.box_height())
                 .saturating_add(bottom)
@@ -273,8 +313,13 @@ pub(super) fn layout_table(
         .unwrap_or(outer.width);
     // CSS 2.1 §17.5.2.2: never narrower than its content allows.
     let width = outer.width.max(min_width(dom, id, computed, cb));
-    let solved = solve(dom, id, computed, width, cb);
-    place::place(dom, id, LayoutRect { width, ..outer }, solved)
+    let solved = solve(dom, TableBox::Element(id), computed, width, cb);
+    place::place(
+        dom,
+        TableBox::Element(id),
+        LayoutRect { width, ..outer },
+        solved,
+    )
 }
 
 /// The table box of the laid-out table `id` (CSS 2.1 §17.4: the box its
@@ -309,10 +354,104 @@ pub(super) fn baselines(
     width: u16,
     cb: u16,
 ) -> Option<(u16, u16)> {
-    let solved = solve(dom, id, computed, width, cb);
+    let solved = solve(dom, TableBox::Element(id), computed, width, cb);
     let (top, _) = place::caption_heights(dom, &solved.structure, width);
     place::row_baselines(dom, &solved).map(|(first, last)| {
         let at = top.saturating_add(solved.chrome.top);
         (at.saturating_add(first), at.saturating_add(last))
     })
+}
+
+// ── The anonymous table around stray parts (§17.2.1 rule 3) ────────
+
+/// The anonymous table's style: an anonymous box's (inheriting from
+/// `parent`, every other property initial) that is a `table`.
+fn anonymous_style(dom: &Dom<TuiExt>, parent: NodeId) -> ComputedStyle {
+    let parent = dom
+        .node(parent)
+        .ext()
+        .and_then(|e| e.computed.clone())
+        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+    let mut style = crate::style::cascade::anonymous_box_style(&parent);
+    style.display = crate::layout::Display::Block;
+    style.flow = crate::layout::Flow::Table;
+    style
+}
+
+/// The min-content (`max_content` false) or max-content width of the
+/// anonymous table around `items`, a run of `parent`'s box items.
+pub(super) fn anonymous_width(
+    dom: &Dom<TuiExt>,
+    parent: NodeId,
+    items: &[BoxItem],
+    max_content: bool,
+) -> u16 {
+    let measure = if max_content {
+        Measure::MaxContent
+    } else {
+        Measure::MinContent
+    };
+    let style = anonymous_style(dom, parent);
+    let table = TableBox::Anonymous { parent, items };
+    size_of(dom, table, &style, Direction::Row, 0, 0, measure)
+}
+
+/// The anonymous table's used width in `available` cells: as an `auto`
+/// table's, shrink-to-fit (§17.5.2.2).
+fn anonymous_used_width(
+    dom: &Dom<TuiExt>,
+    parent: NodeId,
+    items: &[BoxItem],
+    available: u16,
+) -> u16 {
+    let min = anonymous_width(dom, parent, items, false);
+    let max = anonymous_width(dom, parent, items, true);
+    max.min(available.max(min))
+}
+
+/// The height of the anonymous table around `items` in a containing block
+/// `available` cells wide.
+pub(super) fn anonymous_height(
+    dom: &Dom<TuiExt>,
+    parent: NodeId,
+    items: &[BoxItem],
+    available: u16,
+) -> u16 {
+    let width = anonymous_used_width(dom, parent, items, available);
+    let style = anonymous_style(dom, parent);
+    let table = TableBox::Anonymous { parent, items };
+    size_of(
+        dom,
+        table,
+        &style,
+        Direction::Column,
+        width,
+        available,
+        Measure::MaxContent,
+    )
+}
+
+/// Lay the anonymous table around `items` out at `at` — its top-left
+/// corner and the containing block's width — and return its height.
+pub(super) fn layout_anonymous(
+    dom: &mut Dom<TuiExt>,
+    parent: NodeId,
+    items: &[BoxItem],
+    at: LayoutRect,
+) -> u16 {
+    let width = anonymous_used_width(dom, parent, items, at.width);
+    let style = anonymous_style(dom, parent);
+    let table = TableBox::Anonymous { parent, items };
+    let solved = solve(dom, table, &style, width, at.width);
+    let (top, bottom) = place::caption_heights(dom, &solved.structure, width);
+    let height = top
+        .saturating_add(solved.box_height())
+        .saturating_add(bottom);
+    let rect = LayoutRect::new(at.x, at.y, width, height);
+    let boxes = place::place(dom, table, rect, solved);
+    debug_assert!(
+        boxes.is_empty(),
+        "a run of table parts wraps no text of its parent"
+    );
+    height
 }

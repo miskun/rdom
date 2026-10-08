@@ -326,6 +326,15 @@ impl FlowSink for MeasureSink<'_> {
         Some(placed.bottom)
     }
 
+    fn table_run(&mut self, run: &Run, at: LayoutRect) -> u16 {
+        crate::render::layout_pass::table::anonymous_height(
+            self.dom,
+            self.id,
+            &run.children,
+            at.width,
+        )
+    }
+
     fn inline_run(&mut self, run: &Run, pseudos: RunPseudos, place: RunPlace) -> u16 {
         let mut ex = InlineFloats::new(self.dom, self.area, place.at, place.content_top);
         let il = crate::render::inline::pack_run(

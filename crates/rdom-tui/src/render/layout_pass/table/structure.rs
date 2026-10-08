@@ -128,14 +128,26 @@ fn items(dom: &Dom<TuiExt>, container: NodeId) -> Vec<(usize, BoxItem, Kind)> {
 }
 
 impl Structure {
-    /// The structure of the table element `table`.
-    pub(super) fn of(dom: &Dom<TuiExt>, table: NodeId) -> Self {
+    /// The structure of `table`.
+    pub(super) fn of(dom: &Dom<TuiExt>, table: super::TableBox<'_>) -> Self {
+        let (table, entries) = match table {
+            super::TableBox::Element(id) => (id, items(dom, id)),
+            super::TableBox::Anonymous { parent, items } => (
+                parent,
+                items
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &item)| (i, item, kind(dom, item)))
+                    .filter(|&(_, _, k)| k != Kind::Skip)
+                    .collect(),
+            ),
+        };
         let mut s = Structure::default();
         let mut loose = Group::default();
         let mut run: Vec<(usize, BoxItem, Kind)> = Vec::new();
         let (mut header, mut footer): (Option<Group>, Option<Group>) = (None, None);
         let mut middle: Vec<Group> = Vec::new();
-        for entry in items(dom, table) {
+        for entry in entries {
             let (_, item, k) = entry;
             let part = match k {
                 Kind::Part(p) if p != TablePart::Cell => p,

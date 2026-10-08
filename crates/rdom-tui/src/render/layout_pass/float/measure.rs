@@ -89,6 +89,12 @@ pub(in crate::render::layout_pass) fn block_width(
                 widest = widest.max(if max { floats.saturating_add(w) } else { w });
                 floats = 0;
             }
+            RunKind::Table => {
+                let w =
+                    crate::render::layout_pass::table::anonymous_width(dom, id, &run.children, max);
+                widest = widest.max(if max { floats.saturating_add(w) } else { w });
+                floats = 0;
+            }
             RunKind::Block => {
                 for child in run.children.iter().filter_map(|c| c.node()) {
                     let w = outer(child, max);

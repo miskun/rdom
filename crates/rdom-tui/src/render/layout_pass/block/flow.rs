@@ -50,6 +50,10 @@ pub(super) trait FlowSink {
     fn generated(&mut self, host: NodeId, slot: PseudoSlot, at: GeneratedPlace<'_>) -> Option<i32>;
     /// An inline run in an anonymous block box at `place`: its height.
     fn inline_run(&mut self, run: &Run, pseudos: RunPseudos, place: RunPlace) -> u16;
+    /// A table run's anonymous table (CSS 2.1 §17.2.1 rule 3) with its
+    /// top-left corner at `at` in a containing block `at.width` wide: its
+    /// height.
+    fn table_run(&mut self, run: &Run, at: LayoutRect) -> u16;
 }
 
 /// The out-of-flow positioned children of a flow, by the in-flow item
@@ -147,11 +151,11 @@ pub(super) fn prepare(
     // empty inline run the placement loop packs with the pseudo alone.
     // (A leading / trailing whitespace run already carries it.)
     let own_line = crate::render::inline::generated::own_line_pseudos(dom, id);
-    if own_line.before && first_flow_run(&runs).is_some_and(|r| r.kind == RunKind::Block) {
+    if own_line.before && first_flow_run(&runs).is_some_and(|r| r.kind.is_block_level()) {
         let at = runs[0].child_range.0;
         runs.insert(0, Run::pseudo_only(at));
     }
-    if own_line.after && last_flow_run(&runs).is_some_and(|r| r.kind == RunKind::Block) {
+    if own_line.after && last_flow_run(&runs).is_some_and(|r| r.kind.is_block_level()) {
         let at = runs[runs.len() - 1].child_range.1;
         runs.push(Run::pseudo_only(at));
     }
@@ -338,6 +342,16 @@ pub(super) fn run<S: FlowSink>(
                     placed_blocks += 1;
                     prev_block = Some(child);
                 }
+            }
+            RunKind::Table => {
+                // An anonymous table has no margins: the buffered ones
+                // resolve above it.
+                let top = y_cursor + i32::from(margin_acc.resolved());
+                margin_acc = MarginAccumulator::new();
+                let at = LayoutRect::new(content_x, top, containing_block_width, 0);
+                y_cursor = top + i32::from(sink.table_run(run, at));
+                prev_block = None;
+                placed_blocks += 1;
             }
             RunKind::Inline => {
                 // Runs cover the in-flow children in order, so the host's

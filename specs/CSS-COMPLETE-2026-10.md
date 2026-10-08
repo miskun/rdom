@@ -255,7 +255,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | partial — the slot assignment, the `display` values, the table formatting context and the HTML migration are in; the anonymous table around stray parts outside a table follows |
+| C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | done |
 | C13-TABLE-PROPS | `caption-side`, `empty-cells`, `border-spacing` (separated borders), `vertical-align` on cells | |
 | C13-COLUMN | Column combinator `\|\|` (Selectors 4; was C11-COLUMN): `col.x \|\| td` matches the cells of the columns a `<col>` spans, from C13-TFC's column model | |
 
@@ -8527,3 +8527,23 @@ row comes from.
   tables: a shrink-to-fit width, rows as tall as their cells, rowspan / col / tfoot / caption placement).
   No showcase demo has a table; no snapshot changed. Mutation (each alone, restored, touched): a root-level
   table stretched → the C6 collapsed-row test fails (its cell 20 wide); rows without line breaks in copy → 2.
+- 2026-10-08 — C13-TFC, part 5 (item done): the anonymous table around table parts outside a table (CSS 2.1
+  §17.2.1 rule 3). Block flow partitions a run of them as a `RunKind::Table` (new; `RunKind::is_block_level`
+  is true for it and `Block`, so it ends inline runs and a block-level edge pseudo still gets its own line
+  box), white space alone between two such runs joining them (rule 1.4: no box; `runs::merge_table_runs`);
+  `FlowSink::table_run` lays the run out (`table::layout_anonymous`) or measures it
+  (`table::anonymous_height`) as a table whose style is an anonymous box's that is a `table` — `auto`
+  width, shrink-to-fit in the containing block (§17.5.2.2), no margins. The table module takes a
+  `TableBox` (an element, or `Anonymous { parent, items }`) through `Structure::of`, `solve`, `place` (which
+  writes no rects for a box with no node). Intrinsic sizes: a block container's inline size counts each
+  table run as its anonymous table (`intrinsic::children`, and `float::measure` for flows with floats),
+  the flow partitioned only when a child is a table part (the idle-cost pin `block_inline_sizes_partition_
+  floats_only_when_one_floats` caught the unconditional first try: 16 partitions for 0). Decided, and in
+  DIVERGENCES §2: parts inside an inline box get no anonymous `inline-table` — rdom does not split inline
+  boxes around block-level ones, and these follow the same packing. Red: three `css_phase13/tfc.rs` tests
+  — stray cells stacked as blocks (`["before", "a", "bb"]` for `["before", "abbc", "after"]`), stray rows
+  not sharing columns (`["a", "bbb"]` for `["a bbb", "ccd"]`), an inline block around two stray cells 2
+  wide for 4 (`"ab"` for `"abcd|"`); green after. Mutation (each alone, restored, touched): white space not
+  joining table runs → 1 fails; the anonymous tables left out of the inline size → 1. C13-TFC is done:
+  CSS-COVERAGE's `display: table` row Supported (§3.7 9 / 0 / 0 / 2; total 234 / 7 / 21 / 45);
+  DIVERGENCES §3's display list is empty.

@@ -289,6 +289,10 @@ impl flow::FlowSink for LayoutSink<'_> {
         self.anon_blocks.push(anon);
         height
     }
+
+    fn table_run(&mut self, run: &Run, at: LayoutRect) -> u16 {
+        crate::render::layout_pass::table::layout_anonymous(self.dom, self.id, &run.children, at)
+    }
 }
 
 /// The border-box height `child` got from `layout_node` (`fallback`
