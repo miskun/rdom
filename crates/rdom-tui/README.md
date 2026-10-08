@@ -677,7 +677,70 @@ does so only on a text field or editing host — and the UA focus tint
 keys on it; `dom.set_focus_visible(bool)` sets it directly (it fires
 `InteractionChanged(FocusVisible)`).
 
-## Form states and the field border
+## Form states
+
+The input pseudo-classes follow HTML: `:valid` / `:invalid`, `:required` / `:optional`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default`, `:indeterminate` (a checkbox's flag, a radio group with nothing checked), and `:user-valid` / `:user-invalid`. The last two wait for the user: a field is judged once the user commits a change to it — leaving an edited text field, Enter in it, a toggle or a pick — or once its form's submission is attempted, and a reset forgets it. So an empty required field is `:invalid` from the start, but is shown as wrong only when the user has had a go at it:
+
+```rust
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict("input:user-invalid { background-color: red }")?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let form = dom.create_element("form");
+    dom.append_child(root, form)?;
+    let email = dom.create_element("input");
+    dom.set_attribute(email, "type", "email")?;
+    dom.append_child(form, email)?;
+    let name = dom.create_element("input");
+    dom.set_attribute(name, "required", "")?;
+    dom.append_child(form, name)?;
+    let send = dom.create_element("button");
+    let label = dom.create_text_node("Send");
+    dom.append_child(send, label)?;
+    dom.append_child(form, send)?;
+
+    let terminal = Terminal::new(TestBackend::new(30, 6))?;
+    let mut app = App::with_backend(dom, sheet, terminal)?;
+    let key = |code| Event::Key(KeyEvent::new(code, KeyModifiers::NONE));
+    let user_invalid =
+        |app: &App<TestBackend>, id: NodeId| app.dom().matches(id, ":user-invalid").unwrap();
+
+    // Untouched, the required field is `:invalid` but not `:user-invalid`.
+    assert!(app.dom().matches(name, ":invalid")?);
+    assert!(!user_invalid(&app, name));
+
+    // Typing is not a commit: the edited field is not judged yet…
+    app.dom_mut().node_mut(email).focus();
+    for c in "nope".chars() {
+        app.handle_event(key(KeyCode::Char(c)));
+    }
+    assert!(!user_invalid(&app, email));
+    // …until it loses focus: `change` fires and its user validity is set.
+    app.handle_event(key(KeyCode::Tab));
+    assert!(user_invalid(&app, email));
+    assert!(!user_invalid(&app, name), "focused, but never edited");
+
+    // A submission attempt judges every field the form owns; the form
+    // being invalid, it is blocked and the first invalid field focused.
+    app.dom_mut().node_mut(send).click();
+    assert!(user_invalid(&app, name));
+    assert_eq!(app.dom().focused(), Some(email));
+
+    // The next frame styles them (the focused field shows the UA's
+    // `:focus-visible` tint, which is `!important`, over it).
+    app.draw_if_dirty()?;
+    let red = Color::Rgb(255, 0, 0);
+    assert_eq!(app.dom().node(name).computed().unwrap().bg, red);
+    Ok(())
+}
+```
+
+Without an `App`, a bare `TuiDom` calls `runtime::builtins::validation::install` once before cascading, so the form states match.
+
+### A text field has no border
 
 A text field has no border in rdom: a browser draws a 2px inset one, but in a terminal a border is a whole row above and below and a column each side, so a one-row `<input>` would be three rows tall. The UA field is `padding: 0 1` on a `Field` background instead. So `input:user-invalid { border-color: red }`, the first rule a web developer writes, paints nothing — there is no border to colour. Mark the state with the field's own colours, or give the field a border yourself and pay its rows:
 
@@ -741,6 +804,99 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     assert!((0..22).all(|x| buf.cell(x, 1).unwrap().bg == red));
     assert_ne!(buf.cell(22, 1).unwrap().bg, red);
     assert!((2..5).all(|y| buf.cell(0, y).unwrap().fg == red));
+    Ok(())
+}
+```
+
+## Popovers and the top layer
+
+`popover` elements (HTML §6.12) and modal dialogs render in the top layer: above every `z-index`, outside every ancestor's `overflow`, centred in the viewport by the UA sheet, on a `Canvas` background that hides the page under them. A `popovertarget` button toggles its popover; a click outside an auto popover, or Esc, closes it (light dismiss); `runtime::builtins::popover` has `show_popover` / `hide_popover` / `toggle_popover` for script. Until anchor positioning lands, place a popover yourself: in a `beforetoggle` listener the event's `source` is the invoker (`popover::invoker_of` answers once it shows), and its `bounding_rect` gives the cells to put the popover under, as `top` / `left` after `inset: auto`. Tab moves through a popover in tree order, so a popover placed away from its invoker should give the control to start at `autofocus`.
+
+```rust
+use crossterm::event::{Event, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use rdom_tui::prelude::*;
+use rdom_tui::runtime::builtins::popover;
+use rdom_tui::ToggleState;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(".menu { inset: auto }")?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let body = dom.create_element("body");
+    dom.append_child(root, body)?;
+    let mut add = |parent: NodeId, tag: &str, text: &str| -> NodeId {
+        let id = dom.create_element(tag);
+        if !text.is_empty() {
+            let t = dom.create_text_node(text);
+            dom.append_child(id, t).unwrap();
+        }
+        dom.append_child(parent, id).unwrap();
+        id
+    };
+    let button = add(body, "button", "Menu");
+    for _ in 0..6 {
+        add(body, "p", "xxxxxxxxxxxxxxxxxxxxxxxx");
+    }
+    let menu = add(body, "div", "");
+    add(menu, "div", "Copy");
+    add(menu, "div", "Paste");
+    dom.set_attribute(button, "popovertarget", "menu")?;
+    dom.set_attribute(menu, "id", "menu")?;
+    dom.set_attribute(menu, "popover", "")?;
+    dom.set_attribute(menu, "class", "menu")?;
+
+    // Place the menu under its invoker as it opens.
+    dom.add_event_listener(menu, "beforetoggle", ListenerOptions::default(), move |ctx| {
+        let Some(toggle) = ctx.event.detail.as_toggle() else {
+            return;
+        };
+        if toggle.new_state != ToggleState::Open {
+            return;
+        }
+        let Some(at) = toggle.source.and_then(|b| ctx.dom.node(b).bounding_rect()) else {
+            return;
+        };
+        let mut node = ctx.dom.node_mut(menu);
+        let mut style = node.style_mut().unwrap();
+        style.set_property("top", &(at.y + i32::from(at.height)).to_string()).unwrap();
+        style.set_property("left", &at.x.to_string()).unwrap();
+    })?;
+
+    let terminal = Terminal::new(TestBackend::new(24, 8))?;
+    let mut app = App::with_backend(dom, sheet, terminal)?;
+    app.draw_if_dirty()?;
+
+    // The invoker opens it, under itself.
+    app.dom_mut().node_mut(button).click();
+    assert!(popover::is_showing(app.dom(), menu));
+    assert_eq!(popover::invoker_of(app.dom(), menu), Some(button));
+    app.draw_if_dirty()?;
+    let r = app.dom().node(menu).bounding_rect().unwrap();
+    let b = app.dom().node(button).bounding_rect().unwrap();
+    assert_eq!((r.x, r.y), (b.x, b.y + i32::from(b.height)));
+
+    // Its `Canvas` fill hides the page: no `x` shows through its box.
+    let area = Rect::new(0, 0, 24, 8);
+    let mut buf = Buffer::empty(area);
+    app.dom_mut().paint_dom(&mut buf, area);
+    for y in r.y..r.y + i32::from(r.height) {
+        for x in r.x..r.x + i32::from(r.width) {
+            assert_ne!(buf.cell(x as u16, y as u16).unwrap().symbol(), "x");
+        }
+    }
+
+    // Light dismiss: a press and release outside close it.
+    let mouse = |kind| {
+        Event::Mouse(MouseEvent {
+            kind,
+            column: 23,
+            row: 7,
+            modifiers: KeyModifiers::NONE,
+        })
+    };
+    app.handle_event(mouse(MouseEventKind::Down(MouseButton::Left)));
+    app.handle_event(mouse(MouseEventKind::Up(MouseButton::Left)));
+    assert!(!popover::is_showing(app.dom(), menu));
     Ok(())
 }
 ```

@@ -40,7 +40,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 8 | Positioning, floats, overflow, scrolling | done 2026-10-10 (both gates; 15 gate fixes `C8G-*`; their re-review rides with the Phase 9 gate) |
 | 9 | Inline text and decoration | done 2026-10-12 (both gates; 14 gate fixes `C9G-*`; their re-review rides with the Phase 10 gate) |
 | 10 | Lists, counters, generated content, pseudo-elements | done 2026-10-13 (both gates; 19 gate fixes `C10G-*`; their re-review rides with the Phase 11 gate) |
-| 11 | Selectors | gates run 2026-10-14; `C11G-*` fixes in progress |
+| 11 | Selectors | done 2026-10-14 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
 | 12 | Transitions, animations, user interface | |
 | 13 | Tables (real table formatting context) | |
 | 14 | Conditional rules, containment | |
@@ -7552,3 +7552,28 @@ row comes from.
   background cue (one row, red), and `border: solid` + `border-color` (three rows, a red border) — and the
   root README's built-ins paragraph says so. Docs only: the doctest documents existing behaviour, green when
   written (rows and colours asserted exactly).
+- 2026-10-14 — C11G-DOCS (API N6, N7). The READMEs were silent on Phase 11's part 2. rdom-tui README: "Form
+  states" (the section C11G-FORM-BORDER started, its border half now a subsection) lists the input
+  pseudo-classes and when user validity is set, with a doctest driving a headless `App` with key events —
+  an empty required field `:invalid` but not `:user-invalid`; an email field typed into stays unjudged until
+  Tab leaves it, then `:user-invalid`; a click on the submit button judges the untouched field too (the
+  blocked submission focusing the first invalid field), and the next frame's computed `bg` is the author's red
+  (the focused field keeps the UA's `!important` `:focus-visible` tint — the assertion first written on it
+  failed for that reason, which the comment now says). "Popovers and the top layer": the placement recipe
+  until C15-ANCHOR — in a `beforetoggle` listener the event's `source` is the invoker (`invoker_of` is set
+  only once the popover shows: HTML's step 21 runs after the event, so the gate's "`invoker_of` in
+  `beforetoggle`" would read `None`), its `bounding_rect` gives `top` / `left` after `inset: auto` — and
+  `autofocus` for Tab; its doctest opens a `popovertarget` menu by a click on the button, checks it sits
+  under the button, paints it over six lines of `x`s and finds none in its box (the `Canvas` fill), then
+  closes it with a press and release outside. Root README: the UA rule count is 183 (it said 175; the
+  `ua_sheet` test pins 183); the top-layer bullet replaces "modal `<dialog>` focus trap"; the pseudo-class list
+  gains Phase 11's and the Selectors 4 structure; the built-ins list gains the `popover` attribute. ACID tile
+  15 shows the dialog and the popover over page text, their boxes blank in `Canvas`. Docs only: the two
+  doctests pass against existing behaviour.
+- 2026-10-14 — Phase 11 closed. Batch A (C11G-MODAL-INERT, -POPOVER-BOUND, -CANVAS-FILL, -HAS-COST,
+  -DIR-AUTO-COST, -DETAILS-PARENT, -ENTER-COMMIT, -MINOR) and batch B (C11G-UPGRADE, -DESIGN-TYPES, -API,
+  -DIALOG-BEFORETOGGLE, -HAS-IS-SIBLING, -FORM-BORDER, -DOCS): 15 gate fixes, every architect and API
+  finding addressed (API N2 by C11G-POPOVER-BOUND, architect N10 by batch A's splits) or recorded (TECH_DEBT
+  `HAS-COST-1`); API N7's "consider" — moving `<select>`'s dropdown (`data-rdom-open`) into the top layer —
+  is not taken in Phase 11 and is left to C12's form-control work. The DESIGN classification of public types is now checked mechanically (`design_types`).
+  The fixes' re-review rides with the Phase 12 gate.
