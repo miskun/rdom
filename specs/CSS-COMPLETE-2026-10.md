@@ -42,7 +42,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 10 | Lists, counters, generated content, pseudo-elements | done 2026-10-08 (both gates; 19 gate fixes `C10G-*`; their re-review rides with the Phase 11 gate) |
 | 11 | Selectors | done 2026-10-08 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
 | 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
-| 13 | Tables (real table formatting context) | |
+| 13 | Tables (real table formatting context) | items done, gates pending (2026-10-08) |
 | 14 | Conditional rules, containment | |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
@@ -8599,3 +8599,8 @@ row comes from.
   alone, restored, touched): no column elements for a cell → 1 fails; the model not cached → the cost test
   (150 models for 1); `:nth-last-col()` counted from the first → 2. DESIGN lists `NthColumnSelector` (open,
   a parser output). CSS-COVERAGE §3.17's column-combinator row Supported (33 / 0 / 1 / 4).
+- 2026-10-08 — Phase 13 items done (C13-TFC in five parts, C13-TABLE-PROPS, C13-COLUMN); status line "items
+  done, gates pending". ACID tile 14 covers the new table behaviour (row spans, separated borders and
+  `border-spacing`, `empty-cells`, cell `vertical-align`, captions, the column selectors). TECH_DEBT `SIZE-1`
+  recounted for the files Phase 13 touched. CSS-COVERAGE: §3.20 4 / 0 / 0 / 0, §3.17 33 / 0 / 1 / 4, §3.7 9 / 0 /
+  0 / 2, §3.5 14 / 0 / 0 / 2; total 237 / 7 / 18 / 45.
