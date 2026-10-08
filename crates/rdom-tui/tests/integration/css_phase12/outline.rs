@@ -210,3 +210,66 @@ fn an_outline_is_drawn_after_positioned_descendants() {
     );
     assert_eq!(rows(&buf)[0], "┌────┐xx");
 }
+
+// ── C12G-OUTLINE-INLINE ───────────────────────────────────────────
+
+/// `<div class=p>ab <span class=f>link</span> cd</div>`, one cell in.
+fn inline(css: &str, w: u16, h: u16) -> Vec<String> {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = el(&mut dom, root, "p", "ab ");
+    let span = dom.create_element("span");
+    dom.set_attribute(span, "class", "f").unwrap();
+    let t = dom.create_text_node("link");
+    dom.append_child(span, t).unwrap();
+    dom.append_child(p, span).unwrap();
+    let tail = dom.create_text_node(" cd");
+    dom.append_child(p, tail).unwrap();
+    rows(&paint(
+        &mut dom,
+        &format!(".p {{ margin: 1 1 }} {css}"),
+        w,
+        h,
+    ))
+}
+
+/// CSS UI 4 §5: an outline is drawn around an inline box too — the
+/// `a:focus-visible { outline: auto }` DIVERGENCES `FOCUS-VOCAB-1`
+/// recommends rings a link in a line. The ring is the row and column of
+/// cells just outside the inline box's fragment, over the neighboring
+/// text, taking no room.
+#[test]
+fn an_inline_element_draws_its_outline() {
+    assert_eq!(
+        inline(".f { outline: solid }", 14, 3),
+        ["   ┌────┐", " ab│link│cd", "   └────┘"]
+    );
+}
+
+/// §5.1: an inline box broken across lines has an outline around each
+/// fragment — rdom draws one rectangle per line box (the spec lets the
+/// outline of a fragmented inline be non-rectangular; DIVERGENCES §1).
+/// `ab <span>cd ef</span>` in six columns breaks the span after `cd`;
+/// three-row lines leave room for both rings.
+#[test]
+fn a_wrapped_inline_element_rings_each_line_fragment() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = el(&mut dom, root, "p", "ab ");
+    let span = dom.create_element("span");
+    dom.set_attribute(span, "class", "f").unwrap();
+    let t = dom.create_text_node("cd ef");
+    dom.append_child(span, t).unwrap();
+    dom.append_child(p, span).unwrap();
+    let got = rows(&paint(
+        &mut dom,
+        ".p { width: 6; line-height: 3; margin: 0 1 } .f { outline: solid }",
+        10,
+        7,
+    ));
+    assert_eq!(
+        got,
+        ["   ┌──┐", " ab│cd│", "   └──┘", "┌──┐", "│ef│", "└──┘", ""],
+        "{got:#?}"
+    );
+}

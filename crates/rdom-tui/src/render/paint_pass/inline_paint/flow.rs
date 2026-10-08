@@ -257,6 +257,8 @@ pub(super) fn paint_inline_layout(
             }
         }
     }
+    // The rings of its inline elements' outlines (CSS UI 4 §5).
+    super::outline::defer_inline_outlines(dom, inline_layout, inner, buf, outer_clip);
 }
 
 /// `clip` narrowed to the columns `[left, right)`.

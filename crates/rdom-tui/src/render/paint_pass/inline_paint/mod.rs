@@ -37,6 +37,7 @@ mod cost_tests;
 mod flow;
 mod generated;
 mod highlight_overlay;
+mod outline;
 mod single_row;
 mod text_overflow;
 

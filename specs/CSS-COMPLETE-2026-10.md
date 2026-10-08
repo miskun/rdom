@@ -8188,3 +8188,17 @@ row comes from.
   (the text layer only; the background section is unchanged: the grip takes the cell's background).
   DIVERGENCES §2's resize entry rewritten (grip drawn; the corner inside the border); CHANGELOG silent
   change 76 updated.
+- 2026-10-08 — C12G-OUTLINE-INLINE (architect N7; CSS UI 4 §5, §5.1). Found: `outline::defer` was called
+  from the block and generated-box paints only, so an inline element's outline — the
+  `a:focus-visible { outline: auto }` DIVERGENCES `FOCUS-VOCAB-1` recommends — drew nothing. Decided:
+  per-fragment rectangles (§5.1 allows one non-rectangular outline or one per fragment; whole-cell
+  rectangles keep each ring a box-drawing ring). The line walker, after a flow's lines, records a ring
+  for each inline element with an outline on each line it has a fragment on
+  (`inline_paint/outline.rs`): the cells its text fragments, its unmoved or moved `::before` /
+  `::after` runs and the atoms inside it take on that line, its rows the rows they span; the climb from
+  a fragment's element goes through `display: contents` ancestors and stops at the first box that is not
+  inline (the flow's block), so text directly in a block costs one style read. Rings are deferred to the
+  stacking context's end with the flow's clip, as a block's are. Red: `css_phase12/outline.rs`
+  `an_inline_element_draws_its_outline` and `a_wrapped_inline_element_rings_each_line_fragment` (no
+  ring); green after. DIVERGENCES §1's outline entry gains the per-fragment sentence; CHANGELOG silent
+  change 20 names inline elements. No snapshot changed.
