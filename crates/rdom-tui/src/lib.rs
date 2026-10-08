@@ -85,17 +85,18 @@ pub use layout::{
     GridAutoFlow, GridLine, GridTemplate, GridTemplateAreas, Hyphens, InterpolateSize,
     IntrinsicSize, LayoutRect, Length, LineBreak, LineHeight, LineNameItem, LineNameList,
     ListStyleImage, ListStylePosition, ListStyleType, Margin, MarginTrim, MarginValue, MarkerSide,
-    MaxSize, MinSize, NamedArea, Overflow, OverflowAlign, OverflowClipMargin, OverflowWrap,
-    Overlay, OverscrollBehavior, Padding, PaddingValue, PaintLength, RepeatCount, RepeatStyle,
-    ScrollPadding, ScrollSnapAlign, ScrollSnapAxis, ScrollSnapStop, ScrollSnapStrictness,
-    ScrollSnapType, ScrollbarColor, ScrollbarGutter, ScrollbarWidth, Sides, Size, SnapAlign,
-    Spacing, SystemFont, TabSize, TextAlign, TextAlignKeyword, TextAlignLast, TextCase,
-    TextDecoration, TextDecorationLine, TextDecorationSkipInk, TextDecorationStyle,
-    TextDecorationThickness, TextDecorations, TextDirection, TextIndent, TextJustify, TextOverflow,
-    TextOverflowSide, TextStyle, TextTransform, TextUnderlineOffset, TextUnderlinePosition,
-    TextWrapMode, TextWrapStyle, TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize,
-    UserSelect, VerticalAlign, Visibility, VisualBox, WhiteSpace, WhiteSpaceCollapse, WordBreak,
-    WritingMode, ZIndex,
+    MaxSize, MinSize, NamedArea, OutlineColor, OutlineStyle, Overflow, OverflowAlign,
+    OverflowClipMargin, OverflowWrap, Overlay, OverscrollBehavior, Padding, PaddingValue,
+    PaintLength, RepeatCount, RepeatStyle, ScrollPadding, ScrollSnapAlign, ScrollSnapAxis,
+    ScrollSnapStop, ScrollSnapStrictness, ScrollSnapType, ScrollbarColor, ScrollbarGutter,
+    ScrollbarWidth, Sides, Size, SnapAlign, Spacing, SystemFont, TabSize, TextAlign,
+    TextAlignKeyword, TextAlignLast, TextCase, TextDecoration, TextDecorationLine,
+    TextDecorationSkipInk, TextDecorationStyle, TextDecorationThickness, TextDecorations,
+    TextDirection, TextIndent, TextJustify, TextOverflow, TextOverflowSide, TextStyle,
+    TextTransform, TextUnderlineOffset, TextUnderlinePosition, TextWrapMode, TextWrapStyle,
+    TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize, UiStyle, UserSelect,
+    VerticalAlign, Visibility, VisualBox, WhiteSpace, WhiteSpaceCollapse, WordBreak, WritingMode,
+    ZIndex,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets
@@ -143,8 +144,8 @@ pub use style::{
     FontDeclarations, ImportantMask, LayerId, Modifier, PropertyRegistration, PropertySyntax,
     PropertySyntaxError, PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError,
     Rule, RuleContext, RuleOrigin, Specificity, StyleError, StyleSelector, Stylesheet, SystemColor,
-    TextDeclarations, TextDecorationDeclarations, TuiColor, TuiStyle, UserActionState, Value,
-    VarMap, parse_color, resolve_tui_color,
+    TextDeclarations, TextDecorationDeclarations, TuiColor, TuiStyle, UiDeclarations,
+    UserActionState, Value, VarMap, parse_color, resolve_tui_color,
 };
 
 /// `Dom<TuiExt>` — the full TUI document.

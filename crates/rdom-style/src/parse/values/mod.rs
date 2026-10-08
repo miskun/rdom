@@ -63,6 +63,7 @@ mod line_clamp;
 mod list;
 mod number;
 mod numeric;
+mod outline;
 mod scroll;
 mod scrollbar;
 
@@ -157,6 +158,7 @@ pub use list::{
     parse_marker_side,
 };
 pub use number::{parse_aspect_ratio, parse_opacity, parse_order, parse_z_index};
+pub use outline::{parse_outline, parse_outline_color, parse_outline_offset, parse_outline_style};
 pub use scroll::{
     parse_overscroll_behavior, parse_overscroll_behavior_shorthand, parse_scroll_margin,
     parse_scroll_margin_shorthand, parse_scroll_padding, parse_scroll_padding_shorthand,

@@ -56,6 +56,38 @@ use crate::render::buffer::{
     BorderContribution, BorderDirState, BorderSide, DIR_E, DIR_N, DIR_S, DIR_W,
 };
 
+/// The glyph of an outline ring cell (`outline`, CSS UI 4 §5) that joins
+/// the ring cells beside it in `joins` (N, E, S, W), drawn in `line` at
+/// `weight` — a rounded corner where `rounded` (`outline-style: auto`) —
+/// from the border glyph tables; `None` for a cell that joins nothing.
+pub(super) fn outline_glyph(
+    joins: [bool; 4],
+    line: BorderStyle,
+    weight: BorderWeight,
+    rounded: bool,
+) -> Option<&'static str> {
+    let kind = match (line, weight) {
+        (BorderStyle::Double, _) => Line::Double,
+        (_, BorderWeight::Heavy) => Line::Heavy,
+        (_, BorderWeight::Light) => Line::Light,
+    };
+    let lines = joins.map(|j| if j { kind } else { Line::None });
+    let mask = joins
+        .iter()
+        .enumerate()
+        .filter(|(_, j)| **j)
+        .fold(0usize, |m, (i, _)| m | 1 << i);
+    if mask == 0 {
+        return None;
+    }
+    if rounded && kind == Line::Light && !ROUNDED_TABLE[mask].is_empty() {
+        return Some(ROUNDED_TABLE[mask]);
+    }
+    dash_glyph(lines, line)
+        .or_else(|| junction_glyph(lines))
+        .filter(|g| !g.is_empty())
+}
+
 pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
     let area = buf.area;
     for y in area.y..area.y + area.height {

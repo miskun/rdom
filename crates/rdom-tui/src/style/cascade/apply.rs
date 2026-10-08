@@ -264,6 +264,11 @@ pub(super) fn apply_style(
         visibility: VISIBILITY,
         caret_color: CARET_COLOR,
         caret_text_color: CARET_TEXT_COLOR,
+        // CSS UI 4 §5: the outline; none inherit.
+        ui.outline_style: OUTLINE_STYLE,
+        ui.outline_width: OUTLINE_WIDTH,
+        ui.outline_color: OUTLINE_COLOR,
+        ui.outline_offset: OUTLINE_OFFSET,
     );
     // Positioning (M2), transitions (M3; latest list wins), animations
     // (CSS Animations 1 §4) and counters

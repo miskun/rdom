@@ -89,6 +89,10 @@ pub struct Buffer {
     /// The layer a translucent write paints into, kept between writes
     /// so its storage is reused (`translucent.rs`).
     scratch: Scratch,
+    /// The outlines recorded by the box paints of the stacking contexts
+    /// being walked, drawn when each context ends (CSS 2.1 Appendix E
+    /// step 10; `paint_pass::outline`).
+    pub(crate) outlines: Vec<crate::render::paint_pass::outline::DeferredOutline>,
 }
 
 /// A kept scratch layer. Not content: a clone starts without one, and
@@ -133,6 +137,7 @@ impl Buffer {
             half_block_quads: vec![0u8; len],
             scheme: ColorScheme::default(),
             scratch: Scratch::default(),
+            outlines: Vec::new(),
         }
     }
 
@@ -154,6 +159,7 @@ impl Buffer {
             half_block_quads: vec![0u8; len],
             scheme: ColorScheme::default(),
             scratch: Scratch::default(),
+            outlines: Vec::new(),
         }
     }
 

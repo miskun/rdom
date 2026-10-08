@@ -87,6 +87,7 @@ mod sizing;
 mod spacing;
 mod text;
 mod text_decoration;
+mod ui;
 
 impl TuiStyle {
     pub fn fg(mut self, color: impl Into<TuiColor>) -> Self {

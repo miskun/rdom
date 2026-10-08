@@ -413,6 +413,20 @@ impl Animate for CaretColor {
     }
 }
 
+/// CSS UI 4 §5.3: by computed value — two colors interpolate; `auto`
+/// does not.
+impl Animate for crate::layout::OutlineColor {
+    fn animate(&self, to: &Self, p: f64, cx: &Cx) -> Option<Self> {
+        use crate::layout::OutlineColor;
+        match (self, to) {
+            (OutlineColor::Color(a), OutlineColor::Color(b)) => {
+                Some(OutlineColor::Color(a.animate(b, p, cx)?))
+            }
+            _ => None,
+        }
+    }
+}
+
 impl Animate for CaretTextColor {
     fn animate(&self, to: &Self, p: f64, cx: &Cx) -> Option<Self> {
         match (self, to) {

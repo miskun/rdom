@@ -92,6 +92,7 @@ mod inline;
 mod line_clamp;
 mod logical;
 mod names;
+mod outline;
 mod scroll;
 mod scrollbar;
 mod serialize;
@@ -135,6 +136,8 @@ mod line_clamp_tests;
 mod list_tests;
 #[cfg(test)]
 mod logical_tests;
+#[cfg(test)]
+mod outline_tests;
 #[cfg(test)]
 mod overflow_tests;
 #[cfg(test)]

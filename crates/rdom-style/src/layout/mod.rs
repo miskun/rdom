@@ -58,6 +58,7 @@ mod spacing;
 mod text;
 mod text_align;
 mod text_decoration;
+mod ui;
 mod vertical_align;
 mod white_space;
 
@@ -114,6 +115,7 @@ pub use text_decoration::{
     TextDecorationStyle, TextDecorationThickness, TextDecorations, TextUnderlineOffset,
     TextUnderlinePosition,
 };
+pub use ui::{OutlineColor, OutlineStyle, UiStyle};
 pub use vertical_align::VerticalAlign;
 pub use white_space::{
     Hyphens, LineBreak, OverflowWrap, TabSize, TextWrapMode, TextWrapStyle, WhiteSpace,

@@ -73,7 +73,7 @@ pub use rdom_style::{
     QuoteKind, QuotePair, Quotes, RegisterPropertyError, Rule, RuleContext, RuleOrigin,
     Specificity, StyleError, StyleSelector, Stylesheet, TextDeclarations,
     TextDecorationDeclarations, TimingFunction, TransitionProperty, TransitionRule, TuiColor,
-    TuiStyle, UserActionState, Value, VarMap, parse_color, resolve_tui_color,
+    TuiStyle, UiDeclarations, UserActionState, Value, VarMap, parse_color, resolve_tui_color,
 };
 /// The declaration-level CSS parsing primitives (`parse::tokenize`,
 /// `parse::Token`, `parse::values::*`), the property dispatch table

@@ -165,6 +165,16 @@ impl ComputedStyle {
                 |v| BorderWidth::Length(PaintLength::Cells(v as f32)),
             );
         }
+        // CSS UI 4 §5.3–§5.4: the outline's width and offset.
+        absolutize(
+            &mut self.ui.outline_width,
+            vp,
+            |e| BorderWidth::Length(PaintLength::Calc(e)),
+            |v| BorderWidth::Length(PaintLength::Cells(v as f32)),
+        );
+        absolutize(&mut self.ui.outline_offset, vp, PaintLength::Calc, |v| {
+            PaintLength::Cells(v as f32)
+        });
         for shadow in &mut self.box_shadow {
             for length in [
                 &mut shadow.offset_x,

@@ -244,7 +244,7 @@ row comes from.
 | C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | done |
 | C12-STARTING | `@starting-style` || done |
 | C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | done |
-| C12-OUTLINE | `outline` / `-color` / `-style` / `-width` / `-offset` (non-layout ring) | |
+| C12-OUTLINE | `outline` / `-color` / `-style` / `-width` / `-offset` (non-layout ring) | done |
 | C12-CURSOR | `cursor` (OSC 22 pointer shapes) | |
 | C12-CARET | `caret-shape` / `caret-animation` / `caret` | |
 | C12-FOCUS-FLUSH | `focus()` (and other style-reading DOM calls) flushes pending style for the element first, as browsers do — TECH_DEBT `FOCUS-FLUSH-1`; needs the sheet set / transition registry / dirty tracker reachable from a handler's `Dom` | done |
@@ -7882,3 +7882,32 @@ row comes from.
   frame ignoring `flushed` fails the transition test; taking every root fails the count (68 for 13).
   Docs: DIVERGENCES §2's "Focusability reads the last cascade's styles" replaced by what a flush covers;
   the focus-scroll entry no longer names the debt; upgrade-guide item 20 loses the workaround.
+- 2026-10-17 — C12-OUTLINE (CSS UI 4 §5, CSS 2.1 Appendix E step 10). rdom-style: `outline-style` (`auto |
+  <outline-line-style>` — every `<line-style>` but `hidden`, rdom's `half-block` not taken), `outline-width` (a
+  `<line-width>`, so a pixel width selects the glyph weight, DESIGN's rule), `outline-color` (`auto | <color>`,
+  kept as a `TuiColor` and resolved at paint like `caret-color`), `outline-offset` (a `<length>` of either sign,
+  a pixel offset one cell its way through `PaintLength::offset_cells`) and the `outline` shorthand (any order,
+  omitted parts reset; a lone `auto` is the style, as browsers read it); serialized shortest. Stored in a new
+  group, `TuiStyle::ui` / `ComputedStyle::ui` (`UiDeclarations` / `UiStyle`, closed like the text and font
+  groups), which the rest of Phase 12 part 3 fills; none inherit; widths and offsets absolutize their viewport
+  units; the animation table types them (style discrete, the rest by computed value — two colors interpolate,
+  `auto` does not) and marks all four paint-only (`affects_layout` false: an outline takes no room). rdom-tui:
+  `paint_pass/outline.rs`. A box paint (`box_paint::paint_box`, and a generated `::before` / `::after` box)
+  records its outline on the buffer — the ring rect (border box grown by offset + 1), the clip it painted into,
+  the line, weight, rounded flag and resolved color (`auto`: the accent under `outline-style: auto`, else
+  `currentcolor`); each stacking context's walk notes the buffer's outline count on entry and draws the ones
+  recorded since on exit, so a context's outlines come after all it painted, its positioned descendants
+  included, and nested contexts draw their own first. A ring cell joins the ring cells beside it and takes its
+  glyph from the border tables (`border_join::outline_glyph`: `double`, the dash runs, light / heavy, rounded
+  corners for `auto`), clears the cell's border state as content does, and is clipped by the box's own clip —
+  its `overflow` ancestors. Nothing in layout reads the outline, so it neither moves boxes nor adds scrollable
+  overflow. The UA focus cue was weighed against moving to `:focus-visible { outline: auto }`, as browsers draw
+  it: not taken — a one-cell ring around a one-row control covers the rows above and below and a column each
+  side, i.e. the neighbouring controls, where a browser's ring covers a pixel of margin; the tint stays
+  (DIVERGENCES `FOCUS-VOCAB-1`, which now says so and points authors at `outline: auto`), so no paint or
+  snapshot changes. Red: rdom-style `outline_tests` did not compile (no `TuiStyle::ui`); the paint tests
+  `css_phase12/outline.rs`, run with the ring never drawn, failed 7 of 9 (the two passing pin no room taken and
+  `none` drawing nothing); green after. Mutation-checked: drawing at box paint instead of the context's end
+  fails the over-the-next-box, after-positioned and negative-offset tests. Changed tables: the property and
+  important-setter contracts, the `initial` perturbation and the longhand interpolation samples gain the four
+  longhands. CHANGELOG silent change 20 (outline declarations now draw).

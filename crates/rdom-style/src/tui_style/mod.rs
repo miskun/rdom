@@ -26,6 +26,7 @@ use crate::{Content, TuiColor, Value};
 
 pub use important::ImportantMask;
 pub use text::{FontDeclarations, TextDeclarations, TextDecorationDeclarations};
+pub use ui::UiDeclarations;
 
 /// Author-written style block. Build with the fluent setters; feed
 /// into a `Stylesheet` via `rule(...)` or assign to
@@ -259,6 +260,8 @@ pub struct TuiStyle {
     /// `text-wrap-mode`, …); the `white-space` shorthand writes two of
     /// them.
     pub text: TextDeclarations,
+    /// The CSS UI 4 properties (`outline-*`, …).
+    pub ui: UiDeclarations,
     /// `vertical-align` (CSS 2.1 §10.8.1).
     pub vertical_align: Option<Value<crate::layout::VerticalAlign>>,
     pub user_select: Option<Value<UserSelect>>,
@@ -476,3 +479,4 @@ mod subsets;
 #[cfg(test)]
 mod tests;
 mod text;
+mod ui;

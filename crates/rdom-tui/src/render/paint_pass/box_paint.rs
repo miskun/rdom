@@ -97,6 +97,8 @@ pub(super) fn paint_box(
     // 0. Outer shadows, under the background (CSS Backgrounds 3 §6.1);
     // they may show while the box itself is outside the clip.
     shadow::paint_outer_shadows(buf, computed, outer, clip);
+    // The outline (CSS UI 4 §5), drawn when the stacking context ends.
+    super::outline::defer(dom, buf, computed, outer, clip);
 
     // Fast path: element entirely outside the clip.
     let Some(outer_grid) = layout_rect_to_grid(outer, clip) else {

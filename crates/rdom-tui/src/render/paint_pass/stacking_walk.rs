@@ -48,6 +48,8 @@ pub(super) fn paint_stacking_context(
     paint_stacking_context_body(dom, root, buf, clip, viewport);
 }
 
+/// The context's paint, then its outlines (Appendix E step 10: drawn
+/// last, over everything else it painted — `outline`).
 fn paint_stacking_context_body(
     dom: &Dom<TuiExt>,
     root: NodeId,
@@ -55,6 +57,13 @@ fn paint_stacking_context_body(
     clip: Rect,
     viewport: Rect,
 ) {
+    let mark = super::outline::mark(buf);
+    paint_layers_of(dom, root, buf, clip, viewport);
+    super::outline::paint_since(buf, mark);
+}
+
+/// The context's root box and its layers around its in-flow content.
+fn paint_layers_of(dom: &Dom<TuiExt>, root: NodeId, buf: &mut Buffer, clip: Rect, viewport: Rect) {
     if dom.node(root).node_type() == NodeType::Fragment {
         // The document root: no box of its own.
         let layers = collect_layers(dom, root, clip, viewport);

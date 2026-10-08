@@ -127,6 +127,11 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("scrollbar-gutter", Discrete, steps!(scrollbar_gutter)),
     e("scrollbar-width", Discrete, steps!(scrollbar_width)),
     e("scrollbar-color", ByComputedValue, value!(scrollbar_color)),
+    // CSS UI 4 §5
+    e("outline-style", Discrete, steps!(ui.outline_style)),
+    e("outline-width", ByComputedValue, value!(ui.outline_width)),
+    e("outline-color", ByComputedValue, value!(ui.outline_color)),
+    e("outline-offset", ByComputedValue, value!(ui.outline_offset)),
     e(
         "overscroll-behavior-x",
         Discrete,

@@ -171,6 +171,8 @@ const PERTURB: &[(&str, &str)] = &[
     ("grid-area", "1 / 2 / span 2 / a"),
     ("border-spacing", "1"),
     ("interpolate-size", "allow-keywords"),
+    ("outline", "auto red thick"),
+    ("outline-offset", "2"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly
@@ -285,6 +287,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         line_clamp_container: _,
         text,
         font,
+        ui,
         vertical_align,
         text_decoration,
         // Derived from `text_decoration` and the parent's (§2.1).
@@ -430,6 +433,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         list_item,
         text,
         font,
+        ui,
         vertical_align,
         text_decoration,
         user_select,

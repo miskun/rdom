@@ -103,7 +103,7 @@ pub use transition::{
 pub use tui_color::{ColorContext, ColorFunction, TuiColor, parse_color, resolve_tui_color};
 pub use tui_style::{
     CustomDeclaration, FontDeclarations, ImportantMask, TextDeclarations,
-    TextDecorationDeclarations, TuiStyle,
+    TextDecorationDeclarations, TuiStyle, UiDeclarations,
 };
 pub use value::Value;
 pub use var::PendingDeclaration;

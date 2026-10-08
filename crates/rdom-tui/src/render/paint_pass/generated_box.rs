@@ -74,6 +74,7 @@ pub(super) fn paint_box(
         return;
     }
     let outer = g.border_box;
+    super::outline::defer(dom, buf, style, outer, clip);
     let Some(outer_grid) = layout_rect_to_grid(outer, clip) else {
         return;
     };

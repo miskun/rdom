@@ -79,6 +79,7 @@ mod box_paint;
 mod generated_box;
 mod group;
 mod inline_paint;
+pub(crate) mod outline;
 pub(crate) mod scrollbar;
 mod shadow;
 mod stacking_walk;
