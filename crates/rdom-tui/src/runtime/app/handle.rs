@@ -12,8 +12,8 @@
 //!
 //! The input reader's `poll` has no external wake-up, so
 //! a background-thread `request_redraw` takes effect on the next
-//! `tick_rate` timeout (default 50 ms). Apps that need faster
-//! response can set a tighter `tick_rate`. A dedicated wake-fd
+//! tick-rate timeout (default 50 ms). Apps that need faster
+//! response can set a tighter tick rate (`with_tick_rate`). A dedicated wake-fd
 //! channel may arrive in a future phase.
 //!
 //! [`request_redraw`]: AppHandle::request_redraw

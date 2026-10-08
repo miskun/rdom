@@ -171,7 +171,7 @@ pub struct TuiExt {
     /// `App::dom_mut`, or from an input event's listener — still
     /// repaints on the `App`'s next frame (`P7-SCROLL-REPAINT-1`; the
     /// App checks offsets after such code ran, `P7G-IDLE-WALKS-1`), as
-    /// does one from a timer, injected closure or `on_tick` that also
+    /// does one from a timer, injected closure or the tick handler that also
     /// left evidence of a change (a mutation, `request_redraw`;
     /// `P7G-TICK-TOUCHED-1`). It is clamped by the next layout, but
     /// fires no `scroll` event and leaves a smooth scroll in flight

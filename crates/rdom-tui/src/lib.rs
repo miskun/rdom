@@ -101,7 +101,7 @@ pub use layout::{
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets
-/// ([`App::set_import_loader`], [`extend_from_style_tags_with_loader`]).
+/// ([`App::with_import_loader`], [`extend_from_style_tags_with_loader`]).
 pub use rdom_css::{ImportLoader, LoadedSheet};
 /// Math expressions (`calc()`, `min()`, …, CSS Values 4 §10): the
 /// [`CalcExpr`](calc::CalcExpr) a `Size::Calc`, `MinSize::Calc`,
@@ -194,7 +194,7 @@ mod tests {
 
     /// `C1G-REEXPORTS`: the types of the App-level style APIs —
     /// `App::register_property` (CSS Properties and Values API 1 §3),
-    /// `App::set_import_loader` (CSS Cascade 5 §3), cascade layers and
+    /// `App::with_import_loader` (CSS Cascade 5 §3), cascade layers and
     /// `Stylesheet::add_style_rule` — are nameable from `rdom_tui`
     /// alone, without a direct `rdom-style` / `rdom-css` dependency.
     #[test]

@@ -114,11 +114,11 @@ pub(super) struct FramePrelude {
     /// state (scroll offsets, a custom validity, a user edit) since the
     /// last frame's checks: an input event, a stylesheet change,
     /// `dom_mut()` access, or a timer / microtask / rAF callback, an
-    /// injected closure or the `on_tick` callback that left evidence of
+    /// injected closure or the tick handler that left evidence of
     /// a change — a mutation record, a runtime-managed state write
     /// (`runtime::state_writes`), a `request_redraw`
     /// (`P7G-TICK-TOUCHED-1`). The whole-tree stages run only then, so
-    /// an idle tick — or an `on_tick` that finds nothing to do — walks
+    /// an idle tick — or a tick handler that finds nothing to do — walks
     /// nothing (`P7G-IDLE-WALKS-1`).
     pub(super) touched: bool,
 }

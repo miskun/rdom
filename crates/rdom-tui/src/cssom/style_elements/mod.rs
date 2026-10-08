@@ -32,7 +32,7 @@
 //! the order breaks ties between author rules.
 //!
 //! `@import` in a `<style>` sheet goes through the loader set with
-//! [`App::set_import_loader`](crate::runtime::App::set_import_loader);
+//! [`App::with_import_loader`](crate::runtime::App::with_import_loader);
 //! without one it imports nothing (and warns).
 //!
 //! The `media` attribute is not evaluated (rdom evaluates no media

@@ -59,7 +59,7 @@ pub fn extend_from_style_tags(dom: &TuiDom, sheet: &mut Stylesheet) -> Vec<Warni
 /// [`extend_from_style_tags`], resolving each sheet's `@import`s through
 /// `loader` (CSS Cascade 5 §3; a `<style>` sheet has no URL of its own,
 /// so its imports get no base — `rdom_css::ImportLoader`), as an `App`
-/// does with `App::set_import_loader`.
+/// does with `App::with_import_loader`.
 pub fn extend_from_style_tags_with_loader(
     dom: &TuiDom,
     sheet: &mut Stylesheet,

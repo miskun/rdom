@@ -375,7 +375,7 @@ fn on_tick_fires_and_can_request_quit() {
     let dom: TuiDom = TuiDom::new();
     let fired = Rc::new(Cell::new(0));
     let f = fired.clone();
-    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).with_tick_handler(
         move |_ctx: &mut AppContext<'_>| {
             f.set(f.get() + 1);
             if f.get() >= 2 {
@@ -402,7 +402,7 @@ fn on_tick_can_mutate_dom_through_context() {
     let div = dom.create_element("div");
     dom.append_child(root, div).unwrap();
 
-    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).with_tick_handler(
         move |ctx: &mut AppContext<'_>| {
             // Create an attribute via the context's DOM handle. This
             // flows through MutationObserver → DirtyTracker so the
@@ -420,7 +420,7 @@ fn on_tick_can_mutate_dom_through_context() {
 #[test]
 fn context_request_redraw_forces_paint_on_next_cycle() {
     let dom: TuiDom = TuiDom::new();
-    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).with_tick_handler(
         |ctx: &mut AppContext<'_>| {
             ctx.request_redraw();
             ControlFlow::Continue
@@ -436,7 +436,7 @@ fn context_request_redraw_forces_paint_on_next_cycle() {
 #[test]
 fn context_quit_sets_should_quit() {
     let dom: TuiDom = TuiDom::new();
-    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).with_tick_handler(
         |ctx: &mut AppContext<'_>| {
             ctx.quit();
             ControlFlow::Continue // even returning Continue, ctx.quit() wins
@@ -460,7 +460,7 @@ fn multiple_mutations_coalesce_into_one_paint() {
     }
 
     let child_refs: Vec<NodeId> = children.clone();
-    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(
+    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).with_tick_handler(
         move |ctx: &mut AppContext<'_>| {
             // Mutate 5 element nodes in one tick. `set_attribute`
             // fires `AttributeChanged` which the DirtyTracker
@@ -790,11 +790,12 @@ fn context_dispatch_fires_synchronously() {
     .unwrap();
 
     let btn_id = btn;
-    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(move |ctx| {
-        let mut e = Event::new("custom");
-        ctx.dispatch(btn_id, &mut e).expect("live target");
-        ControlFlow::Continue
-    });
+    let mut app =
+        test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).with_tick_handler(move |ctx| {
+            let mut e = Event::new("custom");
+            ctx.dispatch(btn_id, &mut e).expect("live target");
+            ControlFlow::Continue
+        });
     assert!(!fired.get());
     app.tick();
     assert!(fired.get());
@@ -814,10 +815,11 @@ fn context_dispatch_reports_a_dropped_target() {
 
     let result = Rc::new(Cell::new(None));
     let r = result.clone();
-    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(move |ctx| {
-        r.set(Some(ctx.dispatch(gone, &mut Event::new("custom"))));
-        ControlFlow::Continue
-    });
+    let mut app =
+        test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).with_tick_handler(move |ctx| {
+            r.set(Some(ctx.dispatch(gone, &mut Event::new("custom"))));
+            ControlFlow::Continue
+        });
     app.tick();
     assert_eq!(result.take(), Some(Err(DomError::InvalidNode(gone))));
 }
@@ -840,16 +842,17 @@ fn context_queue_dispatch_runs_after_tick_returns() {
 
     let btn_id = btn;
     let o2 = order.clone();
-    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(move |ctx| {
-        o2.borrow_mut().push("tick-start");
-        ctx.queue_dispatch(btn_id, Event::new("queued"));
-        // Assert queued dispatch hasn't fired yet (still in
-        // the tick closure scope).
-        // (Can't borrow `order` again to peek — rely on
-        // comparing to final expectation.)
-        o2.borrow_mut().push("tick-end");
-        ControlFlow::Continue
-    });
+    let mut app =
+        test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).with_tick_handler(move |ctx| {
+            o2.borrow_mut().push("tick-start");
+            ctx.queue_dispatch(btn_id, Event::new("queued"));
+            // Assert queued dispatch hasn't fired yet (still in
+            // the tick closure scope).
+            // (Can't borrow `order` again to peek — rely on
+            // comparing to final expectation.)
+            o2.borrow_mut().push("tick-end");
+            ControlFlow::Continue
+        });
 
     app.tick();
     assert_eq!(
@@ -883,15 +886,16 @@ fn context_queue_dispatch_of_a_clone_taken_in_a_listener_dispatches() {
     }
 
     let (btn_id, s) = (btn, stash.clone());
-    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(move |ctx| {
-        if let Some(copy) = s.borrow_mut().take() {
-            ctx.queue_dispatch(btn_id, copy);
-        } else {
-            ctx.dispatch(btn_id, &mut Event::new("ping"))
-                .expect("live target");
-        }
-        ControlFlow::Continue
-    });
+    let mut app =
+        test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).with_tick_handler(move |ctx| {
+            if let Some(copy) = s.borrow_mut().take() {
+                ctx.queue_dispatch(btn_id, copy);
+            } else {
+                ctx.dispatch(btn_id, &mut Event::new("ping"))
+                    .expect("live target");
+            }
+            ControlFlow::Continue
+        });
     app.tick();
     assert_eq!(fired.get(), 1);
     app.tick();
@@ -927,15 +931,16 @@ fn context_queue_dispatch_of_an_event_moved_out_of_a_dispatch_dispatches() {
     }
 
     let (btn_id, s) = (btn, stash.clone());
-    let mut app = test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).on_tick(move |ctx| {
-        if let Some(moved) = s.borrow_mut().take() {
-            ctx.queue_dispatch(btn_id, moved);
-        } else {
-            ctx.dispatch(btn_id, &mut Event::new("ping"))
-                .expect("live target");
-        }
-        ControlFlow::Continue
-    });
+    let mut app =
+        test_app(dom, Stylesheet::bare(), Rect::new(0, 0, 20, 5)).with_tick_handler(move |ctx| {
+            if let Some(moved) = s.borrow_mut().take() {
+                ctx.queue_dispatch(btn_id, moved);
+            } else {
+                ctx.dispatch(btn_id, &mut Event::new("ping"))
+                    .expect("live target");
+            }
+            ControlFlow::Continue
+        });
     app.tick();
     assert_eq!(fired.get(), 1);
     app.tick();

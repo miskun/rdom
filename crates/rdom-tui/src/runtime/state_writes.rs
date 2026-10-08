@@ -5,7 +5,7 @@
 //!
 //! The `App` runs its whole-tree frame checks (validity marks, scroll
 //! offsets moved since paint, smooth scrolls) only after code that may
-//! have changed what they read. For a callback — `on_tick`, a timer, an
+//! have changed what they read. For a callback — the tick handler, a timer, an
 //! injected closure — "may have" is decided from evidence: the dirty
 //! tracker saw a mutation, or one of these writers ran. Each writer
 //! calls [`note`]; the App compares [`generation`] before and after the

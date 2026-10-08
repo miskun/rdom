@@ -1003,14 +1003,39 @@ use rdom_tui::prelude::*;
 fn main() -> std::io::Result<()> {
     let (dom, sheet) = (TuiDom::new(), Stylesheet::new());
     App::new(dom, sheet)?
-        .tick_rate(Duration::from_millis(50))
-        .on_tick(|_ctx| {
+        .with_tick_rate(Duration::from_millis(50))
+        .with_tick_handler(|_ctx| {
             // drain background channels, mutate DOM, request redraw
             ControlFlow::Continue
         })
         .run()
 }
 ```
+
+### Configuration
+
+Options set once, when the `App` is built, are consuming `with_*`
+builders chained after either constructor; the `&mut self` `set_*`
+methods are for what an app changes while it runs. `App::new` and
+`App::with_backend` differ only where a test must not depend on the
+environment or the clock:
+
+| Option | Builder | `App::new` | `App::with_backend` |
+|---|---|---|---|
+| Event-poll timeout / tick cadence | `with_tick_rate` | 50 ms | 50 ms |
+| Tick handler | `with_tick_handler` | none | none |
+| Frame rate while anything animates | `with_animation_frame_rate` | 60 fps | 60 fps |
+| Caret blink half-period | `with_caret_blink` | 530 ms | steady (`None`) |
+| SGR extensions emitted | `with_sgr_capabilities` | from the environment (`SgrCapabilities::from_env`) | the backend's (a `TestBackend`'s `BASIC`) |
+| Pointer-shape protocol | `with_pointer_shapes` | from the environment (`PointerShapes::from_env`) | `None` |
+| Preferred color scheme | `with_color_scheme`; at run time `set_color_scheme` | asked of the terminal when `run` starts (OSC 11), dark without an answer | dark |
+| Clipboard | `with_clipboard` | the system clipboard | the system clipboard |
+| `<a href>` URL opener | `with_url_opener` | the system opener | the system opener |
+| `@import` loader for `<style>` sheets | `with_import_loader` | none (imports unresolved) | none |
+
+At run time: `set_color_scheme`, the stylesheet stack
+(`push_stylesheet`, `set_stylesheet`, `remove_stylesheet`) and
+`register_property`.
 
 What the runtime gives you, roughly in order of the `RDOM_RUNTIME`
 phases:

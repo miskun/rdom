@@ -4,18 +4,41 @@
 //! ## Public API surface
 //!
 //! - [`App::new`] — real-world constructor, wraps
-//!   `CrosstermBackend<Stdout>`.
-//! - [`App::with_backend`] — generic constructor for tests /
-//!   custom backends.
-//! - [`App::on_tick`] — register a tick callback.
-//! - [`App::tick_rate`] — configure event-poll timeout.
-//! - [`App::with_sgr_capabilities`] — the terminal's SGR extensions,
-//!   overriding the detected ones.
-//! - [`App::run`] — block until exit, owning the full event loop.
-//!   Only available on `App<CrosstermBackend<Stdout>>`.
-//! - [`App::handle_event`], [`App::draw_if_dirty`] — granular
-//!   hooks for tests and custom loops. Pub-crate for now; may
-//!   stabilize later.
+//!   `CrosstermBackend<Stdout>`; [`App::with_backend`] — generic
+//!   constructor for tests and custom backends.
+//! - The `with_*` options below, chained after either constructor.
+//! - [`App::run`] — block until exit, owning the full event loop. Only
+//!   available on `App<CrosstermBackend<Stdout>>`.
+//! - [`App::handle_event`], [`App::draw_if_dirty`], [`App::advance`] —
+//!   the loop's steps, for tests and custom loops.
+//! - DOM, stylesheet and terminal access: [`App::dom`] / [`App::dom_mut`],
+//!   [`App::push_stylesheet`] and its siblings, [`App::terminal`].
+//!
+//! ## Configuration
+//!
+//! Options an app sets once, when it builds the `App`, are consuming
+//! `with_*` builders; the `&mut self` `set_*` methods are for what an app
+//! changes while it runs. The two constructors differ only where a test
+//! must not depend on the environment or the clock:
+//!
+//! | Option | Builder | [`App::new`] | [`App::with_backend`] |
+//! |---|---|---|---|
+//! | Event-poll timeout / tick cadence | [`with_tick_rate`](App::with_tick_rate) | 50 ms | 50 ms |
+//! | Tick handler | [`with_tick_handler`](App::with_tick_handler) | none | none |
+//! | Frame rate while anything animates | [`with_animation_frame_rate`](App::with_animation_frame_rate) | 60 fps | 60 fps |
+//! | Caret blink half-period | [`with_caret_blink`](App::with_caret_blink) | 530 ms | steady (`None`) |
+//! | SGR extensions emitted | [`with_sgr_capabilities`](App::with_sgr_capabilities) | from the environment ([`SgrCapabilities::from_env`](crate::SgrCapabilities::from_env)) | the backend's (a `TestBackend`'s `BASIC`) |
+//! | Pointer-shape protocol | [`with_pointer_shapes`](App::with_pointer_shapes) | from the environment ([`PointerShapes::from_env`](crate::PointerShapes::from_env)) | `None` |
+//! | Preferred color scheme | [`with_color_scheme`](App::with_color_scheme); at run time [`set_color_scheme`](App::set_color_scheme) | asked of the terminal when `run` starts (OSC 11), dark without an answer | dark |
+//! | Clipboard | [`with_clipboard`](App::with_clipboard) | the system clipboard | the system clipboard |
+//! | `<a href>` URL opener | [`with_url_opener`](App::with_url_opener) | the system opener | the system opener |
+//! | `@import` loader for `<style>` sheets | [`with_import_loader`](App::with_import_loader) | none (imports unresolved) | none |
+//!
+//! At run time: [`set_color_scheme`](App::set_color_scheme), the
+//! stylesheet stack ([`push_stylesheet`](App::push_stylesheet),
+//! [`set_stylesheet`](App::set_stylesheet),
+//! [`remove_stylesheet`](App::remove_stylesheet)) and
+//! [`register_property`](App::register_property).
 //!
 //! ## Sub-modules
 //!
@@ -64,6 +87,8 @@ mod stylesheets;
 mod animation_event_tests;
 #[cfg(test)]
 mod calc_size_tests;
+#[cfg(test)]
+mod config_tests;
 #[cfg(test)]
 mod control_click_tests;
 #[cfg(test)]
@@ -166,9 +191,9 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
 
     tick_rate: Duration,
     /// Frame budget (ms) when an animation or rAF callback is
-    /// pending. Default 16ms = ~60fps. Falls back to `tick_rate`
+    /// pending. Default 16ms = ~60fps. Falls back to the tick rate
     /// when nothing is animating. Configurable via
-    /// [`App::set_animation_frame_rate`].
+    /// [`App::with_animation_frame_rate`].
     animation_frame_ms: u32,
     /// The terminal size the last whole-tree cascade resolved the
     /// viewport-percentage units against (CSS Values 4 §6.1.2); a frame
@@ -382,12 +407,14 @@ impl<B: Backend> App<B> {
         Ok(app)
     }
 
-    /// Override the animation-frame budget when timers / rAF /
-    /// transitions are active. Default 16ms (~60fps). Pass `30`
-    /// for ~30fps on slower terminals or to reduce CPU.
-    pub fn set_animation_frame_rate(&mut self, fps: u16) {
+    /// The frame rate while timers, `requestAnimationFrame`,
+    /// transitions or animations run: `fps` frames a second, clamped to
+    /// 1–120. Default 60 (a 16 ms frame budget). Pass `30` on slower
+    /// terminals or to reduce CPU.
+    pub fn with_animation_frame_rate(mut self, fps: u16) -> Self {
         let fps = fps.clamp(1, 120);
         self.animation_frame_ms = (1000 / fps as u32).max(1);
+        self
     }
 
     /// Set the caret blink half-period: the caret of a focused editable
@@ -451,8 +478,9 @@ impl<B: Backend> App<B> {
     /// external-URL handling (e.g. an in-app preview for
     /// `https://` instead of shelling out).
     ///
-    /// Swap propagates to the already-installed root click
-    /// listener — no need to call this before `build`.
+    /// The App's `<a href>` listener is installed by the constructor and
+    /// reads the opener through a shared cell, so the swap takes effect
+    /// whenever this is called.
     pub fn with_url_opener(self, opener: Rc<dyn UrlOpener>) -> Self {
         *self.url_opener.borrow_mut() = opener;
         self
@@ -468,7 +496,7 @@ impl<B: Backend> App<B> {
 
     /// Mutable DOM access for pre-`run` setup. Listener registration,
     /// tree construction, etc. goes here. For event-loop-era
-    /// mutations, use the `AppContext` passed to `on_tick` or receive
+    /// mutations, use the `AppContext` passed to the tick handler or receive
     /// `EventCtx` inside an `add_event_listener` callback.
     pub fn dom_mut(&mut self) -> &mut TuiDom {
         // The caller may change anything, scroll offsets included.
@@ -493,21 +521,22 @@ impl<B: Backend> App<B> {
         &mut self.terminal
     }
 
-    /// Configure the crossterm event-poll timeout / tick cadence.
-    /// Default 50 ms. Set to `Duration::ZERO` to disable tick
-    /// firing entirely (loop blocks until a real event arrives).
-    pub fn tick_rate(mut self, d: Duration) -> Self {
+    /// The crossterm event-poll timeout / tick cadence. Default 50 ms.
+    /// `Duration::ZERO` disables tick firing entirely (the loop blocks
+    /// until a real event arrives).
+    pub fn with_tick_rate(mut self, d: Duration) -> Self {
         self.tick_rate = d;
         self
     }
 
-    /// Register a callback that fires each iteration where no
-    /// crossterm event arrived within `tick_rate`. Primarily for
-    /// draining app-level channels (watch streams, timers,
-    /// inter-thread signals) into DOM mutations.
+    /// The tick handler: a callback that fires each iteration where no
+    /// crossterm event arrived within the tick rate
+    /// ([`with_tick_rate`](Self::with_tick_rate)). Primarily for
+    /// draining app-level channels (watch streams, timers, inter-thread
+    /// signals) into DOM mutations. Replaces an earlier one.
     ///
     /// Return `ControlFlow::Quit` to exit the loop.
-    pub fn on_tick<F>(mut self, f: F) -> Self
+    pub fn with_tick_handler<F>(mut self, f: F) -> Self
     where
         F: FnMut(&mut AppContext<'_>) -> ControlFlow + 'static,
     {

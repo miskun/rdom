@@ -1,7 +1,7 @@
 //! The event loop of an [`App`]: [`App::run`] (poll the terminal's
 //! input, route, tick, draw), the poll timeout that wakes it for the next timer, caret
 //! blink, smooth-scroll step or autoscroll tick, the scheduler pump, the
-//! virtual clock of [`App::advance`], the `on_tick` callback and the
+//! virtual clock of [`App::advance`], the tick handler and the
 //! [`AppHandle`](super::AppHandle) drains.
 
 use std::io::{self, Stdout};
@@ -145,7 +145,7 @@ impl<B: Backend> App<B> {
     /// Compute the right `poll` timeout based on the next
     /// scheduled deadline + tick rate + animation frame budget.
     /// When the scheduler has nothing pending, this is just
-    /// `tick_rate` — preserves the original idle behavior.
+    /// the tick rate — preserves the original idle behavior.
     fn compute_poll_timeout(&self) -> Duration {
         let now = std::time::Instant::now();
         let to_deadline = self
@@ -259,7 +259,7 @@ impl<B: Backend> App<B> {
         self.draw_if_dirty()
     }
 
-    /// Fire the registered `on_tick` callback, if any. No-op when
+    /// Fire the tick handler, if any. No-op when
     /// unset.
     pub(crate) fn tick(&mut self) {
         let Some(mut cb) = self.on_tick.take() else {
@@ -269,7 +269,7 @@ impl<B: Backend> App<B> {
         // draining an (often empty) channel here must not walk the tree
         // every tick (`P7G-TICK-TOUCHED-1`).
         let before = self.change_evidence();
-        // Install the scheduler thread-local so on_tick handlers
+        // Install the scheduler thread-local so tick handlers
         // can use the `TuiTimers` extension surface too (apps
         // that schedule fade-outs from a tick callback, etc.).
         let _scheduler_guard = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
@@ -312,7 +312,7 @@ impl<B: Backend> App<B> {
         if injections.is_empty() {
             return;
         }
-        // As for `on_tick`: touched on evidence of a change only.
+        // As for the tick handler: touched on evidence of a change only.
         let before = self.change_evidence();
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
         let mut queued = Vec::new();

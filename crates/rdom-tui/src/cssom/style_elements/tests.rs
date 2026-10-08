@@ -254,7 +254,7 @@ fn style_element_imports_go_through_the_apps_loader() {
             .iter()
             .any(|w| matches!(w.kind, rdom_css::WarningKind::ImportFailed { .. }))
     );
-    app.set_import_loader(|url: &str| match url {
+    app = app.with_import_loader(|url: &str| match url {
         "theme.css" => Ok("p { color: red; }".to_string()),
         other => Err(format!("unknown {other}")),
     });

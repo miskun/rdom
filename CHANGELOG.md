@@ -217,6 +217,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `runtime::animation::AnimatedProp` / `AnimatedValue`; `ActiveAnimation::{property, from, to}`; `PendingEvent::property: AnimatedProp` | `Longhand` (`css_name()`, at the root); `ActiveAnimation` is crate-private | C12-ANIMATABLE, C12G-API-HYGIENE | `transition_property_hints` |
 | `PresentationStyle`'s value fields (`fg`, `bg`, `border_color`, `width`, `height`, `padding`, `row_gap`, … `visibility`), `PresentationStyle::clear` | `TuiExt::computed` / `computed_for(slot)`, which hold the running values; the cascade's own style is `TuiExt::base_computed_for(slot)` / `node.base_computed()`; `PresentationStyle::animated()` | C12-ANIMATABLE | `transition_property_hints` |
 | `dialog::show(dom, d)` / `dialog::show_modal(dom, d)` → `()` | `-> rdom_core::Result<()>` (`DomError::InvalidState` where HTML throws) | C11G-POPOVER-BOUND | `dialog_show_hints` |
+| `App::tick_rate(d)`; `App::on_tick(f)`; `app.set_animation_frame_rate(fps)` (`&mut self`) | `with_tick_rate(d)`; `with_tick_handler(f)`; `app = app.with_animation_frame_rate(fps)` (consuming) | C12G-APP-CONFIG | `app_config_hints` |
 
 #### Changes to APIs added after 0.5
 
@@ -250,6 +251,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 | exhaustive `match` on `Appearance` | add a `_` arm (`#[non_exhaustive]`: CSS Forms extends the grammar; treat an unknown keyword as `auto`) | C12G-API-HYGIENE | `animation_api_hygiene_hints` |
 | `runtime::animation::AnimationEventKind` | crate-private (no public signature used it; an event's type is its `event_type` string) | C12G-API-HYGIENE | — |
 | `.cursor(CursorKeyword::Pointer.into())` (and the other CSS UI setters) | `.cursor(CursorKeyword::Pointer)` (`impl Into<Cursor>`) | C12G-API-HYGIENE | `animation_api_hygiene_hints` |
+| `app.set_import_loader(loader)` (`&mut self`) | `app.with_import_loader(loader)` (consuming, chained after the constructor) | C12G-APP-CONFIG | `app_config_hints` |
 
 ### Breaking — `rdom-core`
 
@@ -572,6 +574,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Breaking — `rdom-tui`
 
+- **`App`'s construction-time options are all `with_*` builders**: `tick_rate` → `with_tick_rate`, `on_tick` → `with_tick_handler`, and `set_animation_frame_rate(&mut self, fps)` → `with_animation_frame_rate(fps)`, consuming like `with_caret_blink`; the `App` docs and README tabulate every option and its `new` / `with_backend` default. Migration: rename; chain the frame rate. (C12G-APP-CONFIG)
 - **`runtime::animation`'s `effective_fg` / `effective_bg` / `effective_border_color` / `effective_padding` are removed, and `ActiveAnimation` is crate-private**: the helpers only read `computed` (and `effective_bg` fell back to `Reset`, not the initial `TRANSPARENT`); no public API built or returned an `ActiveAnimation`. Migration: `node.computed().map(|c| c.fg)`; inspect animations with `App::get_animations`. (C12G-API-HYGIENE)
 - **Running transitions composite onto `computed`**: `AnimatedProp` / `AnimatedValue` are gone (`PendingEvent::property` is a `Longhand`) and `PresentationStyle` keeps no values. Migration: read `ext.computed` / `computed_for(slot)`, which hold the running value; `base_computed_for(slot)` / `node.base_computed()` is the cascade's own style. (C12-ANIMATABLE)
 - **`dialog::show` / `show_modal` return `rdom_core::Result<()>`** (HTML §4.11.4's `InvalidStateError`s): `show` on a modal dialog, `show_modal` on an open, disconnected or popover-showing dialog are `DomError::InvalidState`; `show_modal` on a modal one does nothing. Migration: `?` the call, or `.ok()` on a known-closed dialog. (C11G-POPOVER-BOUND)

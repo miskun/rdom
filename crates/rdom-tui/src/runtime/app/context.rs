@@ -21,7 +21,7 @@ use rdom_core::{Event, NodeId};
 
 use crate::TuiDom;
 
-/// Control flow returned from an `on_tick` callback: keep running
+/// Control flow returned from a tick handler callback: keep running
 /// or exit the loop after the current task completes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ControlFlow {
@@ -32,7 +32,7 @@ pub enum ControlFlow {
     Quit,
 }
 
-/// Per-tick handle exposed to `on_tick` callbacks. Not
+/// Per-tick handle exposed to tick handlers ([`App::with_tick_handler`](crate::App::with_tick_handler)). Not
 /// cross-thread (`!Send`, `!Sync`) — it borrows the DOM
 /// exclusively. For cross-thread poking, use `AppHandle` (shipped
 /// in a follow-up commit).
@@ -122,7 +122,7 @@ impl<'a> AppContext<'a> {
 
     /// Signal the runtime to exit the loop after the current task
     /// finishes. Equivalent to returning `ControlFlow::Quit` from
-    /// an `on_tick` callback.
+    /// a tick handler callback.
     pub fn quit(&mut self) {
         self.quit_requested = true;
     }

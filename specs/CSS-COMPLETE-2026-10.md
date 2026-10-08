@@ -8309,3 +8309,20 @@ row comes from.
   rdom-tui re-export test was written before the re-exports but its red was not run separately.
   Changed test: `timing_tests::linear_stop_builds` pinned the old argument order — replaced by
   `a_linear_stop_is_built_output_first`.
+- 2026-10-08 — C12G-APP-CONFIG (API N8). Decided: an option an app sets once, when it builds the `App`,
+  is a consuming `with_*` builder; a `&mut self` `set_*` stays only for what an app changes while it
+  runs (`set_color_scheme`, a theme toggle, beside `with_color_scheme`; the stylesheet stack and
+  `register_property` are actions, not options). Renamed: `tick_rate` → `with_tick_rate`, `on_tick` →
+  `with_tick_handler`, `set_animation_frame_rate(&mut self)` → `with_animation_frame_rate` (consuming),
+  `set_import_loader(&mut self)` → `with_import_loader` (consuming; the `<style>` sheets are re-parsed
+  whenever it is called, so a test that sets it after construction reassigns `app`). The `App` module
+  doc's stale "Public API surface" (only `with_sgr_capabilities`; `handle_event` / `draw_if_dirty`
+  called pub-crate) is rewritten, with a `## Configuration` table of every option and its `App::new` /
+  `App::with_backend` default (tick 50 ms both; frames 60 fps both; caret 530 ms vs steady; SGR from the
+  environment vs the backend's; pointer shapes from the environment vs `None`; color scheme asked at
+  `run` vs dark; system clipboard and opener both; no import loader), mirrored in the README.
+  `with_url_opener`'s doc no longer names a nonexistent `build`. Prose that named `on_tick` says "tick
+  handler" (DIVERGENCES' `P7G-TICK-TOUCHED-1` entry and `@import` entry included). Red:
+  `config_tests::every_construction_option_is_a_with_builder` did not compile (no `with_tick_rate`);
+  green after, with `with_backend_defaults_match_the_table` pinning the table's `with_backend` column.
+  Breaking bullet and API rows; hint group `app_config_hints`.

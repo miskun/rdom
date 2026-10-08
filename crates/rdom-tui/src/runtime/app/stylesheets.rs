@@ -174,11 +174,12 @@ impl<B: Backend> App<B> {
     /// re-cascades. Sheets built in Rust import through
     /// [`rdom_css::parse_with_loader`] instead. Example: see
     /// [`register_property`](Self::register_property).
-    pub fn set_import_loader(&mut self, loader: impl crate::ImportLoader + 'static) {
+    pub fn with_import_loader(mut self, loader: impl crate::ImportLoader + 'static) -> Self {
         self.prelude
             .style_elements
             .set_loader(Some(std::rc::Rc::new(loader)));
         self.invalidate_cascade();
+        self
     }
 
     /// `CSS.registerProperty` (CSS Properties and Values API 1 §3):
@@ -191,7 +192,7 @@ impl<B: Backend> App<B> {
     /// ([`PropertyRegistration::new`](crate::PropertyRegistration::new)).
     /// The next paint re-cascades.
     ///
-    /// With [`set_import_loader`](Self::set_import_loader), using
+    /// With [`with_import_loader`](Self::with_import_loader), using
     /// `rdom_tui` paths only:
     ///
     /// ```
@@ -213,12 +214,13 @@ impl<B: Backend> App<B> {
     /// dom.append_child(root, b).unwrap();
     ///
     /// let terminal = Terminal::new(TestBackend::new(20, 2)).unwrap();
-    /// let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
     /// // Any `Fn(&str) -> Result<String, String>` is an `ImportLoader`.
-    /// app.set_import_loader(|url: &str| match url {
-    ///     "theme.css" => Ok(".a { --accent: red } .b { --accent: 3 }".to_string()),
-    ///     other => Err(format!("no {other}")),
-    /// });
+    /// let mut app = App::with_backend(dom, Stylesheet::new(), terminal)
+    ///     .unwrap()
+    ///     .with_import_loader(|url: &str| match url {
+    ///         "theme.css" => Ok(".a { --accent: red } .b { --accent: 3 }".to_string()),
+    ///         other => Err(format!("no {other}")),
+    ///     });
     /// let accent = PropertyRegistration::new("--accent", "<color>", true, Some("blue")).unwrap();
     /// app.register_property(accent).unwrap();
     /// app.advance(0).unwrap();

@@ -1489,3 +1489,21 @@ fn animation_api_hygiene_hints() {
     let s = TuiStyle::new().timeline_scope(TimelineScope::All);
     assert!(s.timeline_scope.is_some());
 }
+
+/// C12G-APP-CONFIG: every construction-time `App` option is a consuming
+/// `with_*` builder — `tick_rate` is `with_tick_rate`, `on_tick` is
+/// `with_tick_handler`, `set_animation_frame_rate` is
+/// `with_animation_frame_rate`, `set_import_loader` is
+/// `with_import_loader`; `set_color_scheme` stays for run-time changes.
+#[test]
+fn app_config_hints() {
+    let terminal = Terminal::new(TestBackend::new(10, 2)).unwrap();
+    let mut app = App::with_backend(TuiDom::new(), Stylesheet::new(), terminal)
+        .unwrap()
+        .with_tick_rate(std::time::Duration::from_millis(20))
+        .with_tick_handler(|_| ControlFlow::Continue)
+        .with_animation_frame_rate(30)
+        .with_import_loader(|_: &str| Ok(String::new()));
+    app.set_color_scheme(ColorScheme::Light);
+    assert_eq!(app.color_scheme(), ColorScheme::Light);
+}
