@@ -1186,3 +1186,59 @@ fn matches_and_closest_scope_to_their_element() {
     assert_eq!(dom.closest(em, ":not(:scope)"), Ok(Some(p)));
     assert_eq!(dom.closest(em, ".outer:not(:scope)"), Ok(Some(div)));
 }
+
+// ─── Combinator matching (C11-HAS prerequisite) ─────────────────────
+
+/// Selectors 4 §3.1 / §14: a complex selector matches when *some*
+/// assignment of elements to its compounds satisfies every combinator —
+/// the nearest ancestor matching a compound is not always the right one.
+/// In `div > p span`, the `span`'s nearest `p` sits in a `section`; the
+/// outer `p` is the `div`'s child.
+#[test]
+fn complex_selectors_backtrack_past_the_nearest_candidate() {
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let mk = |dom: &mut Dom, parent, tag| {
+        let e = dom.create_element(tag);
+        dom.append_child(parent, e).unwrap();
+        e
+    };
+    let div = mk(&mut dom, root, "div");
+    let p = mk(&mut dom, div, "p");
+    let section = mk(&mut dom, p, "section");
+    let inner_p = mk(&mut dom, section, "p");
+    let span = mk(&mut dom, inner_p, "span");
+    assert_eq!(dom.matches(span, "div > p span"), Ok(true));
+    assert_eq!(dom.matches(span, "div > p > section > p > span"), Ok(true));
+    assert_eq!(dom.matches(span, "div > section span"), Ok(false));
+    // Siblings: `a ~ b + c` where the nearest `b` candidate fails `a ~`.
+    let ul = mk(&mut dom, root, "ul");
+    let a = mk(&mut dom, ul, "a");
+    let b1 = mk(&mut dom, ul, "b");
+    let _ = (a, b1);
+    let i = mk(&mut dom, ul, "i");
+    let b2 = mk(&mut dom, ul, "b");
+    let c = mk(&mut dom, ul, "c");
+    let _ = (i, b2);
+    assert_eq!(dom.matches(c, "a + b ~ b + c"), Ok(true));
+    assert_eq!(dom.matches(c, "a + b ~ i ~ c"), Ok(true));
+    assert_eq!(dom.matches(c, "i + b ~ a"), Ok(false));
+}
+
+/// Selectors 4 §14.3 / §14.4: the sibling combinators relate *element*
+/// siblings — text and comments between them do not count.
+#[test]
+fn sibling_combinators_skip_text_and_comments() {
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let h1 = dom.create_element("h1");
+    dom.append_child(root, h1).unwrap();
+    let ws = dom.create_text_node("\n  ");
+    dom.append_child(root, ws).unwrap();
+    let c = dom.create_comment("note");
+    dom.append_child(root, c).unwrap();
+    let p = dom.create_element("p");
+    dom.append_child(root, p).unwrap();
+    assert_eq!(dom.matches(p, "h1 + p"), Ok(true));
+    assert_eq!(dom.matches(p, "h1 ~ p"), Ok(true));
+}

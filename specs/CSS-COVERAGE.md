@@ -513,7 +513,7 @@ dropped. The audit's six, with where each stands:
 | `[attr]`, `=`, `~=`, `\|=`, `^=`, `$=`, `*=` | Supported | HTML case-insensitive attribute list honored. | — | `SEL::AttrOp` |
 | Attribute case flags `i` / `s` | Supported | `[x=v i]` folds ASCII case, `[x=v s]` compares exactly, overriding HTML §4.16.2's case-insensitive list either way (Selectors 4 §6.3; `AttrCase`, C11-ATTR-FLAGS). | — | `SEL` |
 | Namespace prefixes (`ns\|E`, `*\|E`) | N/A | No namespaces (documented). | — | — |
-| Descendant, `>`, `+`, `~` | Supported | — | — | `SEL::Combinator` |
+| Descendant, `>`, `+`, `~` | Supported | Backtracking over candidates (Servo's bounded outcomes); `+` / `~` relate element siblings only (C11-COMBINATORS). | — | `SEL::Combinator` |
 | Column combinator `\|\|` | Missing | Cells of a `<col>`; low priority. | No | `SEL` |
 | Selector list `a, b` | Supported | — | — | `SEL` |
 | `:not(<complex-list>)` | Supported | Full selector list. | — | `SEL` |

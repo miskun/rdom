@@ -6989,3 +6989,13 @@ row comes from.
   `query_methods_scope_to_the_node_they_are_called_on` (`[]` for the two `span`s) and
   `matches_and_closest_scope_to_their_element` (`matches(em, ":scope")` was `false`); green after; the two
   cascade checks green as written. No existing expectation or snapshot changed.
+- 2026-10-14 — C11-COMBINATORS (found while designing C11-HAS, whose anchored matching needs it): two matcher
+  bugs. (1) `matches_complex` took the nearest candidate for each compound and never backtracked, so `div > p
+  span` failed for a `span` whose nearest `p` sits in a `section` under the `div`'s `p` (Selectors 4 §3.1:
+  some assignment must satisfy every combinator). Rewritten as `match_chain` with Servo's outcomes
+  (`Matched`, `NotMatchedGlobally`, restart from the closest descendant / later-sibling combinator), which
+  bound the backtracking; it also takes an optional anchor (the `:has()` element) as the chain's last step.
+  (2) `+` / `~` stepped to the previous *node*, so a text node or comment between `h1` and `p` broke `h1 + p`;
+  they step to the previous element sibling (§14.3 / §14.4 in the earlier draft's numbering). Red:
+  `complex_selectors_backtrack_past_the_nearest_candidate` and `sibling_combinators_skip_text_and_comments`
+  (`Ok(false)` for `Ok(true)`); green after. No existing expectation or snapshot changed.

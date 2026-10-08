@@ -226,6 +226,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-core`
 
+- **Complex selectors match when any assignment of elements does** (Selectors 4 §3.1): the matcher took the nearest ancestor (or earlier sibling) matching each compound and gave up when the rest failed, so `div > p span` missed a `span` whose nearest `p` was not the `div`'s child; it now backtracks to farther candidates, bounded as Servo's matcher is. And `+` / `~` relate *element* siblings (§14.3 / §14.4): `h1 + p` matched nothing across a whitespace text node or a comment. (C11-COMBINATORS)
 - **The query methods scope `:scope` to their node** (DOM §4.2.6, Selectors 4 §8.4): `query_selector_in(root, …)` / `query_selector_all_in` match with `root` as the scoping root (`:scope > p` is `root`'s own `p` children), `Dom::query_selector` / `query_selector_all` with the document, `matches(id, …)` and `closest(id, …)` with `id`; `:scope` was `:root` there. (C11-SCOPE)
 - **Pseudo-class names are ASCII case-insensitive** (Selectors 4 §3.1): `a:HOVER` is `a:hover`. (C1-CASE)
 - **`:first-child` / `:last-child` / `:only-child` match an element without a parent** (Selectors 4 §13.3, Level 4 drops the parent requirement), as `:nth-child(1)` does. (C11-NTH)

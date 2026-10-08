@@ -11,6 +11,28 @@ use crate::selectors::{
     self, Combinator, CompoundSelector, PseudoClass, SelectorList, SimpleSelector,
 };
 
+/// How a [`Dom::match_chain`] attempt ended — Servo's matching
+/// results, which say how far back a failure sends the search.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Outcome {
+    Matched,
+    /// No candidate anywhere can match: stop.
+    NotMatchedGlobally,
+    /// Retry from the nearest descendant combinator to the right.
+    RestartFromClosestDescendant,
+    /// Retry from the nearest subsequent-sibling combinator (or
+    /// descendant one) to the right.
+    RestartFromClosestLaterSibling,
+}
+
+/// What a chain step must find: an element matching a compound, or
+/// the `:has()` anchor itself.
+#[derive(Clone, Copy)]
+enum Target<'s> {
+    Compound(&'s CompoundSelector),
+    Node(NodeId),
+}
+
 /// What one match reads beyond the tree: the scoping root `:scope`
 /// matches (Selectors 4 §14.3) and the pass's caches.
 pub(super) struct Cx<'c> {
@@ -32,67 +54,82 @@ impl<Ext> Dom<Ext> {
         complex: &selectors::ComplexSelector,
         cx: &mut Cx<'_>,
     ) -> bool {
-        // Subject must match.
-        if !self.matches_compound(id, &complex.subject, cx) {
-            return false;
+        self.matches_compound(id, &complex.subject, cx)
+            && self.match_chain(id, &complex.ancestors, None, cx) == Outcome::Matched
+    }
+
+    /// Match `chain` (compounds right to left, each with the combinator
+    /// linking it to the one on its right) outward from `el`, which
+    /// matched the compound right of `chain[0]`; then, with `anchor`,
+    /// the anchor element `:has()` relates the leftmost compound to
+    /// (Selectors 4 §4.5: the relative selector's leading combinator).
+    ///
+    /// Backtracking (Selectors 4 §3.1: *some* assignment of elements
+    /// must satisfy every combinator): a candidate whose rest fails is
+    /// followed by the next candidate where trying one can still help.
+    /// The outcomes bound that search as Servo's matcher does — a
+    /// failure that no farther candidate of this combinator can fix
+    /// returns at once — so it stays linear in the depth per descendant
+    /// combinator, not exponential.
+    pub(super) fn match_chain(
+        &self,
+        el: NodeId,
+        chain: &[(Combinator, CompoundSelector)],
+        anchor: Option<(Combinator, NodeId)>,
+        cx: &mut Cx<'_>,
+    ) -> Outcome {
+        let (comb, target) = match chain.split_first() {
+            Some(((comb, compound), _)) => (*comb, Target::Compound(compound)),
+            None => match anchor {
+                None => return Outcome::Matched,
+                Some((comb, node)) => (comb, Target::Node(node)),
+            },
+        };
+        let rest = chain.get(1..).unwrap_or_default();
+        let not_found = match comb {
+            Combinator::AdjacentSibling | Combinator::GeneralSibling => {
+                Outcome::RestartFromClosestDescendant
+            }
+            _ => Outcome::NotMatchedGlobally,
+        };
+        let mut next = self.step(el, comb);
+        loop {
+            let Some(candidate) = next else {
+                return not_found;
+            };
+            let result = match target {
+                Target::Node(node) if candidate == node => Outcome::Matched,
+                Target::Node(_) => Outcome::RestartFromClosestLaterSibling,
+                Target::Compound(compound) if self.matches_compound(candidate, compound, cx) => {
+                    self.match_chain(candidate, rest, anchor, cx)
+                }
+                Target::Compound(_) => Outcome::RestartFromClosestLaterSibling,
+            };
+            match (result, comb) {
+                (Outcome::Matched | Outcome::NotMatchedGlobally, _)
+                | (_, Combinator::AdjacentSibling) => return result,
+                (_, Combinator::Child) => return Outcome::RestartFromClosestDescendant,
+                (Outcome::RestartFromClosestDescendant, Combinator::GeneralSibling) => {
+                    return result;
+                }
+                // A descendant combinator tries the next ancestor; a
+                // subsequent-sibling one the next earlier sibling.
+                _ => {}
+            }
+            next = self.step(candidate, comb);
         }
-        // Walk ancestors/siblings per combinator. Each step's "candidate
-        // pointer" represents the node we're trying to match against the
-        // next compound on the outward path.
-        let mut cur = id;
-        for (comb, compound) in &complex.ancestors {
-            match comb {
-                Combinator::Descendant => {
-                    let mut anc = self.get_node(cur).and_then(|n| n.parent);
-                    let mut matched = None;
-                    while let Some(a) = anc {
-                        if self.matches_compound(a, compound, cx) {
-                            matched = Some(a);
-                            break;
-                        }
-                        anc = self.get_node(a).and_then(|n| n.parent);
-                    }
-                    match matched {
-                        Some(a) => cur = a,
-                        None => return false,
-                    }
-                }
-                Combinator::Child => {
-                    let Some(parent) = self.get_node(cur).and_then(|n| n.parent) else {
-                        return false;
-                    };
-                    if !self.matches_compound(parent, compound, cx) {
-                        return false;
-                    }
-                    cur = parent;
-                }
-                Combinator::AdjacentSibling => {
-                    let Some(prev) = self.get_node(cur).and_then(|n| n.prev_sibling) else {
-                        return false;
-                    };
-                    if !self.matches_compound(prev, compound, cx) {
-                        return false;
-                    }
-                    cur = prev;
-                }
-                Combinator::GeneralSibling => {
-                    let mut sib = self.get_node(cur).and_then(|n| n.prev_sibling);
-                    let mut matched = None;
-                    while let Some(s) = sib {
-                        if self.matches_compound(s, compound, cx) {
-                            matched = Some(s);
-                            break;
-                        }
-                        sib = self.get_node(s).and_then(|n| n.prev_sibling);
-                    }
-                    match matched {
-                        Some(s) => cur = s,
-                        None => return false,
-                    }
-                }
+    }
+
+    /// The next candidate `comb` relates `el` to: its parent for a
+    /// descendant / child combinator, its previous *element* sibling for
+    /// a sibling combinator (Selectors 4 §14.3 / §14.4).
+    fn step(&self, el: NodeId, comb: Combinator) -> Option<NodeId> {
+        match comb {
+            Combinator::Descendant | Combinator::Child => self.get_node(el)?.parent,
+            Combinator::AdjacentSibling | Combinator::GeneralSibling => {
+                self.prev_element_sibling_id(el)
             }
         }
-        true
     }
 
     fn matches_compound(&self, id: NodeId, compound: &CompoundSelector, cx: &mut Cx<'_>) -> bool {
