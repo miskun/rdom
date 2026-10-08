@@ -78,11 +78,16 @@ pub fn show_modal(dom: &mut TuiDom, dialog: NodeId) {
     if !was_open {
         fire_toggle(dom, dialog, rdom_core::ToggleState::Closed);
     }
-    // Dialog focusing steps (HTML §4.11.4): the first `[autofocus]`
-    // descendant, else the first focusable descendant, else the
-    // dialog itself when it is focusable.
-    // The dialog was closed (`display: none`) when last cascaded; it is
-    // rendered now (`tabindex::is_focusable_in_opened`).
+    focusing_steps(dom, dialog);
+}
+
+/// The dialog focusing steps (HTML §4.11.4): the first `[autofocus]`
+/// descendant, else the first focusable descendant, else the dialog
+/// itself when it is focusable. `showModal()` runs them, and so does a
+/// `<dialog popover>` shown as a popover (the popover focusing steps).
+/// The dialog was closed (`display: none`) when last cascaded; it is
+/// rendered now (`tabindex::is_focusable_in_opened`).
+pub(crate) fn focusing_steps(dom: &mut TuiDom, dialog: NodeId) {
     crate::runtime::autofocus::focus_within_opened(dom, dialog);
     if !dom.focused().is_some_and(|f| is_inside(dom, f, dialog)) {
         let target = first_focusable_in(dom, dialog).or_else(|| {

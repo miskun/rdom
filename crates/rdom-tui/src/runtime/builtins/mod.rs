@@ -36,6 +36,7 @@ pub(crate) mod inline_chrome;
 pub mod input;
 pub mod label;
 pub mod number;
+pub mod popover;
 pub mod range;
 pub mod select;
 pub mod table;

@@ -57,7 +57,9 @@ fn ua_total_rule_count() {
     // `[dir]:dir(rtl), bdi:dir(rtl)` (C11-LINK-LANG, +3).
     // 179: the indeterminate checkbox's `[-]` glyph (C11-FORM-STATES, +1).
     // 180: HTML's `dialog:modal` placement (C11-MODAL-POPOVER, +1).
-    assert_eq!(ua.len(), 180);
+    // 183: HTML's popover rules — `[popover]` hidden until shown,
+    // `dialog:popover-open` a block, `[popover]` placement (+3).
+    assert_eq!(ua.len(), 183);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")

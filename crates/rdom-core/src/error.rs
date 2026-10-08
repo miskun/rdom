@@ -50,6 +50,11 @@ pub enum DomError {
     /// A string argument does not parse (spec `SyntaxError`) — e.g.
     /// `el.contentEditable = "yes"`.
     Syntax(&'static str),
+
+    /// The operation is not supported on this object (spec
+    /// `NotSupportedError`) — e.g. `showPopover()` on an element without
+    /// a `popover` attribute.
+    NotSupported(&'static str),
 }
 
 impl std::fmt::Display for DomError {
@@ -70,6 +75,7 @@ impl std::fmt::Display for DomError {
             DomError::InvalidState(what) => write!(f, "invalid state: {what}"),
             DomError::Type(what) => write!(f, "type error: {what}"),
             DomError::Syntax(what) => write!(f, "syntax error: {what}"),
+            DomError::NotSupported(what) => write!(f, "not supported: {what}"),
         }
     }
 }

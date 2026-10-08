@@ -9,7 +9,8 @@
 //!    `INPUT-SEED-ON-INSERT-1`), so this frame lays them out with it;
 //! 2. **`<select>` selectedness** — settle the selects whose options
 //!    changed (`select::Selectedness`), so the options it (re)selects
-//!    cascade this frame;
+//!    cascade this frame; hide the popovers whose `popover` attribute
+//!    changed state while showing (`popover::attribute`);
 //! 3. **`<style>` elements** — re-parse the sheets whose text changed
 //!    (`cssom::style_elements`); a change invalidates the cascade
 //!    ([`FramePrelude::sheets_changed`]);
@@ -41,6 +42,7 @@ use super::redraw::Redraw;
 use crate::TuiDom;
 use crate::cssom::style_elements::StyleElements;
 use crate::runtime::builtins::input::ControlSeeding;
+use crate::runtime::builtins::popover::attribute::PopoverAttributes;
 use crate::runtime::builtins::select::Selectedness;
 use crate::runtime::builtins::validation::FormStateMarks;
 use crate::runtime::caret_blink::CaretBlink;
@@ -80,6 +82,9 @@ pub(super) struct FramePrelude {
     /// whose options were inserted / removed; flushed before each event
     /// and each frame.
     pub(super) selectedness: Selectedness,
+    /// Hides the popovers whose `popover` attribute changed state while
+    /// showing; flushed before each event and each frame.
+    pub(super) popover_attributes: PopoverAttributes,
     /// The document's `<style>` sheets, live (`cssom::style_elements`):
     /// they cascade before the App's own sheets, in tree order.
     pub(super) style_elements: StyleElements,
@@ -122,6 +127,7 @@ impl FramePrelude {
         Self {
             control_seeding: ControlSeeding::install(dom),
             selectedness: Selectedness::install(dom),
+            popover_attributes: PopoverAttributes::install(dom),
             style_elements: StyleElements::install(dom),
             registrations: crate::style::Stylesheet::bare(),
             registry: std::rc::Rc::default(),
@@ -142,6 +148,7 @@ impl FramePrelude {
         self.control_seeding.flush(cx.dom);
         // 2.
         self.selectedness.flush(cx.dom);
+        self.popover_attributes.flush(cx.dom);
         // 3.
         if self.style_elements.flush(cx.dom) {
             self.sheets_changed(cx.dom, cx.tracker, cx.app_sheets, cx.redraw);

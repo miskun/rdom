@@ -66,6 +66,7 @@ impl<B: Backend> App<B> {
         // action reads them.
         self.prelude.control_seeding.flush(&mut self.dom);
         self.prelude.selectedness.flush(&mut self.dom);
+        self.prelude.popover_attributes.flush(&mut self.dom);
         self.prelude.touched = true;
         match &event {
             CtEvent::Key(key) => {

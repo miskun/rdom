@@ -15,6 +15,7 @@ mod has;
 mod link_lang;
 mod modal;
 mod nth;
+mod popover;
 
 /// Parse `css` strictly (no warnings) and cascade it over `dom`.
 pub(crate) fn cascade(dom: &mut TuiDom, css: &str) {

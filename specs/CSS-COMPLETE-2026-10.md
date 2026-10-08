@@ -230,7 +230,7 @@ row comes from.
 | C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | done |
 | C11-SCOPE | `:scope` (query APIs and `@scope`) | done |
 | C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | done |
-| C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | partial — the top layer and `:modal` done; the `popover` attribute, `:popover-open` and light dismiss remain |
+| C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | partial — the top layer, `:modal`, the `popover` attribute and `:popover-open` done; light dismiss remains |
 | C11-LINK-LANG | `:link` / `:any-link`, `:lang()` | done (with `:dir()`, deferred here by C5-WRITING, and `:visited` never matching) |
 | C11-COLUMN | Column combinator `\|\|` | moved to Phase 13 as C13-COLUMN: it selects the cells a column spans, which needs C13-TFC's real table columns |
 
@@ -7156,3 +7156,28 @@ row comes from.
   centred dialog (expectations moved with the UA's centring); three dialog form tests click the submit
   button where it is laid out — two of them clicked the dialog's border before and passed without
   submitting. No snapshot changed (the showcase's dialog is non-modal).
+- 2026-10-14 — C11-MODAL-POPOVER, part 2 of 3: the `popover` attribute and `:popover-open` (HTML §6.12).
+  rdom-core: `:popover-open` is a top-layer member as `TopLayerKind::Popover`; `DomError::NotSupported`
+  (`NotSupportedError`); `ToggleDetail::source` (`ToggleEvent.source`). rdom-tui: `runtime::builtins::popover`
+  (`mod.rs` the API and contract, `algorithms.rs` HTML §6.12.2's check popover validity, show / hide popover,
+  hide all popovers until, hide popover stack until, close entire popover list, topmost popover ancestor,
+  nearest inclusive open popover; `invoker.rs` the `popovertarget` activation behavior; `attribute.rs` the
+  attribute change steps). Decided — visibility is top-layer membership and the showing auto / hint lists
+  are the top layer's popovers by the mode each was shown in (`Popovers::opened`, document data), so the
+  removing steps rdom-core already runs keep the lists right; the per-element state (opened mode, invoker,
+  previously focused element, the showing-or-hiding flag) is document data, not `TuiExt` (no size cost).
+  Decided — `toggle` fires synchronously like `<details>` / `<dialog>`'s (DIVERGENCES §2, new entry with the
+  Tab order: no invoker-adjacent navigation), and the attribute change steps run at the App's next boundary
+  (`PopoverAttributes`, beside `Selectedness`; mutation observers may not mutate). The hint rules follow
+  §6.12.2 step 12: a hint with no hint ancestor but an auto ancestor joins the auto stack. A stack walk
+  whose hide leaves its popover showing (a listener took the attribute away) drops it from the top layer,
+  so the walk always ends. The dialog focusing steps became `dialog::focusing_steps`, which a
+  `<dialog popover>` shares. UA: HTML's three popover rules (UA count 180 → 183; `padding: 0.25em` is
+  under a cell). Red: the core `:popover-open` test failed on "unsupported pseudo-class"; the rdom-tui tests
+  were written before the module but first run after it (their red was the missing module), so each one's
+  red is shown by a mutation (each alone, restored, touched): `beforetoggle` uncancelable → the cancel test;
+  an auto popover hiding nothing → the stack and hint tests; no invoker nesting → the stack test; no hiding
+  of nested popovers first → the order test; no focus restore → the focus test; `show` toggling → the
+  invoker test; no attribute watch → the attribute test; hints ignoring the stack rules → the hint test; the
+  UA hide rule broken → the integration test. No snapshot or existing expectation changed besides the UA
+  count.

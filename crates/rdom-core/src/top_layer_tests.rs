@@ -108,3 +108,20 @@ fn modal_matches_modal_dialogs_in_the_top_layer() {
     dom.remove_from_top_layer(modal);
     assert!(!dom.matches(modal, ":modal").unwrap());
 }
+
+/// Selectors 4 `:popover-open`, HTML §4.16.3: an element whose popover
+/// is showing — in the top layer as a popover.
+#[test]
+fn popover_open_matches_showing_popovers() {
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let pop = el(&mut dom, root, "div");
+    let modal = el(&mut dom, root, "dialog");
+    dom.add_to_top_layer(pop, TopLayerKind::Popover).unwrap();
+    dom.add_to_top_layer(modal, TopLayerKind::ModalDialog)
+        .unwrap();
+    assert!(dom.matches(pop, ":popover-open").unwrap());
+    assert!(!dom.matches(modal, ":popover-open").unwrap());
+    dom.remove_from_top_layer(pop);
+    assert!(!dom.matches(pop, ":popover-open").unwrap());
+}

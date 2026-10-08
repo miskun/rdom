@@ -91,6 +91,7 @@ impl Parser<'_> {
             "user-valid" => Ok(SimpleSelector::Pseudo(PseudoClass::UserValid)),
             "user-invalid" => Ok(SimpleSelector::Pseudo(PseudoClass::UserInvalid)),
             "modal" => Ok(SimpleSelector::Pseudo(PseudoClass::Modal)),
+            "popover-open" => Ok(SimpleSelector::Pseudo(PseudoClass::PopoverOpen)),
             other => Err(self.err(format!("unsupported pseudo-class `:{other}`"))),
         }
     }

@@ -426,8 +426,9 @@ impl FormEnctype {
     }
 }
 
-/// `toggle` event payload — emitted by `<details>` and
-/// `<dialog>` when their open/closed state changes.
+/// `toggle` / `beforetoggle` event payload (HTML `ToggleEvent`) —
+/// emitted by `<details>`, `<dialog>` and popovers when their
+/// open / closed state changes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ToggleDetail {
@@ -435,15 +436,26 @@ pub struct ToggleDetail {
     pub old_state: ToggleState,
     /// State after the toggle.
     pub new_state: ToggleState,
+    /// `ToggleEvent.source`: the element that invoked the change — a
+    /// popover's `popovertarget` button, or the source a
+    /// `showPopover()` call named. `None` otherwise.
+    pub source: Option<crate::NodeId>,
 }
 
 impl ToggleDetail {
-    /// A `toggle` payload (`ToggleEventInit`).
+    /// A `toggle` payload (`ToggleEventInit`), without a source.
     pub const fn new(old_state: ToggleState, new_state: ToggleState) -> Self {
         Self {
             old_state,
             new_state,
+            source: None,
         }
+    }
+
+    /// The same payload with `source` as its `ToggleEvent.source`.
+    pub const fn with_source(mut self, source: Option<crate::NodeId>) -> Self {
+        self.source = source;
+        self
     }
 }
 
@@ -776,6 +788,7 @@ mod tests {
         let d = EventDetail::Toggle(Box::new(ToggleDetail {
             old_state: ToggleState::Closed,
             new_state: ToggleState::Open,
+            source: None,
         }));
         let t = d.as_toggle().expect("variant matches");
         assert_eq!(t.old_state, ToggleState::Closed);

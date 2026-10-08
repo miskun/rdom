@@ -184,6 +184,37 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 super::css(style, name, value)
             }),
         ),
+        // HTML's rendering rules for popovers: hidden until shown; a
+        // showing popover is fixed, centred in the viewport and
+        // fit-content, with a solid border, scrolling past the viewport.
+        // `padding: 0.25em` is less than a cell: none.
+        (
+            "[popover]:not(:popover-open):not(dialog[open])",
+            TuiStyle::new().display(Display::None),
+        ),
+        (
+            "dialog:popover-open",
+            TuiStyle::new().display(Display::Block),
+        ),
+        (
+            "[popover]",
+            [
+                ("position", "fixed"),
+                ("inset", "0"),
+                ("width", "fit-content"),
+                ("height", "fit-content"),
+                ("margin", "auto"),
+                ("border", "solid"),
+                ("padding", "0"),
+                ("overflow", "auto"),
+                ("color", "canvastext"),
+                ("background-color", "canvas"),
+            ]
+            .into_iter()
+            .fold(TuiStyle::new(), |style, (name, value)| {
+                super::css(style, name, value)
+            }),
+        ),
         ("form", TuiStyle::new().display(Display::Block)),
         (
             "fieldset",

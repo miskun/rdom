@@ -430,6 +430,9 @@ pub enum PseudoClass {
     /// ([`Dom::top_layer_kind`](crate::Dom::top_layer_kind)). rdom has no
     /// fullscreen.
     Modal,
+    /// `:popover-open` (Selectors 4 §11, HTML §4.16.3): an element whose
+    /// popover is showing — in the top layer as a popover.
+    PopoverOpen,
     /// `:scope` (Selectors 4 §14.3) — the scoping root: an `@scope`
     /// rule's root (CSS Cascade 6 §2.5) when matched through
     /// [`Dom::matches_list_in_scope`](crate::Dom::matches_list_in_scope),

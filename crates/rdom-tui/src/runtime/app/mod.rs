@@ -285,6 +285,7 @@ impl<B: Backend> App<B> {
         crate::runtime::builtins::number::install(&mut dom);
         crate::runtime::builtins::form::install(&mut dom);
         crate::runtime::builtins::dialog::install(&mut dom);
+        crate::runtime::builtins::popover::install(&mut dom);
         crate::runtime::builtins::select::install(&mut dom);
         crate::runtime::builtins::range::install(&mut dom);
         crate::runtime::builtins::tree::install(&mut dom);
