@@ -63,6 +63,34 @@ pub(crate) fn pseudo_at(
         .flatten()
 }
 
+/// Whether `(x, y)`, inside `clip`, is on the outside `::marker` of the
+/// list item `item` (CSS Lists 3 §3.5): a box of the item hung outside its
+/// principal box, on the row of the first line it rides — `item`'s own or
+/// a descendant's. The element hit test asks this at the item's turn when
+/// the point misses the item's box, so a click on a bullet targets the
+/// item, as in a browser (C10G-MARKER-HIT). Free in a document with no
+/// list item.
+pub(super) fn on_outside_marker(
+    dom: &Dom<TuiExt>,
+    item: NodeId,
+    x: u16,
+    y: u16,
+    clip: crate::render::Rect,
+) -> bool {
+    use crate::render::inline::markers;
+    if !crate::style::doc_flags::has_list_items(dom) || !clip.contains(x, y) {
+        return false;
+    }
+    if !markers::marker(dom, item).is_some_and(|m| m.outside) {
+        return false;
+    }
+    let Some(holder) = markers::marker_line_holder(dom, item) else {
+        return false;
+    };
+    let (x, y) = (i32::from(x), i32::from(y));
+    in_lines_of(dom, holder, item, x, y) == Some((item, PseudoSlot::Marker))
+}
+
 /// `id` and its element ancestors, innermost first.
 fn ancestors_or_self(dom: &Dom<TuiExt>, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
     std::iter::successors(Some(id), move |&cur| {

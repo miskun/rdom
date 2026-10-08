@@ -102,6 +102,27 @@ fn marker_hover_matches_over_the_marker() {
     );
 }
 
+/// §3.6.3 with CSS Lists 3 §3.5: an `outside` marker (the initial
+/// position) is a box of its item hung in the list's padding, and
+/// `::marker:hover` matches while the pointer is over it (C10G-MARKER-HIT;
+/// browsers hit-test the marker to the item).
+#[test]
+fn outside_marker_hover_matches_over_the_marker() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let ul = el(&mut dom, root, "ul", "");
+    let li = text_el(&mut dom, ul, "li", "", "x");
+    let mut app = app(dom, "li::marker:hover { color: red }");
+    mouse(&mut app, MouseEventKind::Moved, 2, 0);
+    assert_eq!(pseudo_fg(&app, li, PseudoSlot::Marker), Some(RED));
+    mouse(&mut app, MouseEventKind::Moved, 0, 0);
+    assert_ne!(
+        pseudo_fg(&app, li, PseudoSlot::Marker),
+        Some(RED),
+        "over the list's padding beside it"
+    );
+}
+
 /// §3.6.3 with CSS Pseudo 4 §2.3: `::first-letter:hover` styles the
 /// first letter while the pointer is over it, not over the rest of the
 /// line.

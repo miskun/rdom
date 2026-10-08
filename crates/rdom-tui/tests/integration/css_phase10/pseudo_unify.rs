@@ -124,6 +124,31 @@ fn an_absolute_after_with_auto_insets_sits_at_its_static_position() {
     assert_eq!(rows, ["abZ   ", "      "]);
 }
 
+/// CSS 2.1 §10.3.7: the static position is where the box would have been
+/// with `position: static` — an inline `::before` is the first inline box
+/// of its host's first line, so it starts where `text-align` and
+/// `text-indent` put that line's content, not at the content box's edge
+/// (C10G-MARKER-HIT; the architect gate's N12).
+#[test]
+fn an_absolute_before_starts_where_its_hosts_first_line_starts() {
+    let rows = |align: &str| {
+        paint_tree(
+            &format!(
+                ".h {{ position: relative; width: 8; text-align: {align} }} \
+                 .h::before {{ position: absolute; content: '*' }}"
+            ),
+            8,
+            1,
+            |dom, root| {
+                text_el(dom, root, "div", "h", "ab");
+            },
+        )
+    };
+    assert_eq!(rows("left"), ["*b      "]);
+    assert_eq!(rows("center"), ["   *b   "]);
+    assert_eq!(rows("right"), ["      *b"]);
+}
+
 /// CSS 2.1 §9.4.3: a relatively positioned box is laid out in flow and
 /// then moved, "without affecting the layout of surrounding boxes": the
 /// `::before`'s text keeps its cells in the line, the host's text after

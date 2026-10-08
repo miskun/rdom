@@ -6511,3 +6511,28 @@ row comes from.
   `pseudo_chains.rs` (the inside marker is two cells further right), three `paint_pass` list rows and the
   UA padding test; snapshots `lists_generated.snap` and `ua_chrome.snap` — the list rows only, one or two
   cells right; no background changed.
+- 2026-10-13 — C10G-MARKER-HIT (architect N5, N6, N12; API B4's DIVERGENCES line). Four parts, each red
+  first. (1) Outside markers are hit as their item (CSS Lists 3 §3.5: the marker is a box of the list item
+  outside its principal box; browsers hit-test it to the `li`): the element hit test missed the item's box
+  and stopped at the list whose padding the marker hangs in, so a click on a bullet targeted the `ul` and
+  `::marker:hover` reached inside markers only. Fixed where the walk visits the item in reverse paint
+  order (`descend_children_reverse`): a point that misses an element's box is tested against its outside
+  marker (`hit_test::pseudo::on_outside_marker` — the marker's line holder's lines, which `place_outside`
+  already placed; free without a list item, `doc_flags`), and the item goes on the path; the pseudo hit
+  test then names the marker as before. (2) The DIVERGENCES §2 sentence about a flex or grid list item
+  went (CSS Display 3 §2.3 makes `list-item flex` invalid, and rdom rejects it), as did its comment in
+  `markers.rs`, and the "not in the hit-test set" clauses (§2 marker entry, §2 pseudo-element `:hover`).
+  (3) `<ol type>` / `<li type>` (`1 a A i I`, case-sensitive) and `<ul type>` / `<li type>` (`none disc
+  circle square`, ASCII case-insensitive) map to `list-style-type` (HTML §15.3.8) in `cascade/hints.rs`.
+  Decision: presentational hints, not UA rules as HTML writes them — rdom matches `type` values
+  case-insensitively, so a UA selector cannot tell `a` from `A`; recorded in DIVERGENCES §2 (an author
+  `revert` removes a hint). (4) An absolutely positioned inline `::before`'s static position (CSS 2.1
+  §10.3.7: the hypothetical box with `position: static`) is the start of its host's first line — after
+  `text-align` and `text-indent` — not the content box's edge (`positioning::pseudo::first_line_start`; a
+  block-level one keeps the content start). Red: `list_item.rs::an_outside_marker_is_hit_as_its_item`
+  (`(2, 0)` hit the `ul`), `pseudo_chains.rs::outside_marker_hover_matches_over_the_marker` (`Reset` for
+  red), `list_item.rs::the_type_attribute_sets_the_list_style_type` (`1. ` for `a. `) and
+  `pseudo_unify.rs::an_absolute_before_starts_where_its_hosts_first_line_starts` (`"*  ab   "` for
+  `"   *b   "` centered); green after. Mutation (the three code changes disabled together, each caught by its
+  own tests, restored, touched): the marker branch → both hit tests; the `type` hint → the type test; the
+  first-line start → the static-position test. No existing expectation or snapshot changed.

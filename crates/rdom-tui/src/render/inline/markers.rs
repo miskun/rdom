@@ -38,9 +38,9 @@ pub(crate) struct Marker<'a> {
 }
 
 /// `item`'s marker, when it is a list item (`display: list-item`) of block
-/// flow whose `::marker` has content (CSS Lists 3 §3.1–§3.2). A list item
-/// that lays its children out as a flex or grid container places no
-/// marker (DIVERGENCES §2).
+/// flow whose `::marker` has content (CSS Lists 3 §3.1–§3.2). (A list item
+/// is never a flex or grid container: CSS Display 3 §2.3 makes `list-item`
+/// with `flex` or `grid` invalid.)
 pub(crate) fn marker(dom: &Dom<TuiExt>, item: NodeId) -> Option<Marker<'_>> {
     let node = dom.node(item);
     let computed = node.computed()?;

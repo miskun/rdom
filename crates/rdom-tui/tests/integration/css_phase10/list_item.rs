@@ -369,3 +369,96 @@ fn the_lists_padding_holds_ten_and_overflow_is_clipped_only_by_the_viewport() {
     );
     assert_eq!(rows[2], "  II. c ");
 }
+
+// ── C10G-MARKER-HIT: an outside marker is hit as its item ──────────────
+
+/// CSS Lists 3 §3.5 makes an outside marker a box of its list item, hung
+/// outside the item's principal box (CSS Pseudo 4 §2: a pseudo-element's
+/// box is part of its originating element's), and browsers hit-test it to
+/// the item: a click on a bullet targets the `li`, not the list whose
+/// padding it hangs in, and `hit_test_pseudo` names the marker — for a
+/// marker on the item's own line, on a descendant's line, and for both
+/// markers nested items put on one line. Beside a marker the list is hit.
+#[test]
+fn an_outside_marker_is_hit_as_its_item() {
+    use rdom_tui::HitTestExt;
+    use rdom_tui::ext::PseudoSlot;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let ul = el(&mut dom, root, "ul", "");
+    let own = text_el(&mut dom, ul, "li", "", "a");
+    let ol = el(&mut dom, root, "ol", "");
+    let riding = el(&mut dom, ol, "li", "");
+    text_el(&mut dom, riding, "p", "", "Step");
+    let outer = el(&mut dom, root, "ul", "");
+    let outer_li = el(&mut dom, outer, "li", "");
+    let inner = el(&mut dom, outer_li, "ul", "");
+    let inner_li = text_el(&mut dom, inner, "li", "", "x");
+    lay_out(&mut dom, "", 12, 3);
+    for (x, y, item) in [
+        (2, 0, own),
+        (1, 1, riding),
+        (2, 2, outer_li),
+        (6, 2, inner_li),
+    ] {
+        assert_eq!(dom.hit_test(x, y), Some(item), "({x}, {y})");
+        assert_eq!(
+            dom.hit_test_pseudo(x, y),
+            Some((item, PseudoSlot::Marker)),
+            "({x}, {y})"
+        );
+    }
+    assert_eq!(dom.hit_test(0, 0), Some(ul));
+    assert!(dom.hit_test_path(1, 1).contains(&ol));
+}
+
+/// HTML §15.3.8 maps `<ol type>` and `<li type>` to `list-style-type` —
+/// `1`, `a`, `A`, `i`, `I`, compared case-sensitively (the UA rules'
+/// `s` flag) — and `<ul type>` / `<li type>` `none`, `disc`, `circle`,
+/// `square`, case-insensitively. rdom applies them as presentational hints
+/// (C10G-MARKER-HIT), so an author rule beats them.
+#[test]
+fn the_type_attribute_sets_the_list_style_type() {
+    let first_marker = |tag: &str, list_type: Option<&str>, item_type: Option<&str>, css: &str| {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let l = el(&mut dom, root, tag, "");
+        if let Some(t) = list_type {
+            dom.set_attribute(l, "type", t).unwrap();
+        }
+        let li = text_el(&mut dom, l, "li", "", "x");
+        if let Some(t) = item_type {
+            dom.set_attribute(li, "type", t).unwrap();
+        }
+        lay_out(&mut dom, css, 10, 1);
+        marker(&dom, li)
+    };
+    for (list_type, want) in [
+        ("1", "1. "),
+        ("a", "a. "),
+        ("A", "A. "),
+        ("i", "i. "),
+        ("I", "I. "),
+        ("x", "1. "),
+        ("disc", "1. "),
+    ] {
+        let got = first_marker("ol", Some(list_type), None, "");
+        assert_eq!(got.as_deref(), Some(want), "<ol type={list_type}>");
+    }
+    for (list_type, want) in [
+        ("circle", Some("◦ ")),
+        ("SQUARE", Some("▪ ")),
+        ("Disc", Some("• ")),
+        ("a", Some("• ")),
+        ("none", None),
+    ] {
+        let got = first_marker("ul", Some(list_type), None, "");
+        assert_eq!(got.as_deref(), want, "<ul type={list_type}>");
+    }
+    let got = first_marker("ol", Some("a"), Some("I"), "");
+    assert_eq!(got.as_deref(), Some("I. "), "<li type> over <ol type>");
+    let got = first_marker("ul", None, Some("square"), "");
+    assert_eq!(got.as_deref(), Some("▪ "), "<li type> in a ul");
+    let got = first_marker("ol", Some("a"), None, "ol { list-style-type: decimal }");
+    assert_eq!(got.as_deref(), Some("1. "), "an author rule beats the hint");
+}

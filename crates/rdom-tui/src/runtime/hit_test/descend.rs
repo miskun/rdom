@@ -349,7 +349,16 @@ fn descend_children_reverse(
                 }
                 hit
             }
-            NodeType::Element => hit_in_flow_element(dom, child, x, y, clip, viewport, path),
+            // A list item's outside marker hangs outside its box, painted
+            // with its lines: a point on it is the item's (CSS Lists 3
+            // §3.5).
+            NodeType::Element => {
+                hit_in_flow_element(dom, child, x, y, clip, viewport, path)
+                    || (super::pseudo::on_outside_marker(dom, child, x, y, clip) && {
+                        path.push(child);
+                        true
+                    })
+            }
             _ => false,
         };
         if hit {

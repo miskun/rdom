@@ -55,7 +55,8 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 40. **A relatively positioned box is laid out in flow, then shifted** (CSS 2.1 §9.4.3): its subtree is laid out where the box is in flow and moved with it, so a float inside it excludes the next paragraph's lines at the unshifted place. (C8-FLOAT)
 41. **Overflowing text paints over what follows it** (CSS 2.1 Appendix E): a block's text running past it into a float or a later block now shows over the float's and the block's backgrounds (it was covered by them). (C8G-PAINT-PHASES)
 42. **An overflowing `rtl` line hangs off the left edge** (CSS Text 3 §7.1): a line wider than its `rtl` block starts at the right edge and overflows the left one, reached with a negative `scrollLeft` (it started at the left edge and overflowed the right). (C8-RTL-LINE-OVERFLOW)
-43. **Positioned `::before` / `::after` stack, hit and scroll as elements** (CSS Pseudo 4 §2, CSS 2.1 Appendix E): an absolutely or fixed positioned pseudo-element paints in its host's stacking context by its own `z-index` — it painted above everything, ordered by its host's `z-index` — so a sibling context with a higher `z-index` now covers it and `z-index: -1` puts it under its host's text; a click on it targets its host (it fell through); a scroll container's overflow counts it; an axis with both insets `auto` starts at its static position (it started at the containing block's edge); its `min-content` width wraps its text. A relatively positioned or sticky one is in its host's flow (it was laid out on its own at the host's edge): its text takes room in the line, then moves. (C10-PSEUDO-UNIFY)
+43. **Positioned `::before` / `::after` stack, hit and scroll as elements** (CSS Pseudo 4 §2, CSS 2.1 Appendix E): an absolutely or fixed positioned pseudo-element paints in its host's stacking context by its own `z-index` — it painted above everything, ordered by its host's `z-index` — so a sibling context with a higher `z-index` now covers it and `z-index: -1` puts it under its host's text; a click on it targets its host (it fell through); a scroll container's overflow counts it; an axis with both insets `auto` starts at its static position (it started at the containing block's edge); its `min-content` width wraps its text; an inline `::before`'s static position is the start of its host's first line, after `text-align` and `text-indent`. A relatively positioned or sticky one is in its host's flow (it was laid out on its own at the host's edge): its text takes room in the line, then moves. (C10-PSEUDO-UNIFY, C10G-MARKER-HIT)
+44. **`<ol type>`, `<ul type>` and `<li type>` take effect** (HTML §15.3.8): `<ol type="a">` numbers its items `a.`, `b.` (it was `1.`, `2.`), `A`, `i` and `I` likewise, and `<ul type="square">` draws `▪`; an author `list-style-type` still wins. Remove a stale `type` to keep the default markers. (C10G-MARKER-HIT)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -546,10 +547,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - Grid node setters: `set_grid()` / `set_inline_grid()`, `set_grid_area(…)` and `set_grid_area_named(name)`; every grid and alignment node setter documents what it clamps and what it refuses (a debug panic, the earlier declaration kept in release). (C7G-GRID-SETTERS)
 - `TuiNodeExt::flex_direction()` reads the inline `flex-direction` whole, `row-reverse` and `column-reverse` included; `direction()` is documented as its axis, the half `set_direction` writes. (C7G-UPGRADE-GUIDE)
 - `TuiAccessors::grid_tracks()` reads a laid-out grid's used tracks (CSS Grid 2 §7.2.6's resolved value) as `GridTracks`: each column and row a cell range from the content box, in grid order, for headers or rules drawn on the grid. (C7G-DOCS-TESTS)
-
-
-
-
+- **The list `type` attribute**: `<ol type>` / `<li type>` (`1`, `a`, `A`, `i`, `I`, case-sensitive) and `<ul type>` / `<li type>` (`none`, `disc`, `circle`, `square`) map to `list-style-type` as presentational hints (HTML §15.3.8). (C10G-MARKER-HIT)
 
 ### Changed — `rdom-tui`
 
@@ -681,6 +679,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **`align-content` moves inline content, and `justify-self` / `align-self` place absolutely positioned boxes** (CSS Box Alignment 3 §5.1 / §6.1 / §6.2): lines and their atoms move like block content; an abspos box aligns in its inset-modified containing block, an aligned `auto` size `fit-content`. (C6G-DOCS)
 - **Small layout and scroll fixes**: a scroll container's last baseline in a flex line is its block-end margin edge (CSS Box Alignment 3 §9.1); no intrinsic `row-gap` beside an inline child; an `rtl` / reversed caret reveal keeps its origin side. (C6G-MINOR)
 - **Laying out many sibling blocks is linear again**: placing list markers (CSS Lists 3 §3.5) walked a parent's whole box sequence for every packed line — 8 million box visits for 2000 rows, now 18 000 — and is skipped in a document with no list item. (C10G-MARKER-COST)
+- **A pointer on an outside list marker hits its list item** (CSS Lists 3 §3.5): a click on a bullet targets the `li` (it reached the list under it), `hit_test_pseudo` names the marker and `li::marker:hover` applies; an absolutely positioned inline `::before` starts where its host's first line does (CSS 2.1 §10.3.7). (C10G-MARKER-HIT)
 
 ### Changed — `rdom-showcase`
 

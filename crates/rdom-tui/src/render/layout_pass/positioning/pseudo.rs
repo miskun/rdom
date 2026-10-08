@@ -75,7 +75,8 @@ pub(in crate::render::layout_pass) fn place(
 /// The static position of `host`'s positioned `slot` pseudo-element
 /// styled `style` (CSS 2.1 §10.3.7 / §10.6.4): where its box would have
 /// been in flow. A `::before` is its host's first child: the start of the
-/// host's content. A `::after` is its last: after the host's content — on
+/// host's first line when it is inline-level (where `text-align` and
+/// `text-indent` put the line's content), else of the host's content. A `::after` is its last: after the host's content — on
 /// its last line's end when the pseudo-element is inline-level, else at
 /// the start of the line below. In a flex or grid container both sit at
 /// the content box's start, as an absolutely positioned child does. An
@@ -95,10 +96,30 @@ pub(super) fn static_position(
     }
     let origin = crate::render::inline::scrolled_content_rect(dom, host)?;
     let at = |x: i32, y: i32| Some(StaticPosition { x, y });
-    if slot == PseudoSlot::Before || hc.flow.is_flex_or_grid() {
+    if hc.flow.is_flex_or_grid() {
         return at(origin.x, origin.y);
     }
-    let ext = node.ext()?;
+    let Some(ext) = node.ext() else {
+        return at(origin.x, origin.y);
+    };
+    if slot == PseudoSlot::Before {
+        // The host's first inline box: where `text-align` and
+        // `text-indent` start its first line's content (C10G-MARKER-HIT).
+        let first = ext
+            .inline_layout
+            .as_ref()
+            .map(|il| (il, origin))
+            .or_else(|| {
+                ext.anonymous_blocks
+                    .first()
+                    .filter(|a| a.generated.is_none() && a.rect.y == origin.y)
+                    .map(|a| (&a.inline_layout, a.rect))
+            });
+        return first
+            .filter(|_| inline_level)
+            .and_then(|(il, rect)| first_line_start(il, rect))
+            .or_else(|| at(origin.x, origin.y));
+    }
     if let Some(il) = ext.inline_layout.as_ref() {
         return after_lines(il, origin, inline_level).or_else(|| at(origin.x, origin.y));
     }
@@ -134,6 +155,28 @@ pub(super) fn static_position(
         return Some(p);
     }
     at(origin.x, bottom)
+}
+
+/// The start of the first line of `il` laid out at `origin`: its first
+/// in-line content's cell (an outside marker beside it aside), on its text
+/// row. `None` with no line or nothing on it.
+fn first_line_start(il: &InlineLayout, origin: LayoutRect) -> Option<StaticPosition> {
+    let line = il.lines.first()?;
+    let start = line
+        .fragments
+        .iter()
+        .map(|f| f.x)
+        .chain(
+            line.generated
+                .iter()
+                .filter(|g| g.outside.is_none())
+                .map(|g| g.x),
+        )
+        .min()?;
+    Some(StaticPosition {
+        x: origin.x + start,
+        y: origin.y + i32::from(line.text_row()),
+    })
 }
 
 /// After the last line of `il` laid out at `origin`: on its row past its
