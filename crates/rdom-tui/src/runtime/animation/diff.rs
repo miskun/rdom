@@ -37,7 +37,12 @@ pub fn diff_and_register_with(
     now: Instant,
     starting: &dyn Fn(&Dom<TuiExt>, NodeId) -> Option<ComputedStyle>,
 ) {
-    diff(dom, registry, now, starting, None);
+    let starting = |dom: &Dom<TuiExt>, id: NodeId, slot: StyleSlot| {
+        (slot == StyleSlot::Host)
+            .then(|| starting(dom, id))
+            .flatten()
+    };
+    diff(dom, registry, now, &starting, None);
 }
 
 /// [`diff_and_register_with`] under the cascade's sheets: the starting
@@ -49,17 +54,20 @@ pub(crate) fn diff_and_register_in(
     now: Instant,
     inputs: super::CssInputs<'_>,
 ) {
-    let starting = |dom: &Dom<TuiExt>, id: NodeId| {
-        crate::style::cascade::starting_style(dom, (inputs.sheets, inputs.registry), id)
+    let starting = |dom: &Dom<TuiExt>, id: NodeId, slot: StyleSlot| {
+        crate::style::cascade::starting_style(dom, (inputs.sheets, inputs.registry), id, slot)
     };
     diff(dom, registry, now, &starting, Some(inputs));
 }
+
+/// A box's starting style (`@starting-style`), `None` when it has none.
+type StartingStyle<'a> = dyn Fn(&Dom<TuiExt>, NodeId, StyleSlot) -> Option<ComputedStyle> + 'a;
 
 fn diff(
     dom: &mut Dom<TuiExt>,
     registry: &mut AnimationRegistry,
     now: Instant,
-    starting: &dyn Fn(&Dom<TuiExt>, NodeId) -> Option<ComputedStyle>,
+    starting: &StartingStyle<'_>,
     css: Option<super::CssInputs<'_>>,
 ) {
     let ids = collect_element_ids(dom, dom.root());
@@ -97,14 +105,16 @@ fn diff(
                 continue;
             };
             let scheme = curr.color_scheme.used(preferred);
-            if !was_rendered {
-                // No before-change style: only a starting style starts
-                // transitions (`curr` is rendered, or it has nothing to
-                // show).
-                if slot == StyleSlot::Host
-                    && curr.display != crate::layout::Display::None
+            // A box with no before-change style — an element not rendered
+            // at the last style update, a `::before` / `::after` that
+            // generated no box then — starts its transitions only from a
+            // starting style (`curr` is rendered, or it has nothing to
+            // show).
+            let newly_rendered = !was_rendered || (slot != StyleSlot::Host && prev.is_none());
+            if newly_rendered {
+                if curr.display != crate::layout::Display::None
                     && rule::any(&curr)
-                    && let Some(start) = starting(dom, id)
+                    && let Some(start) = starting(dom, id, slot)
                 {
                     diff_style(registry, id, slot, &Rc::new(start), &curr, scheme, now);
                 }

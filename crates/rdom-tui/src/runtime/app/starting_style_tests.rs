@@ -148,3 +148,36 @@ fn a_newly_rendered_element_without_a_starting_style_does_not_transition() {
     assert_eq!(opacity(&app, div), 1.0);
     assert!(app.animations.is_empty());
 }
+
+/// CSS Transitions 2 §3: a `::before` that starts to generate a box has no
+/// before-change style; its `@starting-style` style is the start of its
+/// transitions — it fades in — as an element's is.
+#[test]
+fn a_new_pseudo_element_transitions_from_its_starting_style() {
+    let (mut app, div) = app_with(
+        "div.on::before { content: 'x'; opacity: 1; transition: opacity 100ms linear } \
+         @starting-style { div.on::before { opacity: 0 } }",
+        |dom| {
+            let root = dom.root();
+            let div = dom.create_element("div");
+            dom.append_child(root, div).unwrap();
+            div
+        },
+    );
+    app.dom_mut().set_attribute(div, "class", "on").unwrap();
+    app.advance(0).unwrap();
+    app.advance(50).unwrap();
+    let before = |app: &App<TestBackend>| {
+        app.dom()
+            .node(div)
+            .ext()
+            .unwrap()
+            .computed_before
+            .as_ref()
+            .map(|c| c.opacity)
+    };
+    let half = before(&app).unwrap();
+    assert!((half - 0.5).abs() < 0.01, "{half}");
+    app.advance(60).unwrap();
+    assert_eq!(before(&app), Some(1.0));
+}

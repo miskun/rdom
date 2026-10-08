@@ -1,9 +1,10 @@
-//! An element's starting style (CSS Transitions 2 §3, `@starting-style`):
-//! the style an element with no before-change style — newly rendered —
-//! takes for its transitions to start from. It is the element's style
-//! computed with the `@starting-style` rules applying too, inheriting from
-//! its parent's computed style; it is never stored, the transition engine
-//! reads it once (`runtime::animation::diff_and_register_with`).
+//! An element's or a `::before` / `::after`'s starting style (CSS
+//! Transitions 2 §3, `@starting-style`): the style a box with no
+//! before-change style — newly rendered — takes for its transitions to
+//! start from. It is the box's style computed with the `@starting-style`
+//! rules applying too, inheriting from its parent's computed style (a
+//! pseudo-element's from its originating element's); it is never stored,
+//! the transition engine reads it once (`runtime::animation::diff`).
 
 use std::rc::Rc;
 
@@ -12,7 +13,7 @@ use rdom_core::{Dom, NodeId};
 use super::matching::Recorder;
 use super::registered::PropertyRegistry;
 use super::walk::{self, CounterState, ElementCx, Scratch, Sheets};
-use crate::ext::TuiExt;
+use crate::ext::{StyleSlot, TuiExt};
 use crate::style::{ComputedStyle, PseudoElementTarget, Stylesheet};
 
 /// `id`'s starting style under `stylesheets` (with their registrations),
@@ -22,6 +23,7 @@ pub(crate) fn starting_style(
     dom: &Dom<TuiExt>,
     (stylesheets, registry): (&[&Stylesheet], &Rc<PropertyRegistry>),
     id: NodeId,
+    slot: StyleSlot,
 ) -> Option<ComputedStyle> {
     let sheets = Sheets::new(
         stylesheets,
@@ -35,6 +37,34 @@ pub(crate) fn starting_style(
     }
     let mut scratch = Scratch::default();
     let mut counters = CounterState::default();
+    if let Some(target) = match slot {
+        StyleSlot::Before => Some(PseudoElementTarget::Before),
+        StyleSlot::After => Some(PseudoElementTarget::After),
+        _ => None,
+    } {
+        // A pseudo-element's: computed over its originating element's
+        // computed style, when a starting-style rule matches it.
+        let host = dom.node(id).ext()?.computed.clone()?;
+        let mut cx = ElementCx {
+            dom,
+            sheets: &sheets,
+            id,
+            counters: &mut counters,
+            scratch: &mut scratch,
+        };
+        let style = super::pseudo::compute_pseudo_style(
+            &mut cx,
+            &host,
+            &[target],
+            super::matching::Rules::Match,
+        )?;
+        return scratch
+            .matched_any(|rule| rule.starting_style)
+            .then_some(style);
+    }
+    if slot != StyleSlot::Host {
+        return None;
+    }
     scratch.gather(
         dom,
         &sheets,

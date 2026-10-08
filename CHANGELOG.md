@@ -574,6 +574,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **Pseudo-element starting styles** (CSS Transitions 2 §3): a `::before` / `::after` that starts to generate a box transitions from its `@starting-style` style, as an element does. (C12-STARTING)
 - **Scroll-driven animations** (Scroll-driven Animations 1): an animation on `scroll()`, `view()` or a named timeline (through `timeline-scope`) takes its progress from its scroller's offset — from the scroll origin, `rtl` included — so scrolling moves it with no clock tick; `animation-range` named ranges; an inactive timeline leaves it idle. (C12-SCROLL-DRIVEN)
 - **CSS animations** (CSS Animations 1 / 2, Web Animations 1 §4–§5): `@keyframes` animations run on the app's clock in the transitions' effect stack, above them — fills, directions, iteration counts, pausing, `add` / `accumulate` — on elements, `::before` / `::after` and `::details-content`; the four `animation*` events; `App::get_animations`. (C12-KEYFRAMES)
 - **Entry transitions**: a newly rendered element — first styled, inserted, or out of `display: none` — starts its transitions from its `@starting-style` style (CSS Transitions 2 §3), so a popover or dialog can fade in; `animation::diff_and_register_with` takes the starting style. (C12-STARTING)

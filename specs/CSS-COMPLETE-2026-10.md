@@ -7836,3 +7836,15 @@ row comes from.
   `runtime::app::calc_size_tests` (the values were invalid; `min-width: 0` → `max-content` did not
   interpolate); green after. Mutation-checked: ignoring a `calc-size()` min fails the floor and
   transition tests. Breaking (rdom-style): the three enums' new variant (CHANGELOG, `calc_size_hints`).
+- 2026-10-16 — C12-STARTING leftover: starting styles for `::before` / `::after` (CSS Transitions 2 §3).
+  `cascade::starting_style` takes the slot: a pseudo-element's is computed through
+  `compute_pseudo_style` over its originating element's computed style with the `@starting-style` rules
+  applying, and exists when one of them matched it. The cascade hook treats a `::before` / `::after`
+  that generated no box at the last style update (no previous style) as newly rendered, as it does an
+  element out of `display: none`, so its transitions start from that style (and without one its
+  values change at once, as before). The public `diff_and_register_with` keeps its element-only
+  closure. Red: `starting_style_tests::a_new_pseudo_element_transitions_from_its_starting_style` (the
+  `::before` showed opacity 1 at once); green after. DIVERGENCES §4 rewritten: the pseudo-elements are
+  no longer excluded; a starting style still inherits from the parent's computed style. The `<details>`
+  closing animation still waits for C14's `content-visibility`. Phase 12 part 2 (C12-KEYFRAMES,
+  C12-SCROLL-DRIVEN, the part 1 leftovers) done.
