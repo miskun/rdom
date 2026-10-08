@@ -8344,3 +8344,24 @@ row comes from.
   easing forms and `@starting-style`, and a "Scroll-driven animations" line. `ua/controls.rs`'s focus
   comment no longer says a TUI cannot draw a ring — it says why the UA still tints (a cell-wide ring
   covers the neighbours; DIVERGENCES `FOCUS-VOCAB-1`).
+- 2026-10-08 — C12G-DESIGN-TEST (API N11). `rdom-showcase/tests/integration/design_types.rs` hardened,
+  each rule with a self-test: (a) a glob `pub use path::*` in a `lib.rs` is followed — the module's
+  file is read (a published crate's path, or the crate's own) and its surface taken recursively; a
+  glob inside a `pub use` group fails; (b) macro-defined types: every `macro_rules!` whose body
+  defines `struct $…` / `enum $…` must be in the test's `TYPE_MACROS` (today `bitflags_like`, whose
+  invocation spells `pub struct DocumentPosition`, read by the source scan with its attributes), so a
+  new type-defining macro fails until listed; (c) a type is classified only by an *entry* — a backtick
+  span that is exactly its name (`Name`, `Name<T>`) inside a kind's bullet; `Name::Variant`, calls and
+  mentions outside the bullets do not count; (d) the kind fixes the attribute — open kinds (web
+  vocabularies, error / outcome sets, options bags, `GridTemplate`) ⇔ `#[non_exhaustive]`, closed kinds
+  (CSS values and style records, sets fixed by definition) without it, one polarity per type; handles,
+  sealed and crate-private bullets are outside the attribute rule, as DESIGN says. Decided against a
+  "not inside parentheses" entry rule: DESIGN's bullets group entries in parentheses (`geometry (`Rect`,
+  …)`, the grid values), so depth cannot tell an entry from a reason. Red: the hardened check failed
+  on five types with no entry (`Dom`, `InputType`, `MouseButton`, `Style`, `TransitionProperty` —
+  named only in paths such as `MouseButton::Other` and `render::Style`, or in a call) and, once those were
+  listed, would fail on five reason mentions under the opposite kind (the probe found them first:
+  `AccentColor` in `SystemColor`'s reason, `Align` / `AlignProperty` / `CounterStyle` / `GridTemplate`
+  in other types' reasons); DESIGN fixed — entries added, the reason mentions reworded. Mutation-checked:
+  restoring `` `AccentColor` `` in the open bullet fails the attribute rule. DESIGN's rule paragraph and
+  CLAUDE.md's checklist line describe the stricter check.
