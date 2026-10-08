@@ -503,7 +503,7 @@ dropped. The audit's six, with where each stands:
 | `::cue` / `::cue-region` | N/A | No media / captions. | — | — |
 | `::part()` / `::slotted()` | N/A | No Shadow DOM (documented). | — | — |
 | `::view-transition*` | N/A | View transitions snapshot pixels. | — | — |
-| More than one pseudo-element / pseudo-element followed by a pseudo-class (`::before:hover`) | Partial | One trailing suffix per selector; only the rdom `::scrollbar-thumb:vertical/horizontal` forms take a pseudo-class. | No | `PE::extract_pseudo_suffix` |
+| More than one pseudo-element / pseudo-element followed by a pseudo-class (`::before:hover`) | Partial | `::before` / `::after` / `::marker` / `::first-letter` take trailing user-action pseudo-classes (Selectors 4 §3.6.3; `Rule::pseudo_state`, counted as pseudo-classes): `:hover` / `:active` match while the pointer is over / presses that pseudo-element (`HitTestExt::hit_test_pseudo`, kept by the `App` while a sheet reads it), the focus ones parse and never match (C10-PSEUDO-CHAINS; DIVERGENCES §2). Nested pseudo-elements (`::before::marker`) remain: one pseudo-element per selector. | Yes | `PE::extract_pseudo_chain`, `style/pseudo_pointer.rs`, `hit_test/pseudo.rs` |
 
 ### 3.17 Selectors (Selectors 4)
 

@@ -86,7 +86,7 @@ pub use registration::{
 pub use specificity::Specificity;
 pub use stylesheet::{
     Import, Layer, LayerId, LayerOrder, PseudoElementTarget, Rule, RuleContext, RuleIndex,
-    RuleOrigin, Scope, ScopeId, StyleError, StyleSelector, Stylesheet,
+    RuleOrigin, Scope, ScopeId, StyleError, StyleSelector, Stylesheet, UserActionState,
 };
 pub use transition::{AnimatableProperty, TimingFunction, TransitionProperty, TransitionRule};
 pub use tui_color::{ColorContext, ColorFunction, TuiColor, parse_color, resolve_tui_color};

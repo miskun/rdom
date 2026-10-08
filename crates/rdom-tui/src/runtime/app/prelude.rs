@@ -143,7 +143,7 @@ impl FramePrelude {
         self.selectedness.flush(cx.dom);
         // 3.
         if self.style_elements.flush(cx.dom) {
-            self.sheets_changed(cx.tracker, cx.app_sheets, cx.redraw);
+            self.sheets_changed(cx.dom, cx.tracker, cx.app_sheets, cx.redraw);
         }
         // 4.
         if frame {
@@ -231,11 +231,12 @@ impl FramePrelude {
     /// marks' sheet check, and run the whole-tree checks next frame.
     pub(super) fn sheets_changed(
         &mut self,
+        dom: &mut TuiDom,
         tracker: &DirtyTracker,
         app_sheets: &[(StylesheetId, Stylesheet)],
         redraw: &mut Redraw,
     ) {
-        self.sync_sheet_set(tracker, app_sheets);
+        self.sync_sheet_set(dom, tracker, app_sheets);
         tracker.take_roots();
         redraw.note(Redraw::Cascade);
         self.validity_marks.sheets_changed();
@@ -243,16 +244,25 @@ impl FramePrelude {
     }
 
     /// Rebuild what is derived from the stylesheet set: the property
-    /// registry and the dirty tracker's sibling-combinator hint. Once per
+    /// registry, the dirty tracker's sibling-combinator hint, and whether
+    /// the runtime keeps the pseudo-elements' pointer state (a sheet has a
+    /// `::before:hover`-like rule, `style::pseudo_pointer`). Once per
     /// stylesheet set (construction, [`Self::sheets_changed`]).
     pub(super) fn sync_sheet_set(
         &mut self,
+        dom: &mut TuiDom,
         tracker: &DirtyTracker,
         app_sheets: &[(StylesheetId, Stylesheet)],
     ) {
-        self.registry = std::rc::Rc::new(crate::style::cascade::PropertyRegistry::new(
-            &self.cascade_order(app_sheets),
-        ));
+        let (registry, tracked) = {
+            let sheets = self.cascade_order(app_sheets);
+            (
+                crate::style::cascade::PropertyRegistry::new(&sheets),
+                crate::style::pseudo_pointer::sheets_read_it(sheets),
+            )
+        };
+        self.registry = std::rc::Rc::new(registry);
+        crate::style::pseudo_pointer::set_tracked(dom, tracked);
         self.sync_sibling_combinators(tracker, app_sheets);
     }
 

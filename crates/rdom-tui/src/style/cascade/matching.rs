@@ -44,12 +44,20 @@ pub(super) struct Scratch<'a> {
     /// every `rlh` below reads it (CSS Values 4 §6.1.1), so no element
     /// keeps its subtree (`walk::style_element`).
     pub(super) root_line_height_moved: bool,
+    /// The last gather's rules include one whose selector matched but
+    /// whose trailing pseudo-classes do not hold (`::first-letter:hover`
+    /// off the letter): the pseudo-element exists, unstyled by it.
+    pub(super) gated: bool,
 }
 
 /// One matched rule: which of the requested targets it styles, its
 /// scope proximity and its sheet.
 struct Matched<'a> {
     target: usize,
+    /// Its trailing pseudo-classes hold (always, for a rule without
+    /// them): it applies. A rule whose do not is recorded all the same —
+    /// its selector matched — so a cached reload re-checks it.
+    live: bool,
     proximity: u32,
     sheet: usize,
     index: u32,
@@ -200,26 +208,26 @@ impl<'a> Scratch<'a> {
     ) {
         match rules {
             Rules::Match => self.collect(dom, sheets, id, targets),
-            Rules::Cached(refs) => self.load(sheets, refs),
+            Rules::Cached(refs) => self.load(dom, sheets, id, refs),
         }
     }
 
     /// Recorded matches into `sorted`, with their layer ranks and the
-    /// ladder — no selector is matched.
-    fn load(&mut self, sheets: &Sheets<'a>, refs: &[MatchRef]) {
+    /// ladder — no selector is matched; only the pseudo-element pointer
+    /// state of a rule with trailing pseudo-classes is read again.
+    fn load(&mut self, dom: &Dom<TuiExt>, sheets: &Sheets<'a>, id: NodeId, refs: &[MatchRef]) {
         self.matching.clear();
         self.sorted.clear();
-        self.sorted.extend(
-            refs.iter()
-                .map(|r| &sheets[r.sheet as usize].rules()[r.rule as usize]),
-        );
-        sheets.plan_into(
-            refs.iter()
-                .zip(&self.sorted)
-                .map(|(r, rule)| (r.sheet as usize, *rule)),
-            &mut self.ranks,
-            &mut self.plan,
-        );
+        let rules = refs.iter().map(|r| {
+            let rule = &sheets[r.sheet as usize].rules()[r.rule as usize];
+            (r.sheet as usize, rule)
+        });
+        let live = rules
+            .clone()
+            .filter(move |(_, rule)| applies(dom, id, rule));
+        self.gated = rules.len() != live.clone().count();
+        self.sorted.extend(live.clone().map(|(_, rule)| rule));
+        sheets.plan_into(live, &mut self.ranks, &mut self.plan);
     }
 
     /// The rules of `sheets` styling `targets` of `id`, sorted by
@@ -263,6 +271,7 @@ impl<'a> Scratch<'a> {
                 {
                     self.matching.push(Matched {
                         target,
+                        live: applies(dom, id, rule),
                         proximity,
                         sheet: sheet_idx,
                         index: ri,
@@ -281,13 +290,23 @@ impl<'a> Scratch<'a> {
             )
         });
         self.sorted.clear();
-        self.sorted.extend(self.matching.iter().map(|m| m.rule));
+        let live = self.matching.iter().filter(|m| m.live);
+        self.gated = self.matching.len() != live.clone().count();
+        self.sorted.extend(live.clone().map(|m| m.rule));
         sheets.plan_into(
-            self.matching.iter().map(|m| (m.sheet, m.rule)),
+            live.map(|m| (m.sheet, m.rule)),
             &mut self.ranks,
             &mut self.plan,
         );
     }
+}
+
+/// Whether `rule`, whose selector matched `id`, applies: its trailing
+/// pseudo-classes (`::before:hover`, Selectors 4 §3.6.3), if any,
+/// describe the pseudo-element's own pointer state, which the runtime
+/// keeps beside the DOM (`style::pseudo_pointer`).
+fn applies(dom: &Dom<TuiExt>, id: NodeId, rule: &Rule) -> bool {
+    crate::style::pseudo_pointer::matches(dom, id, &rule.pseudo, rule.pseudo_state)
 }
 
 /// Test-only: how many rule-matching passes ran on this thread.

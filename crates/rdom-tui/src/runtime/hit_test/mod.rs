@@ -40,15 +40,18 @@
 //! - `nearest` — `InlineTarget` and the choice of inline-flow target
 //!   for a text position: containment (`inline_target_at`) and the
 //!   empty-space nearest-by-distance fallback.
+//! - `pseudo` — which pseudo-element under a point
+//!   ([`HitTestExt::hit_test_pseudo`]), given the element hit there.
 //! - `fragment` — resolving a cell inside a chosen target to a
 //!   `Position`: fragment lookup, line clamp, grapheme cell → byte.
 //!
 //! This file keeps the [`HitTestExt`] trait and its impl — the thin
-//! orchestration over those three.
+//! orchestration over those four.
 
 mod descend;
 mod fragment;
 mod nearest;
+mod pseudo;
 
 use rdom_core::{Dom, NodeId, Position};
 
@@ -61,6 +64,7 @@ use nearest::inline_target_at;
 
 pub(crate) use fragment::resolve_in_target;
 pub(crate) use nearest::nearest_inline_target_in_subtree;
+pub(crate) use pseudo::pseudo_at;
 
 /// Extension trait adding hit-test lookup to `Dom<TuiExt>`.
 pub trait HitTestExt: crate::sealed::Sealed {
@@ -79,6 +83,15 @@ pub trait HitTestExt: crate::sealed::Sealed {
     /// event-dispatch targets or browser-style `composedPath()`
     /// walks. Empty when nothing hit.
     fn hit_test_path(&self, x: u16, y: u16) -> Vec<NodeId>;
+
+    /// The pseudo-element whose box is under `(x, y)` — its host and
+    /// slot — or `None` when the point is on no generated box (an
+    /// element's own content, nothing at all). The host is the element
+    /// [`hit_test`](Self::hit_test) finds there, or — for a list item's
+    /// `::marker` or a block's `::first-letter`, which ride a descendant's
+    /// line — an ancestor of it. What `::before:hover` reads (Selectors 4
+    /// §3.6.3).
+    fn hit_test_pseudo(&self, x: u16, y: u16) -> Option<(NodeId, crate::ext::PseudoSlot)>;
 
     /// Map a screen cell `(x, y)` to a DOM text position — a
     /// `(text_node, byte_offset)` pair suitable for
@@ -130,6 +143,10 @@ impl HitTestExt for Dom<TuiExt> {
         let unclipped = Rect::new(0, 0, u16::MAX, u16::MAX);
         hit_stacking_context(self, self.root(), x, y, unclipped, unclipped, &mut path);
         path
+    }
+
+    fn hit_test_pseudo(&self, x: u16, y: u16) -> Option<(NodeId, crate::ext::PseudoSlot)> {
+        pseudo::pseudo_at(self, self.hit_test(x, y)?, x, y)
     }
 
     fn position_at(&self, x: u16, y: u16) -> Option<Position> {

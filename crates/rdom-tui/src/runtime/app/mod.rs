@@ -73,6 +73,8 @@ mod layout_runs_tests;
 #[cfg(test)]
 mod off_event_paint_tests;
 #[cfg(test)]
+mod pseudo_chain_tests;
+#[cfg(test)]
 mod registered_transition_tests;
 #[cfg(test)]
 mod route_redraw_tests;
@@ -348,7 +350,8 @@ impl<B: Backend> App<B> {
             clipboard: Box::new(SystemClipboard::new()),
             url_opener,
         };
-        app.prelude.sync_sheet_set(&app.tracker, &app.stylesheets);
+        app.prelude
+            .sync_sheet_set(&mut app.dom, &app.tracker, &app.stylesheets);
         Ok(app)
     }
 

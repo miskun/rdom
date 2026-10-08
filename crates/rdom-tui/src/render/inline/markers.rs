@@ -57,7 +57,7 @@ pub(crate) fn marker(dom: &Dom<TuiExt>, item: NodeId) -> Option<Marker<'_>> {
 /// The block whose first line `item`'s marker rides: the block that holds
 /// the item's first line box — `item` itself when it has none to reach
 /// (the marker then makes the item's first line).
-fn marker_line_holder(dom: &Dom<TuiExt>, item: NodeId) -> Option<NodeId> {
+pub(crate) fn marker_line_holder(dom: &Dom<TuiExt>, item: NodeId) -> Option<NodeId> {
     marker(dom, item)?;
     Some(first_line_holder(dom, item).unwrap_or(item))
 }

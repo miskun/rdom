@@ -130,6 +130,9 @@ impl<B: Backend> App<B> {
         if !dirty_roots.is_empty() {
             self.tracker.take_roots();
         }
+        // The hosts whose hovered or active pseudo-element changed
+        // (`::before:hover`): the tracker sees no DOM mutation for them.
+        dirty_roots.extend(crate::style::pseudo_pointer::take_dirty(&mut self.dom));
         dirty_roots.sort_unstable();
         dirty_roots.dedup();
         dirty_roots

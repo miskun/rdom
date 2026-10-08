@@ -26,6 +26,7 @@
 
 pub mod cascade;
 pub mod dirty_tracker;
+pub(crate) mod pseudo_pointer;
 pub(crate) mod selector_walk;
 pub(crate) mod sibling_triggers;
 pub(crate) mod user_select;
@@ -51,7 +52,7 @@ pub use rdom_style::{
     PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError, Rule, RuleContext,
     RuleOrigin, Specificity, StyleError, StyleSelector, Stylesheet, TextDeclarations,
     TextDecorationDeclarations, TimingFunction, TransitionProperty, TransitionRule, TuiColor,
-    TuiStyle, Value, VarMap, parse_color, resolve_tui_color,
+    TuiStyle, UserActionState, Value, VarMap, parse_color, resolve_tui_color,
 };
 /// The declaration-level CSS parsing primitives (`parse::tokenize`,
 /// `parse::Token`, `parse::values::*`), the property dispatch table

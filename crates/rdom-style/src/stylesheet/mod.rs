@@ -53,6 +53,9 @@ mod selector_text;
 mod style_selector;
 #[cfg(test)]
 mod tests;
+mod user_action;
+#[cfg(test)]
+mod user_action_tests;
 mod version;
 
 pub use imports::Import;
@@ -60,6 +63,7 @@ pub use index::RuleIndex;
 pub use layers::{Layer, LayerId, LayerOrder};
 pub use scopes::{Scope, ScopeId};
 pub use style_selector::{RuleContext, StyleSelector};
+pub use user_action::UserActionState;
 
 /// Which pseudo-element a rule targets. `None` = the host element itself.
 ///
@@ -183,6 +187,10 @@ pub struct Rule {
     pub selector: SelectorList,
     /// Pseudo-element this rule targets, if any.
     pub pseudo: PseudoElementTarget,
+    /// The user-action pseudo-classes following the pseudo-element
+    /// (`::before:hover`, Selectors 4 §3.6.3): the rule applies only
+    /// while they all hold of the pseudo-element. Empty for most rules.
+    pub pseudo_state: UserActionState,
     /// The author's declaration block.
     pub style: TuiStyle,
     /// Cached specificity for this (single-item) selector list.

@@ -216,7 +216,7 @@ row comes from.
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | done |
 | C10-DETAILS-CONTENT | `::details-content` | partial — the slot is no box: its box properties (background, border, padding, sizes, `overflow`) draw nothing, so it cannot be sized or animated (needs a generated block box holding element content in the box tree) |
-| C10-PSEUDO-CHAINS | Pseudo-element followed by user-action pseudo-classes (`::before:hover`) and nested pseudo-elements where defined | |
+| C10-PSEUDO-CHAINS | Pseudo-element followed by user-action pseudo-classes (`::before:hover`) and nested pseudo-elements where defined | partial — nested pseudo-elements (`::before::marker` / `::after::marker`, CSS Lists 3 §3.1) remain: a marker on a generated box needs a marker slot per pseudo-element, the `list-item` counter on a `::before` / `::after`, and marker placement in a generated box's lines |
 | C10-PSEUDO-UNIFY | Positioned `::before` / `::after` on the generated-box path: the positioning layer places, stacks, hit-tests and scrolls them as elements (from C10-LIST-ITEM's note; `positioned_pseudos` gone) | done |
 
 ### Phase 11 — Selectors (audit §3.17)
@@ -6365,3 +6365,45 @@ row comes from.
   touched): no slot inheritance and closed not hiding → all three. Changed expectation: the `TuiExt` size bound 456 →
   464 (one `Rc`; the item's other fields fit in what the removed `PseudoLayout`s freed). No snapshot changed.
   CSS-COVERAGE: Missing → Partial, §3.16 8 / 2 / 0 / 6, total 196 / 15 / 51 / 45.
+- 2026-10-13 — C10-PSEUDO-CHAINS — partial. Found: a selector with anything after its pseudo-element was
+  rejected (`::before:hover` an "unsupported pseudo-element"), save rdom's own `::scrollbar-thumb:vertical`;
+  rdom-core's selectors reject every pseudo-element; nothing knew which pseudo-element the pointer was over
+  (the hit test names a pseudo-element's host, C10-PSEUDO-UNIFY). The C5-BOX-SIZING entry's
+  `*, ::before, ::after` note, recorded under this item, was settled by C5G-BARE-PSEUDO (a bare
+  pseudo-element attaches to the implicit `*`; `the_bare_pseudo_reset_list_parses`) — nothing left of it.
+  Decisions: (1) Representation, in rdom-style beside the pseudo-element: a pseudo-class after a
+  pseudo-element describes the pseudo-element, which rdom-core's element AST cannot name (it rejects
+  pseudo-elements and stays renderer-free), so the trailing compound is not an rdom-core compound but a set on
+  the rule, `Rule::pseudo_state: UserActionState` (`:hover`, `:active`, `:focus`, `:focus-visible`,
+  `:focus-within`); its parse reuses rdom-core's: `selector_text::extract_pseudo_chain` peels trailing
+  `:x` segments off the end, each parsed by `rdom_core::selectors::parse("*:x")` and kept when it is a
+  user-action pseudo-class (names, case and escapes by the element grammar), then hands the rest to
+  `extract_pseudo_suffix`; when the rest ends in no pseudo-element they were the element's own (`a:hover`,
+  left whole). Allowed after `::before`, `::after`, `::marker`, `::first-letter` (legacy spellings too);
+  after another pseudo-element, a logical combination or a descendant (`::before :hover`) the selector is
+  invalid. Specificity: each counts in B (§17). (2) The state, in rdom-tui as document data
+  (`style::pseudo_pointer`: hovered and active `(host, PseudoSlot)`, the hosts to restyle): the focus
+  pseudo-classes never match. The query: `HitTestExt::hit_test_pseudo` (`hit_test/pseudo.rs`) — given the
+  element the hit test found, the generated box under the point among those layout recorded: the host's
+  positioned boxes, the floated and block-level ones on a box at or above it, runs and atoms on the lines of
+  the blocks at or above it, and the line a list item's marker rides; a marker or a first letter may belong to
+  an ancestor of the hit; the innermost wins. The router writes hovered on every move and active on press /
+  release, only while the App's sheets have a chained rule (`set_tracked`, synced with the sheet set as the
+  sibling triggers are), so other documents pay no second lookup; the frame adds the changed hosts to the dirty
+  roots (live and connected only). (3) Matching (`cascade/matching.rs`): a rule whose selector matches is
+  recorded whatever its state, and applies only while `pseudo_pointer::matches` holds — on a match and on a
+  cached reload alike; `Scratch::gated` says a gated rule matched, which makes a `::first-letter` exist unstyled
+  so it can be hovered. Not done — nested pseudo-elements (`::before::marker` / `::after::marker`, CSS Lists 3
+  §3.1): a marker on a generated box needs a marker slot per pseudo-element, the `list-item` counter on a
+  `::before` / `::after` and marker placement in a generated box's lines (the marker path is element-keyed:
+  `computed_marker`, `inline::markers`), a two-commit item of its own; DIVERGENCES §3 lists it. Red: rdom-style
+  `user_action_tests` — `a_pseudo_element_takes_trailing_user_action_pseudo_classes` and
+  `trailing_pseudo_classes_count_as_pseudo_classes` failed (`Err("unsupported pseudo-element…")`), the
+  invalid-selector and element-pseudo-class tests passed before (guards); `css_phase10/pseudo_chains.rs` — all 6
+  failed with a stub `hit_test_pseudo` (the rules applied unhovered: red without the pointer; `None` from the
+  query). Green after, with `pseudo_pointer` unit tests (stale hosts dropped, untracking restyles) and
+  `pseudo_chain_tests` (no tracking without a chained rule). Mutations (restored, touched): the frame not
+  draining the changed hosts → the three hover tests (the `:active` one passes: the element's `:active` already
+  restyles the host); no unstyled first letter → the first-letter test. The marker test hovers an `inside`
+  marker: an outside one is not in the hit-test set (DIVERGENCES §2, extended). No existing expectation or
+  snapshot changed. CSS-COVERAGE: the row stays Partial (nested pseudo-elements), counts unchanged.

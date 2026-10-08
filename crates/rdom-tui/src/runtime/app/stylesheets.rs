@@ -132,8 +132,12 @@ impl<B: Backend> App<B> {
     /// is what gets the empty-`dirty_roots` branch of `draw_if_dirty`
     /// to run the full cascade.
     pub(super) fn invalidate_cascade(&mut self) {
-        self.prelude
-            .sheets_changed(&self.tracker, &self.stylesheets, &mut self.redraw);
+        self.prelude.sheets_changed(
+            &mut self.dom,
+            &self.tracker,
+            &self.stylesheets,
+            &mut self.redraw,
+        );
     }
 
     /// All stylesheets registered with this App, in push order.

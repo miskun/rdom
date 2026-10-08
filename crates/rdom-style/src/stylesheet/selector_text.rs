@@ -5,7 +5,7 @@
 
 use std::borrow::Cow;
 
-use super::PseudoElementTarget;
+use super::{PseudoElementTarget, UserActionState};
 
 // ── Pseudo-element suffix extraction ────────────────────────────────
 
@@ -101,6 +101,94 @@ pub(super) fn extract_pseudo_suffix(
     }
 
     Ok((Cow::Borrowed(s), PseudoElementTarget::None))
+}
+
+/// [`extract_pseudo_suffix`], with the user-action pseudo-classes that
+/// may follow the pseudo-element (Selectors 4 §3.6.3: `::before:hover`).
+///
+/// The trailing `:hover` / `:active` / `:focus` / `:focus-visible` /
+/// `:focus-within` are peeled off the end — each parsed by rdom-core's
+/// selector parser, so names and escapes follow the element grammar —
+/// and the rest must end in a pseudo-element that takes them
+/// ([`takes_user_action`]). When the rest ends in none, they were the
+/// element's own (`a:hover`) and the selector is left whole. Any other
+/// pseudo-class after a pseudo-element leaves it unrecognized, an error.
+pub(super) fn extract_pseudo_chain(
+    selector: &str,
+) -> Result<(Cow<'_, str>, PseudoElementTarget, UserActionState), String> {
+    let s = selector.trim_end();
+    let (head, state) = peel_user_action(s);
+    if state.is_empty() {
+        let (core, target) = extract_pseudo_suffix(s)?;
+        return Ok((core, target, state));
+    }
+    let (core, target) = extract_pseudo_suffix(head)?;
+    if target == PseudoElementTarget::None {
+        // `a:hover`: the element's pseudo-classes, rdom-core's to match.
+        return Ok((Cow::Borrowed(s), target, UserActionState::EMPTY));
+    }
+    if !takes_user_action(&target) {
+        return Err(format!(
+            "no pseudo-class may follow this pseudo-element ({target:?}); \
+             only ::before, ::after, ::marker and ::first-letter take :hover / :active / :focus*"
+        ));
+    }
+    Ok((core, target, state))
+}
+
+/// The pseudo-elements a user-action pseudo-class may follow here: the
+/// boxes whose pointer state the backend tracks (CSS Pseudo 4 §2–§3).
+/// `::first-line` (a fragment of a line, no box of its own to hover) and
+/// the highlight, scrollbar, `::placeholder`, `::backdrop` and
+/// `::details-content` pseudo-elements take none (DIVERGENCES §3).
+fn takes_user_action(target: &PseudoElementTarget) -> bool {
+    matches!(
+        target,
+        PseudoElementTarget::Before
+            | PseudoElementTarget::After
+            | PseudoElementTarget::Marker
+            | PseudoElementTarget::FirstLetter
+    )
+}
+
+/// `s` with its trailing user-action pseudo-classes removed, and those
+/// pseudo-classes. Stops at the first segment from the end that is not
+/// one (a pseudo-element's `::`, an escaped colon, any other selector).
+fn peel_user_action(s: &str) -> (&str, UserActionState) {
+    use rdom_core::selectors::{PseudoClass, SimpleSelector};
+    let mut head = s;
+    let mut state = UserActionState::EMPTY;
+    while let Some(at) = head.rfind(':') {
+        let before = &head[..at];
+        // `::name` is a pseudo-element; `\:` belongs to an identifier;
+        // white space before the colon is a descendant combinator.
+        let escaped = before.chars().rev().take_while(|&c| c == '\\').count() % 2 == 1;
+        if before.ends_with(':') || before.ends_with(char::is_whitespace) || escaped {
+            break;
+        }
+        let Ok(list) = rdom_core::selectors::parse(&format!("*{}", &head[at..])) else {
+            break;
+        };
+        let simples = match list.0.as_slice() {
+            [one] if one.ancestors.is_empty() => &one.subject.simples,
+            _ => break,
+        };
+        let class = match simples.as_slice() {
+            [SimpleSelector::Universal, SimpleSelector::Pseudo(class)] => *class,
+            _ => break,
+        };
+        let one = match class {
+            PseudoClass::Hover => UserActionState::HOVER,
+            PseudoClass::Active => UserActionState::ACTIVE,
+            PseudoClass::Focus => UserActionState::FOCUS,
+            PseudoClass::FocusVisible => UserActionState::FOCUS_VISIBLE,
+            PseudoClass::FocusWithin => UserActionState::FOCUS_WITHIN,
+            _ => break,
+        };
+        state = state.with(one);
+        head = before;
+    }
+    (head, state)
 }
 
 /// `s` ending in `::highlight(<name>)` (the pseudo-element name ASCII

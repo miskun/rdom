@@ -132,7 +132,8 @@ pub use style::{
     Modifier, PropertyRegistration, PropertySyntax, PropertySyntaxError, PseudoElementTarget,
     QuoteKind, QuotePair, Quotes, RegisterPropertyError, Rule, RuleContext, RuleOrigin,
     Specificity, StyleError, StyleSelector, Stylesheet, SystemColor, TextDeclarations,
-    TextDecorationDeclarations, TuiColor, TuiStyle, Value, VarMap, parse_color, resolve_tui_color,
+    TextDecorationDeclarations, TuiColor, TuiStyle, UserActionState, Value, VarMap, parse_color,
+    resolve_tui_color,
 };
 
 /// `Dom<TuiExt>` — the full TUI document.

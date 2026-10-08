@@ -10,8 +10,11 @@
 
 use rdom_core::selectors::{self, ComplexSelector, SelectorList};
 
-use super::selector_text::{extract_pseudo_suffix, split_top_level_commas};
-use super::{LayerId, PseudoElementTarget, Rule, RuleOrigin, ScopeId, StyleError, Stylesheet};
+use super::selector_text::{extract_pseudo_chain, split_top_level_commas};
+use super::{
+    LayerId, PseudoElementTarget, Rule, RuleOrigin, ScopeId, StyleError, Stylesheet,
+    UserActionState,
+};
 use crate::{Specificity, TuiStyle};
 
 /// A style rule's parsed selector list.
@@ -26,6 +29,8 @@ pub struct StyleSelector {
 struct Item {
     complex: ComplexSelector,
     pseudo: PseudoElementTarget,
+    /// The user-action pseudo-classes after the pseudo-element.
+    pseudo_state: UserActionState,
     text: String,
 }
 
@@ -80,7 +85,7 @@ impl StyleSelector {
             }
             // A bare `::before` is `*::before` (Selectors 4 §5.2); nested,
             // it is relative: `& *::before`.
-            let (core, pseudo) = extract_pseudo_suffix(trimmed).map_err(error)?;
+            let (core, pseudo, pseudo_state) = extract_pseudo_chain(trimmed).map_err(error)?;
             let parsed = match mode {
                 Mode::Top => selectors::parse(&core),
                 Mode::Nested(parent) => selectors::parse_nested(&core, parent),
@@ -91,6 +96,7 @@ impl StyleSelector {
                 items.push(Item {
                     complex,
                     pseudo: pseudo.clone(),
+                    pseudo_state,
                     text: trimmed.to_string(),
                 });
             }
@@ -157,6 +163,10 @@ impl Stylesheet {
             .iter()
             .map(|item| {
                 let pseudo_count = u16::from(item.pseudo != PseudoElementTarget::None);
+                let mut specificity = Specificity::of_complex(&item.complex, pseudo_count);
+                // Selectors 4 §17: a pseudo-class after a pseudo-element
+                // counts as any pseudo-class does.
+                specificity.class_attr_pseudo += item.pseudo_state.len();
                 let source_idx = self.next_source_idx;
                 self.next_source_idx += 1;
                 // CSS Pseudo-Elements 4 §2.2.1, §4.3: only the
@@ -189,8 +199,9 @@ impl Stylesheet {
                 Rule {
                     selector: SelectorList(vec![item.complex.clone()]),
                     pseudo: item.pseudo.clone(),
+                    pseudo_state: item.pseudo_state,
                     style,
-                    specificity: Specificity::of_complex(&item.complex, pseudo_count),
+                    specificity,
                     origin,
                     source_idx,
                     source_text: item.text.clone(),

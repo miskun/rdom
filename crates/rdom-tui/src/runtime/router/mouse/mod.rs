@@ -5,6 +5,7 @@
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
 use crate::runtime::hit_test::HitTestExt;
+use crate::style::pseudo_pointer;
 use crate::{TuiDom, TuiEvent};
 
 use super::{RouteOutcome, Router};
@@ -129,7 +130,8 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         // activation whose release was lost outside the window.
         let deactivated = dom.active().is_some();
         dom.set_active(None);
-        return RouteOutcome::redraw(deactivated);
+        let pseudo = pseudo_pointer::set_active(dom, None);
+        return RouteOutcome::redraw(deactivated || pseudo);
     };
 
     let mut tui = TuiEvent::mousedown(mouse);
@@ -150,6 +152,7 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
             && crate::runtime::scrollbar::handle_mousedown(router, dom, sb_hit)
         {
             dom.set_active(None);
+            pseudo_pointer::set_active(dom, None);
             return RouteOutcome::redraw(true);
         }
     }
@@ -163,6 +166,12 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         dom.set_active(Some(target));
         redraw = true;
     }
+    // The pressed pseudo-element, for `::before:active` (Selectors 4
+    // §3.6.3) — kept only while a sheet reads it.
+    let pressed = (pseudo_pointer::is_tracked(dom) && dom.node(target).is_connected())
+        .then(|| crate::runtime::hit_test::pseudo_at(dom, target, mouse.column, mouse.row))
+        .flatten();
+    redraw |= pseudo_pointer::set_active(dom, pressed);
 
     if !tui.event.default_prevented() {
         if let Some(focusable) = crate::runtime::focus::nearest_focusable_ancestor(dom, target) {
@@ -231,6 +240,7 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
     // and then `click` (`P7G-ACTIVE-CLEARS-ON-RELEASE-1`).
     let deactivated = dom.active().is_some();
     dom.set_active(None);
+    let deactivated = pseudo_pointer::set_active(dom, None) || deactivated;
     let captured = dom.pointer_capture();
     let hit = dom.hit_test(mouse.column, mouse.row);
     let down_target = router.down_target.take();
@@ -417,6 +427,14 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     let extended =
         router.selection_drag.is_some() && crate::runtime::selection::drag::extend(dom, mouse);
 
+    // The pseudo-element under the pointer, for `::before:hover`
+    // (Selectors 4 §3.6.3) — kept only while a sheet reads it.
+    let pseudo_moved = pseudo_pointer::is_tracked(dom) && {
+        let over =
+            hit.and_then(|h| crate::runtime::hit_test::pseudo_at(dom, h, mouse.column, mouse.row));
+        pseudo_pointer::set_hovered(dom, over)
+    };
+
     // Hover transition?
     let changed = hit != router.hover_target;
     if !changed {
@@ -424,7 +442,7 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
             "handle_move: no hover change ({:?} == hover_target); extended={extended}",
             hit
         );
-        return RouteOutcome::redraw(extended);
+        return RouteOutcome::redraw(extended || pseudo_moved);
     }
 
     let prev = router.hover_target;

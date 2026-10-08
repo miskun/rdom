@@ -1,0 +1,189 @@
+//! Which pseudo-element is under a point —
+//! [`HitTestExt::hit_test_pseudo`](super::HitTestExt::hit_test_pseudo),
+//! what `::before:hover` reads (Selectors 4 §3.6.3).
+//!
+//! A pseudo-element has no node: the element hit test (`descend`)
+//! resolves a point on one to its host, which it names as the deepest
+//! element (CSS Pseudo 4 §2). Given that element, this finds the
+//! generated box itself among those the layout recorded: a positioned or
+//! floated box, a block-level one, or a run or atom on a line. Two
+//! pseudo-elements sit on lines of a block other than their host's box:
+//! a list item's `::marker` rides a descendant's first line, and a
+//! block's `::first-letter` its first line — their host may be an
+//! ancestor of the hit. The innermost pseudo-element under the point
+//! wins (a `::first-letter` inside a `::before`'s text).
+
+use rdom_core::{Dom, NodeId, NodeType};
+
+use crate::ext::{AnonymousIfc, PseudoSlot, TuiExt};
+use crate::layout::LayoutRect;
+use crate::node::TuiNodeExt;
+use crate::render::inline::{GeneratedFragment, InlineLayout, LineBox};
+
+/// The pseudo-element under `(x, y)`, given the element the hit test
+/// found there (`target`): its host and slot.
+pub(crate) fn pseudo_at(
+    dom: &Dom<TuiExt>,
+    target: NodeId,
+    x: u16,
+    y: u16,
+) -> Option<(NodeId, PseudoSlot)> {
+    let (x, y) = (i32::from(x), i32::from(y));
+    // Boxes of their own: positioned ones on the host, floated and
+    // block-level ones on a box at or above it (the formatting context
+    // run, the box parent of a box-less host).
+    let own = dom.node(target).ext()?;
+    if let Some(hit) = own
+        .positioned_pseudos()
+        .iter()
+        .rev()
+        .find_map(|anon| in_box(dom, anon, target, x, y))
+    {
+        return Some(hit);
+    }
+    for id in ancestors_or_self(dom, target) {
+        let Some(ext) = dom.node(id).ext() else {
+            continue;
+        };
+        let boxes = ext.floated_pseudos().iter().chain(&ext.anonymous_blocks);
+        if let Some(hit) = boxes.rev().find_map(|anon| in_box(dom, anon, target, x, y)) {
+            return Some(hit);
+        }
+    }
+    // Runs and atoms on lines: the lines of every block at or above the
+    // hit, and of the block a list item's marker rides.
+    for id in ancestors_or_self(dom, target) {
+        if let Some(hit) = in_lines_of(dom, id, target, x, y) {
+            return Some(hit);
+        }
+    }
+    let holder = crate::render::inline::markers::marker_line_holder(dom, target)?;
+    (holder != target)
+        .then(|| in_lines_of(dom, holder, target, x, y))
+        .flatten()
+}
+
+/// `id` and its element ancestors, innermost first.
+fn ancestors_or_self(dom: &Dom<TuiExt>, id: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+    std::iter::successors(Some(id), move |&cur| {
+        dom.node(cur)
+            .parent_node()
+            .filter(|p| p.node_type() == NodeType::Element)
+            .map(|p| p.id())
+    })
+}
+
+/// `anon`, a generated box of `target`'s containing `(x, y)`.
+fn in_box(
+    dom: &Dom<TuiExt>,
+    anon: &AnonymousIfc,
+    target: NodeId,
+    x: i32,
+    y: i32,
+) -> Option<(NodeId, PseudoSlot)> {
+    let g = anon.generated?;
+    (g.host == target && contains(g.border_box, x, y) && targets(dom, g.host, g.slot))
+        .then_some((g.host, g.slot))
+}
+
+/// A pseudo-element of (or, for a marker or first letter, above)
+/// `target` on a line of `block`'s — its own inline layout or one of its
+/// anonymous block boxes'.
+fn in_lines_of(
+    dom: &Dom<TuiExt>,
+    block: NodeId,
+    target: NodeId,
+    x: i32,
+    y: i32,
+) -> Option<(NodeId, PseudoSlot)> {
+    let ext = dom.node(block).ext()?;
+    if let Some(layout) = ext.inline_layout.as_ref()
+        && let Some(content) = crate::render::inline::scrolled_content_rect(dom, block)
+        && let Some(hit) = in_layout(dom, layout, content, target, x, y)
+    {
+        return Some(hit);
+    }
+    ext.anonymous_blocks
+        .iter()
+        .filter(|anon| anon.generated.is_none())
+        .find_map(|anon| in_layout(dom, &anon.inline_layout, anon.rect, target, x, y))
+}
+
+/// The pseudo-element under `(x, y)` on `layout`'s lines (laid out at
+/// `content`) that belongs to `target`.
+fn in_layout(
+    dom: &Dom<TuiExt>,
+    layout: &InlineLayout,
+    content: LayoutRect,
+    target: NodeId,
+    x: i32,
+    y: i32,
+) -> Option<(NodeId, PseudoSlot)> {
+    let (x, row) = (x - content.x, y - content.y);
+    for line in &layout.lines {
+        // A first letter in the element's own text (CSS Pseudo 4 §2.3).
+        let letter = line
+            .fragments
+            .iter()
+            .filter(|f| x >= f.x && x < f.x + i32::from(f.width))
+            .filter(|f| u16::try_from(row).is_ok_and(|r| line.covers(f, r)))
+            .find_map(|f| f.first_letter);
+        if let Some(block) = letter
+            && owns(dom, block, PseudoSlot::FirstLetter, target)
+        {
+            return Some((block, PseudoSlot::FirstLetter));
+        }
+        for g in line.generated.iter().filter(|g| on(line, g, x, row)) {
+            if let Some(block) = g.first_letter
+                && owns(dom, block, PseudoSlot::FirstLetter, target)
+            {
+                return Some((block, PseudoSlot::FirstLetter));
+            }
+            if owns(dom, g.host, g.slot, target) {
+                return Some((g.host, g.slot));
+            }
+        }
+    }
+    None
+}
+
+/// `g`, one of `line`'s generated runs or atoms, covers the cell at
+/// `(x, row)` of its layout — where it was moved to, if it was
+/// (`GeneratedFragment::offset`).
+fn on(line: &LineBox, g: &GeneratedFragment, x: i32, row: i32) -> bool {
+    let (dx, dy) = g.offset;
+    let left = g.x + dx;
+    if x < left || x >= left + i32::from(g.width) {
+        return false;
+    }
+    let top = i32::from(line.top) + dy;
+    match g.atom_rows() {
+        Some((first, count)) => {
+            let first = top + i32::from(first);
+            row >= first && row < first + i32::from(count)
+        }
+        None => row == top + i32::from(g.y),
+    }
+}
+
+/// Whether `host`'s `slot` pseudo-element is the one meant by a point
+/// whose hit is `target`: `target` is its host — or, for a marker or a
+/// first letter, which ride a descendant's line, inside its host — and
+/// it is a pointer target.
+fn owns(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot, target: NodeId) -> bool {
+    let placed = host == target
+        || (matches!(slot, PseudoSlot::Marker | PseudoSlot::FirstLetter)
+            && ancestors_or_self(dom, target).any(|a| a == host));
+    placed && targets(dom, host, slot)
+}
+
+/// `host`'s `slot` pseudo-element is drawn and takes pointer events.
+fn targets(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) -> bool {
+    let style = dom.node(host).computed_pseudo(slot);
+    style.is_none_or(|c| c.pointer_events != crate::layout::PointerEvents::None)
+        && crate::render::visibility::shows(dom, host, slot.into())
+}
+
+fn contains(r: LayoutRect, x: i32, y: i32) -> bool {
+    x >= r.x && x < r.x + i32::from(r.width) && y >= r.y && y < r.y + i32::from(r.height)
+}

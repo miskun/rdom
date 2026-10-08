@@ -65,9 +65,14 @@ pub(super) fn compute_pseudo_style(
     // A list item's marker exists without a rule: `list-style-type`
     // makes its content (CSS Lists 3 §3.2).
     let marker = *target == PseudoElementTarget::Marker;
+    // A first letter exists whether styled or not (CSS Pseudo 4 §2.3);
+    // rdom makes its box where a rule's selector names it — one whose
+    // trailing pseudo-classes do not hold yet included, so the letter
+    // can be hovered (`::first-letter:hover`, Selectors 4 §3.6.3).
+    let letter = *target == PseudoElementTarget::FirstLetter && cx.scratch.gated;
     // No rule styles it and it has no legacy content: there is no box,
     // and nothing to cascade.
-    if cx.scratch.sorted.is_empty() && fallback.is_none() && !marker {
+    if cx.scratch.sorted.is_empty() && fallback.is_none() && !marker && !letter {
         return None;
     }
     let Scratch {
@@ -213,7 +218,7 @@ pub(super) fn compute_pseudo_style(
 
     // Skip entirely if the pseudo-element has nothing to contribute. A
     // marker without content is no box (CSS Lists 3 §3.2).
-    if (sorted.is_empty() || marker) && working.content.is_none() {
+    if (sorted.is_empty() || marker) && working.content.is_none() && !letter {
         return None;
     }
     Some(working)
