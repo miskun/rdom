@@ -110,6 +110,7 @@ mod scroll_extent;
 pub(crate) mod scrollport;
 mod shares;
 mod sticky;
+mod table;
 mod tree;
 
 #[cfg(test)]
@@ -139,6 +140,7 @@ use scroll_extent::{clamp_scroll_offset, record_scroll_content_size};
 pub(crate) use scrollport::{
     offset_from_area_start, overflows, range_of, scroll_bounds, scrollport, scrollport_of,
 };
+pub(crate) use table::{is_column_box, table_box};
 use tree::collapse_hidden_children;
 pub(super) use tree::element_children_of;
 pub(crate) use tree::is_in_flow;

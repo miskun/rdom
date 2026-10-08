@@ -62,7 +62,11 @@ pub(super) fn box_frame(dom: &Dom<TuiExt>, id: NodeId, clip: Rect) -> Option<Box
         return None;
     }
 
-    let outer = dom.node(id).layout_rect().unwrap_or_default();
+    // A table with captions paints its box between them (CSS 2.1 §17.4):
+    // its border and background are its table box's.
+    let outer = crate::render::layout_pass::table_box(dom, id)
+        .or_else(|| dom.node(id).layout_rect())
+        .unwrap_or_default();
     let inner = dom.node(id).content_layout_rect().unwrap_or(outer);
     let visible = crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host);
     // Inner paint (text + pseudo-elements + children) happens in

@@ -52,7 +52,8 @@ These are intrinsic to terminals. They will not change.
 ### Layout
 
 - **`row-gap` spaces a block container's block children.** CSS Box Alignment 3 §8 gives gaps to flex, grid and multi-column containers; rdom also puts a block container's `row-gap` between its adjacent in-flow block-level children (anonymous line boxes of inline content get none), on top of their collapsed margins — a terminal layout convenience kept from before the block formatting context landed. `column-gap` does nothing there.
-- **Tables are flex rows with a column-sizing pre-pass, not a Table Formatting Context.** `<table>` is block flow, `<tr>` a flex row, cells flex items; `size_columns` (`runtime::builtins::table`) aligns each column from the author widths and the cells' content, keeps that used width apart from author intent (`TABLE-COLSYNC-1`), and settles `colspan` cells by spreading their excess over the spanned columns (CSS 2.2 §17.5.2.2). Not implemented: `rowspan` (rows are independent flex containers; the attribute is ignored), `display: table*` on arbitrary elements, anonymous table-box fixup (a stray `<td>`, a missing `<tr>`), the full §17.5.2 automatic algorithm with min-/max-content redistribution, percentage column widths, and CSS-rule (non-inline, non-`<col>`) cell widths. A real Table Formatting Context is scheduled (C13-TFC, §3).
+- **HTML `<table>` elements are flex rows with a column-sizing pre-pass** until the UA sheet moves them onto the table formatting context (C13-TFC part 4); a table built from `display: table` and its parts lays out in it (below). `<table>` is block flow, `<tr>` a flex row, cells flex items; `size_columns` (`runtime::builtins::table`) aligns each column from the author widths and the cells' content, keeps that used width apart from author intent (`TABLE-COLSYNC-1`), and settles `colspan` cells by spreading their excess over the spanned columns (CSS 2.2 §17.5.2.2). Not implemented: `rowspan` (rows are independent flex containers; the attribute is ignored), `display: table*` on arbitrary elements, anonymous table-box fixup (a stray `<td>`, a missing `<tr>`), the full §17.5.2 automatic algorithm with min-/max-content redistribution, percentage column widths, and CSS-rule (non-inline, non-`<col>`) cell widths. A real Table Formatting Context is scheduled (C13-TFC, §3).
+- **The table formatting context is laid out in whole cells** (C13-TFC; CSS 2.1 §17, CSS Tables 3). A line between columns or rows is a whole cell or none: in the separated model `border-spacing` cells (no percentages, C4-SPACING), in the collapsing model one cell wherever any box on the line — the table, a row group, row, column (group) or cell — has a border there (`hidden` included, as under every collapse container below); the conflict on it is paint's (CSS Tables 3 §11.5). Every width and height a distribution hands out is whole cells, by the rolling floor flex and grid use (§1). Three departures: a cell spanning several columns spreads what they lack by how far each can grow (else by their max-content widths, else equally) and its percentage over their columns without one — CSS Tables 3's refinements by column type are not made; a caption's vertical margins collapse with nothing; an anonymous cell's block-level content (a block child of a row or of a table's stray run) stacks without margins. Until C13-TABLE-PROPS a cell's content sits at its top whatever its `vertical-align`.
 - **`border-collapse` is a layout-only, non-inheriting opt-in that applies to any container's direct children, not only `<table>`s.** Three divergence axes from CSS:
   1. *Scope.* CSS restricts `border-collapse: collapse` to `<table>` boxes; rdom honors it on any flex or block container. Terminal UIs lean on shared-border rendering for non-table chrome. A grid container's items keep their own borders: grid gutters are the way to space them.
   2. *Inheritance.* CSS makes `border-collapse` inheritable. rdom makes it non-inheriting. A container that wants its direct children to participate must declare `border-collapse: collapse` itself — no spooky action across subtrees. The reset means demo / consumer subtrees never inherit a chrome's collapse decision implicitly.
@@ -316,7 +317,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Backgrounds and borders
 
-- `border-spacing` in layout: it parses, cascades and inherits (C4-SPACING), but spacing a table's cells needs the separated-borders table model — C13-TFC / C13-TABLE-PROPS
+- `border-spacing` on HTML `<table>`s: it spaces a `display: table` table's cells (C13-TFC), and `<table>` follows when the UA sheet moves to the table formatting context — C13-TFC part 4
 
 ### Box model and sizing
 
@@ -329,8 +330,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Display and visibility
 
-- `display: table` family — C13-TFC
-- `visibility: collapse` on a table column (`<col>` / `<colgroup>`; rows collapse, C6-VISIBILITY) — C13-TFC
+- The anonymous table around table parts outside a table (CSS 2.1 §17.2.1 rule 3: a stray `display: table-cell` in a block lays out as a block box) — C13-TFC
 
 ### Positioned layout
 
@@ -369,8 +369,8 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Tables
 
-- A real table formatting context: `display: table*` on any element, `rowspan`, anonymous table boxes, the automatic and `fixed` `table-layout` algorithms — C13-TFC
-- `caption-side`, `empty-cells`, `border-spacing` (layout; parsed since C4-SPACING), `vertical-align` on cells — C13-TABLE-PROPS
+- HTML `<table>` elements on the table formatting context (the UA sheet's `display` values, `rowspan`, `<col>` widths and `visibility: collapse` columns, separated borders with `border-spacing`) — C13-TFC part 4
+- `empty-cells`, `vertical-align` on cells — C13-TABLE-PROPS
 
 ### Conditional rules and containment
 

@@ -75,9 +75,12 @@ pub(super) fn atom_rows(dom: &Dom<TuiExt>, id: NodeId, width: u16, cb_width: u16
         return AtomRows::UNMEASURED;
     };
     let height = intrinsic::intrinsic_size(dom, id, Direction::Column, width, cb_width);
+    // CSS 2.1 §10.8.1: an inline block's baseline is its last line box's;
+    // §17.5.3: an inline table's is its first row's.
+    let table = computed.flow == crate::layout::Flow::Table;
     let last =
         crate::render::layout_pass::baselines::content_rows(dom, id, &computed, width, cb_width)
-            .map(|(_, last)| last);
+            .map(|(first, last)| if table { first } else { last });
     AtomRows::of(&computed, height, cb_width, last)
 }
 

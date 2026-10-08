@@ -255,7 +255,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | partial — the grid's slot assignment (rdom-core) and the `display` values / `table-layout` / `caption-side` (parsed, cascaded) are in; the layout and the HTML migration follow |
+| C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | partial — the slot assignment, the `display` values and the table formatting context for `display: table` are in; the HTML migration (UA sheet, the old column-sync pass deleted) and the anonymous table around stray parts follow |
 | C13-TABLE-PROPS | `caption-side`, `empty-cells`, `border-spacing` (separated borders), `vertical-align` on cells | |
 | C13-COLUMN | Column combinator `\|\|` (Selectors 4; was C11-COLUMN): `col.x \|\| td` matches the cells of the columns a `<col>` spans, from C13-TFC's column model | |
 
@@ -8449,3 +8449,51 @@ row comes from.
   (`TablePart(Cell)` / `FlowRoot` kept in a flex container and on a float); green after. Breaking
   (rdom-style): the two variants and the `table` field — CHANGELOG, the API table rows, migration hints
   `table_display_hints`; DESIGN lists the new types (closed).
+- 2026-10-08 — C13-TFC, part 3: the table formatting context, `layout_pass/table/` (CSS 2.1 §17 with CSS
+  Tables 3 where it is more precise), for tables built from `display` values. Module tree: `structure`
+  (§17.2.1's fixup over `box_tree::item_sequence` — captions; columns from `table-column` /
+  `-column-group` boxes, `<col span>` / `<colgroup span>` read for those elements; row groups in display
+  order, the first header group first and the first footer group last (§17.2); anonymous rows around runs
+  of cells and other content in a table or row group, anonymous cells around runs of non-cells in a row;
+  white space alone between proper children, `display: none` and out-of-flow boxes dropped), `grid`
+  (rdom-core's `assign_slots`; `colspan` / `rowspan` on `<td>` / `<th>` only — CSS has no span
+  property; `visibility: collapse` rows and columns, §17.5.5), `lines` (the separated model's
+  `border-spacing` before each column and after the last and between rows, the collapsing model's
+  shared lines one cell wide wherever a table, group, row, column or cell border lies on them; a
+  collapsed track's two lines merged), `columns` (CSS Tables 3's cell measures — outer min-content
+  `max(min-width, min-content)`, outer max-content with a length `max(min-width, width, min-content)`
+  — less the borders on lines in the collapsing model; column boxes' widths as floors; spanning cells
+  fewest columns first, their shortfall spread by growth room, then max-content, then equally;
+  percentages), `width` (the automatic algorithm's four guesses — min-content, percent,
+  constrained, max-content — interpolated, the excess past max-content to unconstrained columns, then
+  constrained, then percent; the fixed algorithm from column boxes and the first row, the rest
+  shared equally, when `table-layout: fixed` and the width is not `auto`), `rows` (the tallest cell
+  of each row, at least the row's `height`; rowspans' excess by row heights; a taller table box's
+  extra over the rows, §17.5.3), `place` (captions above / below by `caption-side`, the table box
+  between them; groups, rows, columns and cells at their areas — a box covers a collapsed line when it
+  has a border on it — each cell laid out with `layout_node`, an anonymous cell's inline runs as
+  `AnonymousIfc`s on the box whose children they are), `anonymous` (an anonymous cell's inline runs
+  packed, its block children stacked). Decided: one `solve(width)` serves the layout and the table's
+  intrinsic height, and `content_size` the min- / max-content widths without distributing (MIN / MAX
+  and CAPMIN, §17.5.2.2); every cell is measured through `intrinsic`, so the per-pass memo serves the
+  repeats — the counting test (`table/cost_tests.rs`) pins ≤ 3 solves a pass, ≤ 2 Row walks and ≤ 1
+  Column walk a cell, at 3 rows and at 20. The element's `layout` is the table wrapper box (captions
+  included); its border and background paint on the table box (`table::table_box`: the content box
+  grown by the chrome, read by `paint_pass::box_paint`), no stored field (the `TuiExt` size bound).
+  The collapsing model has no table padding (§17.6.2). Interactions: `children_layout` gives tables
+  their own arm (before the IFC test — a table of inline children is no IFC), `is_ifc_block` is false
+  for tables and for rows / groups / columns; a cell's height is its rows' (`auto_height` leaves it);
+  a block-level `auto`-width table is shrink-to-fit and never narrower than its min-content
+  (`block::width`); an `inline-table` atom's baseline is its first row's (`inline::vertical`, §17.5.3),
+  `baselines::content_rows` asks the table; column boxes are no hit-test targets. DIVERGENCES §2: the
+  whole-cell entry for the table formatting context (lines, spanning distribution, caption margins,
+  anonymous cells' block content, cells top-aligned until C13-TABLE-PROPS); §3 lists what remains.
+  Red: `css_phase13/tfc.rs` 14 of 15 failed against part 2 (tables laid out as flow-roots: cells
+  stacked, no columns, no spacing, no captions; `cells_are_hit_and_columns_are_not` passed there and pins
+  the hit rule), the cost test did not exist; green after, with `display.rs`'s two. Two expectations
+  corrected while writing (the reasoning, not the code, was wrong): anonymous cells are cells of the
+  grid, so `loose` widens the column `a` sits in; and an inline table first sat on its last row — the
+  atom baseline was an inline block's, fixed in `vertical::atom_rows`. Mutation (each alone, restored,
+  touched): the inline table on its last baseline → 1 fails; no spanning spread → 1; the header group
+  kept in place → 1; no collapsed line marked → 1; each cell's height walked twice → the cost test.
+  No existing test expectation or snapshot changed.

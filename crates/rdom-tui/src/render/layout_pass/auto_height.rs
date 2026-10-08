@@ -88,6 +88,8 @@ pub(crate) fn is_content_sized(dom: &Dom<TuiExt>, id: NodeId, computed: &Compute
     ) && computed.flow.is_block_flow()
         && parent_is_block_flow
         && !is_out_of_flow_positioned
+        // A cell is as tall as its rows (CSS 2.1 §17.5.3).
+        && computed.display != crate::layout::Display::TablePart(crate::layout::TablePart::Cell)
 }
 
 /// The content-box height of a content-sized box (`is_content_sized`)

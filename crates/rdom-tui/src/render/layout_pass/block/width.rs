@@ -90,7 +90,18 @@ pub(super) fn resolve_block_width(
     let sizer = kw.sizer();
     let declared_width: Option<i32> = kw
         .size(width_decl, Some(containing_block_width), available)
-        .map(i32::from);
+        .map(i32::from)
+        // CSS 2.1 §17.5.2.2: an `auto`-width table is as wide as its
+        // content asks, within the space (shrink-to-fit).
+        .or_else(|| {
+            (computed.flow == crate::layout::Flow::Table).then(|| {
+                i32::from(kw.keyword(
+                    &crate::layout::IntrinsicSize::FitContent,
+                    Some(containing_block_width),
+                    available,
+                ))
+            })
+        });
 
     // CSS Box Alignment 3 §6.1: a `justify-self` other than `normal` /
     // `stretch` sizes an `auto` width as `fit-content` and places the box
@@ -203,7 +214,14 @@ fn clamp_width(
         Some(m) => width.min(i32::from(m)),
         None => width,
     };
-    after_max.max(min_cells.map_or(0, i32::from))
+    let clamped = after_max.max(min_cells.map_or(0, i32::from));
+    // CSS 2.1 §17.5.2.2: a table is never narrower than its columns'
+    // min-content widths and its captions (MIN, CAPMIN).
+    if computed.flow == crate::layout::Flow::Table {
+        let min = kw.keyword(&crate::layout::IntrinsicSize::MinContent, basis, available);
+        return clamped.max(i32::from(min));
+    }
+    clamped
 }
 
 /// The content width a block's children resolve percentages against,

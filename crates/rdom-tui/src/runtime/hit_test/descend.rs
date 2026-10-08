@@ -215,6 +215,12 @@ fn element_box(dom: &Dom<TuiExt>, id: NodeId) -> Option<(std::rc::Rc<ComputedSty
     if matches!(computed.display, crate::layout::Display::None) {
         return None;
     }
+    // A column or column group has a rect for its background (CSS 2.1
+    // §17.5.1) but is no target: a point over it is over the cells or
+    // the table.
+    if crate::render::layout_pass::is_column_box(dom, id) {
+        return None;
+    }
     let outer = node.layout_rect()?;
     Some((computed, outer))
 }

@@ -181,6 +181,9 @@ fn lay_out_children(
         }
         ChildrenLayout::Flex => super::flex::layout_flex_container(dom, id, container, computed),
         ChildrenLayout::Grid => super::grid::layout_grid_children(dom, id, container, computed),
+        // A table lays its boxes out from its border box (its captions
+        // outside the table box, CSS 2.1 §17.4), not from `container`.
+        ChildrenLayout::Table => super::table::layout_table(dom, id, computed),
         ChildrenLayout::Inline | ChildrenLayout::TextLeaf => {
             unreachable!("laid out above")
         }
@@ -214,6 +217,8 @@ pub(super) enum ChildrenLayout {
     Flex,
     /// A grid container's items.
     Grid,
+    /// A table's captions, columns, rows and cells (CSS 2.1 §17).
+    Table,
 }
 
 /// Which formatting context lays out `id`'s children ([`ChildrenLayout`]).
@@ -222,6 +227,11 @@ pub(super) fn children_layout(
     id: NodeId,
     computed: &ComputedStyle,
 ) -> ChildrenLayout {
+    // A table's content is its table boxes, its text in anonymous cells
+    // (CSS 2.1 §17.2.1).
+    if computed.flow == crate::layout::Flow::Table {
+        return ChildrenLayout::Table;
+    }
     if is_ifc_block(dom, id) {
         return ChildrenLayout::Inline;
     }

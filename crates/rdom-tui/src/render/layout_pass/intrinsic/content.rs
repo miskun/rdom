@@ -31,6 +31,19 @@ pub(super) fn measure_content(
     containing_block_width: u16,
     measure: Measure,
 ) -> u16 {
+    // A table's size is its grid's and its captions', its chrome its own
+    // (CSS 2.1 §17.5.2.2, §17.6.2 — none in the collapsing model).
+    if computed.flow == crate::layout::Flow::Table {
+        return super::super::table::content_size(
+            dom,
+            id,
+            computed,
+            direction,
+            cross_budget,
+            containing_block_width,
+            measure,
+        );
+    }
     if direction == Direction::Column
         && super::super::dispatch::children_layout(dom, id, computed)
             == super::super::dispatch::ChildrenLayout::Block

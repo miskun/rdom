@@ -64,6 +64,11 @@ fn measure(
         .cells()
         .saturating_add(computed.padding.top.resolve(cb_width));
     let (first, last) = match super::dispatch::children_layout(dom, id, computed) {
+        // CSS 2.1 §17.5.3: a table's baselines are its first and last
+        // rows', from its border-box top (captions included).
+        ChildrenLayout::Table => {
+            return super::table::baselines(dom, id, computed, width, cb_width);
+        }
         ChildrenLayout::Flex | ChildrenLayout::Grid => {
             let chrome = Sizer::vertical(computed, cb_width).chrome();
             let rows =

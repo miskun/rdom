@@ -93,7 +93,7 @@ pub(crate) fn collapse_hidden_children(dom: &mut Dom<TuiExt>, id: NodeId, origin
 
 /// Recursively reset `layout` / `content_layout` to the zero rect for `id` and
 /// every element descendant. Used to collapse a `display:none` subtree.
-fn collapse_subtree_geometry(dom: &mut Dom<TuiExt>, id: NodeId) {
+pub(super) fn collapse_subtree_geometry(dom: &mut Dom<TuiExt>, id: NodeId) {
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         if ext.layout == LayoutRect::default() && ext.content_layout == LayoutRect::default() {
             // Already collapsed — and so is everything below it (we always zero
@@ -128,7 +128,7 @@ fn zero_contents_children(dom: &mut Dom<TuiExt>, id: NodeId, origin: LayoutRect)
 /// these only on a node it lays out, so a box-less node would otherwise
 /// keep its box days' values, and caret, hit-test and focus code reading
 /// them would act on a box that no longer exists.
-fn clear_box_state(ext: &mut TuiExt, rect: LayoutRect) {
+pub(super) fn clear_box_state(ext: &mut TuiExt, rect: LayoutRect) {
     ext.layout = rect;
     ext.content_layout = rect;
     ext.layout_dirty = false;

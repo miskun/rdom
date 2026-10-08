@@ -195,8 +195,8 @@ fn measure_children(
         },
         // A flex or grid container is a formatting context root: never
         // measured in its parent's flow (`same_context`).
-        ChildrenLayout::Flex | ChildrenLayout::Grid => {
-            debug_assert!(false, "a flex or grid container is measured on its own");
+        ChildrenLayout::Flex | ChildrenLayout::Grid | ChildrenLayout::Table => {
+            debug_assert!(false, "a flex, grid or table box is measured on its own");
             0
         }
     };

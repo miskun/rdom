@@ -51,7 +51,17 @@ pub(crate) fn is_ifc_block(dom: &Dom<TuiExt>, id: NodeId) -> bool {
         .and_then(|e| e.computed.as_ref())
         .map(|c| c.flow)
         .unwrap_or(Flow::Block);
-    if parent_flow.is_flex_or_grid() {
+    if parent_flow.is_flex_or_grid() || parent_flow == Flow::Table {
+        return false;
+    }
+    // A row, row group or column (group) holds cells, not lines (CSS
+    // 2.1 §17.2.1): its text is in anonymous cells.
+    if dom
+        .node(id)
+        .ext()
+        .and_then(|e| e.computed.as_ref())
+        .is_some_and(|c| matches!(c.display, Display::TablePart(p) if !p.is_block_container()))
+    {
         return false;
     }
     // A block-level `::before` / `::after` is a block box of its flow:
