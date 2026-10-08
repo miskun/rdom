@@ -8249,3 +8249,17 @@ row comes from.
   no fragment record, `replace_child` without the replaced child), the next-sibling replace looped
   forever in `children()` (the before-itself case was added with the fix); rdom-tui `teardown_tests::a_spinner_moved_with_one_append_restarts` width 6
   for 2 (mutation-checked with the removal record turned off); green after. CHANGELOG silent change 78.
+- 2026-10-08 — C12G-UPGRADE (API B1, N7; docs only). The upgrade guide's silent-change list re-ranked
+  by impact, now 83 items: `appearance: none` / `-webkit-appearance` (dropped in 0.5, now stripping the
+  UA's `::before` / `::after` chrome) is item 4 — a reset's `button, select { appearance: none }`
+  loses the brackets and the `▾` on every page that uses one — with the web's custom-checkbox
+  consequence (no mark; `em` sizes dropped, so an empty 2×2 border box) and the port: cells and a
+  `::before` mark. The `display: none` fade-in break moved from 74 to 20, beside the "running
+  transition is the computed value" item (19), and batch A's reversed-transition change follows it
+  (21); a new item 23 says negative `transition-delay`, `linear()` and `@starting-style` were dropped
+  in 0.5 and now apply. Batch A's other silent changes folded in by impact instead of appended: the
+  textarea grip (26) and removal / move cancelling animations (27, 28) after the `<select>` overlay,
+  the `computed_pseudo` / removed-element reads (38, 39) with the other reader-facing changes after the
+  `bg` initial value. API table: `ImportantMask::TRANSITIONS` is the union of five bits
+  (`TRANSITION_BEHAVIOR` included); the `TuiStyle` / `ComputedStyle` new-fields row names
+  `interpolate_size`, `ui`, `overlay` and the timeline fields, with their items.
