@@ -49,6 +49,27 @@ fn a_narrow_table_squeezes_its_columns_toward_min_content() {
     assert_eq!(rect(&dom, "t").width, 4);
 }
 
+/// HTML §4.9.11 (element names ASCII case-insensitive, HTML §4.9): a
+/// `TD` made by `create_element("TD")` spans its `colspan` columns in
+/// layout, as the column selectors place it (one span reader for both).
+#[test]
+fn an_upper_case_td_spans_its_colspan() {
+    let mut dom = doc(
+        r#"<div><div class="t"><div class="r" id="r0"></div><div class="r"><div class="c" id="a">a</div><div class="c" id="b">b</div></div></div></div>"#,
+    );
+    let r0 = by_id(&dom, "r0");
+    let td = dom.create_element("TD");
+    dom.set_attribute(td, "class", "c").unwrap();
+    dom.set_attribute(td, "colspan", "2").unwrap();
+    let text = dom.create_text_node("wide-cell");
+    dom.append_child(td, text).unwrap();
+    dom.append_child(r0, td).unwrap();
+    paint(&mut dom, &css(""), 30, 3);
+    let (a, b) = (rect(&dom, "a"), rect(&dom, "b"));
+    let wide = dom.node(td).layout_rect().unwrap();
+    assert_eq!((wide.x, wide.width), (a.x, (b.x - a.x) as u16 + b.width));
+}
+
 /// HTML §4.9.12.1 with CSS Tables 3 §3.3: a `colspan` cell spans its
 /// columns, its excess width spread over them; a `rowspan` cell spans its
 /// rows, the next row's cells placed beside it.

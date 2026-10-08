@@ -10,11 +10,16 @@
 //! §3.3; HTML adds empty rows instead, which no browser renders), and
 //! `rowspan="0"` spans to that row. [`CellSpan::from_attributes`] and
 //! [`column_span`] read the HTML attributes (`colspan` / `rowspan`,
-//! `<col span>` / `<colgroup span>`) by HTML's parsing rules.
+//! `<col span>` / `<colgroup span>`) by HTML's parsing rules;
+//! [`cell_span_of`] and [`column_span_of`] read them off an element, HTML
+//! element names compared ASCII case-insensitively.
 //!
 //! The renderer's table formatting context and the column combinator
 //! (`||`, Selectors 4 §16.1) share this placement, so a cell is in the
 //! same column for both.
+
+use crate::dom::Dom;
+use crate::node_id::NodeId;
 
 /// HTML §4.9.11: the largest `colspan`, `<col span>` and `<colgroup span>`.
 const MAX_COLSPAN: usize = 1000;
@@ -22,16 +27,25 @@ const MAX_COLSPAN: usize = 1000;
 const MAX_ROWSPAN: usize = 65534;
 
 /// A cell's spans as authored: the columns it spans (at least one) and the
-/// rows (`0` spans to the end of its row group, HTML §4.9.11).
+/// rows (`0` spans to the end of its row group, HTML §4.9.11). Always
+/// within HTML's ranges: the only ways to make one clamp.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CellSpan {
-    /// Columns spanned, `1..=1000`.
-    pub columns: usize,
-    /// Rows spanned, `0..=65534`; `0` to the last row of the row group.
-    pub rows: usize,
+    columns: usize,
+    rows: usize,
 }
 
 impl CellSpan {
+    /// Columns spanned, `1..=1000`.
+    pub fn columns(self) -> usize {
+        self.columns
+    }
+
+    /// Rows spanned, `0..=65534`; `0` to the last row of the row group.
+    pub fn rows(self) -> usize {
+        self.rows
+    }
+
     /// Spans of `columns` × `rows`, clamped to HTML's ranges (`columns` at
     /// least one).
     pub fn new(columns: usize, rows: usize) -> Self {
@@ -63,6 +77,39 @@ pub fn column_span(span: Option<&str>) -> usize {
         .filter(|&n| n > 0)
         .unwrap_or(1)
         .min(MAX_COLSPAN)
+}
+
+/// Whether `id` is the HTML element `tag` — by local name, ASCII
+/// case-insensitively (HTML §4.9: `TD` is a `td`). The one tag test every
+/// reader of the table model shares.
+pub(crate) fn is_html<Ext>(dom: &Dom<Ext>, id: NodeId, tags: &[&str]) -> bool {
+    dom.node(id)
+        .tag_name()
+        .is_some_and(|t| tags.iter().any(|w| t.eq_ignore_ascii_case(w)))
+}
+
+/// The spans the cell `id` gives (HTML §4.9.11): a `<td>` / `<th>`'s
+/// `colspan` and `rowspan` ([`CellSpan::from_attributes`]); one slot for
+/// any other element — CSS has no span property. Shared by the column
+/// model and every renderer's table layout, so a cell is placed alike.
+pub fn cell_span_of<Ext>(dom: &Dom<Ext>, id: NodeId) -> CellSpan {
+    if is_html(dom, id, &["td", "th"]) {
+        let node = dom.node(id);
+        CellSpan::from_attributes(node.get_attribute("colspan"), node.get_attribute("rowspan"))
+    } else {
+        CellSpan::new(1, 1)
+    }
+}
+
+/// The columns the column or column-group element `id` gives (HTML
+/// §4.9.3, §4.9.4): a `<col>` / `<colgroup>`'s `span` ([`column_span`]);
+/// one for any other element.
+pub fn column_span_of<Ext>(dom: &Dom<Ext>, id: NodeId) -> usize {
+    if is_html(dom, id, &["col", "colgroup"]) {
+        column_span(dom.node(id).get_attribute("span"))
+    } else {
+        1
+    }
 }
 
 /// HTML §2.3.4.2, the rules for parsing non-negative integers: leading

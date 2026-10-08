@@ -3,7 +3,7 @@
 //! model's row processing, which the column combinator shares — and the
 //! rows and columns that `visibility: collapse` removes (§17.5.5).
 
-use rdom_core::table::{CellSpan, assign_slots};
+use rdom_core::table::{CellSpan, assign_slots, cell_span_of};
 use rdom_core::{Dom, NodeId};
 
 use super::structure::{Cell, Structure};
@@ -67,20 +67,11 @@ impl GridCell {
 }
 
 /// A cell's spans: a `<td>` / `<th>`'s `colspan` and `rowspan` (HTML
-/// §4.9.11); one slot for any other cell — CSS has no span property.
+/// §4.9.11, `rdom_core::table::cell_span_of` — the column model's reader);
+/// one slot for an anonymous cell.
 fn span_of(dom: &Dom<TuiExt>, cell: &Cell) -> CellSpan {
     match cell {
-        Cell::Element(id) => {
-            let node = dom.node(*id);
-            if matches!(node.tag_name(), Some("td" | "th")) {
-                CellSpan::from_attributes(
-                    node.get_attribute("colspan"),
-                    node.get_attribute("rowspan"),
-                )
-            } else {
-                CellSpan::new(1, 1)
-            }
-        }
+        Cell::Element(id) => cell_span_of(dom, *id),
         Cell::Anonymous(_) => CellSpan::new(1, 1),
     }
 }

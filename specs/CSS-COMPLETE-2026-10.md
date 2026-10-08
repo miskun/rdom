@@ -8634,3 +8634,25 @@ row comes from.
   `table-layout: fixed`); cell-margin pinning stops. Full reports:
   `target/claude-logs/c13_gate_{architect,api}.md`. Fix as `C13G-*`, three batches (A correctness and
   cost, B API / UA / docs, C the root block container).
+- 2026-10-08 — C13G-COLUMN-MATCH (architect B1, N3; API N1; Selectors 4 §3.1, §16.1, HTML §4.9.11,
+  §4.9.12.1, §13.2.6.4.9). Found: the `||` loop returned on a candidate's `NotMatchedGlobally`, but the
+  candidates share no ancestor chain (columns of two `<colgroup>`s are cousins), so a cell spanning a
+  plain group and `.hl` missed `.hl col || td`; a `<col>` child of the `<table>` (an HTML parser's
+  implied `<colgroup>`, which rdom-parser does not insert) was a column to layout but not to `||`; the
+  span readers were two — layout's exact-case `tag_name() == "td"`, the model's ASCII
+  case-insensitive one — so a `create_element("TD")` cell spanned one column in layout and two for
+  `:nth-col()`; `CellSpan`'s public fields skipped the clamp. Decided: (1) the `||` loop returns on
+  `Matched` only and otherwise tries the next column element; (2) the model reads leading bare
+  `<col>`s as the implied group's columns, in the shared model, not the parser; a `<col>` after the
+  first row stays none (HTML forms columns from the groups before the rows only); (3) one reader:
+  `rdom_core::table::{cell_span_of, column_span_of}` (HTML table elements ASCII case-insensitively —
+  DIVERGENCES' case-sensitive-names entry names the table model as its exception), used by
+  `table::html` and by rdom-tui's `grid` / `structure`; (4) `CellSpan`'s fields are private, read
+  through `columns()` / `rows()` — every value made is within 1000 / 65534, so `assign_slots` cannot
+  overflow (`CellSpan` and `table` are new since 0.5: no break). Red: `column_tests.rs`
+  `a_cell_spanning_two_column_groups_matches_through_either` (`["right"]` for `["wide", "right"]`),
+  `a_bare_col_before_the_rows_is_a_column` (`[]` for `["a"]`); `css_phase13/tfc.rs`
+  `an_upper_case_td_spans_its_colspan` (width 9 for 10, run against the old `grid` / `structure`);
+  green after, with `table/tests.rs`' `spans_are_read_from_html_elements_only` and
+  `spans_are_clamped_however_made` and the upper-case column-model pin. Mutation: each red above is
+  the old code path restored alone.

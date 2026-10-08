@@ -6,15 +6,16 @@
 //!
 //! As HTML forms it: the `<colgroup>` children before the first row group
 //! or row make the columns (a `<col>` its `span` of them, a `<colgroup>`
-//! with no `<col>` its own `span`; a `<col>` outside a `<colgroup>` is no
-//! column, and a later `<colgroup>` neither); the rows are the `<tr>`
+//! with no `<col>` its own `span`; a `<col>` child of the table there is
+//! a column too, in the `<colgroup>` an HTML parser would have implied for
+//! it; a later `<colgroup>` or `<col>` is none); the rows are the `<tr>`
 //! children of the table — consecutive ones a group — and of its `<thead>`
 //! / `<tbody>` in tree order, then of its `<tfoot>`s; the cells are each
 //! row's `<td>` / `<th>` children, placed by [`assign_slots`].
 
 use std::collections::HashMap;
 
-use super::{CellSpan, assign_slots, column_span};
+use super::{CellSpan, assign_slots, cell_span_of, column_span_of, is_html};
 use crate::dom::Dom;
 use crate::node_id::NodeId;
 
@@ -53,9 +54,7 @@ impl<Ext> Dom<Ext> {
     /// Whether `id` is an element named one of `tags` (HTML's table
     /// elements, by local name, ASCII case-insensitively).
     fn tag_in(&self, id: NodeId, tags: &[&str]) -> bool {
-        self.node(id)
-            .tag_name()
-            .is_some_and(|t| tags.iter().any(|w| t.eq_ignore_ascii_case(w)))
+        is_html(self, id, tags)
     }
 
     fn element_child_ids(&self, id: NodeId) -> Vec<NodeId> {
@@ -93,11 +92,20 @@ impl<Ext> Dom<Ext> {
         let children = self.element_child_ids(table);
         let mut model = HtmlTableModel::default();
         // Column groups: the `<colgroup>`s before the first row group or
-        // row.
+        // row — and the `<col>`s there outside one, which an HTML parser
+        // would have put in an implied `<colgroup>` (HTML §13.2.6.4.9, "in
+        // table": a `col` start tag); rdom-parser inserts none, so the
+        // model reads them as that group's columns.
         let mut x = 0usize;
         for &c in &children {
             if self.tag_in(c, &["thead", "tbody", "tfoot", "tr"]) {
                 break;
+            }
+            if self.tag_in(c, &["col"]) {
+                let span = column_span_of(self, c);
+                model.columns.push((c, x, span));
+                x += span;
+                continue;
             }
             if !self.tag_in(c, &["colgroup"]) {
                 continue;
@@ -109,10 +117,10 @@ impl<Ext> Dom<Ext> {
                 .filter(|&k| self.tag_in(k, &["col"]))
                 .collect();
             if cols.is_empty() {
-                x += column_span(self.node(c).get_attribute("span"));
+                x += column_span_of(self, c);
             }
             for col in cols {
-                let span = column_span(self.node(col).get_attribute("span"));
+                let span = column_span_of(self, col);
                 model.columns.push((col, x, span));
                 x += span;
             }
@@ -164,17 +172,7 @@ impl<Ext> Dom<Ext> {
             .iter()
             .map(|g| {
                 g.iter()
-                    .map(|r| {
-                        r.iter()
-                            .map(|&k| {
-                                let n = self.node(k);
-                                CellSpan::from_attributes(
-                                    n.get_attribute("colspan"),
-                                    n.get_attribute("rowspan"),
-                                )
-                            })
-                            .collect()
-                    })
+                    .map(|r| r.iter().map(|&k| cell_span_of(self, k)).collect())
                     .collect()
             })
             .collect();

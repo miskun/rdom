@@ -122,6 +122,68 @@ fn the_column_combinator_matches_the_cells_of_a_column() {
     assert_eq!(ids(&dom, "col.a || th"), Vec::<String>::new());
 }
 
+/// Selectors 4 §16.1 with §3.1: a cell spanning two column groups belongs
+/// to the columns of both, and the combinator holds when *some* column
+/// element satisfies the rest of the selector — a first candidate failing
+/// on its ancestors (its `<colgroup>` lacks `.hl`) leaves the next to try.
+#[test]
+fn a_cell_spanning_two_column_groups_matches_through_either() {
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let t = el(&mut dom, root, "table", &[]);
+    let g0 = el(&mut dom, t, "colgroup", &[]);
+    el(&mut dom, g0, "col", &[]);
+    let g1 = el(&mut dom, t, "colgroup", &[("class", "hl")]);
+    el(&mut dom, g1, "col", &[]);
+    let tr = el(&mut dom, t, "tr", &[]);
+    el(&mut dom, tr, "td", &[("id", "wide"), ("colspan", "2")]);
+    let tr = el(&mut dom, t, "tr", &[]);
+    el(&mut dom, tr, "td", &[("id", "left")]);
+    el(&mut dom, tr, "td", &[("id", "right")]);
+    assert_eq!(ids(&dom, ".hl col || td"), ["wide", "right"]);
+    assert_eq!(ids(&dom, "table > .hl > col || td"), ["wide", "right"]);
+}
+
+/// HTML §13.2.6.4.9 ("in table": a `col` start tag inserts an implied
+/// `<colgroup>`): a `<col>` that is a child of the `<table>`, before its
+/// rows, is a column — the model reads the DOM rdom-parser builds, which
+/// has no implied element, as an HTML parser's DOM would read.
+#[test]
+fn a_bare_col_before_the_rows_is_a_column() {
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let t = el(&mut dom, root, "table", &[]);
+    el(&mut dom, t, "col", &[("class", "p")]);
+    el(&mut dom, t, "col", &[("class", "q"), ("span", "2")]);
+    let tr = el(&mut dom, t, "tr", &[]);
+    el(&mut dom, tr, "td", &[("id", "a")]);
+    el(&mut dom, tr, "td", &[("id", "b")]);
+    el(&mut dom, tr, "td", &[("id", "c")]);
+    el(&mut dom, t, "col", &[("class", "late")]);
+    assert_eq!(ids(&dom, "col.p || td"), ["a"]);
+    assert_eq!(ids(&dom, "col.q || td"), ["b", "c"]);
+    // HTML forms columns from the column groups before the first row only.
+    assert_eq!(ids(&dom, "col.late || td"), Vec::<String>::new());
+}
+
+/// HTML's table elements are recognised by name ASCII case-insensitively
+/// (`TD` is a `td`), for the column model as for layout — though type
+/// *selectors* stay case-sensitive in rdom (DIVERGENCES), so the test
+/// selects by class.
+#[test]
+fn upper_case_table_elements_are_table_elements() {
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let t = el(&mut dom, root, "TABLE", &[]);
+    let g = el(&mut dom, t, "COLGROUP", &[]);
+    el(&mut dom, g, "COL", &[("class", "x"), ("span", "2")]);
+    let tr = el(&mut dom, t, "TR", &[]);
+    el(&mut dom, tr, "TD", &[("id", "a"), ("colspan", "2")]);
+    el(&mut dom, tr, "Td", &[("id", "b")]);
+    assert_eq!(ids(&dom, ".x || *"), ["a"]);
+    assert_eq!(ids(&dom, ":nth-col(3)"), ["b"]);
+}
+
 /// Selectors 4 §16.2 / §16.3: `:nth-col(An+B)` matches a cell with
 /// `An+B - 1` columns before one of its columns; `:nth-last-col()` counts
 /// from the table's last column.

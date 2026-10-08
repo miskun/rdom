@@ -196,7 +196,7 @@ impl Structure {
     /// `span` (HTML §4.9.4, for `<col>`; one otherwise).
     fn push_column(&mut self, dom: &Dom<TuiExt>, column: NodeId, group: Option<NodeId>) {
         self.column_boxes.push(column);
-        let span = span_of(dom, column, "col");
+        let span = rdom_core::table::column_span_of(dom, column);
         for _ in 0..span {
             self.columns.push(ColumnSource {
                 column: Some(column),
@@ -217,7 +217,7 @@ impl Structure {
             .filter_map(|(_, item, _)| item.node())
             .collect();
         if columns.is_empty() {
-            for _ in 0..span_of(dom, group, "colgroup") {
+            for _ in 0..rdom_core::table::column_span_of(dom, group) {
                 self.columns.push(ColumnSource {
                     column: None,
                     group: Some(group),
@@ -227,16 +227,6 @@ impl Structure {
         for column in columns {
             self.push_column(dom, column, Some(group));
         }
-    }
-}
-
-/// The `span` of `id` when it is the HTML element `tag`, else 1.
-fn span_of(dom: &Dom<TuiExt>, id: NodeId, tag: &str) -> usize {
-    let node = dom.node(id);
-    if node.tag_name() == Some(tag) {
-        rdom_core::table::column_span(node.get_attribute("span"))
-    } else {
-        1
     }
 }
 

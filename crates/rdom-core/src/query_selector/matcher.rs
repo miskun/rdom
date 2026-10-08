@@ -102,7 +102,11 @@ impl<Ext> Dom<Ext> {
                     }
                     Target::Compound(_) => continue,
                 };
-                if matches!(result, Outcome::Matched | Outcome::NotMatchedGlobally) {
+                // The candidates share no ancestor chain (columns of
+                // different groups are cousins), so a candidate failing
+                // anywhere leaves the next to try (§3.1: *some* column
+                // element must satisfy the rest).
+                if result == Outcome::Matched {
                     return result;
                 }
             }

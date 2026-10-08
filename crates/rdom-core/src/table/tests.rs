@@ -118,7 +118,7 @@ fn empty_rows_and_tables() {
 fn spans_parse_as_html_says() {
     let s = |c: Option<&str>, r: Option<&str>| {
         let s = CellSpan::from_attributes(c, r);
-        (s.columns, s.rows)
+        (s.columns(), s.rows())
     };
     assert_eq!(s(None, None), (1, 1));
     assert_eq!(s(Some("3"), Some("2")), (3, 2));
@@ -136,4 +136,49 @@ fn column_spans_parse_as_html_says() {
     assert_eq!(column_span(Some("3")), 3);
     assert_eq!(column_span(Some("0")), 1);
     assert_eq!(column_span(Some("2000")), 1000);
+}
+
+// ── The HTML attributes, read from the DOM ─────────────────────────
+
+/// HTML §4.9.11: only a `<td>` / `<th>` (ASCII case-insensitively) has
+/// `colspan` / `rowspan`; any other cell spans one slot. HTML §4.9.3 /
+/// §4.9.4: only a `<col>` / `<colgroup>` has `span`.
+#[test]
+fn spans_are_read_from_html_elements_only() {
+    let mut dom: crate::Dom = crate::Dom::new();
+    let root = dom.root();
+    let mk = |dom: &mut crate::Dom, tag: &str, attrs: &[(&str, &str)]| {
+        let id = dom.create_element(tag);
+        for (k, v) in attrs {
+            dom.set_attribute(id, k, v).unwrap();
+        }
+        dom.append_child(root, id).unwrap();
+        id
+    };
+    let td = mk(&mut dom, "TD", &[("colspan", "3"), ("rowspan", "2")]);
+    let th = mk(&mut dom, "th", &[("colspan", "2")]);
+    let div = mk(&mut dom, "div", &[("colspan", "3"), ("rowspan", "2")]);
+    assert_eq!(cell_span_of(&dom, td), CellSpan::new(3, 2));
+    assert_eq!(cell_span_of(&dom, th), CellSpan::new(2, 1));
+    assert_eq!(cell_span_of(&dom, div), CellSpan::new(1, 1));
+    let col = mk(&mut dom, "Col", &[("span", "4")]);
+    let group = mk(&mut dom, "colgroup", &[("span", "2")]);
+    let other = mk(&mut dom, "div", &[("span", "4")]);
+    assert_eq!(column_span_of(&dom, col), 4);
+    assert_eq!(column_span_of(&dom, group), 2);
+    assert_eq!(column_span_of(&dom, other), 1);
+}
+
+/// A `CellSpan` is always within HTML's ranges, however it is made — so
+/// placement cannot overflow.
+#[test]
+fn spans_are_clamped_however_made() {
+    let huge = CellSpan::new(usize::MAX, usize::MAX);
+    assert_eq!((huge.columns(), huge.rows()), (1000, 65534));
+    let slots = assign_slots(&[vec![vec![huge, huge]]]);
+    assert_eq!(slots.columns, 2000);
+    assert_eq!(
+        placed(&slots),
+        vec![vec![(0, 0, 1000, 1), (0, 1000, 1000, 1)]]
+    );
 }
