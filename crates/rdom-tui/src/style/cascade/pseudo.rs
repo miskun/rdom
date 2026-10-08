@@ -136,6 +136,9 @@ pub(super) fn compute_pseudo_style(
     };
     let decls = decls.with(substituted.as_ref(), working.text_direction);
     colors.finalize(&mut working, host_computed.fg, preferred);
+    if *target == PseudoElementTarget::Selection {
+        super::paired::unpair(&mut working, plan, decls, host_computed);
+    }
 
     // `::before` / `::after` are child boxes of the host (CSS
     // Pseudo-Elements 4 §4): flex items, blockified, when it is a flex

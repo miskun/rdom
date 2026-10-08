@@ -6536,3 +6536,17 @@ row comes from.
   `"   *b   "` centered); green after. Mutation (the three code changes disabled together, each caught by its
   own tests, restored, touched): the marker branch → both hit tests; the `type` hint → the type test; the
   first-line start → the static-position test. No existing expectation or snapshot changed.
+- 2026-10-13 — C10G-SELECTION-PAIRED (API N2). Found: the UA's `*::selection { background-color: Highlight;
+  color: white }` supplied `color` whatever the author set, and the overlay applies a `color` that differs
+  from the text's, so `::selection { background-color: yellow }` painted white text on yellow. CSS
+  Pseudo-Elements 4 §3.4's paired defaults: the UA's highlight colors are used as a pair — an author value
+  for either drops the UA's other. Fixed in the cascade, where origins are known
+  (`style/cascade/paired.rs`, run on the computed `::selection` style): when the declarations above the UA
+  origin (author layers, hints, inline) set exactly one of `color` / `background-color` — directly, or
+  through a pending `var()` declaration — the other is reset to what an unset highlight value paints: the
+  originating element's `color`, a transparent background. Decision: only `::selection` — the UA styles no
+  `::highlight()`, so the pair has nothing to drop there. DIVERGENCES §2's highlight entry says so. Red:
+  `highlight.rs::an_author_selection_color_drops_the_uas_other_half` failed with `(white, yellow)` for
+  `(red, yellow)`; green after (also `(red, blue)` with only `color` set, and the UA pair untouched with
+  neither). Mutation (the background reset dropped, restored, touched): the `color`-only row fails with the
+  UA's `Rgb(57, 75, 126)` background. No existing expectation or snapshot changed.

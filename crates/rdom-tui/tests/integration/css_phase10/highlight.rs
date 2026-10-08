@@ -127,3 +127,33 @@ fn the_selection_paints_over_a_highlight_and_decorations_draw() {
     };
     assert!(underlined(3), "the highlight's underline");
 }
+
+/// CSS Pseudo-Elements 4 §3.4's paired defaults: the UA's `::selection`
+/// `color` and `background-color` apply as a pair — when the author sets
+/// either one, the UA's value for the other is not used, so
+/// `::selection { background-color: yellow }` keeps the text's own color
+/// (it painted the UA's white over yellow), and `::selection { color: red }`
+/// keeps the text's background (C10G-SELECTION-PAIRED).
+#[test]
+fn an_author_selection_color_drops_the_uas_other_half() {
+    let selected = |css: &str| {
+        let (mut dom, t) = para("ab");
+        dom.set_selection(Some(Selection::new(
+            Position::new(t, 0),
+            Position::new(t, 1),
+        )));
+        let buf = paint(&mut dom, css, 2);
+        let cell = buf.cell(0, 0).unwrap();
+        (cell.fg, cell.bg)
+    };
+    assert_eq!(
+        selected("p { color: red } ::selection { background-color: yellow }"),
+        (RED, YELLOW)
+    );
+    assert_eq!(
+        selected("p { background-color: blue } ::selection { color: red }"),
+        (RED, BLUE)
+    );
+    let (fg, bg) = selected("p { color: red; background-color: blue }");
+    assert!(fg != RED && bg != BLUE, "the UA's pair: {fg:?} on {bg:?}");
+}

@@ -77,6 +77,7 @@ mod inherit;
 mod ladder;
 mod line_clamp;
 mod matching;
+mod paired;
 mod pseudo;
 mod quotes;
 mod registered;
