@@ -4,7 +4,8 @@
 
 use rdom_core::NodeId;
 
-use super::algorithms::{self, Hide, is_inclusive_ancestor};
+use super::algorithms::{self, Hide};
+use super::stack::is_inclusive_ancestor;
 use super::{is_showing, popover_state};
 use crate::TuiDom;
 
@@ -70,12 +71,15 @@ pub(super) fn activate(dom: &mut TuiDom, event_target: NodeId) {
     match action(dom, button) {
         Action::Show if showing => {}
         Action::Hide if !showing => {}
+        // HTML: "run the hide popover algorithm given popover, true,
+        // true, false, and node".
         _ if showing => {
             let _ = algorithms::hide(
                 dom,
                 popover,
                 Hide {
                     throw: false,
+                    source: Some(button),
                     ..Hide::THROWING
                 },
             );

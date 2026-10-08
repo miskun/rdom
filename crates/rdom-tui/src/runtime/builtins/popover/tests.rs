@@ -201,7 +201,7 @@ fn a_modal_dialog_is_no_popover_to_show() {
     let mut dom = TuiDom::new();
     let root = dom.root();
     let d = el(&mut dom, root, "dialog", &[("popover", "")]);
-    crate::runtime::builtins::dialog::show_modal(&mut dom, d);
+    crate::runtime::builtins::dialog::show_modal(&mut dom, d).unwrap();
     assert!(matches!(
         show_popover(&mut dom, d),
         Err(DomError::InvalidState(_))
@@ -408,6 +408,178 @@ fn changing_the_attribute_hides_a_showing_popover() {
             .iter()
             .any(|l| *l == format!("toggle {} open->closed", q.n()))
     );
+}
+
+// ── Termination (HTML's "showing popover" and "hiding popover nesting
+//    count") ──────────────────────────────────────────────────────────
+
+/// A `beforetoggle` listener that shows `other` when `id` closes,
+/// counting its calls and giving up past `cap` (so a regression fails
+/// instead of hanging).
+fn reopen_on_close(dom: &mut TuiDom, id: NodeId, other: NodeId, calls: Rc<RefCell<u32>>) {
+    dom.add_event_listener(id, "beforetoggle", ListenerOptions::default(), move |ctx| {
+        let closing = matches!(
+            &ctx.event.detail,
+            EventDetail::Toggle(t) if t.new_state == ToggleState::Closed
+        );
+        if !closing {
+            return;
+        }
+        *calls.borrow_mut() += 1;
+        assert!(*calls.borrow() < 100, "the hide walk did not terminate");
+        let _ = show_popover(ctx.dom, other);
+    })
+    .unwrap();
+}
+
+/// HTML §6.12.2 "show popover" step 2: a popover cannot show while the
+/// document is showing or hiding one ("showing popover", "hiding popover
+/// nesting count"), so two auto popovers whose closing `beforetoggle`
+/// listeners show each other cannot ping-pong: a click outside hides
+/// both, once each (architect B2's scenario).
+#[test]
+fn ping_ponging_beforetoggle_listeners_terminate() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "div", &[("popover", "auto")]);
+    let b = el(&mut dom, root, "div", &[("popover", "auto")]);
+    let calls = Rc::new(RefCell::new(0));
+    reopen_on_close(&mut dom, a, b, calls.clone());
+    reopen_on_close(&mut dom, b, a, calls.clone());
+    show_popover(&mut dom, a).unwrap();
+    // Showing `b` hides `a` (its listener's `show_popover(b)` is refused).
+    show_popover(&mut dom, b).unwrap();
+    assert!(!showing(&dom, a) && showing(&dom, b));
+    hide_popover(&mut dom, b).unwrap();
+    assert!(dom.top_layer().is_empty(), "nothing reopened");
+    assert_eq!(*calls.borrow(), 2);
+}
+
+/// HTML §6.12.2 "show popover" step 2, throwing: `showPopover()` from a
+/// listener that runs inside another popover's show is an
+/// `InvalidStateError`.
+#[test]
+fn show_popover_inside_another_show_is_refused() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "div", &[("popover", "manual")]);
+    let b = el(&mut dom, root, "div", &[("popover", "manual")]);
+    let got: Rc<RefCell<Option<rdom_core::Result<()>>>> = Rc::default();
+    let g = got.clone();
+    dom.add_event_listener(a, "beforetoggle", ListenerOptions::default(), move |ctx| {
+        *g.borrow_mut() = Some(show_popover(ctx.dom, b));
+    })
+    .unwrap();
+    show_popover(&mut dom, a).unwrap();
+    assert!(matches!(
+        got.borrow().as_ref(),
+        Some(Err(DomError::InvalidState(_)))
+    ));
+    assert!(showing(&dom, a) && !showing(&dom, b));
+    show_popover(&mut dom, b).unwrap();
+    assert!(showing(&dom, b), "the flag was cleared");
+}
+
+/// HTML §6.12.2 "hide popover stack until" (one pass over the popovers
+/// above the endpoint, then one without events) with an ancestor a hint's
+/// listener hid: the auto stack is hidden from the bottom, as the spec's
+/// `lastHideIndex` of 0 for an endpoint no longer in the list says — no
+/// unrelated auto popover is left showing.
+#[test]
+fn an_ancestor_hidden_by_a_hint_listener_leaves_no_unrelated_popover() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let m1 = el(&mut dom, root, "div", &[("popover", "auto")]);
+    let m2 = el(&mut dom, m1, "div", &[("popover", "auto")]);
+    let n = el(&mut dom, m2, "div", &[("popover", "auto")]);
+    let h = el(&mut dom, root, "div", &[("popover", "hint")]);
+    show_popover(&mut dom, m1).unwrap();
+    show_popover(&mut dom, m2).unwrap();
+    show_popover(&mut dom, h).unwrap();
+    dom.add_event_listener(h, "beforetoggle", ListenerOptions::default(), move |ctx| {
+        let _ = hide_popover(ctx.dom, m2);
+    })
+    .unwrap();
+    show_popover(&mut dom, n).unwrap();
+    assert!(!showing(&dom, h) && !showing(&dom, m2));
+    assert!(!showing(&dom, m1), "m1 is not n's ancestor any more");
+    assert!(showing(&dom, n));
+}
+
+/// A listener that panics inside a show or hide leaves no flag behind:
+/// the panic reaches the caller, and the next show works.
+#[test]
+fn a_panicking_listener_leaves_no_flag_set() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "div", &[("popover", "auto")]);
+    let b = el(&mut dom, root, "div", &[("popover", "auto")]);
+    dom.add_event_listener(a, "beforetoggle", ListenerOptions::once(), |_| {
+        panic!("listener")
+    })
+    .unwrap();
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = show_popover(&mut dom, a);
+    }));
+    assert!(outcome.is_err(), "the panic reached the caller");
+    show_popover(&mut dom, b).unwrap();
+    assert!(showing(&dom, b), "no flag was left set");
+    show_popover(&mut dom, a).unwrap();
+    hide_popover(&mut dom, a).unwrap();
+    assert!(dom.top_layer().is_empty());
+}
+
+// ── The removing steps ─────────────────────────────────────────────
+
+/// HTML's removing steps run "hide popover" for a removed popover
+/// (without events or focus): the popovers nested above it — here through
+/// an invoker inside it, not the DOM — hide with it, and the per-popover
+/// state of both is dropped.
+#[test]
+fn removing_a_popover_hides_the_ones_nested_above_it() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let a = el(&mut dom, root, "div", &[("popover", "auto")]);
+    let invoker = el(&mut dom, a, "button", &[]);
+    let b = el(&mut dom, root, "div", &[("popover", "auto")]);
+    let unrelated = el(&mut dom, root, "div", &[("popover", "manual")]);
+    let mut app = app(dom);
+    show_popover(app.dom_mut(), a).unwrap();
+    super::show_popover_from(app.dom_mut(), b, Some(invoker)).unwrap();
+    show_popover(app.dom_mut(), unrelated).unwrap();
+    assert!(showing(app.dom(), b), "nested in `a` through its invoker");
+    let log = log_toggles(app.dom_mut(), &[a, b]);
+    app.dom_mut().remove_child(root, a).unwrap();
+    app.advance(0).unwrap();
+    assert!(!showing(app.dom(), b), "hidden with its ancestor");
+    assert!(showing(app.dom(), unrelated));
+    assert!(log.borrow().is_empty(), "the removing steps fire no events");
+    assert_eq!(
+        super::state::tracked(app.dom()),
+        0,
+        "nothing is kept for `a` and `b` (nor for `unrelated`, manual, untriggered)"
+    );
+}
+
+/// The per-popover state (opened mode, trigger, previously focused
+/// element) is dropped when a popover hides or its node is dropped.
+#[test]
+fn the_popover_state_does_not_grow_with_churn() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let opener = el(&mut dom, root, "button", &[]);
+    let mut app = app(dom);
+    crate::runtime::focus::focus_node(app.dom_mut(), Some(opener));
+    for _ in 0..50 {
+        let p = el(app.dom_mut(), root, "div", &[("popover", "auto")]);
+        let field = el(app.dom_mut(), p, "input", &[("autofocus", "")]);
+        super::show_popover_from(app.dom_mut(), p, Some(opener)).unwrap();
+        assert_eq!(app.dom().focused(), Some(field));
+        app.dom_mut().remove_child(root, p).unwrap();
+        app.dom_mut().drop_subtree(p).unwrap();
+        app.advance(0).unwrap();
+    }
+    assert_eq!(super::state::tracked(app.dom()), 0);
 }
 
 // ── Light dismiss ──────────────────────────────────────────────────
@@ -625,14 +797,17 @@ mod light_dismiss {
             !showing(app.dom(), under),
             "`host` is no descendant of `under`"
         );
-        dialog::show_modal(app.dom_mut(), d);
+        dialog::show_modal(app.dom_mut(), d).unwrap();
         assert!(
             showing(app.dom(), host),
             "the popover holding the dialog stays"
         );
         shown(&mut app, &[under]);
         assert!(!showing(app.dom(), host));
-        dialog::show_modal(app.dom_mut(), d);
+        // `showModal()` on a modal dialog returns at once (HTML §4.11.4
+        // step 1): close it to show it again.
+        dialog::close(app.dom_mut(), d, "");
+        dialog::show_modal(app.dom_mut(), d).unwrap();
         assert!(
             !showing(app.dom(), under),
             "showModal hid the unrelated popover"
@@ -657,12 +832,32 @@ mod light_dismiss {
         let d = el(&mut dom, host, "dialog", &[]);
         let mut app = app(dom);
         shown(&mut app, &[host]);
-        dialog::show_modal(app.dom_mut(), d);
+        dialog::show_modal(app.dom_mut(), d).unwrap();
         esc(&mut app);
         assert!(!dialog::is_modal(app.dom(), d));
         assert!(showing(app.dom(), host));
         esc(&mut app);
         assert!(!showing(app.dom(), host));
+    }
+
+    /// Architect B2's scenario through light dismiss ("hide popovers
+    /// until" the document): ping-ponging closing `beforetoggle` listeners
+    /// cannot reopen anything while the walk hides, so one click outside
+    /// ends with no popover showing.
+    #[test]
+    fn a_click_outside_ends_a_beforetoggle_ping_pong() {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let a = el(&mut dom, root, "div", &[("popover", "auto")]);
+        let b = el(&mut dom, root, "div", &[("popover", "auto")]);
+        let calls = std::rc::Rc::new(std::cell::RefCell::new(0));
+        super::reopen_on_close(&mut dom, a, b, calls.clone());
+        super::reopen_on_close(&mut dom, b, a, calls.clone());
+        let mut app = app(dom);
+        shown(&mut app, &[a]);
+        click_at(&mut app, (29, 7));
+        assert!(app.dom().top_layer().is_empty());
+        assert_eq!(*calls.borrow(), 1);
     }
 
     /// HTML has no focus-based light dismiss: focus leaving an auto

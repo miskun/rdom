@@ -33,7 +33,7 @@ fn show_modal_and_close_move_the_dialog_in_and_out_of_the_top_layer() {
     let mut dom = TuiDom::new();
     let root = dom.root();
     let d = node(&mut dom, root, "dialog", &[], "hi");
-    dialog::show_modal(&mut dom, d);
+    dialog::show_modal(&mut dom, d).unwrap();
     assert_eq!(dom.top_layer(), [d]);
     assert!(dom.matches(d, "dialog:modal").unwrap());
     assert!(dialog::is_modal(&dom, d));
@@ -41,7 +41,7 @@ fn show_modal_and_close_move_the_dialog_in_and_out_of_the_top_layer() {
     dialog::close(&mut dom, d, "");
     assert!(dom.top_layer().is_empty());
     assert!(!dom.matches(d, ":modal").unwrap());
-    dialog::show(&mut dom, d);
+    dialog::show(&mut dom, d).unwrap();
     assert!(dom.top_layer().is_empty());
     assert!(!dom.matches(d, ":modal").unwrap());
 }
@@ -56,7 +56,7 @@ fn a_modal_dialog_is_centred_in_the_viewport() {
     let root = dom.root();
     node(&mut dom, root, "p", &[], "page");
     let d = node(&mut dom, root, "dialog", &[], "hi");
-    dialog::show_modal(&mut dom, d);
+    dialog::show_modal(&mut dom, d).unwrap();
     lay_out(&mut dom, "dialog { border: none; padding: 0 }", 20, 9);
     assert_eq!(rect(&dom, d), LayoutRect::new(9, 4, 2, 1));
 }
@@ -70,7 +70,7 @@ fn position_computes_to_absolute_against_the_viewport() {
     let root = dom.root();
     let frame = node(&mut dom, root, "div", &[("class", "frame")], "");
     let d = node(&mut dom, frame, "dialog", &[], "hi");
-    dialog::show_modal(&mut dom, d);
+    dialog::show_modal(&mut dom, d).unwrap();
     lay_out(
         &mut dom,
         ".frame { position: relative; margin-left: 5; width: 4; height: 2 } \
@@ -91,7 +91,7 @@ fn the_top_layer_paints_above_every_context_and_outside_every_clip() {
     let clip = node(&mut dom, root, "div", &[("class", "clip")], "");
     let d = node(&mut dom, clip, "dialog", &[], "hi");
     node(&mut dom, root, "div", &[("class", "cover")], "");
-    dialog::show_modal(&mut dom, d);
+    dialog::show_modal(&mut dom, d).unwrap();
     let buf = paint(
         &mut dom,
         ".clip { overflow: hidden; width: 1; height: 1 } \
@@ -112,7 +112,7 @@ fn the_backdrop_paints_between_the_page_and_the_dialog() {
     let root = dom.root();
     node(&mut dom, root, "p", &[], "page");
     let d = node(&mut dom, root, "dialog", &[], "hi");
-    dialog::show_modal(&mut dom, d);
+    dialog::show_modal(&mut dom, d).unwrap();
     let css = "dialog { border: none; padding: 0; background-color: blue } \
                dialog::backdrop { background-color: rgb(0 128 0) }";
     let buf: Buffer = paint(&mut dom, css, 6, 3);
@@ -139,7 +139,7 @@ fn outside_a_modal_dialog_the_pointer_hits_its_backdrop() {
     let page = node(&mut dom, root, "button", &[], "page");
     let d = node(&mut dom, root, "dialog", &[], "");
     let inner = node(&mut dom, d, "span", &[], "hi");
-    dialog::show_modal(&mut dom, d);
+    dialog::show_modal(&mut dom, d).unwrap();
     lay_out(&mut dom, "dialog { border: none; padding: 0 }", 6, 3);
     assert_eq!(rect(&dom, d), LayoutRect::new(2, 1, 2, 1));
     assert_eq!(dom.hit_test(0, 0), Some(d), "not the page's button");
@@ -158,7 +158,7 @@ fn a_top_layer_element_paints_once() {
     let mut dom = TuiDom::new();
     let root = dom.root();
     let d = node(&mut dom, root, "dialog", &[], "");
-    dialog::show_modal(&mut dom, d);
+    dialog::show_modal(&mut dom, d).unwrap();
     let buf = paint(
         &mut dom,
         "dialog { border: none; padding: 0; width: 3; height: 1; \

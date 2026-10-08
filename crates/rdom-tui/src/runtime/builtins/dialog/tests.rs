@@ -74,7 +74,7 @@ fn dialog_app() -> (App<TestBackend>, NodeId) {
 #[test]
 fn show_sets_open_attribute() {
     let (mut app, dlg) = dialog_app();
-    dialog::show(app.dom_mut(), dlg);
+    dialog::show(app.dom_mut(), dlg).unwrap();
     assert!(app.dom().node(dlg).has_attribute("open"));
     assert!(!dialog::is_modal(app.dom(), dlg));
 }
@@ -82,24 +82,15 @@ fn show_sets_open_attribute() {
 #[test]
 fn show_modal_sets_open_and_modal_marker() {
     let (mut app, dlg) = dialog_app();
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     assert!(app.dom().node(dlg).has_attribute("open"));
     assert!(dialog::is_modal(app.dom(), dlg));
 }
 
 #[test]
-fn show_after_show_modal_clears_modal_marker() {
-    let (mut app, dlg) = dialog_app();
-    dialog::show_modal(app.dom_mut(), dlg);
-    dialog::show(app.dom_mut(), dlg);
-    assert!(app.dom().node(dlg).has_attribute("open"));
-    assert!(!dialog::is_modal(app.dom(), dlg));
-}
-
-#[test]
 fn close_clears_open_attribute_and_stores_return_value() {
     let (mut app, dlg) = dialog_app();
-    dialog::show(app.dom_mut(), dlg);
+    dialog::show(app.dom_mut(), dlg).unwrap();
     dialog::close(app.dom_mut(), dlg, "ok");
     assert!(!app.dom().node(dlg).has_attribute("open"));
     assert_eq!(dialog::return_value(app.dom(), dlg), "ok");
@@ -108,7 +99,7 @@ fn close_clears_open_attribute_and_stores_return_value() {
 #[test]
 fn close_fires_close_event_on_dialog() {
     let (mut app, dlg) = dialog_app();
-    dialog::show(app.dom_mut(), dlg);
+    dialog::show(app.dom_mut(), dlg).unwrap();
     let fired = Rc::new(Cell::new(0u32));
     let f = fired.clone();
     app.dom_mut()
@@ -124,7 +115,7 @@ fn close_fires_close_event_on_dialog() {
 fn close_event_does_not_bubble() {
     let (mut app, dlg) = dialog_app();
     let root = app.dom().root();
-    dialog::show(app.dom_mut(), dlg);
+    dialog::show(app.dom_mut(), dlg).unwrap();
     let saw = Rc::new(Cell::new(false));
     let s = saw.clone();
     app.dom_mut()
@@ -156,7 +147,7 @@ fn close_on_already_closed_dialog_is_noop() {
 #[test]
 fn esc_in_modal_dialog_fires_cancel_then_closes() {
     let (mut app, dlg) = dialog_app();
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     let order = Rc::new(RefCell::new(Vec::<&'static str>::new()));
     for ty in ["cancel", "close"] {
         let o = order.clone();
@@ -175,7 +166,7 @@ fn esc_in_modal_dialog_fires_cancel_then_closes() {
 #[test]
 fn esc_in_non_modal_dialog_does_nothing() {
     let (mut app, dlg) = dialog_app();
-    dialog::show(app.dom_mut(), dlg);
+    dialog::show(app.dom_mut(), dlg).unwrap();
     let fired = Rc::new(Cell::new(false));
     let f = fired.clone();
     app.dom_mut()
@@ -192,7 +183,7 @@ fn esc_in_non_modal_dialog_does_nothing() {
 #[test]
 fn prevent_default_on_cancel_keeps_modal_dialog_open() {
     let (mut app, dlg) = dialog_app();
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     app.dom_mut()
         .add_event_listener(dlg, "cancel", ListenerOptions::default(), |ctx| {
             ctx.event.prevent_default();
@@ -206,7 +197,7 @@ fn prevent_default_on_cancel_keeps_modal_dialog_open() {
 #[test]
 fn esc_with_modifier_does_not_trigger_cancel() {
     let (mut app, dlg) = dialog_app();
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     app.dom_mut().set_focused(Some(dlg));
     app.handle_event(CtEvent::Key(KeyEvent::new(
         KeyCode::Esc,
@@ -236,7 +227,7 @@ fn esc_on_focused_element_inside_modal_dialog_closes_dialog() {
     dom.append_child(dlg, inner).unwrap();
     dom.append_child(root, dlg).unwrap();
     let mut app = test_app(dom, Stylesheet::new());
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     app.dom_mut().set_focused(Some(inner));
     app.handle_event(key(KeyCode::Esc));
     assert!(!app.dom().node(dlg).has_attribute("open"));
@@ -265,7 +256,7 @@ fn form_method_dialog_submit_closes_enclosing_dialog_with_button_value() {
             .height(Size::Fixed(1)),
     );
     let mut app = test_app(dom, sheet);
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     app.draw_if_dirty().unwrap();
 
     // The modal dialog is centred in the viewport (UA `dialog:modal`).
@@ -302,7 +293,7 @@ fn form_method_dialog_submit_does_not_close_if_submit_handler_prevents() {
             ctx.event.prevent_default();
         })
         .unwrap();
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     app.draw_if_dirty().unwrap();
 
     for ev in click_on(&app, btn) {
@@ -333,7 +324,7 @@ fn submitter_formmethod_overrides_the_forms_method_for_dialog_close() {
         dom.append_child(dlg, form).unwrap();
         dom.append_child(root, dlg).unwrap();
         let mut app = test_app(dom, Stylesheet::new());
-        dialog::show_modal(app.dom_mut(), dlg);
+        dialog::show_modal(app.dom_mut(), dlg).unwrap();
         app.draw_if_dirty().unwrap();
 
         app.dom_mut().node_mut(btn).click();
@@ -372,7 +363,7 @@ fn form_with_method_get_does_not_close_dialog_on_submit() {
             .height(Size::Fixed(1)),
     );
     let mut app = test_app(dom, sheet);
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     app.draw_if_dirty().unwrap();
 
     for ev in click_on(&app, btn) {
@@ -411,7 +402,7 @@ fn dialog_show_and_close_fire_toggle_events_with_typed_state_transitions() {
             .unwrap();
     }
 
-    dialog::show(app.dom_mut(), dlg);
+    dialog::show(app.dom_mut(), dlg).unwrap();
     dialog::close(app.dom_mut(), dlg, "");
 
     assert_eq!(
@@ -443,7 +434,7 @@ fn dialog_show_modal_fires_toggle_event_closed_to_open() {
             .unwrap();
     }
 
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
 
     assert_eq!(
         captured.get(),
@@ -453,8 +444,8 @@ fn dialog_show_modal_fires_toggle_event_closed_to_open() {
 
 #[test]
 fn dialog_show_on_already_open_does_not_refire_toggle() {
-    // Calling show() / show_modal() on an already-open dialog is
-    // idempotent — no state change, no toggle event.
+    // Calling show() on an already-open dialog is idempotent, and
+    // show_modal() on one is refused — no state change, no toggle event.
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let dlg = dom.create_element("dialog");
@@ -471,9 +462,10 @@ fn dialog_show_on_already_open_does_not_refire_toggle() {
             .unwrap();
     }
 
-    dialog::show(app.dom_mut(), dlg);
-    dialog::show(app.dom_mut(), dlg); // already open — no event
-    dialog::show_modal(app.dom_mut(), dlg); // also no event (still open)
+    dialog::show(app.dom_mut(), dlg).unwrap();
+    dialog::show(app.dom_mut(), dlg).unwrap(); // already open — no event
+    // HTML §4.11.4 step 2: showModal() on an open dialog throws, no event.
+    assert!(dialog::show_modal(app.dom_mut(), dlg).is_err());
     assert_eq!(count.get(), 1);
 }
 
@@ -503,7 +495,7 @@ fn show_modal_focuses_first_descendant_and_close_restores_focus() {
     let (mut app, dlg, outside, first, _) = modal_fixture();
     app.draw_if_dirty().unwrap();
     app.dom_mut().set_focused(Some(outside));
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     app.draw_if_dirty().unwrap();
     assert_eq!(
         app.dom().focused(),
@@ -524,7 +516,7 @@ fn show_modal_focuses_first_descendant_and_close_restores_focus() {
 fn tab_is_trapped_inside_an_open_modal_dialog() {
     let (mut app, dlg, outside, first, second) = modal_fixture();
     app.draw_if_dirty().unwrap();
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     app.draw_if_dirty().unwrap();
     assert_eq!(app.dom().focused(), Some(first));
     app.handle_event(key(KeyCode::Tab));
@@ -545,7 +537,7 @@ fn tab_is_trapped_inside_an_open_modal_dialog() {
 fn esc_cancels_the_open_modal_regardless_of_focus_location() {
     let (mut app, dlg, outside, _, _) = modal_fixture();
     app.draw_if_dirty().unwrap();
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     app.draw_if_dirty().unwrap();
     // Force focus elsewhere (a consumer calling focus() directly).
     app.dom_mut().set_focused(Some(outside));
@@ -564,10 +556,80 @@ fn close_does_not_focus_a_previously_focused_element_that_is_no_longer_focusable
     let (mut app, dlg, outside, _, _) = modal_fixture();
     app.draw_if_dirty().unwrap();
     app.dom_mut().set_focused(Some(outside));
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     app.dom_mut()
         .set_attribute(outside, "disabled", "")
         .unwrap();
     dialog::close(app.dom_mut(), dlg, "");
     assert_ne!(app.dom().focused(), Some(outside));
+}
+
+// ── HTML §4.11.4's guards ──────────────────────────────────────────
+
+/// "Show a modal dialog" step 1: `showModal()` on a dialog that is
+/// already modal returns — it is not moved to the top of the top layer,
+/// so a modal dialog above it keeps the page (and it) inert.
+#[test]
+fn show_modal_on_a_modal_dialog_does_nothing() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let a = dom.create_element("dialog");
+    let b = dom.create_element("dialog");
+    dom.append_child(root, a).unwrap();
+    dom.append_child(root, b).unwrap();
+    dialog::show_modal(&mut dom, a).unwrap();
+    dialog::show_modal(&mut dom, b).unwrap();
+    dialog::show_modal(&mut dom, a).unwrap();
+    assert_eq!(dom.top_layer(), [a, b]);
+    assert_eq!(dialog::top_modal(&dom), Some(b));
+}
+
+/// "Show a modal dialog" steps 2, 4 and 5: an open non-modal dialog, a
+/// disconnected one and one showing as a popover throw
+/// `InvalidStateError` — and stay as they were.
+#[test]
+fn show_modal_throws_on_an_open_disconnected_or_popover_dialog() {
+    use rdom_core::{DomError, TopLayerKind};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let open = dom.create_element("dialog");
+    dom.append_child(root, open).unwrap();
+    dialog::show(&mut dom, open).unwrap();
+    assert!(matches!(
+        dialog::show_modal(&mut dom, open),
+        Err(DomError::InvalidState(_))
+    ));
+    assert!(!dialog::is_modal(&dom, open));
+
+    let loose = dom.create_element("dialog");
+    assert!(matches!(
+        dialog::show_modal(&mut dom, loose),
+        Err(DomError::InvalidState(_))
+    ));
+    assert!(!dom.node(loose).has_attribute("open"));
+
+    let pop = dom.create_element("dialog");
+    dom.set_attribute(pop, "popover", "manual").unwrap();
+    dom.append_child(root, pop).unwrap();
+    crate::runtime::builtins::popover::show_popover(&mut dom, pop).unwrap();
+    assert!(matches!(
+        dialog::show_modal(&mut dom, pop),
+        Err(DomError::InvalidState(_))
+    ));
+    assert_eq!(dom.top_layer_kind(pop), Some(TopLayerKind::Popover));
+}
+
+/// `show()` steps 1–2: on an open non-modal dialog it returns; on a modal
+/// one it throws `InvalidStateError` (it no longer turns a modal dialog
+/// non-modal).
+#[test]
+fn show_on_a_modal_dialog_throws() {
+    use rdom_core::DomError;
+    let (mut app, dlg) = dialog_app();
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
+    assert!(matches!(
+        dialog::show(app.dom_mut(), dlg),
+        Err(DomError::InvalidState(_))
+    ));
+    assert!(dialog::is_modal(app.dom(), dlg));
 }

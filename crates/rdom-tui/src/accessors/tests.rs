@@ -1091,7 +1091,7 @@ fn dialog_form(method_on_form: bool) -> (TuiDom, NodeId, NodeId, NodeId) {
         dom.set_attribute(button, "formmethod", "dialog").unwrap();
     }
     dom.append_child(form, button).unwrap();
-    crate::runtime::builtins::dialog::show(&mut dom, dialog);
+    crate::runtime::builtins::dialog::show(&mut dom, dialog).unwrap();
     (dom, dialog, form, button)
 }
 

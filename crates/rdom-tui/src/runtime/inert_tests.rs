@@ -97,7 +97,7 @@ fn a_modal_dialog_with_no_focusable_content_takes_the_focus() {
     let clicks = count_clicks(&mut dom, del);
     let mut app = app(dom);
     focus_node(app.dom_mut(), Some(del));
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     assert_eq!(app.dom().focused(), Some(dlg), "the dialog is focused");
     app.draw_if_dirty().unwrap();
     press(&mut app, KeyCode::Enter);
@@ -115,7 +115,7 @@ fn focus_refuses_an_element_a_modal_dialog_made_inert() {
     let dlg = el(&mut dom, root, "dialog");
     let inside = button(&mut dom, dlg, "in");
     let mut app = app(dom);
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     app.draw_if_dirty().unwrap();
     assert_eq!(app.dom().focused(), Some(inside));
     focus_node(app.dom_mut(), Some(outside));
@@ -143,7 +143,7 @@ fn an_unrendered_modal_dialog_still_makes_the_page_inert() {
     let mut app = app(dom);
     focus_node(app.dom_mut(), Some(outside));
     let at = centre(&app, outside);
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     app.draw_if_dirty().unwrap();
     assert_eq!(app.dom().hit_test(at.0, at.1), None, "nothing is hit");
     click(&mut app, at);
@@ -167,7 +167,7 @@ fn a_popover_above_a_modal_dialog_is_inert_unless_inside_it() {
     let outer_btn = button(&mut dom, outer, "outer");
     let outer_clicks = count_clicks(&mut dom, outer_btn);
     let mut app = app(dom);
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     popover::show_popover(app.dom_mut(), outer).unwrap();
     app.draw_if_dirty().unwrap();
     let at = centre(&app, outer_btn);

@@ -72,7 +72,7 @@ fn a_closing_dialog_returns_focus_without_scrolling() {
     dom.layout_dom(Rect::new(0, 0, 20, 8));
     dom.node_mut(b[8]).focus();
     assert_eq!(dom.node(s).scroll_top(), Some(6));
-    crate::runtime::builtins::dialog::show_modal(&mut dom, dialog);
+    crate::runtime::builtins::dialog::show_modal(&mut dom, dialog).unwrap();
     dom.node_mut(s).set_scroll(0, 0);
     dom.layout_dom(Rect::new(0, 0, 20, 8));
     crate::runtime::builtins::dialog::close(&mut dom, dialog, "");

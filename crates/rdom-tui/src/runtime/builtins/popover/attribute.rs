@@ -49,8 +49,14 @@ impl PopoverAttributes {
 
     /// Hide the recorded popovers that still show: "hide popover
     /// algorithm" with focus restored, events fired, no exception, and
-    /// the attribute's state ignored.
+    /// the attribute's state ignored. Then run the removing steps of the
+    /// popovers the tree removed (`algorithms::flush_removed`).
     pub(crate) fn flush(&self, dom: &mut TuiDom) {
+        self.flush_attributes(dom);
+        algorithms::flush_removed(dom);
+    }
+
+    fn flush_attributes(&self, dom: &mut TuiDom) {
         let queued = std::mem::take(&mut *self.pending.borrow_mut());
         for id in queued {
             if dom.contains(id) && is_showing(dom, id) {

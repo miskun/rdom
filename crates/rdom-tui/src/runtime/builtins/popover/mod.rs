@@ -15,13 +15,21 @@
 //! - **Events** — `beforetoggle` before a change (cancelable when
 //!   showing), `toggle` after, both non-bubbling with
 //!   `EventDetail::Toggle` (old / new state, the invoking source);
-//!   dispatched synchronously (DIVERGENCES §2).
+//!   dispatched synchronously, inside the algorithm (DIVERGENCES §2).
+//! - **No re-entry** — while a popover shows or hides, showing another is
+//!   refused (`DomError::InvalidState` from [`show_popover`]; HTML's
+//!   "showing popover" and "hiding popover nesting count"), so listeners
+//!   cannot make the stack walks loop.
 //! - **Stacks** — showing an `auto` popover hides the auto popovers that
 //!   are not its ancestors (through the DOM or through its invoker) and
 //!   every `hint`; a `hint` opens above the auto stack and hides the other
-//!   hints; hiding a popover hides the ones nested above it first.
-//!   `manual` popovers stand alone. The stacks are the top layer's
-//!   popovers by the mode each was shown in (`algorithms`).
+//!   hints (an `auto` popover inside a hint is a hint); hiding a popover
+//!   hides the ones above it first. `manual` popovers stand alone. The
+//!   stacks are the showing popovers by the mode each was opened in
+//!   (`algorithms`), walked by `stack`.
+//! - **Removal** — a removed popover hides the popovers above it, with no
+//!   events, at the `App`'s next event or frame (HTML's removing steps;
+//!   rdom-core takes it out of the top layer at once).
 //! - **Focus** — showing runs the popover focusing steps (the
 //!   `[autofocus]` element, or a `<dialog>`'s focusing steps); hiding an
 //!   auto or hint popover that holds the focus returns it to the element
@@ -48,6 +56,8 @@ mod algorithms;
 pub(crate) mod attribute;
 mod invoker;
 pub(crate) mod light_dismiss;
+mod stack;
+mod state;
 
 pub use light_dismiss::topmost_close_watcher;
 
@@ -142,21 +152,20 @@ pub fn toggle_popover(
     Ok(is_showing(dom, id))
 }
 
-/// HTML §4.11.4 `showModal()`'s popover steps: hide every auto and hint
-/// popover that is not an ancestor of the dialog `id` about to be modal
-/// (the topmost one holding it, hint then auto, bounds the hiding).
+/// HTML §4.11.4's popover steps of `show()` and `showModal()`: "let
+/// hideUntil be the topmost popover ancestor given the dialog, null and
+/// false; hide popovers until hideUntil, false, true" — every auto and
+/// hint popover not holding the dialog `id` hides.
 pub(crate) fn hide_unrelated_to(dom: &mut TuiDom, id: NodeId) {
-    let hint = algorithms::showing_list(dom, PopoverState::Hint);
-    let auto = algorithms::showing_list(dom, PopoverState::Auto);
-    let until = algorithms::topmost_popover_ancestor(dom, id, &hint, None, false)
-        .or_else(|| algorithms::topmost_popover_ancestor(dom, id, &auto, None, false));
-    algorithms::hide_all_until(dom, until, false, true);
+    let until = stack::topmost_popover_ancestor(dom, id, None, false);
+    stack::hide_popovers_until(dom, until, false, true);
 }
 
 /// The element that invoked `id`'s showing popover — its `popovertarget`
-/// button or the `showPopover()` source — while it shows.
+/// button or the `showPopover()` source (HTML's "popover trigger") —
+/// while it shows.
 pub fn invoker_of(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
-    algorithms::invoker_of(dom, id)
+    state::trigger_of(dom, id)
 }
 
 /// Install the popover default actions: a root-level `click` listener

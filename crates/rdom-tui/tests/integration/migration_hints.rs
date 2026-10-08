@@ -1254,3 +1254,26 @@ fn generated_box_read_hints() {
         style::counters::apply_descriptor(&mut rule, "colour", &[]).unwrap_err();
     assert_eq!(d, style::counters::DescriptorError::Unknown);
 }
+
+/// C11G-POPOVER-BOUND: `runtime::builtins::dialog::show` / `show_modal`
+/// return a `Result` — HTML's `InvalidStateError` cases are
+/// `DomError::InvalidState` (`show` on a modal dialog; `show_modal` on an
+/// open, disconnected or popover-showing one). Add `?`, or `.ok()` where
+/// the dialog is known to be closed and connected.
+#[test]
+fn dialog_show_hints() {
+    use runtime::builtins::dialog;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("dialog");
+    dom.append_child(root, d).unwrap();
+    dialog::show_modal(&mut dom, d).unwrap();
+    dialog::show_modal(&mut dom, d).unwrap(); // already modal: nothing to do
+    assert!(matches!(
+        dialog::show(&mut dom, d),
+        Err(DomError::InvalidState(_))
+    ));
+    dialog::close(&mut dom, d, "");
+    let loose = dom.create_element("dialog");
+    assert!(dialog::show_modal(&mut dom, loose).is_err());
+}

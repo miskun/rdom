@@ -118,7 +118,7 @@ fn dialog_show_modal_focuses_autofocus_descendant() {
     dom.append_child(root, dlg).unwrap();
     let mut app = test_app(dom);
 
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     assert_eq!(app.dom().focused(), Some(btn));
 }
 
@@ -140,7 +140,7 @@ fn dialog_show_modal_without_autofocus_descendant_focuses_first_focusable() {
     app.dom_mut().append_child(root_id, other).unwrap();
     app.dom_mut().set_focused(Some(other));
 
-    dialog::show_modal(app.dom_mut(), dlg);
+    dialog::show_modal(app.dom_mut(), dlg).unwrap();
     assert_eq!(app.dom().focused(), Some(btn));
 }
 

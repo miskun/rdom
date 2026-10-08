@@ -7263,3 +7263,44 @@ row comes from.
   check in `is_unselectable` → `inert_text_is_not_selectable` (added for it); no subtree pruning in the
   descent → the `inert` subtree test; no `change_focus` guard → the `focus_node` test. No existing
   expectation changed.
+- 2026-10-14 — C11G-POPOVER-BOUND (architect B2, N5, N6; API N2). Found: `close_entire_list` and
+  `hide_stack_until` looped while their list was non-empty, so two auto popovers whose closing
+  `beforetoggle` listeners show each other hung the App (reproduced through light dismiss: the cap in the
+  test's listener tripped) — the C11-MODAL-POPOVER log's "the walk always ends" was wrong. Decided —
+  follow the current HTML text (Living Standard of 2026-10-07), which has changed since C11-MODAL-POPOVER
+  was written: show popover step 2 refuses a show while the document's *showing popover* flag is set or
+  its *hiding popover nesting count* is non-zero; "hide popover stack until" (which replaces "close entire
+  popover list") hides a slice of the list fixed at its start, top down, then one pass with `fireEvents`
+  false over whatever is not in the remaining slice; "hide popovers until" keeps a hint endpoint's *hint
+  stack parent*; "topmost popover ancestor" is the last popover of the auto list then the hint list that
+  holds the new popover or its source, and an auto popover under a hint ancestor is *downgraded* to a hint
+  (15.2) — replacing the old step-12 rule. `popover/algorithms.rs` (523 lines) is split: `algorithms.rs`
+  (407) keeps validity, show / hide and the removing steps, `state.rs` (118) the per-element and
+  per-document state, `stack.rs` (144) the walks. The flags are reset
+  on every path, a panicking listener included (`guarded`: catch, clean up, re-raise). Because rdom fires
+  `toggle` synchronously inside the algorithm, a `toggle` listener cannot show a popover either — written
+  into DIVERGENCES §2 with the timer recipe. The stale ancestor (architect N6): the spec computes the
+  ancestor once, before hiding the hints, as the gate's text proposed the opposite of — but under the new
+  walk an endpoint no longer in the list gives `lastHideIndex` 0, so a hint listener that hid the ancestor
+  leaves no unrelated auto popover showing, which was the bug; pinned. The removing steps: rdom-core drops a
+  removed popover from the top layer at once, and an observer may not run the walk, so the popover state
+  keeps each auto / hint popover's place in its list until `flush_removed` (with the attribute change
+  steps, at the `App`'s next event or frame) runs "hide popover" for it — no focus, no events — hiding the
+  popovers above it (nested through an invoker or not) and dropping every map entry of a popover that no
+  longer shows (the maps were never pruned). Hide's events carry the invoker as `source` (the activation
+  passes the button). `dialog::show` / `show_modal` return `Result` with HTML §4.11.4's guards: a modal
+  dialog's `showModal()` returns at once (it was moved to the top, making the dialog above it inert); an
+  open non-modal, a disconnected or a popover-showing dialog is `InvalidState` (the last silently swapped
+  the top-layer kind); `show()` on a modal dialog is `InvalidState` (it made it non-modal), and `show()` now
+  runs its steps 7–10 — previous focus, hiding unrelated popovers, the dialog focusing steps. Not done: a
+  dialog's `beforetoggle` (HTML's newer show steps), written into DIVERGENCES §2. Red: the five popover
+  tests failed (both ping-pongs: "nothing reopened" and "did not terminate"; the nested show was allowed;
+  the stale ancestor left `m1`; the removed popover's nested one stayed; 50 entries tracked after churn);
+  the dialog guards were red as compile errors (`()` returned). Green after. Changed expectations:
+  `show_after_show_modal_clears_modal_marker` is removed (HTML throws; replaced by
+  `show_on_a_modal_dialog_throws`); `dialog_show_on_already_open_does_not_refire_toggle` asserts the
+  refusal; `esc_closes_popovers_and_modal_dialogs_in_order` closes the dialog before its second
+  `showModal()` (step 1 makes a repeat a no-op). Mutations (each alone, restored, touched): no step-2 guard →
+  both direct ping-pong / nested-show tests (light dismiss alone stays bounded by the slice); no cleanup on
+  a panic and no removal flush (two disjoint mutations in one run) → the panic test, and the removal and
+  churn tests.

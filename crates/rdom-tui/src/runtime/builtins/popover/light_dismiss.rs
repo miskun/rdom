@@ -18,8 +18,10 @@
 
 use rdom_core::{NodeId, TopLayerKind};
 
-use super::algorithms::{self, Hide, hide_all_until, nearest_inclusive_open_popover, showing_list};
+use super::algorithms::{self, Hide};
 use super::invoker::popover_target;
+use super::stack::{hide_popovers_until, nearest_inclusive_open_popover, topmost_auto_or_hint};
+use super::state::{self, showing_list};
 use super::{PopoverState, is_showing, popover_state};
 use crate::TuiDom;
 
@@ -27,9 +29,9 @@ use crate::TuiDom;
 #[derive(Debug, Default)]
 struct PointerDown(Option<NodeId>);
 
+/// Step 4: nothing to do without a showing auto or hint popover.
 fn any_light_dismissable(dom: &TuiDom) -> bool {
-    !showing_list(dom, PopoverState::Auto).is_empty()
-        || !showing_list(dom, PopoverState::Hint).is_empty()
+    topmost_auto_or_hint(dom).is_some()
 }
 
 /// A press at `target` (`None`: on nothing).
@@ -52,7 +54,7 @@ pub(crate) fn pointer_up(dom: &mut TuiDom, target: Option<NodeId>) -> bool {
         return false;
     }
     let before = dom.top_layer().len();
-    hide_all_until(dom, ancestor, false, true);
+    hide_popovers_until(dom, ancestor, false, true);
     dom.top_layer().len() != before
 }
 
@@ -112,7 +114,7 @@ pub fn topmost_close_watcher(dom: &TuiDom) -> Option<NodeId> {
         .find(|&id| match dom.top_layer_kind(id) {
             Some(TopLayerKind::ModalDialog) => true,
             Some(TopLayerKind::Popover) => matches!(
-                algorithms::opened_mode(dom, id),
+                state::opened_mode(dom, id),
                 Some(PopoverState::Auto | PopoverState::Hint)
             ),
             _ => false,

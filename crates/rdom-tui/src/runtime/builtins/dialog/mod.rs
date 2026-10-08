@@ -5,7 +5,8 @@
 //! - `<dialog>` is hidden when the `open` attribute is absent;
 //!   visible when present (UA stylesheet flips display).
 //! - Methods: `show()` opens non-modally, `showModal()` opens
-//!   modally. Both add the `open` attribute. A modal dialog is in the
+//!   modally. Both add the `open` attribute, and both return
+//!   `DomError::InvalidState` where HTML throws `InvalidStateError`. A modal dialog is in the
 //!   document's top layer as `TopLayerKind::ModalDialog` (rdom-core's
 //!   `Dom::top_layer`) — what `:modal` matches, what renders it above
 //!   everything with its `::backdrop`, and what makes the rest of the
@@ -44,47 +45,87 @@ use crate::{TuiDom, TuiEvent};
 /// calls. Mirrors the HTML `dialog.returnValue` IDL property.
 const RETURN_VALUE_ATTR: &str = "data-rdom-return-value";
 
-/// Open the dialog non-modally. Idempotent — calling on an
-/// already-open dialog clears the modal marker (matches the HTML
-/// behavior of `show()` after `showModal()`) and does NOT
-/// re-fire the `toggle` event.
-pub fn show(dom: &mut TuiDom, dialog: NodeId) {
-    let was_open = dom.node(dialog).has_attribute("open");
-    let _ = dom.set_attribute(dialog, "open", "");
-    remove_modal(dom, dialog);
-    if !was_open {
-        fire_toggle(dom, dialog, rdom_core::ToggleState::Closed);
+/// `show()` (HTML §4.11.4): open the dialog non-modally. On a dialog
+/// already open non-modally it does nothing; on a modal one it is
+/// `DomError::InvalidState` (step 2). Otherwise it adds `open` (firing
+/// `toggle`), remembers the previously focused element for `close()`,
+/// hides the auto and hint popovers that do not hold the dialog, and runs
+/// the dialog focusing steps.
+pub fn show(dom: &mut TuiDom, dialog: NodeId) -> rdom_core::Result<()> {
+    // Steps 1–2.
+    if dom.node(dialog).has_attribute("open") {
+        if is_modal(dom, dialog) {
+            return Err(rdom_core::DomError::InvalidState(
+                "show: the dialog is open as a modal dialog",
+            ));
+        }
+        return Ok(());
     }
+    // Steps 6–7 (the `toggle` fires synchronously: DIVERGENCES §2).
+    dom.set_attribute(dialog, "open", "")?;
+    fire_toggle(dom, dialog, rdom_core::ToggleState::Closed);
+    // Step 8.
+    remember_previous_focus(dom, dialog);
+    // Steps 9–11.
+    crate::runtime::builtins::popover::hide_unrelated_to(dom, dialog);
+    // Step 12.
+    focusing_steps(dom, dialog);
+    Ok(())
 }
 
-/// Open the dialog modally (HTML §4.11.4 `showModal()`): marks the
-/// dialog as modal, remembers the previously focused element for
-/// `close()`, runs the dialog focusing steps, and — while it stays
-/// open — scopes Tab / Shift-Tab to the dialog and lets Esc cancel it
-/// wherever focus sits. Pointer events outside are not blocked.
+/// `showModal()` (HTML §4.11.4 "show a modal dialog"): marks the dialog
+/// modal in the top layer — the rest of the document inert (`Dom::is_inert`:
+/// Tab, focus, keys and the pointer stay inside it, Esc cancels it
+/// wherever focus sits) — remembers the previously focused element for
+/// `close()`, hides the auto and hint popovers that do not hold it, and
+/// runs the dialog focusing steps.
 ///
-/// Polish #5: if the dialog's subtree contains an element with
-/// `[autofocus]`, focus transfers to the first such element in
-/// document order. Matches MDN's modal-dialog focus behavior.
-pub fn show_modal(dom: &mut TuiDom, dialog: NodeId) {
-    let was_open = dom.node(dialog).has_attribute("open");
-    // Remember where focus was so `close()` can return it (HTML's
-    // "previously focused element"), unless it was already inside.
+/// HTML's guards: a dialog already modal is left as it is (step 1 — it
+/// does not move to the top); an open non-modal dialog (step 2), a
+/// disconnected one (step 4) and one showing as a popover (step 5) are
+/// `DomError::InvalidState`.
+///
+/// If the dialog's subtree contains an element with `[autofocus]`, focus
+/// moves to the first such element in document order.
+pub fn show_modal(dom: &mut TuiDom, dialog: NodeId) -> rdom_core::Result<()> {
+    use rdom_core::DomError::InvalidState;
+    let open = dom.node(dialog).has_attribute("open");
+    // Steps 1–5.
+    if open && is_modal(dom, dialog) {
+        return Ok(());
+    }
+    if open {
+        return Err(InvalidState("showModal: the dialog is already open"));
+    }
+    if !dom.contains(dialog) || !dom.node(dialog).is_connected() {
+        return Err(InvalidState("showModal: the dialog is not connected"));
+    }
+    if crate::runtime::builtins::popover::is_showing(dom, dialog) {
+        return Err(InvalidState(
+            "showModal: the dialog is showing as a popover",
+        ));
+    }
+    // Steps 11–15: `open`, "is modal", blocked by it, the top layer.
+    dom.set_attribute(dialog, "open", "")?;
+    dom.add_to_top_layer(dialog, rdom_core::TopLayerKind::ModalDialog)?;
+    // Step 10 (synchronously: DIVERGENCES §2).
+    fire_toggle(dom, dialog, rdom_core::ToggleState::Closed);
+    // Step 16.
+    remember_previous_focus(dom, dialog);
+    // Steps 17–19.
+    crate::runtime::builtins::popover::hide_unrelated_to(dom, dialog);
+    // Step 20.
+    focusing_steps(dom, dialog);
+    Ok(())
+}
+
+/// HTML's "previously focused element" of a dialog being shown — the
+/// focus, unless it is already inside — for `close()` to return to.
+fn remember_previous_focus(dom: &mut TuiDom, dialog: NodeId) {
     let previous = dom.focused().filter(|&f| !is_inside(dom, f, dialog));
     if let Some(ext) = dom.node_mut(dialog).ext_mut() {
         ext.dialog_return_focus = previous;
     }
-    // HTML §4.11.4 showModal(): the auto and hint popovers that do not
-    // hold the dialog are hidden.
-    crate::runtime::builtins::popover::hide_unrelated_to(dom, dialog);
-    let _ = dom.set_attribute(dialog, "open", "");
-    // HTML §4.11.4 showModal(): "add an element to the top layer" — a
-    // disconnected dialog opens but cannot be modal.
-    let _ = dom.add_to_top_layer(dialog, rdom_core::TopLayerKind::ModalDialog);
-    if !was_open {
-        fire_toggle(dom, dialog, rdom_core::ToggleState::Closed);
-    }
-    focusing_steps(dom, dialog);
 }
 
 /// The dialog focusing steps (HTML §4.11.4): the first `[autofocus]`
@@ -148,7 +189,8 @@ pub fn top_modal(dom: &TuiDom) -> Option<NodeId> {
     dom.blocking_modal()
 }
 
-/// Take a modal dialog out of the top layer (no-op for any other).
+/// Take a modal dialog out of the top layer (no-op for any other): the
+/// close steps' "remove an element from the top layer".
 fn remove_modal(dom: &mut TuiDom, dialog: NodeId) {
     if dom.top_layer_kind(dialog) == Some(rdom_core::TopLayerKind::ModalDialog) {
         dom.remove_from_top_layer(dialog);
