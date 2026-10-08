@@ -160,7 +160,7 @@ fn diff(
         }
         // Keep the cascaded styles for the next pass.
         if let Some(ext) = dom.node_mut(id).ext_mut() {
-            if let Some(curr) = ext.cascaded_for(StyleSlot::Host).cloned() {
+            if let Some(curr) = ext.base_computed_for(StyleSlot::Host).cloned() {
                 ext.computed_prev = Some(curr);
             }
             ext.snapshot_pseudo_prev();
@@ -245,7 +245,7 @@ pub fn settle_restyled(dom: &mut Dom<TuiExt>, roots: &[NodeId]) {
         }
         for id in collect_element_ids(dom, root) {
             if let Some(ext) = dom.node_mut(id).ext_mut() {
-                ext.computed_prev = ext.cascaded_for(StyleSlot::Host).cloned();
+                ext.computed_prev = ext.base_computed_for(StyleSlot::Host).cloned();
                 ext.snapshot_pseudo_prev();
             }
         }
@@ -267,7 +267,7 @@ fn snapshot(
         StyleSlot::After => ext.computed_after_prev(),
         _ => None,
     };
-    let curr = ext.cascaded_for(slot)?;
+    let curr = ext.base_computed_for(slot)?;
     if prev.is_some_and(|p| Rc::ptr_eq(p, curr)) {
         return None;
     }
@@ -285,7 +285,7 @@ fn stopped_generating(dom: &Dom<TuiExt>, id: NodeId, slot: StyleSlot) -> bool {
         StyleSlot::After => ext.computed_after_prev(),
         _ => None,
     };
-    prev.is_some() && ext.cascaded_for(slot).is_none()
+    prev.is_some() && ext.base_computed_for(slot).is_none()
 }
 
 /// Update the CSS animations of `(id, slot)` when its style, the sheets
@@ -307,7 +307,7 @@ fn update_css(
         return;
     };
     let style = ext
-        .cascaded_for(slot)
+        .base_computed_for(slot)
         .filter(|s| rendered && s.display != crate::layout::Display::None);
     let wants = style.is_some_and(|s| !s.animation_name.is_empty());
     if !(animated || wants) || !changed {
@@ -331,7 +331,7 @@ fn is_rendered(dom: &Dom<TuiExt>, ids: &[NodeId]) -> std::collections::HashMap<N
     rendered(dom, ids, |dom, id| {
         dom.node(id)
             .ext()
-            .and_then(|e| e.cascaded_for(StyleSlot::Host))
+            .and_then(|e| e.base_computed_for(StyleSlot::Host))
             .is_some_and(|c| c.display != crate::layout::Display::None)
     })
 }

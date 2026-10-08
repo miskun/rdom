@@ -18,7 +18,7 @@ pub(crate) fn request_removal(dom: &mut TuiDom, id: NodeId) {
     let keeps = dom
         .node(id)
         .ext()
-        .and_then(|e| e.cascaded_for(crate::ext::StyleSlot::Host))
+        .and_then(|e| e.base_computed_for(crate::ext::StyleSlot::Host))
         .is_some_and(|style| crate::runtime::animation::transitions_discretely(style, "overlay"));
     if keeps {
         dom.request_remove_from_top_layer(id);

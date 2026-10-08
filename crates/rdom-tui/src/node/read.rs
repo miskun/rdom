@@ -134,15 +134,31 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
         self.tui_ext().map(|e| e.content_layout)
     }
 
-    /// The post-cascade computed style for this element. `None` until
-    /// the cascade has run at least once. Prefer `computed_or_initial`
-    /// for code paths that need a concrete value unconditionally.
+    /// The computed style for this element, with its running
+    /// transitions' and CSS animations' values at the last frame (what
+    /// `getComputedStyle` reads mid-flight; Web Animations 1 §5.4.5).
+    /// `None` until the cascade has run at least once. Prefer
+    /// `computed_or_initial` for code paths that need a concrete value
+    /// unconditionally, and [`base_computed`](Self::base_computed) for
+    /// the style without the running values.
     fn computed(&self) -> Option<&'a ComputedStyle> {
         self.tui_ext().and_then(|e| e.computed.as_deref())
     }
 
-    /// The computed style as a shared handle — an `Rc` clone instead of
-    /// a deep copy, for the layout and paint paths that need an owned
+    /// The element's base computed style: the cascade's, without its
+    /// running transitions' and CSS animations' values — the *base
+    /// value* under Web Animations 1 §5.4.5's effect stack (a
+    /// transition's end value mid-flight). The same style as
+    /// [`computed`](Self::computed) while nothing runs; `None` exactly
+    /// when it is (`TuiExt::base_computed_for`).
+    fn base_computed(&self) -> Option<&'a ComputedStyle> {
+        self.tui_ext()
+            .and_then(|e| e.base_computed_for(crate::ext::StyleSlot::Host))
+            .map(|rc| &**rc)
+    }
+
+    /// The computed style (with the running values, as `computed`) as a
+    /// shared handle — an `Rc` clone instead of a deep copy, for the layout and paint paths that need an owned
     /// value while they mutate the arena. `None` until the cascade ran.
     fn computed_rc(&self) -> Option<std::rc::Rc<ComputedStyle>> {
         self.tui_ext().and_then(|e| e.computed.clone())

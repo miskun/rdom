@@ -195,7 +195,9 @@ fn first_row(app: &App<TestBackend>) -> String {
 fn after_style(app: &App<TestBackend>, id: NodeId) -> bool {
     let ext = app.dom().node(id).ext().unwrap();
     ext.computed_for(crate::ext::StyleSlot::After).is_some()
-        || ext.cascaded_for(crate::ext::StyleSlot::After).is_some()
+        || ext
+            .base_computed_for(crate::ext::StyleSlot::After)
+            .is_some()
 }
 
 /// CSS Animations 1 §4.1 / CSS Pseudo-Elements 4 §2: a `::after` that

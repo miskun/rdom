@@ -11,7 +11,7 @@
 //! [`TuiExt::computed_for`] — and a `height` transition grows the box
 //! frame by frame as a `color` transition recolors it. The cascade's own
 //! style (the *after-change style*) is kept beside it
-//! ([`TuiExt::cascaded_for`]); the next style change is compared with
+//! ([`TuiExt::base_computed_for`]); the next style change is compared with
 //! that. How each longhand interpolates is `rdom_style::animation`.
 //!
 //! Cost: a page with no running transition or animation does nothing
@@ -416,7 +416,7 @@ impl AnimationRegistry {
         let style = if running.is_empty() && css.is_empty() {
             None
         } else {
-            let Some(base) = ext.cascaded_for(slot) else {
+            let Some(base) = ext.base_computed_for(slot) else {
                 return false;
             };
             let mut style = (**base).clone();

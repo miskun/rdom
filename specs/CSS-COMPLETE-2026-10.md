@@ -8270,3 +8270,15 @@ row comes from.
   (transitions first at one time, as Web Animations 1 §4.4's composite order puts them); rewritten to
   the divergence that remains — transitions tied at one time keep their creation order, not tree
   order then property name.
+- 2026-10-08 — C12G-COMPUTED-DOCS (API N1; Web Animations 1 §5.4.5, CSS Transitions 1 §3). The docs where
+  consumers read — `TuiExt::computed`, `computed_for`, `node.computed()` / `computed_rc()` — now say the
+  value holds the running transitions' and CSS animations' values at the last frame (mid-flight a
+  `height: 2 → 10` transition reads 6), and point to the style without them. Decided on the name: CSS
+  Cascade's "cascaded value" is the pre-computed winning declaration, so the accessor is named for Web
+  Animations' *base value* — `TuiExt::cascaded_for` → `base_computed_for` (its doc: "transitions and
+  CSS animations", not just transitions), `PresentationStyle::cascaded()` → `base()`, and the node
+  handle gains `TuiNodeExt::base_computed()` (the host slot). Both were added after 0.5, so the rename
+  is a row in the API table's post-0.5 section, not a Breaking bullet. Red:
+  `geometry_transition_tests::base_computed_is_the_style_under_the_running_values` did not compile (no
+  `base_computed`); green after — mid-flight `computed` height / width 6 / 6 (a transition and an
+  animation), the base 10 / `auto`; after both end the two are one style.

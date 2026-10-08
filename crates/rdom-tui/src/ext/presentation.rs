@@ -147,7 +147,10 @@ impl TuiExt {
     }
 
     /// The computed style of `slot`: the element's own, or one of its
-    /// pseudo-elements' ([`computed_pseudo`](Self::computed_pseudo)).
+    /// pseudo-elements' ([`computed_pseudo`](Self::computed_pseudo)) —
+    /// with the running transitions' and CSS animations' values at the
+    /// last frame, which layout and paint read. The cascade's own style,
+    /// without them, is [`base_computed_for`](Self::base_computed_for).
     pub fn computed_for(&self, slot: StyleSlot) -> Option<&std::rc::Rc<ComputedStyle>> {
         match slot {
             StyleSlot::Host => self.computed.as_ref(),
@@ -211,24 +214,28 @@ impl PresentationStyle {
         &self.animated
     }
 
-    /// The cascade's style for the slot under the running values, while
-    /// any longhand animates.
-    pub fn cascaded(&self) -> Option<&Rc<ComputedStyle>> {
+    /// The slot's base computed style — the cascade's, under the running
+    /// transitions' and CSS animations' values — while any longhand
+    /// animates.
+    pub fn base(&self) -> Option<&Rc<ComputedStyle>> {
         self.base.as_ref()
     }
 }
 
 impl TuiExt {
-    /// The cascade's style for `slot` — its computed style without the
-    /// running transitions' values: the *after-change style* of CSS
-    /// Transitions 1 §3. The computed style itself while nothing runs.
+    /// The base computed style of `slot`: its computed style without the
+    /// running transitions' and CSS animations' values — what Web
+    /// Animations 1 §5.4.5 calls the *base value*, under the effect
+    /// stack, and the *after-change style* of CSS Transitions 1 §3. The
+    /// computed style itself while nothing runs.
+    /// [`computed_for`](Self::computed_for) is the value with them.
     ///
-    /// `None` exactly when [`computed_for`](Self::computed_for) is: a
-    /// pseudo-element that generates no box has no style of either kind.
-    pub fn cascaded_for(&self, slot: StyleSlot) -> Option<&Rc<ComputedStyle>> {
+    /// `None` exactly when `computed_for` is: a pseudo-element that
+    /// generates no box has no style of either kind.
+    pub fn base_computed_for(&self, slot: StyleSlot) -> Option<&Rc<ComputedStyle>> {
         let computed = self.computed_for(slot)?;
         self.presentation_for(slot)
-            .and_then(PresentationStyle::cascaded)
+            .and_then(PresentationStyle::base)
             .or(Some(computed))
     }
 
@@ -310,7 +317,7 @@ impl TuiExt {
         animated: Vec<Longhand>,
         style: Option<ComputedStyle>,
     ) {
-        let Some(base) = self.cascaded_for(slot).cloned() else {
+        let Some(base) = self.base_computed_for(slot).cloned() else {
             return;
         };
         match style.filter(|_| !animated.is_empty()) {

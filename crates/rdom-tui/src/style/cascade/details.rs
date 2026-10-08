@@ -91,7 +91,9 @@ pub(super) fn sync_content_box(dom: &mut Dom<TuiExt>, host: NodeId) {
                 crate::style::doc_flags::note_calc_size(dom);
             }
             if let Some(e) = dom.node_mut(b).ext_mut()
-                && !e.cascaded_for(slot).is_some_and(|c| Rc::ptr_eq(c, &style))
+                && !e
+                    .base_computed_for(slot)
+                    .is_some_and(|c| Rc::ptr_eq(c, &style))
             {
                 e.layout_dirty = true;
                 let overlaid = e.overlay(slot, &style).map(Rc::new);

@@ -1363,7 +1363,8 @@ fn phase11_reexport_hints() {
 /// `style::animation::Longhand` and two whole styles
 /// (`ActiveAnimation::from` / `to`); `PresentationStyle` holds no values
 /// — a running transition's values are in `TuiExt::computed`, the
-/// cascade's own style in `TuiExt::cascaded_for`.
+/// cascade's own style (the base value) in `TuiExt::base_computed_for` /
+/// `node.base_computed()` (C12G-COMPUTED-DOCS).
 #[test]
 fn transition_property_hints() {
     use style::transition::TransitionProperty;
@@ -1383,7 +1384,10 @@ fn transition_property_hints() {
     );
     let _: Option<&runtime::animation::Longhand> = None;
     let ext = TuiExt::default();
-    assert!(ext.cascaded_for(ext::StyleSlot::Host).is_none());
+    assert!(ext.base_computed_for(ext::StyleSlot::Host).is_none());
+    let mut dom: TuiDom = TuiDom::new();
+    let el = dom.create_element("div");
+    assert!(dom.node(el).base_computed().is_none());
 }
 
 /// C12-ANIMATABLE: `Size` gains `CalcSize` (`calc-size()`, CSS Values 5

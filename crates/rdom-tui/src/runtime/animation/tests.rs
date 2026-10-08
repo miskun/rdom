@@ -79,7 +79,7 @@ fn pseudo_element_color_transitions_in_its_own_slot() {
         "the ::before's running value"
     );
     assert_eq!(
-        ext.cascaded_for(StyleSlot::Before).map(|c| c.fg),
+        ext.base_computed_for(StyleSlot::Before).map(|c| c.fg),
         Some(Color::Rgb(0, 0, 255)),
         "the cascade's style keeps the end value"
     );

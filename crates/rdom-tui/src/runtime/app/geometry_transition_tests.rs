@@ -389,3 +389,42 @@ fn an_overlay_transition_keeps_a_hidden_popover_in_the_top_layer() {
         assert!(!app.dom().is_in_top_layer(pop), "{transition:?} at the end");
     }
 }
+
+// ── C12G-COMPUTED-DOCS: the base computed style on node handles ──────
+
+/// Web Animations 1 §5.4.5: a node's computed style holds the running
+/// transitions' and animations' values; its *base* value — the style
+/// before the effect stack — is `base_computed()`. Mid-flight the two
+/// differ; with nothing running they are one style.
+#[test]
+fn base_computed_is_the_style_under_the_running_values() {
+    use crate::TuiNodeExt;
+    let (mut app, div, _) = app("@keyframes w { from { width: 2 } to { width: 10 } } \
+         #a { height: 2; transition: height 100ms linear } #a.tall { height: 10 } \
+         #a.spin { animation: w 100ms linear }");
+    app.dom_mut()
+        .set_attribute(div, "class", "tall spin")
+        .unwrap();
+    app.advance(0).unwrap();
+    app.advance(50).unwrap();
+    let node = app.dom().node(div);
+    let (now, base) = (node.computed().unwrap(), node.base_computed().unwrap());
+    use crate::layout::Size;
+    assert_eq!(
+        (now.height.clone(), now.width.clone()),
+        (Size::Fixed(6), Size::Fixed(6)),
+        "running values"
+    );
+    assert_eq!(
+        base.height,
+        Size::Fixed(10),
+        "the transition's end, the cascade's value"
+    );
+    assert_eq!(base.width, Size::Auto, "no animation in the base");
+    app.advance(100).unwrap();
+    let node = app.dom().node(div);
+    assert!(std::ptr::eq(
+        node.computed().unwrap(),
+        node.base_computed().unwrap()
+    ));
+}

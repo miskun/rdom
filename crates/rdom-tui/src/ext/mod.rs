@@ -307,9 +307,15 @@ pub struct TuiExt {
     pub(crate) positioned_pseudos: Option<Box<Vec<AnonymousIfc>>>,
 
     // ── Cascade cache (populated by Dom::cascade) ─────────────────────
-    /// Post-cascade style for this element. `None` means "no cascade run
-    /// yet, or this element's ext was just created"; layout and paint
-    /// must treat `None` as `ComputedStyle::initial()` by convention.
+    /// The element's computed style: the cascade's, with the values of
+    /// its running transitions and CSS animations at the last frame
+    /// composited on (Web Animations 1 §5.4.5) — mid-flight a
+    /// `height: 2 → 10` transition reads `6` here — which layout, paint
+    /// and inheritance read. The style without them is
+    /// [`base_computed_for`](Self::base_computed_for). `None` means "no
+    /// cascade run yet, or this element's ext was just created"; layout
+    /// and paint must treat `None` as `ComputedStyle::initial()` by
+    /// convention.
     pub computed: Option<std::rc::Rc<ComputedStyle>>,
     /// Snapshot of `computed` from the *previous* cascade pass. Used
     /// by the M3 transition engine to diff against the current

@@ -100,8 +100,8 @@ impl TuiExt {
         // The cascade's styles, without running transitions' values: the
         // after-change styles (CSS Transitions 1 §3).
         let (before, after) = (
-            self.cascaded_for(super::StyleSlot::Before).cloned(),
-            self.cascaded_for(super::StyleSlot::After).cloned(),
+            self.base_computed_for(super::StyleSlot::Before).cloned(),
+            self.base_computed_for(super::StyleSlot::After).cloned(),
         );
         self.update_pseudo(before.is_some() || after.is_some(), |p| {
             p.before_prev = before;
