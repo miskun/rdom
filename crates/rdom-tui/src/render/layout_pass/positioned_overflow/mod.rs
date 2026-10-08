@@ -155,6 +155,8 @@ fn containing_scroller(dom: &Dom<TuiExt>, item: BoxItem) -> Option<(NodeId, Clip
     // Its ancestors: an element's box parent and up, a pseudo-element's
     // host and up (CSS Pseudo 4 §4).
     let (position, from) = match item {
+        // A top-layer element is contained by the viewport (CSS Position 4).
+        BoxItem::Node(id) if dom.is_in_top_layer(id) => return None,
         BoxItem::Node(id) => (computed_position(dom, id), parent_id(dom, id)),
         BoxItem::Generated(host, slot) => {
             (dom.node(host).computed_pseudo(slot)?.position, Some(host))

@@ -56,6 +56,11 @@ pub enum InteractionKind {
     /// The element being activated changed (`Dom::set_active`,
     /// `:active`).
     Active,
+    /// The element named as `prev` and `next` entered or left the top
+    /// layer (`Dom::add_to_top_layer` / `remove_from_top_layer`, or its
+    /// removal from the document): `:modal`, `:popover-open`, and where
+    /// it renders.
+    TopLayer,
 }
 
 /// One DOM mutation notification.

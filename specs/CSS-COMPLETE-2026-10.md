@@ -230,7 +230,7 @@ row comes from.
 | C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | done |
 | C11-SCOPE | `:scope` (query APIs and `@scope`) | done |
 | C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | done |
-| C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | |
+| C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | partial — the top layer and `:modal` done; the `popover` attribute, `:popover-open` and light dismiss remain |
 | C11-LINK-LANG | `:link` / `:any-link`, `:lang()` | done (with `:dir()`, deferred here by C5-WRITING, and `:visited` never matching) |
 | C11-COLUMN | Column combinator `\|\|` | moved to Phase 13 as C13-COLUMN: it selects the cells a column spans, which needs C13-TFC's real table columns |
 
@@ -7127,3 +7127,32 @@ row comes from.
   the same; no user-validity bit in the marks → only the new `a_novalidate_submission_still_sets_user_validity`
   (the other tests' fields were restyled by focus moves) — added for it. No snapshot or existing expectation
   changed.
+- 2026-10-14 — C11-MODAL-POPOVER, part 1 of 3: the top layer and `:modal`. Found: rdom had no top layer — a
+  modal dialog was marked with an rdom-internal `data-rdom-modal` attribute, painted in flow and again
+  after a backdrop post-pass, and clicks outside it reached the page (DIVERGENCES). rdom-core now keeps the
+  document's top layer (`top_layer.rs`: an ordered set with a `TopLayerKind` per member — `ModalDialog`,
+  `Popover` — beside the focus state; changes fire `InteractionChanged { kind: TopLayer }`, which the dirty
+  tracker's state path already handles; the removing steps take a removed subtree's members out, reported
+  while connected). `:modal` is a member as `ModalDialog` (Selectors 4 §11, HTML §4.16.3; no fullscreen).
+  rdom-tui: `dialog::show_modal` adds the dialog, `close` / `show` remove it (`is_modal`, `top_modal` read
+  the top layer). Rendering, per CSS Position 4: a member whose `position` is not `absolute` / `fixed`
+  computes to `absolute` (`cascade::blockify::finalize_top_layer`) with the viewport as containing block
+  (`positioning::containing_block`; not part of a scroller's overflow); `stacking::collect_layers` leaves
+  members and their subtrees out, and `paint_pass::top_layer` (replacing `backdrop.rs`) paints each rendered
+  member after the document, bottom to top, its `::backdrop` first, as a stacking context clipped by the
+  viewport only. Hit-testing tries the top layer first, topmost first; below a modal dialog a miss lands on
+  its `::backdrop`, so the dialog is the target and the page is inert (HTML §6.3). UA: HTML's `dialog:modal`
+  placement (fixed, inset 0, auto margins, fit-content, capped at `calc(100% - 2)`; UA count 179 → 180).
+  Decided — the non-modal dialog stays in flow and the UA's backdrop untinted (DIVERGENCES §2 entry
+  rewritten): moving every dialog out of flow would re-lay every existing `<dialog open>` page. Red: the
+  core tests failed to compile (`TopLayerKind`, `InteractionKind::TopLayer`, `add_to_top_layer`) and then on
+  "unsupported pseudo-class `:modal`"; the App tests with an empty top layer, `Static` for `Absolute`, the
+  dialog in flow (`x: 0, y: 1, width: 20`), the page under the point and no backdrop / top-layer paint;
+  green after. Mutations (each alone, restored, touched): no stacking-walk exclusion →
+  `a_top_layer_element_paints_once` (a translucent dialog blended twice, 192 for 127); no inertness → the
+  hit test; no viewport containing block → `position_computes_to_absolute_against_the_viewport`; no
+  position forcing → the same. Changed tests: the three backdrop paint tests and the translucent-backdrop
+  color test put the dialog in the top layer instead of setting the marker, and check cells around the
+  centred dialog (expectations moved with the UA's centring); three dialog form tests click the submit
+  button where it is laid out — two of them clicked the dialog's border before and passed without
+  submitting. No snapshot changed (the showcase's dialog is non-modal).

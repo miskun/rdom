@@ -93,6 +93,7 @@ impl<Ext> Dom<Ext> {
             PseudoClass::OutOfRange => self.range_state(id) == Some(false),
             PseudoClass::UserValid => self.user_validity_state(id) == Some(true),
             PseudoClass::UserInvalid => self.user_validity_state(id) == Some(false),
+            PseudoClass::Modal => self.top_layer_kind(id) == Some(crate::TopLayerKind::ModalDialog),
             PseudoClass::ReadOnly => node.tag_name().is_some() && !self.is_read_write(id),
         }
     }

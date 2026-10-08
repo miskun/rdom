@@ -13,6 +13,7 @@ mod attr_flags;
 mod form_states;
 mod has;
 mod link_lang;
+mod modal;
 mod nth;
 
 /// Parse `css` strictly (no warnings) and cascade it over `dom`.

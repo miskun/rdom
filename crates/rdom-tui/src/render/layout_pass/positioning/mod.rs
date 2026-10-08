@@ -69,7 +69,8 @@ pub(super) use static_pos::{
 /// viewport. The element's own `position` decides:
 ///
 /// - `Fixed` / `Absolute` → [`absolute_containing_block`], the walk
-///   positioned pseudo-elements share.
+///   positioned pseudo-elements share; the viewport for an element in
+///   the top layer (CSS Position 4).
 /// - `Relative` / `Static` → returns the parent's content area
 ///   (or viewport if no parent), matching the in-flow position.
 ///   (Used by phase-2 callers that ask "where would this be in
@@ -78,6 +79,13 @@ pub(crate) fn containing_block(dom: &Dom<TuiExt>, id: NodeId, viewport: LayoutRe
     let position = computed_position(dom, id);
 
     if matches!(position, Position::Absolute | Position::Fixed) {
+        // CSS Position 4: a top-layer element's containing block is the
+        // initial containing block — rdom's viewport — whatever its
+        // ancestors (its `position` is `absolute` or `fixed`, the
+        // cascade's `finalize_top_layer`).
+        if dom.is_in_top_layer(id) {
+            return viewport;
+        }
         let c = dom
             .node(id)
             .ext()

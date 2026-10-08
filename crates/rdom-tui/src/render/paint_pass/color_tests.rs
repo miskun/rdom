@@ -262,11 +262,14 @@ fn translucent_backdrop_dims_the_page() {
     element(&mut dom, root, "div", "page", "abc");
     let dialog = element(&mut dom, root, "dialog", "", "");
     dom.set_attribute(dialog, "open", "").unwrap();
-    dom.set_attribute(dialog, "data-rdom-modal", "").unwrap();
+    dom.add_to_top_layer(dialog, rdom_core::TopLayerKind::ModalDialog)
+        .unwrap();
+    // The dialog is rendered (a backdrop exists only for a rendered
+    // top-layer element) but empty and away from cell (0, 0).
     let buf = paint(
         &mut dom,
         ".page { color: white; background-color: blue } \
-         dialog { display: none } \
+         dialog { border: none; padding: 0; width: 1; height: 1; inset: auto 0 0 auto } \
          dialog::backdrop { background-color: rgb(0 0 0 / 50%) }",
         5,
         2,

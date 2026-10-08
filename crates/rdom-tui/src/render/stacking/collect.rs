@@ -118,6 +118,12 @@ impl Walk<'_> {
                 NodeType::Element => {}
                 _ => continue,
             }
+            // A top-layer element and its subtree render in the top
+            // layer, after the whole document (CSS Position 4,
+            // `paint_pass::top_layer`), not in any stacking context.
+            if dom.is_in_top_layer(cid) {
+                continue;
+            }
             let current = self.content_clip();
             let Some(c) = child.ext().and_then(|e| e.computed.as_ref()) else {
                 // Not cascaded: an in-flow box with nothing to clip.

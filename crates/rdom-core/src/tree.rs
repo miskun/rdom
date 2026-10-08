@@ -512,6 +512,22 @@ impl<Ext: 'static> Dom<Ext> {
         if inside(self, self.pointer_capture) {
             self.pointer_capture = None;
         }
+        // The removing steps of `<dialog>` (HTML §4.11.4) and of popovers
+        // (§6.12): an element leaving the document leaves the top layer.
+        let leaving: Vec<NodeId> = self
+            .top_layer
+            .ids()
+            .iter()
+            .copied()
+            .filter(|&e| inside(self, Some(e)))
+            .collect();
+        for e in leaving {
+            if notify {
+                self.remove_from_top_layer(e);
+            } else {
+                self.top_layer_remove_silently(e);
+            }
+        }
         let selected = self
             .selection
             .as_ref()

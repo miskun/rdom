@@ -425,6 +425,11 @@ pub enum PseudoClass {
     UserValid,
     /// `:user-invalid` (Selectors 4 §14.4.5): one that does not.
     UserInvalid,
+    /// `:modal` (Selectors 4 §11, HTML §4.16.3): a `<dialog>` shown
+    /// modally — in the top layer as a modal dialog
+    /// ([`Dom::top_layer_kind`](crate::Dom::top_layer_kind)). rdom has no
+    /// fullscreen.
+    Modal,
     /// `:scope` (Selectors 4 §14.3) — the scoping root: an `@scope`
     /// rule's root (CSS Cascade 6 §2.5) when matched through
     /// [`Dom::matches_list_in_scope`](crate::Dom::matches_list_in_scope),

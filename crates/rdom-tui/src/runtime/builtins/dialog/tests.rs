@@ -32,6 +32,16 @@ fn key(code: KeyCode) -> CtEvent {
     })
 }
 
+/// A click on the middle of `id`'s laid-out box.
+fn click_on(app: &App<TestBackend>, id: rdom_core::NodeId) -> Vec<CtEvent> {
+    use crate::node::TuiNodeExt;
+    let r = app.dom().node(id).layout_rect().expect("laid out");
+    click(
+        (r.x + i32::from(r.width) / 2) as u16,
+        (r.y + i32::from(r.height) / 2) as u16,
+    )
+}
+
 fn click(x: u16, y: u16) -> Vec<CtEvent> {
     vec![
         CtEvent::Mouse(CtMouseEvent {
@@ -258,11 +268,8 @@ fn form_method_dialog_submit_closes_enclosing_dialog_with_button_value() {
     dialog::show_modal(app.dom_mut(), dlg);
     app.draw_if_dirty().unwrap();
 
-    // UA `<dialog>` chrome: 1-cell border + padding 1 2. The
-    // submit button sits at the dialog's content-area origin
-    // (col = border + padding-left = 3, row = border + padding-
-    // top = 2). Click at col 5 row 2 lands inside the button.
-    for ev in click(5, 2) {
+    // The modal dialog is centred in the viewport (UA `dialog:modal`).
+    for ev in click_on(&app, btn) {
         app.handle_event(ev);
     }
 
@@ -298,7 +305,7 @@ fn form_method_dialog_submit_does_not_close_if_submit_handler_prevents() {
     dialog::show_modal(app.dom_mut(), dlg);
     app.draw_if_dirty().unwrap();
 
-    for ev in click(1, 0) {
+    for ev in click_on(&app, btn) {
         app.handle_event(ev);
     }
 
@@ -368,7 +375,7 @@ fn form_with_method_get_does_not_close_dialog_on_submit() {
     dialog::show_modal(app.dom_mut(), dlg);
     app.draw_if_dirty().unwrap();
 
-    for ev in click(1, 0) {
+    for ev in click_on(&app, btn) {
         app.handle_event(ev);
     }
 

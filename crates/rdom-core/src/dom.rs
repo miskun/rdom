@@ -119,6 +119,8 @@ pub struct Dom<Ext: 'static = ()> {
     pub(crate) selection: Option<crate::Selection>,
     /// Count of actual selection changes (see [`Dom::selection_serial`]).
     pub(crate) selection_serial: crate::SelectionSerial,
+    /// The top layer (`top_layer`), bottom to top.
+    pub(crate) top_layer: crate::top_layer::TopLayer,
     /// The document's highlights by name (CSS Custom Highlight API 1),
     /// their ranges live.
     pub(crate) highlights: crate::HighlightRegistry,
@@ -160,6 +162,7 @@ impl<Ext: Default> Dom<Ext> {
             drag_autoscroll: false,
             selection: None,
             selection_serial: crate::SelectionSerial::new(0),
+            top_layer: crate::top_layer::TopLayer::default(),
             highlights: crate::HighlightRegistry::default(),
             observers: ObserverStore::default(),
             is_observing: false,
@@ -290,6 +293,7 @@ impl<Ext: Default> Dom<Ext> {
             drag_autoscroll: false,
             selection: None,
             selection_serial: crate::SelectionSerial::new(0),
+            top_layer: crate::top_layer::TopLayer::default(),
             highlights: crate::HighlightRegistry::default(),
             observers: ObserverStore::default(),
             is_observing: false,

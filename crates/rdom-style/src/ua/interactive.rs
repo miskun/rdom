@@ -161,6 +161,29 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .padding(Padding::new(1, 2, 1, 2)),
         ),
         ("dialog:not([open])", TuiStyle::new().display(Display::None)),
+        // HTML's rendering section: a modal dialog is `position: fixed`
+        // with `inset-block: 0` (and every dialog's `inset-inline: 0`,
+        // `margin: auto`, fit-content size) — centred in the viewport —
+        // capped at the viewport less `6px + 2em` (two cells here: `px`
+        // is no length in a terminal) and scrolling past that. rdom's
+        // non-modal dialog stays in flow (DIVERGENCES §2).
+        (
+            "dialog:modal",
+            [
+                ("position", "fixed"),
+                ("inset", "0"),
+                ("margin", "auto"),
+                ("width", "fit-content"),
+                ("height", "fit-content"),
+                ("max-width", "calc(100% - 2)"),
+                ("max-height", "calc(100% - 2)"),
+                ("overflow", "auto"),
+            ]
+            .into_iter()
+            .fold(TuiStyle::new(), |style, (name, value)| {
+                super::css(style, name, value)
+            }),
+        ),
         ("form", TuiStyle::new().display(Display::Block)),
         (
             "fieldset",

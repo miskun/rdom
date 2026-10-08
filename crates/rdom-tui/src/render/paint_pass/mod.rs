@@ -61,7 +61,8 @@
 //! - `border` — border drawing: per-direction contributions for the
 //!   joiner (`border_join`), and half-block quadrants (`half_block`).
 //! - `group` — `opacity` group rendering through a bounded layer.
-//! - `backdrop` — the `::backdrop` of open modal dialogs.
+//! - `top_layer` — the top layer (modal dialogs, popovers) and each
+//!   element's `::backdrop`, painted after the document.
 //! - `inline_paint` — `::before` + own text + `::after` for
 //!   non-IFC elements; fragment-driven IFC paint. Split into the
 //!   fragment painter (`mod.rs`), the chrome-substitution seam
@@ -71,7 +72,6 @@
 //! - `text` — `paint_text` low-level helper + `ComputedStyle` →
 //!   `Style` conversion.
 
-mod backdrop;
 mod background;
 mod border;
 mod border_join;
@@ -83,6 +83,7 @@ pub(crate) mod scrollbar;
 mod shadow;
 mod stacking_walk;
 mod text;
+pub(crate) mod top_layer;
 mod tree_guides;
 
 #[cfg(test)]
@@ -123,11 +124,9 @@ impl PaintExt for Dom<TuiExt> {
         // E): positioned descendants — positioned `::before` / `::after`
         // included — paint from its layers, nested contexts recursively.
         paint_stacking_context(self, self.root(), buf, clip, clip);
-        // Overlay backdrop behind modal dialogs. Runs AFTER the main
-        // paint pass so the backdrop reliably sits on top of whatever
-        // else painted into the viewport — then we re-paint the
-        // dialog subtree so it ends up above the backdrop.
-        backdrop::paint_modal_backdrops(self, buf, clip);
+        // The top layer (CSS Position 4): modal dialogs and popovers,
+        // each over its `::backdrop`, above the whole document.
+        top_layer::paint_top_layer(self, buf, clip);
         // Tree guide lines — emit `│ ├ └` border contributions into
         // the gutter of every `[role=tree]`. Runs BEFORE the joiner
         // so the accumulated direction masks become glyphs.

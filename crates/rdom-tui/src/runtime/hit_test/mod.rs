@@ -24,6 +24,13 @@
 //! first, whichever layer found it — the ancestors between a context
 //! root and a layer entry are inserted when the entry hits.
 //!
+//! ## The top layer
+//!
+//! Elements in the document's top layer (modal dialogs, popovers) paint
+//! after the document, so they are tried first, topmost first. Below an
+//! open modal dialog the document is inert: a point that misses the
+//! dialog lands on its `::backdrop`, and the dialog is the target.
+//!
 //! ## `pointer-events`
 //!
 //! `pointer-events: none` makes an element transparent: it is never
@@ -229,12 +236,48 @@ impl HitTestExt for Dom<TuiExt> {
 /// line boxes are its own.
 fn box_path(dom: &Dom<TuiExt>, x: u16, y: u16) -> Vec<NodeId> {
     let mut path = Vec::new();
-    // Reverse paint order through the stacking contexts (CSS 2.1
-    // Appendix E; `render::stacking`). Hit-testing has no viewport
-    // of its own: overflow ancestors are the only clips.
+    // Hit-testing has no viewport of its own: overflow ancestors are the
+    // only clips.
     let unclipped = Rect::new(0, 0, u16::MAX, u16::MAX);
+    // The top layer paints last, so it is tried first, topmost first
+    // (CSS Position 4).
+    for &id in dom.top_layer().iter().rev() {
+        if !crate::render::paint_pass::top_layer::is_rendered(dom, id) {
+            continue;
+        }
+        if hit_stacking_context(dom, id, x, y, unclipped, unclipped, &mut path) {
+            prepend_ancestors(dom, id, &mut path);
+            return path;
+        }
+        // Below a modal dialog the document is inert (HTML §6.3:
+        // "blocked by a modal dialog"): the point is on the dialog's
+        // `::backdrop`, which covers the viewport, and a pseudo-element's
+        // events go to its originating element.
+        if dom.top_layer_kind(id) == Some(rdom_core::TopLayerKind::ModalDialog) {
+            path.push(id);
+            prepend_ancestors(dom, id, &mut path);
+            return path;
+        }
+    }
+    // Reverse paint order through the stacking contexts (CSS 2.1
+    // Appendix E; `render::stacking`).
     hit_stacking_context(dom, dom.root(), x, y, unclipped, unclipped, &mut path);
     path
+}
+
+/// Put `id`'s element ancestors, root-most first, ahead of `path` — a
+/// top-layer element's hit path is still its full ancestor chain.
+fn prepend_ancestors(dom: &Dom<TuiExt>, id: NodeId, path: &mut Vec<NodeId>) {
+    let mut chain = Vec::new();
+    let mut cur = dom.node(id).parent_node().map(|p| p.id());
+    while let Some(a) = cur {
+        if dom.node(a).node_type() == rdom_core::NodeType::Element {
+            chain.push(a);
+        }
+        cur = dom.node(a).parent_node().map(|p| p.id());
+    }
+    chain.reverse();
+    path.splice(0..0, chain);
 }
 
 #[cfg(test)]

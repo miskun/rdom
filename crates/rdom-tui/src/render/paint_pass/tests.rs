@@ -2549,6 +2549,9 @@ fn nested_inline_inside_anchor_inherits_the_href_link() {
 
 // ── Polish #8: <dialog>::backdrop ──────────────────────────────
 
+/// A modal dialog — in the top layer since C11-MODAL-POPOVER — gets its
+/// `::backdrop` over the whole viewport, beneath it; the UA centres it
+/// (`dialog:modal`).
 #[test]
 fn modal_dialog_backdrop_fills_viewport_with_bg() {
     use crate::style::Color;
@@ -2563,30 +2566,22 @@ fn modal_dialog_backdrop_fills_viewport_with_bg() {
     // Modal dialog.
     let dlg = dom.create_element("dialog");
     dom.set_attribute(dlg, "open", "").unwrap();
-    dom.set_attribute(dlg, "data-rdom-modal", "").unwrap();
     dom.append_child(root, dlg).unwrap();
+    dom.add_to_top_layer(dlg, rdom_core::TopLayerKind::ModalDialog)
+        .unwrap();
 
     let sheet = Stylesheet::new().rule_unchecked(
         "dialog::backdrop",
         TuiStyle::new().bg(Color::Rgb(169, 169, 169)),
     );
-    // Viewport big enough that the dialog (empty + UA chrome:
-    // 1-cell border + padding 1 2 → 4 tall outer; width auto
-    // stretches to the parent's width per flex cross-stretch)
-    // leaves rows below it for the backdrop assertion. Layout:
-    //   row 0      → `<p>under</p>` text
-    //   rows 1..4  → dialog outer rect (top border, padding,
-    //                  empty content, bottom border)
-    //   rows 5..9  → uncovered viewport → backdrop bg.
+    // The empty dialog with its UA chrome (rounded border, padding
+    // 1 2) is 6 × 4, centred in 30 × 10: columns 12..18, rows 3..7.
     let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 30, 10));
-
-    // Cells below the dialog carry the backdrop bg. Cells covered
-    // by the dialog (its border + content area) are excluded —
-    // the dialog repaints over the backdrop without a bg of its
-    // own, so those cells either stay backdrop-tinted (content)
-    // or get reset by border drawing.
-    for y in 5..10 {
+    for y in 0..10 {
         for x in 0..30 {
+            if (12..18).contains(&x) && (3..7).contains(&y) {
+                continue;
+            }
             assert_eq!(
                 buf.cell(x, y).unwrap().bg,
                 Color::Rgb(169, 169, 169),
@@ -2594,10 +2589,13 @@ fn modal_dialog_backdrop_fills_viewport_with_bg() {
             );
         }
     }
-    // And a sanity check that the dialog has a visible top-left
-    // border corner at row 1, proving UA chrome painted. UA dialog
-    // border is `Rounded`.
-    assert_eq!(buf.cell(0, 1).unwrap().symbol(), "╭");
+    assert_eq!(
+        buf.cell(0, 0).unwrap().symbol(),
+        "u",
+        "the page shows through"
+    );
+    // The dialog's UA chrome painted over the backdrop.
+    assert_eq!(buf.cell(12, 3).unwrap().symbol(), "╭");
 }
 
 #[test]
@@ -2607,7 +2605,7 @@ fn non_modal_dialog_has_no_backdrop() {
     let root = dom.root();
     let dlg = dom.create_element("dialog");
     dom.set_attribute(dlg, "open", "").unwrap();
-    // NOT modal — no data-rdom-modal marker.
+    // NOT modal — not in the top layer.
     dom.append_child(root, dlg).unwrap();
 
     let sheet = Stylesheet::new().rule_unchecked(
@@ -2621,14 +2619,15 @@ fn non_modal_dialog_has_no_backdrop() {
 
 #[test]
 fn closed_dialog_has_no_backdrop() {
-    // `data-rdom-modal` without `open` shouldn't paint a backdrop
-    // (dialog is closed — the backdrop only exists while shown).
+    // A dialog in the top layer without `open` is `display: none` (UA
+    // `dialog:not([open])`): not rendered, so no backdrop.
     use crate::style::Color;
     let mut dom = TuiDom::new();
     let root = dom.root();
     let dlg = dom.create_element("dialog");
-    dom.set_attribute(dlg, "data-rdom-modal", "").unwrap();
     dom.append_child(root, dlg).unwrap();
+    dom.add_to_top_layer(dlg, rdom_core::TopLayerKind::ModalDialog)
+        .unwrap();
 
     let sheet = Stylesheet::new().rule_unchecked(
         "dialog::backdrop",
@@ -2640,18 +2639,18 @@ fn closed_dialog_has_no_backdrop() {
 
 #[test]
 fn modal_dialog_repaints_over_backdrop() {
-    // The dialog subtree re-paints on top of the backdrop — so
-    // the dialog's own content area is tinted with its bg, not
-    // the backdrop's.
+    // The dialog paints on top of its backdrop — so the dialog's own
+    // area carries its bg, not the backdrop's.
     use crate::style::Color;
     let mut dom = TuiDom::new();
     let root = dom.root();
     let dlg = dom.create_element("dialog");
     dom.set_attribute(dlg, "open", "").unwrap();
-    dom.set_attribute(dlg, "data-rdom-modal", "").unwrap();
     let t = dom.create_text_node("hi");
     dom.append_child(dlg, t).unwrap();
     dom.append_child(root, dlg).unwrap();
+    dom.add_to_top_layer(dlg, rdom_core::TopLayerKind::ModalDialog)
+        .unwrap();
 
     let sheet = Stylesheet::new()
         .rule_unchecked(
@@ -2659,16 +2658,12 @@ fn modal_dialog_repaints_over_backdrop() {
             TuiStyle::new().bg(Color::Rgb(169, 169, 169)),
         )
         .rule_unchecked("dialog", TuiStyle::new().bg(Color::Rgb(0, 0, 255)));
-    // Viewport size accounts for UA dialog chrome (border 1 +
-    // padding 1 2): 2-char text content → 6 wide × 4 tall outer.
-    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 10));
-
-    // Dialog's content cell at the inner-content origin
-    // (col = border + padding-left = 1 + 2 = 3,
-    //  row = border + padding-top  = 1 + 1 = 2). Author bg Blue
-    // paints across the outer rect, so the content cell carries
-    // Blue — proving the dialog overpainted the backdrop.
-    assert_eq!(buf.cell(3, 2).unwrap().bg, Color::Rgb(0, 0, 255));
+    // UA chrome (border 1 + padding 1 2) around "hi": 8 × 5, centred in
+    // 20 × 11 — columns 6..14, rows 3..8; the text at (9, 5).
+    let buf = pipeline(&mut dom, &sheet, Rect::new(0, 0, 20, 11));
+    assert_eq!(buf.cell(9, 5).unwrap().symbol(), "h");
+    assert_eq!(buf.cell(9, 5).unwrap().bg, Color::Rgb(0, 0, 255));
+    assert_eq!(buf.cell(7, 4).unwrap().bg, Color::Rgb(0, 0, 255));
     // A cell well outside the dialog's outer rect carries the
     // backdrop's bg.
     assert_eq!(buf.cell(15, 9).unwrap().bg, Color::Rgb(169, 169, 169));

@@ -138,6 +138,7 @@ pub(super) fn compute_element_style(
     if super::blockify::children_are_items(dom, parent_id, parent) {
         super::blockify::blockify(&mut working);
     }
+    super::blockify::finalize_top_layer(&mut working, dom.is_in_top_layer(id));
     super::blockify::finalize_float(&mut working);
     // Content a closed `<details>`'s slot hides generates no box (HTML
     // §15.5.20's `content-visibility: hidden`, DIVERGENCES §2).

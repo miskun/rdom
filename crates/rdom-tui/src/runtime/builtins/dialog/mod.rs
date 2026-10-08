@@ -5,9 +5,11 @@
 //! - `<dialog>` is hidden when the `open` attribute is absent;
 //!   visible when present (UA stylesheet flips display).
 //! - Methods: `show()` opens non-modally, `showModal()` opens
-//!   modally. Both add the `open` attribute. The modal-vs-non-
-//!   modal distinction is tracked via the `data-rdom-modal`
-//!   marker attribute (rdom-internal, not standard HTML).
+//!   modally. Both add the `open` attribute. A modal dialog is in the
+//!   document's top layer as `TopLayerKind::ModalDialog` (rdom-core's
+//!   `Dom::top_layer`) — what `:modal` matches, what renders it above
+//!   everything with its `::backdrop`, and what makes the rest of the
+//!   document inert to the pointer.
 //! - `close(returnValue)` removes `open`, stores the return value,
 //!   fires the `close` event on the dialog (non-bubbling).
 //! - Esc on a focused element inside a MODAL dialog fires the
@@ -17,15 +19,12 @@
 //!
 //! ## v1 deliberate simplifications
 //!
-//! - Focus trap covers keyboard navigation only: Tab cycles inside the
-//!   open modal and Esc cancels it wherever focus sits, but pointer
-//!   events outside the modal are NOT blocked (no `inert` for hit-test).
-//! - `::backdrop` paints (see `paint_pass`); there is no top layer, so
-//!   the dialog's z-order is the author's.
+//! - The document outside an open modal is inert: Tab cycles inside the
+//!   modal, Esc cancels it wherever focus sits, and the pointer outside
+//!   it hits its `::backdrop`, whose events go to the dialog
+//!   (`hit_test`).
 //! - No `closedby` attribute (defaults are baked: modal closes
 //!   on Esc, non-modal doesn't).
-//! - No top-layer / z-index handling — apps lay out the dialog
-//!   themselves (e.g. via absolute positioning).
 //!
 //! ## Storage of returnValue
 //!
@@ -38,10 +37,6 @@ use rdom_core::{ListenerOptions, NodeId};
 
 use crate::{TuiDom, TuiEvent};
 
-/// Marker attribute set by `show_modal` and cleared by `show` /
-/// `close`. Distinguishes modal from non-modal dialogs at runtime.
-const MODAL_ATTR: &str = "data-rdom-modal";
-
 /// Attribute that stores the dialog's returnValue between close
 /// calls. Mirrors the HTML `dialog.returnValue` IDL property.
 const RETURN_VALUE_ATTR: &str = "data-rdom-return-value";
@@ -53,7 +48,7 @@ const RETURN_VALUE_ATTR: &str = "data-rdom-return-value";
 pub fn show(dom: &mut TuiDom, dialog: NodeId) {
     let was_open = dom.node(dialog).has_attribute("open");
     let _ = dom.set_attribute(dialog, "open", "");
-    let _ = dom.remove_attribute(dialog, MODAL_ATTR);
+    remove_modal(dom, dialog);
     if !was_open {
         fire_toggle(dom, dialog, rdom_core::ToggleState::Closed);
     }
@@ -77,7 +72,9 @@ pub fn show_modal(dom: &mut TuiDom, dialog: NodeId) {
         ext.dialog_return_focus = previous;
     }
     let _ = dom.set_attribute(dialog, "open", "");
-    let _ = dom.set_attribute(dialog, MODAL_ATTR, "");
+    // HTML §4.11.4 showModal() step 11: "add an element to the top
+    // layer" — a disconnected dialog opens but cannot be modal.
+    let _ = dom.add_to_top_layer(dialog, rdom_core::TopLayerKind::ModalDialog);
     if !was_open {
         fire_toggle(dom, dialog, rdom_core::ToggleState::Closed);
     }
@@ -130,14 +127,21 @@ fn first_focusable_in(dom: &TuiDom, root: NodeId) -> Option<NodeId> {
 
 /// The open modal dialog that currently owns interaction, if any:
 /// with a modal open, the rest of the document is inert, so Tab
-/// cycles inside it and Esc cancels it wherever focus sits. The last
-/// open modal in arena order wins when several are open (nested
-/// modals are rare enough that document order is not worth a walk).
+/// cycles inside it and Esc cancels it wherever focus sits. The
+/// topmost modal dialog in the top layer — the one opened last.
 pub fn top_modal(dom: &TuiDom) -> Option<NodeId> {
-    dom.get_elements_by_tag_name_all("dialog")
-        .into_iter()
+    dom.top_layer()
+        .iter()
         .rev()
-        .find(|&d| dom.node(d).has_attribute("open") && dom.node(d).has_attribute(MODAL_ATTR))
+        .copied()
+        .find(|&d| is_modal(dom, d))
+}
+
+/// Take a modal dialog out of the top layer (no-op for any other).
+fn remove_modal(dom: &mut TuiDom, dialog: NodeId) {
+    if dom.top_layer_kind(dialog) == Some(rdom_core::TopLayerKind::ModalDialog) {
+        dom.remove_from_top_layer(dialog);
+    }
 }
 
 /// Close the dialog. Removes the `open` attribute, stores
@@ -151,7 +155,7 @@ pub fn close(dom: &mut TuiDom, dialog: NodeId, return_value: &str) {
         return; // Already closed — no event, no state change.
     }
     let _ = dom.remove_attribute(dialog, "open");
-    let _ = dom.remove_attribute(dialog, MODAL_ATTR);
+    remove_modal(dom, dialog);
     let _ = dom.set_attribute(dialog, RETURN_VALUE_ATTR, return_value);
 
     // Fire `toggle` first (the state-change signal), then `close`
@@ -219,10 +223,12 @@ pub fn set_return_value(dom: &mut TuiDom, dialog: NodeId, value: &str) {
     let _ = dom.set_attribute(dialog, RETURN_VALUE_ATTR, value);
 }
 
-/// True when the dialog is open AND was opened via `show_modal`.
-/// Used by the Esc handler and by the form-method-dialog flow.
+/// True when the dialog is open AND was opened via `show_modal` — in
+/// the top layer as a modal dialog (`:modal`). Used by the Esc handler
+/// and by the form-method-dialog flow.
 pub fn is_modal(dom: &TuiDom, dialog: NodeId) -> bool {
-    dom.node(dialog).has_attribute("open") && dom.node(dialog).has_attribute(MODAL_ATTR)
+    dom.node(dialog).has_attribute("open")
+        && dom.top_layer_kind(dialog) == Some(rdom_core::TopLayerKind::ModalDialog)
 }
 
 /// Walk up from `id` (inclusive) to the nearest `<dialog>`

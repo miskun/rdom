@@ -31,6 +31,18 @@ pub(super) fn blockify(working: &mut ComputedStyle) {
     }
 }
 
+/// CSS Position 4 (top layer): an element in the document's top layer
+/// whose `position` is not `absolute` or `fixed` computes to `absolute`
+/// — it is laid out against the initial containing block and painted
+/// above the document (`layout_pass::positioning`, `paint_pass`), so it
+/// is never in flow.
+pub(super) fn finalize_top_layer(working: &mut ComputedStyle, in_top_layer: bool) {
+    use crate::layout::Position;
+    if in_top_layer && !matches!(working.position, Position::Absolute | Position::Fixed) {
+        working.position = Position::Absolute;
+    }
+}
+
 /// CSS 2.1 §9.7: an absolutely positioned box does not float — its
 /// computed `float` is `none` — and a floated box is blockified (§9.7's
 /// table: an inline-level box becomes the block-level one, as

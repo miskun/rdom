@@ -73,6 +73,9 @@ mod selection;
 pub mod selectors;
 mod text;
 mod token_list;
+mod top_layer;
+#[cfg(test)]
+mod top_layer_tests;
 mod traversal;
 mod tree;
 mod validate;
@@ -106,6 +109,7 @@ pub use position::DocumentPosition;
 pub use query_selector::{CacheWork, SelectorCaches};
 pub use selection::{Position, Range, Selection, SelectionSerial};
 pub use token_list::{DomTokenList, DomTokenListMut};
+pub use top_layer::TopLayerKind;
 pub use traversal::Descendants;
 pub use tree::AdjacentPosition;
 pub use validate::InvariantViolation;
