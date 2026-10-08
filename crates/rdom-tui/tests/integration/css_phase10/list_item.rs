@@ -142,12 +142,11 @@ fn list_rows(tag: &str, css: &str, texts: &[&str], w: u16, h: u16) -> Vec<String
 /// §3.5 `outside` (the initial value): the marker hangs outside the list
 /// item's box, its end at the item's inline-start border edge, on the
 /// row of the item's first line — in the list's padding, which HTML
-/// gives the list (`padding-inline-start`, two cells for `ul`, three for
-/// `ol`).
+/// gives the list (`padding-inline-start`, four cells: C10G-MARKER-CLIP).
 #[test]
 fn outside_markers_hang_in_the_lists_padding() {
-    assert_eq!(list_rows("ul", "", &["a", "b"], 5, 2), ["• a  ", "• b  "]);
-    assert_eq!(list_rows("ol", "", &["a", "b"], 6, 2), ["1. a  ", "2. b  "]);
+    assert_eq!(list_rows("ul", "", &["a", "b"], 6, 2), ["  • a ", "  • b "]);
+    assert_eq!(list_rows("ol", "", &["a", "b"], 6, 2), [" 1. a ", " 2. b "]);
 }
 
 /// §3.5: an outside marker is no inline content — the item's lines start
@@ -155,8 +154,8 @@ fn outside_markers_hang_in_the_lists_padding() {
 /// line's text, not under the marker.
 #[test]
 fn a_wrapped_item_hangs_its_marker() {
-    let rows = list_rows("ul", ".l { width: 6 }", &["aaa bbb"], 8, 2);
-    assert_eq!(rows, ["• aaa   ", "  bbb   "]);
+    let rows = list_rows("ul", ".l { width: 4 }", &["aaa bbb"], 8, 2);
+    assert_eq!(rows, ["  • aaa ", "    bbb "]);
 }
 
 /// §3.5 `inside`: the marker is the first inline box of the item's first
@@ -165,12 +164,12 @@ fn a_wrapped_item_hangs_its_marker() {
 fn inside_markers_are_the_first_inline_box() {
     let rows = list_rows(
         "ul",
-        ".l { width: 8 } li { list-style-position: inside }",
+        ".l { width: 6 } li { list-style-position: inside }",
         &["aaa bbb"],
-        8,
+        10,
         2,
     );
-    assert_eq!(rows, ["  • aaa ", "  bbb   "]);
+    assert_eq!(rows, ["    • aaa ", "    bbb   "]);
 }
 
 /// §3.1: the marker sits on the list item's first line box even when
@@ -184,11 +183,11 @@ fn a_marker_rides_a_descendants_first_line() {
         text_el(dom, li, "p", "", "Step");
         text_el(dom, li, "p", "", "More");
     };
-    assert_eq!(paint_tree("", 9, 2, build), ["1. Step  ", "   More  "]);
+    assert_eq!(paint_tree("", 9, 2, build), [" 1. Step ", "    More "]);
     let inside = "li { list-style-position: inside }";
     assert_eq!(
-        paint_tree(inside, 10, 2, build),
-        ["   1. Step", "   More   "]
+        paint_tree(inside, 11, 2, build),
+        ["    1. Step", "    More   "]
     );
 }
 
@@ -202,27 +201,27 @@ fn an_items_before_is_an_ordinary_pseudo_element() {
         let li = el(dom, ul, "li", "");
         text_el(dom, li, "p", "", "x");
     });
-    assert_eq!(rows, ["• >  ", "  x  "]);
+    assert_eq!(rows, ["  • >", "    x"]);
 }
 
 /// Nested lists: both markers ride the inner item's line, each beside its
 /// own item (§3.5).
 #[test]
 fn nested_markers_share_the_inner_line() {
-    let rows = paint_tree("", 7, 1, |dom, root| {
+    let rows = paint_tree("", 9, 1, |dom, root| {
         let ul = el(dom, root, "ul", "");
         let li = el(dom, ul, "li", "");
         let ul2 = el(dom, li, "ul", "");
         text_el(dom, ul2, "li", "", "x");
     });
-    assert_eq!(rows, ["• ◦ x  "]);
+    assert_eq!(rows, ["  •   ◦ x"]);
 }
 
 /// §3.1: an empty list item still shows its marker — it makes the item's
 /// one line.
 #[test]
 fn an_empty_item_shows_its_marker() {
-    assert_eq!(list_rows("ul", "", &["", "b"], 4, 2), ["•   ", "• b "]);
+    assert_eq!(list_rows("ul", "", &["", "b"], 6, 2), ["  •   ", "  • b "]);
 }
 
 /// The marker's text is its own: CSS Lists 3's UA `::marker {
@@ -238,7 +237,7 @@ fn markers_with_text_transform_and_letter_spacing() {
         7,
         1,
     );
-    assert_eq!(rows, ["a. XY  "]);
+    assert_eq!(rows, [" a. XY "]);
     let rows = list_rows(
         "ul",
         ".l { padding-left: 4 } li { letter-spacing: 1 }",
@@ -264,7 +263,7 @@ fn right_to_left_markers_hang_on_the_right() {
         6,
         1,
     );
-    assert_eq!(rows, ["•    a"]);
+    assert_eq!(rows, ["  •  a"]);
 }
 
 /// §3.2: `::marker` takes `color`; the marker sits outside the item's
@@ -278,21 +277,21 @@ fn the_marker_is_styled_and_outside_the_items_background() {
     let buf = paint(
         &mut dom,
         "li::marker { color: red } li { background-color: blue }",
-        4,
+        6,
         1,
     );
-    assert_eq!(rows(&buf, 4, 1), ["• a "]);
-    let marker = buf.cell(0, 0).unwrap();
+    assert_eq!(rows(&buf, 6, 1), ["  • a "]);
+    let marker = buf.cell(2, 0).unwrap();
     assert_eq!(marker.fg, rdom_tui::Color::Rgb(255, 0, 0));
     assert_ne!(marker.bg, rdom_tui::Color::Rgb(0, 0, 255));
-    assert_eq!(buf.cell(2, 0).unwrap().bg, rdom_tui::Color::Rgb(0, 0, 255));
+    assert_eq!(buf.cell(4, 0).unwrap().bg, rdom_tui::Color::Rgb(0, 0, 255));
 }
 
 /// A marker riding a descendant's line counts in the intrinsic width as
 /// it is packed (C9G-MISC-CORRECTNESS's leftover): an inline-block list
 /// whose item's first line is a paragraph with an inside, letter-spaced
 /// marker is as wide as that line — `•`, a space and `a b` with a cell
-/// after each but the last, plus the list's two cells of padding.
+/// after each but the last, plus the list's four cells of padding.
 #[test]
 fn a_riding_marker_is_measured_through_the_packer() {
     let mut dom = TuiDom::new();
@@ -310,7 +309,7 @@ fn a_riding_marker_is_measured_through_the_packer() {
         20,
         3,
     );
-    assert_eq!(super::size(&dom, c).0, 2 + 7);
+    assert_eq!(super::size(&dom, c).0, 4 + 7);
 }
 
 /// §3.1: any `display: list-item` box hangs a marker; HTML's `li` is
@@ -326,4 +325,47 @@ fn a_list_item_div_hangs_a_marker() {
         },
     );
     assert_eq!(rows, ["• a "]);
+}
+
+// ── C10G-MARKER-CLIP: the list's padding holds the marker ──────────────
+
+/// HTML §15.3.8 gives `ul`, `ol` and `menu` a `padding-inline-start` of
+/// 40px — 2.5em at the 16px default font, room for about five digits —
+/// so a list at the page's edge shows "10. " whole; rdom's is four cells.
+/// An outside marker wider than that (CSS Lists 3 §3.5: "III. " is five)
+/// overflows the list's box, as in a browser: it shows in the margin
+/// beside the list, and only the viewport or a clipping ancestor cuts it.
+#[test]
+fn the_lists_padding_holds_ten_and_overflow_is_clipped_only_by_the_viewport() {
+    let ten = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
+    let rows = list_rows("ol", "", &ten, 7, 10);
+    assert_eq!(rows[0], " 1. a  ");
+    assert_eq!(rows[9], "10. j  ");
+    let roman = "ol { list-style-type: upper-roman }";
+    let three = ["a", "b", "c"];
+    // At the viewport's edge: its first cell is off the screen.
+    assert_eq!(list_rows("ol", roman, &three, 7, 3)[2], "II. c  ");
+    // Beside a margin: it overflows the list into it, whole.
+    let rows = list_rows(
+        "ol",
+        &format!("{roman} .l {{ margin-left: 2 }}"),
+        &three,
+        8,
+        3,
+    );
+    assert_eq!(rows, ["   I. a ", "  II. b ", " III. c "]);
+    // In a clipping ancestor: cut at its edge.
+    let rows = paint_tree(
+        &format!("{roman} .c {{ overflow: hidden; margin-left: 2 }}"),
+        8,
+        3,
+        |dom, root| {
+            let c = el(dom, root, "div", "c");
+            let l = el(dom, c, "ol", "");
+            for t in three {
+                text_el(dom, l, "li", "", t);
+            }
+        },
+    );
+    assert_eq!(rows[2], "  II. c ");
 }

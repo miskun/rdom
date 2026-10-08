@@ -10,15 +10,17 @@ use crate::layout::{Display, ListStyleType, Padding};
 pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
     vec![
         // ── Lists ──
-        // HTML §15.3.8: `ul` / `ol` / `menu` have `padding-inline-start`
-        // (40px there), the room an outside marker hangs in (CSS Lists 3
-        // §3.5): two cells for a bullet and its space, three for `ol`'s
-        // "1. " (a list past nine items hangs its "10. " a cell further
-        // out, as a browser's past ninety-nine).
+        // HTML §15.3.8: `ul` / `ol` / `menu` have `padding-inline-start:
+        // 40px`, the room an outside marker hangs in (CSS Lists 3 §3.5).
+        // 40px is 2.5em at the 16px default font — about five digits of
+        // it — so a browser's list at the page's edge shows "10. " and a
+        // short roman numeral whole; four cells hold "10. " and "iv. ",
+        // and a wider marker overflows the list's box into what is beside
+        // it, as a browser's does (C10G-MARKER-CLIP).
         // Description lists: `dd` is indented from `dt`.
-        ("ul", list(CounterStyle::named("disc"), "2")),
-        ("ol", list(CounterStyle::named("decimal"), "3")),
-        ("menu", list(CounterStyle::named("disc"), "2")),
+        ("ul", list(CounterStyle::named("disc"), "4")),
+        ("ol", list(CounterStyle::named("decimal"), "4")),
+        ("menu", list(CounterStyle::named("disc"), "4")),
         // HTML §15.3.8: `li { display: list-item }` — which increments
         // the `list-item` counter implicitly (CSS Lists 3 §4.6) — and
         // `ol[reversed] { counter-reset: reversed(list-item) }`. `start`

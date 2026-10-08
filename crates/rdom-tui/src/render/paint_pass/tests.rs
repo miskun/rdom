@@ -2402,15 +2402,15 @@ fn ua_ul_renders_bullet_before_each_li() {
     dom.append_child(root, ul).unwrap();
 
     let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 3));
-    // `ul`'s two cells of padding hold the outside marker; the text
-    // starts at the item's content edge, col 2.
-    assert_eq!(row(&buf, 0).trim_end(), "• first");
-    assert_eq!(row(&buf, 1).trim_end(), "• second");
+    // `ul`'s four cells of padding hold the outside marker, its end at
+    // the item's edge; the text starts at the item's content edge, col 4.
+    assert_eq!(row(&buf, 0).trim_end(), "  • first");
+    assert_eq!(row(&buf, 1).trim_end(), "  • second");
 }
 
 /// `UA-OL-1`: `<ol>` numbers its items with the `list-item` counter
 /// (UA `counter-reset` on `ol`, the implicit increment of `display:
-/// list-item`, `decimal` markers hanging in the list's three cells of
+/// list-item`, `decimal` markers hanging in the list's four cells of
 /// padding); a sibling `<ol>` starts over. (A nested `<ol>` inside an `<li>` that also has text hits
 /// `TREE-BFC-PSEUDO-1` — the marker of a mixed-content block is not
 /// painted — so that shape is pinned at the cascade level until that
@@ -2435,10 +2435,10 @@ fn ua_ol_renders_numbered_markers() {
     li_with(&mut dom, ol2, "again");
 
     let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 24, 4));
-    assert_eq!(row(&buf, 0).trim_end(), "1. first");
-    assert_eq!(row(&buf, 1).trim_end(), "2. second");
-    assert_eq!(row(&buf, 2).trim_end(), "3. third");
-    assert_eq!(row(&buf, 3).trim_end(), "1. again");
+    assert_eq!(row(&buf, 0).trim_end(), " 1. first");
+    assert_eq!(row(&buf, 1).trim_end(), " 2. second");
+    assert_eq!(row(&buf, 2).trim_end(), " 3. third");
+    assert_eq!(row(&buf, 3).trim_end(), " 1. again");
 }
 
 // ── C.6: <progress> + <meter> gauge rendering ────────────────────
@@ -5132,7 +5132,7 @@ fn nested_list_first_line_carries_both_markers() {
     dom.append_child(outer, li).unwrap();
     dom.append_child(root, outer).unwrap();
     let buf = pipeline(&mut dom, &Stylesheet::new(), Rect::new(0, 0, 20, 3));
-    assert_eq!(row(&buf, 0).trim(), "1. 1. x");
+    assert_eq!(row(&buf, 0).trim(), "1.  1. x");
     assert_eq!(row(&buf, 1).trim(), "2. y");
 }
 

@@ -92,9 +92,9 @@ fn marker_hover_matches_over_the_marker() {
         dom,
         "li { list-style-position: inside } li::marker:hover { color: red }",
     );
-    mouse(&mut app, MouseEventKind::Moved, 2, 0);
-    assert_eq!(pseudo_fg(&app, li, PseudoSlot::Marker), Some(RED));
     mouse(&mut app, MouseEventKind::Moved, 4, 0);
+    assert_eq!(pseudo_fg(&app, li, PseudoSlot::Marker), Some(RED));
+    mouse(&mut app, MouseEventKind::Moved, 6, 0);
     assert_ne!(
         pseudo_fg(&app, li, PseudoSlot::Marker),
         Some(RED),

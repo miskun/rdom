@@ -6493,3 +6493,21 @@ row comes from.
   with). Mutation (each alone, restored, touched): the eager `box_sequence` lookup → the visit test fails
   (8 022 000 for the list-item rows); the gate removed → the climb test (6 steps for 0). No existing
   expectation or snapshot changed.
+- 2026-10-13 — C10G-MARKER-CLIP (API B4). Found: the UA gave `ul` / `menu` two cells of
+  `padding-inline-start` and `ol` three, so an outside marker (CSS Lists 3 §3.5: its end at the item's
+  border edge) wider than that started left of a list at column 0 — "10. " painted "0. ", "III. " "I. ".
+  Decision: HTML §15.3.8's 40px is 2.5em at the 16px default font, about five digits of text, so all three
+  lists get four cells — "10. ", "iv. " and a bullet with room fit, as in a browser at the page's edge; a
+  wider marker (upper-roman "III. ", a 100th item) overflows the list's box into what is beside it, as a
+  browser's does, and is cut only by the viewport or a clipping ancestor. Sizing the padding to the widest
+  marker (scanning the item count) was rejected: a browser does not, and an author `padding` must keep its
+  meaning. DIVERGENCES §2's marker entry now says so, with the column-0 case and its remedy (a
+  `margin-left`). Red: `list_item.rs::the_lists_padding_holds_ten_and_overflow_is_clipped_only_by_the_viewport`
+  failed at its first row (`"1. a   "` for `" 1. a  "`: three cells); green after, with "10. j" whole, "III. "
+  cut to "II. " at column 0, whole beside a `margin-left: 2`, and cut at an `overflow: hidden` ancestor's
+  edge. Changed expectations (the padding is two cells wider for `ul`, one for `ol`; nothing else moved):
+  eleven `list_item.rs` rows and the measured width (`4 + 7`), `counters.rs` (the `start` / `reversed` /
+  `value` rows no longer need their wrapper's padding — the B4 workaround — and `101.` sits a cell in),
+  `pseudo_chains.rs` (the inside marker is two cells further right), three `paint_pass` list rows and the
+  UA padding test; snapshots `lists_generated.snap` and `ua_chrome.snap` — the list rows only, one or two
+  cells right; no background changed.

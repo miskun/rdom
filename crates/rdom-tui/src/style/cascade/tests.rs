@@ -1252,8 +1252,9 @@ fn ua_blockquote_has_left_rail_and_is_muted() {
 #[test]
 fn ua_ul_ol_menu_have_left_padding() {
     // HTML §15.3.8's `padding-inline-start`: the room an outside marker
-    // hangs in — "• " for `ul` / `menu`, "1. " for `ol`.
-    for (tag, cells) in [("ul", 2), ("ol", 3), ("menu", 2)] {
+    // hangs in — HTML's 40px, four cells, which hold "10. "
+    // (C10G-MARKER-CLIP).
+    for (tag, cells) in [("ul", 4), ("ol", 4), ("menu", 4)] {
         let c = ua_computed_for(tag);
         assert_eq!(
             c.padding.left,
