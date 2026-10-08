@@ -230,7 +230,8 @@ pub(super) fn children_layout(
     match computed.flow {
         crate::layout::Flow::Flex => return ChildrenLayout::Flex,
         crate::layout::Flow::Grid => return ChildrenLayout::Grid,
-        crate::layout::Flow::Block | crate::layout::Flow::FlowRoot => {}
+        crate::layout::Flow::Block | crate::layout::Flow::FlowRoot | crate::layout::Flow::Table => {
+        }
     }
     // Text in a box-less child is this box's text (CSS Display 3 §2.5).
     // Empty text (an unsubmitted `<input>` / `<textarea>`) still

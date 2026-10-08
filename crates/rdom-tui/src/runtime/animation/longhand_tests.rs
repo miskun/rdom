@@ -103,6 +103,8 @@ const SAMPLES: &[(&str, &str, &str, Mid)] = &[
     ("appearance", "auto", "none", Flips),
     ("field-sizing", "fixed", "content", Flips),
     ("resize", "none", "both", Flips),
+    ("table-layout", "auto", "fixed", Flips),
+    ("caption-side", "top", "bottom", Flips),
     (
         "accent-color",
         "rgb(0, 0, 0)",

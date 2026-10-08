@@ -56,8 +56,10 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     working.ui.accent_color = parent.ui.accent_color.clone();
     // CSS Color Adjust 1 §2: `color-scheme` inherits.
     working.color_scheme = parent.color_scheme.clone();
-    // CSS 2.1 §17.6.1: `border-spacing` inherits.
+    // CSS 2.1 §17.6.1: `border-spacing` inherits; §17.4.1:
+    // `caption-side` too.
     working.border_spacing = parent.border_spacing.clone();
+    working.table.caption_side = parent.table.caption_side;
     // CSS Writing Modes 4 §2.1 / §3.1: `direction` and `writing-mode`
     // inherit.
     working.text_direction = parent.text_direction;
@@ -141,6 +143,9 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.line_clamp_container != b.line_clamp_container
         || a.max_lines != b.max_lines
         || a.display != b.display
+        // The table model (CSS 2.1 §17).
+        || a.table != b.table
+        || a.border_spacing != b.border_spacing
         // `collapse` removes a flex item or table row from layout.
         || a.visibility != b.visibility
         || a.text != b.text

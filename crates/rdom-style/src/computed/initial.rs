@@ -117,6 +117,7 @@ impl ComputedStyle {
             establishes_new_bfc: false,
             text: crate::layout::TextStyle::default(),
             ui: crate::layout::UiStyle::default(),
+            table: crate::layout::TableStyle::default(),
             font: crate::layout::Font {
                 weight: crate::layout::FontWeight::Number(400.0),
                 ..crate::layout::Font::default()

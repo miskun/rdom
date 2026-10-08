@@ -55,6 +55,7 @@ mod sizing;
 #[cfg(test)]
 mod sizing_tests;
 mod spacing;
+mod table;
 mod text;
 mod text_align;
 mod text_decoration;
@@ -106,6 +107,7 @@ pub use sizing::{
     valid_flex_factor,
 };
 pub use spacing::Spacing;
+pub use table::{CaptionSide, TableLayout, TablePart, TableStyle};
 pub use text::TextStyle;
 pub use text_align::{
     TextAlign, TextAlignKeyword, TextAlignLast, TextCase, TextIndent, TextJustify, TextTransform,

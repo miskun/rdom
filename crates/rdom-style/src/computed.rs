@@ -285,6 +285,8 @@ pub struct ComputedStyle {
     pub text: crate::layout::TextStyle,
     /// The CSS UI 4 properties (`outline-*`, …); none inherit.
     pub ui: crate::layout::UiStyle,
+    /// The table properties (CSS 2.1 §17): `table-layout`, `caption-side`.
+    pub table: crate::layout::TableStyle,
     /// The font properties (CSS Fonts 4), the weight computed to a
     /// number. All inherit; `modifiers` carries the bold and italic they
     /// draw.

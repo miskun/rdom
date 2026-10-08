@@ -27,6 +27,12 @@ pub(super) fn blockify(working: &mut ComputedStyle) {
                 working.flow = Flow::FlowRoot;
             }
         }
+        // §2.7: a layout-internal box becomes `block` — block flow, its
+        // table role gone (a cell's `flow-root` with it).
+        Display::TablePart(_) => {
+            working.display = Display::Block;
+            working.flow = Flow::Block;
+        }
         Display::Block | Display::None | Display::Contents => {}
     }
 }
@@ -52,6 +58,12 @@ pub(super) fn finalize_float(working: &mut ComputedStyle) {
     use crate::layout::{Float, Position};
     if matches!(working.position, Position::Absolute | Position::Fixed) {
         working.float = Float::None;
+        // CSS 2.1 §9.7: an absolutely positioned table part is no part
+        // of a table — a `block` box (the other display values keep
+        // their box, placed by `positioning`).
+        if matches!(working.display, crate::layout::Display::TablePart(_)) {
+            blockify(working);
+        }
     } else if working.float != Float::None {
         blockify(working);
     }

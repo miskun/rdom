@@ -74,6 +74,7 @@ pub(crate) use numeric::{
 pub use numeric::{MAX_ANGLE_DEGREES, parse_angle};
 mod shadow;
 mod spacing;
+mod table;
 mod text;
 mod text_decoration;
 mod timeline;
@@ -175,6 +176,7 @@ pub use spacing::{
     parse_gap, parse_gap_shorthand, parse_margin_longhand, parse_margin_shorthand,
     parse_margin_trim, parse_padding_shorthand, parse_padding_value,
 };
+pub use table::{parse_caption_side, parse_table_layout};
 pub use text::{
     parse_hyphens, parse_line_break, parse_overflow_wrap, parse_spacing, parse_tab_size,
     parse_text_align, parse_text_align_all, parse_text_align_last, parse_text_indent,

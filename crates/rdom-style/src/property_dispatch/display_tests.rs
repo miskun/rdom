@@ -61,8 +61,9 @@ fn display_keywords_map_onto_outer_and_inner() {
 
 /// CSS Display 3 §2: each component at most once, `list-item` only
 /// with `flow` / `flow-root`, the box and legacy keywords alone; rdom
-/// has no `run-in`, `table` or `ruby` layout yet, so those are
-/// invalid here (the declaration is dropped).
+/// has no `run-in` or `ruby` layout, so those are invalid here (the
+/// declaration is dropped); `table` is valid since C13-TFC
+/// (`table_tests.rs`).
 #[test]
 fn invalid_display_combinations_are_rejected() {
     for bad in [
@@ -79,7 +80,6 @@ fn invalid_display_combinations_are_rejected() {
         "grid flex",
         "inline-grid flow",
         "grid grid",
-        "table",
         "ruby",
         "",
     ] {

@@ -98,6 +98,7 @@ mod serialize;
 pub(crate) mod set;
 mod shadow;
 mod table;
+mod tables;
 mod text;
 mod text_decoration;
 mod timeline;
@@ -146,6 +147,8 @@ mod scrollbar_tests;
 mod sizing_tests;
 #[cfg(test)]
 mod spacing_tests;
+#[cfg(test)]
+mod table_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

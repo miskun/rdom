@@ -180,6 +180,12 @@ pub enum Display {
     /// replaced element or form control it computes to `None`
     /// (Appendix B).
     Contents,
+    /// A layout-internal table box (CSS Display 3 §2.4, CSS 2.1 §17.2):
+    /// a row group, row, cell, column (group) or caption, placed by its
+    /// table's layout. A stray one is wrapped in the anonymous table boxes
+    /// it needs (§17.2.1); blockified (a flex or grid item, a float, an
+    /// absolutely positioned box), it is `Block`.
+    TablePart(super::TablePart),
 }
 
 /// **Inner display** — how an element lays out its own children.
@@ -199,6 +205,10 @@ pub enum Display {
 /// | `inline-flex` = `inline flex`             | `Inline`        | `Flex`       |
 /// | `grid` = `block grid`                     | `Block`         | `Grid`       |
 /// | `inline-grid` = `inline grid`             | `Inline`        | `Grid`       |
+/// | `table` = `block table`                   | `Block`         | `Table`      |
+/// | `inline-table` = `inline table`           | `Inline`        | `Table`      |
+/// | `table-cell`, `table-caption` (§2.4)      | `TablePart(_)`  | `FlowRoot`   |
+/// | `table-row`, … the other internal ones    | `TablePart(_)`  | `Block`      |
 /// | `contents`                                | `Contents`      | `Block`      |
 /// | `none`                                    | `None`          | `Block`      |
 ///
@@ -237,6 +247,11 @@ pub enum Flow {
     /// grid items, placed in the container's grid and sized by its
     /// tracks. Establishes an independent formatting context.
     Grid,
+    /// `table` (CSS Display 3 §2.2, CSS 2.1 §17): a table formatting
+    /// context — the children are the table's captions, columns, row
+    /// groups, rows and cells (anonymous ones wrapping anything else,
+    /// §17.2.1), laid out in the table's grid.
+    Table,
 }
 
 impl Flow {

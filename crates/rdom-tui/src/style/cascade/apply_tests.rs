@@ -179,6 +179,8 @@ const PERTURB: &[(&str, &str)] = &[
     ("appearance", "none"),
     ("field-sizing", "content"),
     ("resize", "both"),
+    ("table-layout", "fixed"),
+    ("caption-side", "bottom"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly
@@ -294,6 +296,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         text,
         font,
         ui,
+        table,
         vertical_align,
         text_decoration,
         // Derived from `text_decoration` and the parent's (§2.1).
@@ -440,6 +443,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         text,
         font,
         ui,
+        table,
         vertical_align,
         text_decoration,
         user_select,

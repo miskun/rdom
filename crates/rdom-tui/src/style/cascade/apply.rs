@@ -78,7 +78,7 @@ impl<'a> Keywords<'a> {
 /// BFC.
 pub(super) fn finalize_bfc_formation(working: &mut ComputedStyle) {
     use crate::layout::{Flow, Position};
-    working.establishes_new_bfc = matches!(working.flow, Flow::Flex | Flow::Grid | Flow::FlowRoot)
+    working.establishes_new_bfc = matches!(working.flow, Flow::Flex | Flow::Grid | Flow::FlowRoot | Flow::Table)
         || matches!(working.display, Display::InlineBlock)
         || working.is_scroll_container()
         || matches!(working.position, Position::Absolute | Position::Fixed)
@@ -282,6 +282,9 @@ pub(super) fn apply_style(
         ui.field_sizing: FIELD_SIZING,
         // §4.2; not inherited.
         ui.resize: RESIZE,
+        // CSS 2.1 §17.5.2: not inherited; §17.4.1: inherits.
+        table.table_layout: TABLE_LAYOUT,
+        table.caption_side: CAPTION_SIDE,
     );
     // Positioning (M2), transitions (M3; latest list wins), animations
     // (CSS Animations 1 §4) and counters

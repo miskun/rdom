@@ -218,7 +218,7 @@ pub(crate) fn height_is_definite_below(dom: &Dom<TuiExt>, parent: Option<NodeId>
                         // parent is a non-flex context (the shorthand
                         // was used outside a flex container) → treated
                         // as `auto` → indefinite.
-                        Some(Flow::Block | Flow::FlowRoot) => return false,
+                        Some(Flow::Block | Flow::FlowRoot | Flow::Table) => return false,
                         // A grid item's containing block is its grid
                         // area, definite once the tracks are sized.
                         Some(Flow::Grid) => return true,

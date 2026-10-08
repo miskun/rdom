@@ -220,7 +220,9 @@ pub(super) fn child_level(dom: &Dom<TuiExt>, item: BoxItem) -> RunKind {
                 crate::layout::Display::Inline
                 | crate::layout::Display::InlineBlock
                 | crate::layout::Display::Contents => RunKind::Inline,
-                crate::layout::Display::Block | crate::layout::Display::None => RunKind::Block,
+                crate::layout::Display::Block
+                | crate::layout::Display::None
+                | crate::layout::Display::TablePart(_) => RunKind::Block,
             }
         }
         // Comments, fragments — treat as inline-level (effectively

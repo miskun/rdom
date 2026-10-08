@@ -20,14 +20,16 @@ enum Inner {
     FlowRoot,
     Flex,
     Grid,
+    Table,
 }
 
 /// Parse a `display` value: `[ <display-outside> || <display-inside> ]
 /// | <display-listitem> | <display-box> | <display-legacy>` (§2),
 /// ASCII case-insensitive, as `(outer, inner, list_item)`. An omitted
 /// outer type is `block`, an omitted inner type `flow`; `list-item`
-/// takes only `flow` / `flow-root`. `run-in`, `table` and `ruby` have
-/// no layout in rdom yet and are invalid.
+/// takes only `flow` / `flow-root`. The layout-internal table keywords
+/// (§2.4) stand alone, a cell or caption a `flow-root` block container
+/// inside. `run-in` and `ruby` have no layout in rdom and are invalid.
 pub fn parse_display(value: &[Token]) -> Option<(Display, Flow, bool)> {
     let words = value
         .iter()
@@ -48,7 +50,18 @@ pub fn parse_display(value: &[Token]) -> Option<(Display, Flow, bool)> {
             // `flex` / `inline-flex`.
             "-webkit-box" => Some((Display::Block, Flow::Flex, false)),
             "-webkit-inline-box" => Some((Display::Inline, Flow::Flex, false)),
-            _ => None,
+            "inline-table" => Some((Display::Inline, Flow::Table, false)),
+            other => crate::layout::TablePart::KEYWORDS
+                .iter()
+                .find(|(k, _)| *k == other)
+                .map(|&(_, part)| {
+                    let inner = if part.is_block_container() {
+                        Flow::FlowRoot
+                    } else {
+                        Flow::Block
+                    };
+                    (Display::TablePart(part), inner, false)
+                }),
         };
         if single.is_some() {
             return single;
@@ -63,11 +76,14 @@ pub fn parse_display(value: &[Token]) -> Option<(Display, Flow, bool)> {
             "flow-root" if inner.is_none() => inner = Some(Inner::FlowRoot),
             "flex" if inner.is_none() => inner = Some(Inner::Flex),
             "grid" if inner.is_none() => inner = Some(Inner::Grid),
+            "table" if inner.is_none() => inner = Some(Inner::Table),
             "list-item" if !list_item => list_item = true,
             _ => return None,
         }
     }
-    if words.is_empty() || (list_item && matches!(inner, Some(Inner::Flex | Inner::Grid))) {
+    if words.is_empty()
+        || (list_item && matches!(inner, Some(Inner::Flex | Inner::Grid | Inner::Table)))
+    {
         return None;
     }
     let pair = match (outer.unwrap_or(Outer::Block), inner.unwrap_or(Inner::Flow)) {
@@ -80,6 +96,8 @@ pub fn parse_display(value: &[Token]) -> Option<(Display, Flow, bool)> {
         (Outer::Inline, Inner::Flex) => (Display::Inline, Flow::Flex),
         (Outer::Block, Inner::Grid) => (Display::Block, Flow::Grid),
         (Outer::Inline, Inner::Grid) => (Display::Inline, Flow::Grid),
+        (Outer::Block, Inner::Table) => (Display::Block, Flow::Table),
+        (Outer::Inline, Inner::Table) => (Display::Inline, Flow::Table),
     };
     Some((pair.0, pair.1, list_item))
 }
@@ -99,6 +117,7 @@ pub fn serialize_display(display: Display, flow: Flow, list_item: bool) -> Strin
     let (outer, inner) = match (display, flow) {
         (Display::None, _) => return "none".to_string(),
         (Display::Contents, _) => return "contents".to_string(),
+        (Display::TablePart(part), _) => return part.keyword().to_string(),
         (Display::InlineBlock, _) => ("inline", "flow-root"),
         (Display::Block, Flow::Block) => ("block", "flow"),
         (Display::Block, Flow::FlowRoot) => ("block", "flow-root"),
@@ -109,6 +128,8 @@ pub fn serialize_display(display: Display, flow: Flow, list_item: bool) -> Strin
         (Display::Inline, Flow::Flex) => ("inline", "flex"),
         (Display::Block, Flow::Grid) => ("block", "grid"),
         (Display::Inline, Flow::Grid) => ("inline", "grid"),
+        (Display::Block, Flow::Table) => ("block", "table"),
+        (Display::Inline, Flow::Table) => ("inline", "table"),
     };
     if list_item {
         let mut parts = Vec::with_capacity(3);
@@ -129,6 +150,8 @@ pub fn serialize_display(display: Display, flow: Flow, list_item: bool) -> Strin
         ("inline", "flow-root") => "inline-block",
         ("block", "grid") => "grid",
         ("inline", "grid") => "inline-grid",
+        ("block", "table") => "table",
+        ("inline", "table") => "inline-table",
         _ => "inline-flex",
     }
     .to_string()

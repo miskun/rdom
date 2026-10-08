@@ -85,6 +85,7 @@ mod position;
 mod scroll;
 mod sizing;
 mod spacing;
+mod table;
 mod text;
 mod text_decoration;
 mod ui;
@@ -220,6 +221,15 @@ impl TuiStyle {
         match v {
             Display::Block | Display::InlineBlock => {
                 self.flow = Some(Value::Specified(crate::layout::Flow::Block));
+            }
+            // `table-cell` / `table-caption` are block containers inside
+            // (`flow-root`), the other parts hold no content of their own.
+            Display::TablePart(part) => {
+                self.flow = Some(Value::Specified(if part.is_block_container() {
+                    crate::layout::Flow::FlowRoot
+                } else {
+                    crate::layout::Flow::Block
+                }));
             }
             Display::Inline | Display::None | Display::Contents => {}
         }

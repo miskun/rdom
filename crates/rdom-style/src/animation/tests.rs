@@ -226,6 +226,8 @@ const SPEC: &[(&str, Spec)] = &[
     // CSS 2.1 §17.6
     ("border-collapse", L(D)),
     ("border-spacing", L(V)),
+    ("table-layout", L(D)),
+    ("caption-side", L(D)),
     // CSS Generated Content 3, Lists 3
     ("content", L(D)),
     ("quotes", L(D)),

@@ -16,9 +16,10 @@ pub(in crate::render) fn flow_axis(computed: &ComputedStyle) -> Direction {
         // A grid container's items lay out on both axes; its block axis
         // stands for it (it takes no `border-collapse` insets, and its
         // content size is the grid's, `grid::content_size`).
-        crate::layout::Flow::Block | crate::layout::Flow::FlowRoot | crate::layout::Flow::Grid => {
-            Direction::Column
-        }
+        crate::layout::Flow::Block
+        | crate::layout::Flow::FlowRoot
+        | crate::layout::Flow::Grid
+        | crate::layout::Flow::Table => Direction::Column,
     }
 }
 

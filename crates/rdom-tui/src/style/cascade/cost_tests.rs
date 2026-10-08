@@ -421,6 +421,7 @@ const INHERITED_VALUES: &[(&str, &str)] = &[
     ("caret-text-color", "red"),
     ("color-scheme", "light dark"),
     ("border-spacing", "1 2"),
+    ("caption-side", "bottom"),
     ("direction", "rtl"),
     ("writing-mode", "vertical-rl"),
     ("block-ellipsis", "'…more'"),

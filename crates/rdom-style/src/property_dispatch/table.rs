@@ -187,6 +187,8 @@ define_fields! {
     Appearance => ui.appearance : APPEARANCE,
     FormFieldSizing => ui.field_sizing : FIELD_SIZING,
     Resize => ui.resize : RESIZE,
+    TableLayout => table.table_layout : TABLE_LAYOUT,
+    CaptionSide => table.caption_side : CAPTION_SIDE,
     OverscrollBehaviorX => overscroll_behavior_x : OVERSCROLL_BEHAVIOR_X,
     OverscrollBehaviorY => overscroll_behavior_y : OVERSCROLL_BEHAVIOR_Y,
     ScrollPaddingTop => scroll_padding.top : SCROLL_PADDING_TOP,
@@ -454,6 +456,7 @@ pub fn inherits(name: &str) -> bool {
             | "caret-text-color"
             | "color-scheme"
             | "border-spacing"
+            | "caption-side"
             | "direction"
             | "writing-mode"
             | "block-ellipsis"

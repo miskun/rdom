@@ -106,6 +106,9 @@ pub(crate) fn is_ifc_block(dom: &Dom<TuiExt>, id: NodeId) -> bool {
             // Block-level child → not IFC. The block-layout pass
             // will partition into anonymous boxes per §9.2.1.1.
             Display::Block => return false,
+            // A table part is wrapped in a block-level anonymous table
+            // (CSS 2.1 §17.2.1): block-level here.
+            Display::TablePart(_) => return false,
         }
     }
     has_inline

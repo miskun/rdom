@@ -396,6 +396,31 @@ fn display_keyword_hints() {
     assert!(ImportantMask::LIST_ITEM.intersects(ImportantMask::all()));
 }
 
+/// C13-TFC: the table `display` values — `Display::TablePart`,
+/// `Flow::Table` — and the table group (`table-layout`, `caption-side`).
+#[test]
+fn table_display_hints() {
+    let d = Display::TablePart(TablePart::Cell);
+    let _internal = match d {
+        Display::TablePart(part) => part.is_block_container(),
+        Display::Block
+        | Display::Inline
+        | Display::InlineBlock
+        | Display::None
+        | Display::Contents => false,
+    };
+    assert!(!Flow::Table.is_block_flow());
+    let s = TuiStyle::new()
+        .display(Display::TablePart(TablePart::Row))
+        .table_layout(TableLayout::Fixed)
+        .caption_side(CaptionSide::Bottom);
+    assert!(s.table.table_layout.is_some());
+    let ComputedStyle { table, .. } = ComputedStyle::initial();
+    assert_eq!(table, TableStyle::default());
+    let _: TableDeclarations = s.table;
+    assert!(ImportantMask::TABLE_LAYOUT.intersects(ImportantMask::all()));
+}
+
 /// C6-VISIBILITY: the `visibility` field, its value type, builder and
 /// bit, and the animatable property.
 #[test]

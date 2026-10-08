@@ -255,7 +255,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | partial — the grid's slot assignment is in (rdom-core); the `display` values, the layout and the HTML migration follow |
+| C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | partial — the grid's slot assignment (rdom-core) and the `display` values / `table-layout` / `caption-side` (parsed, cascaded) are in; the layout and the HTML migration follow |
 | C13-TABLE-PROPS | `caption-side`, `empty-cells`, `border-spacing` (separated borders), `vertical-align` on cells | |
 | C13-COLUMN | Column combinator `\|\|` (Selectors 4; was C11-COLUMN): `col.x \|\| td` matches the cells of the columns a `<col>` spans, from C13-TFC's column model | |
 
@@ -8428,3 +8428,24 @@ row comes from.
   combinator, which rdom-core matches. DESIGN: the three records are closed (geometry). Red:
   `table/tests.rs` 8 of 8 failed against a stub; green after. Mutation: rowspans not clamped to the
   group → 1 fails.
+- 2026-10-08 — C13-TFC, part 2: the data model. rdom-style: `display: table | inline-table` (`Flow::Table`,
+  the inner type, with `block` / `inline` as the outer one — `block table`, `table inline` parse too) and
+  CSS Display 3 §2.4's layout-internal keywords as `Display::TablePart(TablePart)` — standalone keywords,
+  a cell or caption a `flow-root` block container inside, the others `flow` (`TablePart::is_block_container`);
+  `table` takes no `list-item` (§2.3). Decided: one variant holding the part rather than eight `Display`
+  variants — every reader that is not the table layout treats them alike (block-level in a block flow,
+  blockified as an item). `table-layout: auto | fixed` (not inherited) and `caption-side: top | bottom`
+  (inherited; `block-start` / `block-end` parse as the same two — CSS Tables 3 makes `top` / `bottom` the
+  table's block-start / block-end sides; `inline-start` / `inline-end`, which no browser ships, are
+  invalid) in a new style group, `TableStyle` / `TableDeclarations` (`ComputedStyle::table`,
+  `TuiStyle::table`), dispatched by `property_dispatch/tables.rs`, discrete in the animation table, with
+  builders and `!important` bits. rdom-tui: blockification (CSS Display 3 §2.7) makes a table part a
+  `block flow` box and `inline-table` a `table` — and, by CSS 2.1 §9.7, a floated or absolutely positioned
+  table part; `layout_differs` reads the table group and `border-spacing` (both move boxes now); a table is a
+  formatting context root. Interim, until part 3: a table lays out as a
+  `flow-root` and a table part as a block box. Red: `table_tests.rs` (rdom-style) failed to compile
+  (no `TablePart` / `TableLayout` / `CaptionSide`); `display_tests` listed `table` as invalid (expectation
+  removed: it is valid now); `css_phase13/display.rs` 2 of 2 failed with the blockification arm a no-op
+  (`TablePart(Cell)` / `FlowRoot` kept in a flex container and on a float); green after. Breaking
+  (rdom-style): the two variants and the `table` field — CHANGELOG, the API table rows, migration hints
+  `table_display_hints`; DESIGN lists the new types (closed).
