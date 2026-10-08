@@ -15,8 +15,8 @@
 //! - a nested at-rule goes to [`consume_nested_at_rule`]: `@layer`
 //!   holds declarations and rules for the parent's elements, in the
 //!   layer; `@scope` (`scope.rs`) takes its start relative to the
-//!   parent; the conditional group rules (`@media`, `@supports`,
-//!   `@container`) plug in there when they land (C14), and any other
+//!   parent; `@media` holds declarations and rules for the parent's
+//!   elements under its condition (`conditional.rs`), and any other
 //!   at-rule is reported and skipped.
 //!
 //! A nested rule whose prelude reaches `;` or the block's `}` before a
@@ -270,6 +270,17 @@ fn consume_nested_at_rule(
         crate::layer::consume_layer_rule(cursor, sheet, warnings, layer, at, &mut body);
         return;
     }
+    if name.eq_ignore_ascii_case("media") {
+        // CSS Conditional 3 §3, nested (CSS Nesting 1 §3.2): the block's
+        // declarations and rules are the parent rule's, under the query.
+        if let Some(ctx) =
+            crate::conditional::open_media_rule(cursor, sheet, warnings, block.ctx, at)
+        {
+            let inner = Block { ctx, ..block };
+            consume_block_contents(cursor, sheet, warnings, inner, false);
+        }
+        return;
+    }
     if name.eq_ignore_ascii_case("starting-style") {
         // CSS Transitions 2 §3, nested (CSS Nesting 1 §3.2): its block's
         // declarations and rules are the parent rule's, starting style
@@ -331,9 +342,8 @@ pub(crate) fn consume_scope_body(
 }
 
 /// The at-rules a style rule's block evaluates (CSS Nesting 1 §3.2).
-/// The conditional group rules join here when they land (C14).
 fn is_evaluated_nested_at_rule(name: &str) -> bool {
-    ["layer", "scope", "starting-style"]
+    ["layer", "scope", "starting-style", "media"]
         .iter()
         .any(|n| name.eq_ignore_ascii_case(n))
 }

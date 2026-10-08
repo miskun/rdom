@@ -6,7 +6,8 @@
 //! - `@import` is evaluated (`import.rs`) while it leads the sheet;
 //! - `@layer` is evaluated (`layer.rs`); its block form parses a nested
 //!   list of rules into the layer; `@scope` is evaluated (`scope.rs`),
-//!   `@keyframes` too (`keyframes.rs`);
+//!   `@keyframes` too (`keyframes.rs`); `@media` declares its condition
+//!   (`conditional.rs`) and parses its body as a list of rules under it;
 //! - any other at-rule (`@name …`) is consumed whole — statement form
 //!   through `;`, block form through a depth-tracked `{…}` — and
 //!   reported as `UnsupportedAtRule`;
@@ -141,7 +142,7 @@ fn consume_at_rule(
         return;
     }
     if name.eq_ignore_ascii_case("keyframes") {
-        crate::keyframes::consume_keyframes_rule(cursor, sheet, warnings, layer, (line, column));
+        crate::keyframes::consume_keyframes_rule(cursor, sheet, warnings, ctx, (line, column));
         return;
     }
     if name.eq_ignore_ascii_case("counter-style") {
@@ -149,7 +150,7 @@ fn consume_at_rule(
             cursor,
             sheet,
             warnings,
-            layer,
+            ctx,
             (line, column),
         );
         return;
@@ -160,6 +161,15 @@ fn consume_at_rule(
             parent: Parent::Top,
         };
         crate::scope::consume_scope_rule(cursor, sheet, warnings, ctx, (line, column));
+        return;
+    }
+    if name.eq_ignore_ascii_case("media") {
+        // CSS Conditional 3 §3: `@media <media-query-list> { <rule-list> }`.
+        if let Some(inner) =
+            crate::conditional::open_media_rule(cursor, sheet, warnings, ctx, (line, column))
+        {
+            parse_rule_list(cursor, sheet, warnings, inner, None);
+        }
         return;
     }
     if name.eq_ignore_ascii_case("starting-style") {

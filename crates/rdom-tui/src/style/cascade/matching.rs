@@ -128,6 +128,9 @@ const SLOTS: usize = 14;
 #[derive(Debug)]
 pub(crate) struct MatchedRules {
     stamp: Rc<PropertyRegistry>,
+    /// The conditional group rules' results the matches were made under
+    /// (`Sheets::conditions`): a flipped `@media` invalidates them.
+    conditions: Rc<super::conditions::ConditionResults>,
     slots: [Option<Rc<[MatchRef]>>; SLOTS],
     /// The `::highlight(name)` boxes' matches, by the name's place in
     /// `Sheets::highlight_names`; `None` when they were not matched.
@@ -142,6 +145,7 @@ pub(super) type HighlightRefs = Rc<[Rc<[MatchRef]>]>;
 impl PartialEq for MatchedRules {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.stamp, &other.stamp)
+            && Rc::ptr_eq(&self.conditions, &other.conditions)
             && self.slots == other.slots
             && self.highlights == other.highlights
     }
@@ -150,7 +154,7 @@ impl PartialEq for MatchedRules {
 impl MatchedRules {
     /// Recorded under `sheets`?
     pub(super) fn is_for(&self, sheets: &Sheets<'_>) -> bool {
-        Rc::ptr_eq(&self.stamp, sheets.stamp())
+        Rc::ptr_eq(&self.stamp, sheets.stamp()) && Rc::ptr_eq(&self.conditions, sheets.conditions())
     }
 
     /// The rules of `slot`: the recorded ones, or [`Rules::Match`] when
@@ -245,6 +249,7 @@ impl Recorder {
             }
             _ => Rc::new(MatchedRules {
                 stamp: sheets.stamp().clone(),
+                conditions: sheets.conditions().clone(),
                 slots: self.slots,
                 highlights: self.highlights,
             }),
@@ -384,7 +389,7 @@ impl<'a> Scratch<'a> {
             );
             for &ri in &self.candidates {
                 let rule = &sheet.rules()[ri as usize];
-                if !sheets.applies(rule) {
+                if !sheets.applies(sheet_idx, rule) {
                     continue;
                 }
                 if let Some(target) = targets.iter().position(|t| *t == rule.pseudo)

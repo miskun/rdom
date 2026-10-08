@@ -21,13 +21,13 @@ use std::rc::Rc;
 
 use rdom_core::{DocumentPosition, Dom, NodeId};
 
+use super::PropertyRegistry;
 use super::counters::{CounterState, StoredOps, takes_part};
 use super::registered::document_registry;
 use super::walk::{
     Mode, Scratch, Sheets, SubtreeFlags, cascade_subtree, first_child, merge_root_vars,
     next_sibling,
 };
-use super::{PropertyRegistry, document_color_scheme, document_viewport};
 use crate::ext::TuiExt;
 use crate::style::{ComputedStyle, Stylesheet, TuiStyle, VarMap};
 
@@ -68,12 +68,7 @@ fn walk_subtrees(
     mode: Mode,
 ) -> (Vec<NodeId>, Vec<NodeId>) {
     let roots = outermost(dom, &roots);
-    let sheets = Sheets::new(
-        stylesheets,
-        registry,
-        document_viewport(dom),
-        document_color_scheme(dom),
-    );
+    let sheets = Sheets::new(stylesheets, registry, super::media::document_media(dom));
     super::note_first_rules(dom, &sheets);
     super::details::reclaim_content_boxes(dom);
     let merged_vars = merge_root_vars(dom, &sheets);

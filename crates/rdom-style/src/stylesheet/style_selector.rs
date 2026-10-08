@@ -12,7 +12,7 @@ use rdom_core::selectors::{self, ComplexSelector, SelectorList};
 
 use super::selector_text::{extract_pseudo_chain, split_top_level_commas};
 use super::{
-    LayerId, PseudoElementTarget, Rule, RuleOrigin, ScopeId, StyleError, Stylesheet,
+    ConditionId, LayerId, PseudoElementTarget, Rule, RuleOrigin, ScopeId, StyleError, Stylesheet,
     UserActionState,
 };
 use crate::{Specificity, TuiStyle};
@@ -124,6 +124,8 @@ pub struct RuleContext {
     /// Inside `@starting-style` (CSS Transitions 2 §3): the rule applies
     /// only to an element's starting style.
     pub starting_style: bool,
+    /// The innermost conditional group rule (`None`: unconditional).
+    pub condition: Option<ConditionId>,
 }
 
 impl RuleContext {
@@ -135,6 +137,12 @@ impl RuleContext {
     /// In `@scope` `scope`.
     pub fn in_scope(self, scope: Option<ScopeId>) -> Self {
         RuleContext { scope, ..self }
+    }
+
+    /// Inside conditional group rule `condition` (`@media`, CSS
+    /// Conditional 3 §2).
+    pub fn in_condition(self, condition: Option<ConditionId>) -> Self {
+        RuleContext { condition, ..self }
     }
 
     /// Inside `@starting-style`.
@@ -155,6 +163,7 @@ impl Stylesheet {
             rule.layer = ctx.layer;
             rule.scope = ctx.scope;
             rule.starting_style = ctx.starting_style;
+            rule.condition = ctx.condition;
         }
         self.push_rules(rules);
     }
@@ -228,6 +237,7 @@ impl Stylesheet {
                     layer: None,
                     scope: None,
                     starting_style: false,
+                    condition: None,
                     directional,
                 }
             })

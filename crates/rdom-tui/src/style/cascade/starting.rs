@@ -28,8 +28,7 @@ pub(crate) fn starting_style(
     let sheets = Sheets::new(
         stylesheets,
         registry.clone(),
-        super::document_viewport(dom),
-        super::document_color_scheme(dom),
+        super::media::document_media(dom),
     )
     .with_starting_style();
     if !sheets.has_starting_rules() {

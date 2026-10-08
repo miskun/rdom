@@ -97,7 +97,6 @@ fn sheets<'a>(
     Sheets::new(
         stylesheets,
         registry.clone(),
-        super::document_viewport(dom),
-        super::document_color_scheme(dom),
+        super::media::document_media(dom),
     )
 }

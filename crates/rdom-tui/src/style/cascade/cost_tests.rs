@@ -518,3 +518,47 @@ fn has_over_a_deep_chain_walks_it_once_per_pass() {
         "{visits} element visits for {N} nested anchors"
     );
 }
+
+// ─── C14-MEDIA: conditions evaluated per media environment ─────────────
+
+/// CSS Conditional 3 §2 / Media Queries 4: a sheet set's conditional
+/// rules are evaluated once per media environment — a cascade in the same
+/// viewport reuses the results, a new viewport evaluates them once more.
+#[test]
+fn media_conditions_evaluate_once_per_environment() {
+    let mut dom = one_div();
+    let css = rdom_css::parse("@media (width > 5) { div { color: red } }").stylesheet;
+    super::conditions::probe::take();
+    dom.set_viewport(Viewport::new(10, 2));
+    dom.cascade(&css);
+    dom.cascade(&css);
+    assert_eq!(super::conditions::probe::take(), 1, "one environment");
+    dom.set_viewport(Viewport::new(20, 2));
+    dom.cascade(&css);
+    dom.cascade(&css);
+    assert_eq!(super::conditions::probe::take(), 1, "a new viewport, once");
+}
+
+/// A restyle reuses an element's recorded matches only under the same
+/// condition results: after a query flips, the rule it gated is not
+/// replayed from the record (`MatchedRules::is_for`).
+#[test]
+fn a_flipped_query_invalidates_recorded_matches() {
+    let mut dom = one_div();
+    let div = dom.node(dom.root()).first_child().unwrap().id();
+    let css =
+        rdom_css::parse("div { color: blue } @media (width > 5) { div { color: red } }").stylesheet;
+    dom.set_viewport(Viewport::new(10, 2));
+    dom.cascade(&css);
+    assert_eq!(
+        dom.node(div).computed().unwrap().fg,
+        crate::Color::Rgb(255, 0, 0)
+    );
+    dom.set_viewport(Viewport::new(3, 2));
+    let registry = super::registered::document_registry(&mut dom, &[&css]);
+    restyle_vars(&mut dom, &[&css], registry, &[div]);
+    assert_eq!(
+        dom.node(div).computed().unwrap().fg,
+        crate::Color::Rgb(0, 0, 255)
+    );
+}

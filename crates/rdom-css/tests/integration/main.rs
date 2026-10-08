@@ -16,6 +16,7 @@ mod keyframes;
 mod layers;
 mod lengths;
 mod malformed_declarations;
+mod media;
 mod nesting;
 mod padding_shorthand;
 mod positioning;

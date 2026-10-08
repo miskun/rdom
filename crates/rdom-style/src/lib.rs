@@ -51,6 +51,7 @@
 pub mod animation;
 pub mod backend;
 pub mod calc;
+pub mod conditional;
 pub mod counters;
 pub mod keyframes;
 pub mod layout;
@@ -94,8 +95,9 @@ pub use registration::{
 };
 pub use specificity::Specificity;
 pub use stylesheet::{
-    Import, Layer, LayerId, LayerOrder, PseudoElementTarget, Rule, RuleContext, RuleIndex,
-    RuleOrigin, Scope, ScopeId, StyleError, StyleSelector, Stylesheet, UserActionState,
+    ConditionId, ConditionKind, ConditionRule, Import, Layer, LayerId, LayerOrder,
+    PseudoElementTarget, Rule, RuleContext, RuleIndex, RuleOrigin, Scope, ScopeId, StyleError,
+    StyleSelector, Stylesheet, UserActionState,
 };
 pub use transition::{
     LinearStop, TimingFunction, TransitionBehavior, TransitionProperty, TransitionRule,

@@ -37,6 +37,9 @@ pub struct KeyframesRule {
     /// The cascade layer the rule sits in (`@layer`, CSS Cascade 5
     /// §6.4), as declared in its own sheet; `None` when unlayered.
     pub layer: Option<crate::LayerId>,
+    /// The conditional group rule it sits in (`@media`, CSS Conditional 3
+    /// §2): it defines its name only while that holds.
+    pub condition: Option<crate::ConditionId>,
     /// The keyframe blocks, in source order.
     pub keyframes: Vec<Keyframe>,
 }
@@ -154,8 +157,15 @@ impl KeyframesRule {
         KeyframesRule {
             name: name.into(),
             layer: None,
+            condition: None,
             keyframes: Vec::new(),
         }
+    }
+
+    /// This rule inside conditional group rule `condition`.
+    pub fn in_condition(mut self, condition: Option<crate::ConditionId>) -> KeyframesRule {
+        self.condition = condition;
+        self
     }
 
     /// This rule in the cascade layer `layer` (`None`: unlayered).

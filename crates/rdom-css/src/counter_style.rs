@@ -14,20 +14,20 @@ use rdom_style::counters::{
 };
 use rdom_style::parse::SourceCursor;
 use rdom_style::parse::token::{Token, tokenize};
-use rdom_style::{LayerId, Stylesheet};
+use rdom_style::{RuleContext, Stylesheet};
 
 use crate::layer::read_prelude;
 use crate::property::read_body;
 use crate::{CounterStyleDescriptorReason, CounterStyleRuleReason, Warning, WarningKind};
 
 /// Consume an `@counter-style` rule; the cursor is just past the
-/// at-keyword, `at` is the position of `@`, `layer` the cascade layer
-/// the rule sits in.
+/// at-keyword, `at` is the position of `@`, `ctx` the cascade layer
+/// and the conditional group rule it sits in.
 pub(crate) fn consume_counter_style_rule(
     cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
-    layer: Option<LayerId>,
+    ctx: RuleContext,
     at: (u32, u32),
 ) {
     let Some(prelude) = read_prelude(cursor, warnings) else {
@@ -84,7 +84,11 @@ pub(crate) fn consume_counter_style_rule(
                 };
                 warn(warnings, kind);
             }
-            sheet.define_counter_style(CounterStyleDefinition::new(&name, rule).in_layer(layer));
+            sheet.define_counter_style(
+                CounterStyleDefinition::new(&name, rule)
+                    .in_layer(ctx.layer)
+                    .in_condition(ctx.condition),
+            );
         }
         Err(reason) => warn(warnings, invalid(reason)),
     }

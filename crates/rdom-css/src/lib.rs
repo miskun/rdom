@@ -17,6 +17,7 @@
 use rdom_style::{Stylesheet, TuiStyle};
 
 mod block;
+mod conditional;
 mod counter_style;
 mod declarations;
 mod import;

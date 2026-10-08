@@ -13,8 +13,10 @@ use std::rc::Rc;
 use rdom_style::LayerOrder;
 use rdom_style::calc::Viewport;
 use rdom_style::color::ColorScheme;
+use rdom_style::conditional::MediaEnvironment;
 use rdom_style::counters::{CounterStyleDefinition, CounterStyleRegistry};
 
+use super::conditions::ConditionResults;
 use super::ladder::Plan;
 use super::registered::PropertyRegistry;
 use crate::style::{Rule, RuleOrigin, Stylesheet};
@@ -25,8 +27,16 @@ pub(super) struct Sheets<'a> {
     list: &'a [&'a Stylesheet],
     layers: LayerOrder,
     registry: Rc<PropertyRegistry>,
-    viewport: Viewport,
-    color_scheme: ColorScheme,
+    /// The media environment: the viewport, the preferred color scheme
+    /// and the preferences `@media` reads.
+    media: MediaEnvironment,
+    /// Which conditional group rules hold in `media` (`conditions.rs`).
+    conditions: Rc<ConditionResults>,
+    /// The counter styles and keyframes names resolve to when a
+    /// definition sits under a condition: they depend on `conditions`, so
+    /// they are found per run rather than kept on the sheet set.
+    conditional_counter_styles: std::cell::OnceCell<CounterStyleRegistry>,
+    conditional_keyframes: std::cell::OnceCell<KeyframesMap>,
     /// Whether `@starting-style` rules apply (CSS Transitions 2 §3): only
     /// when computing an element's starting style (`starting.rs`).
     starting: bool,
@@ -53,28 +63,63 @@ pub(super) struct SheetFacts {
     starting_rules: std::cell::OnceCell<bool>,
     /// Each `@keyframes` name and the rule it resolves to: `(sheet,
     /// index)` into the sheets' `Stylesheet::keyframes`.
-    keyframes: std::cell::OnceCell<std::collections::HashMap<std::sync::Arc<str>, (usize, usize)>>,
+    keyframes: std::cell::OnceCell<KeyframesMap>,
+    /// Whether a `@counter-style` or `@keyframes` rule sits under a
+    /// conditional group rule: then which one a name resolves to depends
+    /// on the media environment.
+    conditional_definitions: std::cell::OnceCell<bool>,
+    /// The conditions' results in the last media environment
+    /// (`conditions.rs`).
+    pub(super) conditions: super::conditions::ConditionCache,
 }
+
+/// Each `@keyframes` name and the rule it resolves to: `(sheet, index)`.
+type KeyframesMap = std::collections::HashMap<std::sync::Arc<str>, (usize, usize)>;
 
 impl<'a> Sheets<'a> {
     /// `list`, with the custom properties it registers (`registry`, built
-    /// from `list`), cascaded for a terminal of `viewport`'s size whose
-    /// preferred color scheme is `color_scheme`.
+    /// from `list`), cascaded in the media environment `media`: a
+    /// terminal of its viewport's size, with its preferred color scheme
+    /// and preferences.
     pub(super) fn new(
         list: &'a [&'a Stylesheet],
         registry: Rc<PropertyRegistry>,
-        viewport: Viewport,
-        color_scheme: ColorScheme,
+        media: MediaEnvironment,
     ) -> Self {
+        let conditions = registry.facts.conditions.get(list, &media);
         Sheets {
             list,
             layers: LayerOrder::new(list),
             registry,
-            viewport,
-            color_scheme,
+            media,
+            conditions,
+            conditional_counter_styles: std::cell::OnceCell::new(),
+            conditional_keyframes: std::cell::OnceCell::new(),
             starting: false,
             animation: &[],
         }
+    }
+
+    /// The results of the sheets' conditional group rules in this run's
+    /// media environment: the same `Rc` while no condition flips.
+    pub(super) fn conditions(&self) -> &Rc<ConditionResults> {
+        &self.conditions
+    }
+
+    /// Whether a counter style or keyframes definition of sheet `sheet`
+    /// under `condition` takes part in this run.
+    fn defines(&self, sheet: usize, condition: Option<rdom_style::ConditionId>) -> bool {
+        self.conditions.holds(sheet, condition)
+    }
+
+    /// Whether any `@counter-style` or `@keyframes` rule is conditional.
+    fn has_conditional_definitions(&self) -> bool {
+        *self.registry.facts.conditional_definitions.get_or_init(|| {
+            self.list.iter().any(|s| {
+                s.counter_styles().iter().any(|d| d.condition.is_some())
+                    || s.keyframes().iter().any(|k| k.condition.is_some())
+            })
+        })
     }
 
     /// These sheets with a keyframe's `blocks` applying in the animation
@@ -101,10 +146,12 @@ impl<'a> Sheets<'a> {
         }
     }
 
-    /// Whether a `rule` applies under this set: a `@starting-style` rule
-    /// only when computing a starting style.
-    pub(super) fn applies(&self, rule: &Rule) -> bool {
-        self.starting || !rule.starting_style
+    /// Whether `rule`, of sheet `sheet`, applies under this set: a
+    /// `@starting-style` rule only when computing a starting style, a rule
+    /// in a conditional group rule only while its conditions hold (CSS
+    /// Conditional 3 §2).
+    pub(super) fn applies(&self, sheet: usize, rule: &Rule) -> bool {
+        (self.starting || !rule.starting_style) && self.conditions.holds(sheet, rule.condition)
     }
 
     /// Whether any of the sheets has a `@starting-style` rule.
@@ -159,13 +206,15 @@ impl<'a> Sheets<'a> {
     /// (unlayered last), then sheet, then source order (CSS Cascade 5
     /// §6.4.3).
     pub(super) fn counter_styles(&self) -> &CounterStyleRegistry {
-        self.registry.facts.counter_styles.get_or_init(|| {
+        let build = || {
             #[cfg(test)]
             cost::FACT_BUILDS.with(|c| c.set(c.get() + 1));
             let mut defs: Vec<(u32, usize, usize, &CounterStyleDefinition)> = Vec::new();
             for (sheet, s) in self.list.iter().enumerate() {
                 for (i, def) in s.counter_styles().iter().enumerate() {
-                    defs.push((self.layers.rank(sheet, def.layer), sheet, i, def));
+                    if self.defines(sheet, def.condition) {
+                        defs.push((self.layers.rank(sheet, def.layer), sheet, i, def));
+                    }
                 }
             }
             defs.sort_by_key(|&(rank, sheet, i, _)| (rank, sheet, i));
@@ -174,20 +223,27 @@ impl<'a> Sheets<'a> {
                 registry.define(def.name.clone(), def.rule.clone());
             }
             registry
-        })
+        };
+        if self.has_conditional_definitions() {
+            self.conditional_counter_styles.get_or_init(build)
+        } else {
+            self.registry.facts.counter_styles.get_or_init(build)
+        }
     }
 
     /// The `@keyframes` rule `name` resolves to (CSS Animations 1 §3):
     /// the last of that name — by cascade layer (unlayered last), then
     /// sheet, then source order (CSS Cascade 5 §6.4.3).
     pub(super) fn keyframes_rule(&self, name: &str) -> Option<&'a rdom_style::KeyframesRule> {
-        let map = self.registry.facts.keyframes.get_or_init(|| {
+        let build = || {
             #[cfg(test)]
             cost::FACT_BUILDS.with(|c| c.set(c.get() + 1));
             let mut defs: Vec<(u32, usize, usize)> = Vec::new();
             for (sheet, s) in self.list.iter().enumerate() {
                 for (i, rule) in s.keyframes().iter().enumerate() {
-                    defs.push((self.layers.rank(sheet, rule.layer), sheet, i));
+                    if self.defines(sheet, rule.condition) {
+                        defs.push((self.layers.rank(sheet, rule.layer), sheet, i));
+                    }
                 }
             }
             defs.sort_unstable();
@@ -196,19 +252,24 @@ impl<'a> Sheets<'a> {
                 map.insert(self.list[sheet].keyframes()[i].name.clone(), (sheet, i));
             }
             map
-        });
+        };
+        let map = if self.has_conditional_definitions() {
+            self.conditional_keyframes.get_or_init(build)
+        } else {
+            self.registry.facts.keyframes.get_or_init(build)
+        };
         let &(sheet, i) = map.get(name)?;
         self.list.get(sheet)?.keyframes().get(i)
     }
 
     /// The document's preferred color scheme (CSS Color Adjust 1 §2.1).
     pub(super) fn color_scheme(&self) -> ColorScheme {
-        self.color_scheme
+        self.media.color_scheme
     }
 
     /// The terminal size the viewport-percentage units resolve against.
     pub(super) fn viewport(&self) -> Viewport {
-        self.viewport
+        self.media.viewport
     }
 
     /// The custom properties the sheets register.

@@ -16,10 +16,11 @@
 //! keyframe values (they are computed against it); a hidden element
 //! (`display: none`, itself or above) runs none.
 //!
-//! `prefers-reduced-motion` (CSS Media Queries 5) needs no hook here: it
-//! is a media feature, so once `@media` is evaluated (C14-MEDIA) a
-//! reduced-motion sheet turns animations off through the cascade like any
-//! declaration. Until then every animation runs (DIVERGENCES §3).
+//! `prefers-reduced-motion` (Media Queries 5 §12.1) needs no hook here,
+//! as in a browser: it is a media feature, so a sheet's
+//! `@media (prefers-reduced-motion: reduce)` turns animations off through
+//! the cascade like any declaration; the App reports the preference
+//! (`App::with_media_preferences`).
 
 use std::rc::Rc;
 use std::sync::Arc;

@@ -3,9 +3,9 @@
 //! The parser resolves an `@import` through a host-provided loader and
 //! inserts the imported rules at the import's position; the sheet keeps
 //! one [`Import`] per import that loaded, with its layer and its
-//! conditions. The `supports()` and media conditions are recorded as
-//! written: rdom evaluates no conditional rules yet (C14), so an
-//! imported sheet always applies.
+//! conditions as written. The imported rules sit under the media list (a
+//! [`ConditionRule`](super::ConditionRule) the parser declares); the
+//! `supports()` condition is not evaluated yet (C14-SUPPORTS).
 
 use super::{LayerId, Stylesheet};
 

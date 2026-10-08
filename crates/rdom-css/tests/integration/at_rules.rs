@@ -35,13 +35,14 @@ fn statement_at_rule_is_skipped_and_the_next_rule_survives() {
 
 #[test]
 fn block_at_rule_with_nested_braces_is_skipped_whole() {
-    let src = "@media (min-width: 40) { a { color: red } b { color: blue } } c { color: green }";
+    // `@page` with a nested margin rule (`@media` is evaluated now).
+    let src = "@page :first { @top-left { content: 'x' } a { color: red } } c { color: green }";
     assert_eq!(selectors(src), vec!["c"]);
     let r = parse(src);
     assert_eq!(
         r.warnings
             .iter()
-            .filter(|w| matches!(&w.kind, WarningKind::UnsupportedAtRule(n) if n == "media"))
+            .filter(|w| matches!(&w.kind, WarningKind::UnsupportedAtRule(n) if n == "page"))
             .count(),
         1
     );

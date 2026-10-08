@@ -18,7 +18,7 @@
 use rdom_style::keyframes::{Keyframe, KeyframeSelector, KeyframesRule, TimelineRangeName};
 use rdom_style::parse::SourceCursor;
 use rdom_style::parse::token::{Token, tokenize};
-use rdom_style::{LayerId, Stylesheet, TuiStyle};
+use rdom_style::{RuleContext, Stylesheet, TuiStyle};
 
 use crate::declarations::DeclarationRun;
 use crate::layer::read_prelude;
@@ -27,13 +27,13 @@ use crate::top_level::{skip_at_rule_rest, skip_ws_and_comments};
 use crate::{Warning, WarningKind};
 
 /// Consume an `@keyframes` rule; the cursor is just past the
-/// at-keyword, `at` is the position of `@`, `layer` the cascade layer
-/// the rule sits in.
+/// at-keyword, `at` is the position of `@`, `ctx` the cascade layer
+/// and the conditional group rule it sits in.
 pub(crate) fn consume_keyframes_rule(
     cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
-    layer: Option<LayerId>,
+    ctx: RuleContext,
     at: (u32, u32),
 ) {
     let Some(prelude) = read_prelude(cursor, warnings) else {
@@ -57,7 +57,9 @@ pub(crate) fn consume_keyframes_rule(
         return;
     };
     cursor.bump(); // '{'
-    let mut rule = KeyframesRule::new(name).in_layer(layer);
+    let mut rule = KeyframesRule::new(name)
+        .in_layer(ctx.layer)
+        .in_condition(ctx.condition);
     while let Some(keyframe) = next_keyframe(cursor, warnings) {
         if let Some(keyframe) = keyframe {
             rule = rule.with(keyframe);

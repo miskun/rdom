@@ -43,6 +43,7 @@ use rdom_core::selectors::{ParseError, SelectorList};
 
 use crate::{Specificity, TuiStyle};
 
+mod conditions;
 mod counter_styles;
 mod imports;
 mod index;
@@ -59,6 +60,7 @@ mod user_action;
 mod user_action_tests;
 mod version;
 
+pub use conditions::{ConditionId, ConditionKind, ConditionRule};
 pub use imports::Import;
 pub use index::RuleIndex;
 pub use layers::{Layer, LayerId, LayerOrder};
@@ -221,6 +223,11 @@ pub struct Rule {
     /// applies to an element's starting style only, which the cascade
     /// computes for an element with no before-change style.
     pub starting_style: bool,
+    /// The innermost conditional group rule the rule sits in (`@media`,
+    /// CSS Conditional 3 §2), as declared in its own sheet; `None` for an
+    /// unconditional rule. The rule applies while it and every enclosing
+    /// one hold.
+    pub condition: Option<ConditionId>,
     /// `style`'s direction-mapped declarations replayed for each
     /// `direction`, built with the rule ([`Rule::directional_overlay`]).
     directional: Option<std::sync::Arc<[[TuiStyle; 2]; 2]>>,
@@ -315,6 +322,9 @@ pub struct Stylesheet {
     imports: Vec<Import>,
     /// Declared `@scope` rules, in source order (`scopes.rs`).
     scopes: Vec<Scope>,
+    /// Declared conditional group rules, in source order
+    /// (`conditions.rs`).
+    conditions: Vec<ConditionRule>,
     /// CSSOM `ownerNode`: the `<style>` element the sheet came from.
     owner_node: Option<rdom_core::NodeId>,
     /// Renewed by every mutation ([`Stylesheet::version`]).

@@ -7,10 +7,11 @@
 //! fetched through the host's [`ImportLoader`]. Its rules are parsed
 //! into the importing sheet at the import's position — before the
 //! importing sheet's own rules, as an import must lead the sheet —
-//! inside the `layer` / `layer(name)` layer if one is given. The
-//! `supports()` and media conditions are recorded on the
-//! [`Import`](rdom_style::Import) record; until conditional rules land
-//! (C14) they count as true.
+//! inside the `layer` / `layer(name)` layer if one is given, under the
+//! media list as an `@media` rule would put them. The `supports()` and
+//! media conditions are also recorded on the
+//! [`Import`](rdom_style::Import) record; until `@supports` lands
+//! (C14-SUPPORTS) the `supports()` one counts as true.
 //!
 //! The loader resolves each URL against the importing sheet's URL
 //! ([`ImportLoader::load_from`]) and returns the sheet's resolved URL,
@@ -164,6 +165,13 @@ pub(crate) fn consume_import(
             sheet.declare_layer(layer, &segments)
         }
     };
+    // CSS Cascade 5 §3: the imported rules apply while the media list
+    // matches.
+    let mut ctx = rdom_style::RuleContext::default().in_layer(into);
+    if let Some(media) = &parsed.media {
+        let queries = rdom_style::conditional::MediaList::parse(media);
+        ctx = crate::conditional::declare(sheet, ctx, rdom_style::ConditionKind::Media(queries));
+    }
     sheet.record_import(Import::new(
         parsed.url.clone(),
         into,
@@ -173,13 +181,7 @@ pub(crate) fn consume_import(
     imports.stack.push(loaded.url);
     imports.depth += 1;
     let mut inner = SourceCursor::new(&loaded.text);
-    parse_rule_list(
-        &mut inner,
-        sheet,
-        warnings,
-        rdom_style::RuleContext::default().in_layer(into),
-        Some(imports),
-    );
+    parse_rule_list(&mut inner, sheet, warnings, ctx, Some(imports));
     imports.depth -= 1;
     imports.stack.pop();
 }

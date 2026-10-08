@@ -263,7 +263,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C14-MEDIA | `@media` (cell-sized viewport, `prefers-color-scheme`, `prefers-reduced-motion`, `hover` / `pointer`, …) and `matchMedia` | |
+| C14-MEDIA | `@media` (cell-sized viewport, `prefers-color-scheme`, `prefers-reduced-motion`, `hover` / `pointer`, …) and `matchMedia` | partial — part 2: the `App`'s media preferences, `matchMedia` and its `change` event, resize restyle by flipped queries, `<style media>` |
 | C14-SUPPORTS | `@supports` (feature queries against the dispatch table; `CSS.supports`) | |
 | C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | |
 | C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | |
@@ -9020,3 +9020,39 @@ row comes from.
   -CALC-SIZE-AUTHORED, -TEARDOWN-COST, -DOM-CONVENIENCE, -MISC), B (API, UA and docs: C13G-TH-CAPTION, -TABLE-UA,
   -TABLE-TRACKS, -UPGRADE, -DOCS) and C (the document root as the initial containing block: C13-ROOT-BLOCK,
   C13-ROOT-CANVAS). Their re-review rides with the Phase 14 gate.
+- 2026-10-09 — C14-MEDIA (part 1 of 2: `@media` in the parser and the cascade; Media Queries 4 §2–§4, §6–§7,
+  Media Queries 5 §12, CSS Conditional 3 §2–§3, CSS Nesting 1 §3.2, CSS Cascade 5 §3). rdom-style gains
+  `conditional/`: Kleene `Truth` and `Condition<L>` (`not` / `and` / `or` over leaves, `<general-enclosed>` kept as
+  text and unknown) — the one grammar `@supports` and `@container` will reuse — over a component-value tree of
+  the prelude's tokens (`syntax.rs`: blocks and functions, spans kept so a leaf is cut out as written and `>=` is
+  one operator only without a space); `media.rs`: `MediaList` (named for CSSOM's `MediaList`; rdom-tui's
+  `matchMedia` result takes `MediaQueryList`), each query `not all` when it does not parse (§3.2), features as
+  boolean / plain / range tests (`min-` / `max-` normalized to ranges, `a < name <= b` both directions),
+  evaluated by a terminal mapping; `media_env.rs`: `MediaEnvironment` (viewport, scheme, preferences) and
+  `MediaPreferences` (`with_*` builders). Decided: lengths are cells — a number or `ch` — and a pixel or
+  font-relative length is unknown, never a guessed scale (DESIGN's pixel rule): `(min-width: 600px)` and its `not`
+  both stay off; an unknown result is false even under `not` (§3.2). `hover` / `pointer: fine` (the brief leaned
+  `coarse`: a terminal mouse hits any cell exactly and targets are whole cells, so `coarse`'s "enlarge targets"
+  would only cost cells); `grid: 1` (MQ4 §4.4's own example is a tty); `resolution` false (no pixel density —
+  §2.4's "concept does not exist"); `color: 8` (rdom always emits 24-bit SGR; the backend has no colour-depth
+  notion, so it is a preference an app may lower); `display-mode: standalone`; the rest in DIVERGENCES §2. Stored
+  as rule context, as `@layer` / `@scope` are: `Stylesheet::declare_condition(ConditionRule { kind, parent })`,
+  `RuleContext::in_condition`, `Rule::condition`, and `KeyframesRule::condition` / `CounterStyleDefinition::
+  condition` (a definition inside `@media` names its rule only while it holds); `append` remaps them. rdom-css:
+  `conditional.rs` opens `@media` (top level and `@layer` bodies a rule list, nested a block's contents with the
+  parent's selector), `@import`'s media list wraps the imported rules in a condition; keyframes / counter-style
+  parsers take the `RuleContext`. rdom-tui: `Sheets::new` takes a `MediaEnvironment` (viewport, scheme and the new
+  document data `MediaPreferences`, `CascadeExt::set_media_preferences`); `cascade/conditions.rs` evaluates every
+  sheet's conditions once per environment (`ConditionCache` on the sheet set's facts; an environment that flips
+  nothing keeps the same `Rc`), `Sheets::applies(sheet, rule)` gates on them, and `MatchedRules` records the
+  results it was matched under so a restyle never replays a match a flipped query invalidated; the counter-style
+  and keyframes facts are built per run only when a definition is conditional. Red: `css_phase14/media.rs` — all
+  11 failed on HEAD (the strict sheet rejected `@media` as unsupported; the import test applied the narrow sheet in
+  a wide viewport); rdom-style `conditional::tests` (9) and rdom-css `media.rs` (6) were compile-red (no module /
+  fields). Green after. Mutation (each alone, restored, touched): `applies` ignoring the conditions → 9 of the 11
+  integration tests; `is_for` ignoring the results → `a_flipped_query_invalidates_recorded_matches`; the cache
+  re-evaluating every run → `media_conditions_evaluate_once_per_environment`. Changed expectation: rdom-css
+  `at_rules`' skipped-block test used `@media` as its unsupported at-rule — now `@page` with a nested margin rule.
+  `media.rs` came out at 757 lines formatted: the feature (`media_feature.rs`: parse, values, evaluation) split
+  from the list and query (`media.rs`). Silent change 26 (the old 26–87 move to 27–88). Part 2: the `App`'s preferences, `matchMedia`, resize restyle
+  by flipped queries, `<style media>`.

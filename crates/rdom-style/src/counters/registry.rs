@@ -17,6 +17,9 @@ pub struct CounterStyleDefinition {
     pub name: Arc<str>,
     pub rule: CounterStyleRule,
     pub layer: Option<LayerId>,
+    /// The conditional group rule it sits in (`@media`, CSS Conditional 3
+    /// §2): it defines its name only while that holds.
+    pub condition: Option<crate::ConditionId>,
 }
 
 impl CounterStyleDefinition {
@@ -27,12 +30,19 @@ impl CounterStyleDefinition {
             name: Arc::from(name.name().unwrap_or_default()),
             rule,
             layer: None,
+            condition: None,
         }
     }
 
     /// In cascade layer `layer`.
     pub fn in_layer(mut self, layer: Option<LayerId>) -> Self {
         self.layer = layer;
+        self
+    }
+
+    /// Inside conditional group rule `condition`.
+    pub fn in_condition(mut self, condition: Option<crate::ConditionId>) -> Self {
+        self.condition = condition;
         self
     }
 }

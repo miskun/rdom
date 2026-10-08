@@ -78,6 +78,7 @@ mod keyframes;
 mod ladder;
 mod line_clamp;
 mod matching;
+mod media;
 mod paired;
 mod pseudo;
 mod quotes;
@@ -87,6 +88,7 @@ pub(crate) use keyframes::{keyframe_style, keyframes_rule};
 pub(crate) use matching::MatchedRules;
 #[cfg(test)]
 pub(crate) use matching::probe as match_probe;
+pub(crate) use media::{document_media_preferences, set_document_media_preferences};
 pub(crate) use registered::PropertyRegistry;
 #[cfg(test)]
 pub(crate) use registered::probe as registry_probe;
@@ -94,6 +96,7 @@ pub(crate) use scheme::{document_color_scheme, set_document_color_scheme};
 pub(crate) use starting::starting_style;
 pub(crate) use viewport::{document_viewport, set_document_viewport};
 mod colors;
+pub(crate) mod conditions;
 mod decoration;
 pub(crate) mod details;
 mod early_pseudos;
@@ -177,6 +180,8 @@ use rdom_style::calc::Viewport;
 ///     fn viewport(&self) -> Viewport { Viewport::new(0, 0) }
 ///     fn set_color_scheme(&mut self, _: ColorScheme) {}
 ///     fn color_scheme(&self) -> ColorScheme { ColorScheme::Dark }
+///     fn set_media_preferences(&mut self, _: rdom_tui::MediaPreferences) {}
+///     fn media_preferences(&self) -> rdom_tui::MediaPreferences { Default::default() }
 /// }
 /// ```
 pub trait CascadeExt: crate::sealed::Sealed {
@@ -232,6 +237,19 @@ pub trait CascadeExt: crate::sealed::Sealed {
     /// The document's preferred color scheme
     /// ([`Self::set_color_scheme`]).
     fn color_scheme(&self) -> rdom_style::color::ColorScheme;
+
+    /// Set the preferences the document's media queries read beyond the
+    /// viewport and the color scheme (Media Queries 5 §12):
+    /// `prefers-reduced-motion`, `prefers-contrast`, the pointer, … — a
+    /// terminal's defaults until set. The `App` sets them
+    /// (`App::with_media_preferences`). A change does not re-cascade:
+    /// cascade the whole tree again (`App::set_media_preferences` does
+    /// when a query flips).
+    fn set_media_preferences(&mut self, preferences: rdom_style::conditional::MediaPreferences);
+
+    /// The preferences the document's media queries read
+    /// ([`Self::set_media_preferences`]).
+    fn media_preferences(&self) -> rdom_style::conditional::MediaPreferences;
 }
 
 impl CascadeExt for Dom<TuiExt> {
@@ -270,6 +288,14 @@ impl CascadeExt for Dom<TuiExt> {
     fn color_scheme(&self) -> rdom_style::color::ColorScheme {
         document_color_scheme(self)
     }
+
+    fn set_media_preferences(&mut self, preferences: rdom_style::conditional::MediaPreferences) {
+        set_document_media_preferences(self, preferences);
+    }
+
+    fn media_preferences(&self) -> rdom_style::conditional::MediaPreferences {
+        document_media_preferences(self)
+    }
 }
 
 /// [`CascadeExt::cascade_all`] with the sheets' registrations already
@@ -282,12 +308,7 @@ pub(crate) fn cascade_all_with(
     registry: Option<Rc<PropertyRegistry>>,
 ) {
     let registry = registry.unwrap_or_else(|| registered::document_registry(dom, stylesheets));
-    let sheets = walk::Sheets::new(
-        stylesheets,
-        registry.clone(),
-        document_viewport(dom),
-        document_color_scheme(dom),
-    );
+    let sheets = walk::Sheets::new(stylesheets, registry.clone(), media::document_media(dom));
     note_first_rules(dom, &sheets);
     details::reclaim_content_boxes(dom);
     let merged_vars = walk::merge_root_vars(dom, &sheets);

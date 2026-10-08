@@ -84,6 +84,7 @@ impl Stylesheet {
             keyframes,
             imports,
             scopes: _,     // `append_scopes` maps them
+            conditions: _, // `append_conditions` maps them
             owner_node: _, // the receiver's own `<style>` stays its owner
             version: _,    // `touch` renews ours
         } = other;
@@ -98,10 +99,12 @@ impl Stylesheet {
             map.push(id);
         }
         let scopes = self.append_scopes(other);
+        let conditions = self.append_conditions(other);
         self.registrations.extend(registrations.iter().cloned());
         for def in counter_styles {
             let mut def = def.clone();
             def.layer = def.layer.map(|l| map[l.index()]);
+            def.condition = def.condition.map(|c| conditions[c.index()]);
             self.counter_styles.push(def);
         }
         for import in imports {
@@ -112,6 +115,7 @@ impl Stylesheet {
         for rule in keyframes {
             let mut rule = rule.clone();
             rule.layer = rule.layer.map(|l| map[l.index()]);
+            rule.condition = rule.condition.map(|c| conditions[c.index()]);
             self.keyframes.push(rule);
         }
         let rules: Vec<Rule> = rules
@@ -120,6 +124,7 @@ impl Stylesheet {
                 let mut rule = rule.clone();
                 rule.layer = rule.layer.map(|l| map[l.index()]);
                 rule.scope = rule.scope.map(|s| scopes[s.index()]);
+                rule.condition = rule.condition.map(|c| conditions[c.index()]);
                 rule.source_idx = self.next_source_idx;
                 self.next_source_idx += 1;
                 rule
