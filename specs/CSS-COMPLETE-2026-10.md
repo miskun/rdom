@@ -7201,3 +7201,9 @@ row comes from.
   `one_esc_closes_one_watcher` (added for it); `showModal()` hiding nothing → the Esc order test; no
   release hook for the other buttons → `a_right_click_outside_dismisses_too`. Phase 11's items are done;
   its gates are pending.
+- 2026-10-14 — Phase 11 part 2 docs: ACID tile 15 lists the form states, the modal dialog's top layer and a
+  popover; stage-2 steps I14 (user validity: the blur commit, a submission attempt, a reset, a checkbox) and
+  I15 (popover light dismiss: invokers, nested stacks, a drag out, a click outside, Esc against a modal
+  dialog, a manual popover) exercise them. CSS-COVERAGE §3.17: 32 Supported, 0 Partial, 2 Missing (`:blank`,
+  a decided exclusion; the column combinator, C13-COLUMN), 4 N/A. Phase 11: items done, gates pending (the
+  Phase 10 fixes' re-review rides with them).
