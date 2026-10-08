@@ -180,6 +180,7 @@ define_fields! {
     OutlineWidth => ui.outline_width : OUTLINE_WIDTH,
     OutlineColor => ui.outline_color : OUTLINE_COLOR,
     OutlineOffset => ui.outline_offset : OUTLINE_OFFSET,
+    Cursor => ui.cursor : CURSOR,
     OverscrollBehaviorX => overscroll_behavior_x : OVERSCROLL_BEHAVIOR_X,
     OverscrollBehaviorY => overscroll_behavior_y : OVERSCROLL_BEHAVIOR_Y,
     ScrollPaddingTop => scroll_padding.top : SCROLL_PADDING_TOP,
@@ -451,6 +452,7 @@ pub fn inherits(name: &str) -> bool {
             | "writing-mode"
             | "block-ellipsis"
             | "scrollbar-color"
+            | "cursor"
     )
 }
 

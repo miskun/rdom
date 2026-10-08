@@ -9,6 +9,8 @@
 //! - [`router`] — crossterm event → synthesized `TuiEvent` → dispatch.
 //!   Sub-modules: `mouse`, `hover`, `wheel`, `key`.
 //! - [`focus`] — tabindex, focus navigation, modal focus trap.
+//! - [`pointer_shape`] — the terminal pointer's shape, from `cursor`
+//!   (OSC 22).
 //! - [`style_flush`] — bring an element's style up to date between
 //!   frames (what `focus()` does first).
 //! - [`selection`] — text selection, clipboard, `::selection`,
@@ -41,6 +43,7 @@ pub(crate) mod implicit_events;
 #[cfg(test)]
 mod inert_tests;
 pub(crate) mod input;
+pub mod pointer_shape;
 pub mod router;
 pub(crate) mod scroll_snap;
 pub mod scrollbar;

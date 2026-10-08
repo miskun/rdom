@@ -80,6 +80,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("outline-width", "2px"),
         ("outline-color", "rgb(1, 2, 3)"),
         ("outline-offset", "-1"),
+        ("cursor", "url(\"a.cur\") 2 3, url(\"b.png\"), pointer"),
         ("overscroll-behavior", "contain none"),
         ("overscroll-behavior-x", "none"),
         ("overscroll-behavior-y", "contain"),

@@ -53,6 +53,7 @@ mod event_loop;
 mod frame;
 mod input;
 mod keyboard_defaults;
+mod pointer;
 mod prelude;
 mod redraw;
 mod scheme;
@@ -181,6 +182,8 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// The app's clock is driven by [`advance`](App::advance) (a headless
     /// or test driver), not by the wall clock: a frame does not sync it.
     virtual_clock: bool,
+    /// The pointer and the shape last sent for it (`pointer`).
+    pointer: pointer::Pointer,
 
     /// DRAG-AUTOSCROLL session state (`autoscroll::AutoscrollSession`).
     autoscroll: autoscroll::AutoscrollSession,
@@ -247,7 +250,8 @@ impl App<CrosstermBackend<Stdout>> {
         let backend = CrosstermBackend::new(io::stdout())
             .with_sgr_capabilities(crate::render::SgrCapabilities::from_env());
         let terminal = Terminal::new(backend)?;
-        let mut app = Self::build(dom, stylesheet, terminal)?;
+        let mut app = Self::build(dom, stylesheet, terminal)?
+            .with_pointer_shapes(crate::runtime::pointer_shape::PointerShapes::from_env());
         app.guard = Some(guard);
         app.prelude
             .caret_blink
@@ -357,6 +361,7 @@ impl<B: Backend> App<B> {
             )),
             animations: crate::runtime::animation::AnimationRegistry::new(),
             virtual_clock: false,
+            pointer: pointer::Pointer::default(),
             autoscroll: autoscroll::AutoscrollSession::default(),
             redraw: Redraw::Cascade,
             #[cfg(test)]

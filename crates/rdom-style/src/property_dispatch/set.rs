@@ -87,7 +87,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         .or_else(|| super::float::set(name, value, style))
         .or_else(|| super::scrollbar::set(name, value, style))
         .or_else(|| super::scroll::set(name, value, style))
-        .or_else(|| super::outline::set(name, value, style))
+        .or_else(|| super::ui::set(name, value, style))
         .or_else(|| super::grid::set(name, value, style))
         .or_else(|| super::text::set(name, value, style))
         .or_else(|| super::inline::set(name, value, style))

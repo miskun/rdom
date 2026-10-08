@@ -115,7 +115,7 @@ pub use text_decoration::{
     TextDecorationStyle, TextDecorationThickness, TextDecorations, TextUnderlineOffset,
     TextUnderlinePosition,
 };
-pub use ui::{OutlineColor, OutlineStyle, UiStyle};
+pub use ui::{Cursor, CursorImage, CursorKeyword, OutlineColor, OutlineStyle, UiStyle};
 pub use vertical_align::VerticalAlign;
 pub use white_space::{
     Hyphens, LineBreak, OverflowWrap, TabSize, TextWrapMode, TextWrapStyle, WhiteSpace,

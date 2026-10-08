@@ -406,6 +406,7 @@ const INHERITED_VALUES: &[(&str, &str)] = &[
     ("pointer-events", "none"),
     ("visibility", "hidden"),
     ("caret-color", "red"),
+    ("cursor", "url(a.cur) 1 2, url(b.png), pointer"),
     ("quotes", "'«' '»' '‹' '›'"),
     ("list-style", "square inside"),
     ("list-style-type", "'→ '"),

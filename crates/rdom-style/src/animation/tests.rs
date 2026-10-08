@@ -122,6 +122,7 @@ const SPEC: &[(&str, Spec)] = &[
     ("outline-width", L(V)),
     ("outline-color", L(V)),
     ("outline-offset", L(V)),
+    ("cursor", L(D)),
     ("overscroll-behavior", S),
     ("overscroll-behavior-x", L(D)),
     ("overscroll-behavior-y", L(D)),

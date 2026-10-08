@@ -84,6 +84,9 @@ impl<B: Backend> App<B> {
                 let outcome = self.router.route(&mut self.dom, event);
                 crate::runtime::focus::visible::note_pointer_focus(&mut self.dom, focused_before);
                 self.note_route(outcome);
+                // CSS UI 4 §4.1: the pointer's shape over what it is on now.
+                self.note_pointer(col, row);
+                self.update_pointer_shape();
                 // DRAG-AUTOSCROLL: (re)arm from the pointer's current position.
                 self.note_autoscroll(col, row);
             }

@@ -1,8 +1,9 @@
-//! The CSS UI 4 setters of the `TuiStyle` builder: the outline (§5).
+//! The CSS UI 4 setters of the `TuiStyle` builder: the outline (§5) and
+//! `cursor` (§4.1).
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
-use crate::layout::{BorderWidth, OutlineColor, OutlineStyle, PaintLength};
+use crate::layout::{BorderWidth, Cursor, OutlineColor, OutlineStyle, PaintLength};
 
 /// A setter for one [`UiDeclarations`](crate::UiDeclarations) field and
 /// its `!important` twin, as `setter!` is for a `TuiStyle` field.
@@ -51,4 +52,5 @@ impl TuiStyle {
         OUTLINE_OFFSET,
         PaintLength
     );
+    ui_setter!("cursor", cursor, cursor_important, CURSOR, Cursor);
 }

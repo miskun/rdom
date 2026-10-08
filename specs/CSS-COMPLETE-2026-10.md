@@ -245,7 +245,7 @@ row comes from.
 | C12-STARTING | `@starting-style` || done |
 | C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | done |
 | C12-OUTLINE | `outline` / `-color` / `-style` / `-width` / `-offset` (non-layout ring) | done |
-| C12-CURSOR | `cursor` (OSC 22 pointer shapes) | |
+| C12-CURSOR | `cursor` (OSC 22 pointer shapes) | done |
 | C12-CARET | `caret-shape` / `caret-animation` / `caret` | |
 | C12-FOCUS-FLUSH | `focus()` (and other style-reading DOM calls) flushes pending style for the element first, as browsers do — TECH_DEBT `FOCUS-FLUSH-1`; needs the sheet set / transition registry / dirty tracker reachable from a handler's `Dom` | done |
 | C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | |
@@ -7911,3 +7911,26 @@ row comes from.
   fails the over-the-next-box, after-positioned and negative-offset tests. Changed tables: the property and
   important-setter contracts, the `initial` perturbation and the longhand interpolation samples gain the four
   longhands. CHANGELOG silent change 20 (outline declarations now draw).
+- 2026-10-17 — C12-CURSOR (CSS UI 4 §4.1; HTML §15.3.4). rdom-style: `cursor` — `[<url> [<x> <y>]?,]*
+  <cursor-predefined>`, the keyword required last — as `Cursor { images, keyword }` (`CursorImage`, the 36
+  keywords and `auto` / `default` / `none` in `CursorKeyword`) in the `ui` group; inherited, discrete,
+  paint-only for the animation table. The UA's `a[href]` takes `cursor: pointer` (HTML §15.3.4's `:link,
+  :visited`). rdom-tui: `runtime::pointer_shape` — `PointerShapes { None, Osc22 }` (`#[non_exhaustive]`)
+  detected as `SgrCapabilities` is (C9G-SGR-CAPS): a multiplexer gets `None` (it would have to pass OSC 22
+  through), kitty / foot / WezTerm / Ghostty (`TERM`, `TERM_PROGRAM`, `KITTY_WINDOW_ID`) get `Osc22` — the
+  terminals that take the CSS names; xterm's OSC 22 takes X cursor-font names and is left out. `App::new`
+  detects, `App::with_pointer_shapes` overrides, a `with_backend` app sends nothing. The `App` keeps the
+  pointer's last position and the shape it last sent (`app/pointer.rs`) and, after each mouse event and each
+  drawn frame (a still pointer's element may change, or its `:hover` style), sends `OSC 22 ; <name> ST` when
+  the shape under the pointer changed: the hit element's computed keyword, `auto` the text pointer over an
+  editable control or a line of selectable inline content (`hit_test::over_selectable_text`), `none`
+  `default` (no protocol hides it). Restoration: the first shape sent sets a process-wide flag (the panic hook
+  has no `App` to ask), and `restore_terminal` — `leave_tui_mode`, so the `TerminalGuard`'s drop, a normal
+  exit and the panic hook — sends `OSC 22 ; default ST` while it is set (read, not taken, so concurrent
+  restores cannot race). Red (by mutation, the tests written first against the finished API): with `auto`
+  never the text pointer, `the_pointer_follows_the_element_under_it` fails at the paragraph; with no restore
+  bytes, `leaving_tui_mode_restores_the_pointer` fails; with no update after a frame, the `:hover` style's
+  `grab` is never sent (only the pre-hover `pointer`). Detection pinned by `detection_is_conservative`; the
+  dispatch by `ui_tests::cursor_takes_image_fallbacks_and_a_keyword`. `property_dispatch/outline.rs` became
+  `ui.rs` (with its tests), the home of the CSS UI 4 arms. CHANGELOG silent change: the pointer changes shape
+  in those terminals.

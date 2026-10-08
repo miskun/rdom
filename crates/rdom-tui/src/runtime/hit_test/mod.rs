@@ -245,6 +245,21 @@ impl HitTestExt for Dom<TuiExt> {
 /// nodes and any `::details-content` box between a `<details>` and its
 /// content (`render::box_tree::slot`), which the text lookups need — its
 /// line boxes are its own.
+/// Whether `(x, y)` is on a line of inline content a user can select:
+/// a box laying out inline content on the hit path, with no `user-select:
+/// none` above the hit (what `cursor: auto` shows the text pointer over,
+/// `runtime::pointer_shape`).
+pub(crate) fn over_selectable_text(dom: &Dom<TuiExt>, x: u16, y: u16) -> bool {
+    let path = box_path(dom, x, y);
+    let Some(&deepest) = path.last() else {
+        return false;
+    };
+    path.iter()
+        .rev()
+        .any(|&id| nearest::inline_target_at(dom, id, x, y).is_some())
+        && !user_select::is_unselectable(dom, deepest)
+}
+
 fn box_path(dom: &Dom<TuiExt>, x: u16, y: u16) -> Vec<NodeId> {
     let mut path = Vec::new();
     // Hit-testing has no viewport of its own: overflow ancestors are the

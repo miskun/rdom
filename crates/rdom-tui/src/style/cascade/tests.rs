@@ -2632,6 +2632,7 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ),
         ("visibility", child.visibility == parent.visibility),
         ("caret-color", child.caret_color == parent.caret_color),
+        ("cursor", child.ui.cursor == parent.ui.cursor),
         (
             "caret-text-color",
             child.caret_text_color == parent.caret_text_color,

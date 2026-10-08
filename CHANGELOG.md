@@ -86,6 +86,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 71. **An indeterminate checkbox draws `[-]`** (HTML §4.10.5.1.15): a checkbox with its indeterminate flag (the `indeterminate` attribute) shows `[-] ` instead of `[x] ` / `[ ] `; override `input[type=checkbox]:indeterminate::before`. (C11-FORM-STATES)
 72. **`:first-child` / `:last-child` / `:only-child` match an element without a parent** (Selectors 4 §13.3): a detached or root element matches them, as `:nth-child(1)` does. (C11-NTH)
 73. **A newly rendered element does not transition from its hidden values** (CSS Transitions 1 §3): coming out of `display: none` (itself or under an ancestor), it has no before-change style, so its values change at once — it transitioned from the values it had while hidden. Give it a `@starting-style` to fade it in. (C12-STARTING)
+74. **The pointer changes shape over the page** (CSS UI 4 §4.1): in kitty, foot, WezTerm and Ghostty an `App` now sets the terminal pointer — the text pointer over text, `pointer` over links, a sheet's `cursor` elsewhere — where it was left alone. `App::with_pointer_shapes(PointerShapes::None)` keeps the terminal's own. (C12-CURSOR)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -366,6 +367,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`cursor`** (CSS UI 4 §4.1): every `<cursor-predefined>` keyword after `url()` fallbacks with optional hotspots (kept and serialized; a terminal draws no image), inherited, discrete — `Cursor`, `CursorKeyword`, `CursorImage` in `ComputedStyle::ui`. (C12-CURSOR)
 - **The outline properties** (CSS UI 4 §5): `outline-style` (`auto` and every line style but `hidden`), `outline-width`, `outline-color` (`auto | <color>`), `outline-offset` and the `outline` shorthand — in `TuiStyle::ui` / `ComputedStyle::ui` (`UiDeclarations`, `UiStyle`), with `OutlineStyle`, `OutlineColor`, builder setters and their interpolation. (C12-OUTLINE)
 - **The scroll-driven animation properties** (Scroll-driven Animations 1 §2–§4): `scroll-timeline` / `view-timeline` and their longhands, `timeline-scope`, `animation-timeline`'s `scroll()` / `view()` / `<dashed-ident>`, `animation-range` and its longhands with range names (`TimelineAxis`, `TimelineInset`, `RangeBoundary`, …). (C12-SCROLL-DRIVEN)
 - **Composite addition** (Web Animations 1 §5.4.4): `Longhand::add` adds a number, length or color onto an underlying value (`false` for a discrete one, which replaces); `Longhand::declared_in` (a block names it) and `affects_layout`. (C12-KEYFRAMES)
@@ -576,6 +578,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **`cursor` sets the terminal pointer** (CSS UI 4 §4.1): the `App` sends the shape of the element under the pointer over OSC 22 to kitty, foot, WezTerm and Ghostty (`PointerShapes::detect`, `App::with_pointer_shapes`), `default` back on exit or panic; `auto` is the text pointer over selectable text, and links show `pointer` (HTML §15.3.4). (C12-CURSOR)
 - **Outlines** (CSS UI 4 §5): `outline` draws a ring of box-drawing cells outside the border box, `outline-offset` cells out, taking no room — drawn last in its stacking context (CSS 2.1 Appendix E step 10) and clipped by `overflow` ancestors; `outline-style: auto` is a rounded ring in the accent color. (C12-OUTLINE)
 - **`focus()` flushes style first** (HTML §6.6.6): on a document an `App` runs, `focus()` / `focus_with()` cascade the element's dirty subtrees before deciding focusability, so a panel a handler just showed lets its input take the focus; `runtime::style_flush::flush_style(dom, id)` does the same before reading `computed()`. (C12-FOCUS-FLUSH)
 - **Pseudo-element starting styles** (CSS Transitions 2 §3): a `::before` / `::after` that starts to generate a box transitions from its `@starting-style` style, as an element does. (C12-STARTING)

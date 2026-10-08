@@ -79,24 +79,24 @@ pub use layout::{
     Align, AlignProperty, Alignment, AppliedDecorations, AppliedLine, AspectRatio,
     BackgroundAttachment, BackgroundRepeat, BlockEllipsis, Border, BorderRadius, BorderSpacing,
     BorderStyle, BorderWeight, BorderWidth, BoxOrient, BoxShadow, BoxSizing, CalcSize,
-    CalcSizeBasis, Clear, ContainIntrinsicSize, Continue, CornerStyle, Corners, Direction, Display,
-    FlexBasis, FlexDirection, FlexWrap, Float, FloatSide, Flow, Font, FontFamily, FontSize,
-    FontSizeKeyword, FontStretch, FontStretchKeyword, FontStyle, FontVariant, FontWeight, GapValue,
-    GridAutoFlow, GridLine, GridTemplate, GridTemplateAreas, Hyphens, InterpolateSize,
-    IntrinsicSize, LayoutRect, Length, LineBreak, LineHeight, LineNameItem, LineNameList,
-    ListStyleImage, ListStylePosition, ListStyleType, Margin, MarginTrim, MarginValue, MarkerSide,
-    MaxSize, MinSize, NamedArea, OutlineColor, OutlineStyle, Overflow, OverflowAlign,
-    OverflowClipMargin, OverflowWrap, Overlay, OverscrollBehavior, Padding, PaddingValue,
-    PaintLength, RepeatCount, RepeatStyle, ScrollPadding, ScrollSnapAlign, ScrollSnapAxis,
-    ScrollSnapStop, ScrollSnapStrictness, ScrollSnapType, ScrollbarColor, ScrollbarGutter,
-    ScrollbarWidth, Sides, Size, SnapAlign, Spacing, SystemFont, TabSize, TextAlign,
-    TextAlignKeyword, TextAlignLast, TextCase, TextDecoration, TextDecorationLine,
-    TextDecorationSkipInk, TextDecorationStyle, TextDecorationThickness, TextDecorations,
-    TextDirection, TextIndent, TextJustify, TextOverflow, TextOverflowSide, TextStyle,
-    TextTransform, TextUnderlineOffset, TextUnderlinePosition, TextWrapMode, TextWrapStyle,
-    TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize, UiStyle, UserSelect,
-    VerticalAlign, Visibility, VisualBox, WhiteSpace, WhiteSpaceCollapse, WordBreak, WritingMode,
-    ZIndex,
+    CalcSizeBasis, Clear, ContainIntrinsicSize, Continue, CornerStyle, Corners, Cursor,
+    CursorImage, CursorKeyword, Direction, Display, FlexBasis, FlexDirection, FlexWrap, Float,
+    FloatSide, Flow, Font, FontFamily, FontSize, FontSizeKeyword, FontStretch, FontStretchKeyword,
+    FontStyle, FontVariant, FontWeight, GapValue, GridAutoFlow, GridLine, GridTemplate,
+    GridTemplateAreas, Hyphens, InterpolateSize, IntrinsicSize, LayoutRect, Length, LineBreak,
+    LineHeight, LineNameItem, LineNameList, ListStyleImage, ListStylePosition, ListStyleType,
+    Margin, MarginTrim, MarginValue, MarkerSide, MaxSize, MinSize, NamedArea, OutlineColor,
+    OutlineStyle, Overflow, OverflowAlign, OverflowClipMargin, OverflowWrap, Overlay,
+    OverscrollBehavior, Padding, PaddingValue, PaintLength, RepeatCount, RepeatStyle,
+    ScrollPadding, ScrollSnapAlign, ScrollSnapAxis, ScrollSnapStop, ScrollSnapStrictness,
+    ScrollSnapType, ScrollbarColor, ScrollbarGutter, ScrollbarWidth, Sides, Size, SnapAlign,
+    Spacing, SystemFont, TabSize, TextAlign, TextAlignKeyword, TextAlignLast, TextCase,
+    TextDecoration, TextDecorationLine, TextDecorationSkipInk, TextDecorationStyle,
+    TextDecorationThickness, TextDecorations, TextDirection, TextIndent, TextJustify, TextOverflow,
+    TextOverflowSide, TextStyle, TextTransform, TextUnderlineOffset, TextUnderlinePosition,
+    TextWrapMode, TextWrapStyle, TrackBreadth, TrackList, TrackListItem, TrackRepeat, TrackSize,
+    UiStyle, UserSelect, VerticalAlign, Visibility, VisualBox, WhiteSpace, WhiteSpaceCollapse,
+    WordBreak, WritingMode, ZIndex,
 };
 pub use node::{TuiNodeExt, TuiNodeMutExt};
 /// `@import` resolution for the document's `<style>` sheets
@@ -127,6 +127,7 @@ pub use runtime::builtins::popover::PopoverState;
 pub use runtime::builtins::validation::ValidityState;
 /// `focus(options)` (HTML `FocusOptions`), `TuiAccessorsMut::focus_with`.
 pub use runtime::focus::FocusOptions;
+pub use runtime::pointer_shape::PointerShapes;
 /// The timer API on event contexts (`set_timeout`, `request_animation_frame`, …).
 pub use runtime::timers::TuiTimers;
 pub use runtime::{

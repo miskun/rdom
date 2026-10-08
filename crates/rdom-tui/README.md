@@ -1092,6 +1092,19 @@ the `TuiEvent::keydown` / `keyup` / `keypress` / `click` / mouse /
   let _custom = SgrCapabilities::BASIC.with_styled_underline(true);
   ```
 
+- **The pointer's shape and `PointerShapes`.** `cursor` (CSS UI 4 §4.1) sets the terminal pointer over the element under it — the text pointer over selectable text, `pointer` over a link — sent as OSC 22 to the terminals known to take CSS pointer names: kitty, foot, WezTerm and Ghostty (`PointerShapes::from_env`; nothing under a multiplexer or elsewhere). Leaving TUI mode, the panic path included, puts the default pointer back. Override the guess on the `App`:
+
+  ```rust
+  use rdom_tui::prelude::*;
+  use rdom_tui::PointerShapes;
+
+  let terminal = Terminal::new(TestBackend::new(20, 2)).unwrap();
+  let app = App::with_backend(TuiDom::new(), Stylesheet::new(), terminal)
+      .unwrap()
+      .with_pointer_shapes(PointerShapes::Osc22);
+  assert_eq!(app.pointer_shapes(), PointerShapes::Osc22);
+  ```
+
 - **iTerm2 and hover.** iTerm2 may ignore the any-motion mouse mode until it sees a real click, at launch and after every refocus, so `:hover` styles start following the pointer only after one click. Other terminals (Alacritty, Kitty, Ghostty, WezTerm) honor it immediately. The cause and the failed re-arm attempts are recorded in `specs/DIVERGENCES.md` §4.
 
 ## Examples

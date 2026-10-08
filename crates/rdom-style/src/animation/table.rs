@@ -132,6 +132,7 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("outline-width", ByComputedValue, value!(ui.outline_width)),
     e("outline-color", ByComputedValue, value!(ui.outline_color)),
     e("outline-offset", ByComputedValue, value!(ui.outline_offset)),
+    e("cursor", Discrete, steps!(ui.cursor)),
     e(
         "overscroll-behavior-x",
         Discrete,

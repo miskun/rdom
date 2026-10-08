@@ -269,6 +269,8 @@ pub(super) fn apply_style(
         ui.outline_width: OUTLINE_WIDTH,
         ui.outline_color: OUTLINE_COLOR,
         ui.outline_offset: OUTLINE_OFFSET,
+        // CSS UI 4 §4.1; inherits.
+        ui.cursor: CURSOR,
     );
     // Positioning (M2), transitions (M3; latest list wins), animations
     // (CSS Animations 1 §4) and counters

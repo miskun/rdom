@@ -1,4 +1,5 @@
-//! Dispatch tests for the outline properties (C12-OUTLINE; CSS UI 4 §5).
+//! Dispatch tests for the CSS UI 4 properties: the outline (C12-OUTLINE,
+//! §5) and `cursor` (C12-CURSOR, §4.1).
 
 use super::*;
 use crate::layout::{BorderWidth, OutlineColor, OutlineStyle, PaintLength};
@@ -102,4 +103,55 @@ fn outlines_do_not_inherit() {
     ] {
         assert!(!inherits(name), "{name}");
     }
+}
+
+/// §4.1: `cursor: [<url> [<x> <y>]?,]* <cursor-predefined>` — image
+/// fallbacks (kept, inert in a terminal), the keyword last; inherited.
+#[test]
+fn cursor_takes_image_fallbacks_and_a_keyword() {
+    use crate::layout::{CursorImage, CursorKeyword};
+    let mut style = TuiStyle::new();
+    set(
+        "cursor",
+        "url(hand.cur) 4 -1, url('b.png'), Grab",
+        &mut style,
+    )
+    .unwrap();
+    let c = spec(&style.ui.cursor).unwrap();
+    assert_eq!(c.keyword, CursorKeyword::Grab);
+    assert_eq!(
+        *c.images,
+        [
+            CursorImage {
+                url: "hand.cur".into(),
+                hotspot: Some((4.0, -1.0)),
+            },
+            CursorImage {
+                url: "b.png".into(),
+                hotspot: None,
+            },
+        ]
+    );
+    assert_eq!(
+        serialize("cursor", &style).as_deref(),
+        Some("url(\"hand.cur\") 4 -1, url(\"b.png\"), grab")
+    );
+    for (name, kw) in CursorKeyword::KEYWORDS {
+        set("cursor", name, &mut style).unwrap();
+        assert_eq!(spec(&style.ui.cursor).unwrap().keyword, *kw, "{name}");
+    }
+    for bad in [
+        "url(a.png)",
+        "pointer, help",
+        "hand",
+        "url(a.png) 1, pointer",
+        "",
+    ] {
+        assert_eq!(
+            set("cursor", bad, &mut TuiStyle::new()),
+            Err(DispatchError::InvalidValue),
+            "{bad}"
+        );
+    }
+    assert!(inherits("cursor"));
 }

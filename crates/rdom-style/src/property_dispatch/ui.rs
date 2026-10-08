@@ -1,12 +1,13 @@
 //! The outline properties (CSS UI 4 §5) — `outline` and its four
-//! longhands: their `set` and `serialize` arms.
+//! longhands — and `cursor` (§4.1): their `set` and `serialize` arms.
 
 use super::border::{serialize_line_width, serialize_paint_length};
 use super::value_serializers::{serialize_color, specified};
 use crate::layout::{BorderWidth, OutlineColor, OutlineStyle};
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_line_width, parse_outline, parse_outline_color, parse_outline_offset, parse_outline_style,
+    parse_cursor, parse_line_width, parse_outline, parse_outline_color, parse_outline_offset,
+    parse_outline_style,
 };
 use crate::{TuiStyle, Value};
 
@@ -31,6 +32,9 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         }),
         "outline-offset" => parse_outline_offset(value).map(|o| {
             ui.outline_offset = Some(Value::Specified(o));
+        }),
+        "cursor" => parse_cursor(value).map(|c| {
+            ui.cursor = Some(Value::Specified(c));
         }),
         _ => return None,
     })
@@ -58,6 +62,7 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .as_ref()
             .and_then(specified)
             .map(serialize_paint_length),
+        "cursor" => ui.cursor.as_ref().and_then(specified).map(serialize_cursor),
         // The shortest form (CSSOM §6.7.2): the components that are not
         // at their initial value, color, style, width; `none` when all
         // are.
@@ -83,4 +88,22 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         },
         _ => return None,
     })
+}
+
+/// `cursor` as CSS text: each image (a URL string, its hotspot), then the
+/// keyword.
+fn serialize_cursor(c: &crate::layout::Cursor) -> String {
+    let mut parts: Vec<String> = c
+        .images
+        .iter()
+        .map(|i| {
+            let url = format!("url({})", rdom_core::css_syntax::serialize_string(&i.url));
+            match i.hotspot {
+                Some((x, y)) => format!("{url} {x} {y}"),
+                None => url,
+            }
+        })
+        .collect();
+    parts.push(c.keyword.keyword().to_string());
+    parts.join(", ")
 }

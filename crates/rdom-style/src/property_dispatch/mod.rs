@@ -92,7 +92,6 @@ mod inline;
 mod line_clamp;
 mod logical;
 mod names;
-mod outline;
 mod scroll;
 mod scrollbar;
 mod serialize;
@@ -102,6 +101,7 @@ mod table;
 mod text;
 mod text_decoration;
 mod timeline;
+mod ui;
 mod value_serializers;
 
 #[cfg(test)]
@@ -137,8 +137,6 @@ mod list_tests;
 #[cfg(test)]
 mod logical_tests;
 #[cfg(test)]
-mod outline_tests;
-#[cfg(test)]
 mod overflow_tests;
 #[cfg(test)]
 mod scroll_tests;
@@ -156,6 +154,8 @@ mod text_decoration_tests;
 mod text_tests;
 #[cfg(test)]
 mod timeline_tests;
+#[cfg(test)]
+mod ui_tests;
 #[cfg(test)]
 mod visibility_tests;
 #[cfg(test)]

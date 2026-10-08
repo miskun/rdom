@@ -178,13 +178,14 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // the anchor actually has `href`. Matches browser behavior
         // where a bare `<a>` is a named anchor / placeholder, not
         // a hyperlink. `a[href]:hover` emboldens for clickable
-        // feedback.
+        // feedback. HTML §15.3.4: a link shows the `pointer` cursor.
         ("a", TuiStyle::new().display(Display::Inline)),
         (
             "a[href]",
             TuiStyle::new()
                 .fg(ACCENT)
-                .text_decoration(TextDecoration::Underline),
+                .text_decoration(TextDecoration::Underline)
+                .cursor(crate::layout::CursorKeyword::Pointer.into()),
         ),
         ("a[href]:hover", TuiStyle::new().bold(true)),
         // ── Block typography ──

@@ -97,6 +97,7 @@ const SAMPLES: &[(&str, &str, &str, Mid)] = &[
         Between,
     ),
     ("outline-offset", "2", "4", Is("3")),
+    ("cursor", "pointer", "help", Flips),
     ("overscroll-behavior-x", "auto", "contain", Flips),
     ("overscroll-behavior-y", "auto", "contain", Flips),
     ("scroll-padding-top", "2", "4", Is("3")),

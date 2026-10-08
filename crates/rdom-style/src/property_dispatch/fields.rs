@@ -154,6 +154,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "outline-width" => &[OutlineWidth],
         "outline-color" => &[OutlineColor],
         "outline-offset" => &[OutlineOffset],
+        "cursor" => &[Cursor],
         "overscroll-behavior" => &[OverscrollBehaviorX, OverscrollBehaviorY],
         "overscroll-behavior-x" => &[OverscrollBehaviorX],
         "overscroll-behavior-y" => &[OverscrollBehaviorY],

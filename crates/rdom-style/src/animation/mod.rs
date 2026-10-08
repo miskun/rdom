@@ -196,6 +196,8 @@ impl Longhand {
                 | "outline-width"
                 | "outline-color"
                 | "outline-offset"
+                // §4.1: the pointer's shape.
+                | "cursor"
         )
     }
 

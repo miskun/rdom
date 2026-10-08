@@ -108,6 +108,9 @@ impl<B: Backend> App<B> {
         })?;
         self.note_pass(pass, true);
         self.redraw = Redraw::Clean;
+        // The element under a still pointer, or its style, may have
+        // changed (CSS UI 4 §4.1).
+        self.update_pointer_shape();
         let walks = self.prelude.after_paint(&mut self.dom, pass.laid_out);
         self.note_walks(walks);
         // HTML "update the rendering": the focus fixup, against this

@@ -76,6 +76,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "outline-width",
     "outline-color",
     "outline-offset",
+    "cursor",
     "overscroll-behavior",
     "overscroll-behavior-x",
     "overscroll-behavior-y",

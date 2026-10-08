@@ -239,6 +239,7 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
   - **Scroll containers** (anything that clips and overflows) → the **scrollbar thumb glyph** of the scroll region the keyboard scrolls turns accent (foreground — a colored handle rather than a filled block); other thumbs are gray. That region is the nearest *overflowing* scroll ancestor of the focus, which no selector can express, so the runtime keeps the attribute `data-rdom-scroll-focus` on it (updated every frame from the previous layout, and only while the focus is evident — `:focus-visible` — like the control tint) and the UA sheet styles `[data-rdom-scroll-focus]::scrollbar-thumb`. Authors may match the attribute too. Zero extra area — it reuses chrome the scroll already owns. Such regions are also keyboard-focusable when they're the focus target (see below) and keyboard-scrollable from wherever the focus is.
   - **Grid / tree / listbox** → the internal cursor (active cell/row) is the cue.
   - **Everything else** (a bare focusable `<div>`/`<table>` with no scrollbar) → **no default cue**; the consumer expresses focus in CSS (e.g. `:focus-visible { outline: auto }` — C12-OUTLINE's ring, which takes no room — or `:focus { border-color }`). A full-area background fill on a large container is destructive and unlike the web's outline, so the substrate does *not* apply one. This replaced the old generic `:focus` tint and its per-element opt-out hacks (`canvas:focus`, `[role=tree]:focus`).
+- **`cursor` is the terminal pointer's shape, where the terminal has one** (C12-CURSOR; CSS UI 4 §4.1). The `App` sends the keyword of the element under the pointer as an OSC 22 pointer shape (its CSS name) after each pointer event and frame, only to a terminal known to take CSS names — kitty, foot, WezTerm, Ghostty (`PointerShapes::detect`; a multiplexer or an unknown terminal gets nothing, and `App::with_pointer_shapes` overrides) — and sends `default` back when TUI mode is left, the panic path included. A terminal draws no image pointer, so the `<url>` fallbacks parse and are kept but never shown; no protocol hides the pointer, so `none` shows `default`; and `auto` is the text pointer over a line of selectable inline content or an editable control and `default` elsewhere — a browser shows the text pointer over the glyphs only.
 - **No `nav-up` / `nav-down` / `nav-left` / `nav-right`, by decision.** CSS UI 4 marks the directional-focus properties at risk and no browser ships them; focus moves by sequential navigation (Tab / Shift-Tab) and the built-ins' own arrow keys. The properties are unknown and dropped with a warning.
 - **`pointer-events` supports `auto` and `none` only.** The SVG-era values (`visiblePainted`, `stroke`, …) have no cell-grid meaning and are invalid. `none` falls through to what is beneath and `auto` descendants are hittable, as on the web.
 
@@ -356,7 +357,6 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### User interface
 
-- `cursor` — C12-CURSOR
 - `caret-shape` / `caret-animation` / `caret` — C12-CARET
 - `accent-color`, `appearance`, `field-sizing`, `resize` — C12-CONTROLS
 

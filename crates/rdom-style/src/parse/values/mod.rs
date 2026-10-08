@@ -47,6 +47,7 @@ mod calc;
 mod calc_size;
 mod color;
 mod content;
+mod cursor;
 mod display;
 mod easing;
 mod flex;
@@ -108,6 +109,7 @@ pub use calc_size::{parse_calc_size, parse_interpolate_size};
 pub(crate) use color::{ColorExpr, compute_function as compute_color_function};
 pub use color::{MAX_COLOR_NESTING, parse_color, parse_color_at, parse_rgb_args, parse_rgba_args};
 pub use content::{parse_content, parse_counter_ops, parse_quotes};
+pub use cursor::parse_cursor;
 pub use display::{is_legacy_box, parse_display, serialize_display};
 pub use easing::{
     parse_timing_function_at, parse_timing_function_keyword, parse_timing_function_list,

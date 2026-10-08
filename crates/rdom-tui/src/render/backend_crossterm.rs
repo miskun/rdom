@@ -196,7 +196,7 @@ pub fn leave_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
 
 /// [`leave_tui_mode`]'s steps, with the raw-mode switch passed in (a
 /// test cannot leave raw mode it never entered).
-fn restore_terminal<W: Write>(
+pub(crate) fn restore_terminal<W: Write>(
     writer: &mut W,
     raw_off: impl FnOnce() -> io::Result<()>,
 ) -> io::Result<()> {
@@ -213,6 +213,10 @@ fn restore_terminal<W: Write>(
     step(queue!(writer, DisableMouseCapture));
     step(queue!(writer, DisableBracketedPaste));
     step(queue!(writer, cursor::Show));
+    // The pointer shape an app sent (CSS UI 4 `cursor`, OSC 22).
+    if let Some(reset) = crate::runtime::pointer_shape::restore_bytes() {
+        step(writer.write_all(reset));
+    }
     step(queue!(writer, terminal::LeaveAlternateScreen));
     #[cfg(unix)]
     step(writer.write_all(THEME_REPORTS_OFF));
