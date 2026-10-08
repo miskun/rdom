@@ -52,6 +52,8 @@
 //! - `descend` — the stacking-context walk behind `hit_test_path`:
 //!   layers, plain boxes, in-flow content, inline-fragment owners,
 //!   `pointer-events` transparency.
+//! - `inline_hit` — the IFC half of the walk: the inline fragment's owner
+//!   under a point on a line, and the inline ancestors on its path.
 //! - `nearest` — `InlineTarget` and the choice of inline-flow target
 //!   for a text position: containment (`inline_target_at`) and the
 //!   empty-space nearest-by-distance fallback.
@@ -61,10 +63,11 @@
 //!   `Position`: fragment lookup, line clamp, grapheme cell → byte.
 //!
 //! This file keeps the [`HitTestExt`] trait and its impl — the thin
-//! orchestration over those four.
+//! orchestration over those five.
 
 mod descend;
 mod fragment;
+mod inline_hit;
 mod nearest;
 mod pseudo;
 

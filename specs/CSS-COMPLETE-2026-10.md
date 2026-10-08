@@ -7440,3 +7440,13 @@ row comes from.
   `is_default_with_shares_the_pass_caches` pins the new API (one default-button walk for 50 buttons);
   part (2) changes no behaviour — the existing `:default` tests cover it. Mutation (restored, touched):
   memo lookups off → the hop count.
+- 2026-10-14 — C11G batch A split and SIZE-1 recount. C11G-MODAL-INERT left `runtime/hit_test/descend.rs` at
+  592 production lines, past the 575 split-on-touch bar (it should have split in that item; done here,
+  before closing the batch): the inline formatting context's half — the fragment owner under a point,
+  atomic / transparent / hidden / inert inlines, the inline ancestors on the path — moves to
+  `hit_test/inline_hit.rs` (215), `descend.rs` keeps the stacking-context and box walk (407). No behaviour
+  changes; the hit-test tests are the evidence. TECH_DEBT `SIZE-1` recounted: none past 575; the batch's
+  splits (`popover/algorithms.rs` → + `state.rs` + `stack.rs`; `form/mod.rs` → + `implicit.rs`; this one)
+  recorded there. C11G batch A (C11G-MODAL-INERT, -POPOVER-BOUND, -CANVAS-FILL, -HAS-COST, -DIR-AUTO-COST,
+  -DETAILS-PARENT, -ENTER-COMMIT, -MINOR) is done; batch B (API and docs: C11G-UPGRADE, -DESIGN-TYPES,
+  -API, -DOCS) remains.
