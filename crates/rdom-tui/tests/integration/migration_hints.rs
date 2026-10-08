@@ -1553,3 +1553,28 @@ fn app_config_hints() {
     app.set_color_scheme(ColorScheme::Light);
     assert_eq!(app.color_scheme(), ColorScheme::Light);
 }
+
+/// C13G-COLUMN-MATCH / C13G-MISC — two items new since 0.5 reshaped:
+/// `CellSpan`'s spans are read through `columns()` / `rows()` (its fields
+/// are private, so every value is clamped to HTML's ranges), and the
+/// HTML attributes are read off an element by `cell_span_of` /
+/// `column_span_of`; `UnitContext` is `#[non_exhaustive]` — build it with
+/// `UnitContext::new` and set its public fields.
+#[test]
+fn table_span_and_unit_context_hints() {
+    use rdom_tui::core_api::table::{CellSpan, assign_slots, cell_span_of, column_span_of};
+    let span = CellSpan::new(5000, 2);
+    assert_eq!((span.columns(), span.rows()), (1000, 2));
+    let slots = assign_slots(&[vec![vec![span]]]);
+    assert_eq!(slots.columns, 1000);
+    let mut dom = TuiDom::new();
+    let td = dom.create_element("td");
+    dom.set_attribute(td, "colspan", "3").unwrap();
+    assert_eq!(cell_span_of(&dom, td).columns(), 3);
+    let col = dom.create_element("col");
+    dom.set_attribute(col, "span", "2").unwrap();
+    assert_eq!(column_span_of(&dom, col), 2);
+    let mut ctx = rdom_style::calc::UnitContext::new(Viewport::new(80, 24));
+    ctx.lh = 2.0;
+    assert_eq!(ctx.lh, 2.0);
+}

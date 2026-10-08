@@ -11,8 +11,10 @@
 //! - the **surface** is each published crate's `lib.rs`: every name its
 //!   `pub use` items bring in (the alias of an `as`; a whole-crate alias
 //!   such as `rdom_core as core_api` is not a type), every name a glob
-//!   `pub use path::*` brings in (the module's own surface, followed), and
-//!   every `pub struct` / `pub enum` written in `lib.rs` itself;
+//!   `pub use path::*` brings in (the module's own surface, followed),
+//!   every `pub struct` / `pub enum` written in `lib.rs` itself, and the
+//!   surface of each `pub mod` it declares, followed down every `pub mod`
+//!   path (`rdom_core::table::CellSpan` is public; C13G-MISC);
 //! - a name is **a type** when a `pub struct` or `pub enum` of that name
 //!   is defined in a published crate's production sources (traits, type
 //!   aliases, functions and constants are not) — written out, or by an
@@ -91,8 +93,29 @@ fn idents(text: &str) -> impl Iterator<Item = &str> {
 /// what each `pub use` item brings in — a glob's through `module`, which
 /// gives the source of the module a path names — and the structs and
 /// enums it defines itself.
-fn surface(source: &str, module: &dyn Fn(&str) -> Option<String>) -> BTreeSet<String> {
+fn surface(source: &str, here: &str, module: &dyn Fn(&str) -> Option<String>) -> BTreeSet<String> {
     let mut names = BTreeSet::new();
+    // `pub mod x;`: a public path to `x`'s own surface (C13G-MISC), from
+    // the module it is declared in.
+    let mut rest = source;
+    while let Some(at) = rest.find("\npub mod ") {
+        let item = &rest[at + "\npub mod ".len()..];
+        rest = item;
+        let Some(name) = idents(item).next() else {
+            continue;
+        };
+        if !item[name.len()..].trim_start().starts_with(';') {
+            continue; // An inline `pub mod x { … }`: scanned with `source`.
+        }
+        let path = if here.is_empty() {
+            name.to_string()
+        } else {
+            format!("{here}::{name}")
+        };
+        let source = module(&path)
+            .unwrap_or_else(|| panic!("`pub mod {name};` in `{here}` names a module file"));
+        names.extend(surface(&source, &path, module));
+    }
     let mut rest = source;
     while let Some(at) = rest.find("\npub use ") {
         let item = &rest[at + "\npub use ".len()..];
@@ -106,7 +129,7 @@ fn surface(source: &str, module: &dyn Fn(&str) -> Option<String>) -> BTreeSet<St
         if let Some(path) = body.trim().strip_suffix("::*") {
             let source = module(path.trim())
                 .unwrap_or_else(|| panic!("the glob `pub use {body}` names a module file"));
-            names.extend(surface(&source, module));
+            names.extend(surface(&source, "", module));
             continue;
         }
         assert!(
@@ -251,6 +274,22 @@ fn module_source(root: &Path, krate: &str, path: &str) -> Option<String> {
         .ok()
 }
 
+/// C13G-MISC (Phase 13 architect N10): a type reachable through a
+/// `pub mod` path — `rdom_core::table::CellSpan` — is as public as a
+/// re-exported one: the surface follows each `pub mod` (from the module
+/// it is declared in) and takes that module's own surface.
+#[test]
+fn the_surface_follows_pub_mod_paths() {
+    let lib = "//! doc\npub mod m;\nmod private;\npub(crate) mod hidden;\n";
+    let module = |path: &str| match path {
+        "m" => Some("\npub mod n;\npub struct InMod;\npub use x::Used;\n".to_string()),
+        "m::n" => Some("\npub enum Deeper {}\n".to_string()),
+        _ => None,
+    };
+    let names: Vec<String> = surface(lib, "", &module).into_iter().collect();
+    assert_eq!(names, ["Deeper", "InMod", "Used"]);
+}
+
 /// The rule's own cases.
 #[test]
 fn the_surface_reads_pub_use_items_globs_and_local_types() {
@@ -258,7 +297,7 @@ fn the_surface_reads_pub_use_items_globs_and_local_types() {
                pub use g::H;\npub use m::*;\npub struct Local;\npub(crate) struct Hidden;\n";
     let module =
         |path: &str| (path == "m").then(|| "\npub use x::Deep;\npub enum Inner {}\n".into());
-    let names: Vec<String> = surface(lib, &module).into_iter().collect();
+    let names: Vec<String> = surface(lib, "", &module).into_iter().collect();
     assert_eq!(names, ["B", "Deep", "E", "H", "Inner", "Local", "f"]);
 }
 
@@ -296,7 +335,7 @@ fn every_reexported_type_is_classified_in_design() {
     for krate in PUBLISHED {
         let src = root.join("crates").join(krate).join("src");
         let lib = std::fs::read_to_string(src.join("lib.rs")).expect("lib.rs");
-        exported.extend(surface(&lib, &|path| module_source(&root, krate, path)));
+        exported.extend(surface(&lib, "", &|path| module_source(&root, krate, path)));
         let mut files = Vec::new();
         production_files(&src, &mut files);
         for file in files {

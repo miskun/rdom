@@ -70,9 +70,26 @@ impl Stylesheet {
     /// anonymous one stays apart, and every rule keeps its origin and
     /// layer and takes the next source index.
     pub fn append(&mut self, other: &Stylesheet) {
+        // Every collection named, none behind `..`: a field added to
+        // `Stylesheet` fails to compile here until `append` carries it (as
+        // `@keyframes` once went missing, C13G-MISC).
+        let Stylesheet {
+            rules,
+            index: _,           // rebuilt from the appended rules
+            next_source_idx: _, // each appended rule takes the next of ours
+            root_vars,
+            layers,
+            registrations,
+            counter_styles,
+            keyframes,
+            imports,
+            scopes: _,     // `append_scopes` maps them
+            owner_node: _, // the receiver's own `<style>` stays its owner
+            version: _,    // `touch` renews ours
+        } = other;
         self.touch();
-        let mut map: Vec<LayerId> = Vec::with_capacity(other.layers.len());
-        for layer in &other.layers {
+        let mut map: Vec<LayerId> = Vec::with_capacity(layers.len());
+        for layer in layers {
             let parent = layer.parent.map(|p| map[p.index()]);
             let id = match &layer.name {
                 Some(name) => self.named_child(parent, name),
@@ -81,25 +98,23 @@ impl Stylesheet {
             map.push(id);
         }
         let scopes = self.append_scopes(other);
-        self.registrations
-            .extend(other.registrations.iter().cloned());
-        for def in &other.counter_styles {
+        self.registrations.extend(registrations.iter().cloned());
+        for def in counter_styles {
             let mut def = def.clone();
             def.layer = def.layer.map(|l| map[l.index()]);
             self.counter_styles.push(def);
         }
-        for import in &other.imports {
+        for import in imports {
             let mut import = import.clone();
             import.layer = import.layer.map(|l| map[l.index()]);
             self.imports.push(import);
         }
-        for rule in &other.keyframes {
+        for rule in keyframes {
             let mut rule = rule.clone();
             rule.layer = rule.layer.map(|l| map[l.index()]);
             self.keyframes.push(rule);
         }
-        let rules: Vec<Rule> = other
-            .rules
+        let rules: Vec<Rule> = rules
             .iter()
             .map(|rule| {
                 let mut rule = rule.clone();
@@ -111,7 +126,7 @@ impl Stylesheet {
             })
             .collect();
         self.push_rules(rules);
-        for (name, value) in &other.root_vars {
+        for (name, value) in root_vars {
             self.root_vars.insert(name.clone(), value.clone());
         }
     }

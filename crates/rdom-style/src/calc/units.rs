@@ -58,6 +58,7 @@ impl Viewport {
 /// Values 4 §6.1): the viewport (the viewport-percentage units) and the
 /// line heights (`lh`, `rlh`), in rows.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub struct UnitContext {
     /// The viewport the viewport-percentage units are percentages of.
     pub viewport: Viewport,

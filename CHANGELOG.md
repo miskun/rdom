@@ -232,6 +232,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 | `lookup_in` / `substitute` → `String`; `resolve_custom_properties` maps `Option<String>` | `Result<CustomValue, SubstitutionError>`; maps `Option<CustomValue>` | C1G-VAR-COST, C2G-SUBSTITUTION-ERRORS | `cascade_hints`, `typed_error_hints` |
 | `PropertyRegistration::new` / `PropertySyntax::parse` → `Result<_, String>` | `Result<_, RegisterPropertyError>` / `Result<_, PropertySyntaxError>` | C1G-TYPED-ERRORS | `typed_error_hints` |
 | `parse::values::parse_max_size` → `Option<u16>` | `Option<MaxSize>` | C2G-MAX-NONE | `sizing_hints` |
+| `CellSpan { columns, rows }` / `span.columns` | `CellSpan::new(columns, rows)` / `span.columns()` (fields private, clamped); `cell_span_of` / `column_span_of` read an element | C13G-COLUMN-MATCH | `table_span_and_unit_context_hints` |
+| `UnitContext { viewport, lh, rlh }` | `UnitContext::new(viewport)`, then set `lh` / `rlh` (`#[non_exhaustive]`) | C13G-MISC | `table_span_and_unit_context_hints` |
 | `.justify_content(Align::X.into())` (and the five other alignment builders) | `.justify_content(Align::X)` (`impl Into<Alignment>`) | C6G-ALIGN-API | `alignment_api_hints` |
 | `property_dispatch::set_from_source(name, value, text, style)` + `set_important` | `set_from_source(name, value, Some(text), important, style)` | C6G-FRONTEND-API | `front_end_hints` |
 | `parse::token::SpannedTokens` = `(Vec<Token>, Vec<TokenPos>, Vec<TokenSpan>)` | struct `SpannedTokens { tokens, positions, spans }` | C6G-FRONTEND-API | `front_end_hints` |
@@ -506,6 +508,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Changed — `rdom-style`
 
+- **`Stylesheet::append` names every collection it carries** (an exhaustive destructure: a new one fails to compile until appended), and **`UnitContext` is `#[non_exhaustive]`** (new since 0.5; build it with `UnitContext::new`). (C13G-MISC)
 - **`background-color`'s initial value is `transparent`** (CSS Backgrounds 3 §3.2; `ComputedStyle::initial().bg` is `Color::TRANSPARENT`, was `Color::Reset`), and the UA's `dialog` rule adds HTML's `background-color: Canvas; color: CanvasText`. (C11G-CANVAS-FILL)
 - **The UA `dir` rules use `:dir()`** as HTML §15.3.5 writes them (`[dir]:dir(rtl), bdi:dir(rtl)`, …), replacing `[dir=ltr]` / `[dir=rtl]`: `dir=auto` and `<bdi>` now set `direction`, and an element with an invalid `dir` value takes its parent's directionality rather than inheriting `direction` (the same unless an author set `direction` on an ancestor). (C11-LINK-LANG)
 - **An indeterminate checkbox shows `[-] `** (UA `input[type=checkbox]:indeterminate::before`, after the `:checked` rule): HTML §4.10.5.1.15 obscures its selection "as if the control was in a third, indeterminate, state". (C11-FORM-STATES)
@@ -921,6 +924,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Changed — `rdom-showcase`
 
+- **The DESIGN type check follows `pub mod` paths**: a type reachable as `rdom_core::table::CellSpan` or through `rdom_tui::runtime::…` is as public as a re-exported one; the 37 such types it found are classified in DESIGN. (C13G-MISC)
 - **List markers hang in the lists' padding** in the `lists-generated` and `ua-chrome` demos (their snapshots moved): the lists' four cells of padding hold them, so "1. Paragraph…" starts a cell further left than 0.5's `li::before` (bullets stay put), and an item's second paragraph lines up under its first rather than under the marker — what a browser draws (CSS Lists 3 §3.5). (C10-LIST-ITEM, C10G-MARKER-CLIP)
 - The translucency demo's inner card is offset from the outer card's padding box (`top: 5; left: 5`, was `6`), its absolutely positioned containing block since C7-ABSPOS-PADDING-EDGE; it paints as before. (C7-ABSPOS-PADDING-EDGE)
 - The Tab form demo's Name input carries `autofocus` (in its `MARKUP` and its built DOM alike), so switching to the demo — including Enter on its sidebar entry — moves focus into the form and typing goes straight into Name, as a browser focuses `[autofocus]` on navigation. (`SHOWCASE-TAB-FORM-AUTOFOCUS-1`)

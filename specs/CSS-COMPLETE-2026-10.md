@@ -8797,3 +8797,28 @@ row comes from.
   held (a fragment appended, a sibling in `before` / `after`, `replace_with([])`, a current child in
   `replace_children`); the existing `accessor/tests.rs` helpers' tests unchanged and green. CHANGELOG
   silent change 85.
+- 2026-10-08 — C13G-MISC (architect N9, N10, N11). (1) `Stylesheet::append` destructures `other` with every
+  field named and none behind `..` (the index, the source counter, the owner node and the version ignored
+  with their reason; the scopes mapped by `append_scopes`) — a new collection fails to compile until
+  `append` carries it, as `@keyframes` went missing silently. A compile-time guard: no runtime test, the
+  workspace build is its check. (2) The DESIGN type check (`rdom-showcase/tests/integration/design_types.rs`)
+  follows `pub mod`: `surface` takes the module path it reads and adds the surface of each `pub mod x;`
+  it declares, recursively (an inline `pub mod x { … }` is already in the scanned source). Red:
+  `the_surface_follows_pub_mod_paths` (`[]` for `["Deeper", "InMod", "Used"]`); then the full check
+  found 37 public types reachable only through `pub mod` paths and unclassified — classified now in
+  DESIGN: open vocabularies `EditKind`, `ScrollbarPart`, `StyleSlot`, `TransitionEventKind`; error sets
+  `TokenizerError` / `TokenizerErrorKind` (the entry was the non-name `TokenizerError(Kind)`),
+  `SubstitutionError`; options bags `SubstitutionContext`, `UnitContext` (new since 0.5, public fields,
+  no attribute: made `#[non_exhaustive]`, built by `UnitContext::new` — API-table row and the
+  `table_span_and_unit_context_hints` group, which also gives `CellSpan`'s C13G-COLUMN-MATCH reshape the
+  row and hint it lacked); closed CSS keywords `CaretColor`, `CaretTextColor`, `PointerEvents`; sets fixed
+  by definition `SelectorList`, `ComplexSelector`, `CompoundSelector` (Selectors 4 §3.1's structure);
+  sealed `TransitionShorthandRule`, `SourceCursor`; runtime internals `AnimationRegistry`, `PendingEvent`,
+  `PendingCustomEvent`, `PresentationStyle`, `EditorState`, `TypeaheadState`, `TimerId`, `CanvasPaint`,
+  `InlineLayout`, `InlineFlow`, `SgrState`, `BorderContribution`, `BorderDirState`, `StyleDeclaration(Mut)`
+  and the clipboard / URL-opener backends. It then found `NthColumnSelector` listed under both an open and
+  a closed kind (a prose mention in the `NthKind` entry, invisible while the type was unreached): reworded.
+  The cross-crate name collision and the multi-line `#[derive(…)]` lookback (N10's other two) stay as
+  they are — no type trips them today. (3) DIVERGENCES §2 "Timers & animations" gains C12G-BEFORE-CHANGE's
+  nuance: a cascade change to a longhand a CSS animation drives can start a transition under it, which
+  outlives the animation (browsers snap).
