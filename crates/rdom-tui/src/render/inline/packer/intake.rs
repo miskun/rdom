@@ -61,6 +61,7 @@ impl<'a> LinePacker<'a> {
             text_node: host,
             generated: Some(slot),
             frame: self.frames.current(),
+            letter: None,
         };
         self.set_run(run);
         self.push_str(origin, text);
@@ -123,7 +124,17 @@ impl<'a> LinePacker<'a> {
         let mut graphemes = text.graphemes(true).peekable();
         while let Some(g) = graphemes.next() {
             let next = graphemes.peek().and_then(|n| n.chars().next());
-            self.push_grapheme(origin, source_offset, g, next);
+            // The first letter is taken in under its own style — or, when
+            // it floats, left to its float (`first`).
+            match self.letter_at(origin, source_offset) {
+                None => self.push_grapheme(origin, source_offset, g, next),
+                Some(None) => {}
+                Some(Some((letter, run))) => {
+                    let line_run = std::mem::replace(&mut self.run, run);
+                    self.push_grapheme(letter, source_offset, g, next);
+                    self.run = line_run;
+                }
+            }
             source_offset += g.len();
         }
     }

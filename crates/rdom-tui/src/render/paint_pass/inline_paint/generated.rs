@@ -44,6 +44,12 @@ pub(super) fn paint_generated(
         .filter(|_| matches!(generated.slot, PseudoSlot::Before | PseudoSlot::After))
         .and_then(|hosts| crate::render::inline::first_line::effective(dom, hosts, computed));
     let computed = line_style.as_ref().unwrap_or(computed);
+    // The first letter of its block's first line, in generated text
+    // (§2.3), in its `::first-letter` style.
+    let letter_style = generated
+        .first_letter
+        .and_then(|host| crate::render::inline::first_letter::effective(dom, host, computed));
+    let computed = letter_style.as_ref().unwrap_or(computed);
     let overrides = presentation_of(dom, generated.host, generated.slot.into());
     let style = if own_box {
         pseudo_glyph_style(computed, overrides)

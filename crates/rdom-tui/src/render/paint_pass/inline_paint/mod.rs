@@ -457,6 +457,15 @@ fn paint_inline_layout(
             let first_style = first.and_then(|hosts| {
                 crate::render::inline::first_line::effective(dom, hosts, &computed)
             });
+            // Its block's first letter takes the `::first-letter` style
+            // over that (§2.3.1).
+            let first_style = match fragment.first_letter {
+                Some(host) => {
+                    let line = first_style.as_ref().unwrap_or(&computed);
+                    crate::render::inline::first_letter::effective(dom, host, line).or(first_style)
+                }
+                None => first_style,
+            };
             let painted = first_style.as_ref().unwrap_or(&computed);
             let line_bg = first_style.as_ref().is_some_and(|f| f.bg != computed.bg);
             let style = if (fragment.node == bg_dedup_owner

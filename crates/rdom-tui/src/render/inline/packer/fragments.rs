@@ -97,6 +97,7 @@ impl LinePacker<'_> {
                 && last.host == origin.owner
                 && last.slot == slot
                 && last.frame == origin.frame
+                && last.first_letter == origin.letter
                 && last.atom.is_none()
                 && last.x + i32::from(last.width) == x
             {
@@ -107,6 +108,7 @@ impl LinePacker<'_> {
             let mut run = GeneratedFragment::text(origin.owner, slot, x, text.into_owned());
             run.width = width;
             run.frame = origin.frame;
+            run.first_letter = origin.letter;
             self.cur_generated.push(run);
             return;
         }
@@ -118,6 +120,7 @@ impl LinePacker<'_> {
             if last.node == owner
                 && last.text_node == text_node
                 && last.frame == origin.frame
+                && last.first_letter == origin.letter
                 && contiguous
                 && last.x + i32::from(last.width) == x
             {
@@ -140,6 +143,7 @@ impl LinePacker<'_> {
         fragment.width = width;
         fragment.map = map.map(Box::new);
         fragment.frame = origin.frame;
+        fragment.first_letter = origin.letter;
         self.cur_fragments.push(fragment);
     }
 

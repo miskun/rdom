@@ -1,20 +1,31 @@
-//! The packer's style switch at the first line's end (CSS
-//! Pseudo-Elements 4 §2.2, `first_line`): while the first line is packed,
-//! each run's text-shaping values are the first line's mapping of them
-//! ([`FirstLineRun`]); when the line is settled the mapping ends, and the
-//! word waiting in the buffer for the next line — taken in under the
-//! first line's style — is reshaped in its own. The line keeps the hosts
-//! whose `::first-line` paint reads (`LineBox::first_line`).
+//! The packer's style switches at the first line's end and around the
+//! first letter (CSS Pseudo-Elements 4 §2.2, §2.3; `first_line`,
+//! `first_letter`).
+//!
+//! While the first line is packed, each run's text-shaping values are the
+//! first line's mapping of them ([`FirstLineRun`]); when the line is
+//! settled the mapping ends, and the word waiting in the buffer for the
+//! next line — taken in under the first line's style — is reshaped in its
+//! own. The line keeps the hosts whose `::first-line` paint reads
+//! (`LineBox::first_line`).
+//!
+//! The first letter's graphemes ([`LetterSpan`]s) are taken in under the
+//! letter's mapping ([`LetterRun`]) with an origin of their own, so they
+//! make fragments of their own that paint styles; a floated letter's are
+//! left out, its float put where they were.
 
 use std::borrow::Cow;
 
 use rdom_core::NodeId;
 use unicode_width::UnicodeWidthStr;
 
+use super::super::first_letter::{LetterRun, LetterSource, LetterSpan};
 use super::super::first_line::FirstLineRun;
 use super::super::run_style::RunStyle;
 use super::super::transform::{self, CaseContext};
-use super::{GraphemeKind, LinePacker, PendingGrapheme};
+use super::{GraphemeKind, LinePacker, Origin, PendingGrapheme};
+use crate::ext::PseudoSlot;
+use crate::render::box_tree::BoxItem;
 
 /// What the packer keeps of the first formatted line it packs.
 #[derive(Debug, Clone)]
@@ -29,7 +40,87 @@ pub(in crate::render::inline) struct FirstLinePacking {
     done: bool,
 }
 
+/// What the packer keeps of the first letter it packs.
+#[derive(Debug, Clone)]
+pub(in crate::render::inline) struct FirstLetterPacking {
+    /// The block whose `::first-letter` styles it.
+    host: NodeId,
+    /// Where its graphemes are.
+    spans: Box<[LetterSpan]>,
+    /// The letter's mapping of its runs' values.
+    run: Option<LetterRun>,
+    /// It floats: its graphemes leave the line for its float.
+    float: bool,
+    /// The float was put in the line.
+    floated: bool,
+}
+
 impl<'a> LinePacker<'a> {
+    /// The first letter, `spans` of the content, is `host`'s
+    /// `::first-letter`: taken in under `run`, or — `float` — left to its
+    /// float.
+    pub(in crate::render::inline) fn first_letter(
+        mut self,
+        host: NodeId,
+        spans: Vec<LetterSpan>,
+        run: Option<LetterRun>,
+        float: bool,
+    ) -> Self {
+        if !spans.is_empty() {
+            self.letter = Some(Box::new(FirstLetterPacking {
+                host,
+                spans: spans.into_boxed_slice(),
+                run,
+                float,
+                floated: false,
+            }));
+        }
+        self
+    }
+
+    /// The first letter's packing, for a replica of this packer.
+    pub(super) fn letter_packing(&self) -> Option<Box<FirstLetterPacking>> {
+        self.letter.clone().map(|mut l| {
+            l.floated = false;
+            l
+        })
+    }
+
+    /// The grapheme at `offset` of `origin`'s text, when it is the first
+    /// letter's: `Some(None)` to leave it out (its float holds it, put in
+    /// the line at its first grapheme), else its origin and run.
+    pub(super) fn letter_at(
+        &mut self,
+        origin: Origin,
+        offset: usize,
+    ) -> Option<Option<(Origin, crate::render::inline::run_style::RunStyle)>> {
+        let letter = self.letter.as_deref_mut()?;
+        let source = match origin.generated {
+            Some(slot) => LetterSource::Generated(origin.owner, slot),
+            None => LetterSource::Text(origin.text_node),
+        };
+        if !letter.spans.iter().any(|s| s.holds(source, offset)) {
+            return None;
+        }
+        if letter.float {
+            if !letter.floated {
+                letter.floated = true;
+                let item = BoxItem::Generated(letter.host, PseudoSlot::FirstLetter);
+                self.push_float(item);
+            }
+            return Some(None);
+        }
+        let run = letter.run.map_or(self.run, |r| r.apply(self.run));
+        let host = letter.host;
+        Some(Some((
+            Origin {
+                letter: Some(host),
+                ..origin
+            },
+            run,
+        )))
+    }
+
     /// The first line packed is the first formatted line of `hosts`
     /// (innermost first, `first_line::hosts`), its runs mapped by `run`.
     pub(in crate::render::inline) fn first_line(

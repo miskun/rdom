@@ -79,8 +79,9 @@ value       := token+
   (`[lang]`, `[lang="en"]`, `~=`, `|=`, `^=`, `$=`, `*=`), pseudo-classes
   (`:hover`, `:active`, `:focus`, `:not(...)`, `:first-child`, `:last-child`,
   `:only-child`, `:empty`, `:root`, `:checked`, `:indeterminate`,
-  `:open`, `:is(...)`, `:where(...)`, …), pseudo-elements (`::before`, `::after`, `::selection`,
-  `::backdrop`; the CSS 2.1 spellings `:before` / `:after`), descendant / child / next-sibling / subsequent-sibling
+  `:open`, `:is(...)`, `:where(...)`, …), pseudo-elements (`::before`, `::after`, `::marker`,
+  `::first-line`, `::first-letter`, `::selection`, `::backdrop`; the CSS 2.1 spellings
+  `:before` / `:after` / `:first-line` / `:first-letter`), descendant / child / next-sibling / subsequent-sibling
   combinators, comma-separated lists.
 - **Properties** — the `rdom-style::property_dispatch` table (`property_names()` lists them; incl. `counter-reset` (with `reversed()`) / `counter-increment` / `counter-set`, `content` (`counter()`, `counters()`, `symbols()`, quotes, alt text) and `quotes`; `transition-timing-function` takes `cubic-bezier()` and `steps()`):
   color/text, block model, sizing, content, positioning, transitions.

@@ -90,6 +90,10 @@ pub struct InlineFragment {
     /// The inline box the packer placed it in, which its line's settling
     /// reads for its row (`packer::frames`); 0, the block's, outside it.
     pub(crate) frame: u32,
+    /// The block whose `::first-letter` this text is (CSS
+    /// Pseudo-Elements 4 §2.3, `first_letter`): paint styles it so.
+    /// `None` for any other text.
+    pub(crate) first_letter: Option<NodeId>,
 }
 
 impl InlineFragment {
@@ -119,6 +123,7 @@ impl InlineFragment {
             atomic: false,
             map: None,
             frame: 0,
+            first_letter: None,
         }
     }
 
@@ -138,6 +143,7 @@ impl InlineFragment {
             atomic: true,
             map: None,
             frame: 0,
+            first_letter: None,
         }
     }
 }
@@ -194,6 +200,8 @@ pub struct GeneratedFragment {
     /// (`positioning::pseudo_offsets`); paint and hit-testing draw and
     /// find it there. `(0, 0)` for any other.
     pub(crate) offset: (i32, i32),
+    /// The block whose `::first-letter` this text is (`first_letter`).
+    pub(crate) first_letter: Option<NodeId>,
 }
 
 /// Where a piece of an outside marker sits within the marker.
@@ -223,6 +231,7 @@ impl GeneratedFragment {
             frame: 0,
             outside: None,
             offset: (0, 0),
+            first_letter: None,
         }
     }
 

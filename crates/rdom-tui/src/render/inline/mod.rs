@@ -55,6 +55,7 @@ mod boxes;
 mod breaking;
 mod caret;
 mod feed;
+pub(crate) mod first_letter;
 pub(crate) mod first_line;
 pub(crate) mod generated;
 mod indent;
@@ -427,14 +428,20 @@ pub(crate) fn pack_generated(
         .indented(indent)
         .aligned(align::TextAlignment::of(&style.text));
     // The box's text, in flow or not (an absolutely positioned
-    // pseudo-element's box packs its own text too).
-    let text = dom
-        .node(host)
-        .computed_pseudo(slot)
-        .filter(|c| c.display != crate::layout::Display::None)
-        .and_then(|c| c.content.as_deref());
+    // pseudo-element's box packs its own text too); a floated
+    // `::first-letter`'s is its letter's, from the source.
+    let texts: Vec<&str> = if slot == crate::ext::PseudoSlot::FirstLetter {
+        first_letter::text(dom, &first_letter::letter_of_host(dom, host))
+    } else {
+        dom.node(host)
+            .computed_pseudo(slot)
+            .filter(|c| c.display != crate::layout::Display::None)
+            .and_then(|c| c.content.as_deref())
+            .into_iter()
+            .collect()
+    };
     let lines = wrap::pack(packer, style.text.text_wrap_style, |p| {
-        if let Some(text) = text {
+        for text in texts {
             p.push_generated(host, slot, text, run_style::RunStyle::of(style));
         }
     });

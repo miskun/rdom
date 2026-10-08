@@ -80,8 +80,12 @@ pub(crate) fn float_side_of(dom: &Dom<TuiExt>, item: BoxItem) -> Option<FloatSid
     if c.float == crate::layout::Float::None {
         return None;
     }
-    // Only a static pseudo-element with `content` has a box of its flow.
-    crate::render::inline::generated::static_pseudo_text(dom, host, slot.into())?;
+    // Only a static pseudo-element with `content` has a box of its flow
+    // — or a `::first-letter`, whose text is its letter's (the packer
+    // floats it only when there is one).
+    if slot != crate::ext::PseudoSlot::FirstLetter {
+        crate::render::inline::generated::static_pseudo_text(dom, host, slot.into())?;
+    }
     let parent = generated_box_parent(dom, host)?;
     let pc = dom.node(parent).ext()?.computed.as_deref()?;
     if !pc.flow.is_block_flow() {

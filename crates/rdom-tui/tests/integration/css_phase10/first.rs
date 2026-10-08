@@ -198,3 +198,89 @@ fn first_line_in_a_line_clamped_block() {
     assert!(rows[1].starts_with("bb"), "{rows:?}");
     assert_eq!(rows[2], "   ");
 }
+
+// ── ::first-letter (part 3) ─────────────────────────────────────────
+
+const BLUE: rdom_tui::Color = rdom_tui::Color::Rgb(0, 0, 255);
+
+/// §2.3: `::first-letter` styles the first typographic letter unit of
+/// its block's first formatted line, and nothing after it.
+#[test]
+fn first_letter_styles_the_first_letter_only() {
+    let (buf, ..) = para("p::first-letter { color: blue }", "hello", 8, 1);
+    assert_eq!(super::rows(&buf, 8, 1), ["hello   "]);
+    assert_eq!(fg(&buf, 0, 0), BLUE);
+    assert_ne!(fg(&buf, 1, 0), BLUE);
+}
+
+/// §2.3.2: punctuation preceding and following the first letter belongs
+/// to it; leading white space does not; the letter can sit in an inline
+/// element.
+#[test]
+fn first_letter_takes_its_punctuation() {
+    let (buf, ..) = para("p::first-letter { color: blue }", "  (a). b", 8, 1);
+    assert_eq!(super::rows(&buf, 8, 1), ["(a). b  "]);
+    for x in 0..4 {
+        assert_eq!(fg(&buf, x, 0), BLUE, "cell {x}");
+    }
+    assert_ne!(fg(&buf, 5, 0), BLUE);
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = el(&mut dom, root, "p", "");
+    text_el(&mut dom, p, "b", "", "xy");
+    let buf = super::paint(&mut dom, "p::first-letter { color: blue }", 4, 1);
+    assert_eq!(fg(&buf, 0, 0), BLUE);
+    assert_ne!(fg(&buf, 1, 0), BLUE);
+}
+
+/// §2.3: the first letter is the first of the line's content — a
+/// `::before`'s generated text included.
+#[test]
+fn first_letter_reaches_into_before_content() {
+    let (buf, ..) = para(
+        "p::before { content: 'Xy ' } p::first-letter { color: blue }",
+        "ab",
+        8,
+        1,
+    );
+    assert_eq!(super::rows(&buf, 8, 1), ["Xy ab   "]);
+    assert_eq!(fg(&buf, 0, 0), BLUE);
+    assert_ne!(fg(&buf, 1, 0), BLUE);
+    assert_ne!(fg(&buf, 3, 0), BLUE);
+}
+
+/// §2.3.1 with CSS Text 3 §2.1: `text-transform` on `::first-letter`
+/// reshapes the letter alone; its cell still maps to the source.
+#[test]
+fn first_letter_text_transform() {
+    let (buf, dom, p) = para(
+        "p::first-letter { text-transform: uppercase }",
+        "hello",
+        8,
+        1,
+    );
+    assert_eq!(super::rows(&buf, 8, 1), ["Hello   "]);
+    let text = dom.node(p).first_child().unwrap().id();
+    let at = dom.position_at(1, 0).expect("a text position");
+    assert_eq!((at.node, at.offset), (text, 1));
+}
+
+/// §2.3.1 (a drop cap): a floated `::first-letter` is a float, its box
+/// as tall as its `line-height` makes it plus its padding — three rows
+/// here, the letter on the middle one (half the leading above it, CSS
+/// Inline 3 §5.1) — and the rest of the text wraps beside it, then
+/// below. A click on it targets its block.
+#[test]
+fn a_floated_first_letter_is_a_drop_cap() {
+    let (buf, dom, p) = para(
+        "p { width: 8 } p::first-letter { float: left; line-height: 3; padding-right: 1 }",
+        "Lorem ipsum dolor sit",
+        8,
+        4,
+    );
+    assert_eq!(
+        super::rows(&buf, 8, 4),
+        ["  orem  ", "L ipsum ", "  dolor ", "sit     "]
+    );
+    assert_eq!(dom.hit_test(0, 1), Some(p));
+}

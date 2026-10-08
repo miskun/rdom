@@ -212,7 +212,7 @@ row comes from.
 | C10-COUNTERS | `counter-reset reversed()`, `counter-set`, `counters()`, all predefined counter styles | done |
 | C10-COUNTER-STYLE | `@counter-style` and `symbols()` | done |
 | C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | done |
-| C10-FIRST | `::first-line` / `::first-letter` | partial — `::first-letter` layout and paint (part 3) |
+| C10-FIRST | `::first-line` / `::first-letter` | done |
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
 | C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | |
 | C10-DETAILS-CONTENT | `::details-content` | |
@@ -6287,3 +6287,23 @@ row comes from.
   → the transform / spacing and line-clamp tests (`CCC` / `c d`); no climb past the block → the descendant-block
   test; no paint overlay → the four color / background tests. No existing expectation or snapshot changed.
   CSS-COVERAGE: the row Missing → Partial (`::first-letter` remains), §3.16 6 / 2 / 2 / 6, total 194 / 15 / 53 / 45.
+- 2026-10-13 — C10-FIRST, part 3 of 3 (`::first-letter`). Decisions: (1) The letter is found before packing, in
+  the content (`inline/first_letter.rs::letter`): a walk of the flow's block in packing order — its inline
+  `::before` text, its text and the inline boxes it holds (their `::before` / `::after`), out-of-flow and floated
+  boxes skipped, an atom, a block or `<br>` ending it — scanning graphemes: leading white space skipped, then
+  punctuation, one letter or number, the punctuation after it (§2.3.2; punctuation is a table, documented); the
+  result is source spans (`LetterSpan`: a text node or a host's generated content, byte range), so the DOM text is
+  never split. The innermost host of the first line's chain with a `::first-letter` styles it (`host_of`).
+  (2) The packer takes a grapheme in a span under the letter's run mapping (`LetterRun`: its own
+  `text-transform` / spacings where its rules set them) with an origin of its own (`Origin::letter`), so it makes
+  fragments of its own (`InlineFragment::first_letter` / `GeneratedFragment::first_letter`), which paint styles
+  over the first-line style (`first_letter::effective`: color, font, decorations, background). (3) A floated
+  letter's graphemes are left out of the line and its float pushed where they were (`BoxItem::Generated(host,
+  PseudoSlot::FirstLetter)`): the floated-pseudo machinery of C8G-PSEUDO-ATOMS places, lays out
+  (`AnonymousItem::pseudo` — `pack_generated` packs the letter's source slices for this slot), paints and hit-tests
+  it; `float_side_of` takes the slot without a `content` check. Red: `css_phase10/first.rs` — the five letter tests
+  failed on HEAD (`Reset` for blue on the letter, the punctuation, the `::before`'s letter; `hello` for `Hello`;
+  the drop cap absent). Green after. Mutations (restored, touched): no trailing punctuation → the punctuation test;
+  the letter never floating → the drop-cap test. No existing expectation or snapshot changed. CSS-COVERAGE: the row
+  Partial → Supported, §3.16 7 / 1 / 2 / 6, total 195 / 14 / 53 / 45. DIVERGENCES: the §3 entry is gone; §2 records
+  the non-floated letter's box properties, the punctuation table, nested letters and intrinsic sizes.

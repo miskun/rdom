@@ -216,7 +216,8 @@ pub(crate) fn effective(
 
 /// `packer`, packing the flow of `block` (`first_formatted`: the one
 /// holding its first formatted line), told which blocks' first formatted
-/// line its first line is and how their `::first-line` shapes its runs.
+/// line its first line is, how their `::first-line` shapes its runs, and
+/// which letter their `::first-letter` is (`first_letter`).
 pub(super) fn configure<'a>(
     packer: LinePacker<'a>,
     dom: &Dom<TuiExt>,
@@ -227,6 +228,18 @@ pub(super) fn configure<'a>(
     if hosts.is_empty() {
         return packer;
     }
+    let letter = super::first_letter::host_of(dom, &hosts).map(|host| {
+        (
+            host,
+            super::first_letter::letter(dom, block),
+            super::first_letter::LetterRun::of(dom, host),
+            super::first_letter::floats(dom, host),
+        )
+    });
     let run = FirstLineRun::of(dom, block, &hosts);
-    packer.first_line(hosts, run)
+    let packer = packer.first_line(hosts, run);
+    match letter {
+        Some((host, spans, run, float)) => packer.first_letter(host, spans, run, float),
+        None => packer,
+    }
 }

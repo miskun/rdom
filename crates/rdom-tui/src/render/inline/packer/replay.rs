@@ -120,6 +120,7 @@ impl<'a> LinePacker<'a> {
             .aligned(self.align);
         packer.caps = caps;
         packer.first = self.first_packing();
+        packer.letter = self.letter_packing();
         packer
     }
 

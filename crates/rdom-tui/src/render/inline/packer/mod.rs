@@ -153,6 +153,8 @@ struct Origin {
     generated: Option<PseudoSlot>,
     /// The inline box the content is in (`frames`).
     frame: FrameId,
+    /// The block whose `::first-letter` the content is (`first`).
+    letter: Option<NodeId>,
 }
 
 impl Origin {
@@ -162,6 +164,7 @@ impl Origin {
             text_node,
             generated: None,
             frame,
+            letter: None,
         }
     }
 }
@@ -187,6 +190,8 @@ pub(super) struct LinePacker<'a> {
     /// The first formatted line's style (`::first-line`, `first`), until
     /// the first line is settled.
     first: Option<Box<first::FirstLinePacking>>,
+    /// The first letter's (`::first-letter`, `first`), until it is taken in.
+    letter: Option<Box<first::FirstLetterPacking>>,
 
     lines: Vec<LineBox>,
 
@@ -306,6 +311,7 @@ impl<'a> LinePacker<'a> {
             run: RunStyle::default(),
             run_source: RunStyle::default(),
             first: None,
+            letter: None,
             lines: Vec::new(),
             cur_fragments: Vec::new(),
             cur_generated: Vec::new(),
