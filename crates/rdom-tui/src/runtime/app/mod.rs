@@ -100,6 +100,8 @@ mod sibling_mark_tests;
 #[cfg(test)]
 mod starting_style_tests;
 #[cfg(test)]
+mod teardown_tests;
+#[cfg(test)]
 mod tests;
 
 use std::io::{self, Stdout};

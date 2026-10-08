@@ -35,6 +35,14 @@ impl MutationObserver<TuiExt> for Shim {
                 removed,
                 ..
             } => {
+                // A removed element's transitions and animations are
+                // cancelled at the next frame (C12G-DETACHED).
+                state.detached.extend(
+                    removed
+                        .iter()
+                        .copied()
+                        .filter(|&n| dom.node(n).node_type() == rdom_core::NodeType::Element),
+                );
                 // The inserted subtrees get dirtied directly.
                 for a in added {
                     mark_style_dirty(dom, &mut state, *a);

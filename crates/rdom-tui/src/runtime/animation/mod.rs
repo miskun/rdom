@@ -289,14 +289,15 @@ impl AnimationRegistry {
 
     /// [`advance`](Self::advance), reporting what it did.
     pub(crate) fn advance_frame(&mut self, dom: &mut Dom<TuiExt>, now: Instant) -> Advanced {
+        // An element out of the document has its transitions and
+        // animations cancelled; a dropped one's go with it, silently.
+        if !self.is_empty() {
+            self.cancel_disconnected(dom, now);
+        }
         self.advance_custom(dom, now);
         if self.active.is_empty() && self.css.is_empty() && self.css_cancelled.is_empty() {
             return Advanced::default();
         }
-        // A dropped element's transitions and animations go with it,
-        // silently.
-        self.active.retain(|a| dom.contains(a.node));
-        self.css.retain(|a| dom.contains(a.node));
         let mut targets: Vec<(NodeId, StyleSlot)> = Vec::new();
         let mut i = 0;
         while i < self.active.len() {
@@ -477,6 +478,7 @@ mod diff;
 #[cfg(test)]
 mod longhand_tests;
 mod rule;
+mod teardown;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

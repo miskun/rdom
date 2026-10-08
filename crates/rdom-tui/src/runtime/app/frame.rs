@@ -78,6 +78,7 @@ impl<B: Backend> App<B> {
         self.run_prelude(PreludeRun::Frame);
         let dirty_roots = self.take_dirty_roots();
         let flushed = self.take_flushed();
+        self.detach_removed();
         let redraw = self.redraw;
 
         if redraw == Redraw::Clean && dirty_roots.is_empty() {
@@ -154,6 +155,21 @@ impl<B: Backend> App<B> {
         dirty_roots.sort_unstable();
         dirty_roots.dedup();
         dirty_roots
+    }
+
+    /// Cancel the transitions and animations of the elements removed
+    /// since the last frame and forget their before-change styles
+    /// (C12G-DETACHED) — before the cascade, so one inserted again is
+    /// rendered afresh. The cancel events want a frame to go out in.
+    fn detach_removed(&mut self) {
+        let removed = self.tracker.take_detached();
+        if removed.is_empty() {
+            return;
+        }
+        let running = !self.animations.is_empty();
+        let now = self.frame_now();
+        self.animations.detach(&mut self.dom, &removed, now);
+        self.redraw.note_if(running, Redraw::Paint);
     }
 
     /// Whether a style flush cascaded subtrees since the last frame
@@ -299,6 +315,7 @@ impl<B: Backend> App<B> {
         self.run_prelude(PreludeRun::OffFrame);
         let dirty_roots = self.take_dirty_roots();
         let flushed = self.take_flushed();
+        self.detach_removed();
         let redraw = self.redraw.max(Redraw::Layout);
         let now = self.frame_now();
         let sheets = self.prelude.cascade_order(&self.stylesheets);

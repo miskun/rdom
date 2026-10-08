@@ -8062,3 +8062,22 @@ row comes from.
   `design_types.rs` weaker than its rule (globs, macro types, any backticked name, no
   `#[non_exhaustive]` check); SIZE-1 stale (`ladder.rs` 571, `rdom-css/src/block.rs` unlisted).
   Full reports: `target/claude-logs/c12_gate_{architect,api}.md`. Fix as `C12G-*`, two batches.
+- 2026-10-08 — C12G-DETACHED (architect B1, N2b; CSS Animations 1 §4.1, CSS Transitions 1 §3, Web
+  Animations 1 §5.6). Found: the registry pruned by `dom.contains`, true for a node `remove_child`
+  detached and kept, and `cancel_for_node` had no caller — a removed spinner pumped 60 fps forever and its
+  transitions ended with `transitionend`; a re-inserted element diffed against its pre-removal
+  `computed_prev`. Decided — a removal is a disconnection even when the element comes back in the same
+  task (browsers cancel and restart; `moveBefore` exists to avoid exactly that): the dirty tracker's
+  observer records each removed element (`take_detached`, the existing mutation path, no per-frame tree
+  scan); the frame, before its cascade, cancels every transition and animation in each removed subtree
+  still in the arena, with their events, and forgets its before-change styles and composited values
+  (`runtime/animation/teardown.rs`, `TuiExt::forget_rendering`), so a subtree inserted again is newly
+  rendered (its `@starting-style`, its animations from the start). A backstop in `advance_frame`
+  cancels the entries of any node not connected (a `::details-content` box counts as its `<details>`),
+  O(entries × depth), and drops a dropped node's silently, as before. Red: `app/teardown_tests.rs` 4 of 4
+  (no `animationcancel`, `transitionend` instead of cancel, width 10 for 2 on re-insertion, 6 for 2 on
+  restart) and `animation::tests::advancing_cancels_the_transition_of_a_detached_element`; green after.
+  Mutation-checked: the removal hook off fails the two re-insertion tests; the backstop off fails the
+  registry test. Found and recorded (TECH_DEBT `MOVE-RECORD-1`): moving an attached node with
+  `append_child` fires no removal record, so a moved element keeps its animations. CHANGELOG silent
+  change 77.

@@ -346,3 +346,43 @@ fn z_index_interpolates_over_the_full_integer_range() {
     assert_eq!(z(2_000_000_001, 2_000_000_003, 0.5), 2_000_000_002);
     assert_eq!(z(i32::MIN, i32::MAX, 1.0), i32::MAX);
 }
+
+/// C12G-DETACHED: the registry alone (no `App`, no removal record) still
+/// cancels the transition of an element that left the document — CSS
+/// Transitions 1 §3, a transition of an element no longer rendered is
+/// cancelled: `transitioncancel`, and nothing left to step.
+#[test]
+fn advancing_cancels_the_transition_of_a_detached_element() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+    let sheet = |c: Color| {
+        Stylesheet::bare().rule_unchecked(
+            "div",
+            TuiStyle::new()
+                .fg(c)
+                .transition_property(vec![TransitionProperty::named("color")])
+                .transition_duration(vec![100])
+                .transition_timing_function(vec![TimingFunction::Linear]),
+        )
+    };
+    dom.cascade(&sheet(Color::Rgb(255, 0, 0)));
+    let mut reg = AnimationRegistry::new();
+    let t0 = epoch();
+    diff_and_register(&mut dom, &mut reg, t0);
+    dom.cascade(&sheet(Color::Rgb(0, 0, 255)));
+    diff_and_register(&mut dom, &mut reg, t0);
+    reg.advance(&mut dom, t0 + Duration::from_millis(20));
+    let _ = reg.take_pending_events();
+    dom.remove_child(root, div).unwrap();
+    let later = t0 + Duration::from_millis(40);
+    reg.advance(&mut dom, later);
+    let events = reg.take_pending_events();
+    assert!(
+        events.iter().any(|e| e.kind == TransitionEventKind::Cancel),
+        "{events:?}"
+    );
+    assert!(reg.is_empty());
+    assert!(!reg.needs_frames(later));
+}

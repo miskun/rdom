@@ -148,6 +148,12 @@ pub(super) struct DirtyState {
     /// (`runtime::style_flush`): the next frame still owes them its
     /// transition hook and its layout. Consumed via `take_flushed()`.
     pub(super) flushed: bool,
+    /// The element subtrees taken out of their parent since the last
+    /// frame (`ChildListChanged`'s `removed`): the frame cancels their
+    /// running transitions and animations and forgets their
+    /// before-change styles (C12G-DETACHED). Consumed via
+    /// `take_detached()`.
+    pub(super) detached: Vec<NodeId>,
     /// Which changes can reach a sibling's match through a `+` / `~`
     /// combinator (`style::sibling_triggers`,
     /// `P7G-SIBLING-MARK-NARROW-1`). Every change until the App says
@@ -170,6 +176,7 @@ impl Default for DirtyState {
             selection_dirty: false,
             records: 0,
             flushed: false,
+            detached: Vec::new(),
             siblings: SiblingTriggers::all(),
             has: HasTriggers::all(),
         }
@@ -254,6 +261,15 @@ impl DirtyTracker {
     /// the frame runs its transition hook and lays out for them.
     pub(crate) fn take_flushed(&self) -> bool {
         std::mem::take(&mut self.inner.borrow_mut().flushed)
+    }
+
+    /// Take the element subtrees removed from their parents since the
+    /// last call — detached, re-inserted since or dropped. A removal is
+    /// a disconnection even when the element comes back in the same
+    /// task: its animations are cancelled and it is rendered afresh
+    /// (CSS Animations 1 §4.1, CSS Transitions 1 §3).
+    pub(crate) fn take_detached(&self) -> Vec<NodeId> {
+        std::mem::take(&mut self.inner.borrow_mut().detached)
     }
 
     /// Peek at the current dirty roots without clearing. Useful in

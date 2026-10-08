@@ -89,6 +89,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 74. **A newly rendered element does not transition from its hidden values** (CSS Transitions 1 §3): coming out of `display: none` (itself or under an ancestor), it has no before-change style, so its values change at once — it transitioned from the values it had while hidden. Give it a `@starting-style` to fade it in. (C12-STARTING)
 75. **The pointer changes shape over the page** (CSS UI 4 §4.1): in kitty, foot, WezTerm and Ghostty an `App` now sets the terminal pointer — the text pointer over text, `pointer` over links, a sheet's `cursor` elsewhere — where it was left alone. `App::with_pointer_shapes(PointerShapes::None)` keeps the terminal's own. (C12-CURSOR)
 76. **A textarea's corner resizes it** (CSS UI 4 §4.2, HTML's UA `textarea { resize: both }`): a press on a `<textarea>`'s bottom-right cell now starts a resize drag (writing its `width` / `height` into its `style`) instead of reaching the textarea or its scrollbar there. Set `textarea { resize: none }` to keep the old press. (C12-CONTROLS)
+77. **A removed element's transitions and animations are cancelled** (CSS Transitions 1 §3, CSS Animations 1 §4.1): `remove_child` fires `transitioncancel` / `animationcancel` for what runs in the subtree (a transition ran on to `transitionend`), and an element inserted again has no before-change style, so it takes its values at once and restarts its animations. (C12G-DETACHED)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -752,6 +753,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A removed element stops animating** (CSS Animations 1 §4.1, CSS Transitions 1 §3): an element taken out with `remove_child` and kept ran its transitions and animations on — 60 frames a second for an infinite one; they are cancelled (`transitioncancel` / `animationcancel`), and one inserted again starts afresh. (C12G-DETACHED)
 - **Geometry transitions move layout**: a running transition's value is the element's computed value, so `width`, `height`, `padding`, `margin`, insets, `gap`, `flex-basis` and grid tracks animate frame by frame — on `::before` / `::after` and `::details-content` too — and descendants inherit it. Transitions run on the app's clock (`App::advance` drives it). (C12-ANIMATABLE)
 - **A `<dialog>` fires `beforetoggle`** (HTML §4.11.4's current show and close steps): a cancelable `closed` → `open` before `show()` / `showModal()` open it — canceled, or a listener that opened, disconnected or popover-showed it, ends the show — and a non-cancelable `open` → `closed` before `close()`, which a listener's own close ends. (C11G-DIALOG-BEFORETOGGLE)
 - **A highlight changed by a panicking caller repaints**: a `HighlightsMut` guard dropped while unwinding moves the registry's generation but may run no observer, so no repaint was scheduled; a frame now repaints when the generation is not the one it last painted. The form-state walk no longer parses `:default` per flush. (C11G-MINOR)

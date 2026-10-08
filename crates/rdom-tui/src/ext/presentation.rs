@@ -314,6 +314,27 @@ impl TuiExt {
         }
     }
 
+    /// Forget what the transition engine keeps for this element's boxes
+    /// once it leaves the document (C12G-DETACHED): the composited values
+    /// (each slot's computed style goes back to the cascade's) and the
+    /// before-change styles — an element no longer rendered has none (CSS
+    /// Transitions 1 §3), so it is rendered afresh when inserted again.
+    pub(crate) fn forget_rendering(&mut self) {
+        for slot in [StyleSlot::Host, StyleSlot::Before, StyleSlot::After] {
+            if let Some(base) = self.presentation_for(slot).and_then(|p| p.base.clone()) {
+                self.put_computed(slot, Some(base));
+            }
+        }
+        self.presentation = None;
+        self.computed_prev = None;
+        self.update_pseudo(false, |p| {
+            p.presentation_before = None;
+            p.presentation_after = None;
+            p.before_prev = None;
+            p.after_prev = None;
+        });
+    }
+
     fn put_computed(&mut self, slot: StyleSlot, style: Option<Rc<ComputedStyle>>) {
         match slot {
             StyleSlot::Host => self.computed = style,

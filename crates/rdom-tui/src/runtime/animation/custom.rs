@@ -351,6 +351,11 @@ impl AnimationRegistry {
         }
     }
 
+    /// The elements a custom-property transition runs on.
+    pub(super) fn custom_nodes(&self) -> impl Iterator<Item = NodeId> + '_ {
+        self.custom.iter().map(|a| a.node)
+    }
+
     /// Cancel the custom-property transitions of `node`.
     pub(super) fn cancel_custom_for_node(&mut self, node: NodeId, now: Instant) {
         let mut i = 0;
