@@ -15,11 +15,19 @@ use std::rc::Rc;
 use rdom_style::conditional::MediaEnvironment;
 use rdom_style::{ConditionId, ConditionKind, Stylesheet};
 
-/// Whether each conditional group rule of each sheet holds — itself and
+/// Whether each sheet applies (its media list, CSSOM `StyleSheet.media`)
+/// and whether each of its conditional group rules holds — itself and
 /// every rule enclosing it.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct ConditionResults {
-    per_sheet: Vec<Box<[bool]>>,
+    per_sheet: Vec<SheetResults>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct SheetResults {
+    /// The sheet's media list matches (or it has none).
+    applies: bool,
+    holds: Box<[bool]>,
 }
 
 impl ConditionResults {
@@ -35,23 +43,24 @@ impl ConditionResults {
                     let parent = rule.parent.is_none_or(|p| holds[p.index()]);
                     holds.push(parent && own(&rule.kind, env));
                 }
-                holds.into_boxed_slice()
+                SheetResults {
+                    applies: sheet.media().is_none_or(|m| m.matches(env)),
+                    holds: holds.into_boxed_slice(),
+                }
             })
             .collect();
         ConditionResults { per_sheet }
     }
 
-    /// Whether `condition` of sheet `sheet` holds (`None`: unconditional).
+    /// Whether a rule of sheet `sheet` under `condition` applies: the
+    /// sheet's media list matches and `condition` (`None`: unconditional)
+    /// holds.
     pub(super) fn holds(&self, sheet: usize, condition: Option<ConditionId>) -> bool {
-        match condition {
-            None => true,
-            Some(c) => self
-                .per_sheet
-                .get(sheet)
-                .and_then(|s| s.get(c.index()))
-                .copied()
-                .unwrap_or(false),
-        }
+        let Some(results) = self.per_sheet.get(sheet) else {
+            return true;
+        };
+        results.applies
+            && condition.is_none_or(|c| results.holds.get(c.index()).copied().unwrap_or(false))
     }
 }
 

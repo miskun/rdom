@@ -11,7 +11,7 @@
 //! layer's sublayers before the layer's own rules (§6.4.3), and the
 //! unlayered rules last.
 
-use super::{Rule, Stylesheet};
+use super::{ConditionId, Rule, Stylesheet};
 
 /// A layer declared in one [`Stylesheet`]: an index into
 /// [`Stylesheet::layers`]. Meaningful only for the sheet that issued
@@ -85,6 +85,7 @@ impl Stylesheet {
             imports,
             scopes: _,     // `append_scopes` maps them
             conditions: _, // `append_conditions` maps them
+            media: _,      // `append_conditions` makes it a condition
             owner_node: _, // the receiver's own `<style>` stays its owner
             version: _,    // `touch` renews ours
         } = other;
@@ -99,12 +100,13 @@ impl Stylesheet {
             map.push(id);
         }
         let scopes = self.append_scopes(other);
-        let conditions = self.append_conditions(other);
+        let (conditions, root) = self.append_conditions(other);
+        let condition = |c: Option<ConditionId>| c.map(|c| conditions[c.index()]).or(root);
         self.registrations.extend(registrations.iter().cloned());
         for def in counter_styles {
             let mut def = def.clone();
             def.layer = def.layer.map(|l| map[l.index()]);
-            def.condition = def.condition.map(|c| conditions[c.index()]);
+            def.condition = condition(def.condition);
             self.counter_styles.push(def);
         }
         for import in imports {
@@ -115,7 +117,7 @@ impl Stylesheet {
         for rule in keyframes {
             let mut rule = rule.clone();
             rule.layer = rule.layer.map(|l| map[l.index()]);
-            rule.condition = rule.condition.map(|c| conditions[c.index()]);
+            rule.condition = condition(rule.condition);
             self.keyframes.push(rule);
         }
         let rules: Vec<Rule> = rules
@@ -124,7 +126,7 @@ impl Stylesheet {
                 let mut rule = rule.clone();
                 rule.layer = rule.layer.map(|l| map[l.index()]);
                 rule.scope = rule.scope.map(|s| scopes[s.index()]);
-                rule.condition = rule.condition.map(|c| conditions[c.index()]);
+                rule.condition = condition(rule.condition);
                 rule.source_idx = self.next_source_idx;
                 self.next_source_idx += 1;
                 rule

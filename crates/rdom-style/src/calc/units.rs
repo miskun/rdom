@@ -54,6 +54,19 @@ impl Viewport {
     }
 }
 
+thread_local! {
+    static VIEWPORT_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many viewport-percentage lengths this thread has resolved, ever —
+/// a backend samples it around a cascade to learn whether the styles it
+/// computed depend on the viewport's size (CSS Values 4 §6.1.2), so a
+/// resize restyles only a document that read one. A monotonic count, read
+/// as a difference: it carries no state between cascades.
+pub fn viewport_reads() -> u64 {
+    VIEWPORT_READS.with(std::cell::Cell::get)
+}
+
 /// What the units resolved at computed-value time are relative to (CSS
 /// Values 4 §6.1): the viewport (the viewport-percentage units) and the
 /// line heights (`lh`, `rlh`), in rows.
@@ -172,8 +185,11 @@ impl ViewportUnit {
         NAMES[size.unwrap_or(0)][axis.unwrap_or(0)]
     }
 
-    /// The cells 1% of `viewport` is on this unit's axis.
+    /// The cells 1% of `viewport` is on this unit's axis — every
+    /// viewport-percentage length resolves here, counted
+    /// ([`viewport_reads`]).
     fn percent_of(self, viewport: Viewport) -> f64 {
+        VIEWPORT_READS.with(|c| c.set(c.get().wrapping_add(1)));
         let (w, h) = (f64::from(viewport.cols), f64::from(viewport.rows));
         let extent = match self.axis {
             ViewportAxis::Width | ViewportAxis::Inline => w,

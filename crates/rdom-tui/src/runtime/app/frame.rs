@@ -77,6 +77,9 @@ impl<B: Backend> App<B> {
         // Before the roots are taken, so what the stages dirty is
         // cascaded in this frame.
         self.run_prelude(PreludeRun::Frame);
+        // `matchMedia` lists report their flips before the frame's style;
+        // their listeners' changes are cascaded in this frame.
+        self.report_media_changes();
         let dirty_roots = self.take_dirty_roots();
         let flushed = self.take_flushed();
         self.detach_removed();
@@ -322,20 +325,25 @@ fn style_and_layout(
     area: Rect,
 ) -> Pass {
     // The viewport-percentage units resolve against the terminal (CSS
-    // Values 4 §6.1.2); at a size the tree was not cascaded for, every
-    // element's are stale, so the whole tree cascades.
+    // Values 4 §6.1.2) and `@media` reads its size (Media Queries 4 §4):
+    // at a new size the whole tree cascades when a style read the viewport
+    // or a query flipped, and otherwise only lays out again.
     let viewport = Viewport::new(area.width, area.height);
     dom.set_viewport(viewport);
     let redraw = if *cascaded_viewport == Some(viewport) {
         redraw
-    } else {
+    } else if cascaded_viewport.is_none()
+        || crate::style::cascade::must_restyle(dom, sheets, registry, true)
+    {
         Redraw::Cascade
+    } else {
+        redraw.max(Redraw::Layout)
     };
+    *cascaded_viewport = Some(viewport);
     // The cascade, then the transition and animation hook under its sheets.
     let mut cascaded: Vec<NodeId> = Vec::new();
     let cascade = if redraw == Redraw::Cascade {
         cascade_all_with(dom, sheets, Some(registry.clone()));
-        *cascaded_viewport = Some(viewport);
         Some(CascadeScope::Full)
     } else if !dirty_roots.is_empty() {
         cascaded = cascade_subtrees_all_with(dom, sheets, Some(registry.clone()), dirty_roots);

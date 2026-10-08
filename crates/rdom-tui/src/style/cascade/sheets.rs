@@ -116,7 +116,8 @@ impl<'a> Sheets<'a> {
     fn has_conditional_definitions(&self) -> bool {
         *self.registry.facts.conditional_definitions.get_or_init(|| {
             self.list.iter().any(|s| {
-                s.counter_styles().iter().any(|d| d.condition.is_some())
+                s.media().is_some()
+                    || s.counter_styles().iter().any(|d| d.condition.is_some())
                     || s.keyframes().iter().any(|k| k.condition.is_some())
             })
         })

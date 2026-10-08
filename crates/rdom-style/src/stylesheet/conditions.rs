@@ -75,14 +75,37 @@ impl Stylesheet {
         })
     }
 
-    /// Append `other`'s conditions, returning the id map for its rules.
-    pub(super) fn append_conditions(&mut self, other: &Stylesheet) -> Vec<ConditionId> {
+    /// CSSOM `StyleSheet.media` (CSSOM §6.1): the media list the whole
+    /// sheet applies under — a `<style media>` element's — `None` for
+    /// every medium.
+    pub fn media(&self) -> Option<&MediaList> {
+        self.media.as_ref()
+    }
+
+    /// Set the sheet's media list ([`Stylesheet::media`]).
+    pub fn set_media(&mut self, media: Option<MediaList>) {
+        self.touch();
+        self.media = media;
+    }
+
+    /// Append `other`'s conditions, returning the id map for its rules
+    /// and the condition its unconditional rules take: `other`'s own media
+    /// list, if it has one, declared first as the root of its conditions
+    /// (the receiver's sheet-level media stays its own).
+    pub(super) fn append_conditions(
+        &mut self,
+        other: &Stylesheet,
+    ) -> (Vec<ConditionId>, Option<ConditionId>) {
+        let root = other
+            .media
+            .clone()
+            .map(|m| self.declare_condition(ConditionRule::new(ConditionKind::Media(m), None)));
         let mut map = Vec::with_capacity(other.conditions.len());
         for rule in &other.conditions {
             let mut rule = rule.clone();
-            rule.parent = rule.parent.map(|p: ConditionId| map[p.index()]);
+            rule.parent = rule.parent.map(|p: ConditionId| map[p.index()]).or(root);
             map.push(self.declare_condition(rule));
         }
-        map
+        (map, root)
     }
 }

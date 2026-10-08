@@ -325,6 +325,9 @@ pub struct Stylesheet {
     /// Declared conditional group rules, in source order
     /// (`conditions.rs`).
     conditions: Vec<ConditionRule>,
+    /// CSSOM `StyleSheet.media`: the sheet applies only while it matches
+    /// (`<style media>`, HTML §4.2.6); `None` for every medium.
+    media: Option<crate::conditional::MediaList>,
     /// CSSOM `ownerNode`: the `<style>` element the sheet came from.
     owner_node: Option<rdom_core::NodeId>,
     /// Renewed by every mutation ([`Stylesheet::version`]).

@@ -88,7 +88,9 @@ pub(crate) use keyframes::{keyframe_style, keyframes_rule};
 pub(crate) use matching::MatchedRules;
 #[cfg(test)]
 pub(crate) use matching::probe as match_probe;
-pub(crate) use media::{document_media_preferences, set_document_media_preferences};
+pub(crate) use media::{
+    document_media, document_media_preferences, must_restyle, set_document_media_preferences,
+};
 pub(crate) use registered::PropertyRegistry;
 #[cfg(test)]
 pub(crate) use registered::probe as registry_probe;
@@ -308,6 +310,7 @@ pub(crate) fn cascade_all_with(
     registry: Option<Rc<PropertyRegistry>>,
 ) {
     let registry = registry.unwrap_or_else(|| registered::document_registry(dom, stylesheets));
+    let reads = media::begin(dom);
     let sheets = walk::Sheets::new(stylesheets, registry.clone(), media::document_media(dom));
     note_first_rules(dom, &sheets);
     details::reclaim_content_boxes(dom);
@@ -333,6 +336,7 @@ pub(crate) fn cascade_all_with(
         walk::Mode::Cascade,
     );
     scratch.flag_has_anchors(dom);
+    media::finish(dom, reads, &sheets);
     // A reversed counter's initial value read the boxes after it as last
     // cascaded (CSS Lists 3 §4.2): re-cascade from those it moved.
     let stale = counters.stale_reversed(dom);

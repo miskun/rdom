@@ -106,7 +106,10 @@ impl<B: Backend> App<B> {
                 self.dom
                     .dispatch_tui_event(root, &mut tui)
                     .expect("the document root is never dropped, and `tui` is fresh");
-                self.redraw.note(Redraw::Cascade);
+                // The boxes depend on the size; the styles only when one
+                // read the viewport or a query flips, which the frame
+                // decides (`frame::style_and_layout`).
+                self.redraw.note(Redraw::Layout);
 
                 // Re-arm mouse tracking after the resize signal.
                 // Terminals (and tmux in some configurations) reset

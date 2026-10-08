@@ -35,8 +35,10 @@
 //! [`App::with_import_loader`](crate::runtime::App::with_import_loader);
 //! without one it imports nothing (and warns).
 //!
-//! The `media` attribute is not evaluated (rdom evaluates no media
-//! queries), and `<style>` has no `disabled` content attribute.
+//! The `media` attribute is the sheet's media list (HTML §4.2.6, CSSOM
+//! `StyleSheet.media`, `Stylesheet::set_media`): the sheet applies only
+//! while it matches, which the cascade evaluates with the document's
+//! other media queries. `<style>` has no `disabled` content attribute.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -53,6 +55,8 @@ struct StyleSheetEntry {
     element: NodeId,
     /// The concatenated child text the sheet was parsed from.
     source: String,
+    /// The `media` attribute it was parsed with.
+    media: Option<String>,
     sheet: Rc<Stylesheet>,
     warnings: Vec<Warning>,
 }
@@ -112,9 +116,10 @@ impl StyleElements {
         let styles = dom.elements_by_tag("style");
         for &element in styles.ids() {
             let source = crate::node::child_text(dom, element);
+            let media = dom.get_attribute(element, "media").map(str::to_string);
             let reused = previous
                 .iter()
-                .position(|e| e.element == element && e.source == source)
+                .position(|e| e.element == element && e.source == source && e.media == media)
                 .map(|at| previous.swap_remove(at));
             let entry = reused.unwrap_or_else(|| {
                 reparsed = true;
@@ -125,9 +130,17 @@ impl StyleElements {
                 // CSSOM `ownerNode`: a prelude-less `@scope` roots at its
                 // parent (CSS Cascade 6 §2.5.1).
                 parsed.stylesheet.set_owner_node(Some(element));
+                // HTML §4.2.6: the `media` attribute is the sheet's media
+                // list.
+                parsed.stylesheet.set_media(
+                    media
+                        .as_deref()
+                        .map(rdom_style::conditional::MediaList::parse),
+                );
                 StyleSheetEntry {
                     element,
                     source,
+                    media,
                     sheet: Rc::new(parsed.stylesheet),
                     warnings: parsed.warnings,
                 }
@@ -168,6 +181,12 @@ impl MutationObserver<TuiExt> for StyleObserver {
             return;
         }
         let relevant = match record {
+            // A connected `<style>`'s media list.
+            Mutation::AttributeChanged { id, name, .. } => {
+                name == "media"
+                    && dom.node(*id).tag_name() == Some("style")
+                    && dom.node(*id).is_connected()
+            }
             Mutation::CharacterDataChanged { id, .. } => dom
                 .node(*id)
                 .parent_node()

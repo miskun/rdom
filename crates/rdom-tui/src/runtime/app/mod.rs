@@ -30,11 +30,13 @@
 //! | SGR extensions emitted | [`with_sgr_capabilities`](App::with_sgr_capabilities) | from the environment ([`SgrCapabilities::from_env`](crate::SgrCapabilities::from_env)) | the backend's (a `TestBackend`'s `BASIC`) |
 //! | Pointer-shape protocol | [`with_pointer_shapes`](App::with_pointer_shapes) | from the environment ([`PointerShapes::from_env`](crate::PointerShapes::from_env)) | `None` |
 //! | Preferred color scheme | [`with_color_scheme`](App::with_color_scheme); at run time [`set_color_scheme`](App::set_color_scheme) | asked of the terminal when `run` starts (OSC 11), dark without an answer | dark |
+//! | Media preferences (`prefers-reduced-motion`, `prefers-contrast`, the pointer, …) | [`with_media_preferences`](App::with_media_preferences); at run time [`set_media_preferences`](App::set_media_preferences) | no preference, a mouse, 24-bit color ([`MediaPreferences::default`](crate::MediaPreferences::default)) | the same |
 //! | Clipboard | [`with_clipboard`](App::with_clipboard) | the system clipboard | the system clipboard |
 //! | `<a href>` URL opener | [`with_url_opener`](App::with_url_opener) | the system opener | the system opener |
 //! | `@import` loader for `<style>` sheets | [`with_import_loader`](App::with_import_loader) | none (imports unresolved) | none |
 //!
-//! At run time: [`set_color_scheme`](App::set_color_scheme), the
+//! At run time: [`set_color_scheme`](App::set_color_scheme),
+//! [`set_media_preferences`](App::set_media_preferences), the
 //! stylesheet stack ([`push_stylesheet`](App::push_stylesheet),
 //! [`set_stylesheet`](App::set_stylesheet),
 //! [`remove_stylesheet`](App::remove_stylesheet)) and
@@ -67,6 +69,7 @@
 //!   transition-event drain.
 //! - `redraw` — `Redraw`, what the next frame must redo.
 //! - `scheme` — the color-scheme options and the startup query.
+//! - `media` — the media preferences, `matchMedia` and its reports.
 
 pub mod context;
 pub mod handle;
@@ -79,6 +82,7 @@ mod event_loop;
 mod frame;
 mod input;
 mod keyboard_defaults;
+mod media;
 mod pointer;
 mod prelude;
 mod redraw;
@@ -109,6 +113,8 @@ mod interaction_chain_tests;
 mod keyframes_tests;
 #[cfg(test)]
 mod layout_runs_tests;
+#[cfg(test)]
+mod media_tests;
 #[cfg(test)]
 mod off_event_paint_tests;
 #[cfg(test)]
@@ -197,10 +203,13 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// when nothing is animating. Configurable via
     /// [`App::with_animation_frame_rate`].
     animation_frame_ms: u32,
-    /// The terminal size the last whole-tree cascade resolved the
-    /// viewport-percentage units against (CSS Values 4 §6.1.2); a frame
-    /// at another size cascades the whole tree again.
+    /// The terminal size the tree's styles were last checked against
+    /// (CSS Values 4 §6.1.2, Media Queries 4 §4): a frame at another size
+    /// cascades the whole tree again when a style read the viewport or a
+    /// query flipped (`style::cascade::must_restyle`), else lays out.
     cascaded_viewport: Option<rdom_style::calc::Viewport>,
+    /// The `matchMedia` lists (`runtime::media_query`), weakly held.
+    media_watches: crate::runtime::media_query::MediaWatches,
     /// True once the app set the color scheme (`App::with_color_scheme`
     /// / `set_color_scheme`): the terminal is not asked at startup.
     color_scheme_explicit: bool,
@@ -380,6 +389,7 @@ impl<B: Backend> App<B> {
             tick_rate: Duration::from_millis(50),
             animation_frame_ms: 16,
             cascaded_viewport: None,
+            media_watches: Default::default(),
             color_scheme_explicit: false,
             detected_background: None,
             on_tick: None,

@@ -138,7 +138,8 @@ pub use runtime::pointer_shape::PointerShapes;
 /// The timer API on event contexts (`set_timeout`, `request_animation_frame`, …).
 pub use runtime::timers::TuiTimers;
 pub use runtime::{
-    App, AppContext, AppHandle, ControlFlow, HitTestExt, RouteOutcome, Router, StylesheetId,
+    App, AppContext, AppHandle, ControlFlow, HitTestExt, MediaListenerId, MediaQueryList,
+    MediaQueryListEvent, RouteOutcome, Router, StylesheetId,
 };
 /// The `transition-*` vocabulary (CSS Transitions 1 / 2, CSS Easing 1 /
 /// 2), beside the `@keyframes` types.

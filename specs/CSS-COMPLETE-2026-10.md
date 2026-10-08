@@ -263,7 +263,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C14-MEDIA | `@media` (cell-sized viewport, `prefers-color-scheme`, `prefers-reduced-motion`, `hover` / `pointer`, …) and `matchMedia` | partial — part 2: the `App`'s media preferences, `matchMedia` and its `change` event, resize restyle by flipped queries, `<style media>` |
+| C14-MEDIA | `@media` (cell-sized viewport, `prefers-color-scheme`, `prefers-reduced-motion`, `hover` / `pointer`, …) and `matchMedia` | done |
 | C14-SUPPORTS | `@supports` (feature queries against the dispatch table; `CSS.supports`) | |
 | C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | |
 | C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | |
@@ -9056,3 +9056,31 @@ row comes from.
   `media.rs` came out at 757 lines formatted: the feature (`media_feature.rs`: parse, values, evaluation) split
   from the list and query (`media.rs`). Silent change 26 (the old 26–87 move to 27–88). Part 2: the `App`'s preferences, `matchMedia`, resize restyle
   by flipped queries, `<style media>`.
+- 2026-10-09 — C14-MEDIA (part 2 of 2: the `App`'s media environment; Media Queries 5 §12, CSSOM View §4.2, HTML
+  §4.2.6, CSS Values 4 §6.1.2). `App::with_media_preferences` / `set_media_preferences` / `media_preferences`
+  (config table row); `App::match_media(query) -> MediaQueryList` (`runtime::media_query`: a shared handle with
+  `media()` — the serialization — `matches()`, `add_listener(FnMut(&mut TimerCtx, &MediaQueryListEvent))` /
+  `remove_listener`; the App holds the lists weakly). Decided: the reports run in `draw_if_dirty` after the
+  prelude, before the dirty roots are taken (HTML's "evaluate media queries and report changes" precedes the
+  frame's style), against the backend's current size, and only when the environment moved; a listener reaches
+  the document through a `TimerCtx`, as timer callbacks do; listeners added by a listener run from the next
+  flip. Resize: `must_restyle` (`cascade/media.rs`) — the whole tree cascades again only when a computed style
+  read a viewport-percentage length or a condition flipped; otherwise the frame lays out (the resize handler
+  notes `Layout`, the frame's viewport check decides). Viewport reads are counted where every such length
+  resolves (`ViewportUnit::percent_of`, `rdom_style::calc::viewport_reads()`, a monotonic per-thread count
+  read as a difference, so it carries no state between cascades — chosen over threading a flag through
+  `UnitContext`, which is `Copy`, and the line-height, `vertical-align` and registered-property resolvers that
+  read the viewport outside it) and noted on the document (`MediaState`, sticky: a stale `true` costs a
+  cascade, a lost one would leave stale lengths) by every cascade form, keyframe and starting styles included;
+  the condition results are recorded by whole-tree cascades only (a subtree cascade leaves the rest of the tree
+  under the old ones). A preference change cascades only when a query flips. `<style media>`: CSSOM
+  `StyleSheet.media` as `Stylesheet::media` / `set_media` (rdom-style), evaluated with the sheet's conditions
+  (`ConditionResults` per sheet: its media list, then its rules'); `StyleElements` passes the attribute and
+  re-parses when it changes (the observer watches `media` on connected `<style>` elements); `append` turns the
+  appended sheet's media list into a root condition. Red: `runtime/app/media_tests.rs` was compile-red (no
+  `with_media_preferences`, `match_media`, `set_media`). Green: all 11. Mutation (each alone or in independent
+  groups, restored, touched): always cascading on a resize → `a_resize_that_flips_nothing_only_lays_out`;
+  `must_restyle` ignoring the viewport reads and the flipped results, and the lists reporting without a flip →
+  six tests (the viewport-unit, flip, preference, `<style media>`, sheet-media and change-report ones). The
+  reduced-motion test pins that an animation stops through CSS alone. CSS-COVERAGE: `@media` Supported (§3.21
+  1 / 0 / 5 / 1, total 238 / 7 / 17 / 45). Silent change 26 gains `<style media>`. Item done.

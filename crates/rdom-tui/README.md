@@ -1273,11 +1273,12 @@ environment or the clock:
 | SGR extensions emitted | `with_sgr_capabilities` | from the environment (`SgrCapabilities::from_env`) | the backend's (a `TestBackend`'s `BASIC`) |
 | Pointer-shape protocol | `with_pointer_shapes` | from the environment (`PointerShapes::from_env`) | `None` |
 | Preferred color scheme | `with_color_scheme`; at run time `set_color_scheme` | asked of the terminal when `run` starts (OSC 11), dark without an answer | dark |
+| Media preferences (`prefers-reduced-motion`, `prefers-contrast`, the pointer, …) | `with_media_preferences`; at run time `set_media_preferences` | no preference, a mouse, 24-bit color | the same |
 | Clipboard | `with_clipboard` | the system clipboard | the system clipboard |
 | `<a href>` URL opener | `with_url_opener` | the system opener | the system opener |
 | `@import` loader for `<style>` sheets | `with_import_loader` | none (imports unresolved) | none |
 
-At run time: `set_color_scheme`, the stylesheet stack
+At run time: `set_color_scheme`, `set_media_preferences`, `match_media` (a live `MediaQueryList` with change listeners), the stylesheet stack
 (`push_stylesheet`, `set_stylesheet`, `remove_stylesheet`) and
 `register_property`.
 

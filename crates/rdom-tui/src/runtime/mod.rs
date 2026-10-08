@@ -43,6 +43,7 @@ pub(crate) mod implicit_events;
 #[cfg(test)]
 mod inert_tests;
 pub(crate) mod input;
+pub mod media_query;
 pub mod pointer_shape;
 pub(crate) mod resize;
 pub mod router;
@@ -61,4 +62,5 @@ pub mod url_opener;
 
 pub use app::{App, AppContext, AppHandle, ControlFlow, StylesheetId};
 pub use hit_test::HitTestExt;
+pub use media_query::{MediaListenerId, MediaQueryList, MediaQueryListEvent};
 pub use router::{RouteOutcome, Router};
