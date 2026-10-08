@@ -66,7 +66,8 @@
 //!   non-IFC elements; fragment-driven IFC paint. Split into the
 //!   fragment painter (`mod.rs`), the chrome-substitution seam
 //!   (`chrome`), the single-row painter (`single_row`), the caret
-//!   (`caret`) and the `::selection` overlay (`selection_overlay`).
+//!   (`caret`) and the highlight overlays (`highlight_overlay`:
+//!   `::highlight()` and `::selection`).
 //! - `text` — `paint_text` low-level helper + `ComputedStyle` →
 //!   `Style` conversion.
 

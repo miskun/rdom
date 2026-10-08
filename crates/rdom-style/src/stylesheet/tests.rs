@@ -158,7 +158,7 @@ fn the_bare_pseudo_reset_list_parses() {
     let sel = StyleSelector::parse("*, ::before, ::after").expect("the reset parses");
     let mut sheet = Stylesheet::bare();
     sheet.add_style_rule(&sel, TuiStyle::new(), RuleContext::default());
-    let pseudos: Vec<_> = sheet.rules().iter().map(|r| r.pseudo).collect();
+    let pseudos: Vec<_> = sheet.rules().iter().map(|r| r.pseudo.clone()).collect();
     assert_eq!(
         pseudos,
         vec![
@@ -772,6 +772,53 @@ fn first_letter_rules_keep_only_the_first_letter_properties() {
         "margin-inline-end maps by direction"
     );
     assert!(s.display.is_none() && s.width.is_none() && s.position.is_none());
+}
+
+// ── ::highlight() (C10-HIGHLIGHT) ───────────────────────────────────
+
+/// CSS Custom Highlight API 1 §5.1: `::highlight(<custom-ident>)` names
+/// a registered highlight — case-sensitively, the name kept as written;
+/// the pseudo-element name itself is ASCII case-insensitive. An empty or
+/// non-identifier argument is invalid.
+#[test]
+fn highlight_pseudo_elements_carry_their_name() {
+    let (core, target) = extract("p::highlight(SearchHit)").unwrap();
+    assert_eq!(core, "p");
+    assert_eq!(target, PseudoElementTarget::Highlight("SearchHit".into()));
+    let (core, target) = extract("::HIGHLIGHT( err )").unwrap();
+    assert_eq!(core, "*");
+    assert_eq!(target, PseudoElementTarget::Highlight("err".into()));
+    assert!(extract("p::highlight()").is_err());
+    assert!(extract("p::highlight(1a)").is_err());
+    assert!(extract("p::highlight(a b)").is_err());
+}
+
+/// CSS Pseudo-Elements 4 §3.2 (highlight pseudo-elements, `::selection`
+/// among them): only `color`, `background-color`, the text decoration
+/// properties and custom properties apply; a rule keeps nothing else.
+#[test]
+fn highlight_rules_keep_only_the_highlight_properties() {
+    for selector in ["p::highlight(x)", "p::selection"] {
+        let sheet = rdom_css_like(
+            selector,
+            &[
+                ("color", "red"),
+                ("background-color", "blue"),
+                ("text-decoration", "underline"),
+                ("font-weight", "bold"),
+                ("padding", "3"),
+                ("opacity", ".5"),
+            ],
+        );
+        let s = &sheet.rules()[0].style;
+        assert!(s.fg.is_some() && s.bg.is_some(), "{selector}");
+        assert!(s.text_decoration.line.is_some(), "{selector}");
+        assert!(
+            s.font.weight.is_none(),
+            "{selector}: font-weight does not apply"
+        );
+        assert!(s.padding.top.is_none() && s.opacity.is_none(), "{selector}");
+    }
 }
 
 // ── ::marker (C10-LIST-ITEM) ────────────────────────────────────────

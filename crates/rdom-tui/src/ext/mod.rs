@@ -47,6 +47,17 @@ impl TuiExt {
             .map_or(&[], Vec::as_slice)
     }
 
+    /// This element's `::highlight(name)` computed style, when a rule
+    /// matching it styles that highlight (CSS Custom Highlight API 1
+    /// §5.1).
+    pub fn computed_highlight(&self, name: &str) -> Option<&ComputedStyle> {
+        self.computed_highlights
+            .as_deref()?
+            .iter()
+            .find(|(n, _)| &**n == name)
+            .map(|(_, c)| &**c)
+    }
+
     /// The inline style, or the empty style when none is set.
     pub fn inline_style_or_empty(&self) -> &TuiStyle {
         static EMPTY: std::sync::LazyLock<TuiStyle> = std::sync::LazyLock::new(TuiStyle::default);
@@ -336,6 +347,14 @@ pub struct TuiExt {
     /// computed selection style unless an author explicitly
     /// overrides it back to `initial`.
     pub computed_selection: Option<std::rc::Rc<ComputedStyle>>,
+    /// `::highlight(name)` computed styles (CSS Custom Highlight API 1
+    /// §5.1): one per name a `::highlight()` rule matching this element
+    /// styles. The highlight overlay paint reads the nearest ancestor's
+    /// for a name, as `::selection`'s; `None` with none (most elements).
+    /// A thin `Box`, as `floated_pseudos` is.
+    #[allow(clippy::type_complexity, clippy::box_collection)]
+    pub(crate) computed_highlights:
+        Option<Box<Vec<(std::sync::Arc<str>, std::rc::Rc<ComputedStyle>)>>>,
     /// `::scrollbar` pseudo-element computed style — populated
     /// for elements with non-`Visible`/`Hidden` overflow on at
     /// least one axis. Drives the scrollbar track paint: `bg`

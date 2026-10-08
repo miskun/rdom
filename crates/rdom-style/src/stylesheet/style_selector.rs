@@ -90,7 +90,7 @@ impl StyleSelector {
             for complex in parsed.0 {
                 items.push(Item {
                     complex,
-                    pseudo,
+                    pseudo: pseudo.clone(),
                     text: trimmed.to_string(),
                 });
             }
@@ -179,11 +179,16 @@ impl Stylesheet {
                     // CSS Lists 3 §3.2: only some properties apply to
                     // `::marker`; none of them is flow-relative.
                     PseudoElementTarget::Marker => (style.marker_subset(), None),
+                    // CSS Pseudo-Elements 4 §3.2: the highlight
+                    // pseudo-elements take a few paint properties.
+                    PseudoElementTarget::Selection | PseudoElementTarget::Highlight(_) => {
+                        (style.highlight_subset(), None)
+                    }
                     _ => (style.clone(), directional.clone()),
                 };
                 Rule {
                     selector: SelectorList(vec![item.complex.clone()]),
-                    pseudo: item.pseudo,
+                    pseudo: item.pseudo.clone(),
                     style,
                     specificity: Specificity::of_complex(&item.complex, pseudo_count),
                     origin,

@@ -33,6 +33,8 @@ pub(super) struct Sheets<'a> {
     /// Whether any rule styles `::first-line` / `::first-letter`, found
     /// on first use: an element's are matched only then.
     first_rules: std::cell::OnceCell<(bool, bool)>,
+    /// The names `::highlight()` rules style, found on first use.
+    highlight_names: std::cell::OnceCell<Vec<std::sync::Arc<str>>>,
 }
 
 impl<'a> Sheets<'a> {
@@ -53,7 +55,25 @@ impl<'a> Sheets<'a> {
             color_scheme,
             counter_styles: std::cell::OnceCell::new(),
             first_rules: std::cell::OnceCell::new(),
+            highlight_names: std::cell::OnceCell::new(),
         }
+    }
+
+    /// The highlight names the sheets' `::highlight()` rules style (CSS
+    /// Custom Highlight API 1 §5.1), each once: an element's highlight
+    /// styles are matched for these alone.
+    pub(super) fn highlight_names(&self) -> &[std::sync::Arc<str>] {
+        self.highlight_names.get_or_init(|| {
+            let mut names: Vec<std::sync::Arc<str>> = Vec::new();
+            for rule in self.list.iter().flat_map(|s| s.rules()) {
+                if let crate::style::PseudoElementTarget::Highlight(name) = &rule.pseudo
+                    && !names.contains(name)
+                {
+                    names.push(name.clone());
+                }
+            }
+            names
+        })
     }
 
     /// Whether any of the sheets has a `::first-line` rule, and a

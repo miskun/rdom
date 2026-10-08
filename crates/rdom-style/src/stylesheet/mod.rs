@@ -62,7 +62,9 @@ pub use scopes::{Scope, ScopeId};
 pub use style_selector::{RuleContext, StyleSelector};
 
 /// Which pseudo-element a rule targets. `None` = the host element itself.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+///
+/// Not `Copy`: [`Highlight`](Self::Highlight) carries its name.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum PseudoElementTarget {
     None,
@@ -74,7 +76,8 @@ pub enum PseudoElementTarget {
     /// is_modal` reports true on.
     Backdrop,
     /// `::selection` — author-controlled style applied to cells
-    /// that fall inside the current text selection. Lookup at
+    /// that fall inside the current text selection; a highlight
+    /// pseudo-element, cut to [`TuiStyle::highlight_subset`]. Lookup at
     /// paint time walks up from each selected fragment's text
     /// node to the nearest ancestor with a cascaded selection
     /// style. The UA `*::selection { bg: #394B7E; fg: white }`
@@ -127,6 +130,12 @@ pub enum PseudoElementTarget {
     /// item's marker box. Only the properties §3.2 lets apply to it are
     /// kept ([`TuiStyle::marker_subset`]); a rule keeps nothing else.
     Marker,
+    /// `::highlight(<name>)` (CSS Custom Highlight API 1 §5.1) — the
+    /// ranges of the highlight registered as `name` (case-sensitive),
+    /// over the originating element's text. A highlight pseudo-element:
+    /// only the properties CSS Pseudo-Elements 4 §3.2 lets apply are kept
+    /// ([`TuiStyle::highlight_subset`]), as for `::selection`.
+    Highlight(std::sync::Arc<str>),
 }
 
 impl PseudoElementTarget {

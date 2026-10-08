@@ -73,10 +73,18 @@ pub(super) fn extract_pseudo_suffix(
         }
     }
 
+    // CSS Custom Highlight API 1 §5.1: `::highlight(<custom-ident>)`.
+    if let Some((core, name)) = highlight_suffix(s)? {
+        return Ok((
+            with_compound(core),
+            PseudoElementTarget::Highlight(name.into()),
+        ));
+    }
+
     // A bare `::other` anywhere is rejected (unsupported pseudo-element).
     if pseudo_count == 1 {
         return Err(
-            "unsupported pseudo-element; only ::before, ::after, ::backdrop, ::selection, ::placeholder, ::first-line, ::first-letter, ::marker, ::scrollbar, ::scrollbar-thumb (optionally :vertical / :horizontal) allowed"
+            "unsupported pseudo-element; only ::before, ::after, ::backdrop, ::selection, ::placeholder, ::first-line, ::first-letter, ::marker, ::highlight(<name>), ::scrollbar, ::scrollbar-thumb (optionally :vertical / :horizontal) allowed"
                 .to_string(),
         );
     }
@@ -92,6 +100,34 @@ pub(super) fn extract_pseudo_suffix(
     }
 
     Ok((Cow::Borrowed(s), PseudoElementTarget::None))
+}
+
+/// `s` ending in `::highlight(<name>)` (the pseudo-element name ASCII
+/// case-insensitive, white space allowed around the argument): the text
+/// before it and the name. `Ok(None)` when it does not end in one; an
+/// error for an argument that is no single identifier (a
+/// `<custom-ident>`, CSS Values 4 §4.2).
+fn highlight_suffix(s: &str) -> Result<Option<(&str, String)>, String> {
+    const OPEN: &str = "::highlight(";
+    let Some(at) = s.rfind("::") else {
+        return Ok(None);
+    };
+    let tail = &s[at..];
+    let opens = tail
+        .get(..OPEN.len())
+        .is_some_and(|t| t.eq_ignore_ascii_case(OPEN));
+    if !opens || !tail.ends_with(')') {
+        return Ok(None);
+    }
+    let arg = tail[OPEN.len()..tail.len() - 1].trim();
+    if !rdom_core::css_syntax::would_start_ident(arg) {
+        return Err(format!("::highlight() takes a name, found {arg:?}"));
+    }
+    let (name, used) = rdom_core::css_syntax::consume_ident(arg);
+    if used != arg.len() {
+        return Err(format!("::highlight() takes one name, found {arg:?}"));
+    }
+    Ok(Some((&s[..at], name)))
 }
 
 /// `s` without `suffix`, compared ASCII case-insensitively.

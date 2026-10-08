@@ -11,7 +11,8 @@
 //!   Serialization walks the range in document order with whitespace
 //!   normalization.
 //! - The `::selection` overlay on the range's cells is painted by
-//!   `crate::render::paint_pass` (`selection_overlay`), as is the caret.
+//!   `crate::render::paint_pass` (`highlight_overlay`, the topmost
+//!   highlight layer), as is the caret.
 //! - `user_select` — `UserSelect::{Auto, Text, None, All, Contain}`
 //!   CSS property + cascade hook that shapes what the drag machinery
 //!   considers selectable.

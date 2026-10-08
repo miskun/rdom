@@ -52,8 +52,8 @@ pub(super) fn compute_pseudo_style(
     targets: &[PseudoElementTarget],
     rules: Rules<'_>,
 ) -> Option<ComputedStyle> {
-    let target = targets[0];
-    if target == PseudoElementTarget::None {
+    let target = &targets[0];
+    if *target == PseudoElementTarget::None {
         return None;
     }
     let (dom, id) = (cx.dom, cx.id);
@@ -64,7 +64,7 @@ pub(super) fn compute_pseudo_style(
     let fallback = legacy_content(dom, id, target);
     // A list item's marker exists without a rule: `list-style-type`
     // makes its content (CSS Lists 3 §3.2).
-    let marker = target == PseudoElementTarget::Marker;
+    let marker = *target == PseudoElementTarget::Marker;
     // No rule styles it and it has no legacy content: there is no box,
     // and nothing to cascade.
     if cx.scratch.sorted.is_empty() && fallback.is_none() && !marker {
@@ -221,7 +221,7 @@ pub(super) fn compute_pseudo_style(
 
 /// The legacy `before_content` / `after_content` text of `id`'s
 /// `target` box, used when no rule declares `content`.
-fn legacy_content(dom: &Dom<TuiExt>, id: NodeId, target: PseudoElementTarget) -> Option<String> {
+fn legacy_content(dom: &Dom<TuiExt>, id: NodeId, target: &PseudoElementTarget) -> Option<String> {
     dom.node(id).ext().and_then(|e| match target {
         PseudoElementTarget::Before => e.before_content.clone(),
         PseudoElementTarget::After => e.after_content.clone(),

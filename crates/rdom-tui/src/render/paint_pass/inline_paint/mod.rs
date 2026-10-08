@@ -26,15 +26,16 @@
 //!   an element's replacement text. Paint never reads builtin state
 //!   itself.
 //! - [`caret`] — the collapsed-selection caret overlay.
-//! - [`selection_overlay`] — the `::selection` highlight over the
-//!   cells of a fragment that fall inside the current selection range.
+//! - [`highlight_overlay`] — the highlight overlays over the cells of a
+//!   fragment inside a registered highlight's range (`::highlight()`) or
+//!   the selection's (`::selection`), one path for both.
 
 mod caret;
 mod chrome;
 #[cfg(test)]
 mod cost_tests;
 mod generated;
-mod selection_overlay;
+mod highlight_overlay;
 mod single_row;
 mod text_overflow;
 
@@ -50,7 +51,7 @@ use super::text::{
     advance_text_by_cells, glyph_style_from_computed, paint_text, style_from_computed,
 };
 use chrome::inline_chrome;
-use selection_overlay::apply_selection_overlay;
+use highlight_overlay::Overlays;
 use single_row::paint_single_row_chrome;
 use text_overflow::{Marking, cut_line};
 
@@ -354,10 +355,11 @@ fn paint_inline_layout(
     // box, so a scrolled flow shows the rows and columns it scrolled to.
     let atom_clip = clip;
     let outer_clip = clip;
-    // The current selection range (document-ordered) — computed once
-    // per IFC paint, reused across fragments. `None` when there's no
-    // selection or it's collapsed (caret only, nothing to highlight).
-    let selection_range = dom.selection_range().filter(|r| !r.is_collapsed());
+    // The highlight overlays — the registered highlights' ranges and the
+    // selection's (document-ordered) — computed once per IFC paint,
+    // reused across fragments. `None` when there is nothing to
+    // highlight.
+    let overlays = Overlays::of(dom);
     for (index, line) in inline_layout.lines.iter().enumerate() {
         let line_y = inner.y + i32::from(line.text_row());
         let visible = |y: i32| y >= clip.y as i32 && y < clip.bottom() as i32;
@@ -510,12 +512,12 @@ fn paint_inline_layout(
                 }
             }
 
-            // Selection overlay: REVERSE the fg/bg of any cells that
-            // fall inside the current selection range. Keeps the
-            // fragment's symbols + base style intact so a re-paint
-            // without selection restores the original appearance.
-            if let Some(ref sr) = selection_range {
-                apply_selection_overlay(dom, buf, row as u16, frag_x, clip, fragment, sr);
+            // Highlight overlays (CSS Pseudo-Elements 4 §3): restyle the
+            // cells inside a highlight's or the selection's range, the
+            // fragment's symbols kept so a repaint without them restores
+            // the original appearance.
+            if let Some(ref overlays) = overlays {
+                overlays.paint(dom, buf, row as u16, frag_x, clip, fragment);
             }
         }
         // A relatively positioned or sticky run (CSS 2.1 §9.4.3) moved

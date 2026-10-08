@@ -128,9 +128,23 @@ pub(super) fn glyph_style_from_computed(c: &ComputedStyle) -> Style {
 /// the text's color: their own color has no SGR (DIVERGENCES §2). Other
 /// modifier bits (hidden, the caret's and the selection's) are written at
 /// their paint sites.
-fn text_modifiers(mut style: Style, c: &ComputedStyle) -> Style {
+fn text_modifiers(style: Style, c: &ComputedStyle) -> Style {
+    let font = c.modifiers & (Modifier::BOLD | Modifier::ITALIC);
+    let style = decoration_style(style, c);
+    if font.is_empty() {
+        style
+    } else {
+        style.add_modifier(font)
+    }
+}
+
+/// `style` with the decorations drawn on text styled `c` (its
+/// `applied_decorations`, [`text_modifiers`]' decoration half): an
+/// underline in its style and, where it is not the text's, its color; an
+/// overline; a line-through; blink.
+pub(super) fn decoration_style(mut style: Style, c: &ComputedStyle) -> Style {
     let d = &c.applied_decorations;
-    let mut mods = c.modifiers & (Modifier::BOLD | Modifier::ITALIC);
+    let mut mods = Modifier::empty();
     // The glyph's color unless the decorating box's differs.
     let mut underline_color = Color::Reset;
     if let Some(underline) = d.underline {

@@ -214,7 +214,7 @@ row comes from.
 | C10-LIST-ITEM | `display: list-item`, `list-style-type` / `-position` / `list-style`, `marker-side`, `::marker` (replaces the `li::before` divergence); a marker riding a descendant's line is measured through the packer, not by its raw width (from C9G-MISC-CORRECTNESS / C9G-PSEUDO-CLAMP) | done |
 | C10-FIRST | `::first-line` / `::first-letter` | done |
 | C10-LEGACY-COLON | Single-colon `:before` / `:after` / `:first-line` / `:first-letter` | done |
-| C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | partial — `::highlight()` styles and paint (part 2) |
+| C10-HIGHLIGHT | `::highlight()` with a Custom Highlight API surface | done |
 | C10-DETAILS-CONTENT | `::details-content` | |
 | C10-PSEUDO-CHAINS | Pseudo-element followed by user-action pseudo-classes (`::before:hover`) and nested pseudo-elements where defined | |
 | C10-PSEUDO-UNIFY | Positioned `::before` / `::after` on the generated-box path: the positioning layer places, stacks, hit-tests and scrolls them as elements (from C10-LIST-ITEM's note; `positioned_pseudos` gone) | done |
@@ -6324,3 +6324,23 @@ row comes from.
   not modelled (DIVERGENCES §2). Red: rdom-core `highlight_tests` (4, compile-red: no `Highlight`), and the
   registration test's record count first expected 6 for the 5 accesses it made (a test bug, fixed). Green after. No
   existing expectation changed.
+- 2026-10-13 — C10-HIGHLIGHT, part 2 of 2 (`::highlight()` styled and painted). Decisions: (1) rdom-style parses
+  `::highlight(<custom-ident>)` in the suffix stripper (`selector_text::highlight_suffix`: the argument one
+  identifier, through rdom-core's `css_syntax`); the name rides the target, `PseudoElementTarget::Highlight(Arc<str>)`,
+  so the cascade's per-target matching needs no side channel — the enum loses `Copy` (Breaking). The highlight
+  pseudo-elements' rules — `::selection`'s too, which had kept every property — are cut to CSS Pseudo 4 §3.2's
+  properties rdom can draw (`highlight_subset`: `color`, `background-color`, the decorations, custom properties).
+  (2) rdom-tui cascades `::highlight(name)` for each name the sheets style (`Sheets::highlight_names`), matched
+  afresh — one per name, not a fixed slot — onto `TuiExt::computed_highlights` (a thin `Box`, keeping the size
+  tripwire at 456). (3) One overlay path (`inline_paint/highlight_overlay.rs`, from `selection_overlay.rs`):
+  `Overlays::of` builds the layers once per inline formatting context's paint — each registered highlight's
+  ranges by priority, then registration (§5.2), the selection last, the topmost (Pseudo 4 §3.5) — and paints each
+  over a fragment's cells in its range: the nearest ancestor's style for that layer, applying its background and
+  the color and decorations that differ from that element's (computed values, DIVERGENCES §2); `user-select`
+  excludes text from the selection's layer only. Red: rdom-style `highlight_pseudo_elements_carry_their_name` /
+  `highlight_rules_keep_only_the_highlight_properties` (compile-red: no `Highlight` target); `css_phase10/highlight.rs`
+  — all 4 failed (`Reset` for the highlight backgrounds; the yellow layer missing under the selection). Green after.
+  Mutations (restored, touched): priority order reversed and the selection painted first → the overlap and the
+  selection tests. No existing expectation or snapshot changed (no test styled `::selection` with a property the
+  subset drops). TECH_DEBT: `HIGHLIGHT-COST-1` (fragments × ranges). CSS-COVERAGE: `::highlight()` Missing →
+  Supported, `::selection`'s row rewritten, §3.16 8 / 1 / 1 / 6, total 196 / 14 / 52 / 45.

@@ -153,11 +153,11 @@ pub type TuiEventCtx<'a> = core::EventCtx<'a, TuiExt>;
 pub use rdom_core as core_api;
 pub use rdom_core::{
     AdjacentPosition, ContentEditableState, DocumentPosition, DomError, Event, EventDetail,
-    EventPhase, FormEnctype, FormMethod, InputDetail, InputType, InputTypeState, InteractionKind,
-    KeyboardDetail, KeyboardModifiers, ListenerId, ListenerOptions, MouseButton, MouseDetail,
-    Mutation, MutationObserver, NodeData, NodeId, NodeType, ObserverId, Position, Range, Result,
-    Selection, SelectionSerial, SubmitDetail, ToggleDetail, ToggleState, TransitionDetail,
-    ValidityHook,
+    EventPhase, FormEnctype, FormMethod, Highlight, HighlightRegistry, HighlightType, InputDetail,
+    InputType, InputTypeState, InteractionKind, KeyboardDetail, KeyboardModifiers, ListenerId,
+    ListenerOptions, MouseButton, MouseDetail, Mutation, MutationObserver, NodeData, NodeId,
+    NodeType, ObserverId, Position, Range, Result, Selection, SelectionSerial, SubmitDetail,
+    ToggleDetail, ToggleState, TransitionDetail, ValidityHook,
 };
 
 #[cfg(test)]

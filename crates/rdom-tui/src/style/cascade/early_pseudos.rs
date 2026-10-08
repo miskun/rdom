@@ -1,7 +1,7 @@
 //! The pseudo-element boxes an element's cascade computes before its
 //! children (`walk::style_element`): `::marker`, `::before`, `::backdrop`,
-//! `::selection`, the scrollbar parts, `::first-line` and
-//! `::first-letter`. `::after` waits for the children
+//! `::selection`, the scrollbar parts, `::first-line`,
+//! `::first-letter` and `::highlight()`. `::after` waits for the children
 //! (`walk::finish_element`): a `counter()` in it sees their increments.
 
 use super::matching::{MatchedRules, Recorder, Slot};
@@ -22,6 +22,7 @@ pub(super) struct EarlyPseudos {
     thumb_horizontal: Option<ComputedStyle>,
     first_line: Option<ComputedStyle>,
     first_letter: Option<ComputedStyle>,
+    highlights: Vec<(std::sync::Arc<str>, ComputedStyle)>,
 }
 
 impl EarlyPseudos {
@@ -34,6 +35,14 @@ impl EarlyPseudos {
         ext.computed_selection = self.selection.map(Rc::new);
         ext.computed_first_line = self.first_line.map(Rc::new);
         ext.computed_first_letter = self.first_letter.map(Rc::new);
+        ext.computed_highlights = (!self.highlights.is_empty()).then(|| {
+            Box::new(
+                self.highlights
+                    .into_iter()
+                    .map(|(name, style)| (name, Rc::new(style)))
+                    .collect(),
+            )
+        });
         ext.computed_scrollbar = self.scrollbar.map(Rc::new);
         ext.computed_scrollbar_thumb_vertical = self.thumb_vertical.map(Rc::new);
         ext.computed_scrollbar_thumb_horizontal = self.thumb_horizontal.map(Rc::new);
@@ -140,7 +149,22 @@ pub(super) fn compute(
             )
         })
         .flatten();
+    // `::highlight(name)` (CSS Custom Highlight API 1 §5.1), for each
+    // name the sheets style — matched afresh, not cached per slot: there
+    // is one per name.
+    let sheets = cx.sheets;
+    let names = sheets.highlight_names();
+    let mut highlights = Vec::new();
+    for name in names {
+        let target = [PseudoElementTarget::Highlight(name.clone())];
+        if let Some(style) =
+            compute_pseudo_style(cx, computed, &target, super::matching::Rules::Match)
+        {
+            highlights.push((name.clone(), style));
+        }
+    }
     EarlyPseudos {
+        highlights,
         marker,
         before,
         backdrop,

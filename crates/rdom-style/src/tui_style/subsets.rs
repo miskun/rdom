@@ -1,6 +1,7 @@
 //! The property subsets of the pseudo-elements that take only some
-//! properties: `::first-line` (and `::placeholder`), `::first-letter`
-//! and `::marker` (CSS Pseudo-Elements 4 §2.2.1, §2.3.1, §4.3; CSS
+//! properties: `::first-line` (and `::placeholder`), `::first-letter`,
+//! the highlight pseudo-elements (`::selection`, `::highlight()`) and
+//! `::marker` (CSS Pseudo-Elements 4 §2.2.1, §2.3.1, §3.2, §4.3; CSS
 //! Lists 3 §3.2). A rule for one is cut to its subset when it is built.
 
 use super::{ImportantMask, TextDeclarations, TuiStyle};
@@ -187,6 +188,24 @@ impl TuiStyle {
             custom_properties: self.custom_properties.clone(),
             important: self.important & keep,
             ..Self::default()
+        }
+    }
+
+    /// This block restricted to the properties that apply to the
+    /// highlight pseudo-elements — `::selection`, `::highlight()` (CSS
+    /// Pseudo-Elements 4 §3.2) — among those rdom has: `color`,
+    /// `background-color`, the text decoration properties, and custom
+    /// properties. Everything else (fonts, box properties, `opacity`) is
+    /// dropped with its `!important` bit; none of them is flow-relative.
+    pub fn highlight_subset(&self) -> Self {
+        let keep = ImportantMask::FG
+            .union(ImportantMask::BG)
+            .union(ImportantMask::TEXT_DECORATION);
+        Self {
+            fg: self.fg.clone(),
+            bg: self.bg.clone(),
+            text_decoration: self.text_decoration.clone(),
+            ..self.restricted_to(keep, false)
         }
     }
 }
