@@ -19,6 +19,10 @@ struct DocumentFlags {
     /// Display 3 §2.6): a marker may ride a descendant's first line
     /// (CSS Lists 3 §3.5).
     list_items: bool,
+    /// A cascade evaluated a `:has()` for some element (Selectors 4
+    /// §4.5): the dirty tracker looks for anchors above a change only
+    /// then.
+    has_anchors: bool,
     /// The sheets of the last cascade style `::first-line` or
     /// `::first-letter` (CSS Pseudo-Elements 4 §2.2, §2.3).
     first_rules: bool,
@@ -59,4 +63,19 @@ pub(crate) fn set_first_rules(dom: &mut Dom<TuiExt>, styled: bool) {
 /// `::first-letter`: a first formatted line is looked for only then.
 pub(crate) fn has_first_rules(dom: &Dom<TuiExt>) -> bool {
     flags(dom).first_rules
+}
+
+/// Record that an element of the document is a `:has()` anchor.
+pub(crate) fn note_has_anchor(dom: &mut Dom<TuiExt>) {
+    if !flags(dom).has_anchors {
+        let mut next = flags(dom);
+        next.has_anchors = true;
+        dom.set_document_data(next);
+    }
+}
+
+/// Whether an element of the document may be a `:has()` anchor
+/// ([`note_has_anchor`] since the document was first cascaded).
+pub(crate) fn has_has_anchors(dom: &Dom<TuiExt>) -> bool {
+    flags(dom).has_anchors
 }

@@ -63,6 +63,12 @@
 //!   keeps a separate `paint_dirty` flag (consumed via
 //!   `take_paint_dirty()`) for the runtime to lay out and repaint even
 //!   though no cascade work is queued.
+//! - `:has()` anchors (Selectors 4 §4.5): a change a `:has()` argument
+//!   can read — an attribute or class it tests, a state it reads, any
+//!   child-list change — dirties the elements a cascade flagged as
+//!   anchors among the changed element's ancestors (and, for `+` / `~`
+//!   arguments, their earlier siblings); nothing else, and no walk at all
+//!   without a `:has()` rule (`style::has_triggers`)
 //! - Content changes under a `dir=auto` element or a `<bdi>` (text
 //!   edits, children coming or going) dirty that element: its
 //!   directionality — `:dir()`, and the UA's `direction` rules written
@@ -87,12 +93,13 @@ use std::rc::Rc;
 use rdom_core::{Dom, NodeId, ObserverId};
 
 use crate::ext::TuiExt;
+use crate::style::has_triggers::HasTriggers;
 use crate::style::sibling_triggers::SiblingTriggers;
 
 use marks::mark_style_dirty;
 use observe::Shim;
 
-mod marks;
+pub(crate) mod marks;
 mod observe;
 #[cfg(test)]
 mod tests;
@@ -137,6 +144,10 @@ pub(super) struct DirtyState {
     /// `P7G-SIBLING-MARK-NARROW-1`). Every change until the App says
     /// otherwise.
     pub(super) siblings: SiblingTriggers,
+    /// Which changes can reach a `:has()` anchor's match
+    /// (`style::has_triggers`, C11-HAS). Every change until the App says
+    /// otherwise; none while no cascade has flagged an anchor.
+    pub(super) has: HasTriggers,
 }
 
 impl Default for DirtyState {
@@ -149,6 +160,7 @@ impl Default for DirtyState {
             selection_dirty: false,
             records: 0,
             siblings: SiblingTriggers::all(),
+            has: HasTriggers::all(),
         }
     }
 }
@@ -264,6 +276,13 @@ impl DirtyTracker {
     /// change can flip, `a:hover + b` reads state, `[x] + b` reads `x`.
     pub(crate) fn set_sibling_triggers(&self, triggers: SiblingTriggers) {
         self.inner.borrow_mut().siblings = triggers;
+    }
+
+    /// Say which changes can reach a `:has()` anchor's match under the
+    /// sheets now cascaded (`style::has_triggers`, C11-HAS): with no
+    /// `:has()` in them, a change looks for no anchor.
+    pub(crate) fn set_has_triggers(&self, triggers: HasTriggers) {
+        self.inner.borrow_mut().has = triggers;
     }
 
     /// Manually mark a subtree dirty. Escape hatch for cases the

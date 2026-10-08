@@ -484,3 +484,29 @@ fn nth_child_over_a_long_list_indexes_it_once_per_pass() {
         "{steps} sibling steps to index {N} siblings for two kinds of count"
     );
 }
+
+/// Selectors 4 §4.5 (C11-HAS): a cascade pass shares one `:has()` cache,
+/// so 300 nested `div`s — each an anchor of `div:has(.x)` — cost one
+/// walk of the chain, not one per anchor (~45 000 element visits).
+#[test]
+fn has_over_a_deep_chain_walks_it_once_per_pass() {
+    const N: u64 = 300;
+    let mut dom: TuiDom = TuiDom::new();
+    let mut parent = dom.root();
+    for _ in 0..N {
+        let d = dom.create_element("div");
+        dom.append_child(parent, d).unwrap();
+        parent = d;
+    }
+    let leaf = dom.create_element("p");
+    dom.add_class(leaf, "x").unwrap();
+    dom.append_child(parent, leaf).unwrap();
+    let css = sheet("div:has(.x) { color: red }");
+    super::matching::probe::take_has();
+    dom.cascade(&css);
+    let visits = super::matching::probe::take_has();
+    assert!(
+        (N..=3 * N).contains(&visits),
+        "{visits} element visits for {N} nested anchors"
+    );
+}

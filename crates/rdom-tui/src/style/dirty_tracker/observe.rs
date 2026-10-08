@@ -8,8 +8,8 @@ use rdom_core::{Dom, InteractionKind, Mutation, MutationObserver, NodeId};
 
 use super::DirtyState;
 use super::marks::{
-    mark_auto_direction_host, mark_chain_change, mark_placeholder_hosts, mark_state_dirty,
-    mark_style_dirty,
+    mark_auto_direction_host, mark_chain_change, mark_has_anchors, mark_placeholder_hosts,
+    mark_state_dirty, mark_style_dirty,
 };
 use crate::ext::TuiExt;
 use crate::style::sibling_triggers::Cause;
@@ -95,6 +95,13 @@ impl MutationObserver<TuiExt> for Shim {
                 // New or departed content can hold a `dir=auto` host's
                 // first strong character.
                 mark_auto_direction_host(dom, &mut state, *parent);
+                // A `:has()` anchor above (or, for `+` / `~`, before)
+                // the change can gain or lose its match (C11-HAS). The
+                // parent's children — the earlier siblings of what came
+                // or went — are marked above already.
+                if state.has.any() {
+                    mark_has_anchors(dom, &mut state, *parent, true);
+                }
             }
             Mutation::CharacterDataChanged { id, old, new } => {
                 // Selectors do not match text, but `:placeholder-shown`

@@ -301,6 +301,7 @@ pub(crate) fn cascade_all_with(
         &mut scratch,
         walk::Mode::Cascade,
     );
+    scratch.flag_has_anchors(dom);
     // A reversed counter's initial value read the boxes after it as last
     // cascaded (CSS Lists 3 §4.2): re-cascade from those it moved.
     let stale = counters.stale_reversed(dom);

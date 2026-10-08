@@ -26,12 +26,15 @@ use crate::selectors::{self, ParseError, SelectorList};
 
 mod attribute;
 pub(crate) mod caches;
+mod has;
 mod matcher;
 mod nth;
 mod pseudo;
 
 pub use caches::{CacheWork, SelectorCaches};
 use matcher::Cx;
+#[cfg(test)]
+mod has_tests;
 #[cfg(test)]
 mod linguistic_tests;
 #[cfg(test)]

@@ -13,7 +13,7 @@
 //!   `:nth-last-of-type()`, `:first-of-type`, `:last-of-type`,
 //!   `:only-of-type` (the An+B microsyntax of CSS Syntax 3 §6),
 //!   `:link`, `:any-link`, `:visited` (never matches), `:lang()`,
-//!   `:dir()`,
+//!   `:dir()`, `:has(<relative-selector-list>)`,
 //!   plus the interaction pseudos (`:hover`, `:focus`, `:focus-within`, …)
 //!   and the form-state pseudos (`:checked`, `:disabled`, `:enabled`,
 //!   `:valid`, `:invalid`, `:required`, `:optional`, …)
@@ -40,7 +40,7 @@
 //! any author rule overrides freely.
 //!
 //! Not supported yet (reserved for later phases):
-//! - `:has(...)`, namespaces, pseudo-elements
+//! - namespaces, pseudo-elements
 //!   (`::before`, `::after`).
 
 use std::fmt;
@@ -135,6 +135,17 @@ fn add_compound_specificity(abc: &mut (u16, u16, u16), compound: &CompoundSelect
                 abc.2 += c;
             }
             SimpleSelector::Lang(_) => abc.1 += 1,
+            // Selectors 4 §15: like `:is()`, its most specific argument.
+            SimpleSelector::Has(relative) => {
+                let (a, b, c) = relative
+                    .iter()
+                    .map(|r| r.selector.specificity())
+                    .max()
+                    .unwrap_or((0, 0, 0));
+                abc.0 += a;
+                abc.1 += b;
+                abc.2 += c;
+            }
             // Selectors 4 §15: a pseudo-class, plus its `of S` list's
             // most specific selector.
             SimpleSelector::Nth(nth) => {
@@ -185,6 +196,10 @@ pub enum SimpleSelector {
     Where(Box<SelectorList>),
     /// Structural pseudo-classes.
     Pseudo(PseudoClass),
+    /// `:has(<relative-selector-list>)` (Selectors 4 §4.5): matches the
+    /// element (the anchor) when one of the relative selectors matches
+    /// an element relative to it. Not valid inside another `:has()`.
+    Has(Vec<RelativeSelector>),
     /// `:lang(<ranges>)` (Selectors 4 §7.2): the element's content
     /// language matches one of the language ranges by RFC 4647 §3.3.2
     /// extended filtering ([`Dom::language`](crate::Dom::language)).
@@ -192,6 +207,19 @@ pub enum SimpleSelector {
     /// `:nth-child()` / `:nth-last-child()` / `:nth-of-type()` /
     /// `:nth-last-of-type()` (Selectors 4 §13.3.1–§13.3.2, §13.4.1–§13.4.2).
     Nth(Box<NthSelector>),
+}
+
+/// A relative selector (Selectors 4 §3.4), the argument of `:has()`: a
+/// complex selector whose leftmost compound is related to the anchor
+/// element by `combinator` — `Descendant` when the text starts with no
+/// combinator (`:has(img)`), else the leading `>`, `+` or `~`.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct RelativeSelector {
+    /// How the leftmost compound relates to the anchor.
+    pub combinator: Combinator,
+    /// The selector, matched right to left as any complex selector.
+    pub selector: ComplexSelector,
 }
 
 /// An `:nth-*()` pseudo-class (Selectors 4 §13.3–§13.4): it matches an

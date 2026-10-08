@@ -78,16 +78,39 @@ fn walk_subtrees(
     super::details::reclaim_content_boxes(dom);
     let merged_vars = merge_root_vars(dom, &sheets);
     let mut scratch = Scratch::default();
+    let walked = walk_with(
+        dom,
+        stylesheets,
+        &sheets,
+        &merged_vars,
+        roots,
+        mode,
+        &mut scratch,
+    );
+    scratch.flag_has_anchors(dom);
+    walked
+}
+
+/// [`walk_subtrees`] with its sheets and buffers made.
+fn walk_with<'a>(
+    dom: &mut Dom<TuiExt>,
+    stylesheets: &[&Stylesheet],
+    sheets: &Sheets<'a>,
+    merged_vars: &VarMap,
+    roots: Vec<NodeId>,
+    mode: Mode,
+    scratch: &mut Scratch<'a>,
+) -> (Vec<NodeId>, Vec<NodeId>) {
     let mut cascade_alone = |dom: &mut Dom<TuiExt>, root: NodeId| {
-        let parent_computed = parent_computed_for(dom, root, &merged_vars);
+        let parent_computed = parent_computed_for(dom, root, merged_vars);
         let mut counters = CounterState::default();
         let flags = cascade_subtree(
             dom,
-            &sheets,
+            sheets,
             root,
             &parent_computed,
             &mut counters,
-            &mut scratch,
+            &mut *scratch,
             mode,
         );
         bubble_subtree_flags(dom, root, flags);
@@ -132,14 +155,14 @@ fn walk_subtrees(
     }
     ordered.sort_by(|a, b| tree_order(dom, *a, *b));
     let mut walk = Ordered {
-        sheets: &sheets,
-        merged_vars: &merged_vars,
+        sheets,
+        merged_vars,
         path: ancestors(dom, &ordered),
         roots: &ordered,
         gained: &gained,
         next: 0,
         mode,
-        scratch: &mut scratch,
+        scratch: &mut *scratch,
         recomputed: Vec::new(),
     };
     let mut counters = CounterState::exact();

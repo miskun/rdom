@@ -253,6 +253,21 @@ impl Recorder {
 }
 
 impl<'a> Scratch<'a> {
+    /// Flag every element a `:has()` was evaluated for in this pass
+    /// (`TuiExt::has_anchor`, `style::has_triggers`).
+    pub(super) fn flag_has_anchors(&self, dom: &mut Dom<TuiExt>) {
+        let mut any = false;
+        for id in self.selectors.has_anchors() {
+            if let Some(ext) = dom.node_mut(id).ext_mut() {
+                ext.has_anchor = true;
+                any = true;
+            }
+        }
+        if any {
+            crate::style::doc_flags::note_has_anchor(dom);
+        }
+    }
+
     /// The last [`collect`](Self::collect)'s matches, as the `k`th
     /// highlight name's record: the one recorded last for that name when
     /// they are the same (no allocation), else a new one.
@@ -403,8 +418,9 @@ fn applies(dom: &Dom<TuiExt>, id: NodeId, rule: &Rule) -> bool {
 #[cfg(test)]
 impl Drop for Scratch<'_> {
     fn drop(&mut self) {
-        let steps = self.selectors.work().nth_siblings;
-        probe::NTH.with(|c| c.set(c.get() + steps));
+        let work = self.selectors.work();
+        probe::NTH.with(|c| c.set(c.get() + work.nth_siblings));
+        probe::HAS.with(|c| c.set(c.get() + work.has_nodes));
     }
 }
 
@@ -415,6 +431,11 @@ pub(crate) mod probe {
     thread_local! {
         pub static COLLECTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
         pub static NTH: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+        pub static HAS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+
+    pub fn take_has() -> u64 {
+        HAS.with(|c| c.replace(0))
     }
 
     pub fn take() -> usize {

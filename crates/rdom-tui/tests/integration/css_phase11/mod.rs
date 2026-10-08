@@ -10,6 +10,7 @@ use rdom_tui::{App, CascadeExt, Color, NodeId, TuiDom, TuiNodeExt};
 pub(crate) use super::css_phase5::el;
 
 mod attr_flags;
+mod has;
 mod link_lang;
 mod nth;
 

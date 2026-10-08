@@ -4,7 +4,9 @@
 
 use super::anb::parse_anb;
 use super::parser::Parser;
-use super::{NthKind, NthSelector, ParseError, PseudoClass, SimpleSelector};
+use super::{
+    Combinator, NthKind, NthSelector, ParseError, PseudoClass, RelativeSelector, SimpleSelector,
+};
 use crate::Directionality;
 use crate::css_syntax;
 
@@ -54,6 +56,7 @@ impl Parser<'_> {
             "any-link" => Ok(SimpleSelector::Pseudo(PseudoClass::AnyLink)),
             "link" => Ok(SimpleSelector::Pseudo(PseudoClass::Link)),
             "visited" => Ok(SimpleSelector::Pseudo(PseudoClass::Visited)),
+            "has" => self.parse_has(),
             "lang" => self.parse_lang(),
             "dir" => self.parse_dir(),
             "first-child" => Ok(SimpleSelector::Pseudo(PseudoClass::FirstChild)),
@@ -174,5 +177,50 @@ impl Parser<'_> {
             _ => None,
         };
         Ok(SimpleSelector::Pseudo(PseudoClass::Dir(dir)))
+    }
+
+    /// Selectors 4 §4.5: `:has( <relative-selector-list> )` — unforgiving,
+    /// and not valid inside another `:has()`, however deep.
+    fn parse_has(&mut self) -> Result<SimpleSelector, ParseError> {
+        if self.in_has {
+            return Err(self.err(":has() is not valid inside :has()".to_string()));
+        }
+        self.expect(b'(', ":has")?;
+        self.in_has = true;
+        let relative = self.parse_relative_list();
+        self.in_has = false;
+        let relative = relative?;
+        self.skip_ws();
+        self.expect(b')', ":has")?;
+        Ok(SimpleSelector::Has(relative))
+    }
+
+    /// Selectors 4 §3.4 `<relative-selector-list>`: comma-separated
+    /// complex selectors, each after an optional `>`, `+` or `~`.
+    fn parse_relative_list(&mut self) -> Result<Vec<RelativeSelector>, ParseError> {
+        let mut list = Vec::new();
+        loop {
+            self.skip_ws();
+            let combinator = match self.peek() {
+                Some(b'>') => Combinator::Child,
+                Some(b'+') => Combinator::AdjacentSibling,
+                Some(b'~') => Combinator::GeneralSibling,
+                _ => Combinator::Descendant,
+            };
+            if combinator != Combinator::Descendant {
+                self.pos += 1;
+                self.skip_ws();
+            }
+            let selector = self.parse_complex_selector()?;
+            list.push(RelativeSelector {
+                combinator,
+                selector,
+            });
+            self.skip_ws();
+            if self.peek() != Some(b',') {
+                return Ok(list);
+            }
+            self.pos += 1;
+        }
     }
 }

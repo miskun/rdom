@@ -82,7 +82,7 @@ value       := token+
   `:only-child`, `:nth-child(An+B [of S])`, `:nth-last-child()`, `:nth-of-type()`,
   `:nth-last-of-type()`, `:first-of-type`, `:last-of-type`, `:only-of-type`,
   `:empty`, `:root`, `:link`, `:any-link`, `:visited` (never matches),
-  `:lang()`, `:dir()`, `:checked`, `:indeterminate`,
+  `:lang()`, `:dir()`, `:has()`, `:checked`, `:indeterminate`,
   `:open`, `:is(...)`, `:where(...)`, …), pseudo-elements (`::before`, `::after`, `::marker`,
   `::first-line`, `::first-letter`, `::selection`, `::highlight(name)`, `::details-content`, `::backdrop`,
   the nested `::before::marker` / `::after::marker`; the CSS 2.1 spellings

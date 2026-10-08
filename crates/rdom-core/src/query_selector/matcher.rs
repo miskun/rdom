@@ -132,7 +132,12 @@ impl<Ext> Dom<Ext> {
         }
     }
 
-    fn matches_compound(&self, id: NodeId, compound: &CompoundSelector, cx: &mut Cx<'_>) -> bool {
+    pub(super) fn matches_compound(
+        &self,
+        id: NodeId,
+        compound: &CompoundSelector,
+        cx: &mut Cx<'_>,
+    ) -> bool {
         let Some(node) = self.get_node(id) else {
             return false;
         };
@@ -191,6 +196,11 @@ impl<Ext> Dom<Ext> {
                 }
                 SimpleSelector::Pseudo(p) => {
                     if !self.match_pseudo(id, *p, cx) {
+                        return false;
+                    }
+                }
+                SimpleSelector::Has(relative) => {
+                    if !self.matches_has(id, relative, cx) {
                         return false;
                     }
                 }

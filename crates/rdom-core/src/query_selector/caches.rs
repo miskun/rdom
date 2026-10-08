@@ -8,6 +8,13 @@
 //! parent's children for that kind of count, and every later match reads
 //! the index — O(siblings) per parent and kind for the whole pass.
 //!
+//! `:has()` (Selectors 4 §4.5) searches an anchor's subtree or later
+//! siblings. Its answers are kept per (relative selector, anchor); for a
+//! plain descendant argument (`:has(.x)`) the search records, for every
+//! element it passes, whether that element's subtree holds a match, so
+//! the anchors nested in one another reuse it — a deep chain of anchors
+//! costs one walk, not one per anchor.
+//!
 //! Entries are keyed by node and — for `of S` — by the address of the
 //! `S` selector list, so the caches are valid only while the tree and
 //! the selectors they were built for are unchanged. The tree half is
@@ -16,7 +23,7 @@
 //! selectors half is the caller's: one `SelectorCaches` per pass over
 //! one set of parsed selectors.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::Directionality;
 use crate::node_id::NodeId;
@@ -35,6 +42,13 @@ pub struct SelectorCaches {
     pub(super) nth: HashMap<(NodeId, NthCount), HashMap<NodeId, (u32, u32)>>,
     /// Each element's directionality, once read (`:dir()`).
     pub(super) dir: HashMap<NodeId, Directionality>,
+    /// Per (relative selector address, element): whether the element,
+    /// as a `:has()` anchor, has a match — and, for a plain descendant
+    /// argument (`:has(.x)`), whether its subtree holds one.
+    pub(super) has: HashMap<(usize, NodeId), bool>,
+    /// The elements a `:has()` was evaluated for, in first-test order.
+    has_anchors: Vec<NodeId>,
+    has_anchor_set: HashSet<NodeId>,
     work: CacheWork,
 }
 
@@ -45,6 +59,8 @@ pub struct SelectorCaches {
 pub struct CacheWork {
     /// Siblings visited while indexing sibling lists for `:nth-*()`.
     pub nth_siblings: u64,
+    /// Elements visited looking for `:has()` matches.
+    pub has_nodes: u64,
 }
 
 /// Which siblings an nth index counts.
@@ -69,11 +85,32 @@ impl SelectorCaches {
         self.work
     }
 
+    /// The elements a `:has()` was evaluated for (its anchors) since the
+    /// caches were created, in first-test order: the elements whose match
+    /// can change when their subtree or later siblings do — what a
+    /// backend's style invalidation watches (Selectors 4 §4.5).
+    pub fn has_anchors(&self) -> impl Iterator<Item = NodeId> + '_ {
+        self.has_anchors.iter().copied()
+    }
+
+    pub(super) fn note_has_anchor(&mut self, anchor: NodeId) {
+        if self.has_anchor_set.insert(anchor) {
+            self.has_anchors.push(anchor);
+        }
+    }
+
+    pub(super) fn count_has_node(&mut self) {
+        self.work.has_nodes += 1;
+    }
+
     /// Drop every entry built under another mutation epoch.
     pub(super) fn sync(&mut self, epoch: u64) {
         if self.epoch != Some(epoch) {
             self.nth.clear();
             self.dir.clear();
+            self.has.clear();
+            self.has_anchors.clear();
+            self.has_anchor_set.clear();
             self.epoch = Some(epoch);
         }
     }

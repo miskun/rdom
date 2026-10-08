@@ -102,10 +102,11 @@ fn clone_copies_author_inputs_and_resets_runtime_state() {
 /// `::backdrop`, the scrollbar parts, and the `::before` / `::after`
 /// previous styles and transition overrides) live in one boxed
 /// `PseudoStyles`, one pointer here (the highlight styles stay, shared
-/// from the parent).
+/// from the parent). 384 for the `:has()` anchor flag the dirty tracker
+/// reads (`C11-HAS`, one `bool` — the small fields had no padding left).
 #[test]
 fn tui_ext_size_tripwire() {
-    const MAX: usize = 376;
+    const MAX: usize = 384;
     let size = std::mem::size_of::<TuiExt>();
     let computed = std::mem::size_of::<ComputedStyle>();
     let inline = std::mem::size_of::<TuiStyle>();

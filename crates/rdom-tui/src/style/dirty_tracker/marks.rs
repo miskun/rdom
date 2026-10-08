@@ -76,6 +76,9 @@ pub(super) fn mark_state_dirty(
     cause: Cause<'_>,
 ) {
     mark_style_dirty(dom, state, id);
+    if state.has.fires(cause) {
+        mark_has_anchors(dom, state, id, false);
+    }
     if !state.siblings.fires(cause) {
         return;
     }
@@ -161,5 +164,66 @@ pub(super) fn mark_auto_direction_host(
         if is("ltr") || is("rtl") || matches!(tag, "script" | "style" | "textarea") {
             return;
         }
+    }
+}
+
+/// Selectors 4 §4.5 (C11-HAS): a change at `from` can change the `:has()`
+/// match of an anchor whose subtree holds it — an ancestor (`from`
+/// itself too when `inclusive`: its child list changed) — or, when a
+/// relative selector reaches siblings, an earlier sibling of `from` or of
+/// an ancestor. Mark the ones a cascade flagged as anchors
+/// (`TuiExt::has_anchor`), with `Cause::Has` so a sibling combinator
+/// reading their `:has()` reaches their siblings. O(depth), or
+/// O(depth · siblings) with sibling relations; nothing before any cascade
+/// flagged an anchor.
+pub(super) fn mark_has_anchors(
+    dom: &mut Dom<TuiExt>,
+    state: &mut DirtyState,
+    from: NodeId,
+    inclusive: bool,
+) {
+    if !crate::style::doc_flags::has_has_anchors(dom) {
+        return;
+    }
+    let siblings = state.has.siblings();
+    let is_anchor =
+        |dom: &Dom<TuiExt>, id: NodeId| dom.node(id).ext().is_some_and(|e| e.has_anchor);
+    let mut cur = Some(from);
+    let mut first = true;
+    while let Some(id) = cur {
+        probe::step();
+        if (inclusive || !first) && is_anchor(dom, id) {
+            mark_state_dirty(dom, state, id, Cause::Has);
+        }
+        if siblings {
+            let mut sib = dom.node(id).previous_element_sibling().map(|s| s.id());
+            while let Some(s) = sib {
+                probe::step();
+                if is_anchor(dom, s) {
+                    mark_state_dirty(dom, state, s, Cause::Has);
+                }
+                sib = dom.node(s).previous_element_sibling().map(|s| s.id());
+            }
+        }
+        first = false;
+        cur = dom.node(id).parent_node().map(|p| p.id());
+    }
+}
+
+/// Test-only: the elements `:has()` invalidation visited on this thread.
+pub(crate) mod probe {
+    #[cfg(test)]
+    thread_local! {
+        pub static STEPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+
+    pub fn step() {
+        #[cfg(test)]
+        STEPS.with(|c| c.set(c.get() + 1));
+    }
+
+    #[cfg(test)]
+    pub fn take() -> u64 {
+        STEPS.with(|c| c.replace(0))
     }
 }

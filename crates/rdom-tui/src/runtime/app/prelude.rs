@@ -279,6 +279,9 @@ impl FramePrelude {
         tracker.set_sibling_triggers(crate::style::sibling_triggers::SiblingTriggers::of_sheets(
             self.cascade_order(app_sheets),
         ));
+        tracker.set_has_triggers(crate::style::has_triggers::HasTriggers::of_sheets(
+            self.cascade_order(app_sheets),
+        ));
     }
 
     /// Every sheet the cascade reads, in cascade order: the document's

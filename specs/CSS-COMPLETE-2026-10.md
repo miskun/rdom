@@ -226,7 +226,7 @@ row comes from.
 |---|---|---|
 | C11-ATTR-FLAGS | Attribute selector case flags `i` / `s` | done |
 | C11-IS | `:is()` | done (landed early as C1G-IS-PARSE) |
-| C11-HAS | `:has()` with invalidation | |
+| C11-HAS | `:has()` with invalidation | done |
 | C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | done |
 | C11-SCOPE | `:scope` (query APIs and `@scope`) | done |
 | C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | |
@@ -6999,3 +6999,42 @@ row comes from.
   they step to the previous element sibling (§14.3 / §14.4 in the earlier draft's numbering). Red:
   `complex_selectors_backtrack_past_the_nearest_candidate` and `sibling_combinators_skip_text_and_comments`
   (`Ok(false)` for `Ok(true)`); green after. No existing expectation or snapshot changed.
+- 2026-10-14 — C11-HAS: `:has(<relative-selector-list>)` (Selectors 4 §4.5). rdom-core: `SimpleSelector::Has(Vec<
+  RelativeSelector>)` (`combinator` — `Descendant` without a leading one — and `selector`; `#[non_exhaustive]`),
+  parsed unforgiving, `:has()` invalid anywhere inside another (`Parser::in_has`; inside a forgiving `:is()`
+  the inner `:has()` argument is dropped, as for any invalid argument), specificity its most specific
+  argument (§15). Matching (`query_selector/has.rs`) tries each element the relative selector can reach as its
+  subject — the anchor's descendants (children only for `>` without a descendant step), its later siblings
+  (the next only for `+` without a sibling step) and their descendants when the selector steps down — and
+  reads the rest with C11-COMBINATORS' `match_chain`, the anchor as its last step. Cost: answers per
+  (relative selector, anchor) in `SelectorCaches`; the plain `:has(<compound>)` computes, bottom-up, whether
+  each element's subtree holds a match and records them all, so nested anchors cost one walk
+  (`has_over_a_deep_chain_is_linear`: 400 anchors, ≤ 3N visits; the rdom-tui pass shares it,
+  `cost_tests::has_over_a_deep_chain_walks_it_once_per_pass`). The other forms search once per anchor per pass
+  (TECH_DEBT `HAS-COST-1`). Invalidation, in Blink's spirit: (1) the caches list every anchor a `:has()` was
+  evaluated for; each cascade pass flags them (`TuiExt::has_anchor`, sticky; `doc_flags::note_has_anchor`);
+  (2) `style::has_triggers::HasTriggers::of_sheets` records what the arguments read — attribute names
+  (`class` / `id` / `[name]` / `lang`), state and attribute-reading pseudo-classes, sibling reach — and the
+  App hands it to the tracker with the sibling triggers; (3) the tracker, on a change a trigger fires for
+  (`mark_state_dirty`, which interaction chains, attribute / class changes and text-emptiness flips go
+  through) and on every child-list change, walks the changed element's ancestors (the parent inclusive for a
+  child-list change) and, with sibling reach, each one's earlier siblings, marking flagged anchors only
+  (`Cause::Has`, which a `:has()` left of `+` / `~` turns into a sibling mark via `SiblingTriggers`). Zero
+  work without a `:has()` rule (empty triggers) or before any anchor was flagged
+  (`has_invalidation_costs_nothing_without_a_has_rule`: 0 steps; ≤ depth + 1 with one). Found by mutation and
+  fixed before commit: with the tracker's default "every change" triggers, `Cause::Has` fired too, so marking
+  an anchor walked again from it — exponential in the depth of nested anchors (a 30-deep chain hung); `fires`
+  now never fires for `Cause::Has` whatever the sheets (pinned:
+  `has_invalidation_with_unknown_sheets_walks_once_per_change`, which hung before). `selector_walk::argument`
+  became `arguments` (an `:nth-*()`'s `of S` and a `:has()`'s relative selectors are argument lists too), so
+  `uses_validity` sees `form:has(:invalid)`. Red: the rdom-core matching / specificity tests failed on
+  "unsupported pseudo-class `:has`" and the counting test to compile (`has_anchors`, `has_nodes`); the rdom-tui
+  integration tests (`css_phase11/has.rs`) failed with `Reset` for the anchors' colors after a class change
+  inside, a child inserted into a wrapped `ul`, and `:hover` / `:checked` / `:focus` (two passed at first only
+  because the test's own insertions into the root marked everything — restructured so each case reaches the
+  anchor only through `:has()` invalidation); green after. Mutations (each alone, restored, touched): no
+  subtree memo → the two linear tests; the tracker walk off → the four invalidation tests; anchors never
+  flagged → the same; the sibling walk off → `a_change_in_a_later_sibling_restyles_the_anchor`; walking
+  without the trigger check → the zero-cost test (it hung: the recursion above). Changed expectation:
+  `tui_ext_size_tripwire` 376 → 384 (the anchor flag; the small fields had no padding left). No snapshot
+  changed.

@@ -8,8 +8,8 @@
 //!   rule selectors but decide which elements a scoped rule styles;
 //! - inside each, every complex selector nested in a `:not()` / `:is()`
 //!   / `:where()` argument (`SimpleSelector::Is` is also the nesting
-//!   selector `&`, CSS Nesting 1 §2) and in an `:nth-child(… of S)`'s
-//!   `S`.
+//!   selector `&`, CSS Nesting 1 §2), in an `:nth-child(… of S)`'s
+//!   `S` and in a `:has()`'s relative selectors.
 //!
 //! `SimpleSelector` is `#[non_exhaustive]` and defined in rdom-core: a
 //! variant this module does not know answers "yes" (the conservative
@@ -38,21 +38,26 @@ pub(crate) fn compounds(complex: &ComplexSelector) -> impl Iterator<Item = &Comp
     std::iter::once(&complex.subject).chain(complex.ancestors.iter().map(|(_, c)| c))
 }
 
-/// The selector list a simple selector holds as its argument, if any.
-/// `Err(())` for a variant this module does not know (module doc).
-pub(crate) fn argument(simple: &SimpleSelector) -> Result<Option<&SelectorList>, ()> {
+/// The complex selectors a simple selector holds as its argument: a
+/// `:not()` / `:is()` / `:where()` list, an `:nth-*()`'s `of S`, a
+/// `:has()`'s relative selectors (each matched from an element related
+/// to the anchor, not the anchor itself — a caller that cares asks for
+/// `SimpleSelector::Has` itself). `Err(())` for a variant this module
+/// does not know (module doc).
+pub(crate) fn arguments(simple: &SimpleSelector) -> Result<Vec<&ComplexSelector>, ()> {
     match simple {
         SimpleSelector::Not(list) | SimpleSelector::Is(list) | SimpleSelector::Where(list) => {
-            Ok(Some(list))
+            Ok(list.0.iter().collect())
         }
-        SimpleSelector::Nth(nth) => Ok(nth.of.as_ref()),
+        SimpleSelector::Nth(nth) => Ok(nth.of.iter().flat_map(|of| &of.0).collect()),
+        SimpleSelector::Has(relative) => Ok(relative.iter().map(|r| &r.selector).collect()),
         SimpleSelector::Universal
         | SimpleSelector::Type(_)
         | SimpleSelector::Id(_)
         | SimpleSelector::Class(_)
         | SimpleSelector::Attribute { .. }
         | SimpleSelector::Lang(_)
-        | SimpleSelector::Pseudo(_) => Ok(None),
+        | SimpleSelector::Pseudo(_) => Ok(Vec::new()),
         other => {
             debug_assert!(false, "selector_walk: unknown simple selector {other:?}");
             Err(())
@@ -71,13 +76,12 @@ pub(crate) fn any_complex(
         return true;
     }
     for simple in compounds(complex).flat_map(|c| &c.simples) {
-        match argument(simple) {
-            Ok(Some(list)) => {
-                if list.0.iter().any(|inner| any_complex(inner, pred)) {
+        match arguments(simple) {
+            Ok(nested) => {
+                if nested.into_iter().any(|inner| any_complex(inner, pred)) {
                     return true;
                 }
             }
-            Ok(None) => {}
             Err(()) => return true,
         }
     }

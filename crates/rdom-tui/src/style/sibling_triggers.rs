@@ -58,6 +58,9 @@ pub(crate) struct SiblingTriggers {
     attribute_state: bool,
     /// Attribute names a left compound tests, ASCII-lowercase.
     attributes: Vec<String>,
+    /// A left compound has a `:has()`, whose match changes with the
+    /// anchor's subtree or later siblings.
+    has: bool,
 }
 
 /// The change the dirty tracker is marking for.
@@ -68,6 +71,9 @@ pub(crate) enum Cause<'a> {
     State,
     /// The named attribute (`class` for a class-list change).
     Attribute(&'a str),
+    /// A `:has()` anchor's match may have changed
+    /// (`style::has_triggers`).
+    Has,
 }
 
 impl SiblingTriggers {
@@ -106,6 +112,7 @@ impl SiblingTriggers {
                     self.attribute_state
                         || self.attributes.iter().any(|a| a.eq_ignore_ascii_case(name))
                 }
+                Cause::Has => self.has,
             }
     }
 
@@ -169,6 +176,9 @@ impl SiblingTriggers {
                         }
                     }
                 }
+                // Its match reads the element's subtree and later siblings:
+                // the anchor is marked with `Cause::Has` when they change.
+                SimpleSelector::Has(_) => self.has = true,
                 // The index reads the child list (marked on its change);
                 // an `of S` reads what `S` reads of the same element.
                 SimpleSelector::Nth(nth) => {
@@ -196,7 +206,7 @@ impl SiblingTriggers {
 /// Whether `p`'s match reads attributes (`:checked` reads `checked`,
 /// `:disabled` reads `disabled`, …). The interaction and tree-structural
 /// ones do not; one this list does not know is assumed to.
-fn reads_attributes(p: PseudoClass) -> bool {
+pub(crate) fn reads_attributes(p: PseudoClass) -> bool {
     !matches!(
         p,
         PseudoClass::FirstChild

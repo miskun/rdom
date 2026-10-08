@@ -581,3 +581,79 @@ fn mark_dirty_escape_hatch() {
     assert!(tracker.take_roots().contains(&div));
     assert!(dom.node(div).is_style_dirty());
 }
+
+/// C11-HAS: without a `:has()` rule a mutation looks for no anchor —
+/// zero extra work, even in a document a cascade flagged anchors in;
+/// with one, the walk is the changed element's ancestors only.
+#[test]
+fn has_invalidation_costs_nothing_without_a_has_rule() {
+    use crate::CascadeExt;
+    use crate::style::dirty_tracker::marks::probe;
+    use crate::style::has_triggers::HasTriggers;
+    const DEPTH: usize = 30;
+    let mut dom: TuiDom = TuiDom::new();
+    let mut parent = dom.root();
+    let mut chain = Vec::new();
+    for _ in 0..DEPTH {
+        let d = dom.create_element("div");
+        dom.append_child(parent, d).unwrap();
+        chain.push(d);
+        parent = d;
+    }
+    let leaf = parent;
+    let anchored = rdom_css::parse("div:has(.x) { color: red }").stylesheet;
+    dom.cascade(&anchored);
+    let tracker = DirtyTracker::install(&mut dom);
+    let mutate = |dom: &mut TuiDom| {
+        dom.add_class(leaf, "x").unwrap();
+        dom.set_attribute(leaf, "data-k", "1").unwrap();
+        let c = dom.create_element("i");
+        dom.append_child(leaf, c).unwrap();
+        dom.set_hovered(Some(c));
+    };
+    let plain = rdom_css::parse("div .x { color: red } p:hover { color: red }").stylesheet;
+    tracker.set_has_triggers(HasTriggers::of_sheets([&plain]));
+    probe::take();
+    mutate(&mut dom);
+    assert_eq!(probe::take(), 0, "no :has() rule, no anchor walk");
+    tracker.take_roots();
+    dom.set_hovered(None);
+    tracker.set_has_triggers(HasTriggers::of_sheets([&anchored]));
+    probe::take();
+    dom.remove_class(leaf, "x").unwrap();
+    let steps = probe::take();
+    assert!(
+        steps > 0 && steps <= DEPTH as u64 + 1,
+        "{steps} steps for depth {DEPTH}"
+    );
+    let roots = tracker.take_roots();
+    assert!(
+        roots.contains(&chain[0]),
+        "the outermost anchor is restyled"
+    );
+}
+
+/// C11-HAS: before the App names its sheets the tracker assumes every
+/// change can reach an anchor — and still walks each change once: an
+/// anchor it restyles is no input of another anchor's `:has()` (it does
+/// not nest), so marking one starts no walk of its own.
+#[test]
+fn has_invalidation_with_unknown_sheets_walks_once_per_change() {
+    use crate::CascadeExt;
+    use crate::style::dirty_tracker::marks::probe;
+    const DEPTH: usize = 30;
+    let mut dom: TuiDom = TuiDom::new();
+    let mut parent = dom.root();
+    for _ in 0..DEPTH {
+        let d = dom.create_element("div");
+        dom.append_child(parent, d).unwrap();
+        parent = d;
+    }
+    dom.cascade(&rdom_css::parse("div:has(.x) { color: red }").stylesheet);
+    let tracker = DirtyTracker::install(&mut dom);
+    probe::take();
+    dom.add_class(parent, "x").unwrap();
+    let steps = probe::take();
+    assert!(steps <= 2 * DEPTH as u64, "{steps} steps for depth {DEPTH}");
+    drop(tracker);
+}

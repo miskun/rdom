@@ -27,6 +27,7 @@
 pub mod cascade;
 pub mod dirty_tracker;
 pub(crate) mod doc_flags;
+pub(crate) mod has_triggers;
 pub(crate) mod pseudo_pointer;
 pub(crate) mod selector_walk;
 pub(crate) mod sibling_triggers;

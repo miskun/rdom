@@ -29,6 +29,9 @@ pub(super) struct Parser<'a> {
     pub(super) nest_seen: bool,
     /// Whether it used `:scope` (likewise).
     pub(super) scope_seen: bool,
+    /// Inside a `:has()` argument, where `:has()` is invalid (Selectors 4
+    /// §4.5).
+    pub(super) in_has: bool,
 }
 
 impl<'a> Parser<'a> {
@@ -40,6 +43,7 @@ impl<'a> Parser<'a> {
             nest,
             nest_seen: false,
             scope_seen: false,
+            in_has: false,
         }
     }
 

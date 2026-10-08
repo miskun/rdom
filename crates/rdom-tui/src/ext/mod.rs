@@ -253,6 +253,13 @@ pub struct TuiExt {
     /// cascade: a walk whose counter values moved before it recomputes it.
     pub(crate) reads_counters: bool,
 
+    /// `true` once a cascade evaluated a `:has()` with this element as
+    /// its anchor (Selectors 4 §4.5): a change in its subtree or among
+    /// its later siblings can change its match, so the dirty tracker
+    /// restyles it then (`style::has_triggers`). Sticky — a stale `true`
+    /// costs one restyle, a stale `false` would lose one.
+    pub(crate) has_anchor: bool,
+
     // ── Inline layout (populated when this is an IFC block) ───────────
     /// Line-packed layout of inline content. `Some` for elements that
     /// establish an inline formatting context; `None` otherwise. Used
