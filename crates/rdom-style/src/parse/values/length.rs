@@ -110,6 +110,9 @@ pub fn parse_flex_shorthand(value: &[Token]) -> Option<FlexShorthand> {
 /// `content`, a `<length-percentage [0,∞]>` or an intrinsic size
 /// keyword (CSS Sizing 3 §3.1).
 pub fn parse_flex_basis(value: &[Token]) -> Option<FlexBasis> {
+    if let Some(b) = super::calc_size::parse_calc_size_flex(value) {
+        return Some(b);
+    }
     if let Some(k) = parse_intrinsic(value) {
         return Some(FlexBasis::Intrinsic(k));
     }
@@ -134,6 +137,9 @@ pub fn parse_flex_factor(value: &[Token]) -> Option<f32> {
 /// [0,∞]>`. The `auto` keyword opts a flex item into intrinsic
 /// min-content protection (decision 4 from the M5 pre-prep, M5.1.b).
 pub fn parse_min_size(value: &[Token]) -> Option<MinSize> {
+    if let Some(m) = super::calc_size::parse_calc_size_min(value) {
+        return Some(m);
+    }
     if let Some(k) = parse_intrinsic(value) {
         return Some(MinSize::Intrinsic(k));
     }
@@ -157,6 +163,9 @@ pub fn parse_min_size(value: &[Token]) -> Option<MinSize> {
 pub fn parse_max_size(value: &[Token]) -> Option<MaxSize> {
     if matches!(value, [Token::Ident(s)] if s.eq_ignore_ascii_case("none")) {
         return Some(MaxSize::None);
+    }
+    if let Some(m) = super::calc_size::parse_calc_size_max(value) {
+        return Some(m);
     }
     if let Some(k) = parse_intrinsic(value) {
         return Some(MaxSize::Intrinsic(k));

@@ -270,16 +270,18 @@ pub(super) fn collect_main_axis_items(
         let main_auto = matches!(main_size, Size::Auto | Size::Intrinsic(_));
         let mut grow = c.flex_grow;
         let mut specified_base = false;
-        let (base, content_base) = if let Some(w) = used_column_width {
-            grow = 0.0;
-            (w, false)
-        } else {
-            let basis_size = match &c.flex_basis {
+        // The base a `flex-basis` gives (§9.2 step 3); a `calc-size()` one
+        // (CSS Values 5 §10) is its sum over the base its basis keyword
+        // gives, in the box `box-sizing` measures.
+        let mut base_of = |flex_basis: &FlexBasis| -> (u16, bool) {
+            let basis_size = match flex_basis {
                 FlexBasis::Auto => None,
                 FlexBasis::Content => Some(Size::Auto),
                 FlexBasis::Cells(n) => Some(Size::Fixed(*n)),
                 FlexBasis::Calc(e) => Some(Size::Calc(e.clone())),
                 FlexBasis::Intrinsic(k) => Some(Size::Intrinsic(k.clone())),
+                // Resolved by the caller from its keyword's base.
+                FlexBasis::CalcSize(_) => None,
             };
             // §9.2 step 3.B: a used flex basis of `content` with a preferred
             // aspect ratio and a definite cross size is the cross size
@@ -315,6 +317,17 @@ pub(super) fn collect_main_axis_items(
                     None => from_ratio().map_or_else(|| (content(), true), |b| (b, false)),
                 },
             }
+        };
+        let (base, content_base) = if let Some(w) = used_column_width {
+            grow = 0.0;
+            (w, false)
+        } else if let FlexBasis::CalcSize(cs) = &c.flex_basis {
+            let (keyword_base, _) = base_of(&cs.basis_flex_basis());
+            let sizer = kw.sizer();
+            let size = cs.resolve(sizer.inner(keyword_base), main_basis.unwrap_or(0));
+            (sizer.outer(size), false)
+        } else {
+            base_of(&c.flex_basis)
         };
 
         // Resolve `min-width: auto` / `min-height: auto` → intrinsic

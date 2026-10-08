@@ -29,6 +29,71 @@ pub fn parse_interpolate_size(value: &[Token]) -> Option<InterpolateSize> {
 /// `calc-size(…)` as a `width` / `height` value: a [`Size::CalcSize`], or
 /// the plain size it folds to (an `any` or length basis).
 pub fn parse_calc_size(value: &[Token]) -> Option<Size> {
+    Some(match calc_size(value, &[Allowed::Auto])? {
+        Parsed::CalcSize(c) => Size::CalcSize(std::sync::Arc::new(c)),
+        Parsed::Plain(e) => plain(e),
+    })
+}
+
+/// `calc-size(…)` as a `min-*` value: its basis `auto` (the automatic
+/// minimum) or an intrinsic keyword.
+pub(crate) fn parse_calc_size_min(value: &[Token]) -> Option<crate::layout::MinSize> {
+    use crate::layout::MinSize;
+    Some(match calc_size(value, &[Allowed::Auto])? {
+        Parsed::CalcSize(c) => MinSize::CalcSize(std::sync::Arc::new(c)),
+        Parsed::Plain(e) => match plain(e) {
+            Size::Fixed(n) => MinSize::Cells(n),
+            Size::Calc(e) => MinSize::Calc(e),
+            _ => return None,
+        },
+    })
+}
+
+/// `calc-size(…)` as a `max-*` value: its basis an intrinsic keyword.
+pub(crate) fn parse_calc_size_max(value: &[Token]) -> Option<crate::layout::MaxSize> {
+    use crate::layout::MaxSize;
+    Some(match calc_size(value, &[])? {
+        Parsed::CalcSize(c) => MaxSize::CalcSize(std::sync::Arc::new(c)),
+        Parsed::Plain(e) => match plain(e) {
+            Size::Fixed(n) => MaxSize::Cells(n),
+            Size::Calc(e) => MaxSize::Calc(e),
+            _ => return None,
+        },
+    })
+}
+
+/// `calc-size(…)` as a `flex-basis` value: its basis `auto`, `content`
+/// or an intrinsic keyword.
+pub(crate) fn parse_calc_size_flex(value: &[Token]) -> Option<crate::layout::FlexBasis> {
+    use crate::layout::FlexBasis;
+    Some(
+        match calc_size(value, &[Allowed::Auto, Allowed::Content])? {
+            Parsed::CalcSize(c) => FlexBasis::CalcSize(std::sync::Arc::new(c)),
+            Parsed::Plain(e) => match plain(e) {
+                Size::Fixed(n) => FlexBasis::Cells(n),
+                Size::Calc(e) => FlexBasis::Calc(e),
+                _ => return None,
+            },
+        },
+    )
+}
+
+/// The keyword bases a property takes beside the intrinsic ones.
+#[derive(Clone, Copy, PartialEq)]
+enum Allowed {
+    Auto,
+    Content,
+}
+
+enum Parsed {
+    CalcSize(CalcSize),
+    Plain(CalcExpr),
+}
+
+/// `calc-size(<basis>, <sum>)` with a basis the property takes
+/// (`allowed` besides the intrinsic keywords, `any`, lengths and a
+/// nested `calc-size()`): its form, or the plain sum it folds to.
+fn calc_size(value: &[Token], allowed: &[Allowed]) -> Option<Parsed> {
     let [Token::Function(name), inner @ .., Token::RParen] = value else {
         return None;
     };
@@ -38,21 +103,27 @@ pub fn parse_calc_size(value: &[Token]) -> Option<Size> {
     let comma = top_level_comma(inner)?;
     let (basis, sum) = (&inner[..comma], &inner[comma + 1..]);
     let (factor, offset) = linear_sum(sum)?;
+    let takes = |b: &CalcSizeBasis| match b {
+        CalcSizeBasis::Auto => allowed.contains(&Allowed::Auto),
+        CalcSizeBasis::Content => allowed.contains(&Allowed::Content),
+        _ => true,
+    };
     Some(match basis_of(basis)? {
-        Basis::Keyword(basis) => {
-            Size::CalcSize(std::sync::Arc::new(CalcSize::new(basis, factor, offset)))
+        Basis::Keyword(basis) if takes(&basis) => {
+            Parsed::CalcSize(CalcSize::new(basis, factor, offset))
         }
+        Basis::Keyword(_) => return None,
         // `size` names nothing under `any`: the sum alone.
-        Basis::Any if factor == 0.0 => plain(offset),
+        Basis::Any if factor == 0.0 => Parsed::Plain(offset),
         Basis::Any => return None,
         // `size` is the length: `length * factor + offset`.
-        Basis::Length(l) => plain(CalcExpr::binary(
+        Basis::Length(l) => Parsed::Plain(CalcExpr::binary(
             CalcOp::Add,
             CalcExpr::binary(CalcOp::Mul, l, CalcExpr::Number(factor)),
             offset,
         )),
         // A nested `calc-size()`: its `size` is ours.
-        Basis::Nested(inner) => Size::CalcSize(std::sync::Arc::new(CalcSize::new(
+        Basis::Nested(inner) if takes(&inner.basis) => Parsed::CalcSize(CalcSize::new(
             inner.basis.clone(),
             inner.factor * factor,
             CalcExpr::binary(
@@ -60,7 +131,8 @@ pub fn parse_calc_size(value: &[Token]) -> Option<Size> {
                 CalcExpr::binary(CalcOp::Mul, inner.offset.clone(), CalcExpr::Number(factor)),
                 offset,
             ),
-        ))),
+        )),
+        Basis::Nested(_) => return None,
     })
 }
 
@@ -89,6 +161,12 @@ fn basis_of(tokens: &[Token]) -> Option<Basis> {
         if kw.eq_ignore_ascii_case("any") {
             return Some(Basis::Any);
         }
+        if kw.eq_ignore_ascii_case("content") {
+            return Some(Basis::Keyword(CalcSizeBasis::Content));
+        }
+    }
+    if let Some(Parsed::CalcSize(c)) = calc_size(tokens, &[Allowed::Auto, Allowed::Content]) {
+        return Some(Basis::Nested(c));
     }
     match super::length::parse_size(tokens)? {
         Size::Intrinsic(k) => Some(Basis::Keyword(CalcSizeBasis::Intrinsic(k))),

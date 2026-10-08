@@ -101,6 +101,16 @@ impl<'a> Keywords<'a> {
     pub(crate) fn min(&self, min: &MinSize, basis: Option<u16>, available: u16) -> Option<u16> {
         match min {
             MinSize::Intrinsic(k) => Some(self.keyword(k, basis, available)),
+            MinSize::CalcSize(c) => {
+                // CSS Values 5 §10: `size` is what the basis resolves to —
+                // `auto` the automatic minimum of a box that is no flex or
+                // grid item, 0 (DIVERGENCES §2).
+                let keyword = match c.basis_min_size() {
+                    MinSize::Intrinsic(k) => self.keyword(&k, basis, available),
+                    _ => self.sizer.outer(0),
+                };
+                Some(self.calc_size(c, keyword, basis))
+            }
             other => self.sizer.outer_opt(other.cells(basis)),
         }
     }
@@ -109,8 +119,23 @@ impl<'a> Keywords<'a> {
     pub(crate) fn max(&self, max: &MaxSize, basis: Option<u16>, available: u16) -> Option<u16> {
         match max {
             MaxSize::Intrinsic(k) => Some(self.keyword(k, basis, available)),
+            MaxSize::CalcSize(c) => {
+                let MaxSize::Intrinsic(k) = c.basis_max_size() else {
+                    return None;
+                };
+                let keyword = self.keyword(&k, basis, available);
+                Some(self.calc_size(c, keyword, basis))
+            }
             other => self.sizer.outer_opt(other.cells(basis)),
         }
+    }
+
+    /// The border box a `calc-size()` gives from its basis's border box
+    /// `keyword`: the sum over that size in the box `box-sizing` measures,
+    /// a percentage in it against `basis` (CSS Values 5 §10).
+    fn calc_size(&self, c: &crate::layout::CalcSize, keyword: u16, basis: Option<u16>) -> u16 {
+        let size = c.resolve(self.sizer.inner(keyword), basis.unwrap_or(0));
+        self.sizer.outer(size)
     }
 
     /// The border box keyword `k` sizes (CSS Sizing 3 §3.1).

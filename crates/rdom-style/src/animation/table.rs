@@ -184,10 +184,10 @@ pub(super) static LONGHANDS: &[Entry] = &[
     // CSS Sizing 3 / 4
     e("width", ByComputedValue, size!(width)),
     e("height", ByComputedValue, size!(height)),
-    e("min-width", ByComputedValue, value!(min_width)),
-    e("max-width", ByComputedValue, value!(max_width)),
-    e("min-height", ByComputedValue, value!(min_height)),
-    e("max-height", ByComputedValue, value!(max_height)),
+    e("min-width", ByComputedValue, size!(min_width)),
+    e("max-width", ByComputedValue, size!(max_width)),
+    e("min-height", ByComputedValue, size!(min_height)),
+    e("max-height", ByComputedValue, size!(max_height)),
     e("aspect-ratio", ByComputedValue, value!(aspect_ratio)),
     e("box-sizing", Discrete, steps!(box_sizing)),
     e("interpolate-size", NotAnimatable, None),
@@ -210,7 +210,7 @@ pub(super) static LONGHANDS: &[Entry] = &[
         ByComputedValue,
         value!(flex_shrink => fix_flex),
     ),
-    e("flex-basis", ByComputedValue, value!(flex_basis)),
+    e("flex-basis", ByComputedValue, size!(flex_basis)),
     e("order", ByComputedValue, value!(order)),
     // CSS Grid 2
     e(

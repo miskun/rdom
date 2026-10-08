@@ -7822,3 +7822,17 @@ row comes from.
   `keyframe_selectors_may_name_a_timeline_range` (no `KeyframeSelector::range`; the selectors were
   invalid), `scroll_timeline_tests::keyframes_can_sit_on_a_named_range` (the sheet warned on them);
   green after. Mutation-checked: placing nothing fails the engine test. Item done.
+- 2026-10-16 — C12-ANIMATABLE leftover: `calc-size()` on `min-*` / `max-*` / `flex-basis` (CSS Values 5 §10)
+  and their keywords under `interpolate-size: allow-keywords` (§11). `MinSize`, `MaxSize` and `FlexBasis`
+  gain `CalcSize(Arc<CalcSize>)`, `CalcSizeBasis` gains `Content`; the parser takes, per property, the
+  bases it allows (`min-*`: `auto` and the intrinsic keywords; `max-*`: the intrinsic keywords;
+  `flex-basis`: `auto`, `content` and the intrinsic keywords — an `any` or length basis folding as
+  before). No second layout pass is needed for them: `intrinsic::Keywords::min` / `max` measure the
+  basis keyword where an intrinsic `min-*` / `max-*` keyword is measured, and apply the sum in the box
+  `box-sizing` measures (`auto` on `min-*`: the automatic minimum of a box that is no flex or grid item,
+  0 — DIVERGENCES §2); a `flex-basis` one is the sum over the base its keyword gives (§9.2 step 3,
+  `main_axis`). Interpolation (`rdom_style::animation::size`) is one generic `Sizing` rule for the four
+  types, so a keyword of each interpolates with a length through `calc-size()`. Red: the four
+  `runtime::app::calc_size_tests` (the values were invalid; `min-width: 0` → `max-content` did not
+  interpolate); green after. Mutation-checked: ignoring a `calc-size()` min fails the floor and
+  transition tests. Breaking (rdom-style): the three enums' new variant (CHANGELOG, `calc_size_hints`).

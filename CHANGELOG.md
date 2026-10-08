@@ -161,6 +161,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | `parse::values::parse_counter_ops(tokens, default)` | `parse_counter_ops(tokens, default, reversed)` (`true` for `counter-reset` only) | C10-COUNTERS | `counter_op_hints` |
 | exhaustive `match` on `Content`; `content: normal` as `Content::None` | `#[non_exhaustive]` (a `_` arm; new `Counters`, `Quote`, `WithAlt`); `Content::Normal` | C10-CONTENT, C10-LIST-ITEM | `generated_content_hints` |
 | exhaustive `match` on `Size` | add a `Size::CalcSize(c)` arm (`calc-size()`; `c.basis_size()`, `c.resolve(basis, percent_basis)`) | C12-ANIMATABLE | `calc_size_hints` |
+| exhaustive `match` on `MinSize` | add a `MinSize::CalcSize(c)` arm (`c.basis_min_size()`, `c.resolve(…)`) | C12-ANIMATABLE | `calc_size_hints` |
 | `TimingFunction` (`Copy`); `transition_delay: Vec<u32>`, `TransitionRule::delay_ms: u32`; `parse_time_list` for durations | `.clone()`; a `LinearStops` arm; `Vec<i32>` / `i32`; `parse_duration_list` (`parse_time_list` reads signed delays) | C12-TIMING | `timing_hints` |
 | `AnimatableProperty` (`TransitionProperty::Named(AnimatableProperty::Color)`); `parse::values::parse_animatable_property`; `TransitionProperty::Discrete(name)` | `TransitionProperty::Named("color")` — any property's canonical name, built by `TransitionProperty::named(name)`; `Other(name)` for a custom or unknown one | C12-ANIMATABLE | `transition_property_hints` |
 | `PseudoElementTarget` (`Copy`) | `.clone()`; a match adds `Highlight(_)` under its `_` arm | C10-HIGHLIGHT | `pseudo_element_target_hints` |
@@ -211,6 +212,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 | Before | Unreleased | Item | Hint test |
 |---|---|---|---|
+| exhaustive `match` on `MaxSize` / `FlexBasis` | add a `CalcSize(c)` arm (`c.basis_max_size()` / `basis_flex_basis()`, `c.resolve(…)`); a `calc-size()` basis may be `CalcSizeBasis::Content` | C12-ANIMATABLE | `calc_size_hints` |
 | `lookup_in` / `substitute` → `String`; `resolve_custom_properties` maps `Option<String>` | `Result<CustomValue, SubstitutionError>`; maps `Option<CustomValue>` | C1G-VAR-COST, C2G-SUBSTITUTION-ERRORS | `cascade_hints`, `typed_error_hints` |
 | `PropertyRegistration::new` / `PropertySyntax::parse` → `Result<_, String>` | `Result<_, RegisterPropertyError>` / `Result<_, PropertySyntaxError>` | C1G-TYPED-ERRORS | `typed_error_hints` |
 | `parse::values::parse_max_size` → `Option<u16>` | `Option<MaxSize>` | C2G-MAX-NONE | `sizing_hints` |
@@ -283,6 +285,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 - **`TimingFunction` is not `Copy` and gains `LinearStops`** (`linear()`, CSS Easing 2); **`transition-delay` is signed**: `TuiStyle` / `ComputedStyle::transition_delay` are `Vec<i32>`, `TransitionRule::delay_ms` is `i32`, `parse_time_list` reads signed delays (`parse_duration_list` the durations). Migration: `.clone()` an easing; add a `LinearStops` arm; `i32` delays. (C12-TIMING)
 - **`Size` gains `CalcSize`** (`calc-size()`, CSS Values 5 §10), the value an `auto` ↔ length transition runs through. Migration: add a `Size::CalcSize(c)` arm — size it as `c.basis_size()`, or `c.resolve(basis, percent_basis)` once the basis is known. (C12-ANIMATABLE)
+- **`MinSize`, `MaxSize` and `FlexBasis` gain `CalcSize`**, and `CalcSizeBasis` gains `Content` (`flex-basis: calc-size(content, …)`). Migration: add a `CalcSize(c)` arm — its keyword is `c.basis_min_size()` / `basis_max_size()` / `basis_flex_basis()`, its size `c.resolve(basis, percent_basis)`. (C12-ANIMATABLE)
 - **`transition-property` names any property**: `TransitionProperty::Named` holds the property's canonical name (`Named("padding")`); `AnimatableProperty` and `parse_animatable_property` are gone, and `Discrete(name)` is `Other(name)`. Migration: `TransitionProperty::named("color")`; match `Named(name)`. (C12-ANIMATABLE)
 - **`Length::Calc` holds an `Arc<CalcExpr>`** (was a `Box`): an inherited `calc()` `text-indent` is shared by its descendants' computed styles, not copied per element, and every `Length` clones without allocating. Migration: `Length::Calc(Box::new(e))` → `Length::calc(e)` (or `Length::Calc(Arc::new(e))`); a match on `Length::Calc(e)` reads `e` as before. (C9-CARRY-INDENT)
 - **`PseudoElementTarget` is no longer `Copy`**: its new `Highlight(Arc<str>)` variant names a `::highlight()`'s highlight. Migration: `rule.pseudo.clone()` where a copy was taken; a `match` adds `Highlight(_)` (the enum is `#[non_exhaustive]`). (C10-HIGHLIGHT)

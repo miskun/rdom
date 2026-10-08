@@ -1,14 +1,69 @@
-//! `width` / `height` interpolation with sizing keywords (CSS Values 5
-//! §11): under `interpolate-size: allow-keywords` a keyword interpolates
-//! with a length through `calc-size()`, and a `calc-size()` interpolates
-//! with a length or a `calc-size()` of the same basis whatever it says.
+//! Sizing-property interpolation with sizing keywords (CSS Values 5
+//! §11): under `interpolate-size: allow-keywords` a keyword of `width` /
+//! `height`, `min-*`, `max-*` or `flex-basis` interpolates with a length
+//! through `calc-size()`, and a `calc-size()` interpolates with a length
+//! or a `calc-size()` of the same basis whatever it says.
 
 use std::sync::Arc;
 
 use super::length::{LengthPercentage, mix};
 use super::value::{Animate, Cx, discrete, lerp};
 use crate::calc::CalcExpr;
-use crate::layout::{CalcSize, CalcSizeBasis, InterpolateSize, Size};
+use crate::layout::{CalcSize, CalcSizeBasis, FlexBasis, InterpolateSize, MaxSize, MinSize, Size};
+
+/// A sizing property's value as `calc-size()` sees it (§10–§11).
+pub(crate) trait Sizing: Animate + LengthPercentage {
+    /// The sizing keyword it is, as a `calc-size()` basis.
+    fn keyword(&self) -> Option<CalcSizeBasis>;
+    /// Its `calc-size()`, when it is one.
+    fn calc_size(&self) -> Option<&CalcSize>;
+    /// The value `c` is: `c` itself, or its basis keyword when the sum is
+    /// `size` alone.
+    fn from_calc_size(c: CalcSize) -> Self;
+}
+
+macro_rules! sizing {
+    ($t:ident, $basis:ident, { $($kw:pat => $b:expr),* $(,)? }) => {
+        impl Sizing for $t {
+            fn keyword(&self) -> Option<CalcSizeBasis> {
+                match self {
+                    $($kw => Some($b),)*
+                    _ => None,
+                }
+            }
+            fn calc_size(&self) -> Option<&CalcSize> {
+                match self {
+                    $t::CalcSize(c) => Some(c),
+                    _ => None,
+                }
+            }
+            fn from_calc_size(c: CalcSize) -> Self {
+                if c.factor == 1.0 && c.offset.linear_parts() == Some((0.0, 0.0)) {
+                    c.$basis()
+                } else {
+                    $t::CalcSize(Arc::new(c))
+                }
+            }
+        }
+    };
+}
+
+sizing!(Size, basis_size, {
+    Size::Auto => CalcSizeBasis::Auto,
+    Size::Intrinsic(k) => CalcSizeBasis::Intrinsic(k.clone()),
+});
+sizing!(MinSize, basis_min_size, {
+    MinSize::Auto => CalcSizeBasis::Auto,
+    MinSize::Intrinsic(k) => CalcSizeBasis::Intrinsic(k.clone()),
+});
+sizing!(MaxSize, basis_max_size, {
+    MaxSize::Intrinsic(k) => CalcSizeBasis::Intrinsic(k.clone()),
+});
+sizing!(FlexBasis, basis_flex_basis, {
+    FlexBasis::Auto => CalcSizeBasis::Auto,
+    FlexBasis::Content => CalcSizeBasis::Content,
+    FlexBasis::Intrinsic(k) => CalcSizeBasis::Intrinsic(k.clone()),
+});
 
 /// A size as `calc-size(basis, size * factor + offset)`, `basis` `None`
 /// for `any` (a plain length or percentage).
@@ -18,39 +73,40 @@ struct Form {
     offset: CalcExpr,
 }
 
-fn form(s: &Size, keywords: bool) -> Option<Form> {
-    let keyword = |basis| Form {
-        basis: Some(basis),
-        factor: 1.0,
-        offset: CalcExpr::Number(0.0),
-    };
-    Some(match s {
-        Size::CalcSize(c) => Form {
+fn form<T: Sizing>(s: &T, keywords: bool) -> Option<Form> {
+    if let Some(c) = s.calc_size() {
+        return Some(Form {
             basis: Some(c.basis.clone()),
             factor: c.factor,
             offset: c.offset.clone(),
-        },
-        Size::Auto if keywords => keyword(CalcSizeBasis::Auto),
-        Size::Intrinsic(k) if keywords => keyword(CalcSizeBasis::Intrinsic(k.clone())),
-        other => Form {
+        });
+    }
+    match s.keyword() {
+        Some(basis) if keywords => Some(Form {
+            basis: Some(basis),
+            factor: 1.0,
+            offset: CalcExpr::Number(0.0),
+        }),
+        Some(_) => None,
+        None => Some(Form {
             basis: None,
             factor: 0.0,
-            offset: other.expr()?,
-        },
-    })
+            offset: s.expr()?,
+        }),
+    }
 }
 
 /// `from` → `to` at `p`, or `None` when the pair does not interpolate.
-pub(crate) fn animate_size(
-    from: &Size,
-    to: &Size,
+pub(crate) fn animate_size<T: Sizing>(
+    from: &T,
+    to: &T,
     p: f64,
     interpolate_size: InterpolateSize,
     cx: &Cx,
-) -> Option<Size> {
-    let calc_size = matches!(from, Size::CalcSize(_)) || matches!(to, Size::CalcSize(_));
+) -> Option<T> {
+    let calc_size = from.calc_size().is_some() || to.calc_size().is_some();
     let keywords = interpolate_size == InterpolateSize::AllowKeywords;
-    if !calc_size && !(keywords && (is_keyword(from) || is_keyword(to))) {
+    if !calc_size && !(keywords && (from.keyword().is_some() || to.keyword().is_some())) {
         return from.animate(to, p, cx);
     }
     let (a, b) = (form(from, keywords)?, form(to, keywords)?);
@@ -63,34 +119,32 @@ pub(crate) fn animate_size(
     let factor = lerp(a.factor, b.factor, p);
     let offset = mix(&a.offset, &b.offset, p);
     if factor == 0.0 {
-        return Some(Size::from_mixed(offset));
+        return Some(T::from_mixed(offset));
     }
-    let offset = offset.into_expr();
-    if factor == 1.0 && offset.linear_parts() == Some((0.0, 0.0)) {
-        return Some(CalcSize::new(basis, 1.0, offset).basis_size());
-    }
-    Some(Size::CalcSize(Arc::new(CalcSize::new(
-        basis, factor, offset,
-    ))))
-}
-
-fn is_keyword(s: &Size) -> bool {
-    matches!(s, Size::Auto | Size::Intrinsic(_))
+    Some(T::from_calc_size(CalcSize::new(
+        basis,
+        factor,
+        offset.into_expr(),
+    )))
 }
 
 /// [`animate_size`], discretely where the pair does not interpolate.
-pub(crate) fn blend_size(
-    from: &Size,
-    to: &Size,
+pub(crate) fn blend_size<T: Sizing>(
+    from: &T,
+    to: &T,
     p: f64,
     interpolate_size: InterpolateSize,
     cx: &Cx,
-) -> Size {
+) -> T {
     animate_size(from, to, p, interpolate_size, cx).unwrap_or_else(|| discrete(from, to, p))
 }
 
 /// Whether the pair interpolates.
-pub(crate) fn size_interpolable(from: &Size, to: &Size, interpolate_size: InterpolateSize) -> bool {
+pub(crate) fn size_interpolable<T: Sizing>(
+    from: &T,
+    to: &T,
+    interpolate_size: InterpolateSize,
+) -> bool {
     let cx = Cx {
         reset: crate::Color::Reset,
     };

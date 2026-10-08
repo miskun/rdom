@@ -35,14 +35,38 @@ impl ComputedStyle {
             Size::Fixed(cells_u16(v))
         });
         // A `calc-size()` offset's viewport and line-height units.
-        for size in [&mut self.width, &mut self.height] {
-            if let Size::CalcSize(c) = size
-                && c.offset.needs_context()
-            {
+        let absolute = |c: &std::sync::Arc<crate::layout::CalcSize>| {
+            c.offset.needs_context().then(|| {
                 let mut absolute = (**c).clone();
                 absolute.offset = absolute.offset.absolutize_in(vp);
-                *size = Size::CalcSize(std::sync::Arc::new(absolute));
+                std::sync::Arc::new(absolute)
+            })
+        };
+        for size in [&mut self.width, &mut self.height] {
+            if let Size::CalcSize(c) = size
+                && let Some(a) = absolute(c)
+            {
+                *size = Size::CalcSize(a);
             }
+        }
+        for min in [&mut self.min_width, &mut self.min_height] {
+            if let MinSize::CalcSize(c) = min
+                && let Some(a) = absolute(c)
+            {
+                *min = MinSize::CalcSize(a);
+            }
+        }
+        for max in [&mut self.max_width, &mut self.max_height] {
+            if let MaxSize::CalcSize(c) = max
+                && let Some(a) = absolute(c)
+            {
+                *max = MaxSize::CalcSize(a);
+            }
+        }
+        if let FlexBasis::CalcSize(c) = &self.flex_basis
+            && let Some(a) = absolute(c)
+        {
+            self.flex_basis = FlexBasis::CalcSize(a);
         }
         for min in [&mut self.min_width, &mut self.min_height] {
             absolutize(min, vp, MinSize::Calc, |v| MinSize::Cells(cells_u16(v)));

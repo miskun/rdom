@@ -87,10 +87,11 @@ pub(super) fn serialize_size(s: &Size) -> String {
 /// `calc-size(<basis>, <sum>)` (CSS Values 5 §10) in canonical form:
 /// `size`, scaled when its factor is not 1, plus the offset's cells and
 /// percentage — or the offset's math function when it is not linear.
-fn serialize_calc_size(c: &crate::layout::CalcSize) -> String {
+pub(super) fn serialize_calc_size(c: &crate::layout::CalcSize) -> String {
     use crate::layout::CalcSizeBasis;
     let basis = match &c.basis {
         CalcSizeBasis::Intrinsic(k) => serialize_intrinsic(k),
+        CalcSizeBasis::Content => "content".to_string(),
         _ => "auto".to_string(),
     };
     let num = |v: f64| {
@@ -138,6 +139,7 @@ pub(super) fn serialize_min_size(m: &crate::layout::MinSize) -> String {
         crate::layout::MinSize::Percent(p) => format!("{p}%"),
         crate::layout::MinSize::Calc(expr) => serialize_math(expr),
         crate::layout::MinSize::Intrinsic(k) => serialize_intrinsic(k),
+        crate::layout::MinSize::CalcSize(c) => serialize_calc_size(c),
     }
 }
 
@@ -148,6 +150,7 @@ pub(super) fn serialize_flex_basis(b: &crate::layout::FlexBasis) -> String {
         crate::layout::FlexBasis::Cells(n) => n.to_string(),
         crate::layout::FlexBasis::Calc(expr) => serialize_math(expr),
         crate::layout::FlexBasis::Intrinsic(k) => serialize_intrinsic(k),
+        crate::layout::FlexBasis::CalcSize(c) => serialize_calc_size(c),
     }
 }
 
@@ -158,6 +161,7 @@ pub(super) fn serialize_max_size(m: &crate::layout::MaxSize) -> String {
         crate::layout::MaxSize::Percent(p) => format!("{p}%"),
         crate::layout::MaxSize::Calc(expr) => serialize_math(expr),
         crate::layout::MaxSize::Intrinsic(k) => serialize_intrinsic(k),
+        crate::layout::MaxSize::CalcSize(c) => serialize_calc_size(c),
     }
 }
 

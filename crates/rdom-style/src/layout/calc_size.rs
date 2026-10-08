@@ -29,6 +29,8 @@ pub enum CalcSizeBasis {
     Auto,
     /// `min-content`, `max-content`, `fit-content`, `fit-content(<l>)`.
     Intrinsic(IntrinsicSize),
+    /// `content` — `flex-basis`'s content size (CSS Flexbox §7.3.3).
+    Content,
 }
 
 /// `calc-size(<basis>, <calc-sum>)` (CSS Values 5 §10) whose sum is linear
@@ -67,11 +69,41 @@ impl CalcSize {
         crate::calc::to_cells(v).clamp(0, i32::from(u16::MAX)) as u16
     }
 
-    /// The basis as a size (`auto` or the intrinsic keyword).
+    /// The basis as a size (`auto` or the intrinsic keyword; `content`,
+    /// which no `width` takes, as `auto`).
     pub fn basis_size(&self) -> super::Size {
         match &self.basis {
-            CalcSizeBasis::Auto => super::Size::Auto,
+            CalcSizeBasis::Auto | CalcSizeBasis::Content => super::Size::Auto,
             CalcSizeBasis::Intrinsic(k) => super::Size::Intrinsic(k.clone()),
+        }
+    }
+
+    /// The basis as a `min-*` value (`content`: `max-content`).
+    pub fn basis_min_size(&self) -> super::MinSize {
+        match &self.basis {
+            CalcSizeBasis::Auto => super::MinSize::Auto,
+            CalcSizeBasis::Intrinsic(k) => super::MinSize::Intrinsic(k.clone()),
+            CalcSizeBasis::Content => super::MinSize::Intrinsic(IntrinsicSize::MaxContent),
+        }
+    }
+
+    /// The basis as a `max-*` value (`auto` and `content`, which no
+    /// `max-*` takes: `max-content`).
+    pub fn basis_max_size(&self) -> super::MaxSize {
+        match &self.basis {
+            CalcSizeBasis::Intrinsic(k) => super::MaxSize::Intrinsic(k.clone()),
+            CalcSizeBasis::Auto | CalcSizeBasis::Content => {
+                super::MaxSize::Intrinsic(IntrinsicSize::MaxContent)
+            }
+        }
+    }
+
+    /// The basis as a `flex-basis` value.
+    pub fn basis_flex_basis(&self) -> super::FlexBasis {
+        match &self.basis {
+            CalcSizeBasis::Auto => super::FlexBasis::Auto,
+            CalcSizeBasis::Content => super::FlexBasis::Content,
+            CalcSizeBasis::Intrinsic(k) => super::FlexBasis::Intrinsic(k.clone()),
         }
     }
 }

@@ -61,6 +61,8 @@ mod stylesheets;
 #[cfg(test)]
 mod animation_event_tests;
 #[cfg(test)]
+mod calc_size_tests;
+#[cfg(test)]
 mod control_click_tests;
 #[cfg(test)]
 mod control_seeding_tests;

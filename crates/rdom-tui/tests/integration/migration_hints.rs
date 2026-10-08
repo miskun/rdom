@@ -1409,6 +1409,22 @@ fn calc_size_hints() {
         ComputedStyle::initial().interpolate_size,
         InterpolateSize::NumericOnly
     );
+    // `min-*`, `max-*` and `flex-basis` take `calc-size()` too, a
+    // `flex-basis` one over `content` (`CalcSizeBasis::Content`).
+    let c = CalcSize::new(CalcSizeBasis::Content, 1.0, calc::CalcExpr::Number(3.0));
+    assert_eq!(c.basis_flex_basis(), FlexBasis::Content);
+    let min = MinSize::CalcSize(std::sync::Arc::new(c.clone()));
+    let floor = match &min {
+        MinSize::CalcSize(c) => c.resolve(5, 0),
+        _ => 0,
+    };
+    assert_eq!(floor, 8);
+    let max = MaxSize::CalcSize(std::sync::Arc::new(c.clone()));
+    assert!(matches!(max, MaxSize::CalcSize(_)));
+    assert!(matches!(
+        FlexBasis::CalcSize(std::sync::Arc::new(c)),
+        FlexBasis::CalcSize(_)
+    ));
 }
 
 /// C12-TIMING: `TimingFunction` is not `Copy` and has `linear()`'s

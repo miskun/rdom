@@ -201,6 +201,10 @@ pub enum MinSize {
     Calc(std::sync::Arc<crate::calc::CalcExpr>),
     /// An intrinsic keyword (CSS Sizing 3 §3.2), which layout measures.
     Intrinsic(IntrinsicSize),
+    /// `calc-size(<basis>, <sum>)` (CSS Values 5 §10): a size computed from
+    /// the value its sizing keyword resolves to — `auto` the automatic
+    /// minimum, an intrinsic keyword the content's size.
+    CalcSize(std::sync::Arc<super::CalcSize>),
 }
 
 impl MinSize {
@@ -247,7 +251,7 @@ impl MinSize {
     /// treated as `0` (CSS 2.1 §10.7).
     pub fn cells(&self, basis: Option<u16>) -> Option<u16> {
         match self {
-            MinSize::Auto | MinSize::Intrinsic(_) => None,
+            MinSize::Auto | MinSize::Intrinsic(_) | MinSize::CalcSize(_) => None,
             MinSize::Cells(n) => Some(*n),
             MinSize::Percent(p) => Some(basis.map_or(0, |b| percent_cells(b, *p))),
             MinSize::Calc(expr) => Some(match basis {
@@ -288,6 +292,9 @@ pub enum MaxSize {
     Calc(std::sync::Arc<crate::calc::CalcExpr>),
     /// An intrinsic keyword (CSS Sizing 3 §3.3), which layout measures.
     Intrinsic(IntrinsicSize),
+    /// `calc-size(<basis>, <sum>)` (CSS Values 5 §10) over an intrinsic
+    /// keyword.
+    CalcSize(std::sync::Arc<super::CalcSize>),
 }
 
 impl MaxSize {
@@ -322,7 +329,7 @@ impl MaxSize {
     /// 2.1 §10.7), so no limit.
     pub fn cells(&self, basis: Option<u16>) -> Option<u16> {
         match self {
-            MaxSize::None | MaxSize::Intrinsic(_) => None,
+            MaxSize::None | MaxSize::Intrinsic(_) | MaxSize::CalcSize(_) => None,
             MaxSize::Cells(n) => Some(*n),
             MaxSize::Percent(p) => basis.map(|b| percent_cells(b, *p)),
             MaxSize::Calc(expr) => match basis {
@@ -386,6 +393,9 @@ pub enum FlexBasis {
     /// An intrinsic size keyword (CSS Sizing 3 §3.1): `min-content`,
     /// `max-content`, `fit-content`, `fit-content(<l>)`.
     Intrinsic(IntrinsicSize),
+    /// `calc-size(<basis>, <sum>)` (CSS Values 5 §10) over `auto`,
+    /// `content` or an intrinsic keyword.
+    CalcSize(std::sync::Arc<super::CalcSize>),
 }
 
 impl FlexBasis {
