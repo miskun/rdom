@@ -5,7 +5,32 @@
 
 use std::cell::OnceCell;
 
-use crate::runtime::builtins::validation::PatternCache;
+use rdom_core::{ControlState, NodeId};
+
+use crate::TuiDom;
+use crate::runtime::builtins::validation::{self, PatternCache};
+
+/// The [`rdom_core::ControlStateHook`] rdom-tui installs
+/// (`validation::install`): the defaults the form builtins keep beside
+/// the live attributes, and the range states `validation` computes.
+pub(crate) fn control_state(dom: &TuiDom, id: NodeId, state: ControlState) -> bool {
+    use crate::accessors::TuiAccessors;
+    match state {
+        ControlState::DefaultChecked => dom.node(id).default_checked().unwrap_or(false),
+        ControlState::DefaultSelected => dom.node(id).default_selected().unwrap_or(false),
+        ControlState::RangeLimited => validation::range_limited(dom, id),
+        ControlState::OutOfRange => {
+            let v = validation::validity(dom, id);
+            v.range_underflow || v.range_overflow
+        }
+        // `ControlState` is `#[non_exhaustive]`: a question added
+        // upstream gets an arm here; until then, the substrate's answer.
+        _ => {
+            debug_assert!(false, "control_state: unanswered {state:?}");
+            false
+        }
+    }
+}
 
 /// The form-only state of one element.
 #[derive(Debug, Default, Clone)]

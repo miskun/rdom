@@ -3,6 +3,7 @@
 //! names, attributes and tree shape. The validity verdicts behind
 //! `:valid` / `:invalid` live in `constraint`.
 
+use crate::control_state::ControlState;
 use crate::dom::Dom;
 use crate::input_type::InputTypeState;
 use crate::node_id::NodeId;
@@ -69,6 +70,65 @@ impl<Ext> Dom<Ext> {
             },
             _ => false,
         }
+    }
+
+    /// Whether `id` matches `:default` (HTML §4.16.3):
+    ///
+    /// - a `<button>` or an `<input type=submit|image>` that is the
+    ///   *default button* of its form owner — the form's first submit
+    ///   button in tree order (HTML §4.10.21.2), disabled or not;
+    /// - an `<input type=checkbox|radio>` checked by default
+    ///   ([`ControlState::DefaultChecked`]);
+    /// - an `<option>` selected by default
+    ///   ([`ControlState::DefaultSelected`]).
+    pub fn is_default(&self, id: NodeId) -> bool {
+        self.default_with(id, &mut SelectorCaches::new())
+    }
+
+    /// [`is_default`](Self::is_default), each form's default button found
+    /// once per pass through `caches`.
+    pub(crate) fn default_with(&self, id: NodeId, caches: &mut SelectorCaches) -> bool {
+        match self.get_node(id).and_then(|n| n.tag_name()) {
+            Some("option") => self.control_state(id, ControlState::DefaultSelected),
+            Some("input")
+                if matches!(
+                    self.input_type_state(id),
+                    Some(InputTypeState::Checkbox | InputTypeState::Radio)
+                ) =>
+            {
+                self.control_state(id, ControlState::DefaultChecked)
+            }
+            Some("button" | "input") if self.is_submit_button(id) => {
+                let Some(form) = self.form_owner(id) else {
+                    return false;
+                };
+                let default = match caches.default_buttons.get(&form) {
+                    Some(&found) => found,
+                    None => {
+                        caches.count_default_button_walk();
+                        let found = self
+                            .form_listed_elements(form)
+                            .into_iter()
+                            .find(|&c| self.is_submit_button(c));
+                        caches.default_buttons.insert(form, found);
+                        found
+                    }
+                };
+                default == Some(id)
+            }
+            _ => false,
+        }
+    }
+
+    /// `:in-range` / `:out-of-range` (HTML §4.16.3): for a [candidate for
+    /// constraint validation](Self::will_validate) that has range
+    /// limitations ([`ControlState::RangeLimited`]), `Some(true)` when its
+    /// value suffers from neither an underflow nor an overflow
+    /// ([`ControlState::OutOfRange`]), `Some(false)` when it does; `None`
+    /// — neither pseudo-class — for every other element.
+    pub fn range_state(&self, id: NodeId) -> Option<bool> {
+        (self.will_validate(id) && self.control_state(id, ControlState::RangeLimited))
+            .then(|| !self.control_state(id, ControlState::OutOfRange))
     }
 
     /// No `readonly` attribute and not actually disabled.

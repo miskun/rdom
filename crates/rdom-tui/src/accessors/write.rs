@@ -77,6 +77,8 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
             && let Some(ext) = dom.node_mut(id).ext_mut()
         {
             ext.default_checked = Some(value);
+            // `:default` reads it; no mutation reports it.
+            crate::runtime::state_writes::note();
         }
         Ok(())
     }
@@ -88,6 +90,7 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
             && let Some(ext) = dom.node_mut(id).ext_mut()
         {
             ext.default_selected = Some(value);
+            crate::runtime::state_writes::note();
         }
         Ok(())
     }

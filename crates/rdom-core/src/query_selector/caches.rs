@@ -49,6 +49,8 @@ pub struct SelectorCaches {
     /// Per radio: whether its radio button group has no checked member
     /// (`:indeterminate`), filled for a whole group at once.
     pub(crate) radio_unchecked: HashMap<NodeId, bool>,
+    /// Per form: its default button (`:default`), once found.
+    pub(crate) default_buttons: HashMap<NodeId, Option<NodeId>>,
     /// The elements a `:has()` was evaluated for, in first-test order.
     has_anchors: Vec<NodeId>,
     has_anchor_set: HashSet<NodeId>,
@@ -67,6 +69,9 @@ pub struct CacheWork {
     /// Radio button groups gathered for `:indeterminate` — one per group
     /// per pass.
     pub radio_group_walks: u64,
+    /// Forms whose controls were walked for their default button
+    /// (`:default`) — one per form per pass.
+    pub default_button_walks: u64,
 }
 
 /// Which siblings an nth index counts.
@@ -116,10 +121,15 @@ impl SelectorCaches {
             self.dir.clear();
             self.has.clear();
             self.radio_unchecked.clear();
+            self.default_buttons.clear();
             self.has_anchors.clear();
             self.has_anchor_set.clear();
             self.epoch = Some(epoch);
         }
+    }
+
+    pub(crate) fn count_default_button_walk(&mut self) {
+        self.work.default_button_walks += 1;
     }
 
     pub(crate) fn count_radio_group_walk(&mut self) {

@@ -88,6 +88,9 @@ impl<Ext> Dom<Ext> {
             PseudoClass::Required => self.is_required_control(id),
             PseudoClass::Optional => self.is_optional_control(id),
             PseudoClass::ReadWrite => self.is_read_write(id),
+            PseudoClass::Default => self.default_with(id, cx.caches),
+            PseudoClass::InRange => self.range_state(id) == Some(true),
+            PseudoClass::OutOfRange => self.range_state(id) == Some(false),
             PseudoClass::ReadOnly => node.tag_name().is_some() && !self.is_read_write(id),
         }
     }

@@ -229,7 +229,7 @@ row comes from.
 | C11-HAS | `:has()` with invalidation | done |
 | C11-NTH | `:nth-child()` / `:nth-last-child()` (+ `of S`), `:nth-of-type()` / `:nth-last-of-type()`, `:first-of-type` / `:last-of-type` / `:only-of-type` | done |
 | C11-SCOPE | `:scope` (query APIs and `@scope`) | done |
-| C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | partial — `:read-only` / `:read-write`, `:indeterminate` done; `:default`, `:in-range` / `:out-of-range`, `:user-valid` / `:user-invalid` remain |
+| C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | partial — `:read-only` / `:read-write`, `:indeterminate`, `:default`, `:in-range` / `:out-of-range` done; `:user-valid` / `:user-invalid` remain |
 | C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | |
 | C11-LINK-LANG | `:link` / `:any-link`, `:lang()` | done (with `:dir()`, deferred here by C5-WRITING, and `:visited` never matching) |
 | C11-COLUMN | Column combinator `\|\|` | moved to Phase 13 as C13-COLUMN: it selects the cells a column spans, which needs C13-TFC's real table columns |
@@ -7082,3 +7082,27 @@ row comes from.
   `checking_a_radio_restyles_its_whole_group` (its `:has()` anchor) and the custom-validity test; no radio
   tracking → the group test. Changed expectations: the UA rule count (one rule); the marks' one-walk test
   reads the validity bit. No snapshot changed.
+- 2026-10-14 — C11-FORM-STATES, part 3 of 4: `:default` (Selectors 4 §14.4.2) and `:in-range` / `:out-of-range`
+  (§14.3.3–§14.3.4), with HTML §4.16.3's definitions. The defaults (`defaultChecked`, `defaultSelected`) and
+  the range states live in rdom-tui, so rdom-core asks through a new hook in the validity hook's pattern:
+  `ControlState` (`#[non_exhaustive]`: `DefaultChecked`, `DefaultSelected`, `RangeLimited`, `OutOfRange`),
+  `ControlStateHook`, `Dom::set_control_state_hook`, `Dom::control_state` (without a hook the defaults are
+  the content attributes and nothing has range limitations); `validation::install` installs it with the
+  validity hook (`form_state::control_state`). The default button is the form's first submit button in tree
+  order (HTML §4.10.21.2), found once per form per pass (`SelectorCaches::default_buttons`,
+  `CacheWork::default_button_walks`). Range limitations: `min` / `max` on `number` and the date-like
+  states, and every `range` input. The date-like states parsed nothing before: `validation/dates.rs`
+  implements HTML §2.3.5's date, month, week, time and local date-time microsyntaxes (an unparsable value is
+  no value), and those states now suffer `rangeUnderflow` / `rangeOverflow` — a `time` whose `max` precedes
+  its `min` is a reversed range across midnight (HTML §4.10.5.3.7) — reading the `value` attribute, as they
+  are not text fields (DIVERGENCES §2 entry rewritten; `step` still unchecked for them). Invalidation:
+  value / `min` / `max` are attributes; `:default` changes far from the element (an earlier submit button
+  inserted elsewhere in the form, `set_default_checked`) — `FormStateMarks` gained a `:default` bit,
+  computed when a sheet uses `:default` with one pass's caches, and the default setters note a state write.
+  Red: the core tests failed to compile (`ControlState`, `set_control_state_hook`, `default_button_walks`);
+  the App tests on "invalid selector `:in-range`" / "`:default`" and the date validity on
+  `range_underflow == false`; green after (test fixes on the way: buttons and options have UA colors, so
+  "unstyled" became "not the rule's color"; the range test runs in an App, which seeds number fields from
+  `value`). Mutations (each alone, restored, touched): no `:default` bit → both `:default` App tests; no
+  reversed time range → the range test ("inside a reversed time range"). No snapshot or existing
+  expectation changed.

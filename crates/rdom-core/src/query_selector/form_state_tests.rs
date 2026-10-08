@@ -163,3 +163,176 @@ fn indeterminate_radio_groups_are_walked_once_per_pass() {
     }
     assert_eq!(caches.work().radio_group_walks, 1);
 }
+
+// ─── :default ───────────────────────────────────────────────────────
+
+/// Selectors 4 §14.4.2, HTML §4.16.3: `:default` matches a form's
+/// default button — its first submit button in tree order (HTML
+/// §4.10.21.2), `form=` owners included — a checkbox or radio whose
+/// `checked` attribute was authored (`defaultChecked`) and an `<option>`
+/// with `selected` (`defaultSelected`). Without a backend those defaults
+/// are the attributes.
+#[test]
+fn default_matches_the_default_button_and_default_checked_controls() {
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let early = el(&mut dom, root, "input", &[("type", "image"), ("form", "f")]);
+    let form = el(&mut dom, root, "form", &[("id", "f")]);
+    let plain = el(&mut dom, form, "button", &[("type", "button")]);
+    let first = el(&mut dom, form, "button", &[]);
+    let second = el(&mut dom, form, "input", &[("type", "submit")]);
+    let lone = el(&mut dom, root, "button", &[]);
+    let other = el(&mut dom, root, "form", &[]);
+    let off = el(&mut dom, other, "button", &[("disabled", "")]);
+    let on = el(
+        &mut dom,
+        form,
+        "input",
+        &[("type", "checkbox"), ("checked", "")],
+    );
+    let radio = el(
+        &mut dom,
+        form,
+        "input",
+        &[("type", "radio"), ("checked", "")],
+    );
+    let text = el(&mut dom, form, "input", &[("checked", "")]);
+    let select = el(&mut dom, form, "select", &[]);
+    let picked = el(&mut dom, select, "option", &[("selected", "")]);
+    let opt = el(&mut dom, select, "option", &[]);
+    for (id, want) in [
+        (early, true),
+        (plain, false),
+        (first, false),
+        (second, false),
+        (lone, false),
+        (off, true),
+        (on, true),
+        (radio, true),
+        (text, false),
+        (select, false),
+        (picked, true),
+        (opt, false),
+        (form, false),
+    ] {
+        assert_eq!(is(&dom, id, ":default"), want, "{id:?}");
+    }
+    dom.remove_child(root, early).unwrap();
+    assert!(
+        is(&dom, first, ":default"),
+        "the next submit button takes over"
+    );
+}
+
+/// With a control-state hook, `defaultChecked` / `defaultSelected` come
+/// from the backend, which keeps them apart from the live attributes.
+#[test]
+fn default_asks_the_backend_for_default_checkedness() {
+    use crate::ControlState;
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let flipped = el(
+        &mut dom,
+        root,
+        "input",
+        &[("type", "checkbox"), ("checked", "")],
+    );
+    let authored = el(
+        &mut dom,
+        root,
+        "input",
+        &[("type", "checkbox"), ("data-default", "")],
+    );
+    let select = el(&mut dom, root, "select", &[]);
+    let picked = el(&mut dom, select, "option", &[("selected", "")]);
+    let initial = el(&mut dom, select, "option", &[("data-default", "")]);
+    dom.set_control_state_hook(Some(|dom, id, state| match state {
+        ControlState::DefaultChecked | ControlState::DefaultSelected => {
+            dom.has_attribute(id, "data-default")
+        }
+        _ => false,
+    }));
+    assert!(!is(&dom, flipped, ":default"));
+    assert!(is(&dom, authored, ":default"));
+    assert!(!is(&dom, picked, ":default"));
+    assert!(is(&dom, initial, ":default"));
+}
+
+/// A pass finds each form's default button once (`SelectorCaches`):
+/// matching `:default` on every button of a long form costs one walk of
+/// the form's controls.
+#[test]
+fn default_buttons_are_found_once_per_form_per_pass() {
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let form = el(&mut dom, root, "form", &[]);
+    let buttons: Vec<NodeId> = (0..100)
+        .map(|_| el(&mut dom, form, "button", &[]))
+        .collect();
+    let list = crate::selectors::parse(":default").unwrap();
+    let mut caches = crate::SelectorCaches::new();
+    let hits = buttons
+        .iter()
+        .filter(|&&b| dom.matches_list_with(b, &list, None, &mut caches))
+        .count();
+    assert_eq!(hits, 1);
+    assert_eq!(caches.work().default_button_walks, 1);
+}
+
+// ─── :in-range / :out-of-range ──────────────────────────────────────
+
+/// Selectors 4 §14.3.3–§14.3.4, HTML §4.16.3: `:in-range` matches a
+/// candidate for constraint validation that has range limitations and
+/// suffers from neither an underflow nor an overflow, `:out-of-range`
+/// one that has them and suffers from either. Both questions are the
+/// backend's (values and their parsing live there); without a hook
+/// nothing has range limitations.
+#[test]
+fn in_range_asks_the_backend_about_limits_and_the_value() {
+    use crate::ControlState;
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let inside = el(&mut dom, root, "input", &[("type", "number"), ("min", "1")]);
+    let outside = el(
+        &mut dom,
+        root,
+        "input",
+        &[("type", "number"), ("min", "1"), ("data-out", "")],
+    );
+    let unlimited = el(&mut dom, root, "input", &[("type", "number")]);
+    let barred = el(
+        &mut dom,
+        root,
+        "input",
+        &[
+            ("type", "number"),
+            ("min", "1"),
+            ("data-out", ""),
+            ("disabled", ""),
+        ],
+    );
+    let div = el(&mut dom, root, "div", &[("min", "1")]);
+    for id in [inside, outside, unlimited, barred, div] {
+        assert!(!is(&dom, id, ":in-range"), "no hook: {id:?}");
+        assert!(!is(&dom, id, ":out-of-range"), "no hook: {id:?}");
+    }
+    dom.set_control_state_hook(Some(|dom, id, state| match state {
+        ControlState::RangeLimited => dom.has_attribute(id, "min"),
+        ControlState::OutOfRange => dom.has_attribute(id, "data-out"),
+        _ => false,
+    }));
+    for (id, range) in [
+        (inside, Some(true)),
+        (outside, Some(false)),
+        (unlimited, None),
+        (barred, None),
+        (div, None),
+    ] {
+        assert_eq!(is(&dom, id, ":in-range"), range == Some(true), "{id:?}");
+        assert_eq!(
+            is(&dom, id, ":out-of-range"),
+            range == Some(false),
+            "{id:?}"
+        );
+    }
+}

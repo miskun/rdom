@@ -85,6 +85,9 @@ impl Parser<'_> {
             "optional" => Ok(SimpleSelector::Pseudo(PseudoClass::Optional)),
             "read-write" => Ok(SimpleSelector::Pseudo(PseudoClass::ReadWrite)),
             "read-only" => Ok(SimpleSelector::Pseudo(PseudoClass::ReadOnly)),
+            "default" => Ok(SimpleSelector::Pseudo(PseudoClass::Default)),
+            "in-range" => Ok(SimpleSelector::Pseudo(PseudoClass::InRange)),
+            "out-of-range" => Ok(SimpleSelector::Pseudo(PseudoClass::OutOfRange)),
             other => Err(self.err(format!("unsupported pseudo-class `:{other}`"))),
         }
     }

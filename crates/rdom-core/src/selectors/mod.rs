@@ -407,6 +407,17 @@ pub enum PseudoClass {
     ReadWrite,
     /// `:read-only`: every element that is not `:read-write`.
     ReadOnly,
+    /// `:default` (Selectors 4 §14.4.2, HTML §4.16.3): a form's default
+    /// button, a checkbox or radio that is checked by default, an
+    /// `<option>` selected by default
+    /// ([`Dom::is_default`](crate::Dom::is_default)).
+    Default,
+    /// `:in-range` (Selectors 4 §14.3.3): a candidate for constraint
+    /// validation with range limitations and a value within them
+    /// ([`Dom::range_state`](crate::Dom::range_state)).
+    InRange,
+    /// `:out-of-range` (Selectors 4 §14.3.4): one whose value is not.
+    OutOfRange,
     /// `:scope` (Selectors 4 §14.3) — the scoping root: an `@scope`
     /// rule's root (CSS Cascade 6 §2.5) when matched through
     /// [`Dom::matches_list_in_scope`](crate::Dom::matches_list_in_scope),

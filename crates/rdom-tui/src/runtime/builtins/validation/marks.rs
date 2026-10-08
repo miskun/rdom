@@ -1,5 +1,6 @@
 //! Keeps the form-state pseudo-classes current in the App's incremental
-//! cascade: `:valid` / `:invalid`, and a radio group's `:indeterminate`.
+//! cascade: `:valid` / `:invalid`, a radio group's `:indeterminate`, and
+//! `:default`.
 //!
 //! The selector engine asks the validity hook at match time, so a query
 //! is always current. The cascade, though, only re-matches the subtrees
@@ -8,7 +9,9 @@
 //! (character data), `set_custom_validity` (no mutation at all), checking
 //! one radio of a group (its siblings' `:indeterminate`, and their
 //! `:invalid` when the group is required), any control of a form or
-//! fieldset (the ancestor's `:invalid`). Before each frame's cascade,
+//! fieldset (the ancestor's `:invalid`), a submit button inserted before
+//! a form's default button (the old one's `:default`), a new
+//! `defaultChecked` (no mutation). Before each frame's cascade,
 //! [`FormStateMarks::flush`] recomputes these states for every element
 //! that has one and marks the ones that flipped since the last frame —
 //! through the tracker's state path, so a `:has()` anchor reading them
@@ -16,7 +19,8 @@
 //! validity when a sheet uses `:valid` / `:invalid`, which the UA sheet
 //! does not; radio `:indeterminate` when an author sheet uses
 //! `:indeterminate` (the UA's own rule is for checkboxes, whose flag is
-//! an attribute — pinned by `the_uas_indeterminate_rules_are_checkbox_only`).
+//! an attribute — pinned by `the_uas_indeterminate_rules_are_checkbox_only`);
+//! `:default` when a sheet uses it.
 //!
 //! Cost (`P7G-IDLE-WALKS-1`): the App flushes only after code that can
 //! change a state ran (an event, a timer, an injected closure,
@@ -47,17 +51,20 @@ const HAS_VALIDITY: States = 1;
 const VALID: States = 1 << 1;
 /// A radio whose group has no checked member (`:indeterminate`).
 const INDETERMINATE: States = 1 << 2;
+/// `:default` matches it.
+const DEFAULT: States = 1 << 3;
 
 /// Which tracked states the stylesheets read.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct Reads {
     validity: bool,
     indeterminate: bool,
+    default: bool,
 }
 
 impl Reads {
     fn any(self) -> bool {
-        self.validity || self.indeterminate
+        self.validity || self.indeterminate || self.default
     }
 }
 
@@ -127,6 +134,7 @@ fn reads_of<'s>(sheets: impl IntoIterator<Item = &'s Stylesheet>) -> Reads {
     for sheet in sheets {
         reads.validity |= uses_validity(sheet);
         reads.indeterminate |= uses_radio_indeterminate(sheet);
+        reads.default |= uses_pseudo(sheet, PseudoClass::Default);
     }
     reads
 }
@@ -142,6 +150,10 @@ fn current(
     out.clear();
     groups.clear();
     let mut invalid = Vec::new();
+    // One pass's caches: each form's default button is found once.
+    let mut caches = rdom_core::SelectorCaches::new();
+    let default_selector =
+        rdom_core::selectors::parse(":default").expect("`:default` is a valid selector");
     let mut stack = vec![dom.root()];
     while let Some(id) = stack.pop() {
         let node = dom.node(id);
@@ -169,6 +181,12 @@ fn current(
             && groups.unchecked(dom, id)
         {
             states |= INDETERMINATE;
+        }
+        if reads.default
+            && matches!(node.tag_name(), Some("button" | "input" | "option"))
+            && dom.matches_list_with(id, &default_selector, None, &mut caches)
+        {
+            states |= DEFAULT;
         }
         if states != 0 {
             out.insert(id, states);
@@ -206,6 +224,12 @@ pub(super) fn uses_validity(sheet: &Stylesheet) -> bool {
             )
         })
     })
+}
+
+/// Whether any selector `sheet` matches with mentions `pseudo`.
+fn uses_pseudo(sheet: &Stylesheet, pseudo: PseudoClass) -> bool {
+    use crate::style::selector_walk::{any_simple, sheet_selectors};
+    sheet_selectors(sheet).any(|c| any_simple(c, &|s| *s == SimpleSelector::Pseudo(pseudo)))
 }
 
 /// Whether an author selector of `sheet` mentions `:indeterminate`,
@@ -299,7 +323,7 @@ mod tests {
         let mut out = HashMap::new();
         let reads = Reads {
             validity: true,
-            indeterminate: false,
+            ..Reads::default()
         };
         current(&dom, reads, &mut out, &mut RadioGroups::default());
         let mut all = Vec::new();

@@ -26,7 +26,10 @@
 //!     exempt);
 //!   - `range_underflow` / `range_overflow` / `step_mismatch` — `min` /
 //!     `max` / `step` on `type=number` (a range's value is always in
-//!     range and on a step, so it never suffers them);
+//!     range and on a step, so it never suffers them); `min` / `max` on
+//!     the date-like states (`date`, `month`, `week`, `time`,
+//!     `datetime-local`, parsed by HTML §2.3.5's microsyntaxes, module
+//!     `dates`; a time's reversed range wraps midnight) — not `step`;
 //!   - `bad_input` — `type=number` text that is not a valid
 //!     floating-point number;
 //!   - `custom_error` — [`set_custom_validity`] with a non-empty message.
@@ -45,6 +48,7 @@
 //!   submitter's `formnovalidate`): any invalid control blocks the
 //!   `submit` event, whether or not its `invalid` was canceled.
 
+mod dates;
 mod marks;
 mod messages;
 mod pattern;
@@ -86,14 +90,21 @@ impl ValidityState {
     }
 }
 
-/// Hook the validity states into the selector engine: `:valid` /
-/// `:invalid` then match by [`validity`] (`Dom::set_validity_hook`).
-/// `App` construction calls it; a bare `TuiDom` that matches those
-/// pseudo-classes calls it once itself. The App also re-cascades the
-/// elements whose validity changed before each frame
-/// (`FormStateMarks`).
+/// Hook the form-control states into the selector engine: `:valid` /
+/// `:invalid` then match by [`validity`] (`Dom::set_validity_hook`), and
+/// `:default`, `:in-range` / `:out-of-range` by the controls' defaults
+/// and range states (`Dom::set_control_state_hook`). `App` construction
+/// calls it; a bare `TuiDom` that matches those pseudo-classes calls it
+/// once itself. The App also re-cascades the elements whose state
+/// changed before each frame (`FormStateMarks`).
 pub fn install(dom: &mut TuiDom) {
     dom.set_validity_hook(Some(satisfies));
+    dom.set_control_state_hook(Some(crate::runtime::builtins::form_state::control_state));
+}
+
+/// HTML §4.16.3 "has range limitations" (`:in-range` / `:out-of-range`).
+pub(crate) fn range_limited(dom: &TuiDom, id: NodeId) -> bool {
+    states::range_limited(dom, id)
 }
 
 /// The [`rdom_core::ValidityHook`] rdom-tui installs.

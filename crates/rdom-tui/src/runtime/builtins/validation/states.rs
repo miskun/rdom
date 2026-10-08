@@ -5,6 +5,7 @@
 use rdom_core::{InputTypeState, NodeId};
 
 use super::ValidityState;
+use super::dates;
 use super::syntax::{is_valid_absolute_url, is_valid_email, parse_float, parse_non_negative};
 use crate::TuiDom;
 use crate::runtime::builtins::{input, select};
@@ -108,6 +109,17 @@ fn input_states(dom: &TuiDom, id: NodeId, s: &mut ValidityState, groups: Option<
         // range, color, the buttons), nor does any other value state — a
         // range is sanitized into range and onto a step.
         _ if !dom.required_applies(id) => {}
+        // HTML §4.10.5.1.7–§4.10.5.1.11: the value is the `value`
+        // attribute rdom keeps live (these states are not edited as
+        // text), sanitized to `""` unless it parses.
+        _ if dates::is_date_like(state) => {
+            let value = dom.node(id).get_attribute("value").unwrap_or("");
+            let parsed = dates::parse(state, value);
+            s.value_missing = required(dom, id) && parsed.is_none();
+            if let Some(v) = parsed {
+                date_states(dom, id, state, v, s);
+            }
+        }
         _ => {
             let value = input::value(dom, id);
             s.value_missing = required(dom, id) && value.is_empty();
@@ -203,6 +215,54 @@ fn length_states(dom: &TuiDom, id: NodeId, value: &str, s: &mut ValidityState) {
     }
     if let Some(min) = limit("minlength") {
         s.too_short = len > 0 && len < min;
+    }
+}
+
+/// HTML §4.10.5.3.7: a date-like value before `min` suffers from an
+/// underflow, after `max` from an overflow — unless `min` / `max` form a
+/// *reversed range* (a time whose `max` is before its `min`, a period
+/// across midnight), where a value after `max` and before `min` suffers
+/// from both. An unparsable `min` / `max` is none.
+fn date_states(dom: &TuiDom, id: NodeId, state: InputTypeState, v: f64, s: &mut ValidityState) {
+    let limit = |name| {
+        dom.node(id)
+            .get_attribute(name)
+            .and_then(|a| dates::parse(state, a))
+    };
+    let (min, max) = (limit("min"), limit("max"));
+    match (min, max) {
+        (Some(lo), Some(hi)) if state == InputTypeState::Time && hi < lo => {
+            let outside = v > hi && v < lo;
+            s.range_underflow = outside;
+            s.range_overflow = outside;
+        }
+        _ => {
+            s.range_underflow = min.is_some_and(|lo| v < lo);
+            s.range_overflow = max.is_some_and(|hi| v > hi);
+        }
+    }
+}
+
+/// HTML §4.16.3 "has range limitations": a number or date-like input
+/// with a `min` or `max` its state parses, and every range input (it has
+/// a default minimum and maximum).
+pub(super) fn range_limited(dom: &TuiDom, id: NodeId) -> bool {
+    let Some(state) = dom.input_type_state(id) else {
+        return false;
+    };
+    let parses = |name| {
+        dom.node(id)
+            .get_attribute(name)
+            .is_some_and(|a| match state {
+                InputTypeState::Number => parse_float(a).is_some(),
+                _ => dates::parse(state, a).is_some(),
+            })
+    };
+    match state {
+        InputTypeState::Range => true,
+        InputTypeState::Number => parses("min") || parses("max"),
+        _ if dates::is_date_like(state) => parses("min") || parses("max"),
+        _ => false,
     }
 }
 
