@@ -204,3 +204,88 @@ fn field_sizing_content_sizes_a_field_to_its_value() {
     assert_eq!(size_of(&dom, c), (12, 1), "an author width wins");
     assert_eq!(size_of(&dom, t), (6, 2), "textarea: widest line, two rows");
 }
+
+// ── C12-CONTROLS: resize (§4.2) ───────────────────────────────────
+
+/// Press at `from`, drag to `to`, release — through the router — then
+/// cascade, lay out and paint again; the target's border box.
+fn drag_corner(css: &str, tag: &str, from: (u16, u16), to: (u16, u16)) -> (u16, u16) {
+    use crossterm::event::{Event, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use rdom_tui::runtime::router::Router;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let id = dom.create_element(tag);
+    dom.set_attribute(id, "class", "b").unwrap();
+    dom.append_child(root, id).unwrap();
+    paint(&mut dom, css, 20, 8);
+    let mut router = Router::new();
+    let at = |kind, (column, row): (u16, u16)| {
+        Event::Mouse(MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        })
+    };
+    router.route(&mut dom, at(MouseEventKind::Down(MouseButton::Left), from));
+    router.route(&mut dom, at(MouseEventKind::Drag(MouseButton::Left), to));
+    router.route(&mut dom, at(MouseEventKind::Up(MouseButton::Left), to));
+    paint(&mut dom, css, 20, 8);
+    size_of(&dom, id)
+}
+
+/// §4.2: dragging the bottom-right corner of a scroll container with
+/// `resize` resizes it — both axes, or the one `horizontal` / `vertical`
+/// (`inline` / `block` in `horizontal-tb`) names; a press elsewhere, `none`,
+/// or a box that does not clip (`overflow: visible`) resizes nothing.
+#[test]
+fn dragging_the_corner_resizes_the_box() {
+    let box_css = |resize: &str| {
+        format!(".b {{ display: block; width: 6; height: 2; overflow: auto; resize: {resize} }}")
+    };
+    assert_eq!(drag_corner(&box_css("both"), "div", (5, 1), (8, 3)), (9, 4));
+    assert_eq!(
+        drag_corner(&box_css("horizontal"), "div", (5, 1), (8, 3)),
+        (9, 2)
+    );
+    assert_eq!(
+        drag_corner(&box_css("vertical"), "div", (5, 1), (8, 3)),
+        (6, 4)
+    );
+    assert_eq!(
+        drag_corner(&box_css("inline"), "div", (5, 1), (8, 3)),
+        (9, 2)
+    );
+    assert_eq!(
+        drag_corner(&box_css("block"), "div", (5, 1), (8, 3)),
+        (6, 4)
+    );
+    assert_eq!(drag_corner(&box_css("none"), "div", (5, 1), (8, 3)), (6, 2));
+    assert_eq!(
+        drag_corner(&box_css("both"), "div", (2, 0), (8, 3)),
+        (6, 2),
+        "not the corner"
+    );
+    assert_eq!(
+        drag_corner(
+            ".b { display: block; width: 6; height: 2; resize: both }",
+            "div",
+            (5, 1),
+            (8, 3)
+        ),
+        (6, 2),
+        "overflow: visible"
+    );
+    // Shrinking stops at one cell of content.
+    assert_eq!(drag_corner(&box_css("both"), "div", (5, 1), (0, 0)), (1, 1));
+}
+
+/// HTML's rendering section gives `<textarea>` `resize: both` (as the
+/// engines' UA sheets do): its corner resizes it.
+#[test]
+fn a_textarea_is_resizable_by_default() {
+    // The UA textarea, 8 wide: 10 × 4 with its padding; no author
+    // `resize`.
+    let (w, h) = drag_corner(".b { width: 8 }", "textarea", (9, 3), (5, 5));
+    assert_eq!((w, h), (6, 6));
+}

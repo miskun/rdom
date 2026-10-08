@@ -280,3 +280,26 @@ fn field_sizing_is_content_or_fixed() {
     }
     assert!(!inherits("field-sizing"));
 }
+
+/// §4.2: `resize: none | both | horizontal | vertical | block | inline`,
+/// not inherited; the flow-relative keywords map onto the physical axes of
+/// a horizontal writing mode.
+#[test]
+fn resize_keywords_and_their_axes() {
+    use crate::layout::Resize;
+    let mut style = TuiStyle::new();
+    for (name, kw) in Resize::KEYWORDS {
+        set("resize", name, &mut style).unwrap();
+        assert_eq!(spec(&style.ui.resize), Some(*kw), "{name}");
+        assert_eq!(serialize("resize", &style).as_deref(), Some(*name));
+    }
+    assert_eq!(Resize::Inline.axes(), Resize::Horizontal.axes());
+    assert_eq!(Resize::Block.axes(), Resize::Vertical.axes());
+    assert_eq!(Resize::Both.axes(), (true, true));
+    assert_eq!(Resize::None.axes(), (false, false));
+    assert_eq!(
+        set("resize", "diagonal", &mut TuiStyle::new()),
+        Err(DispatchError::InvalidValue)
+    );
+    assert!(!inherits("resize"));
+}

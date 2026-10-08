@@ -44,6 +44,7 @@ pub(crate) mod implicit_events;
 mod inert_tests;
 pub(crate) mod input;
 pub mod pointer_shape;
+pub(crate) mod resize;
 pub mod router;
 pub(crate) mod scroll_snap;
 pub mod scrollbar;

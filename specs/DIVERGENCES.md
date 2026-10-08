@@ -216,6 +216,7 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
 - **`accent-color` tints the glyphs a control draws** (C12-CONTROLS; CSS UI 4 §6.3). A browser fills a checked checkbox or radio, a range track and a progress value with the accent; rdom's controls are glyphs, so the accent is their color: a checked (or indeterminate) checkbox's or a checked radio's whole mark (`[x] `, `(•) ` — its `::before`, over any `color` an author rule gave it), the range slider's track and thumb, the progress bar. An unchecked toggle keeps the text color, and `<meter>` its zone colors, as in browsers.
 - **`appearance: none` strips rdom's chrome, which is CSS and paint** (C12-CONTROLS; CSS UI 4 §7.1). A browser stops drawing a native widget; rdom's controls are drawn by the UA sheet and the built-ins' paint, so `none` drops, for the toggles, the buttons and a drop-down `<select>`, the UA origin's `::before` / `::after` rules (the marks, brackets and `▾` — an author `::before` still applies), and the painted bar of `<progress>` / `<meter>` and track of a range slider. A text field's look is ordinary UA CSS (its `Field` background, padding) and stays, as browsers keep the UA's declarations. `base` (CSS Forms' base appearance) and the compat keywords draw as `auto`.
 - **`field-sizing: content` replaces the UA's fixed field size** (C12-CONTROLS; CSS UI 4 §7.2). A browser's text field has an intrinsic size from `size` / `cols` / `rows` that `content` swaps for the content's; rdom's UA gives its fields fixed sizes (20 cells, a textarea 20 × 4), so `content` sets a text `<input>`'s or `<textarea>`'s `width` to `max-content` — and a textarea's `height` to `auto`, its rows — wherever no author or inline declaration sets them (an author size still wins, as it does over the intrinsic size in a browser). An empty field shrinks to its padding (its placeholder counts); `<select>`, whose size is its options', is not affected.
+- **A resizable box is resized from its corner cell, with no grip drawn** (C12-CONTROLS; CSS UI 4 §4.2). A press on the bottom-right cell of a scroll container whose `resize` is not `none` — over a scrollbar's end too, where browsers put the resizer — drags its border box with the pointer in whole cells, writing `width` / `height` (on the axes `resize` allows; `block` / `inline` as `vertical` / `horizontal`, rdom laying every box out horizontally) into its `style` attribute, its content box never below one cell; browsers also floor it at the size it had. The UA sheet makes `textarea` `resize: both`, as the engines' do; rdom draws no `◢` grip, so the affordance is invisible.
 - **`caret-text-color` is an rdom extension**, not a CSS Working Group property. Browsers have no glyph-color knob for the caret (the underlying cell is the user's font). Terminals paint full cells, so rdom exposes the glyph color separately to let authors tune contrast against `caret-color`.
 - **`contenteditable` editing is always plain text.** HTML §6.8.1's true state edits rich content (Enter splits a block, paste keeps markup); rdom's editing pipeline only inserts and deletes text, so Enter inserts `\n` and paste inserts the clipboard's text in both the true and the `plaintext-only` state — the two states behave the same. The attribute itself follows HTML: keywords are ASCII case-insensitive, an invalid value inherits, and a `contenteditable="false"` island inside an editing host is not editable.
 - **`user-select`'s "editable element" is an editing host or a text control.** CSS UI 4 §6.1 gives `auto` the used value `contain` on an editable element; rdom applies that to `<textarea>`, text-family `<input>`s and `contenteditable` editing hosts, not to every element inside an editing host (which HTML also calls editable), so a drag inside a `contenteditable` article spans its paragraphs instead of being trapped in the first. `::before` / `::after` are never selectable (their used value is `none` per the spec) because generated content has no DOM position a selection could reach.
@@ -322,7 +323,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Logical properties and writing modes
 
-- Logical keywords (`resize: block / inline`) — with C12-CONTROLS
+(none)
 
 ### Display and visibility
 
@@ -361,7 +362,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### User interface
 
-- `resize` — C12-CONTROLS
+(none)
 
 ### Tables
 

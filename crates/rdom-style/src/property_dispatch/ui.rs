@@ -12,7 +12,7 @@ use crate::parse::token::Token;
 use crate::parse::values::{
     parse_accent_color, parse_appearance, parse_caret, parse_caret_animation, parse_caret_shape,
     parse_cursor, parse_field_sizing, parse_line_width, parse_outline, parse_outline_color,
-    parse_outline_offset, parse_outline_style,
+    parse_outline_offset, parse_outline_style, parse_resize,
 };
 use crate::{TuiStyle, Value};
 
@@ -64,6 +64,9 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "field-sizing" => parse_field_sizing(value).map(|f| {
             ui.field_sizing = Some(Value::Specified(f));
         }),
+        "resize" => parse_resize(value).map(|r| {
+            ui.resize = Some(Value::Specified(r));
+        }),
         _ => return None,
     })
 }
@@ -101,6 +104,11 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .as_ref()
             .and_then(specified)
             .map(|a| a.keyword().to_string()),
+        "resize" => ui
+            .resize
+            .as_ref()
+            .and_then(specified)
+            .map(|r| r.keyword().to_string()),
         "field-sizing" => ui
             .field_sizing
             .as_ref()

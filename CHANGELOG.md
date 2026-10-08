@@ -87,6 +87,7 @@ Each Breaking bullet below ends with its migration, and the [API table](#api-cha
 72. **`:first-child` / `:last-child` / `:only-child` match an element without a parent** (Selectors 4 §13.3): a detached or root element matches them, as `:nth-child(1)` does. (C11-NTH)
 73. **A newly rendered element does not transition from its hidden values** (CSS Transitions 1 §3): coming out of `display: none` (itself or under an ancestor), it has no before-change style, so its values change at once — it transitioned from the values it had while hidden. Give it a `@starting-style` to fade it in. (C12-STARTING)
 74. **The pointer changes shape over the page** (CSS UI 4 §4.1): in kitty, foot, WezTerm and Ghostty an `App` now sets the terminal pointer — the text pointer over text, `pointer` over links, a sheet's `cursor` elsewhere — where it was left alone. `App::with_pointer_shapes(PointerShapes::None)` keeps the terminal's own. (C12-CURSOR)
+75. **A textarea's corner resizes it** (CSS UI 4 §4.2, HTML's UA `textarea { resize: both }`): a press on a `<textarea>`'s bottom-right cell now starts a resize drag (writing its `width` / `height` into its `style`) instead of reaching the textarea or its scrollbar there. Set `textarea { resize: none }` to keep the old press. (C12-CONTROLS)
 
 **Compile breaks** — what a 0.5 consumer must change, by kind (the API table has each item):
 
@@ -367,6 +368,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`resize`** (CSS UI 4 §4.2): `none | both | horizontal | vertical | block | inline`, not inherited, discrete (`Resize`, `axes()`); the UA sheet's `textarea` takes `both`. (C12-CONTROLS)
 - **`field-sizing`** (CSS UI 4 §7.2): `content | fixed`, not inherited, discrete (`FieldSizing`). (C12-CONTROLS)
 - **`appearance`** (CSS UI 4 §7.1) and its legacy name `-webkit-appearance`: `none | auto | base` and the compat keywords, not inherited, discrete (`Appearance`). (C12-CONTROLS)
 - **`accent-color`** (CSS UI 4 §6.3): `auto | <color>`, inherited, interpolated between colors (`AccentColor` in `ComputedStyle::ui`). (C12-CONTROLS)
@@ -582,6 +584,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **`resize`: dragging a box's corner resizes it** (CSS UI 4 §4.2): a press on the bottom-right cell of a scroll container with `resize` drags its size on the allowed axes into its `style` attribute; `<textarea>` is `resize: both` by default. (C12-CONTROLS)
 - **`field-sizing: content`** (CSS UI 4 §7.2): a text `<input>` or `<textarea>` sizes to its value — `max-content` wide, a textarea as tall as its rows — instead of the UA's fixed field, unless the page sets its `width` / `height`. (C12-CONTROLS)
 - **`appearance: none`** (CSS UI 4 §7.1): a checkbox, radio, button or drop-down `<select>` drops the UA's `::before` / `::after` chrome (`[x] `, `[ … ]`, `▾`) so author CSS draws it, and `<progress>`, `<meter>` and a range slider draw no bar or track. (C12-CONTROLS)
 - **`accent-color` tints the controls** (CSS UI 4 §6.3): a checked checkbox's or radio's mark, the range slider and the progress bar draw in the element's accent; `auto` keeps the UA colors and `<meter>` its zone colors. (C12-CONTROLS)

@@ -186,6 +186,7 @@ define_fields! {
     AccentColor => ui.accent_color : ACCENT_COLOR,
     Appearance => ui.appearance : APPEARANCE,
     FormFieldSizing => ui.field_sizing : FIELD_SIZING,
+    Resize => ui.resize : RESIZE,
     OverscrollBehaviorX => overscroll_behavior_x : OVERSCROLL_BEHAVIOR_X,
     OverscrollBehaviorY => overscroll_behavior_y : OVERSCROLL_BEHAVIOR_Y,
     ScrollPaddingTop => scroll_padding.top : SCROLL_PADDING_TOP,

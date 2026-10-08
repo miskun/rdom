@@ -178,6 +178,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("accent-color", "red"),
     ("appearance", "none"),
     ("field-sizing", "content"),
+    ("resize", "both"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly

@@ -68,6 +68,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("appearance", "none"),
         ("-webkit-appearance", "menulist-button"),
         ("field-sizing", "content"),
+        ("resize", "vertical"),
         ("overflow", "scroll"),
         ("overflow-x", "auto"),
         ("overflow-y", "hidden"),

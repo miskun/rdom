@@ -7,7 +7,7 @@ use super::keyword::parse_keyword;
 use super::numeric::{components, split_commas};
 use crate::layout::{
     AccentColor, Appearance, CaretAnimation, CaretColor, CaretShape, Cursor, CursorImage,
-    CursorKeyword, FieldSizing,
+    CursorKeyword, FieldSizing, Resize,
 };
 use crate::parse::token::Token;
 
@@ -129,4 +129,9 @@ pub fn parse_field_sizing(value: &[Token]) -> Option<FieldSizing> {
             ("fixed", FieldSizing::Fixed),
         ],
     )
+}
+
+/// `resize` (§4.2).
+pub fn parse_resize(value: &[Token]) -> Option<Resize> {
+    parse_keyword(value, Resize::KEYWORDS)
 }

@@ -84,7 +84,10 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .width(Size::Fixed(20))
                 .height(Size::Fixed(4))
                 .padding(Padding::new(0, 1, 0, 1))
-                .bg(FIELD_BG),
+                .bg(FIELD_BG)
+                // HTML §15.5.16 (as the engines' UA sheets): a textarea
+                // is resizable from its corner.
+                .resize(crate::layout::Resize::Both),
         ),
         // ── Buttons ──
         // `<button>` and `<input type=button|submit|reset>` use the

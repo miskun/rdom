@@ -121,6 +121,7 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
     // capture it took; an author's capture is left alone
     // (P6G-PRESS-RESET-2).
     crate::runtime::scrollbar::cancel_drag(router, dom);
+    crate::runtime::resize::cancel(router, dom);
 
     let hit = dom.hit_test(mouse.column, mouse.row);
     router.down_target = hit;
@@ -158,6 +159,13 @@ fn handle_down(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         // scrollbar doesn't focus the container or start a text
         // selection).
         let path = dom.hit_test_path(mouse.column, mouse.row);
+        // A resizable box's corner (CSS UI 4 §4.2) — where a browser
+        // draws its resizer, over the scrollbar's end.
+        if crate::runtime::resize::begin(router, dom, &path, mouse.column, mouse.row) {
+            dom.set_active(None);
+            pseudo_pointer::set_active(dom, None);
+            return RouteOutcome::redraw(true);
+        }
         if let Some(sb_hit) = crate::runtime::scrollbar::hit(dom, &path, mouse.column, mouse.row)
             && crate::runtime::scrollbar::handle_mousedown(router, dom, sb_hit)
         {
@@ -320,6 +328,7 @@ fn handle_up(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> RouteO
     // at the click position, matching browser behavior.
     crate::runtime::selection::drag::end(router);
     crate::runtime::scrollbar::end_drag(router, dom);
+    crate::runtime::resize::end(router);
     crate::rdom_trace!(
         "handle_up: end of fn — capture={:?} hovered={:?}",
         dom.pointer_capture(),
@@ -380,6 +389,7 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         dom.release_pointer_capture();
         crate::runtime::selection::drag::end(router);
         crate::runtime::scrollbar::end_drag(router, dom);
+        crate::runtime::resize::end(router);
     }
 
     // Pointer capture path: route to captured, no hover updates.
@@ -402,6 +412,12 @@ fn handle_move(router: &mut Router, dom: &mut TuiDom, mouse: MouseEvent) -> Rout
         // engages capture on the scrollbar element.
         if router.scrollbar_drag.is_some()
             && crate::runtime::scrollbar::extend_drag(router, dom, mouse.column, mouse.row)
+        {
+            redraw = true;
+        }
+        // Corner drag of a resizable box (CSS UI 4 §4.2).
+        if router.resize_drag.is_some()
+            && crate::runtime::resize::extend(router, dom, mouse.column, mouse.row)
         {
             redraw = true;
         }

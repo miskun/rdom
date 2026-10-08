@@ -4,7 +4,7 @@
 use crate::Value;
 use crate::layout::{
     AccentColor, Appearance, BorderWidth, CaretAnimation, CaretShape, Cursor, FieldSizing,
-    OutlineColor, OutlineStyle, PaintLength,
+    OutlineColor, OutlineStyle, PaintLength, Resize,
 };
 
 /// The CSS Basic User Interface 4 properties a
@@ -36,4 +36,6 @@ pub struct UiDeclarations {
     pub appearance: Option<Value<Appearance>>,
     /// `field-sizing` (§7.2).
     pub field_sizing: Option<Value<FieldSizing>>,
+    /// `resize` (§4.2).
+    pub resize: Option<Value<Resize>>,
 }

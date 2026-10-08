@@ -97,6 +97,9 @@ pub struct Router {
     /// mousemove events (via pointer capture) to adjust scroll.
     /// See `runtime::scrollbar`.
     pub(crate) scrollbar_drag: Option<crate::runtime::scrollbar::ScrollbarDrag>,
+    /// Active corner drag of a resizable box (CSS UI 4 §4.2), if any —
+    /// `runtime::resize`.
+    pub(crate) resize_drag: Option<crate::runtime::resize::ResizeDrag>,
     /// Accumulates listener-requested repaints
     /// ([`EventCtx::request_redraw`](rdom_core::EventCtx::request_redraw))
     /// across the dispatches one mouse event fans out (mousedown →

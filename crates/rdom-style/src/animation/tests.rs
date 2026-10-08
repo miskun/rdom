@@ -108,6 +108,7 @@ const SPEC: &[(&str, Spec)] = &[
     ("appearance", L(D)),
     ("-webkit-appearance", S),
     ("field-sizing", L(D)),
+    ("resize", L(D)),
     // CSS Overflow 3 / 4
     ("overflow", S),
     ("overflow-x", L(D)),

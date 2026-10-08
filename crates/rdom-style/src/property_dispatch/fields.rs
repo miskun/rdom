@@ -142,6 +142,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "accent-color" => &[AccentColor],
         "appearance" | "-webkit-appearance" => &[Appearance],
         "field-sizing" => &[FormFieldSizing],
+        "resize" => &[Resize],
         "overflow" => &[OverflowX, OverflowY],
         "overflow-x" => &[OverflowX],
         "overflow-y" => &[OverflowY],

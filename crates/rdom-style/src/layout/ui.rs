@@ -113,6 +113,8 @@ pub struct UiStyle {
     pub appearance: Appearance,
     /// `field-sizing` (§7.2). Not inherited.
     pub field_sizing: FieldSizing,
+    /// `resize` (§4.2). Not inherited.
+    pub resize: Resize,
 }
 
 impl Default for UiStyle {
@@ -128,6 +130,7 @@ impl Default for UiStyle {
             accent_color: AccentColor::Auto,
             appearance: Appearance::Auto,
             field_sizing: FieldSizing::Fixed,
+            resize: Resize::None,
         }
     }
 }
@@ -415,6 +418,55 @@ impl FieldSizing {
         match self {
             FieldSizing::Content => "content",
             FieldSizing::Fixed => "fixed",
+        }
+    }
+}
+
+/// `resize` (CSS UI 4 §4.2): `none | both | horizontal | vertical | block
+/// | inline` — which axes a user may resize a scroll container on by
+/// dragging its bottom-right corner. Not inherited; initial `none`.
+///
+/// Closed (DESIGN): every keyword; the flow-relative ones map onto the
+/// physical axes ([`axes`](Self::axes)).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub enum Resize {
+    #[default]
+    None,
+    Both,
+    Horizontal,
+    Vertical,
+    Block,
+    Inline,
+}
+
+impl Resize {
+    /// Every keyword with its CSS spelling.
+    pub const KEYWORDS: &'static [(&'static str, Resize)] = &[
+        ("none", Resize::None),
+        ("both", Resize::Both),
+        ("horizontal", Resize::Horizontal),
+        ("vertical", Resize::Vertical),
+        ("block", Resize::Block),
+        ("inline", Resize::Inline),
+    ];
+
+    /// The keyword's CSS spelling.
+    pub fn keyword(self) -> &'static str {
+        Self::KEYWORDS
+            .iter()
+            .find(|(_, k)| *k == self)
+            .map_or("none", |(name, _)| name)
+    }
+
+    /// The physical axes it resizes, `(horizontal, vertical)`, in a
+    /// horizontal writing mode (rdom lays every box out as one): `inline`
+    /// is horizontal and `block` vertical.
+    pub fn axes(self) -> (bool, bool) {
+        match self {
+            Resize::None => (false, false),
+            Resize::Both => (true, true),
+            Resize::Horizontal | Resize::Inline => (true, false),
+            Resize::Vertical | Resize::Block => (false, true),
         }
     }
 }

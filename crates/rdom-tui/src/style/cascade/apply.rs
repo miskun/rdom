@@ -280,6 +280,8 @@ pub(super) fn apply_style(
         ui.appearance: APPEARANCE,
         // §7.2; not inherited.
         ui.field_sizing: FIELD_SIZING,
+        // §4.2; not inherited.
+        ui.resize: RESIZE,
     );
     // Positioning (M2), transitions (M3; latest list wins), animations
     // (CSS Animations 1 §4) and counters

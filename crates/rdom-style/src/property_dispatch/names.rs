@@ -63,6 +63,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "appearance",
     "-webkit-appearance",
     "field-sizing",
+    "resize",
     // Layout — overflow
     "overflow",
     "overflow-x",

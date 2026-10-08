@@ -248,7 +248,7 @@ row comes from.
 | C12-CURSOR | `cursor` (OSC 22 pointer shapes) | done |
 | C12-CARET | `caret-shape` / `caret-animation` / `caret` | done |
 | C12-FOCUS-FLUSH | `focus()` (and other style-reading DOM calls) flushes pending style for the element first, as browsers do — TECH_DEBT `FOCUS-FLUSH-1`; needs the sheet set / transition registry / dirty tracker reachable from a handler's `Dom` | done |
-| C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | partial — `accent-color`, `appearance`, `field-sizing` done; `resize` next |
+| C12-CONTROLS | `accent-color`, `appearance`, `field-sizing`, `resize` | done |
 
 ### Phase 13 — Tables (audit §3.20)
 
@@ -7987,3 +7987,17 @@ row comes from.
   empty one to its padding and placeholder). `<select>` is left out (its size is its options'). Red, by
   mutation (the finalizer a no-op): `field_sizing_content_sizes_a_field_to_its_value` reads `(22, 1)` for
   `(7, 1)`; the fixed and author-width cases pin the rest. Dispatch: `ui_tests::field_sizing_is_content_or_fixed`.
+- 2026-10-17 — C12-CONTROLS (4/4) done, `resize` (CSS UI 4 §4.2). rdom-style: `none | both | horizontal |
+  vertical | block | inline` (`Resize`, not inherited, discrete; `axes()` maps the flow-relative keywords onto
+  the physical axes of a horizontal writing mode, closing CSS-COVERAGE §3.22's logical-keywords row); the UA
+  sheet's `textarea` takes `both`, as HTML's rendering section and the engines' UA sheets do. Feasible, so
+  done rather than left inert: `runtime/resize.rs` — a left press (before the scrollbar's own hit test, as
+  browsers put the resizer over the scrollbar's end) on the bottom-right cell of a scroll container on the
+  hit path whose `resize` allows an axis starts a drag that takes the pointer (`Router::resize_drag`); each
+  captured move writes the border box the pointer gives, less padding and border under `content-box`, as
+  `width` / `height` through the reflecting setters (so into the `style` attribute, as browsers write the
+  resized size), the content box never below one cell; the release ends it, a lost release is cancelled by
+  the next press, a button-less move ends it, as for the thumb. No grip is drawn (no paint change).
+  Red, by mutation (no box counted resizable): `dragging_the_corner_resizes_the_box` reads `(6, 2)` for
+  `(9, 4)` and the textarea test `(10, 4)` for `(6, 6)`. Dispatch: `ui_tests::resize_keywords_and_their_axes`.
+  CHANGELOG silent change: a textarea's corner press now resizes it. C12-CONTROLS done.

@@ -1,11 +1,12 @@
-//! The CSS UI 4 setters of the `TuiStyle` builder: the outline (§5) and
-//! `cursor` (§4.1).
+//! The CSS UI 4 setters of the `TuiStyle` builder: the outline (§5),
+//! `cursor` and `resize` (§4), the caret (§6.2), `accent-color` (§6.3),
+//! `appearance` and `field-sizing` (§7).
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
 use crate::layout::{
     AccentColor, Appearance, BorderWidth, CaretAnimation, CaretShape, Cursor, FieldSizing,
-    OutlineColor, OutlineStyle, PaintLength,
+    OutlineColor, OutlineStyle, PaintLength, Resize,
 };
 
 /// A setter for one [`UiDeclarations`](crate::UiDeclarations) field and
@@ -91,4 +92,5 @@ impl TuiStyle {
         FIELD_SIZING,
         FieldSizing
     );
+    ui_setter!("resize", resize, resize_important, RESIZE, Resize);
 }

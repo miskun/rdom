@@ -108,6 +108,8 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("appearance", Discrete, steps!(ui.appearance)),
     // §7.2
     e("field-sizing", Discrete, steps!(ui.field_sizing)),
+    // §4.2
+    e("resize", Discrete, steps!(ui.resize)),
     // CSS Overflow 3 / 4, Scrollbars 1, Overscroll 1, Scroll Snap 1
     e(
         "overflow-x",

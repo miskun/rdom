@@ -320,6 +320,7 @@ fn every_property_has_important_setter() {
         .accent_color_important(crate::layout::AccentColor::Auto)
         .appearance_important(crate::layout::Appearance::None)
         .field_sizing_important(crate::layout::FieldSizing::Content)
+        .resize_important(crate::layout::Resize::Both)
         .overscroll_behavior_x_important(crate::layout::OverscrollBehavior::Contain)
         .overscroll_behavior_y_important(crate::layout::OverscrollBehavior::None)
         .scroll_padding_top_important(crate::layout::ScrollPadding::Auto)
