@@ -124,8 +124,8 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 14 | `currentColor` | Shipped (C3-CURRENTCOLOR; §3.4): the element's computed `color`, and `border-color`'s initial value; `outline-color` / `text-decoration-color` take it as their initial value when they land (C12-OUTLINE, C9-DECORATION). | S | Yes |
 | 15 | `min()` / `max()` / `clamp()` | Comparison functions inside every `calc()` position; resolve at layout like percent-bearing `calc()`. | S | Yes |
 | 16 | `hsl()` / `hwb()` / `lab()` / `lch()` / `oklab()` / `oklch()` / `color()` | Shipped (C3-HSL-HWB, C3-LAB; §3.4): converted to sRGB at parse time (gamut-mapped), emitted as truecolor `Color::Rgb` — `Color::Rgba` with an alpha below opaque. | S | No |
-| 17 | `:nth-child()` / `:nth-last-child()` / `:nth-of-type()` / `:nth-last-of-type()` / `:first-of-type` / `:last-of-type` / `:only-of-type` | Structural matching (`An+B`, `odd` / `even`, `of S`); zebra-striped lists and tables. | S | Partial — `:nth-child`, `:nth-of-type` Yes; the `*-of-type` trio No |
-| 18 | `:is()` / `:has()` | `:is()` shipped (C1G-IS-PARSE); `:has()` relational matching with invalidation on descendant change (M). | S / M | Yes |
+| 17 | `:nth-child()` / `:nth-last-child()` / `:nth-of-type()` / `:nth-last-of-type()` / `:first-of-type` / `:last-of-type` / `:only-of-type` | Shipped (C11-NTH; §3.17): the full An+B microsyntax, `of S`, a per-pass nth-index cache. | S | Partial — `:nth-child`, `:nth-of-type` Yes; the `*-of-type` trio No |
+| 18 | `:is()` / `:has()` | Shipped: `:is()` (C1G-IS-PARSE), `:has()` with targeted invalidation (C11-HAS; §3.17). | S / M | Yes |
 | 19 | `@media` | Evaluate `width` / `height` (in cells) / `orientation` / `aspect-ratio`, `color` / `monochrome`, `prefers-color-scheme` (from the terminal's reported background), `prefers-reduced-motion`, `hover` / `pointer`; re-cascade on `resize`. Also the `<style media>` attribute. | M | Yes |
 | 20 | `order` | Shipped (C6-ORDER; §3.7): flex items lay out, paint and hit-test in order-modified document order; focus, selection and the DOM keep document order. Grid with C7. | S | No |
 | 21 | `@keyframes` + `animation-*` | Keyframed animation on the existing transition clock and interpolators. | L | Yes |
@@ -147,7 +147,7 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 | 37 | `flex-direction: row-reverse / column-reverse` | Shipped (C6-DIRECTION-REVERSE; §3.8): main-start and main-end swap, with `direction`; a reversed scroll container scrolls from its main-start edge with a negative `scrollLeft` / `scrollTop`. | S | No |
 | 38 | `row-gap` / `column-gap` / two-value `gap` | Shipped (C6-GAP; §3.8): per-axis gaps, `normal`, the two-value shorthand. | S | No |
 | 39 | Color syntax completeness: `rgb()` space syntax / `%` channels / `/ alpha`; `color-mix()`; relative color syntax; system colors (`Canvas`, `CanvasText`, …); `light-dark()` + `color-scheme` | Shipped (C3-RGB, C3-MIX, C3-RELATIVE, C3-SYSTEM, C3-SCHEME; §3.4) — system colors map onto the terminal's default fg / bg and the UA palette; `light-dark()` picks by the terminal's reported background and follows its theme changes (mode 2031). | S–M | No |
-| 40 | `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default`, `:user-valid` / `:user-invalid`, `:modal`, `:link` / `:any-link`, `:lang()`, `:scope`, `:popover-open` | Form / link / context state rdom already tracks (or can) for every one. | S each | Partial — `:read-*`, `:user-*`, `:modal` Yes; rest No |
+| 40 | `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default`, `:user-valid` / `:user-invalid`, `:modal`, `:link` / `:any-link`, `:lang()`, `:scope`, `:popover-open` | `:link` / `:any-link`, `:lang()`, `:scope` shipped (C11-LINK-LANG, C11-SCOPE; §3.17); the form and display states are Phase 11 part 2 (C11-FORM-STATES, C11-MODAL-POPOVER). | S each | Partial — `:read-*`, `:user-*`, `:modal` Yes; rest No |
 | 41 | `float` / `clear` | Line-box exclusion beside a floated box; sidebars and drop-caps. Deliberately out of scope today. | L | Yes | *Shipped: C8-FLOAT.*
 | 42 | `cursor` | OSC 22 pointer-shape request (`pointer`, `text`, `default`, `move`, resize shapes) on terminals that honor it (kitty, foot, ghostty, WezTerm); ignored elsewhere. | S | No |
 | 43 | `accent-color` | Color of checkbox / radio / range / progress glyphs in the UA chrome. | S | No |
@@ -514,7 +514,7 @@ dropped. The audit's six, with where each stands:
 | Attribute case flags `i` / `s` | Supported | `[x=v i]` folds ASCII case, `[x=v s]` compares exactly, overriding HTML §4.16.2's case-insensitive list either way (Selectors 4 §6.3; `AttrCase`, C11-ATTR-FLAGS). | — | `SEL` |
 | Namespace prefixes (`ns\|E`, `*\|E`) | N/A | No namespaces (documented). | — | — |
 | Descendant, `>`, `+`, `~` | Supported | Backtracking over candidates (Servo's bounded outcomes); `+` / `~` relate element siblings only (C11-COMBINATORS). | — | `SEL::Combinator` |
-| Column combinator `\|\|` | Missing | Cells of a `<col>`; low priority. | No | `SEL` |
+| Column combinator `\|\|` | Missing | Cells of a `<col>`; moved to Phase 13 (C13-COLUMN), which brings real table columns. | Yes | `SEL` |
 | Selector list `a, b` | Supported | — | — | `SEL` |
 | `:not(<complex-list>)` | Supported | Full selector list. | — | `SEL` |
 | `:where()` | Supported | Zero specificity. | — | `SEL` |

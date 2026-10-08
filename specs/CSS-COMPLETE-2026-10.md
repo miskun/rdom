@@ -232,7 +232,7 @@ row comes from.
 | C11-FORM-STATES | `:indeterminate` (checkbox, radio group), `:user-valid` / `:user-invalid`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default` | |
 | C11-MODAL-POPOVER | `:modal`; the `popover` attribute and `:popover-open` | |
 | C11-LINK-LANG | `:link` / `:any-link`, `:lang()` | done (with `:dir()`, deferred here by C5-WRITING, and `:visited` never matching) |
-| C11-COLUMN | Column combinator `\|\|` (with the table phase) | |
+| C11-COLUMN | Column combinator `\|\|` | moved to Phase 13 as C13-COLUMN: it selects the cells a column spans, which needs C13-TFC's real table columns |
 
 ### Phase 12 — Transitions, animations, user interface (audit §3.18, §3.19)
 
@@ -256,6 +256,7 @@ row comes from.
 |---|---|---|
 | C13-TFC | A real table formatting context: `display: table` family on any element, `rowspan`, automatic and `fixed` `table-layout` (replaces `TABLE-TFC-1`) | |
 | C13-TABLE-PROPS | `caption-side`, `empty-cells`, `border-spacing` (separated borders), `vertical-align` on cells | |
+| C13-COLUMN | Column combinator `\|\|` (Selectors 4; was C11-COLUMN): `col.x \|\| td` matches the cells of the columns a `<col>` spans, from C13-TFC's column model | |
 
 ### Phase 14 — Conditional rules, containment (audit §3.21)
 
@@ -7038,3 +7039,11 @@ row comes from.
   without the trigger check → the zero-cost test (it hung: the recursion above). Changed expectation:
   `tui_ext_size_tripwire` 376 → 384 (the anchor flag; the small fields had no padding left). No snapshot
   changed.
+- 2026-10-14 — Phase 11 part 1 docs: ACID tile 4 lists the selectors part 1 shipped (case flags, the `:nth-*`
+  family with `of S`, `:link` / `:any-link` / `:visited`, `:lang()`, `:dir()` on `dir=auto`, `:has()` in its
+  four relations, `:scope`, the backtracking and text-skipping combinator cases) and a stage-2 step I13
+  exercises their invalidation. C11-COLUMN moved to Phase 13 as C13-COLUMN (the column combinator selects
+  the cells a column spans; rdom has no column model until C13-TFC); DIVERGENCES §3 and the coverage row
+  say so. §3.17 now: 25 Supported, 1 Partial (`:indeterminate`, part 2), 8 Missing (the part 2 form and
+  display states, `:blank`, the column combinator), 4 N/A. Part 2 (C11-FORM-STATES, C11-MODAL-POPOVER) is
+  not started.
