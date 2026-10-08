@@ -370,6 +370,21 @@ pub struct ComputedStyle {
     /// `transition-behavior` (CSS Transitions 2 §3.1); empty is `normal`.
     pub transition_behavior: Vec<crate::transition::TransitionBehavior>,
 
+    // ── Animations (CSS Animations 1 / 2) ────────────────────────────
+    /// The `animation-*` longhand lists, matched to `animation-name` by
+    /// index (CSS Animations 1 §4.1: shorter lists repeat). Empty is the
+    /// longhand's initial value. Not inherited.
+    pub animation_name: Vec<crate::keyframes::AnimationName>,
+    pub animation_duration: Vec<crate::keyframes::AnimationDuration>,
+    pub animation_timing_function: Vec<crate::transition::TimingFunction>,
+    pub animation_delay: Vec<i32>,
+    pub animation_iteration_count: Vec<crate::keyframes::IterationCount>,
+    pub animation_direction: Vec<crate::keyframes::AnimationDirection>,
+    pub animation_fill_mode: Vec<crate::keyframes::AnimationFillMode>,
+    pub animation_play_state: Vec<crate::keyframes::AnimationPlayState>,
+    pub animation_composition: Vec<crate::keyframes::AnimationComposition>,
+    pub animation_timeline: Vec<crate::keyframes::AnimationTimeline>,
+
     /// `counter-reset` / `counter-increment` / `counter-set` (CSS Lists
     /// 3 §4). Non-inheriting; the cascade applies them to its counter
     /// state in tree order — reset, increment, set (§4.4). A reversed

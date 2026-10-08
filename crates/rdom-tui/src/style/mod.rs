@@ -57,7 +57,14 @@ pub use rdom_style::color::{ColorScheme, ColorSchemeList, SystemColor};
 /// takes a `System` a consumer of `rdom-tui` alone can name.
 pub use rdom_style::counters;
 pub use rdom_style::counters::CounterStyleName;
+/// `@keyframes` rules and the `animation-*` values (CSS Animations 1 / 2).
+pub use rdom_style::keyframes;
 pub use rdom_style::transition;
+pub use rdom_style::{
+    AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
+    AnimationPlayState, AnimationTimeline, IterationCount, Keyframe, KeyframeSelector,
+    KeyframesRule, ResolvedKeyframe,
+};
 pub use rdom_style::{
     Color, ColorContext, ColorFunction, ComputedStyle, Content, ContentContext, CounterOp,
     CounterStyle, CustomDeclaration, CustomValue, FontDeclarations, ImportantMask, LayerId,

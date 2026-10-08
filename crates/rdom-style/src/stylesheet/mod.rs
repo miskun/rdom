@@ -46,6 +46,7 @@ use crate::{Specificity, TuiStyle};
 mod counter_styles;
 mod imports;
 mod index;
+mod keyframes;
 mod layers;
 mod registrations;
 mod scopes;
@@ -308,6 +309,8 @@ pub struct Stylesheet {
     registrations: Vec<crate::PropertyRegistration>,
     /// `@counter-style` definitions, in source order (`counter_styles.rs`).
     counter_styles: Vec<crate::counters::CounterStyleDefinition>,
+    /// `@keyframes` rules, in source order (`keyframes.rs`).
+    keyframes: Vec<crate::keyframes::KeyframesRule>,
     /// The `@import`s that loaded (`imports.rs`).
     imports: Vec<Import>,
     /// Declared `@scope` rules, in source order (`scopes.rs`).

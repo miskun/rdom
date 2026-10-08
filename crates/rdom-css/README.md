@@ -136,8 +136,8 @@ value       := token+
 These produce a `Warning` and the parse continues — matching browser
 behavior, so copy-pasting CSS from MDN doesn't blow up:
 
-- **At-rules other than `@import`, `@layer`, `@scope`, `@property` and `@counter-style`.**
-  Every other at-rule (`@charset`, `@media`, `@keyframes`, `@supports`, `@font-face`, …) is
+- **At-rules other than `@import`, `@layer`, `@scope`, `@property`, `@counter-style`,
+  `@starting-style` and `@keyframes`.** Every other at-rule (`@charset`, `@media`, `@supports`, `@font-face`, …) is
   consumed whole per CSS Syntax 3 §5.4.2 and reported with
   `WarningKind::UnsupportedAtRule(name)`; the rules around it are
   unaffected (`@import` loads through the host's `ImportLoader` with
@@ -150,7 +150,10 @@ behavior, so copy-pasting CSS from MDN doesn't blow up:
   `CounterStyleDescriptorDropped` for a dropped descriptor, each with a
   typed reason);
   `@scope` is parsed into the sheet's scopes:
-  `Stylesheet::scopes`, `Rule::scope`). The applicable ones (`@media`, `@supports`, `@keyframes`,
+  `Stylesheet::scopes`, `Rule::scope`; `@keyframes` into its keyframes,
+  `Stylesheet::keyframes` — `WarningKind::InvalidKeyframeSelector` for a
+  dropped keyframe block, `ImportantInKeyframe` for an ignored `!important`
+  declaration). The applicable ones (`@media`, `@supports`,
   …) are scheduled for 0.6.0. `@layer` (statement and block forms,
   anonymous and nested layers) is parsed into the sheet's cascade layers;
   an invalid `@layer` prelude reports `WarningKind::InvalidAtRulePrelude`.

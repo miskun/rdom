@@ -319,6 +319,28 @@ pub struct TuiStyle {
     /// `transition-behavior` (CSS Transitions 2 §3.1).
     pub transition_behavior: Option<Value<Vec<crate::transition::TransitionBehavior>>>,
 
+    // ── Animations (CSS Animations 1 / 2) ────────────────────────────
+    /// `animation-name` (CSS Animations 1 §4.1): which `@keyframes` each animation runs.
+    pub animation_name: Option<Value<Vec<crate::keyframes::AnimationName>>>,
+    /// `animation-duration` (§4.2, CSS Animations 2 §3.3: `auto`).
+    pub animation_duration: Option<Value<Vec<crate::keyframes::AnimationDuration>>>,
+    /// `animation-timing-function` (§4.3): each keyframe interval's easing.
+    pub animation_timing_function: Option<Value<Vec<crate::transition::TimingFunction>>>,
+    /// `animation-delay` in milliseconds (§4.7); negative starts part-way.
+    pub animation_delay: Option<Value<Vec<i32>>>,
+    /// `animation-iteration-count` (§4.4).
+    pub animation_iteration_count: Option<Value<Vec<crate::keyframes::IterationCount>>>,
+    /// `animation-direction` (§4.5).
+    pub animation_direction: Option<Value<Vec<crate::keyframes::AnimationDirection>>>,
+    /// `animation-fill-mode` (§4.8).
+    pub animation_fill_mode: Option<Value<Vec<crate::keyframes::AnimationFillMode>>>,
+    /// `animation-play-state` (§4.6).
+    pub animation_play_state: Option<Value<Vec<crate::keyframes::AnimationPlayState>>>,
+    /// `animation-composition` (CSS Animations 2 §3.2).
+    pub animation_composition: Option<Value<Vec<crate::keyframes::AnimationComposition>>>,
+    /// `animation-timeline` (CSS Animations 2 §3.7, Scroll-driven Animations 1 §4.1).
+    pub animation_timeline: Option<Value<Vec<crate::keyframes::AnimationTimeline>>>,
+
     // ── Counters (CSS Lists 3 §4) ────────────────────────────────────
     pub counter_reset: Option<Value<Vec<crate::counters::CounterOp>>>,
     pub counter_increment: Option<Value<Vec<crate::counters::CounterOp>>>,

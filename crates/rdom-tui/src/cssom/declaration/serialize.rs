@@ -140,6 +140,16 @@ fn shorthand_family_of(name: &str) -> Option<&'static str> {
         | "transition-duration"
         | "transition-timing-function"
         | "transition-delay" => Some("transition"),
+        "animation-name"
+        | "animation-duration"
+        | "animation-timing-function"
+        | "animation-delay"
+        | "animation-iteration-count"
+        | "animation-direction"
+        | "animation-fill-mode"
+        | "animation-play-state"
+        | "animation-composition"
+        | "animation-timeline" => Some("animation"),
         _ => None,
     }
 }

@@ -384,7 +384,8 @@ fn every_property_has_important_setter() {
         .float_important(crate::layout::Float::Left)
         .clear_important(crate::layout::Clear::Both)
         .flow_important(crate::layout::Flow::Block)
-        .transitions_important();
+        .transitions_important()
+        .animations_important();
     assert_eq!(s.important, ImportantMask::all());
 }
 

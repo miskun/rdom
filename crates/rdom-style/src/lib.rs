@@ -16,6 +16,7 @@
 //!   `Padding`, `Border`, `Position`, `Length`, `ZIndex`,
 //!   `Overflow`, `LayoutRect`, …
 //! - [`transition`] — animation type system.
+//! - [`keyframes`] — `@keyframes` rules and the `animation-*` values.
 //! - [`property_dispatch`] — the single name→(setter, serializer)
 //!   table both `rdom-css` (parser) and `rdom-tui`
 //!   (`StyleDeclaration`) consume.
@@ -51,6 +52,7 @@ pub mod animation;
 pub mod backend;
 pub mod calc;
 pub mod counters;
+pub mod keyframes;
 pub mod layout;
 pub mod parse;
 pub mod property_dispatch;
@@ -78,6 +80,11 @@ pub use computed::{ComputedStyle, VarMap};
 pub use content::{Content, ContentContext, QuoteKind};
 pub use counters::{CounterOp, CounterStyle};
 pub use custom_value::CustomValue;
+pub use keyframes::{
+    AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
+    AnimationPlayState, AnimationTimeline, IterationCount, Keyframe, KeyframeSelector,
+    KeyframesRule, ResolvedKeyframe,
+};
 pub use modifier::Modifier;
 pub use quotes::{QuotePair, Quotes, auto_quotes};
 pub use registration::{

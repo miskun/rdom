@@ -196,6 +196,18 @@ const PROPERTY_NAMES: &[&str] = &[
     "transition-delay",
     "transition-behavior",
     "transition",
+    // Animations (CSS Animations 1 / 2)
+    "animation-name",
+    "animation-duration",
+    "animation-timing-function",
+    "animation-delay",
+    "animation-iteration-count",
+    "animation-direction",
+    "animation-fill-mode",
+    "animation-play-state",
+    "animation-composition",
+    "animation-timeline",
+    "animation",
     // Counters (CSS Lists 3)
     "counter-reset",
     "counter-increment",

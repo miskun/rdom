@@ -5,7 +5,8 @@
 //! the margin and padding ones in `spacing`, the flex and box-alignment
 //! ones in `flex`, the scrolling and scrollbar ones in `scroll`, the CSS Text ones in
 //! `text`, the text decoration ones in `text_decoration`, the font ones
-//! in `font`.
+//! in `font`, the positioning ones in `position`, the transition and
+//! animation ones in `motion`.
 
 use super::{ImportantMask, TuiStyle};
 #[allow(unused_imports)]
@@ -79,6 +80,8 @@ mod decoration;
 mod flex;
 mod font;
 mod grid;
+mod motion;
+mod position;
 mod scroll;
 mod sizing;
 mod spacing;
@@ -466,105 +469,6 @@ impl TuiStyle {
         QUOTES,
         crate::Quotes
     );
-
-    // ── Positioning setters (M2) ─────────────────────────────────────
-    setter!(
-        "position",
-        position,
-        position,
-        position_important,
-        POSITION,
-        crate::layout::Position
-    );
-    setter!("top", top, top, top_important, TOP, crate::layout::Length);
-    setter!(
-        "right",
-        right,
-        right,
-        right_important,
-        RIGHT,
-        crate::layout::Length
-    );
-    setter!(
-        "bottom",
-        bottom,
-        bottom,
-        bottom_important,
-        BOTTOM,
-        crate::layout::Length
-    );
-    setter!(
-        "left",
-        left,
-        left,
-        left_important,
-        LEFT,
-        crate::layout::Length
-    );
-    setter!(
-        "z-index",
-        z_index,
-        z_index,
-        z_index_important,
-        Z_INDEX,
-        crate::layout::ZIndex
-    );
-    setter!(
-        "overlay",
-        overlay,
-        overlay,
-        overlay_important,
-        OVERLAY,
-        crate::layout::Overlay
-    );
-    setter!(
-        "float",
-        float,
-        float,
-        float_important,
-        FLOAT,
-        crate::layout::Float
-    );
-    setter!(
-        "clear",
-        clear,
-        clear,
-        clear_important,
-        CLEAR,
-        crate::layout::Clear
-    );
-
-    // ── Transitions setters (M3) ─────────────────────────────────────
-    // Vec-typed fields can't go through the `setter!` macro (no
-    // `Value<T>` wrapping), so we hand-write a thin layer.
-    pub fn transition_property(mut self, v: Vec<crate::transition::TransitionProperty>) -> Self {
-        self.transition_property = Some(Value::Specified(v));
-        self
-    }
-    pub fn transition_duration(mut self, v: Vec<u32>) -> Self {
-        self.transition_duration = Some(Value::Specified(v));
-        self
-    }
-    pub fn transition_timing_function(mut self, v: Vec<crate::transition::TimingFunction>) -> Self {
-        self.transition_timing_function = Some(Value::Specified(v));
-        self
-    }
-    pub fn transition_behavior(mut self, v: Vec<crate::transition::TransitionBehavior>) -> Self {
-        self.transition_behavior = Some(Value::Specified(v));
-        self
-    }
-
-    pub fn transition_delay(mut self, v: Vec<i32>) -> Self {
-        self.transition_delay = Some(Value::Specified(v));
-        self
-    }
-    /// Mark the four transition longhands `!important`, as a
-    /// `transition: … !important` declaration does (each longhand has
-    /// its own bit; `ImportantMask::TRANSITIONS` is their union).
-    pub fn transitions_important(mut self) -> Self {
-        self.important |= ImportantMask::TRANSITIONS;
-        self
-    }
 
     /// Convenience: set `fg: inherit;` without having to spell `Value::Inherit`.
     pub fn fg_inherit(mut self) -> Self {

@@ -360,6 +360,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`@keyframes` and the `animation-*` longhands** (CSS Animations 1 §3–§4, 2 §3): `KeyframesRule` / `Keyframe` / `KeyframeSelector` (`Stylesheet::keyframes`, `KeyframesRule::resolve` cascading the blocks of one offset), the ten longhands and `animation` as computed lists (`AnimationName`, `AnimationDuration`, `IterationCount`, …). (C12-KEYFRAMES)
 - **`@starting-style` rules** (CSS Transitions 2 §3): `Rule::starting_style` and `RuleContext::in_starting_style` mark a rule that applies only to an element's starting style. (C12-STARTING)
 - **`transition-behavior` and `overlay`** (CSS Transitions 2 §3.1, Position 4 §3.4): `normal | allow-discrete` (`TransitionBehavior`, longhand and in `transition`), and `overlay: none | auto` (`Overlay`), `auto !important` on `:modal` / `:popover-open` in the UA sheet; `display` and `overlay` keep their non-`none` value through a transition. (C12-BEHAVIOR)
 - **`linear()` easing and negative delays** (CSS Easing 2 §2.1, Transitions 1 §2.4): `linear(<stops>)` canonicalized into `LinearStop`s, `TimingFunction::ease_before` (the steps' before flag), a negative `transition-delay`; `none` is valid only alone, and the `transition` shorthand serializes its lists repeated cyclically. (C12-TIMING)
@@ -508,6 +509,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-css`
 
+- **`@keyframes`** (CSS Animations 1 §3): parsed into `Stylesheet::keyframes` with its layer; a block with an invalid selector is dropped (`WarningKind::InvalidKeyframeSelector`), an `!important` declaration in a keyframe ignored (`ImportantInKeyframe`). (C12-KEYFRAMES)
 - **`@starting-style`** (CSS Transitions 2 §3): parsed at the top level and nested in a style rule (CSS Nesting 1 §3.2); a prelude is invalid. (C12-STARTING)
 - **`@counter-style`** (CSS Counter Styles 3 §3): every descriptor, top-level and in `@layer`; a rule whose name cannot name a counter style (`none`, `decimal`, `disc`, `square`, `circle`, `disclosure-*`, a CSS-wide keyword) or whose symbols do not suit its system defines nothing, and an invalid descriptor is dropped — both reported as the new `WarningKind::InvalidCounterStyleRule { name, reason }`. (C10-COUNTER-STYLE)
 - **`@layer`** (CSS Cascade 5 §6.4.1): the statement and block forms, anonymous and nested layers; an invalid prelude drops the rule with the new `WarningKind::InvalidAtRulePrelude { name, prelude }`. (C1-LAYER)

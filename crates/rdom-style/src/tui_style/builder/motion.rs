@@ -1,0 +1,98 @@
+//! The transition and animation setters of the `TuiStyle` builder: the
+//! `transition-*` and `animation-*` longhands, list-valued (`Vec`
+//! fields can't go through the `setter!` macro: no `Value<T>` per item).
+
+use super::super::{ImportantMask, TuiStyle};
+use crate::Value;
+
+impl TuiStyle {
+    // ── Transitions (CSS Transitions 1 / 2) ──────────────────────────
+    // Vec-typed fields can't go through the `setter!` macro (no
+    // `Value<T>` wrapping), so we hand-write a thin layer.
+    pub fn transition_property(mut self, v: Vec<crate::transition::TransitionProperty>) -> Self {
+        self.transition_property = Some(Value::Specified(v));
+        self
+    }
+    pub fn transition_duration(mut self, v: Vec<u32>) -> Self {
+        self.transition_duration = Some(Value::Specified(v));
+        self
+    }
+    pub fn transition_timing_function(mut self, v: Vec<crate::transition::TimingFunction>) -> Self {
+        self.transition_timing_function = Some(Value::Specified(v));
+        self
+    }
+    pub fn transition_behavior(mut self, v: Vec<crate::transition::TransitionBehavior>) -> Self {
+        self.transition_behavior = Some(Value::Specified(v));
+        self
+    }
+
+    pub fn transition_delay(mut self, v: Vec<i32>) -> Self {
+        self.transition_delay = Some(Value::Specified(v));
+        self
+    }
+    /// Mark the four transition longhands `!important`, as a
+    /// `transition: … !important` declaration does (each longhand has
+    /// its own bit; `ImportantMask::TRANSITIONS` is their union).
+    pub fn transitions_important(mut self) -> Self {
+        self.important |= ImportantMask::TRANSITIONS;
+        self
+    }
+
+    // ── Animations (CSS Animations 1 / 2) ────────────────────────────
+    /// `animation-name`.
+    pub fn animation_name(mut self, v: Vec<crate::keyframes::AnimationName>) -> Self {
+        self.animation_name = Some(Value::Specified(v));
+        self
+    }
+    /// `animation-duration`.
+    pub fn animation_duration(mut self, v: Vec<crate::keyframes::AnimationDuration>) -> Self {
+        self.animation_duration = Some(Value::Specified(v));
+        self
+    }
+    /// `animation-timing-function`.
+    pub fn animation_timing_function(mut self, v: Vec<crate::transition::TimingFunction>) -> Self {
+        self.animation_timing_function = Some(Value::Specified(v));
+        self
+    }
+    /// `animation-delay`, in milliseconds.
+    pub fn animation_delay(mut self, v: Vec<i32>) -> Self {
+        self.animation_delay = Some(Value::Specified(v));
+        self
+    }
+    /// `animation-iteration-count`.
+    pub fn animation_iteration_count(mut self, v: Vec<crate::keyframes::IterationCount>) -> Self {
+        self.animation_iteration_count = Some(Value::Specified(v));
+        self
+    }
+    /// `animation-direction`.
+    pub fn animation_direction(mut self, v: Vec<crate::keyframes::AnimationDirection>) -> Self {
+        self.animation_direction = Some(Value::Specified(v));
+        self
+    }
+    /// `animation-fill-mode`.
+    pub fn animation_fill_mode(mut self, v: Vec<crate::keyframes::AnimationFillMode>) -> Self {
+        self.animation_fill_mode = Some(Value::Specified(v));
+        self
+    }
+    /// `animation-play-state`.
+    pub fn animation_play_state(mut self, v: Vec<crate::keyframes::AnimationPlayState>) -> Self {
+        self.animation_play_state = Some(Value::Specified(v));
+        self
+    }
+    /// `animation-composition`.
+    pub fn animation_composition(mut self, v: Vec<crate::keyframes::AnimationComposition>) -> Self {
+        self.animation_composition = Some(Value::Specified(v));
+        self
+    }
+    /// `animation-timeline`.
+    pub fn animation_timeline(mut self, v: Vec<crate::keyframes::AnimationTimeline>) -> Self {
+        self.animation_timeline = Some(Value::Specified(v));
+        self
+    }
+    /// Mark the animation longhands `!important`, as an `animation: …
+    /// !important` declaration does (`ImportantMask::ANIMATIONS`).
+    pub fn animations_important(mut self) -> Self {
+        self.important |= ImportantMask::ANIMATIONS;
+        self
+    }
+}

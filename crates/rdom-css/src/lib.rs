@@ -20,6 +20,7 @@ mod block;
 mod counter_style;
 mod declarations;
 mod import;
+mod keyframes;
 mod layer;
 mod property;
 mod root_vars;
@@ -261,6 +262,12 @@ fn warning_to_error(w: &Warning) -> ParseError {
         WarningKind::CounterStyleDescriptorDropped { .. } => {
             ParseErrorKind::ExpectedToken("valid counter style descriptor")
         }
+        WarningKind::InvalidKeyframeSelector(_) => {
+            ParseErrorKind::ExpectedToken("keyframe selector")
+        }
+        WarningKind::ImportantInKeyframe(_) => {
+            ParseErrorKind::ExpectedToken("keyframe declaration without !important")
+        }
     };
     ParseError {
         kind,
@@ -389,6 +396,14 @@ pub enum WarningKind {
         descriptor: String,
         reason: CounterStyleDescriptorReason,
     },
+    /// A keyframe block of an `@keyframes` rule whose selector list (as
+    /// written) holds an invalid `<keyframe-selector>` — not `from`, `to`
+    /// or a percentage in [0%, 100%]: the block is ignored (CSS Animations
+    /// 1 §3).
+    InvalidKeyframeSelector(String),
+    /// A declaration (its property name) marked `!important` in a
+    /// keyframe block: ignored (CSS Animations 1 §3).
+    ImportantInKeyframe(String),
     UnterminatedComment,
     UnterminatedString,
 }

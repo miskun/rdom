@@ -242,6 +242,18 @@ const SPEC: &[(&str, Spec)] = &[
     ("transition-delay", L(N)),
     ("transition-behavior", L(N)),
     ("transition", S),
+    // CSS Animations 1 §4, CSS Animations 2 §3: not animatable
+    ("animation-name", L(N)),
+    ("animation-duration", L(N)),
+    ("animation-timing-function", L(N)),
+    ("animation-delay", L(N)),
+    ("animation-iteration-count", L(N)),
+    ("animation-direction", L(N)),
+    ("animation-fill-mode", L(N)),
+    ("animation-play-state", L(N)),
+    ("animation-composition", L(N)),
+    ("animation-timeline", L(N)),
+    ("animation", S),
     // CSS Color Adjust 1 §2
     ("color-scheme", L(D)),
     // CSS Writing Modes 4 §2–§3

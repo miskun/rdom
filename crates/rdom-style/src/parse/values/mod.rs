@@ -31,6 +31,7 @@
 //! - `text_decoration.rs` — `text-decoration` and its longhands, the
 //!   underline placement properties.
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
+//! - `animation.rs` — the `animation-*` lists and the `animation` shorthand.
 //! - `calc.rs` — the `calc()` expression parser.
 //! - `numeric.rs` — the shared `<length-percentage>` leaf and the
 //!   component-value splitter.
@@ -39,6 +40,7 @@
 //! stays the single public path.
 
 mod align;
+mod animation;
 mod background;
 mod border;
 mod calc;
@@ -78,6 +80,12 @@ pub use align::{
     align_keyword, parse_align_content, parse_align_items, parse_align_self, parse_justify_content,
     parse_justify_items, parse_justify_self, parse_place_content, parse_place_items,
     parse_place_self, serialize_alignment, serialize_place,
+};
+pub use animation::keyframes_name;
+pub(crate) use animation::{
+    AnimationPiece, parse_animation_duration_list, parse_animation_name_list,
+    parse_animation_shorthand, parse_composition_list, parse_direction_list, parse_fill_mode_list,
+    parse_iteration_count_list, parse_play_state_list, parse_timeline_list,
 };
 pub use background::{
     BackgroundLayer, BackgroundShorthand, parse_background, parse_background_attachment,

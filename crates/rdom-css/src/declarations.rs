@@ -100,6 +100,23 @@ impl DeclarationRun {
             }));
     }
 
+    /// Drop the `!important` declarations, each with an
+    /// [`ImportantInKeyframe`](WarningKind::ImportantInKeyframe) warning:
+    /// CSS Animations 1 §3 ignores them in a keyframe block.
+    pub(crate) fn drop_important(&mut self, warnings: &mut Vec<Warning>) {
+        self.first_warning.get_or_insert(warnings.len());
+        self.decls.retain(|d| {
+            if d.important {
+                warnings.push(Warning {
+                    kind: WarningKind::ImportantInKeyframe(d.name.to_ascii_lowercase()),
+                    line: d.at.0,
+                    column: d.at.1,
+                });
+            }
+            !d.important
+        });
+    }
+
     /// Write the collected declarations onto `style`: normal ones, then
     /// important ones (type doc). Warnings keep source order.
     pub(crate) fn apply(self, style: &mut TuiStyle, warnings: &mut Vec<Warning>) {

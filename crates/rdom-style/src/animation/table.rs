@@ -361,6 +361,17 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("transition-timing-function", NotAnimatable, None),
     e("transition-delay", NotAnimatable, None),
     e("transition-behavior", NotAnimatable, None),
+    // CSS Animations 1 §4, CSS Animations 2 §3: not animatable.
+    e("animation-name", NotAnimatable, None),
+    e("animation-duration", NotAnimatable, None),
+    e("animation-timing-function", NotAnimatable, None),
+    e("animation-delay", NotAnimatable, None),
+    e("animation-iteration-count", NotAnimatable, None),
+    e("animation-direction", NotAnimatable, None),
+    e("animation-fill-mode", NotAnimatable, None),
+    e("animation-play-state", NotAnimatable, None),
+    e("animation-composition", NotAnimatable, None),
+    e("animation-timeline", NotAnimatable, None),
     // CSS Lists 3 §4
     e("counter-reset", ByComputedValue, value!(counter_reset)),
     e(

@@ -241,7 +241,7 @@ row comes from.
 | C12-TIMING | `transition-timing-function` full (`linear()`, `steps()` positions), negative `transition-delay` || done |
 | C12-BEHAVIOR | `transition-behavior: allow-discrete` || done (`content-visibility` with C14-CONTAIN) |
 | C12-ANIMATABLE | Every animatable property this program adds interpolates. **Found by C10G-DETAILS-CONTENT-BOX: geometry transitions never reach layout** — a `width`, `height`, `padding`, `gap` or inset transition runs and fires its events, but layout reads the end value at once (paint alone follows `padding` / `gap`), for every element and `::details-content`; make layout read the animated value (DIVERGENCES §3) || done |
-| C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | |
+| C12-KEYFRAMES | `@keyframes` and all `animation-*` properties, animation events | partial — the engine (2/3) and `animation-composition`'s `add` / `accumulate` (3/3) |
 | C12-STARTING | `@starting-style` || done |
 | C12-SCROLL-DRIVEN | `scroll-timeline*` / `view-timeline*` / `animation-timeline` / `animation-range*` | |
 | C12-OUTLINE | `outline` / `-color` / `-style` / `-width` / `-offset` (non-layout ring) | |
@@ -7690,3 +7690,26 @@ row comes from.
   inherits from its parent's computed style rather than its starting style (DIVERGENCES §4). ACID I6
   updated and I16 added (popover entry and exit). Phase 12 part 1 (C12-ANIMATABLE, -TIMING, -BEHAVIOR,
   -STARTING) done.
+- 2026-10-16 — C12-KEYFRAMES (1/3), the syntax. A split first: `rdom-core/src/event_detail.rs` (573
+  production lines) became `event_detail/` (`mod.rs`, `form.rs`, `ui.rs`, tests), so the animation event
+  payload fits. CSS Animations 1 §3 `@keyframes`: rdom-css `keyframes.rs` reads the name (a
+  `<custom-ident>` other than `none`, a CSS-wide keyword or `default`, or a `<string>`; else
+  `InvalidAtRulePrelude`), each block's `<keyframe-selector>#` (`from`, `to`, percentages in [0%, 100%];
+  an invalid one drops the block, `WarningKind::InvalidKeyframeSelector`) and its declarations, dropping
+  `!important` ones (`ImportantInKeyframe`). rdom-style `keyframes`: `KeyframesRule { name, layer,
+  keyframes }` kept per sheet in source order (`Stylesheet::keyframes` / `define_keyframes`, as
+  `@counter-style` is), `Keyframe { selectors, style }` with its `animation-timing-function` (`easing()`)
+  and `animation-composition`, and `KeyframesRule::resolve` — one keyframe per offset, ascending, the
+  blocks naming it in source order (they cascade, §3). The ten longhands (§4, CSS Animations 2 §3:
+  `animation-name` / `-duration` with `auto` / `-timing-function` / `-delay` signed / `-iteration-count`
+  with `infinite` and fractions / `-direction` / `-fill-mode` / `-play-state` / `-composition` /
+  `-timeline` `auto | none`) are lists in `TuiStyle` and `ComputedStyle` (empty is the initial value),
+  not inherited, not animatable, and `animation` sets them per piece in any order — the first `<time>`
+  the duration, a keyword going to the first unset component it fits, the name last — resetting
+  `animation-composition` and `-timeline`; it serializes only with equal-length lists and those two
+  initial. Red: rdom-style `property_dispatch::animation_tests` (4 of 5: `UnknownProperty`), rdom-css
+  `keyframes` (8: no `Stylesheet::keyframes`; the at-rule warned `UnsupportedAtRule`); green after.
+  `apply_tests::initial_keyword_yields_the_initial_computed_value_for_every_property` covers the new
+  fields. The builder gains `animation_*` setters and `animations_important` (`ImportantMask::ANIMATIONS`);
+  `tui_style/builder/mod.rs` (580) split first — the positioning setters to `position.rs`, the transition
+  and animation ones to `motion.rs`. Nothing runs yet: the engine is part 2/3.

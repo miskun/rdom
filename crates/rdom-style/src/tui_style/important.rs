@@ -200,6 +200,18 @@ impl ImportantMask {
         .union(Self::TRANSITION_TIMING_FUNCTION)
         .union(Self::TRANSITION_DELAY)
         .union(Self::TRANSITION_BEHAVIOR);
+    /// The ten `animation-*` longhands' bits — what the `animation`
+    /// shorthand (and `TuiStyle::animations_important`) marks.
+    pub const ANIMATIONS: Self = Self::ANIMATION_NAME
+        .union(Self::ANIMATION_DURATION)
+        .union(Self::ANIMATION_TIMING_FUNCTION)
+        .union(Self::ANIMATION_DELAY)
+        .union(Self::ANIMATION_ITERATION_COUNT)
+        .union(Self::ANIMATION_DIRECTION)
+        .union(Self::ANIMATION_FILL_MODE)
+        .union(Self::ANIMATION_PLAY_STATE)
+        .union(Self::ANIMATION_COMPOSITION)
+        .union(Self::ANIMATION_TIMELINE);
 }
 
 #[cfg(test)]

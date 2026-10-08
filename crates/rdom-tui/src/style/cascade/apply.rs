@@ -265,7 +265,8 @@ pub(super) fn apply_style(
         caret_color: CARET_COLOR,
         caret_text_color: CARET_TEXT_COLOR,
     );
-    // Positioning (M2), transitions (M3; latest list wins) and counters
+    // Positioning (M2), transitions (M3; latest list wins), animations
+    // (CSS Animations 1 §4) and counters
     // (CSS Lists 3 §3.1). None inherit by default.
     value!(
         position: POSITION,
@@ -282,6 +283,16 @@ pub(super) fn apply_style(
         transition_timing_function: TRANSITION_TIMING_FUNCTION,
         transition_delay: TRANSITION_DELAY,
         transition_behavior: TRANSITION_BEHAVIOR,
+        animation_name: ANIMATION_NAME,
+        animation_duration: ANIMATION_DURATION,
+        animation_timing_function: ANIMATION_TIMING_FUNCTION,
+        animation_delay: ANIMATION_DELAY,
+        animation_iteration_count: ANIMATION_ITERATION_COUNT,
+        animation_direction: ANIMATION_DIRECTION,
+        animation_fill_mode: ANIMATION_FILL_MODE,
+        animation_play_state: ANIMATION_PLAY_STATE,
+        animation_composition: ANIMATION_COMPOSITION,
+        animation_timeline: ANIMATION_TIMELINE,
         counter_reset: COUNTER_RESET,
         counter_increment: COUNTER_INCREMENT,
         counter_set: COUNTER_SET,

@@ -132,6 +132,11 @@ pub use runtime::{
     App, AppContext, AppHandle, ControlFlow, HitTestExt, RouteOutcome, Router, StylesheetId,
 };
 pub use style::{
+    AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
+    AnimationPlayState, AnimationTimeline, IterationCount, Keyframe, KeyframeSelector,
+    KeyframesRule, ResolvedKeyframe,
+};
+pub use style::{
     CascadeExt, Color, ColorContext, ColorFunction, ColorScheme, ColorSchemeList, ComputedStyle,
     Content, ContentContext, CounterOp, CounterStyle, CounterStyleName, CustomValue, DirtyTracker,
     FontDeclarations, ImportantMask, LayerId, Modifier, PropertyRegistration, PropertySyntax,

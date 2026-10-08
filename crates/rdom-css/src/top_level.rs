@@ -5,7 +5,8 @@
 //!   (`block.rs`, which also parses the rules nested in its block);
 //! - `@import` is evaluated (`import.rs`) while it leads the sheet;
 //! - `@layer` is evaluated (`layer.rs`); its block form parses a nested
-//!   list of rules into the layer; `@scope` is evaluated (`scope.rs`);
+//!   list of rules into the layer; `@scope` is evaluated (`scope.rs`),
+//!   `@keyframes` too (`keyframes.rs`);
 //! - any other at-rule (`@name …`) is consumed whole — statement form
 //!   through `;`, block form through a depth-tracked `{…}` — and
 //!   reported as `UnsupportedAtRule`;
@@ -137,6 +138,10 @@ fn consume_at_rule(
     }
     if name.eq_ignore_ascii_case("property") {
         crate::property::consume_property_rule(cursor, sheet, warnings, (line, column));
+        return;
+    }
+    if name.eq_ignore_ascii_case("keyframes") {
+        crate::keyframes::consume_keyframes_rule(cursor, sheet, warnings, layer, (line, column));
         return;
     }
     if name.eq_ignore_ascii_case("counter-style") {

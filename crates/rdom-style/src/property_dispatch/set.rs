@@ -78,6 +78,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         return set_css_wide(name, kw, style);
     }
     if let Some(outcome) = super::background::set(name, value, style)
+        .or_else(|| super::animation::set(name, value, style))
         .or_else(|| super::border::set(name, value, style))
         .or_else(|| super::shadow::set(name, value, style))
         .or_else(|| super::contain::set(name, value, style))

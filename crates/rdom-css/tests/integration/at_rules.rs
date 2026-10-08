@@ -48,7 +48,7 @@ fn block_at_rule_with_nested_braces_is_skipped_whole() {
 }
 
 #[test]
-fn keyframes_block_is_skipped_whole() {
+fn keyframes_add_no_style_rule() {
     let src = "@keyframes spin { from { color: red } to { color: blue } } p { color: red }";
     assert_eq!(selectors(src), vec!["p"]);
 }

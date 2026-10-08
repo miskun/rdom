@@ -12,6 +12,7 @@ mod display_flow;
 mod import;
 mod important;
 mod inline_style;
+mod keyframes;
 mod layers;
 mod lengths;
 mod malformed_declarations;
