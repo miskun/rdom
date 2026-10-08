@@ -41,7 +41,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 9 | Inline text and decoration | done 2026-10-12 (both gates; 14 gate fixes `C9G-*`; their re-review rides with the Phase 10 gate) |
 | 10 | Lists, counters, generated content, pseudo-elements | done 2026-10-13 (both gates; 19 gate fixes `C10G-*`; their re-review rides with the Phase 11 gate) |
 | 11 | Selectors | done 2026-10-14 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
-| 12 | Transitions, animations, user interface | items done, gates pending |
+| 12 | Transitions, animations, user interface | gates run 2026-10-15; `C12G-*` fixes in progress |
 | 13 | Tables (real table formatting context) | |
 | 14 | Conditional rules, containment | |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | |
@@ -8035,3 +8035,30 @@ row comes from.
   `caret-animation: manual` and the pointer shapes. TECH_DEBT `SIZE-1` recount of the files part 3 grew:
   `runtime/app/mod.rs` 562, `style/cascade/apply.rs` 518 and `runtime/router/mouse/mod.rs` 506 (new to the
   list), `property_dispatch/set.rs` 500 — none past 575. Docs only.
+- 2026-10-15 — Phase 12 gates (with the C11G re-review: all 15 hold; `Dom::is_inert` climbs DOM
+  parents, misjudging a positioned `::details-content` box). Architect: 2 blocking — an element
+  detached by `remove_child` (not dropped) animates forever (pruning uses `contains`;
+  `cancel_for_node` never called; 60 fps idle, no cancel events); a `::before` / `::after` that stops
+  generating mid-animation keeps its presentation base, so it stays painted and frames run forever.
+  API: 2 blocking — `appearance: none` (the widest Phase 12 silent change) is not in the ranked
+  upgrade list; DIVERGENCES contradicts itself on scroll-driven animations and leaves an empty §3
+  heading. Non-blocking: before-change and rendered state read from the cascaded, not composited,
+  style (reopening during an exit transition misbehaves); layout decided by which longhands animate
+  rather than whether values changed (a `visibility` blink lays out every frame); the transition diff
+  builds two N-entry maps per cascade; worst case 18 (36) pass-1 layouts per frame, the `calc_sizes`
+  flag never cleared, ANIM-RELAYOUT-1 understated; an invisible resize hot spot on every textarea, resize
+  ignores the gutter and rewrites both axes; removing an open `<select>` leaves it open; outline not
+  drawn on inline elements; timing / event spec gaps and scroll-driven restyle lag; infinite animations
+  request every frame (a `steps(1)` blink, an inert `transform` spinner); `computed` now holding running
+  values is undocumented and the cascade-only accessor (`cascaded_for`) is TuiExt-only and misnamed;
+  uneven re-exports (transition types, `AnimationInfo`, `Longhand`); dead / leaky surface
+  (`AnimationEventKind`, `ActiveAnimation`, vestigial `effective_*` with a `Reset` fallback);
+  `TransitionProperty::Named` accepts any string; `TimingFunction` / `Appearance` should be
+  `#[non_exhaustive]`; builder gaps (`overlay`, view-timeline axis / inset, `timeline_scope`,
+  `.cursor()` needs `.into()`, two `Cursor` types, `LinearStop::new` argument order); upgrade-guide
+  placement (`display:none` fade-in break at 74) and missing items (negative delays, `linear()`,
+  `@starting-style`), rows 141 / 151 wrong; `App` configuration scattered and its module doc stale;
+  READMEs lag (no animation doctest, porting recipes, stale rdom-style lists, a stale UA comment);
+  `design_types.rs` weaker than its rule (globs, macro types, any backticked name, no
+  `#[non_exhaustive]` check); SIZE-1 stale (`ladder.rs` 571, `rdom-css/src/block.rs` unlisted).
+  Full reports: `target/claude-logs/c12_gate_{architect,api}.md`. Fix as `C12G-*`, two batches.
