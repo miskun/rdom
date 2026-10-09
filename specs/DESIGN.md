@@ -101,7 +101,7 @@ CSS3 Display Module two-value mapping is the source of truth: `display: block` â
 
 ## Roadmap
 
-0.1.0 ships the DOM substrate, the cascade, flexbox layout, the runtime, native HTML built-ins, the UA stylesheet, the CSS string parser, and the HTML template parser. See the root [`README.md`](../README.md#whats-in-010) for the shipped feature list.
+0.1.0 ships the DOM substrate, the cascade, flexbox layout, the runtime, native HTML built-ins, the UA stylesheet, the CSS string parser, and the HTML template parser. See the root [`README.md`](../README.md#features) for the current feature list.
 
 The work that fed into 0.1.0 was organized in five internal milestones (M1 CSS parser, M2 positioning, M3 timers + transitions, M4 DOM API completeness, M5 layout primitives bundle). Going forward, releases are numbered by semver only.
 

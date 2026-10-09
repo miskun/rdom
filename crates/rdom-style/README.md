@@ -57,7 +57,7 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 | `Specificity`, `ImportantMask` | Cascade primitives — `(inline, id, class+attr+pc, type+pe)` lexicographic order; per-property `!important` bits. |
 | `Value<T>` | A declared value: `Specified(T)` or a CSS-wide keyword (`Inherit`, `Initial`, `Revert`, `RevertLayer`; `unset` resolves when parsed). Every `TuiStyle` property field is an `Option<Value<T>>` — the per-side longhands (`margin`, `padding`, the border sides and corners) a `Sides` / `Corners` of them. |
 | `property_dispatch` | The **single** `name → (setter, serializer, mask, remover)` table. Both `rdom-css` (parser) and `rdom-tui`'s `StyleDeclaration` consume this — there is no parallel list to drift. |
-| `parse::Cursor` | Tokenizer + cursor used by `property_dispatch::set` and re-exported for `rdom-css`'s block parser. |
+| `parse` | The tokenizer (`parse::token`), the source cursor (`parse::SourceCursor`) `rdom-css`'s block parser walks, and the value parsers (`parse::values`) `property_dispatch::set` calls. |
 | `layout::*` | `Display`, `Direction`, `WhiteSpace`, `Size`, `Padding`, `Border`, `Position`, `Length`, `ZIndex`, `Overflow`, `LayoutRect`, … |
 | `transition::*` | Transition declarations — `TimingFunction`, `TransitionProperty` (`all`, `none`, a property name, another ident), `TransitionRule`. |
 | `animation::*` | Each longhand's animation type (`AnimationType`, `Longhand`, `animation_type`), the longhands a `transition-property` name covers, and the interpolation and addition of computed values a running transition or animation composites onto a `ComputedStyle`. |
@@ -67,7 +67,8 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
 
 `property_dispatch::property_names()` is the source of truth at runtime
 (also driving `rdom-tui`'s `StyleDeclaration` camelCase aliases via
-`build.rs`). The current set:
+`build.rs`). The current set, by area — every name is in the generated
+list at the end:
 
 - **Color / text / interaction** — `color`, `background-color`, the
   `background` shorthand and its longhands (`background-image` /
@@ -108,6 +109,37 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   longhands each), `border-radius` (+ four per-corner longhands),
   `box-shadow`, `border-collapse`, `border-spacing`, `table-layout`,
   `caption-side`.
+- **Grid** — `display: grid` / `inline-grid`, `grid-template-columns` /
+  `-rows` / `-areas`, the `grid-template` and `grid` shorthands,
+  `grid-auto-columns` / `-rows` / `-flow`, `grid-row` / `grid-column` (+
+  `-start` / `-end`) and `grid-area`, `subgrid`, and the `place-*`
+  alignment shorthands above.
+- **Lists and tables** — `list-style` (+ `-type`, `-position`, `-image`),
+  `marker-side`, `empty-cells`; the table properties are under sizing and
+  box.
+- **Scrolling** — `overscroll-behavior` (+ `-x` / `-y` / `-block` /
+  `-inline`), `scroll-padding` and `scroll-margin` (+ the physical and
+  logical longhands), `scroll-snap-type` / `-align` / `-stop`.
+- **Containment and conditional rules** — `contain`, `content-visibility`,
+  `container` (+ `-type`, `-name`), `will-change`; `@media`, `@supports` and
+  `@container` conditions are `conditional::*`.
+- **Transforms, filters, compositing and clipping** — `translate`,
+  `transform` (translate functions move a box by whole cells; the others,
+  `rotate`, `scale`, `transform-origin` and `transform-box` parse, cascade
+  and animate, and draw nothing), `filter` and `backdrop-filter`,
+  `mix-blend-mode`, `isolation`, `background-blend-mode` (inert),
+  `clip-path` (`inset()`, `circle()`, `ellipse()`, `polygon()`), the legacy
+  `clip: rect()`, and `mask` / `mask-border` with their longhands (parsed
+  and kept; images draw nothing).
+- **Multi-column layout and fragmentation** — `columns` (+
+  `column-count`, `column-width`), `column-gap`, `column-rule` (+ `-color`,
+  `-style`, `-width`), `column-span`, `column-fill`, `break-before` /
+  `-after` / `-inside` and the legacy `page-break-*` aliases, `orphans`,
+  `widows`, `box-decoration-break`.
+- **Anchor positioning** — `anchor-name`, `anchor-scope`,
+  `position-anchor`, `position-area`, `position-try` (+ `-fallbacks`,
+  `-order`), `position-visibility`; `anchor()` / `anchor-size()` in insets,
+  sizes and margins; `@position-try` rules are `PositionTryRule`s.
 - **Writing modes and logical properties** — `direction`, `writing-mode`
   (horizontal; the vertical values parse and lay out horizontally), and
   the flow-relative forms, mapped for the element's `direction`:
@@ -142,6 +174,14 @@ The leaf crate carries the **values**, not the cascade. Cascade lives in
   `animation-timeline`'s `scroll()` / `view()` / named timelines, and
   `animation-range` (+ `-start`, `-end`).
 - **Custom properties** — `--*`, and `all`.
+
+<details><summary>Every property name the dispatch table knows (generated from <code>property_names()</code>)</summary>
+
+<!-- property-names:begin -->
+`-webkit-appearance`, `-webkit-box-orient`, `-webkit-line-clamp`, `accent-color`, `align-content`, `align-items`, `align-self`, `anchor-name`, `anchor-scope`, `animation`, `animation-composition`, `animation-delay`, `animation-direction`, `animation-duration`, `animation-fill-mode`, `animation-iteration-count`, `animation-name`, `animation-play-state`, `animation-range`, `animation-range-end`, `animation-range-start`, `animation-timeline`, `animation-timing-function`, `appearance`, `aspect-ratio`, `backdrop-filter`, `background`, `background-attachment`, `background-blend-mode`, `background-clip`, `background-color`, `background-image`, `background-origin`, `background-position`, `background-repeat`, `background-size`, `block-ellipsis`, `block-size`, `border`, `border-block`, `border-block-color`, `border-block-end`, `border-block-end-color`, `border-block-end-style`, `border-block-end-width`, `border-block-start`, `border-block-start-color`, `border-block-start-style`, `border-block-start-width`, `border-block-style`, `border-block-width`, `border-bottom`, `border-bottom-color`, `border-bottom-left-radius`, `border-bottom-right-radius`, `border-bottom-style`, `border-bottom-width`, `border-collapse`, `border-color`, `border-end-end-radius`, `border-end-start-radius`, `border-inline`, `border-inline-color`, `border-inline-end`, `border-inline-end-color`, `border-inline-end-style`, `border-inline-end-width`, `border-inline-start`, `border-inline-start-color`, `border-inline-start-style`, `border-inline-start-width`, `border-inline-style`, `border-inline-width`, `border-left`, `border-left-color`, `border-left-style`, `border-left-width`, `border-radius`, `border-right`, `border-right-color`, `border-right-style`, `border-right-width`, `border-spacing`, `border-start-end-radius`, `border-start-start-radius`, `border-style`, `border-top`, `border-top-color`, `border-top-left-radius`, `border-top-right-radius`, `border-top-style`, `border-top-width`, `border-width`, `bottom`, `box-decoration-break`, `box-shadow`, `box-sizing`, `break-after`, `break-before`, `break-inside`, `caption-side`, `caret`, `caret-animation`, `caret-color`, `caret-shape`, `caret-text-color`, `clear`, `clip`, `clip-path`, `color`, `color-scheme`, `column-count`, `column-fill`, `column-gap`, `column-rule`, `column-rule-color`, `column-rule-style`, `column-rule-width`, `column-span`, `column-width`, `columns`, `contain`, `contain-intrinsic-block-size`, `contain-intrinsic-height`, `contain-intrinsic-inline-size`, `contain-intrinsic-size`, `contain-intrinsic-width`, `container`, `container-name`, `container-type`, `content`, `content-visibility`, `continue`, `counter-increment`, `counter-reset`, `counter-set`, `cursor`, `direction`, `display`, `empty-cells`, `field-sizing`, `filter`, `flex`, `flex-basis`, `flex-direction`, `flex-flow`, `flex-grow`, `flex-shrink`, `flex-wrap`, `float`, `font`, `font-family`, `font-size`, `font-stretch`, `font-style`, `font-variant`, `font-weight`, `font-width`, `gap`, `grid`, `grid-area`, `grid-auto-columns`, `grid-auto-flow`, `grid-auto-rows`, `grid-column`, `grid-column-end`, `grid-column-start`, `grid-row`, `grid-row-end`, `grid-row-start`, `grid-template`, `grid-template-areas`, `grid-template-columns`, `grid-template-rows`, `height`, `hyphens`, `inline-size`, `inset`, `inset-block`, `inset-block-end`, `inset-block-start`, `inset-inline`, `inset-inline-end`, `inset-inline-start`, `interpolate-size`, `isolation`, `justify-content`, `justify-items`, `justify-self`, `left`, `letter-spacing`, `line-break`, `line-clamp`, `line-height`, `list-style`, `list-style-image`, `list-style-position`, `list-style-type`, `margin`, `margin-block`, `margin-block-end`, `margin-block-start`, `margin-bottom`, `margin-inline`, `margin-inline-end`, `margin-inline-start`, `margin-left`, `margin-right`, `margin-top`, `margin-trim`, `marker-side`, `mask`, `mask-border`, `mask-border-mode`, `mask-border-outset`, `mask-border-repeat`, `mask-border-slice`, `mask-border-source`, `mask-border-width`, `mask-clip`, `mask-composite`, `mask-image`, `mask-mode`, `mask-origin`, `mask-position`, `mask-repeat`, `mask-size`, `mask-type`, `max-block-size`, `max-height`, `max-inline-size`, `max-lines`, `max-width`, `min-block-size`, `min-height`, `min-inline-size`, `min-width`, `mix-blend-mode`, `opacity`, `order`, `orphans`, `outline`, `outline-color`, `outline-offset`, `outline-style`, `outline-width`, `overflow`, `overflow-block`, `overflow-clip-margin`, `overflow-inline`, `overflow-wrap`, `overflow-x`, `overflow-y`, `overlay`, `overscroll-behavior`, `overscroll-behavior-block`, `overscroll-behavior-inline`, `overscroll-behavior-x`, `overscroll-behavior-y`, `padding`, `padding-block`, `padding-block-end`, `padding-block-start`, `padding-bottom`, `padding-inline`, `padding-inline-end`, `padding-inline-start`, `padding-left`, `padding-right`, `padding-top`, `page-break-after`, `page-break-before`, `page-break-inside`, `place-content`, `place-items`, `place-self`, `pointer-events`, `position`, `position-anchor`, `position-area`, `position-try`, `position-try-fallbacks`, `position-try-order`, `position-visibility`, `quotes`, `resize`, `right`, `rotate`, `row-gap`, `scale`, `scroll-behavior`, `scroll-margin`, `scroll-margin-block`, `scroll-margin-block-end`, `scroll-margin-block-start`, `scroll-margin-bottom`, `scroll-margin-inline`, `scroll-margin-inline-end`, `scroll-margin-inline-start`, `scroll-margin-left`, `scroll-margin-right`, `scroll-margin-top`, `scroll-padding`, `scroll-padding-block`, `scroll-padding-block-end`, `scroll-padding-block-start`, `scroll-padding-bottom`, `scroll-padding-inline`, `scroll-padding-inline-end`, `scroll-padding-inline-start`, `scroll-padding-left`, `scroll-padding-right`, `scroll-padding-top`, `scroll-snap-align`, `scroll-snap-stop`, `scroll-snap-type`, `scroll-timeline`, `scroll-timeline-axis`, `scroll-timeline-name`, `scrollbar-color`, `scrollbar-gutter`, `scrollbar-width`, `tab-size`, `table-layout`, `text-align`, `text-align-all`, `text-align-last`, `text-decoration`, `text-decoration-color`, `text-decoration-line`, `text-decoration-skip-ink`, `text-decoration-style`, `text-decoration-thickness`, `text-indent`, `text-justify`, `text-overflow`, `text-transform`, `text-underline-offset`, `text-underline-position`, `text-wrap`, `text-wrap-mode`, `text-wrap-style`, `timeline-scope`, `top`, `transform`, `transform-box`, `transform-origin`, `transition`, `transition-behavior`, `transition-delay`, `transition-duration`, `transition-property`, `transition-timing-function`, `translate`, `user-select`, `vertical-align`, `view-timeline`, `view-timeline-axis`, `view-timeline-inset`, `view-timeline-name`, `visibility`, `white-space`, `white-space-collapse`, `widows`, `width`, `will-change`, `word-break`, `word-spacing`, `word-wrap`, `writing-mode`, `z-index`
+<!-- property-names:end -->
+
+</details>
 
 See [`DESIGN.md`](../../specs/DESIGN.md#roadmap) for what's coming next.
 
@@ -210,7 +250,7 @@ keywords `inherit`, `initial`, `unset`, `revert` and `revert-layer` are accepted
 cargo test -p rdom-style
 ```
 
-250+ tests covering color parsing, modifier composition, `Specificity`
+About 700 unit tests covering color parsing, modifier composition, `Specificity`
 ordering, `ImportantMask` routing, every `property_dispatch::set` /
 `serialize` / `remove` path, length parsing, and `transition` value
 parsing.

@@ -163,6 +163,8 @@ mod multicol_tests;
 #[cfg(test)]
 mod overflow_tests;
 #[cfg(test)]
+mod readme_tests;
+#[cfg(test)]
 mod scroll_tests;
 #[cfg(test)]
 mod scrollbar_tests;

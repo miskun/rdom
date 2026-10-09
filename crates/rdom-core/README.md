@@ -173,8 +173,8 @@ edits, insertions and removals move their boundary points as a
 browser's `Range` (DOM §5.3). `Dom::descendants(root)` walks a subtree
 in tree order, text nodes included, and `Dom::range_between(a, b)`
 builds a checked range from two boundary points. A renderer paints
-each name's ranges with `::highlight(name)` — see the rdom-tui README's
-search-results example.
+each name's ranges with `::highlight(name)` — see the rdom-tui recipe
+["Custom highlights: search results"](../rdom-tui/docs/RECIPES.md#custom-highlights-search-results).
 
 ## AbortSignal
 

@@ -90,7 +90,7 @@ value       := token+
   `:hover` / `:active`), descendant / child / next-sibling / subsequent-sibling
   combinators, comma-separated lists.
 - **Properties** — the `rdom-style::property_dispatch` table (`property_names()` lists them; incl. `counter-reset` (with `reversed()`) / `counter-increment` / `counter-set`, `content` (`counter()`, `counters()`, `symbols()`, quotes, alt text) and `quotes`; `transition-timing-function` takes `cubic-bezier()` and `steps()`):
-  color/text, block model, sizing, content, positioning, transitions.
+  colour and text, the box model, flexbox, grid, tables, lists and generated content, positioning, containment, transitions and animations, transforms, filters, blending, clipping, multi-column layout and anchor positioning.
   See [`rdom-style`](../rdom-style/#supported-properties) for the
   current list.
 - **Values** — colors: the CSS Color 4 / 5 `<color>` grammar — hex
@@ -132,41 +132,49 @@ value       := token+
   identifiers, optional around `:`, `;`, `{`, `}`).
 - **UTF-8** — identifiers, strings, comments all UTF-8 throughout.
 
-## Not yet supported
+## At-rules
 
-These produce a `Warning` and the parse continues — matching browser
-behavior, so copy-pasting CSS from MDN doesn't blow up:
+Parsed into the sheet: `@import` (through the host's `ImportLoader` with
+`parse_with_loader` / `parse_with_loader_at` — relative URLs resolved by
+the loader against the importing sheet — its `supports()` and media list
+conditioning the imported rules), `@layer` (statement and block forms,
+anonymous and nested layers), `@scope` (`Stylesheet::scopes`,
+`Rule::scope`), `@media`, `@supports` and `@container` (the sheet's
+conditions, `Stylesheet::conditions`, `Rule::condition` — at the top
+level, in `@layer` and nested in a style rule; `@supports` evaluated as it
+is parsed, `rdom_style::supports_condition` being `CSS.supports()`,
+`@media` and `@container` by the backend's cascade), `@property`
+(`Stylesheet::registered_properties`), `@counter-style`
+(`Stylesheet::counter_styles`), `@keyframes` (`Stylesheet::keyframes`),
+`@starting-style`, and `@position-try` (`Stylesheet::position_try_rules`,
+CSS Anchor Positioning 1 §4.1).
 
-- **At-rules other than `@import`, `@layer`, `@scope`, `@property`, `@counter-style`,
-  `@starting-style`, `@keyframes`, `@media`, `@supports` and `@container`.** Every other at-rule (`@charset`, `@font-face`, …) is
-  consumed whole per CSS Syntax 3 §5.4.2 and reported with
-  `WarningKind::UnsupportedAtRule(name)`; the rules around it are
-  unaffected (`@import` loads through the host's `ImportLoader` with
-  `parse_with_loader` / `parse_with_loader_at` — relative URLs resolved
-  by the loader against the importing sheet — its `supports()` and media
-  list conditioning the imported rules;
-  `@media`, `@supports` and `@container` are parsed into the sheet's conditions,
-  `Stylesheet::conditions`, `Rule::condition` — at the top level, in
-  `@layer` and nested in a style rule — `@supports` evaluated as it is
-  parsed (`rdom_style::supports_condition` is `CSS.supports()`), `@media`
-  and `@container` by the backend's cascade;
-  `@property` registers a custom property, `Stylesheet::registered_properties`;
-  `@counter-style` defines a counter style, `Stylesheet::counter_styles`
-  (`WarningKind::InvalidCounterStyleRule` for a rule that defines nothing,
-  `CounterStyleDescriptorDropped` for a dropped descriptor, each with a
-  typed reason);
-  `@scope` is parsed into the sheet's scopes:
-  `Stylesheet::scopes`, `Rule::scope`; `@keyframes` into its keyframes,
-  `Stylesheet::keyframes` — `WarningKind::InvalidKeyframeSelector` for a
-  dropped keyframe block, `ImportantInKeyframe` for an ignored `!important`
-  declaration). The applicable ones (`@position-try`, …) are scheduled
-  for 0.6.0. `@layer` (statement and block forms,
-  anonymous and nested layers) is parsed into the sheet's cascade layers;
-  an invalid `@layer` prelude reports `WarningKind::InvalidAtRulePrelude`.
-- **Pixel and font-relative length units.** `px`, `em`, `rem` and the
-  other absolute and font-relative units have no cell-grid meaning and
-  are rejected; cells, `fr`, `%`, `ch`, `lh` / `rlh` and the viewport
-  units (`vw`, `vh`, `vmin`, …, of the terminal) are supported.
+A rule that defines nothing, or a declaration it drops, is reported with
+a typed warning: `InvalidAtRulePrelude` for an invalid prelude,
+`InvalidCounterStyleRule` / `CounterStyleDescriptorDropped`,
+`InvalidKeyframeSelector` / `ImportantInKeyframe`, and
+`PositionTryDescriptorDropped` for a declaration that is no
+`@position-try` descriptor or is `!important`.
+
+Every other at-rule (`@charset`, `@font-face`, `@page`, …) is consumed
+whole per CSS Syntax 3 §5.4.2 and reported with
+`WarningKind::UnsupportedAtRule(name)`; the rules around it are
+unaffected — matching browser behavior, so copy-pasting CSS from MDN
+doesn't blow up.
+
+## Lengths
+
+Lengths are terminal cells: a bare number is cells, and `fr`, `%`, `ch`,
+`lh` / `rlh`, the viewport units (`vw`, `vh`, `vmin`, …, of the terminal)
+and the container units (`cqw`, …) are supported. Pixel and
+font-relative units (`px`, `em`, `rem` and the other absolute units) have
+no cell-grid meaning, so they **never become geometry**: a declaration
+that would size, place or space a box with one (`width: 10px`, `gap:
+1em`) is dropped as `InvalidValue`. They are taken where they only
+*select* a discrete option: a border's glyph weight (`border: 1px
+solid`), a `@media` / `@container` feature value and `column-width` /
+`columns` (8px a column, 16px = 1em a row, so `@media (min-width: 768px)`
+applies from 96 columns).
 
 ## Lenient vs. strict
 
@@ -264,8 +272,7 @@ cargo test -p rdom-css
 ```
 
 Covers tokenizer (comments, whitespace, identifiers, strings, hex
-colors, function tokens), selector integration, per-property parsing
-(one test per row in `RDOM_CSS_PARSER.md` §5), `padding` shorthand
+colors, function tokens), selector integration, per-property parsing, `padding` shorthand
 forms, color values (every `<color>` form, `var()` chains), custom
 properties at `:root`, `!important` routing, length parsing, lenient
 vs strict mode, `<style>` block extraction, and the

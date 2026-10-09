@@ -377,3 +377,9 @@ mod tests {
 #[cfg(doctest)]
 #[doc = include_str!("../README.md")]
 struct ReadmeDoctests;
+
+/// `docs/RECIPES.md`'s worked examples, compiled and run as doctests like
+/// the README's (C15G-README).
+#[cfg(doctest)]
+#[doc = include_str!("../docs/RECIPES.md")]
+struct RecipesDoctests;

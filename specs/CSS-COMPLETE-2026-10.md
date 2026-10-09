@@ -10520,3 +10520,31 @@ row comes from.
   `rdom-showcase/src/lib.rs` (the unpublished crate, since the guide is outside every published one) compiling its
   Rust blocks. CLAUDE.md records the rule: a silent change lands in the guide in the same commit. Red: the three
   tests failed (no file; no pointer); green after.
+- 2026-10-09 — C15G-README (Phase 15 gate API B1, decision 5). The READMEs are the first thing a consumer reads, and
+  four said false things. **rdom-tui** (1,595 lines, 23 sections in phase order): now an overview of 385 — the intro,
+  a contents list, the quick start with `0.6` pins, "Stylesheets" (its selector paragraph listed the 0.1 set; it now
+  names Selectors 4's and links rdom-css's grammar), "The document root and a full-screen app", a "CSS at a glance"
+  table (17 areas: what works, the recipe, the terminal note; linking `CSS-COVERAGE.md` and `DIVERGENCES.md`), the
+  runtime and its configuration, terminal notes, cargo features, architecture, examples, benchmarks and "Upgrading
+  from 0.5" (→ `UPGRADING-0.6.md`). The recipes — grid, responsive layout, tables, floats, pseudo-elements, lists and
+  counters, custom highlights, custom properties, inline formatting, interaction state, form states, popovers and
+  anchored popovers, transitions and animations, incremental re-cascade, the `!important` ladder — move verbatim to
+  `crates/rdom-tui/docs/RECIPES.md` (inside the crate, so its tarball ships it), doctested by `RecipesDoctests` beside
+  `ReadmeDoctests`; two are new, **multi-column layout** (a two-column container with rules and a `column-span: all`
+  title, its painted rows and the spanner's rect asserted) and **transforms, filters, blending and clipping** (a card
+  centred by `top / left: 50%; translate: -50% -50%` at (10, 3), `grayscale(1)` painting red as rgb(54, 54, 54), and
+  `clip-path: inset(0 0 50% 0)` leaving its lower rows unpainted) — 26 recipe doctests, all green. **Root README**:
+  "The 0.1.0 substrate" and the "Unreleased" / "What's in 0.5 … 0.2" sections become one current "Features" list
+  (adding transforms, filters, blending, clip-path, multicol, anchor positioning, `@position-try`; the release history
+  is the CHANGELOG's, which has every version's notes; the UA rule count is "about 190", 188 today), the install pins
+  `0.6`, and "Out of scope" says px / em only select and rotation draws nothing. **rdom-css**: "Not yet supported"
+  claimed `@position-try` "scheduled for 0.6.0" and `px` / `em` "rejected"; it becomes "At-rules" (the parsed set
+  with `@position-try`, the typed warnings incl. `PositionTryDescriptorDropped`) and "Lengths" (never geometry; they
+  select border weights, breakpoints and `column-width` at 8px a column, 16px a row); a citation of a
+  `RDOM_CSS_PARSER.md` that does not exist is gone. **rdom-style**: the property list gains grid, lists, scrolling,
+  containment, effects, multicol / fragmentation and anchor groups, and ends with a generated `<details>` list of all
+  371 `property_names()`; `property_dispatch/readme_tests.rs` fails, printing the block to paste, when the two differ
+  (red: no markers; green after). Its module table named `parse::Cursor`, renamed `SourceCursor` in C12G; corrected.
+  Cross-references follow: rdom-core's highlight pointer and DIVERGENCES' "Form states" pointer name the recipe,
+  DESIGN's dead `#whats-in-010` link points at `#features`, CLAUDE.md lists the doctested documents. rdom-core and
+  rdom-parser READMEs carry no version pins or roadmap claims; nothing to change there.

@@ -205,7 +205,7 @@ cargo test --workspace
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --features rdom-tui/test-util
 ```
 
-The `rdom-style`, `rdom-css` and `rdom-tui` READMEs are doctests (`#[cfg(doctest)] #[doc = include_str!("../README.md")]` in each `lib.rs`), so `cargo test --workspace` compiles every ```` ```rust ```` block in them and runs it unless it is `no_run` (an `App::run`). A README example must be a complete snippet — no hidden `#` lines, which GitHub would show.
+The `rdom-style`, `rdom-css` and `rdom-tui` READMEs, rdom-tui's `docs/RECIPES.md` and the root `UPGRADING-0.6.md` are doctests (`#[cfg(doctest)] #[doc = include_str!(…)]` in each crate's `lib.rs`; the guide's in `rdom-showcase`, since it is outside every published crate), so `cargo test --workspace` compiles every ```` ```rust ```` block in them and runs it unless it is `no_run` (an `App::run`). rdom-style's README ends with the generated list of every property name, which `property_dispatch::readme_tests` keeps equal to `property_names()`. A README example must be a complete snippet — no hidden `#` lines, which GitHub would show.
 
 Examples (smoke, when touching `rdom-tui`). The three in `rdom-tui` are self-contained programs; the ten in `rdom-showcase/examples/` are shims around `rdom_showcase::demos::*`, whose paint is pinned by the snapshot tests in `rdom-showcase/tests/`:
 

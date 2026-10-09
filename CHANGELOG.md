@@ -290,6 +290,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Changed — `rdom-style`
 
+- Docs: the README's property list covers Phases 14–15 and ends with every name `property_names()` returns, generated; `property_dispatch::readme_tests` fails when they differ. (C15G-README)
 - **Containment names**: `WillChange::has(feature)` (was `names`, a predicate); `ContainerType` is `#[non_exhaustive]` with `new(size)` / `with_scroll_state(on)` (Anchor Positioning 2 adds `anchored`); `TextAlign::InternalCenter` is `#[doc(hidden)]`, UA-only. All new since 0.5. (C14G-API-NAMING)
 - **Unit resolvers return what they read**: `CalcExpr::absolutize_in`, `ComputedStyle::resolve_context_units` / `resolve_viewport_units`, `LineHeight::computed`, `VerticalAlign::computed` and `PropertySyntax::computed` return `calc::UnitReads { viewport, container }` beside the value; the thread-wide `calc::viewport_reads()` / `container_reads()` counts (new since 0.5) are gone. (C14G-READ-COUNTERS)
 - **`Stylesheet::append` names every collection it carries** (an exhaustive destructure: a new one fails to compile until appended), and **`UnitContext` is `#[non_exhaustive]`** (new since 0.5; build it with `UnitContext::new`). (C13G-MISC)
@@ -573,6 +574,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Changed — `rdom-tui`
 
+- Docs: **the README is an overview** — quick start with 0.6 pins, a "CSS at a glance" table linking each feature area to its recipe, the runtime and terminal notes, and a pointer to `UPGRADING-0.6.md`; the recipes moved to `docs/RECIPES.md`, still doctested (`RecipesDoctests`), with new multi-column and effects recipes. The rdom-css and root READMEs are corrected. (C15G-README)
 - **Sheets without `@media` evaluate no condition per environment**: a sheet set with no conditional rule evaluates nothing and allocates nothing for one, and one whose conditions are only `@supports` / `@container` evaluates them once, not at every new viewport or scheme. (C14G-COST-PINS)
 - **A frame moving only colors, `opacity` or shadows skips layout**: a running transition or animation of those composites and paints without laying the page out (`ANIM-RELAYOUT-1` narrowed), and the live loop wakes at the animation frame rate while one runs (it woke at the tick rate). (C12-KEYFRAMES)
 - **The `::selection` overlay applies what it changes**: a cell inside the selection takes its `::selection`'s background, and its color and decorations where they differ from the element's — the overlay is the highlight path `::highlight()` uses. (C10-HIGHLIGHT)
