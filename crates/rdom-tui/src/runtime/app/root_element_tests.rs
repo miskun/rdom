@@ -76,3 +76,65 @@ fn root_state_is_read_only_by_nameless_compounds() {
         "the UA sheet has none"
     );
 }
+
+fn click(app: &mut App<TestBackend>, column: u16, row: u16) {
+    use crossterm::event::{
+        Event as CtEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
+    for kind in [
+        MouseEventKind::Down(MouseButton::Left),
+        MouseEventKind::Up(MouseButton::Left),
+    ] {
+        app.handle_event(CtEvent::Mouse(MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::empty(),
+        }));
+        app.advance(0).unwrap();
+    }
+}
+
+/// CSSOM View §5 / UI Events: a click on the canvas outside every box
+/// targets the root element — the root fragment (C14G-ROOT-ELEMENT,
+/// C14-HIT-HTML) — so a listener there hears it.
+#[test]
+fn a_canvas_click_reaches_the_root() {
+    let mut app = app(r#"<p id="p">x</p>"#, "p { margin: 0 }");
+    let root = app.dom().root();
+    let heard = std::rc::Rc::new(std::cell::Cell::new(None));
+    let h = heard.clone();
+    app.dom_mut()
+        .add_event_listener(
+            root,
+            "click",
+            rdom_core::ListenerOptions::default(),
+            move |ctx| h.set(Some(ctx.event.target)),
+        )
+        .unwrap();
+    click(&mut app, 8, 2);
+    assert_eq!(heard.get(), Some(Some(root)));
+}
+
+/// HTML §6.12 light dismiss: a click on the canvas closes an auto popover
+/// even when the popover is the first top-level element (hitting "the
+/// document element" there would have hit the popover itself).
+#[test]
+fn a_canvas_click_light_dismisses_a_first_popover() {
+    let mut app = app(
+        r#"<div id="pop" popover>menu</div><p>x</p>"#,
+        "p { margin: 0 } #pop { position: absolute; top: 0; left: 0; margin: 0; padding: 0; border: none }",
+    );
+    let pop = app.dom().get_element_by_id("pop").unwrap();
+    crate::runtime::builtins::popover::show_popover(app.dom_mut(), pop).unwrap();
+    app.advance(0).unwrap();
+    assert!(crate::runtime::builtins::popover::is_showing(
+        app.dom(),
+        pop
+    ));
+    click(&mut app, 8, 2);
+    assert!(!crate::runtime::builtins::popover::is_showing(
+        app.dom(),
+        pop
+    ));
+}

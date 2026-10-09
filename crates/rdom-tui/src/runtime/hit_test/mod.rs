@@ -22,7 +22,10 @@
 //!
 //! The path is the full DOM ancestor chain of the hit, root-most
 //! first, whichever layer found it — the ancestors between a context
-//! root and a layer entry are inserted when the entry hits.
+//! root and a layer entry are inserted when the entry hits. A point
+//! outside every box hits the root alone (the root fragment, the root
+//! element — CSSOM View §5's `elementFromPoint` returns `<html>` there),
+//! unless a modal dialog makes the document inert.
 //!
 //! ## The top layer
 //!
@@ -88,8 +91,10 @@ pub(crate) use pseudo::pseudo_at;
 pub trait HitTestExt: crate::sealed::Sealed {
     /// The deepest element whose painted area contains `(x, y)`.
     /// Uses the last-painted-wins rule: when two siblings overlap,
-    /// the later one wins. Returns `None` if no element covers the
-    /// point (e.g., empty viewport).
+    /// the later one wins. A point outside every box hits the root
+    /// (`dom.root()`, the root element — C14G-ROOT-ELEMENT); `None` only
+    /// where a modal dialog makes the document inert and nothing of it
+    /// covers the point.
     ///
     /// For IFC blocks the lookup descends into the inline layout so
     /// a point landing on text inside a `<code>` fragment returns
@@ -97,9 +102,10 @@ pub trait HitTestExt: crate::sealed::Sealed {
     fn hit_test(&self, x: u16, y: u16) -> Option<NodeId>;
 
     /// The full ancestor chain from root to the deepest hit, in
-    /// document order (root-most first, deepest last). Suitable for
-    /// event-dispatch targets or browser-style `composedPath()`
-    /// walks. Empty when nothing hit.
+    /// document order (root-most first, deepest last): its element
+    /// ancestors, and on the canvas outside every box the root alone.
+    /// Suitable for event-dispatch targets or browser-style
+    /// `composedPath()` walks. Empty when nothing hit.
     fn hit_test_path(&self, x: u16, y: u16) -> Vec<NodeId>;
 
     /// The pseudo-element whose box is under `(x, y)` — its host and
@@ -159,6 +165,14 @@ impl HitTestExt for Dom<TuiExt> {
         // the path above it.
         let mut path = box_path(self, x, y);
         path.retain(|&id| crate::render::box_tree::slot::host_of(self, id).is_none());
+        // CSSOM View §5 (`elementFromPoint`): a point on the canvas outside
+        // every box — inside the viewport — hits the root element, the
+        // root fragment or an element root, an ancestor of every box
+        // (C14G-ROOT-ELEMENT, C14-HIT-HTML), unless a modal dialog makes
+        // the document inert.
+        if path.is_empty() && self.blocking_modal().is_none() && in_viewport(self, x, y) {
+            path.push(self.root());
+        }
         path
     }
 
@@ -239,6 +253,13 @@ impl HitTestExt for Dom<TuiExt> {
             scope = crate::render::box_tree::slot::parent(self, id);
         }
     }
+}
+
+/// Whether `(x, y)` is on the viewport the document was last laid out in
+/// (CSSOM View §5: a point past it hits nothing).
+fn in_viewport(dom: &Dom<TuiExt>, x: u16, y: u16) -> bool {
+    let viewport = crate::style::cascade::document_viewport(dom);
+    x < viewport.cols && y < viewport.rows
 }
 
 /// The boxes from the root to the deepest hit at `(x, y)`: the document's

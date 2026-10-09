@@ -78,7 +78,8 @@ fn li_hover_applies_while_the_pointer_is_over_a_child_span() {
     assert_eq!(app.dom().hovered(), Some(li));
     assert_eq!(fg(&app, li), RED, "still hovered, now directly");
     mouse(&mut app, MouseEventKind::Moved, 15, 7);
-    assert_eq!(app.dom().hovered(), None);
+    let root = app.dom().root();
+    assert_eq!(app.dom().hovered(), Some(root), "the canvas: the root");
     assert_ne!(fg(&app, li), RED, "leaving drops :hover");
 }
 

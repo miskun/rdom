@@ -55,11 +55,13 @@ fn point_outside_viewport_returns_none() {
     assert_eq!(dom.hit_test(50, 50), None);
 }
 
+/// CSSOM View §5: a point on the canvas hits the root element — the root
+/// fragment (C14G-ROOT-ELEMENT; it hit nothing).
 #[test]
-fn empty_tree_returns_none() {
+fn empty_tree_hits_the_root() {
     let mut dom: TuiDom = TuiDom::new();
     prepare(&mut dom, &Stylesheet::bare(), Rect::new(0, 0, 20, 10));
-    assert_eq!(dom.hit_test(5, 5), None);
+    assert_eq!(dom.hit_test(5, 5), Some(dom.root()));
 }
 
 // ── Nested blocks — deepest wins ────────────────────────────────────
@@ -249,8 +251,9 @@ fn overflow_visible_allows_child_hit_past_parent_rect() {
     // limitation; app-level elements that need "child escapes parent"
     // can use z-index + absolute layout (not shipping v1).
     //
-    // For v1 we assert the *current* behavior: miss.
-    assert_eq!(dom.hit_test(9, 1), None);
+    // For v1 we assert the *current* behavior: miss — the canvas, which
+    // hits the root (C14G-ROOT-ELEMENT).
+    assert_eq!(dom.hit_test(9, 1), Some(root));
 }
 
 // ── IFC fragment lookup ─────────────────────────────────────────────
@@ -1173,7 +1176,8 @@ fn absolute_clipped_by_a_scroll_container_is_not_hittable_outside_it() {
         )
         .rule_unchecked("pop", abs_box().top(crate::layout::Length::Cells(4)));
     prepare(&mut dom, &sheet, Rect::new(0, 0, 10, 8));
-    assert_eq!(dom.hit_test(0, 4), None);
+    // The canvas: the root (C14G-ROOT-ELEMENT).
+    assert_eq!(dom.hit_test(0, 4), Some(dom.root()));
 }
 
 // ── Phase 5 architect gate: the path keeps the ancestor chain ───────

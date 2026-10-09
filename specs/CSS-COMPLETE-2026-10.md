@@ -268,7 +268,7 @@ row comes from.
 | C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | done |
 | C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | done |
 | C14-ASPECT-BLOCK | `aspect-ratio` on a block-level box in block flow (CSS Sizing 4 §5.1): the width transferred from a definite height, the height from the width (found by C13-ROOT-BLOCK) | done |
-| C14-HIT-HTML | A point outside every box hits the document element, as `elementFromPoint` does (found by C13-ROOT-BLOCK; implement, or keep the divergence) | done — decided: keep the divergence |
+| C14-HIT-HTML | A point outside every box hits the document element, as `elementFromPoint` does (found by C13-ROOT-BLOCK; implement, or keep the divergence) | done — implemented by C14G-ROOT-ELEMENT (the canvas hits the root fragment, the root element) |
 
 ### Phase 15 — Transforms, filters, compositing, multi-column, anchor positioning (audit §3.23, §3.24)
 
@@ -9426,3 +9426,22 @@ row comes from.
   dirty tracker's element-chain tests say `set_root_state(false)` (a tracker with unknown sheets now queues
   the root on a chain from nothing, pinned by `a_chain_from_nothing_restyles_the_root_when_a_sheet_can_read_it`).
   No showcase snapshot changed. Silent changes 3 and 4 rewritten.
+- 2026-10-09 — C14G-ROOT-ELEMENT (3/3: the canvas hit; C14-HIT-HTML; CSSOM View §5, UI Events §5). Found: a
+  point outside every box hit nothing; C14-HIT-HTML could not target "the document element", which need not
+  hold the other top-level elements. Decided: with the root fragment the root element (an ancestor of every
+  box), `hit_test_path` returns `[root]` for a point outside every box inside the viewport the document was
+  last laid out in (`document_viewport`; CSSOM View §5's null past the viewport kept), unless a blocking
+  modal makes the document inert; `box_path`, which `position_at` and the selectable-text test read, is
+  unchanged. Mouse routing follows: a canvas click dispatches at the root, the hover is the root, and a
+  press there starts a selection snapped to the nearest text, as a browser's below a page's content. The
+  12 failures C14-HIT-HTML's attempt met do not recur: popover light dismiss and `mouseout` see the
+  ancestor of everything, not the first top-level element. Red (canvas hit disabled): `hit_html.rs`
+  `the_canvas_hits_the_root` and `the_canvas_hits_an_element_root`, `root_element_tests::a_canvas_click_reaches_the_root`;
+  `a_canvas_click_light_dismisses_a_first_popover` pins the revert's light-dismiss failure. Expectations
+  changed by the decision: `hit_test::tests` `empty_tree_hits_the_root` (was `…_returns_none`), the
+  forced-overlap and clipped-absolute misses read the root; router `mousedown_on_the_canvas_targets_the_root`
+  (was `…_miss_records_no_target`), `mousemove_off_all_elements_fires_mouseout` hovers the root,
+  `press_on_the_canvas_after_lost_mouseup_does_not_extend_the_old_selection` (a new drag, not the old
+  one; the press used to leave the selection alone); `interaction_chain_tests` leaving hovers the root.
+  DIVERGENCES' `Dom::root()` entry and the C14-HIT-HTML row updated; silent change 5; ACID tile 20 gains
+  the dark-mode pattern (API B1).

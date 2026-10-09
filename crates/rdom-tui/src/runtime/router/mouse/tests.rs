@@ -600,14 +600,16 @@ fn mousedown_on_hit_dispatches_mousedown_event() {
     assert_eq!(router.down_target(), Some(div));
 }
 
+/// A press on the canvas targets the root — the root element, as
+/// `elementFromPoint` there (C14G-ROOT-ELEMENT; it had no target).
 #[test]
-fn mousedown_miss_records_no_target() {
+fn mousedown_on_the_canvas_targets_the_root() {
     let mut dom: TuiDom = TuiDom::new();
     prepare(&mut dom, &Stylesheet::bare(), Rect::new(0, 0, 20, 10));
 
     let mut router = Router::new();
     router.route(&mut dom, crossterm::event::Event::Mouse(down_at(5, 5)));
-    assert_eq!(router.down_target(), None);
+    assert_eq!(router.down_target(), Some(dom.root()));
 }
 
 // ── mouseup + click synthesis ───────────────────────────────────────
@@ -901,8 +903,9 @@ fn mousemove_off_all_elements_fires_mouseout() {
 
     let events: Vec<_> = log.borrow().iter().map(|(_, e)| e.clone()).collect();
     assert_eq!(events, vec!["mouseout"]);
-    assert_eq!(router.hover_target(), None);
-    assert_eq!(dom.hovered(), None);
+    // Off every element is onto the canvas: the root (C14G-ROOT-ELEMENT).
+    assert_eq!(router.hover_target(), Some(root));
+    assert_eq!(dom.hovered(), Some(root));
 }
 
 #[test]
@@ -2412,24 +2415,24 @@ fn press_on_scrollbar_thumb_after_lost_mouseup_does_not_extend_the_old_selection
     );
 }
 
+/// A press on the canvas below every box targets the root
+/// (C14G-ROOT-ELEMENT) and, as a browser's press below a page's content,
+/// starts a new selection snapped to the nearest text — never extending
+/// the old one (it targeted nothing and left the selection alone).
 #[test]
-fn press_on_nothing_after_lost_mouseup_does_not_extend_the_old_selection() {
+fn press_on_the_canvas_after_lost_mouseup_does_not_extend_the_old_selection() {
     let (mut dom, t, _c) = prose_above_scroller_fixture();
     let mut router = Router::new();
     let before = select_and_lose_mouseup(&mut router, &mut dom, t);
 
     use crate::runtime::hit_test::HitTestExt;
-    // Below every box: the hit test finds nothing.
+    // Below every box: the hit test finds the canvas, the root.
     router.route(&mut dom, crossterm::event::Event::Mouse(down_at(15, 8)));
-    assert_eq!(dom.hit_test(15, 8), None);
-    assert_eq!(router.selection_drag, None, "the press ended the old drag");
+    assert_eq!(dom.hit_test(15, 8), Some(dom.root()));
     router.route(&mut dom, held_move_at(8, 0));
 
-    assert_eq!(
-        dom.selection().copied(),
-        Some(before),
-        "selection untouched"
-    );
+    let after = dom.selection().copied().expect("a selection");
+    assert_ne!(after.anchor, before.anchor, "a new drag, not the old one");
 }
 
 #[test]
