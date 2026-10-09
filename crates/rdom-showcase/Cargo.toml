@@ -30,3 +30,5 @@ crossterm = "0.28"
 # The demo tests read what a headless `App` painted through
 # `VirtualScreen` (`test-util`).
 rdom-tui = { path = "../rdom-tui", version = "0.5.0", features = ["test-util"] }
+# The acid references count a two-cell glyph as two columns.
+unicode-width = { workspace = true }

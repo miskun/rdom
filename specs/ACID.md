@@ -33,6 +33,38 @@ web Acid tests, adapted to a terminal grid.
 7. **Fixing what it finds** happens as separate TDD items in the crate that owns the bug, never by
    adjusting the reference.
 
+## How it is built
+
+Decided while building the harness (ACID-HARNESS, 2026-10-09):
+
+- **Pages.** 26 tiles and their sub-tiles do not fit one 120 × 50 screen, so the acid test is a
+  sequence of *pages*, each exactly 120 × 50 — the viewport every reference is derived for. Each
+  tile (`rdom_showcase::demos::acid::Tile`) names its page and its rectangle there: an absolutely
+  positioned `div.acid-tile` that clips its content (`overflow: clip`), is its own stacking context
+  (`z-index: 0`) and the containing block of its positioned descendants, with its label on the row
+  above (not compared). The tests paint one page at a time as the whole document of a 120 × 50
+  headless `App`; `cargo run -p rdom-showcase --example acid -- <page>` runs one page full screen,
+  and `Built-ins → Acid` stacks every page in the showcase's view pane, where the pane, not the
+  terminal, is the viewport (a tile reading the viewport is right only on its own page).
+- **Sheets.** Every tile's rules go into one author sheet, scoped by the tile's class
+  (`.acid-t1 …`); a tile's `late_css` goes into a second sheet the tests push after it, for the
+  cascade-order contests. `<style>` elements in a tile's markup are live document sheets, ordered
+  before both (DIVERGENCES §2).
+- **Reference format** (`crates/rdom-showcase/tests/integration/acid/reference.rs`). Per tile, the
+  rows as pairs of lines between `|` bars: the glyphs, then one legend letter per column. The legend
+  maps a letter to a glyph-agnostic style — `fg` / `bg` colour (`#rrggbb` or `default`), `ul`
+  (underline colour) and the modifiers `bold`, `italic`, `underline` / `double` / `curly` / `dotted`
+  / `dashed`, `overline`, `strike`, `blink`; `.` is the all-default style. A blank cell shows no
+  foreground, weight or slant, so those are compared on a blank only when it carries a line
+  decoration. Each reference file (`tests/integration/acid/refs/`) carries its spec citations and
+  the derivation of its cells.
+- **Comparator** (`acid/compare.rs`). The page's ANSI output, with every SGR extension enabled, is
+  replayed into a `VirtualScreen` — what a terminal shows — and each tile's crop compared cell by
+  cell: glyph, foreground, background, modifiers, underline colour. A failure names the tile, its
+  spec sections, every differing cell with both sides, and prints the painted crop for diagnosis.
+  One test per tile (`acid::tile_05_…`), plus `acid::report`, which runs every tile and lists each
+  one's result, so a failing tile never hides another.
+
 ## Stage 1 — static tiles
 
 Each tile: what it combines → what the spec says the cells must show.

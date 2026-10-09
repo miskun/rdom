@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for three self-contained programs (counter button, tab form, parse + render) and [`crates/rdom-showcase/examples/`](crates/rdom-showcase/examples/) for the ten showcase demos runnable standalone: scrollable lists, text selection, an ARIA tree with lazy children, sticky headers, border collapse, and the naked-UA chrome tour.
+See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for three self-contained programs (counter button, tab form, parse + render) and [`crates/rdom-showcase/examples/`](crates/rdom-showcase/examples/) for the eleven showcase demos runnable standalone: scrollable lists, text selection, an ARIA tree with lazy children, sticky headers, border collapse, the naked-UA chrome tour, and the acid test's pages.
 
 ## Crates
 

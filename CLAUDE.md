@@ -207,7 +207,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --features rdom-tui/t
 
 The `rdom-style`, `rdom-css` and `rdom-tui` READMEs, rdom-tui's `docs/RECIPES.md` and the root `UPGRADING-0.6.md` are doctests (`#[cfg(doctest)] #[doc = include_str!(…)]` in each crate's `lib.rs`; the guide's in `rdom-showcase`, since it is outside every published crate), so `cargo test --workspace` compiles every ```` ```rust ```` block in them and runs it unless it is `no_run` (an `App::run`). rdom-style's README ends with the generated list of every property name, which `property_dispatch::readme_tests` keeps equal to `property_names()`. A README example must be a complete snippet — no hidden `#` lines, which GitHub would show.
 
-Examples (smoke, when touching `rdom-tui`). The three in `rdom-tui` are self-contained programs; the ten in `rdom-showcase/examples/` are shims around `rdom_showcase::demos::*`, whose paint is pinned by the snapshot tests in `rdom-showcase/tests/`:
+Examples (smoke, when touching `rdom-tui`). The three in `rdom-tui` are self-contained programs; the eleven in `rdom-showcase/examples/` are shims around `rdom_showcase::demos::*`, whose paint is pinned by the snapshot tests in `rdom-showcase/tests/` — `acid` (one page of the acid test, `-- <page>`) by the acid references in `tests/integration/acid/`, derived from the spec (`specs/ACID.md`):
 
 ```bash
 cargo run -p rdom-tui --example counter_button
@@ -218,6 +218,7 @@ cargo run -p rdom-showcase --example scrollable_list
 cargo run -p rdom-showcase --example selectable_text
 cargo run -p rdom-showcase --example ua_chrome
 cargo run -p rdom-showcase --example tree_nav
+cargo run -p rdom-showcase --example acid -- 1
 ```
 
 `rdom-tui` must not depend on `rdom-showcase`, not even as a dev-dependency: the substrate never builds against its consumer, and the published tarball ships its own examples and tests.

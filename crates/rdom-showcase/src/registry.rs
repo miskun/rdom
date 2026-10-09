@@ -3,6 +3,7 @@
 //! is a single line here plus a new module under `crate::demos`.
 
 use crate::Demo;
+use crate::demos::acid::Acid;
 use crate::demos::border_collapse::BorderCollapse;
 use crate::demos::counter_button::CounterButton;
 use crate::demos::dom_api::DomApi;
@@ -60,6 +61,7 @@ pub const DEMOS: &[&dyn Demo] = &[
     &SelectionHosts,
     &ListsGenerated,
     &ScrollLiveStyle,
+    &Acid,
 ];
 
 #[cfg(test)]

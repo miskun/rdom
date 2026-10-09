@@ -928,6 +928,7 @@ dependencies = [
  "rdom-css",
  "rdom-parser",
  "rdom-tui",
+ "unicode-width",
 ]
 
 [[package]]

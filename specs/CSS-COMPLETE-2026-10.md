@@ -281,6 +281,18 @@ row comes from.
 | C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | done |
 | C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | done |
 
+### Phase 16 — Acid test (`ACID.md`)
+
+Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that owns the bug.
+
+| Id | Item | Status |
+|---|---|---|
+| ACID-HARNESS | The acid page in the showcase (pages of 120 × 50, `Built-ins → Acid`, `--example acid`), the reference format and the colour-aware comparator with per-tile reports; tile 1 | done |
+| ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | |
+| ACID-TILES-B | Static tiles 14–26 | |
+| ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
+| ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
+
 ## Log
 
 - 2026-10-04 — Program opened at Miska's request: "address all partials and missing but meaningful
@@ -10566,3 +10578,16 @@ row comes from.
   (C15G-HYGIENE … C15G-STRETCH, 15 items), B performance and structure (C15G-SCROLL-NO-RELAYOUT, C15G-STYLE-SIZE,
   C15G-SPLITS), C docs and API (C15G-API, C15G-UPGRADING, C15G-README, C15G-COVERAGE-DOCS). Their re-review rides with
   the Phase 16 gate. Next: Phase 16, the acid test.
+- 2026-10-09 — ACID-HARNESS (Phase 16 part 1; `ACID.md` "How it is built"). The acid page is a showcase demo,
+  `rdom_showcase::demos::acid` (`Built-ins → Acid`; `cargo run -p rdom-showcase --example acid -- <page>`): tiles do not
+  fit one 120 × 50 screen, so it is a sequence of 120 × 50 pages, each tile an absolutely positioned, clipping box at a
+  fixed rectangle of its page, its own stacking context, with its label on the row above. Tile rules go into one author
+  sheet scoped by the tile's class; a tile's `late_css` into a second sheet pushed after it. The reference format
+  (`tests/integration/acid/reference.rs`): a glyph line and a legend-letter line per row, between bars; the legend maps
+  a letter to fg / bg / underline colour and modifiers; a blank cell compares no fg, bold or italic unless it carries a
+  line decoration. The comparator paints a page in a 120 × 50 headless `App` with every SGR extension on, replays its
+  ANSI output into a `VirtualScreen`, and compares each tile's crop cell by cell; a failure lists every differing cell
+  with both sides, the tile's spec sections and the painted crop. One test per tile plus `acid::report`, which lists
+  every tile's result. The pipeline is proved by tile 1 (cascade order: UA, sheet order, `<style>` before the App's
+  sheets, style attribute, `!important` both ways, layers) — green at first run — and by
+  `acid::comparator_reports_each_wrong_cell`, a deliberately wrong reference failing at exactly its three wrong cells.

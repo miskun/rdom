@@ -768,6 +768,10 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 - **Effects gaps closed**: `dialog::backdrop { backdrop-filter: brightness(.5) }` dims the page and `::backdrop { filter }` maps its own colors (both did nothing); a `transform: rotate()` spinner asks for no frames again (only the drawn translation counts); `:root { cursor }` shows over the canvas. (C15G-EFFECT-GAPS)
 - **A native `<select>` near the screen bottom opens upward** (HTML `::picker(select)`, CSS Anchor Positioning 1 §4 `flip-block`): its option list, which ran off the screen where the mouse could not reach it, is mirrored above the field (its last option on the field's row) when it fits there. (C15G-SELECT-FLIP)
 
+### Added — `rdom-showcase`
+
+- **The acid test** (`specs/ACID.md`): `Built-ins → Acid` and `cargo run -p rdom-showcase --example acid -- <page>` render feature-interaction tiles on 120 × 50 pages, and `tests/integration/acid/` compares each tile's glyphs, colours and modifiers cell by cell against a reference derived from the spec, reporting every tile's result. (ACID-HARNESS)
+
 ### Changed — `rdom-showcase`
 
 - **The shell and the demos fill the screen with CSS**: `.app-shell` and every demo root that relied on the document root's flex column (`flex: 1`) declare `height: 100%` with `box-sizing: border-box`, as a web app shell does — standalone, and in the view pane, which lays its demo out in block flow; the snapshots are unchanged. The `rdom-tui` examples do the same. (C13-ROOT-BLOCK)

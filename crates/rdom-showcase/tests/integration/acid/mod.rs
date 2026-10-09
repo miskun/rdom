@@ -1,0 +1,146 @@
+//! The acid test, stage 1: the static tiles (`specs/ACID.md`).
+//!
+//! Every tile of `rdom_showcase::demos::acid` is compared, cell by cell
+//! and colour by colour, against a reference derived by hand from the
+//! spec (`refs/`). One test per tile, so a filter runs one
+//! (`cargo test -p rdom-showcase --test integration acid::tile_05`), and
+//! `acid::report`, which checks them all and lists every tile's result —
+//! one failing tile never hides another.
+//!
+//! A failing tile is a bug in rdom or a misreading of the spec, decided
+//! by the spec: a bug is fixed in its crate (an `ACID-FIX-<n>` TDD item),
+//! a misreading is fixed in the reference with the argument written into
+//! its derivation. A reference is never edited to match rdom's output.
+
+mod compare;
+mod reference;
+mod refs;
+
+use compare::{TileReport, check, check_on, paint_page};
+use rdom_showcase::demos::acid;
+use reference::Reference;
+
+fn assert_tile(reference: &'static Reference) {
+    let report = check(reference);
+    assert!(report.passed(), "\n{}", report.failure());
+}
+
+/// Every tile, page by page: a line per tile, then each failure's report.
+#[test]
+fn report() {
+    let mut reports: Vec<TileReport> = Vec::new();
+    for page in 1..=acid::page_count() {
+        let screen = paint_page(page);
+        for reference in refs::ALL {
+            if acid::TILES
+                .iter()
+                .any(|t| t.id == reference.tile && t.page == page)
+            {
+                reports.push(check_on(&screen, reference));
+            }
+        }
+    }
+    let mut out = String::from("\nacid static tiles:\n");
+    for r in &reports {
+        out.push_str(&format!(
+            "  {:>3} {:<36} {}\n",
+            r.tile.id,
+            r.tile.title,
+            if r.passed() {
+                "pass".to_string()
+            } else if let Some(e) = &r.error {
+                format!("ERROR {e}")
+            } else {
+                format!("FAIL ({} cells)", r.diffs.len())
+            }
+        ));
+    }
+    let failed: Vec<&TileReport> = reports.iter().filter(|r| !r.passed()).collect();
+    for r in &failed {
+        out.push('\n');
+        out.push_str(&r.failure());
+    }
+    assert!(failed.is_empty(), "{out}");
+}
+
+/// Every tile has a reference and every reference a tile.
+#[test]
+fn every_tile_has_a_reference() {
+    for t in acid::TILES {
+        assert!(
+            refs::ALL.iter().any(|r| r.tile == t.id),
+            "acid tile {} has no reference",
+            t.id
+        );
+    }
+    for r in refs::ALL {
+        assert!(
+            acid::TILES.iter().any(|t| t.id == r.tile),
+            "reference for unknown tile {}",
+            r.tile
+        );
+    }
+}
+
+/// The tiles stay on their page and off each other and their labels.
+#[test]
+fn tiles_fit_their_pages_without_overlap() {
+    for t in acid::TILES {
+        assert!(t.y >= 1, "tile {}: no row for its label", t.id);
+        assert!(t.x + t.w <= acid::PAGE_WIDTH && t.y + t.h <= acid::PAGE_HEIGHT);
+    }
+    for a in acid::TILES {
+        for b in acid::TILES {
+            if a.id == b.id || a.page != b.page {
+                continue;
+            }
+            // Each tile's area with its label row.
+            let apart = a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h < b.y || b.y + b.h < a.y;
+            assert!(
+                apart,
+                "tiles {} and {} overlap on page {}",
+                a.id, b.id, a.page
+            );
+        }
+    }
+}
+
+#[test]
+fn tile_01_cascade() {
+    assert_tile(&refs::t01_cascade::REF);
+}
+
+/// The comparator's own case: a reference that expects the wrong colour,
+/// glyph and background in tile 1 fails at exactly those cells, and the
+/// report names the tile, the cell, both sides and the spec.
+#[test]
+fn comparator_reports_each_wrong_cell() {
+    static WRONG: Reference = Reference {
+        tile: "1",
+        spec: &["test spec §0"],
+        legend: &[
+            ('g', "fg #00a000"),
+            ('r', "fg #c00000"),
+            ('b', "bg #000080"),
+        ],
+        grid: r#"
+|ub late-sheet style-el style-spec     |
+|rg.gggggggggg.gggggggg.gggggggggg....b|
+|inline imp-sheet imp-inline           |
+|gggggg.ggggggggg.gggggggggg...........|
+|order imp-main spec-main invalid      |
+|ggggg.gggggggg.ggggggggg.ggggggg......|
+|unlayered imp-layer layer-id          |
+|ggggggggg.ggggggggg.gggggggg..........|
+|                                      |
+|......................................|
+"#,
+    };
+    let report = check(&WRONG);
+    assert_eq!(report.diffs.len(), 3, "{}", report.failure());
+    assert!(report.diffs[0].starts_with("(0, 0) expected \"u\" fg #c00000"));
+    assert!(report.diffs[1].starts_with("(1, 0) expected \"b\""));
+    assert!(report.diffs[2].starts_with("(37, 0)"));
+    let text = report.failure();
+    assert!(text.contains("tile 1 \"Cascade order\"") && text.contains("test spec §0"));
+}

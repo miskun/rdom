@@ -5,6 +5,9 @@
 
 pub mod common;
 
+// The acid test (`specs/ACID.md`).
+mod acid;
+
 // Paint snapshots for every demo (the `examples/` shims run the same
 // `build` + `stylesheet`, so they are covered too).
 mod animations_demos_snapshot;
