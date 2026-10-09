@@ -114,12 +114,17 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
                 }
                 continue;
             }
-            let cell_state = [
-                buf.border_dir_at(x, y, DIR_N),
-                buf.border_dir_at(x, y, DIR_E),
-                buf.border_dir_at(x, y, DIR_S),
-                buf.border_dir_at(x, y, DIR_W),
-            ];
+            let cell_state = continued_arms(
+                buf,
+                x,
+                y,
+                [
+                    buf.border_dir_at(x, y, DIR_N),
+                    buf.border_dir_at(x, y, DIR_E),
+                    buf.border_dir_at(x, y, DIR_S),
+                    buf.border_dir_at(x, y, DIR_W),
+                ],
+            );
             let mask = visible_mask(&cell_state);
             if mask == 0 {
                 continue;
@@ -173,6 +178,46 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
             }
         }
     }
+}
+
+/// A junction's arms are the lines it joins (DIVERGENCES §1: "the glyph
+/// joins every direction's line"): an arm whose neighbour cell carries
+/// the line on, back toward this cell, is resolved together with that
+/// cell's contributions to it (CSS Tables 3 §11.5), so a junction at the
+/// end of a collapsed line draws the line that won there — even where the
+/// box whose side won it stops short of the junction, as a table cell with
+/// no border on a line does (ACID-FIX-7). Only a junction — arms on both
+/// axes — continues its arms: on a straight run each box keeps its own
+/// side, so two stacked boxes' different left borders stay apart.
+fn continued_arms(
+    buf: &Buffer,
+    x: u16,
+    y: u16,
+    mut state: [BorderDirState; 4],
+) -> [BorderDirState; 4] {
+    let vertical = state[DIR_N].is_visible() || state[DIR_S].is_visible();
+    let horizontal = state[DIR_E].is_visible() || state[DIR_W].is_visible();
+    if !(vertical && horizontal) {
+        return state;
+    }
+    for (dir, back, dx, dy) in [
+        (DIR_N, DIR_S, 0, -1),
+        (DIR_E, DIR_W, 1, 0),
+        (DIR_S, DIR_N, 0, 1),
+        (DIR_W, DIR_E, -1, 0),
+    ] {
+        if !state[dir].is_visible() {
+            continue;
+        }
+        let (Some(nx), Some(ny)) = (x.checked_add_signed(dx), y.checked_add_signed(dy)) else {
+            continue;
+        };
+        let next = buf.border_dir_at(nx, ny, back);
+        if let Some(c) = next.winner.filter(|_| next.is_visible()) {
+            state[dir].merge(c);
+        }
+    }
+    state
 }
 
 /// Draw a border glyph in its border's color — the default (`Reset`,

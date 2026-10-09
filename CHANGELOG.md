@@ -617,6 +617,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Fixed — `rdom-tui`
 
+- **A border junction joins the line that won beside it** (CSS Tables 3 §11.5, DIVERGENCES §1): a collapsed table cell with no top border did not reach the top line, so the junction above its `double` side drew the losing `solid` arm (`┬`, not `╥`) and the corner took the table's colour. (ACID-FIX-7)
 - **`position: relative` moves an inline element** (CSS 2.1 §9.4.3): its insets were ignored; its text and atoms now draw, are hit and carry the caret at the moved place, the line keeping their cells, nested relative boxes adding up. (ACID-FIX-5)
 - **A glyph painted over another is drawn in its own style** (CSS 2.1 Appendix E): text in the default colour over a red glyph showed red, plain text over a bold underlined one bold and underlined, and a default-coloured border over coloured text took the text's colour; each glyph write now replaces the cell's foreground, modifiers and underline colour, keeping its background. (ACID-FIX-3)
 - **A dashed or dotted side ends in a dash** (CSS Backgrounds 3 §4.2): the end cell of a side no other side meets — a box without a bottom border, a lone `border-left` — drew the solid `│` / `─`; it draws the side's dash glyph, corners and junctions staying solid. (ACID-FIX-2)

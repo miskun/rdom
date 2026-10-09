@@ -294,6 +294,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-4 | `<summary>` has no UA weight (HTML §15.5.20; found by tile 9a) | done |
 | ACID-FIX-5 | `position: relative` moves a non-atomic inline box (CSS 2.1 §9.4.3; found by tile 10) | done |
 | ACID-FIX-6 | `<dt>` and `<legend>` have no UA weight (HTML §15.3.3, §15.3.12; left open by part 1) | done |
+| ACID-FIX-7 | A border junction joins the line that won beside it, where the winning box stops short of the junction (CSS Tables 3 §11.5; found by tile 14) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
@@ -10723,3 +10724,13 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `cascade::tests::ua_dt_and_legend_have_no_weight`; green after. One expectation changed:
   `ua_interactive_block_tags_are_block` pinned both bold with no spec argument (it now pins only `summary`'s absence of
   weight). Silent change `sc-dt-legend-weight`.
+- 2026-10-10 — ACID-FIX-7 (found by acid tile 14; CSS Tables 3 §11.5, DIVERGENCES §1). A collapsed table's cell `b`
+  with `border-style: double; border-top-style: none` beside a `solid` cell drew its row as `│ a ║ b ║` under `┌───┬───┐`
+  — the junctions above its `double` sides took the losing arms (`┬`, `┐`), and the corner the table's red: the
+  vertical line won by `b` runs to the junction, but `b`, with no border on the top line, does not cover it
+  (`table::lines`: a cell without a border on a line stops beside it), so its side contributed nothing there. Root
+  cause in the joiner, not the cell's box: a junction's arm is the line next to it. `border_join::continued_arms`
+  resolves each arm of a junction cell (arms on both axes) together with the neighbouring cell's contributions back
+  toward it, so the junction draws the winning line (`╥`, `╖`) in its colour; a straight run is left alone, so stacked
+  boxes keep their own sides. Red: `css_phase13::tfc::a_junction_joins_the_line_that_won_below_it`; green after, the
+  rest of rdom-tui unchanged. Silent change `sc-junction-arms`; DIVERGENCES' corner entry says it.

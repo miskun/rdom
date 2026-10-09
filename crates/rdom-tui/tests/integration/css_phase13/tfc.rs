@@ -267,6 +267,36 @@ fn collapsed_borders_share_the_grid_lines() {
     );
 }
 
+/// ACID-FIX-7 (found by acid tile 14). CSS 2.1 §17.6.2 / CSS Tables 3
+/// §11.5: the `double` left border of a cell wins the line between it and
+/// its neighbour on the cell's row, and that line runs to the junctions at
+/// its ends — DIVERGENCES §1: "the glyph joins every direction's line". A
+/// cell whose top is `none` does not cover the table's top line, so its
+/// side's contributions stopped short of the junction: the junction drew
+/// the losing `solid` side's arm (`┬`), and the corner took the table's
+/// colour (`┐` in red) instead of the `double` side's.
+#[test]
+fn a_junction_joins_the_line_that_won_below_it() {
+    let mut dom = doc(
+        r#"<div><div class="t"><div class="r"><div class="c">a</div><div class="c d">b</div></div></div></div>"#,
+    );
+    let buf = paint(
+        &mut dom,
+        &css(
+            ".t { border-collapse: collapse; border: solid rgb(255, 0, 0) } \
+              .c { border: solid; padding: 0 1 } \
+              .d { border-style: double; border-top-style: none }",
+        ),
+        12,
+        4,
+    );
+    assert_eq!(rows(&buf)[..3], ["┌───╥───╖", "│ a ║ b ║", "└───╩═══╝"]);
+    // The corner's winner is the cell's `double` side, in the cell's
+    // (default) colour, not the table's red.
+    let corner = buf.cell(8, 0).unwrap();
+    assert_eq!(corner.fg, rdom_tui::render::Color::Reset);
+}
+
 // ── Heights and collapse ───────────────────────────────────────────
 
 /// CSS 2.1 §17.5.3: a table taller than its rows gives them the rest, by
