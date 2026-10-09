@@ -1,5 +1,5 @@
-//! C13G-UPGRADE — the 0.5 → 0.6 table migration (CHANGELOG "Upgrading
-//! from 0.5", silent change `sc-tables`): each claim of it pinned, and the port of
+//! C13G-UPGRADE — the 0.5 → 0.6 table migration (`UPGRADING-0.6.md`,
+//! `sc-tables` and "Porting a column-synced table"): each claim of it pinned, and the port of
 //! a column-synced virtual table (rdom-virtualtable's shape) from 0.5's
 //! `size_columns` / `table_used_width` / cell margins to CSS tables.
 

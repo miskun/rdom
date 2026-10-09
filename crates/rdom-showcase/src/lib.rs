@@ -38,3 +38,10 @@ pub use nav::{
 pub use registry::DEMOS;
 pub use shell::{ShellHandles, build_shell};
 pub use status_bar::{seed_default_hints, wire_focus_hints};
+
+/// `UPGRADING-0.6.md`'s Rust snippets, compiled and run as doctests so the
+/// upgrade guide keeps compiling as the API moves (C15G-UPGRADING). Hosted
+/// here because the guide sits outside every published crate.
+#[cfg(doctest)]
+#[doc = include_str!("../../../UPGRADING-0.6.md")]
+struct UpgradingDoctests;

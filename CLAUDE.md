@@ -266,6 +266,8 @@ The operational checklist lives in `.claude/skills/publish.md` (also invokable a
 
 A behavior change that affects [`DIVERGENCES.md`](specs/DIVERGENCES.md) or [`DESIGN.md`](specs/DESIGN.md) updates them in the same commit. A change that opens (or pays down) tech debt updates [`TECH_DEBT.md`](specs/TECH_DEBT.md) in the same commit.
 
+A change that 0.5 code compiles against unchanged but that renders or behaves differently gets an entry in [`UPGRADING-0.6.md`](UPGRADING-0.6.md) in the same commit — under its area, with a stable `sc-…` anchor (`rdom-showcase/tests/integration/upgrading_guide.rs` checks the anchors and every link to them) — and, if it is among the changes most apps hit, a row in its Top 15 and By-symptom tables. A compile break gets its CHANGELOG `Breaking` bullet, a row in the guide's API table and a `migration_hints.rs` test. The guide's Rust snippets are doctests (`rdom-showcase/src/lib.rs`).
+
 The default rule for `DIVERGENCES.md`: anything not listed there matches the web platform. So any deliberate departure must land an entry — otherwise downstream consumers (and downstream agents) will mistakenly assume rdom matches the web spec where it doesn't.
 
 ## Milestone Review Gates
@@ -307,6 +309,7 @@ Do not start the next milestone until key findings are addressed or explicitly t
 ## Repository Boundaries
 
 - `crates/` — the five published crates (`rdom-core`, `rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) plus `rdom-showcase`, an in-tree demo binary (`publish = false`) that owns the demo examples and their paint snapshots. Roles and durable rules in §Substrate First, Backend Second.
+- `UPGRADING-0.6.md` — the 0.5 → 0.6 upgrade guide (behaviour changes by area, compile breaks, API table); the CHANGELOG's `[Unreleased]` points at it.
 - `specs/` — the three contract docs (`DESIGN.md`, `DIVERGENCES.md`, `TECH_DEBT.md`) plus per-initiative design and history files (`STABILIZE-2026-09.md`, `HARDENING-2026-09.md`, `BFC-1.md`, `DRAG-AUTOSCROLL.md`, `SHOWCASE.md`, `SUBSTRATE-0.3.0.md`, `HISTORY-2026-05.md`, `ACID.md`, `CSS-COVERAGE.md`, `CSS-COMPLETE-2026-10.md`). Initiative files carry a status line at the top; only the three contract docs are load-bearing for agents.
 - Versions: crates bump **independently** ("divergent bumps") — only a crate whose source changed bumps, plus every crate that pins it. Tags are per crate (`rdom-tui-vX.Y.Z`); a workspace-wide release uses a plain `vX.Y.Z` tag. The root `Cargo.toml` workspace version is a default for crates that have not diverged, not a shared release number.
 - `.claude/skills/` — operational checklists (`/commit`, `/push`, `/publish`).

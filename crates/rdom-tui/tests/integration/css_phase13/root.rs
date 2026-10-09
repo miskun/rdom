@@ -161,7 +161,7 @@ fn height_100_percent_on_a_root_child_fills_the_viewport() {
     assert_eq!(rect(&dom, "main").height, 5);
 }
 
-/// CSS 2.1 §10.5 (the CHANGELOG's upgrade item `sc-root-block`): a
+/// CSS 2.1 §10.5 (`UPGRADING-0.6.md`'s `sc-root-block`): a
 /// percentage height resolves only against a definite one, so a shell
 /// below a top-level `<body>` fills the screen only when every ancestor
 /// down to it has `height: 100%` — `.app { height: 100% }` alone is its

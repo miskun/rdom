@@ -10490,3 +10490,33 @@ row comes from.
   `client_rects_is_empty_for_an_element_without_a_box` failed (`#gone: [LayoutRect { 0, 0, 0, 0 }]`); green after.
   Expectations changed: `position_try_refuses_other_descriptors_and_bad_preludes` (the reshaped warning) and
   `tui_style/tests.rs`'s `.position_area_important(None)` → `PositionArea::NONE`.
+- 2026-10-09 — C15G-UPGRADING (Phase 15 gate decision 5, API N9 and the release-readiness section). The CHANGELOG's
+  "Upgrading from 0.5" (103 silent changes in one impact ranking, the table port, the compile breaks) and "API changes
+  from 0.5" (the API table, with its post-0.5 subsection) move to `UPGRADING-0.6.md` at the repo root: (1) **Top 15**,
+  a table of change / what you see / fix with a link to the entry — flex-row, root-block, content-box, flex-grow
+  (`min-width: 0`), tables, root canvas and `:root`, the abspos padding box, overflowing text, conditional rules (the
+  dark default, pixel breakpoints), transforms (centring, stacking context, containing block of fixed descendants),
+  `appearance: none`, line-height, list markers, focus scroll, modal dialog — then the next five by reach
+  (`sc-canvas-hit` now below content-box, flex-grow and tables, as the gate asked), and the code fixes as one doctested
+  Rust block; (2) **By symptom**, 33 rows from what you see ("my app no longer fills the screen", "my table is
+  narrow", "bullets went off-screen", "my modal's background shows the page", "pixel breakpoints switch at odd
+  widths", …) to the entries; (3) **all behaviour changes by area** — layout, tables (with the column-synced table
+  port, its Rust snippet now a complete function), lists / pseudo-elements, text, colour and painting, selectors and
+  the cascade, forms / dialogs, animations, conditional rules and containment, effects, runtime and API readers — each
+  entry verbatim with its `sc-…` anchor (all 103 kept, so every citation resolves; `sc-anchor` / `sc-multicol` sink to
+  the layout area's tail); (4) **compile breaks** by kind, each naming its `migration_hints.rs` tests, with
+  `CalcExpr::Anchor` added to "New variants to match" and kinds the old list lacked (pseudo-element accessors, text
+  decoration / font groups, tables, app configuration, render records); (5) the API table, its preamble pointing at
+  the CHANGELOG's Breaking bullets. Accuracy notes applied: `sc-conditional-rules` says a headless cascade whose
+  document never had a viewport leaves the size features unknown until `set_viewport` (C14G-CONDITIONAL-SPEC);
+  `sc-root-element` says `*` and `*:hover` now match the root; `sc-clip-path` names Tailwind v4's `sr-only`
+  (`clip-path: inset(50%)`). The CHANGELOG keeps a three-line pointer; its `#sc-…` and API-table links, DESIGN's
+  `sc-root-block` citation and two test comments now point at the guide (the Log's historical "CHANGELOG silent
+  change `sc-…`" mentions stay as written). `[Unreleased]` fell from ~1,070 to 775 lines, short of the "still about
+  1,000" bar for condensing the Fixed bullets about post-0.5 features, so they stay (decided: not condensed; the
+  guide is now the entry point a 0.5 consumer reads). Pinned: `rdom-showcase/tests/integration/upgrading_guide.rs`
+  (each anchor defined once, ≥ 100 of them, every `#sc-…` link in the repository's Markdown resolves, the Top 15 has
+  fifteen rows, the CHANGELOG points at the guide and no longer carries the list) and `UpgradingDoctests` in
+  `rdom-showcase/src/lib.rs` (the unpublished crate, since the guide is outside every published one) compiling its
+  Rust blocks. CLAUDE.md records the rule: a silent change lands in the guide in the same commit. Red: the three
+  tests failed (no file; no pointer); green after.
