@@ -170,6 +170,11 @@ fn step_i05_toggles() {
 }
 
 #[test]
+fn step_i06_transitions() {
+    assert_step(&steps::i06_transitions::STEP);
+}
+
+#[test]
 fn step_i10_pointer_events() {
     assert_step(&steps::i10_pointer_events::STEP);
 }

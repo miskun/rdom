@@ -10,6 +10,7 @@ pub mod i02_active;
 pub mod i03_focus;
 pub mod i04_validity;
 pub mod i05_toggles;
+pub mod i06_transitions;
 pub mod i10_pointer_events;
 
 /// Every step, in `ACID.md` order.
@@ -19,5 +20,6 @@ pub const ALL: &[&Step] = &[
     &i03_focus::STEP,
     &i04_validity::STEP,
     &i05_toggles::STEP,
+    &i06_transitions::STEP,
     &i10_pointer_events::STEP,
 ];

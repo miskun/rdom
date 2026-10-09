@@ -44,6 +44,7 @@ pub mod t33_states;
 pub mod t34_pointer;
 pub mod t35_focus;
 pub mod t36_form_state;
+pub mod t37_transitions;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -87,4 +88,5 @@ pub const ALL: &[&Reference] = &[
     &t34_pointer::REF,
     &t35_focus::REF,
     &t36_form_state::REF,
+    &t37_transitions::REF,
 ];

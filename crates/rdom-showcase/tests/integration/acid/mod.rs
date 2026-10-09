@@ -341,3 +341,8 @@ fn tile_35_focus() {
 fn tile_36_form_state() {
     assert_tile(&refs::t36_form_state::REF);
 }
+
+#[test]
+fn tile_37_transitions() {
+    assert_tile(&refs::t37_transitions::REF);
+}

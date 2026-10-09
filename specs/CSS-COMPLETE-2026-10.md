@@ -307,7 +307,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
 | ACID-INTERACTIVE-HARNESS | Stage 2's driver: scripted keys, mouse, wheel and resize against a fresh headless `App` per step with a controllable clock, per-checkpoint references in the stage-1 format, failure reports naming the step, checkpoint, tile, cells and spec; steps I1, I2, I10 on tile 34 | done |
-| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I5, I10 |
+| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I6, I10 |
 | ACID-STATIC-REST | The static features part 2 left out: tile 14's wrapped cells beside a row span; tile 15a's range slider, pixel `outline-offset` and script-unchecked default box; tile 18's baseline row group and `aspect-ratio` item; tile 19's overflowing text over a float and cleared first child's margin; tile 25's whole-moving `overflow: hidden` box and `box-decoration-break: clone`; tile 26's `popovertarget` + `flip-block` popover, `position-try-order: most-height` and `anchor-center`; their click and hit checks in stage 2 | |
 
 ## Log
@@ -10972,3 +10972,12 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   Red: `frame_event_order_tests::a_transitionstart_listeners_change_is_drawn_in_its_frame` and
   `an_animationstart_listeners_change_is_drawn_in_its_frame` (`x` for `s` at the frame the delay ends); green after,
   the rest of rdom-tui unchanged. Silent change `sc-animation-events-first`.
+- 2026-10-10 — ACID-INTERACTIVE, step I6 (page 10, stage-2 tile 37; CSS Transitions 1 §2.4, §3, §6, CSS Easing 1
+  §2.2–§2.3, Web Animations 1 §4.4–§4.8, CSS Color 4 §12.1, CSS Values 5 §11). A script adds `.on` to the tile and opens
+  its `details` at the clock's 0; at 25, 50 and 100 ms four swatches show black → `rgb(200, 0, 0)` under `linear(0,
+  0.75 50%, 1)` (75, 150, 200), `steps(2, jump-start)` after a 50 ms delay (held black through the delay by the
+  before flag, then 100, 200), a −50 ms delay (150, then ended), `linear` (50, 100, 200); a `gap`, a `padding-left`
+  and a `height` move the boxes 1, 2, 4 cells; the `details` slot opens 1, 2, 4 rows under `interpolate-size:
+  allow-keywords`, its content visible throughout (`content-visibility` under `allow-discrete`); the delayed swatch's
+  log reads `r` at 25 and `rs` from 50. Found ACID-FIX-14 (the colors were Oklab's, not sRGB's) and ACID-FIX-15 (the
+  `transitionstart` listener's change drew a frame late); green after both. No reference was changed.

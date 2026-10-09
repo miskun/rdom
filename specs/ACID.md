@@ -1,6 +1,6 @@
 # ACID — an rdom acid test
 
-**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Part 3 under way: the stage-2 harness (ACID-INTERACTIVE-HARNESS) with steps I1–I5 and I10 on tiles 34–36.
+**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Part 3 under way: the stage-2 harness (ACID-INTERACTIVE-HARNESS) with steps I1–I6 and I10 on tiles 34–37.
 
 ## Why
 
@@ -119,6 +119,7 @@ Each tile: what it combines → what the spec says the cells must show.
 | 34 | **Hover, press, `pointer-events`** (stage 2: I1, I2, I10) | a box whose `:hover` colours its text over a child with its own `:hover`, siblings reading it through `+` / `~` and a descendant combinator; a box filled while `:active` with a `mouseup` / `click` log; two overlays drawing nothing, one `pointer-events: none`, over two counting boxes | At rest: every cell in the default style, the overlays drawing nothing (Appendix E). |
 | 35 | **Focus: Tab vs click** (stage 2: I3) | a button with an author `:focus-visible { outline: auto }` beside an empty text field; a button whose `click` listener unhides a panel and focuses its field, logging whether it got the focus | At rest: the UA's button and field chrome, nothing focused — no ring, no caret; the `hidden` panel takes no box. |
 | 36 | **Form state** (stage 2: I4, I5) | a `required` empty field whose sibling's `::after` and its form's label read `:valid` / `:invalid`; a checkbox and a radio group in a form beside a same-named radio outside it, both radios checked | At rest: the field and its form `:invalid` (`bad`, `form` red); both radios checked — different groups, their form owners differ (HTML §4.10.5.1.15). |
+| 37 | **Transitions on the clock** (stage 2: I6) | four swatches transitioning black → `rgb(200, 0, 0)` under `linear()` stops, `steps(2, jump-start)` after a delay, a negative delay and `linear`, with a `transitionrun` / `transitionstart` log; `gap`, `padding-left` and `height` transitions; a `details` opening its `::details-content` from `height: 0` to `auto` under `interpolate-size` | At rest: nothing runs (CSS Transitions 1 §3) — black swatches, `abc`, `pad`, a one-row box and the closed `details`. |
 
 ### Part 2 notes (2026-10-10)
 
