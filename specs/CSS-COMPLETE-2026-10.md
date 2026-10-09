@@ -10262,3 +10262,20 @@ row comes from.
   (`select/top_layer_tests.rs`, `a_picker_near_the_screen_bottom_opens_upward`: a select on row 6 of 8
   with three options): the options at rows 6, 7, 8 (green: 4, 5, 6, the field kept at row 6, and the
   first option hit at row 4).
+- 2026-10-09 — C15G-COLUMN-WIDTH-PX (Phase 15 gate decision 1, API N4; CSS Multi-column 1 §3.1, §3.4,
+  DESIGN "Pixel lengths select, cells measure"). Found: `parse_column_width` rejected `px`, `em` and the
+  absolute units as geometry (C15-COLUMNS 1/n's decision 1), so `columns: 15em` and `column-width: 200px`,
+  the web's usual spellings, were dropped with a warning. Decided (the gate's decision 1): `column-width`
+  only selects how many columns fit, `⌊(U + g) / (W + g)⌋`, and the used width then stretches to fill, so
+  it is a selection like a breakpoint — DESIGN's rule admits it at the same scale, 8px a column and 16px an
+  em. One mapping serves both: the unit table moved from `conditional/media_feature` to a crate module,
+  `rdom-style/src/pixels.rs` (`px_per`, `PX_PER_COLUMN`, `PX_PER_ROW`), which the media / container
+  feature values and `column-width` read. A single `px` / `em` / `rem` / absolute dimension maps to cells,
+  rounded (`200px` → 25, `15em` → 30, `1in` → 12, `12px` → 2), negative ones invalid; the value is stored
+  and serialized as those cells (`200px` reads back `25`), the CSSOM loss DIVERGENCES records. A math
+  function with a pixel leaf stays invalid (no `calc(200px + 2)`: pixels and cells have no common
+  measure). `columns` takes the same widths, through `parse_column_width`. Red (`property_dispatch/
+  multicol_tests.rs`): `column-width: 200px` and `columns: 15em` serialized to nothing (green `25`,
+  `30ch`; `200px 3` → `25ch 3`; `-10px`, `3ex`, `50%` still invalid); the layout test
+  `css_phase15/multicol.rs` `pixel_and_em_column_widths_select_the_count` pins three columns for `200px`
+  and two for `15em` in 80 cells.

@@ -359,20 +359,14 @@ fn dimension(value: f64, unit: &str, text: &str) -> Option<Value> {
     let unit = unit.to_ascii_lowercase();
     let px_per = match unit.as_str() {
         "ch" => return Some(Value::Cells(value)),
-        "px" => 1.0,
-        "em" | "rem" | "pc" => 16.0,
-        "in" => 96.0,
-        "cm" => 96.0 / 2.54,
-        "mm" => 96.0 / 25.4,
-        "q" => 96.0 / 101.6,
-        "pt" => 96.0 / 72.0,
         "ex" | "rex" | "cap" | "rcap" | "ic" | "ric" | "lh" | "rlh" | "dpi" | "dpcm" | "dppx"
         | "x" | "vw" | "vh" | "vi" | "vb" | "vmin" | "vmax" | "svw" | "svh" | "svi" | "svb"
         | "svmin" | "svmax" | "lvw" | "lvh" | "lvi" | "lvb" | "lvmin" | "lvmax" | "dvw" | "dvh"
         | "dvi" | "dvb" | "dvmin" | "dvmax" => {
             return Some(Value::Unmeasured(text.to_string()));
         }
-        _ => return None,
+        // `px`, `em` / `rem` and the absolute units (`crate::pixels`).
+        u => crate::pixels::px_per(u)?,
     };
     Some(Value::Pixels {
         px: value * px_per,

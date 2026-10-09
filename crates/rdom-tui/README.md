@@ -1326,7 +1326,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-**`em` sizes.** The font-relative units (`em`, `rem`, `ex`, `cap`, `ic`) and the absolute ones (`px`, `pt`, …) are dropped with a warning on anything that lays out — a guessed font size would scale browser CSS arbitrarily (DIVERGENCES §1, "Length units"). Write sizes in cells: a cell is about twice as tall as it is wide, so `1em` square is `width: 2; height: 1`, and `padding: 0.5em 1em` is `padding: 0 1`. `ch` (one column) and `lh` (one line) carry over unchanged; border widths, outline widths and shadows still take `px` / `em`, as they only pick a glyph weight.
+**`em` sizes.** The font-relative units (`em`, `rem`, `ex`, `cap`, `ic`) and the absolute ones (`px`, `pt`, …) are dropped with a warning on anything that lays out — a guessed font size would scale browser CSS arbitrarily (DIVERGENCES §1, "Length units"). Write sizes in cells: a cell is about twice as tall as it is wide, so `1em` square is `width: 2; height: 1`, and `padding: 0.5em 1em` is `padding: 0 1`. `ch` (one column) and `lh` (one line) carry over unchanged; border widths, outline widths and shadows still take `px` / `em`, as they only pick a glyph weight, and so does `column-width` (`columns: 15em`), which only picks how many columns fit — at 8px a column, as a `@media` breakpoint.
 
 ## Incremental re-cascade
 

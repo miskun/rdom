@@ -5,6 +5,9 @@
 
 use super::super::{MediaEnvironment, PointerAccuracy, Truth};
 use super::{MediaFeature, Test, Value};
+// Pixels to a column and to a row in a feature value (DIVERGENCES §2,
+// C14G-PX-BREAKPOINTS).
+use crate::pixels::{PX_PER_COLUMN, PX_PER_ROW};
 
 impl MediaFeature {
     /// Evaluate against `env` (Media Queries 4 §4–§7, 5 §12), by the
@@ -215,12 +218,6 @@ impl MediaFeature {
         }
     }
 }
-
-/// Pixels to a column and to a row in a feature value: a terminal cell
-/// is about one `ch` wide — half the 16px initial font size — and one line
-/// tall (DIVERGENCES §2, C14G-PX-BREAKPOINTS).
-const PX_PER_COLUMN: f64 = 8.0;
-const PX_PER_ROW: f64 = 16.0;
 
 /// What a range feature's values are.
 #[derive(Clone, Copy)]

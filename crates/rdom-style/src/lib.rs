@@ -68,6 +68,7 @@ mod computed;
 mod content;
 mod custom_value;
 mod modifier;
+mod pixels;
 mod quotes;
 mod specificity;
 mod stylesheet;

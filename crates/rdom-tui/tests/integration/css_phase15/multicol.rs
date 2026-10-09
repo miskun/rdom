@@ -466,3 +466,33 @@ fn clone_draws_each_fragment_whole() {
         .collect();
     assert_eq!(frags, [(0, 0, 6, 4), (7, 0, 6, 4)]);
 }
+
+/// §3.4 with DESIGN "Pixel lengths select": `column-width` only selects
+/// the count — the used width stretches — so the web's pixel and `em`
+/// spellings are taken at 8px a column (16px an em): `column-width: 200px`
+/// is 25 cells, three columns in 80; `columns: 15em` is 30 cells, two
+/// (C15G-COLUMN-WIDTH-PX; both were dropped).
+#[test]
+fn pixel_and_em_column_widths_select_the_count() {
+    let markup = r#"<body><div id="m"><p id="a">a</p><p id="b">b</p><p id="c">c</p></div></body>"#;
+    let mut dom = doc(markup);
+    styled(
+        &mut dom,
+        &format!("{PAGE} p {{ margin: 0 }} #m {{ column-width: 200px; column-gap: 1 }}"),
+        80,
+        4,
+    );
+    assert_eq!(
+        (rect(&dom, "b").0, rect(&dom, "c").0),
+        (27, 54),
+        "three columns"
+    );
+    let mut dom = doc(markup);
+    styled(
+        &mut dom,
+        &format!("{PAGE} p {{ margin: 0 }} #m {{ columns: 15em; column-gap: 1 }}"),
+        80,
+        4,
+    );
+    assert_eq!(rect(&dom, "c").0, 40, "two columns");
+}

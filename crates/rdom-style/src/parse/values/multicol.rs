@@ -34,10 +34,21 @@ pub fn parse_column_count(value: &[Token]) -> Option<ColumnCount> {
 
 /// `column-width` (§3.1): `auto | <length [0,∞]>` — cells (a bare number
 /// included, rdom's cell), `ch`, a viewport unit or a math function of
-/// them; no percentage, and no pixel or font-relative length (geometry).
+/// them; no percentage. A `px`, `em` / `rem` or absolute length is taken
+/// at 8px a column, rounded (`crate::pixels`): `column-width` only selects
+/// how many columns fit — the used width is stretched to fill — so it
+/// selects as a breakpoint does (DESIGN "Pixel lengths select";
+/// C15G-COLUMN-WIDTH-PX). Its value is then cells (`200px` serializes as
+/// `25`).
 pub fn parse_column_width(value: &[Token]) -> Option<ColumnWidth> {
     if is_auto(value) {
         return Some(ColumnWidth::Auto);
+    }
+    if let [Token::Dimension { value, unit, .. }] = value
+        && let Some(px) = crate::pixels::px_per(unit)
+    {
+        let cells = (value * px / crate::pixels::PX_PER_COLUMN).round();
+        return (cells >= 0.0).then(|| ColumnWidth::Cells(cells.min(f64::from(u16::MAX)) as u16));
     }
     match length_percentage(value, Range::NonNegative)? {
         LengthPercentage::Integer(n) => u16::try_from(n).ok().map(ColumnWidth::Cells),

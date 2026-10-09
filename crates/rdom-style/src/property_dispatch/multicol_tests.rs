@@ -11,8 +11,11 @@ fn round(name: &str, value: &str) -> Option<String> {
 }
 
 /// Multi-column 1 §3.1: `column-width: auto | <length [0,∞]>` — cells,
-/// `ch`, a viewport unit, a math function; no percentage and no pixels
-/// (geometry). §3.2: `column-count: auto | <integer [1,∞]>`.
+/// `ch`, a viewport unit, a math function; no percentage. A pixel,
+/// `em` / `rem` or absolute length only selects the column count, so it is
+/// taken through the query mapping (DESIGN "Pixel lengths select", 8px a
+/// column, 16px an em): `200px` is 25 cells, `2em` 4, `1in` 12
+/// (C15G-COLUMN-WIDTH-PX). §3.2: `column-count: auto | <integer [1,∞]>`.
 #[test]
 fn column_width_and_count_parse() {
     for (css, out) in [
@@ -21,11 +24,16 @@ fn column_width_and_count_parse() {
         ("12ch", "12"),
         ("0", "0"),
         ("calc(10 + 2)", "12"),
+        ("200px", "25"),
+        ("2em", "4"),
+        ("15rem", "30"),
+        ("1in", "12"),
+        ("12px", "2"),
     ] {
         assert_eq!(round("column-width", css).as_deref(), Some(out), "{css}");
     }
     assert!(round("column-width", "10vw").is_some());
-    for bad in ["10px", "2em", "50%", "-1", "auto 3", ""] {
+    for bad in ["50%", "-1", "-10px", "auto 3", "", "3ex"] {
         assert_eq!(round("column-width", bad), None, "{bad}");
     }
     for (css, out) in [("auto", "auto"), ("3", "3"), ("calc(1 + 1)", "2")] {
@@ -50,10 +58,12 @@ fn columns_shorthand_parses() {
         ("auto 3", "3"),
         ("20ch auto", "20ch"),
         ("0", "0ch"),
+        ("15em", "30ch"),
+        ("200px 3", "25ch 3"),
     ] {
         assert_eq!(round("columns", css).as_deref(), Some(out), "{css}");
     }
-    for bad in ["3 4", "20ch 30ch", "auto auto auto", "10px", "", "2.5"] {
+    for bad in ["3 4", "20ch 30ch", "auto auto auto", "10px 20px", "", "2.5"] {
         assert_eq!(round("columns", bad), None, "{bad}");
     }
     let mut style = TuiStyle::new();
