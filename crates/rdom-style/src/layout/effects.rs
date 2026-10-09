@@ -2,8 +2,8 @@
 //! compositing properties.
 
 use super::{
-    BlendMode, FilterList, Isolation, Rotate, Scale, TransformBox, TransformList, TransformOrigin,
-    Translate,
+    BlendMode, ClipPath, FilterList, Isolation, Rotate, Scale, TransformBox, TransformList,
+    TransformOrigin, Translate,
 };
 use crate::Color;
 
@@ -38,6 +38,8 @@ pub struct EffectsStyle {
     /// `background-blend-mode` (§3.4), one per background layer. Inert:
     /// a cell's background is one color.
     pub background_blend_mode: std::borrow::Cow<'static, [BlendMode]>,
+    /// `clip-path` (CSS Masking 1 §5.1).
+    pub clip_path: ClipPath,
 }
 
 impl Default for EffectsStyle {
@@ -55,6 +57,7 @@ impl Default for EffectsStyle {
             mix_blend_mode: BlendMode::Normal,
             isolation: Isolation::Auto,
             background_blend_mode: std::borrow::Cow::Borrowed(&[BlendMode::Normal]),
+            clip_path: ClipPath::None,
         }
     }
 }

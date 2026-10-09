@@ -37,7 +37,7 @@ use rdom_core::{Dom, NodeId};
 
 use super::layout_rect_to_grid;
 use crate::ext::TuiExt;
-use crate::layout::{BlendMode, FilterList};
+use crate::layout::{BasicShape, BlendMode, FilterList};
 use crate::node::TuiNodeExt;
 use crate::render::buffer::coverage::{ALL, BG, BORDER, GLYPH, SHADOW};
 use crate::render::compose::{canvas_bg, canvas_fg};
@@ -58,6 +58,8 @@ pub(super) struct Effects<'a> {
     /// The context is an isolated group a member blends within: its layer
     /// tracks coverage, the members' backdrop.
     pub isolate: bool,
+    /// A `clip-path` that clips (`style::effects::clip_of`).
+    pub clip: Option<(Option<&'a BasicShape>, [f64; 4])>,
 }
 
 #[cfg(test)]
@@ -89,14 +91,21 @@ impl<'a> Effects<'a> {
         .map(|area| (&c.effects.backdrop_filter, area));
         let blend = crate::style::effects::blends(c).then_some(c.effects.mix_blend_mode);
         let isolate = crate::style::doc_flags::has_blends(dom) && has_blending_member(dom, root);
-        (alpha < 1.0 || filter.is_some() || backdrop.is_some() || blend.is_some() || isolate)
-            .then_some(Effects {
-                alpha,
-                filter,
-                backdrop,
-                blend,
-                isolate,
-            })
+        let clip = crate::render::clip::clip_of(dom, root, c);
+        (alpha < 1.0
+            || filter.is_some()
+            || backdrop.is_some()
+            || blend.is_some()
+            || isolate
+            || clip.is_some())
+        .then_some(Effects {
+            alpha,
+            filter,
+            backdrop,
+            blend,
+            isolate,
+            clip,
+        })
     }
 
     /// How many rows past the subtree's own a drop shadow can shade.
@@ -154,8 +163,34 @@ impl<'a> Effects<'a> {
                 |_, c| filtered(list, 0, canvas_fg(c, scheme)),
             );
         }
+        if let Some(clip) = self.clip {
+            clip_cells(parent, layer, clip);
+        }
         if let Some(mode) = self.blend {
             blend_cells(parent, layer, mode);
+        }
+    }
+}
+
+/// CSS Masking 1 §5: a cell whose centre is outside the clip shows the
+/// backdrop — `parent`'s cell — as if the context painted nothing there
+/// (after its filter: a drop shadow is clipped too, §5's order).
+fn clip_cells(parent: &Buffer, layer: &mut Buffer, clip: (Option<&BasicShape>, [f64; 4])) {
+    let area = layer.area;
+    for y in area.y..area.bottom() {
+        for x in area.x..area.right() {
+            if crate::render::clip::clip_contains(clip, i32::from(x), i32::from(y)) {
+                continue;
+            }
+            let (Some(i), Some(j)) = (layer.index_of(x, y), parent.index_of(x, y)) else {
+                continue;
+            };
+            layer.content[i] = parent.content[j].clone();
+            layer.border_dirs[i] = parent.border_dirs[j];
+            layer.half_block_quads[i] = parent.half_block_quads[j];
+            if let Some(c) = &mut layer.coverage {
+                c[i] = 0;
+            }
         }
     }
 }

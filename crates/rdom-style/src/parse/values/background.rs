@@ -280,7 +280,7 @@ fn pos_component(part: &[Token]) -> Option<Pos> {
 
 /// `<bg-position>` (CSS Backgrounds 3 §3.6, the `<position>` of Values
 /// 4 §9.1 plus the three-value form) over exactly `parts`, as CSS text.
-fn position_text(parts: &[&[Token]]) -> Option<String> {
+pub(super) fn position_text(parts: &[&[Token]]) -> Option<String> {
     use Pos::*;
     let p: Vec<Pos> = parts
         .iter()
@@ -334,7 +334,7 @@ fn keyword_offset_groups(p: &[Pos]) -> bool {
 
 /// The longest prefix of `parts` (one or two components) that is a
 /// `<bg-size>`.
-fn longest_size(parts: &[&[Token]]) -> Option<(String, usize)> {
+pub(super) fn longest_size(parts: &[&[Token]]) -> Option<(String, usize)> {
     (1..=parts.len().min(2))
         .rev()
         .find_map(|n| size_text(&parts[..n]).map(|t| (t, n)))
@@ -342,7 +342,7 @@ fn longest_size(parts: &[&[Token]]) -> Option<(String, usize)> {
 
 /// `<bg-size>` (§3.9): `[ <length-percentage [0,∞]> | auto ]{1,2} |
 /// cover | contain`, as CSS text.
-fn size_text(parts: &[&[Token]]) -> Option<String> {
+pub(super) fn size_text(parts: &[&[Token]]) -> Option<String> {
     let keyword =
         |c: &[Token], k: &str| matches!(c, [Token::Ident(s)] if s.eq_ignore_ascii_case(k));
     let one =
@@ -358,7 +358,7 @@ fn size_text(parts: &[&[Token]]) -> Option<String> {
 /// A `<repeat-style>` (§3.4) at the start of `parts`: `repeat-x`,
 /// `repeat-y`, or one or two of `repeat | space | round | no-repeat`
 /// (one value is both axes).
-fn leading_repeat(parts: &[&[Token]]) -> Option<(BackgroundRepeat, usize)> {
+pub(super) fn leading_repeat(parts: &[&[Token]]) -> Option<(BackgroundRepeat, usize)> {
     let ident = |c: &[Token]| match c {
         [Token::Ident(s)] => Some(s.to_ascii_lowercase()),
         _ => None,
@@ -424,7 +424,7 @@ pub(super) fn visual_box(part: &[Token]) -> Option<VisualBox> {
 /// Component values as CSS text, one space apart, each rendered by
 /// [`render_keywords_lowercase`] (which keeps a sign on its number,
 /// `-5%`, and lowercases the keywords, CSSOM §6.7.2).
-fn join_components(parts: &[&[Token]]) -> String {
+pub(super) fn join_components(parts: &[&[Token]]) -> String {
     parts
         .iter()
         .map(|c| render_keywords_lowercase(c))

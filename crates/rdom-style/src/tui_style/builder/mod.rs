@@ -81,6 +81,7 @@ mod effects;
 mod flex;
 mod font;
 mod grid;
+mod mask;
 mod motion;
 mod position;
 mod scroll;

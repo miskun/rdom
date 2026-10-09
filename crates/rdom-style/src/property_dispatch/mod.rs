@@ -81,6 +81,7 @@ mod animation;
 mod background;
 mod blend;
 mod border;
+mod clip;
 mod contain;
 mod css_wide;
 mod declare;
@@ -118,6 +119,8 @@ mod background_tests;
 mod blend_tests;
 #[cfg(test)]
 mod border_tests;
+#[cfg(test)]
+mod clip_tests;
 #[cfg(test)]
 mod containment_tests;
 #[cfg(test)]

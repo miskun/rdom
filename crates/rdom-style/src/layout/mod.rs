@@ -31,6 +31,7 @@
 //! - `text` — `TextStyle`, the computed CSS Text group
 //! - `filter` — the Filter Effects values and their color math
 //! - `blend` — the compositing values and the blend functions
+//! - `clip` — the `clip-path` values and their cell-sampled geometry
 //! - `transform` — the CSS Transforms values
 //! - `effects` — `EffectsStyle`, the computed transform, filter and
 //!   compositing group
@@ -42,6 +43,7 @@ mod blend;
 mod border;
 mod box_model;
 mod calc_size;
+mod clip;
 mod containment;
 mod effects;
 mod filter;
@@ -83,6 +85,7 @@ pub use border::{
 };
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
 pub use calc_size::{CalcSize, CalcSizeBasis, InterpolateSize};
+pub use clip::{BasicShape, ClipPath, GeometryBox, ShapeRadius};
 pub use containment::{
     Contain, ContainerName, ContainerSize, ContainerType, ContentVisibility, WillChange,
 };

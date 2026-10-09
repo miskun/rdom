@@ -65,12 +65,23 @@ pub(crate) fn isolates(c: &ComputedStyle) -> bool {
     c.effects.isolation == rdom_style::layout::Isolation::Isolate && layerable(c)
 }
 
+/// Whether the box styled `c` has a `clip-path` (CSS Masking 1 §5.1) —
+/// `url()` and `path()` too, which clip nothing.
+pub(crate) fn clip_pathed(c: &ComputedStyle) -> bool {
+    c.effects.clip_path != rdom_style::layout::ClipPath::None && layerable(c)
+}
+
 /// Whether the element styled `c` establishes a stacking context through
 /// its graphical effects: a transform (Transforms 1 §2), a filter or a
 /// backdrop filter (Filter Effects 1 §5, 2 §3), blending or isolation
-/// (Compositing 1 §3.2, §5.2).
+/// (Compositing 1 §3.2, §5.2), a clip path (Masking 1 §5.1).
 pub(crate) fn makes_stacking_context(c: &ComputedStyle) -> bool {
-    transformed(c) || filtered(c) || backdrop_filtered(c) || blends(c) || isolates(c)
+    transformed(c)
+        || filtered(c)
+        || backdrop_filtered(c)
+        || blends(c)
+        || isolates(c)
+        || clip_pathed(c)
 }
 
 /// Whether the element styled `c` is the containing block of its

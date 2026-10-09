@@ -310,6 +310,8 @@ pub(super) fn apply_style(
         effects.mix_blend_mode: MIX_BLEND_MODE,
         effects.isolation: ISOLATION,
         effects.background_blend_mode: BACKGROUND_BLEND_MODE,
+        // CSS Masking 1 §5.1; not inherited.
+        effects.clip_path: CLIP_PATH,
     );
     // Positioning (M2), transitions (M3; latest list wins), animations
     // (CSS Animations 1 §4) and counters

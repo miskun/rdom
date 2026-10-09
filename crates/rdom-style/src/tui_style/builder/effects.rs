@@ -4,8 +4,8 @@
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
 use crate::layout::{
-    BlendMode, FilterList, Isolation, Rotate, Scale, TransformBox, TransformList, TransformOrigin,
-    Translate,
+    BlendMode, ClipPath, FilterList, Isolation, Rotate, Scale, TransformBox, TransformList,
+    TransformOrigin, Translate,
 };
 
 /// A setter for one [`EffectsDeclarations`](crate::EffectsDeclarations)
@@ -85,5 +85,12 @@ impl TuiStyle {
         background_blend_mode_important,
         BACKGROUND_BLEND_MODE,
         std::borrow::Cow<'static, [BlendMode]>
+    );
+    effects_setter!(
+        "clip-path",
+        clip_path,
+        clip_path_important,
+        CLIP_PATH,
+        ClipPath
     );
 }

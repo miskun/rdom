@@ -197,6 +197,7 @@ const PERTURB: &[(&str, &str)] = &[
     ("mix-blend-mode", "screen"),
     ("isolation", "isolate"),
     ("background-blend-mode", "multiply"),
+    ("clip-path", "circle(2) content-box"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly

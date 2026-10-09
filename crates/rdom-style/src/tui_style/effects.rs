@@ -4,8 +4,8 @@
 
 use crate::Value;
 use crate::layout::{
-    BlendMode, FilterList, Isolation, Rotate, Scale, TransformBox, TransformList, TransformOrigin,
-    Translate,
+    BlendMode, ClipPath, FilterList, Isolation, Rotate, Scale, TransformBox, TransformList,
+    TransformOrigin, Translate,
 };
 
 /// The transform, filter and compositing properties a
@@ -38,4 +38,6 @@ pub struct EffectsDeclarations {
     pub isolation: Option<Value<Isolation>>,
     /// `background-blend-mode` (§3.4).
     pub background_blend_mode: Option<Value<std::borrow::Cow<'static, [BlendMode]>>>,
+    /// `clip-path` (CSS Masking 1 §5.1).
+    pub clip_path: Option<Value<ClipPath>>,
 }

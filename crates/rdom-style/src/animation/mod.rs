@@ -15,6 +15,7 @@
 //! rounds onto the grid half to even, as a `calc()` result does — one
 //! rounding, at the computed value (DIVERGENCES §1).
 
+mod clip;
 #[cfg(test)]
 mod composite_tests;
 mod entry;
@@ -208,6 +209,8 @@ impl Longhand {
                 // CSS Transforms 1 §6: the origin of what a grid does not
                 // draw (rotation, scaling).
                 | "transform-origin"
+                // CSS Masking 1 §5: a clip hides cells, it moves no box.
+                | "clip-path"
         )
     }
 

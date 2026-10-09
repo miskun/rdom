@@ -237,6 +237,24 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("mix-blend-mode", NotAnimatable, None),
     e("isolation", NotAnimatable, None),
     e("background-blend-mode", NotAnimatable, None),
+    // CSS Masking 1 §5.1: by computed value (basic shapes of one kind).
+    e("clip-path", ByComputedValue, value!(effects.clip_path)),
+    // §6–§7: kept as text, no computed value (a cell has no alpha).
+    e("mask-image", Discrete, None),
+    e("mask-mode", Discrete, None),
+    e("mask-repeat", Discrete, None),
+    e("mask-position", RepeatableList, None),
+    e("mask-clip", Discrete, None),
+    e("mask-origin", Discrete, None),
+    e("mask-size", RepeatableList, None),
+    e("mask-composite", Discrete, None),
+    e("mask-type", Discrete, None),
+    e("mask-border-source", Discrete, None),
+    e("mask-border-slice", ByComputedValue, None),
+    e("mask-border-width", ByComputedValue, None),
+    e("mask-border-outset", ByComputedValue, None),
+    e("mask-border-repeat", Discrete, None),
+    e("mask-border-mode", Discrete, None),
     // §4: discrete, `hidden` shown only at its end.
     e("content-visibility", Discrete, CONTENT_VISIBILITY),
     // CSS Conditional 5 §6.1–§6.2: not animatable.

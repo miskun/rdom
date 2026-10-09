@@ -31,6 +31,8 @@
 //! - `text_decoration.rs` — `text-decoration` and its longhands, the
 //!   underline placement properties.
 //! - `filter.rs` — Filter Effects 1 / 2: `filter`, `backdrop-filter`.
+//! - `clip.rs` — CSS Masking 1 `clip-path` and CSS Shapes 1's basic shapes.
+//! - `mask.rs` — the mask properties, kept as text.
 //! - `blend.rs` — Compositing and Blending: `mix-blend-mode`, `isolation`,
 //!   `background-blend-mode`.
 //! - `transform.rs` — CSS Transforms 1 / 2: `translate`, `transform`,
@@ -51,6 +53,7 @@ mod blend;
 mod border;
 mod calc;
 mod calc_size;
+mod clip;
 mod color;
 mod containment;
 mod content;
@@ -70,6 +73,7 @@ mod keyword;
 mod length;
 mod line_clamp;
 mod list;
+mod mask;
 mod number;
 mod numeric;
 mod outline;
@@ -117,6 +121,7 @@ pub use border::{
 pub(crate) use calc::parse_pixel_calc;
 pub use calc::{MAX_CALC_DEPTH, MAX_CALC_NESTING, looks_like_calc, parse_calc};
 pub use calc_size::{parse_calc_size, parse_interpolate_size};
+pub use clip::parse_clip_path;
 pub(crate) use color::{ColorExpr, compute_function as compute_color_function};
 pub use color::{MAX_COLOR_NESTING, parse_color, parse_color_at, parse_rgb_args, parse_rgba_args};
 pub use containment::{
@@ -177,6 +182,7 @@ pub use list::{
     parse_list_style, parse_list_style_image, parse_list_style_position, parse_list_style_type,
     parse_marker_side,
 };
+pub use mask::{parse_mask_border_shorthand, parse_mask_longhand, parse_mask_shorthand};
 pub use number::{parse_aspect_ratio, parse_opacity, parse_order, parse_z_index};
 pub use outline::{parse_outline, parse_outline_color, parse_outline_offset, parse_outline_style};
 pub use scroll::{

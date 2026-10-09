@@ -46,7 +46,7 @@ pub(super) fn hit_stacking_context(
     viewport: Rect,
     path: &mut Vec<NodeId>,
 ) -> bool {
-    if !clip.contains(x, y) {
+    if !clip.contains(x, y) || clipped_out(dom, root, x, y) {
         return false;
     }
     let root_box = element_box(dom, root);
@@ -442,4 +442,15 @@ fn rect_contains(r: LayoutRect, x: u16, y: u16) -> bool {
     let x = x as i32;
     let y = y as i32;
     x >= r.x && x < r.x + r.width as i32 && y >= r.y && y < r.y + r.height as i32
+}
+
+/// CSS Masking 1 §5: whether `(x, y)` is outside the `clip-path` of the
+/// context root `root` — its clipped-out area, its descendants' too,
+/// receives no pointer events.
+fn clipped_out(dom: &Dom<TuiExt>, root: NodeId, x: u16, y: u16) -> bool {
+    dom.node(root).computed().is_some_and(|c| {
+        crate::render::clip::clip_of(dom, root, c).is_some_and(|clip| {
+            !crate::render::clip::clip_contains(clip, i32::from(x), i32::from(y))
+        })
+    })
 }

@@ -277,7 +277,7 @@ row comes from.
 | C15-TRANSLATE | `translate` and `transform: translate()` (whole-cell offsets; other transforms documented N/A) | done |
 | C15-FILTER | `filter` color-matrix functions; `backdrop-filter` | done |
 | C15-BLEND | `mix-blend-mode`, `isolation` | done |
-| C15-CLIP-PATH | `clip-path: inset()` | |
+| C15-CLIP-PATH | `clip-path: inset()` | done |
 | C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | |
 | C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | |
 
@@ -9797,3 +9797,27 @@ row comes from.
   (isolation alone: no layer, and the allocations of any in-flow stacking context). Combined mutation run
   (no blend, no `blends` flag, no stacking context, an exclusion coefficient) fails all five paint tests and
   the cost pin. Changed test: none. Silent change `sc-blending`.
+- 2026-10-09 — C15-CLIP-PATH (CSS Masking 1 §5–§7, CSS Shapes 1 §3.1–§3.2). `clip-path` parses into `ClipPath`
+  (`none`, `url()`, `<basic-shape> || <geometry-box>`) with `BasicShape`'s `inset()` (1–4 insets, `round`
+  1–4 radii), `circle()` / `ellipse()` (lengths or `closest-side` / `farthest-side`, `at <position>` of one
+  or two values), `polygon()` (fill rule, points) and `path()` (fill rule, string); lengths in cells,
+  pixels rejected (geometry). Decided, as the brief preferred: real support for `circle()`, `ellipse()` and
+  `polygon()`, cell-sampled — a cell is in when its centre is (`BasicShape::contains`, rdom-style, through
+  `render/clip.rs`, so paint and hit-testing share one answer; `inset()`'s corners are elliptical arcs of the `round` radii, a
+  percentage of the box per axis; a circle's percentage of the diagonal over √2); `path()` and `url()` parse
+  and clip nothing (no SVG), still stacking contexts. The geometry is in cells (a circle is round in
+  cells). Paint (`paint_pass/effects.rs`): a clipped context's layer, after its filter, restores the
+  backdrop on every cell outside the clip (so a drop shadow is clipped, §5's order); hit-testing skips a
+  context's subtree at a point outside its clip (`hit_test::descend::clipped_out`, Masking 1 §5: the clipped
+  area receives no pointer events). The reference box: border box by default; `content-box` /
+  `padding-box`; `margin-box` grown by the used margins (`auto` as 0); `fill-box` / `stroke-box` /
+  `view-box` as the border box. Interpolation (Shapes 1 §3.2): one shape kind, one reference box, its
+  lengths; a polygon's points when the rule and count match; else discrete. `clip-path` is a paint-only
+  longhand (`affects_layout` false): an `inset()` wipe lays out none. Masks: the fifteen `mask*` /
+  `mask-border*` longhands and the two shorthands parse by their grammars (the layer grammars reuse the
+  background parsers) and are kept as text in a new `TuiStyle::masks` group, no computed value — a cell
+  has no alpha to mask by (DIVERGENCES §1, which also records that a `mask-image` makes no stacking
+  context). Red → green: `clip_tests` (2), `css_phase15::clip_path` (7), red on the unknown properties;
+  `frame_cost_tests::a_clip_path_animation_lays_out_nothing`. Combined mutation run (no clip in paint, none
+  in hit-testing, no stacking context, `clip-path` a layout longhand) fails six. Silent change
+  `sc-clip-path`.

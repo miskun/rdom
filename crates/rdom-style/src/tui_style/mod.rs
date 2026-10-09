@@ -26,6 +26,7 @@ use crate::{Content, TuiColor, Value};
 
 pub use effects::EffectsDeclarations;
 pub use important::ImportantMask;
+pub use mask::MaskDeclarations;
 pub use table::TableDeclarations;
 pub use text::{FontDeclarations, TextDeclarations, TextDecorationDeclarations};
 pub use ui::UiDeclarations;
@@ -277,6 +278,8 @@ pub struct TuiStyle {
     /// The transform, filter and compositing properties (`translate`,
     /// `transform`, …).
     pub effects: EffectsDeclarations,
+    /// The mask properties (`mask-image`, …), kept as text, inert.
+    pub masks: MaskDeclarations,
     /// The table properties (`table-layout`, `caption-side`).
     pub table: TableDeclarations,
     /// `vertical-align` (CSS 2.1 §10.8.1).
@@ -493,6 +496,7 @@ impl TuiStyle {
 mod builder;
 mod effects;
 mod important;
+mod mask;
 mod subsets;
 mod table;
 #[cfg(test)]

@@ -166,6 +166,21 @@ fn a_filter_animation_lays_out_nothing() {
     assert_eq!(s.layouts, 0, "{s:?}");
 }
 
+/// CSS Masking 1 §5 (C15-CLIP-PATH): a clip hides cells and moves no
+/// box — an `inset()` wipe repaints every frame and lays out none.
+#[test]
+fn a_clip_path_animation_lays_out_nothing() {
+    let (mut app, _) = animated(
+        "@keyframes wipe { from { clip-path: inset(0) } to { clip-path: inset(0 0 0 100%) } } \
+         #a { animation: wipe 1008ms linear infinite }",
+    );
+    app.take_frame_stats();
+    run(&mut app, 1008);
+    let s = app.take_frame_stats();
+    assert!(s.paints >= 60, "{s:?}");
+    assert_eq!(s.layouts, 0, "{s:?}");
+}
+
 /// The transition hook's cost is the cascade's: a class change on one of
 /// 300 rows, on a page without a transition, visits that row — not two
 /// 300-entry maps.
