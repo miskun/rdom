@@ -51,6 +51,10 @@ pub(super) struct Scratch<'a> {
     /// whose trailing pseudo-classes do not hold (`::first-letter:hover`
     /// off the letter): the pseudo-element exists, unstyled by it.
     pub(super) gated: bool,
+    /// The last collect matched a rule under an `@container`: its
+    /// condition was tested against the element's query container, which
+    /// a replay of the matches would not test again (`MatchedRules::reads_containers`).
+    pub(super) deferred: bool,
     /// The last `::highlight()` matches recorded per name and the last
     /// list of them: elements matching the same rules share them
     /// ([`intern_highlights`](Self::intern_highlights)).
@@ -135,6 +139,9 @@ pub(crate) struct MatchedRules {
     /// The `::highlight(name)` boxes' matches, by the name's place in
     /// `Sheets::highlight_names`; `None` when they were not matched.
     highlights: Option<HighlightRefs>,
+    /// A box's matches include a rule under an `@container`
+    /// ([`reads_containers`](Self::reads_containers)).
+    deferred: bool,
 }
 
 /// The matches of each `::highlight()` name, in `Sheets::highlight_names`
@@ -148,6 +155,7 @@ impl PartialEq for MatchedRules {
             && Rc::ptr_eq(&self.conditions, &other.conditions)
             && self.slots == other.slots
             && self.highlights == other.highlights
+            && self.deferred == other.deferred
     }
 }
 
@@ -155,6 +163,15 @@ impl MatchedRules {
     /// Recorded under `sheets`?
     pub(super) fn is_for(&self, sheets: &Sheets<'_>) -> bool {
         Rc::ptr_eq(&self.stamp, sheets.stamp()) && Rc::ptr_eq(&self.conditions, sheets.conditions())
+    }
+
+    /// Whether a rule under an `@container` was tested for the element: a
+    /// replay of these matches would keep a container query's answer —
+    /// a `style()` query against a container's animated custom property
+    /// among them (CSS Conditional 5 §6.4.2) — so a restyle matches such
+    /// an element again (`walk::style_element`, C14G-CONTAINER-FIDELITY).
+    pub(super) fn reads_containers(&self) -> bool {
+        self.deferred
     }
 
     /// The rules of `slot`: the recorded ones, or [`Rules::Match`] when
@@ -182,6 +199,7 @@ pub(super) struct Recorder {
     slots: [Option<Rc<[MatchRef]>>; SLOTS],
     highlights: Option<HighlightRefs>,
     changed: bool,
+    deferred: bool,
 }
 
 impl Recorder {
@@ -195,11 +213,13 @@ impl Recorder {
             Some(p) if reuse => (p.slots.clone(), p.highlights.clone()),
             _ => Default::default(),
         };
+        let deferred = reuse && previous.as_ref().is_some_and(|p| p.deferred);
         Recorder {
             changed: previous.is_none(),
             previous,
             slots,
             highlights,
+            deferred,
         }
     }
 
@@ -221,6 +241,7 @@ impl Recorder {
 
     /// `slot`'s matches: the last [`Scratch::collect`].
     pub(super) fn record(&mut self, slot: Slot, scratch: &Scratch<'_>) {
+        self.deferred |= scratch.deferred;
         let current = scratch.matching.iter().map(Matched::as_ref);
         let kept = self
             .previous
@@ -243,7 +264,8 @@ impl Recorder {
             Some(previous)
                 if !self.changed
                     && previous.slots == self.slots
-                    && previous.highlights == self.highlights =>
+                    && previous.highlights == self.highlights
+                    && previous.deferred == self.deferred =>
             {
                 previous
             }
@@ -252,6 +274,7 @@ impl Recorder {
                 conditions: sheets.conditions().clone(),
                 slots: self.slots,
                 highlights: self.highlights,
+                deferred: self.deferred,
             }),
         }
     }
@@ -355,6 +378,7 @@ impl<'a> Scratch<'a> {
     /// state of a rule with trailing pseudo-classes is read again.
     fn load(&mut self, dom: &Dom<TuiExt>, sheets: &Sheets<'a>, id: NodeId, refs: &[MatchRef]) {
         self.matching.clear();
+        self.deferred = false;
         self.sorted.clear();
         let rules = refs.iter().map(|r| {
             let rule = &sheets[r.sheet as usize].rules()[r.rule as usize];
@@ -383,6 +407,7 @@ impl<'a> Scratch<'a> {
         probe::COLLECTS.with(|c| c.set(c.get() + 1));
 
         self.matching.clear();
+        self.deferred = false;
         let node = dom.node(id);
         for (sheet_idx, &sheet) in sheets.iter().enumerate() {
             // The sheet's rightmost-selector index
@@ -414,14 +439,18 @@ impl<'a> Scratch<'a> {
                     // per element, against its query container — asked
                     // only of an element its selector matches, which alone
                     // reads the container (C14G-CONTAINER-LOOP).
-                    && (!sheets.deferred(sheet_idx, rule)
-                        || super::container::holds(
-                            dom,
-                            id,
-                            rule.pseudo != PseudoElementTarget::None,
-                            sheet,
-                            rule.condition,
-                        ))
+                    && {
+                        let deferred = sheets.deferred(sheet_idx, rule);
+                        self.deferred |= deferred;
+                        !deferred
+                            || super::container::holds(
+                                dom,
+                                id,
+                                rule.pseudo != PseudoElementTarget::None,
+                                sheet,
+                                rule.condition,
+                            )
+                    }
                 {
                     self.matching.push(Matched {
                         target,

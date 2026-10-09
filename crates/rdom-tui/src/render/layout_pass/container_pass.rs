@@ -19,14 +19,16 @@
 //! cascade that stopped reading it (`style::cascade::container`). A
 //! document that queried no container lays out once, as before.
 //!
-//! The re-cascades use the sheets the `App` publishes (and, once the
-//! sizes settle, note the restyled roots on its dirty tracker, so the next
-//! frame starts their transitions), or those of the last `CascadeExt`
+//! The re-cascades use the sheets the `App` publishes (and keep the
+//! restyled roots for its frame, which starts their transitions right
+//! after the layout, [`take_restyled`]), or those of the last `CascadeExt`
 //! cascade.
 //!
-//! The same passes settle `content-visibility: auto` (CSS Containment 2
-//! §4): after each layout the elements whose relevance changed start or
-//! stop skipping their contents, and are re-cascaded and laid out again.
+//! `content-visibility: auto` (CSS Containment 2 §4) is decided once per
+//! layout, after the containers settle — HTML's "determine proximity to
+//! the viewport", once per rendering update: the elements whose relevance
+//! changed start or stop skipping their contents, and are re-cascaded and
+//! laid out again, within the same budget.
 
 use std::collections::HashMap;
 
@@ -43,7 +45,9 @@ use crate::style::content_visibility;
 pub(crate) const MAX_PASSES: usize = 8;
 
 /// Lay out with `layout`, then re-cascade and lay out again while a
-/// queried container's size moves (module doc).
+/// queried container's size moves; then decide `content-visibility:
+/// auto` relevance once, and settle again for the elements that flipped
+/// (module doc).
 pub(super) fn lay_out(
     dom: &mut Dom<TuiExt>,
     viewport: Rect,
@@ -53,7 +57,7 @@ pub(super) fn lay_out(
     if !container::any_queried(dom) && !content_visibility::any_auto(dom) {
         // Only the sizes the elements remember can move
         // (`contain-intrinsic-size: auto`).
-        content_visibility::after_layout(dom, layout_viewport(viewport));
+        content_visibility::remember_sizes(dom);
         return;
     }
     let Some(crate::runtime::style_flush::CascadeInputs {
@@ -65,47 +69,98 @@ pub(super) fn lay_out(
         return;
     };
     let sheets: Vec<&crate::style::Stylesheet> = sheets.iter().map(|s| &**s).collect();
-    // The sizes each container's readers were cascaded at in this layout.
-    let mut cascaded_at: HashMap<NodeId, Vec<Option<AxisSizes>>> = HashMap::new();
-    let mut restyled = Vec::new();
-    let mut settled = false;
-    for _ in 0..MAX_PASSES {
-        // The queried containers whose size moved, but for those cycling,
-        // and the `content-visibility: auto` elements that started or
-        // stopped skipping their contents (`style::content_visibility`).
-        let mut stale = container::stale(dom);
-        stale.retain(|&c| !cycles(dom, c, &mut cascaded_at));
-        stale.extend(content_visibility::after_layout(
-            dom,
-            layout_viewport(viewport),
-        ));
-        if stale.is_empty() {
-            settled = true;
-            break;
-        }
+    let mut passes = Passes {
+        budget: MAX_PASSES,
+        cascaded_at: HashMap::new(),
+        restyled: Vec::new(),
+    };
+    let restyle = |dom: &mut Dom<TuiExt>, roots: &[NodeId], passes: &mut Passes| {
         #[cfg(test)]
         probe::PASSES.with(|c| c.set(c.get() + 1));
-        restyled.extend(cascade_subtrees_all_with(
+        passes.budget -= 1;
+        passes.restyled.extend(cascade_subtrees_all_with(
             dom,
             &sheets,
             Some(registry.clone()),
-            &stale,
+            roots,
         ));
         layout(dom, viewport);
+    };
+    settle(dom, &mut passes, &restyle);
+    // HTML "update the rendering": proximity to the viewport is decided
+    // once, after style and layout (CSS Containment 2 §4.4) — the elements
+    // that start or stop skipping their contents are re-cascade and laid
+    // out again (their `::before` / `::after` appear or go), and the
+    // containers settled once more; relevance waits for the next layout.
+    let flipped = content_visibility::after_layout(dom, layout_viewport(viewport));
+    if !flipped.is_empty() && passes.budget > 0 {
+        restyle(dom, &flipped, &mut passes);
+        settle(dom, &mut passes, &restyle);
     }
-    if settled {
-        // The roots' transitions start at the next frame, which lays out
-        // once more and finds nothing stale.
-        if let Some(tracker) = &tracker {
-            tracker.note_flushed(&restyled);
+    // The final layout's sizes (`contain-intrinsic-size: auto`).
+    content_visibility::remember_sizes(dom);
+    // An `App` starts the restyled roots' transitions in this frame, after
+    // this layout (`runtime::app::frame`, C14G-CONTAINER-FIDELITY); past
+    // the cap the sizes wait for the next layout, and no frame is asked
+    // for.
+    if tracker.is_some() && !passes.restyled.is_empty() {
+        note_restyled(dom, passes.restyled);
+    }
+}
+
+/// What one layout's passes have used and done.
+struct Passes {
+    /// The re-cascades left ([`MAX_PASSES`] in all).
+    budget: usize,
+    /// The sizes each container's readers were cascaded at in this layout.
+    cascaded_at: HashMap<NodeId, Vec<Option<AxisSizes>>>,
+    /// The roots re-cascaded.
+    restyled: Vec<NodeId>,
+}
+
+/// Re-cascade and lay out while a queried container's size moved — but
+/// for one cycling ([`cycles`]) — within the budget.
+fn settle(
+    dom: &mut Dom<TuiExt>,
+    passes: &mut Passes,
+    restyle: &impl Fn(&mut Dom<TuiExt>, &[NodeId], &mut Passes),
+) {
+    while passes.budget > 0 {
+        let mut stale = container::stale(dom);
+        stale.retain(|&c| !cycles(dom, c, &mut passes.cascaded_at));
+        if stale.is_empty() {
+            return;
         }
-    } else {
-        // At the cap the sizes are kept for the next layout, and no frame
-        // is asked for: what reached the cap is a nesting deeper than
-        // `MAX_PASSES`, which the next layout carries on. The last
-        // layout's sizes are still remembered.
-        content_visibility::remember_sizes(dom);
+        restyle(dom, &stale, passes);
     }
+}
+
+/// The roots the layout re-cascaded since the frame took them
+/// (document data; [`take_restyled`]).
+#[derive(Debug, Default)]
+struct Restyled(Vec<NodeId>);
+
+fn note_restyled(dom: &mut Dom<TuiExt>, roots: Vec<NodeId>) {
+    match dom.document_data_mut::<Restyled>() {
+        Some(kept) => kept.0.extend(roots),
+        None => {
+            dom.set_document_data(Restyled(roots));
+        }
+    }
+}
+
+/// The roots the layouts re-cascaded since the last call, sorted and
+/// deduplicated: an `App`'s frame runs their transition hook right after
+/// the layout, so a style change made there transitions from the frame it
+/// is painted in (CSS Transitions 1 §3).
+pub(crate) fn take_restyled(dom: &mut Dom<TuiExt>) -> Vec<NodeId> {
+    let mut roots = dom
+        .document_data_mut::<Restyled>()
+        .map(|r| std::mem::take(&mut r.0))
+        .unwrap_or_default();
+    roots.sort_unstable();
+    roots.dedup();
+    roots
 }
 
 /// Whether the stale `container` returned to a size its readers were
@@ -286,6 +341,32 @@ mod tests {
         assert!(crate::style::cascade::container::has_size_containers(&dom));
         dom.cascade(&rdom_css::parse("#card { width: 10 }").stylesheet);
         assert!(!crate::style::cascade::container::has_size_containers(&dom));
+    }
+
+    /// API N1 (HTML "update the rendering": proximity to the viewport is
+    /// determined once a frame, after layout): a list of
+    /// `content-visibility: auto` rows with no `contain-intrinsic-size` —
+    /// skipped rows collapse and move the others — decides relevance once
+    /// a layout (it decided after every pass, so a flip could move rows
+    /// on and off screen up to the cap), re-cascading the flipped rows once.
+    #[test]
+    fn auto_relevance_is_decided_once_a_layout() {
+        let rows: String = (0..200).map(|i| format!("<p>row {i}</p>")).collect();
+        let markup = format!(r#"<div id="s">{rows}</div>"#);
+        crate::style::content_visibility::probe::take();
+        let (mut dom, _) = run_over(
+            &markup,
+            "p { margin: 0; content-visibility: auto } #s { height: 5; overflow: auto }",
+            20,
+        );
+        assert_eq!(
+            crate::style::content_visibility::probe::take(),
+            1,
+            "one decision"
+        );
+        assert!(probe::take() <= 1, "one re-cascade");
+        dom.layout_dom(Rect::new(0, 0, 20, 5));
+        assert_eq!(crate::style::content_visibility::probe::take(), 1);
     }
 
     /// Two nested containers, the inner sized by the outer's query: one

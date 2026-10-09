@@ -304,6 +304,33 @@ fn restyle_animated(
     true
 }
 
+/// After a layout: the subtrees it re-cascaded (a query container's size
+/// moved, a `content-visibility: auto` element flipped;
+/// `layout_pass::container_pass`) made style changes, so their
+/// transitions start now — before this frame paints — and their values
+/// are composited (CSS Transitions 1 §3, C14G-CONTAINER-FIDELITY); a
+/// moved value a layout reads lays out once more. Returns the composites.
+fn start_layout_transitions(
+    dom: &mut TuiDom,
+    (sheets, registry): (&[&Stylesheet], &Rc<PropertyRegistry>),
+    animations: &mut AnimationRegistry,
+    now: std::time::Instant,
+    area: Rect,
+) -> u32 {
+    let roots = crate::render::layout_pass::container_pass::take_restyled(dom);
+    if roots.is_empty() {
+        return 0;
+    }
+    let inputs = crate::runtime::animation::CssInputs { sheets, registry };
+    crate::runtime::animation::diff_layout_restyles_in(dom, animations, now, inputs, &roots);
+    let advanced = animations.advance_frame(dom, now);
+    if advanced.layout {
+        // What this layout re-cascades waits for the next frame's hook.
+        dom.layout_dom(area);
+    }
+    advanced.composites
+}
+
 /// The frame pipeline up to paint, shared by [`App::draw_if_dirty`] and
 /// [`App::cascade_and_layout`], each stage only when `redraw` or the
 /// dirty roots need it (`redraw::Redraw`, `P7G-PAINT-ONLY-FRAME-1`):
@@ -355,6 +382,10 @@ fn style_and_layout(
         None
     };
     let flushed_any = !flushed.is_empty();
+    if !(cascade.is_some() || flushed_any) {
+        // No hook this frame: nothing is newly rendered in it.
+        animations.forget_fresh();
+    }
     if cascade.is_some() || flushed_any {
         // The registrations in effect: an `@property` under a condition
         // only while it holds (C14G-CONDITIONAL-SPEC).
@@ -397,6 +428,7 @@ fn style_and_layout(
     }
     if laid_out {
         dom.layout_dom(area);
+        composites += start_layout_transitions(dom, (sheets, registry), animations, now, area);
         // Against this layout, each correcting for the offsets moved since
         // it (`scrollbar::state::laid_out`), then one relayout for all:
         // CSS Scroll Snap 1 §5.4 — a snap container whose snap target moved
@@ -420,6 +452,7 @@ fn style_and_layout(
         }
         if resnapped || focused || revealed || restepped {
             dom.layout_dom(area);
+            composites += start_layout_transitions(dom, (sheets, registry), animations, now, area);
         }
         // The animations in skipped contents, as this layout left them,
         // ask for no frames (CSS Containment 2 §4).

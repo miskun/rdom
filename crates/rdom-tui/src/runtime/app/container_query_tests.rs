@@ -129,3 +129,59 @@ fn an_oscillating_container_settles_and_idles() {
     assert_eq!(idle.layouts, 0, "{idle:?}");
     assert_eq!(crate::render::layout_pass::container_pass::probe::take(), 0);
 }
+
+/// C14G-CONTAINER-FIDELITY (architect N2): a container flip during the
+/// layout's restyle is a style change whose transition starts in the same
+/// frame — the frame paints the before-change value (it painted the
+/// after-change one, then faded back from the before-change value).
+#[test]
+fn a_container_flip_paints_the_before_change_value_first() {
+    let (mut app, t) = app(&format!("{CSS} #t {{ transition: color 1s linear }}"), 40);
+    resize(&mut app, 60);
+    assert_eq!(
+        app.get_animations(t).len(),
+        1,
+        "started in the flip's frame"
+    );
+    let fg = app.dom().node(t).computed().unwrap().fg;
+    assert_eq!(fg, Color::Rgb(0, 0, 255), "the before-change value");
+}
+
+/// CSS Transitions 1 §3 (API N2): an element's first style is no style
+/// change — a query holding at the first render (resolved in the layout's
+/// restyle, the container unmeasured before it) starts no transition.
+#[test]
+fn a_first_render_under_a_container_query_does_not_transition() {
+    let (mut app, t) = app(&format!("{CSS} #t {{ transition: color 1s linear }}"), 60);
+    app.advance(16).unwrap();
+    assert!(app.get_animations(t).is_empty(), "no transition");
+    assert_eq!(
+        app.dom().node(t).computed().unwrap().fg,
+        Color::Rgb(255, 0, 0)
+    );
+}
+
+/// CSS Conditional 5 §6.4.2 (architect N3): a restyle that replays an
+/// element's recorded matches — a registered custom property's transition
+/// step — tests its `style()` container queries again: while the
+/// container's animated `--on` is between 0 and 1 `#t` is blue, and it
+/// turns red when `--on` reaches 1 (the replay kept the result of the
+/// cascade, which read the after-change `--on`).
+#[test]
+fn a_restyle_replay_retests_style_queries() {
+    let css = "@property --on { syntax: '<number>'; inherits: true; initial-value: 0 } \
+               #card { transition: --on 100ms linear } #card.on { --on: 1 } \
+               #t { color: rgb(0, 0, 255) } \
+               @container style(--on: 1) { #t { color: rgb(255, 0, 0) } }";
+    let (mut app, t) = app(css, 40);
+    let card = app.dom().get_element_by_id("card").unwrap();
+    app.dom_mut().set_attribute(card, "class", "on").unwrap();
+    app.advance(0).unwrap();
+    app.advance(50).unwrap();
+    let fg = |app: &App<TestBackend>| app.dom().node(t).computed().unwrap().fg;
+    assert_eq!(fg(&app), Color::Rgb(0, 0, 255), "--on is about 0.5");
+    for _ in 0..10 {
+        app.advance(16).unwrap();
+    }
+    assert_eq!(fg(&app), Color::Rgb(255, 0, 0), "--on is 1");
+}

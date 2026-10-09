@@ -166,6 +166,11 @@ pub struct AnimationRegistry {
     /// The targets in skipped contents at the last layout (`schedule`):
     /// their animations run but ask for no frames.
     throttled: std::collections::HashSet<(NodeId, StyleSlot)>,
+    /// The elements the last transition hook found newly rendered
+    /// (`diff`): a restyle later in the same frame — the layout's,
+    /// `diff_layout_restyles_in` — is still their first style, no style
+    /// change (CSS Transitions 1 §3).
+    fresh: std::collections::HashSet<NodeId>,
 }
 
 /// What one frame's [`AnimationRegistry::advance`] did.
@@ -203,6 +208,12 @@ impl AnimationRegistry {
 
     /// No transition or animation is registered (a finished CSS
     /// animation stays registered while its name is listed).
+    /// A frame whose transition hook does not run: no element is newly
+    /// rendered in it (`diff_layout_restyles_in`).
+    pub(crate) fn forget_fresh(&mut self) {
+        self.fresh.clear();
+    }
+
     pub fn is_empty(&self) -> bool {
         self.active.is_empty() && self.custom.is_empty() && self.css.is_empty()
     }
@@ -526,8 +537,8 @@ pub(crate) use css::{CssInputs, PendingAnimationEvent, slot_order};
 pub use custom::PendingCustomEvent;
 #[cfg(test)]
 pub(crate) use diff::DIFF_VISITS;
-pub(crate) use diff::diff_and_register_in;
 pub use diff::{diff_and_register, diff_and_register_with, settle_restyled};
+pub(crate) use diff::{diff_and_register_in, diff_layout_restyles_in};
 #[cfg(test)]
 pub(crate) use teardown::TEARDOWN_STEPS;
 #[cfg(test)]

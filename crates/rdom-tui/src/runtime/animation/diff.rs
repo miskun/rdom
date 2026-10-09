@@ -42,6 +42,7 @@ pub fn diff_and_register_with(
             .then(|| starting(dom, id))
             .flatten()
     };
+    registry.fresh.clear();
     diff(dom, registry, now, &starting, None, None);
 }
 
@@ -52,6 +53,32 @@ pub fn diff_and_register_with(
 /// have changed style or rendered state, so only they are visited
 /// (C12G-FRAME-COST); `None` after a whole-tree cascade.
 pub(crate) fn diff_and_register_in(
+    dom: &mut Dom<TuiExt>,
+    registry: &mut AnimationRegistry,
+    now: Instant,
+    inputs: super::CssInputs<'_>,
+    scope: Option<&[NodeId]>,
+) {
+    registry.fresh.clear();
+    diff_in(dom, registry, now, inputs, scope);
+}
+
+/// [`diff_and_register_in`] for the subtrees a layout re-cascaded after
+/// this frame's hook ran (`runtime::app::frame`): an element that hook
+/// found newly rendered is still on its first style — no style change,
+/// so no transition but from its starting style (CSS Transitions 1 §3,
+/// C14G-CONTAINER-FIDELITY).
+pub(crate) fn diff_layout_restyles_in(
+    dom: &mut Dom<TuiExt>,
+    registry: &mut AnimationRegistry,
+    now: Instant,
+    inputs: super::CssInputs<'_>,
+    roots: &[NodeId],
+) {
+    diff_in(dom, registry, now, inputs, Some(roots));
+}
+
+fn diff_in(
     dom: &mut Dom<TuiExt>,
     registry: &mut AnimationRegistry,
     now: Instant,
@@ -105,7 +132,12 @@ fn diff(
     for id in ids {
         #[cfg(test)]
         DIFF_VISITS.with(|c| c.set(c.get() + 1));
-        let was_rendered = rendered.get(&id).copied().unwrap_or(false);
+        // Newly rendered earlier this frame: still no before-change style.
+        let was_rendered =
+            rendered.get(&id).copied().unwrap_or(false) && !registry.fresh.contains(&id);
+        if !was_rendered {
+            registry.fresh.insert(id);
+        }
         for slot in [StyleSlot::Host, StyleSlot::Before, StyleSlot::After] {
             let changed = snapshot(dom, id, slot);
             // A `::before` / `::after` that generated a box at the last

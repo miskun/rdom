@@ -9519,3 +9519,29 @@ row comes from.
   unmatched `@media` gave `margin-left: var(--g)` 2 for 0; `theme` first named in an unmatched `@media`
   ranked before `base` (red for blue); `a_layer_in_a_container_rule_always_counts` pins §6.4.3's exception
   (passed before, passes after). Green after.
+- 2026-10-09 — C14G-CONTAINER-FIDELITY (architect N2, N3; API N1, N2; CSS Transitions 1 §3, CSS Conditional 5
+  §6.4.2, HTML "update the rendering", CSS Containment 2 §4.4). Found: (1) the container pass's re-cascade
+  wrote the new style during layout and noted the roots for the next frame's transition hook, so a flip
+  painted its after-change value for a frame, then faded from the before-change value; (2) at a first render
+  the query was unknown at the cascade and resolved in the layout's re-cascade, which the next frame's hook
+  took for a style change — a fade on the first frame; (3) a Restyle replay (`Rules::Cached`, a registered
+  property's transition step) kept a `style()` query's answer, and the query read the container's
+  cascaded `vars`, not its animated ones, so `#t` was red while `--on` animated from 0; (4) relevance was
+  decided after every pass, a flip able to move rows on and off screen to the cap. Decided: (1) the pass
+  keeps its restyled roots as document data (an `App` only — no `note_flushed`, so no extra next-frame
+  layout) and the frame runs their hook right after each `layout_dom` (`start_layout_transitions`:
+  `diff_layout_restyles_in`, then `advance_frame` to composite the new transitions, and one more layout
+  when a moved value is one layout reads; TECH_DEBT `ANIM-RELAYOUT-1` says the bound); (2) the hook
+  remembers the elements it found newly rendered (`AnimationRegistry::fresh`, cleared by the main hook and
+  by a frame without one), and the layout-restyle hook treats them as still newly rendered — their first
+  style, transitioning only from a starting style; (3) `MatchedRules::reads_containers` (a matched rule
+  under `@container` was tested) makes a Restyle match the element again, and a style query reads
+  `animated_vars` (the computed value, a running transition's) before `vars`; (4) the pass settles the
+  containers, decides relevance once, and, if anything flipped, re-cascades it and settles again within the
+  same budget of 8 — relevance is not decided again until the next layout. Red: `container_query_tests`
+  `a_container_flip_paints_the_before_change_value_first` (0 animations in the flip's frame),
+  `a_first_render_under_a_container_query_does_not_transition` (a transition),
+  `a_restyle_replay_retests_style_queries` (red mid-transition), `container_pass::auto_relevance_is_decided_once_a_layout`
+  (2 decisions for 1). Mutation (restored, touched): the in-frame hook off fails both flip tests; the fresh
+  set off fails the first-render test; the replay filter off fails the replay test (the animated-vars read
+  alone does not pass it).

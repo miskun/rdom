@@ -127,6 +127,8 @@ pub(crate) fn after_layout(dom: &Dom<TuiExt>, viewport: crate::layout::LayoutRec
     let Some(state) = state(dom) else {
         return Vec::new();
     };
+    #[cfg(test)]
+    probe::DECISIONS.with(|c| c.set(c.get() + 1));
     let live = |id: NodeId| dom.contains(id) && dom.node(id).is_connected();
     remember_sizes(dom);
     let mut changed = Vec::new();
@@ -216,4 +218,16 @@ pub(crate) fn fire_queued_events(dom: &mut crate::TuiDom) -> bool {
         crate::tui_event::dispatch_to_live(dom, id, &mut tui);
     }
     !events.is_empty()
+}
+
+/// Test-only: how many times relevance was decided on this thread.
+#[cfg(test)]
+pub(crate) mod probe {
+    thread_local! {
+        pub static DECISIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    pub fn take() -> usize {
+        DECISIONS.with(|c| c.replace(0))
+    }
 }

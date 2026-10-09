@@ -255,7 +255,12 @@ fn style_element<'a>(
         .ext()
         .and_then(|e| e.matched.clone())
         .filter(|m| m.is_for(sheets));
-    let cached = recorded.as_deref().filter(|_| mode == Mode::Restyle);
+    // A replay keeps every condition's answer but a container query's,
+    // which can change with the container's animated values: an element
+    // whose matches read one is matched again (C14G-CONTAINER-FIDELITY).
+    let cached = recorded
+        .as_deref()
+        .filter(|m| mode == Mode::Restyle && !m.reads_containers());
 
     let mut recorder = Recorder::new(recorded.clone(), mode == Mode::Restyle);
     let parent_id = dom.node(id).parent_node().map(|p| p.id());

@@ -243,11 +243,12 @@ fn evaluate(dom: &Dom<TuiExt>, id: NodeId, pseudo: bool, condition: &ContainerCo
     } else {
         (None, None)
     };
-    // The var map is keyed without the `--`.
+    // The var map is keyed without the `--`; a running transition's or
+    // animation's value is the computed one (`animated_vars`, CSS
+    // Transitions 1 §3), as `var()` reads it.
+    let vars = style.animated_vars.as_ref().unwrap_or(&style.vars);
     let custom = |name: &str| {
-        style
-            .vars
-            .get(name.strip_prefix("--").unwrap_or(name))
+        vars.get(name.strip_prefix("--").unwrap_or(name))
             .map(|v| v.as_str().to_string())
             .filter(|v| !v.trim().is_empty())
     };
