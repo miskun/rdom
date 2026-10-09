@@ -11,7 +11,10 @@
 //! (`render::layout_pass::container_pass`: its `::before` / `::after`
 //! appear or go, and it is laid out again) and its
 //! `contentvisibilityautostatechange` event queued for the `App`. A newly
-//! rendered `auto` element starts out rendering its contents.
+//! rendered `auto` element starts out skipping its contents, and the
+//! first layout determines its relevance (the event fires then, whatever
+//! it finds) — HTML's initial determination: off-screen ones are never
+//! laid out with their contents.
 //!
 //! An element with `contain-intrinsic-size: auto …` remembers its content
 //! box each time it is laid out not skipping its contents; while it skips
@@ -40,6 +43,10 @@ struct State {
     /// `contentvisibilityautostatechange` events to fire: the element and
     /// whether it now skips.
     events: RefCell<Vec<(NodeId, bool)>>,
+    /// The `auto` elements whose relevance is not determined yet: they
+    /// skip their contents until the first layout decides (§4.4, HTML's
+    /// initial determination), and that decision fires their event.
+    undetermined: RefCell<HashSet<NodeId>>,
 }
 
 fn state(dom: &Dom<TuiExt>) -> Option<&State> {
@@ -59,8 +66,15 @@ pub(crate) fn note_style(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle) {
     let Some(state) = state(dom) else {
         return;
     };
-    if c.content_visibility == ContentVisibility::Auto {
-        state.auto.borrow_mut().insert(id);
+    if c.content_visibility == ContentVisibility::Auto
+        && crate::style::containment::size_applies(c)
+        && state.auto.borrow_mut().insert(id)
+    {
+        // A newly rendered `auto` element skips its contents until the
+        // layout determines its relevance (§4.4): a long list's
+        // off-screen rows are never laid out with theirs.
+        state.skipped.borrow_mut().insert(id);
+        state.undetermined.borrow_mut().insert(id);
     }
     if c.contain_intrinsic_width.auto || c.contain_intrinsic_height.auto {
         state.remembering.borrow_mut().insert(id);
@@ -69,6 +83,10 @@ pub(crate) fn note_style(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle) {
 
 /// Whether the element `id`, styled `c`, skips its contents (§4).
 pub(crate) fn skips(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle) -> bool {
+    // §4: it applies only where size containment can (§3.1).
+    if !crate::style::containment::size_applies(c) {
+        return false;
+    }
     match c.content_visibility {
         ContentVisibility::Visible => false,
         ContentVisibility::Hidden => true,
@@ -104,7 +122,10 @@ pub(crate) fn skips_contents_for(dom: &Dom<TuiExt>, id: NodeId, who: SkippedFor)
     };
     match who {
         SkippedFor::Rendering => skips(dom, id, c),
-        SkippedFor::Features => c.content_visibility == ContentVisibility::Hidden,
+        SkippedFor::Features => {
+            c.content_visibility == ContentVisibility::Hidden
+                && crate::style::containment::size_applies(c)
+        }
     }
 }
 
@@ -143,8 +164,12 @@ pub(crate) fn after_layout(dom: &Dom<TuiExt>, viewport: crate::layout::LayoutRec
     });
     let mut skipped = state.skipped.borrow_mut();
     skipped.retain(|id| auto.contains(id));
+    let mut undetermined = state.undetermined.borrow_mut();
+    undetermined.retain(|id| auto.contains(id));
     for &id in auto.iter() {
         let skip = !relevant(dom, id, viewport);
+        // The first determination fires the event whatever it finds.
+        let first = undetermined.remove(&id);
         if skip != skipped.contains(&id) {
             if skip {
                 skipped.insert(id);
@@ -152,6 +177,8 @@ pub(crate) fn after_layout(dom: &Dom<TuiExt>, viewport: crate::layout::LayoutRec
                 skipped.remove(&id);
             }
             changed.push(id);
+            state.events.borrow_mut().push((id, skip));
+        } else if first {
             state.events.borrow_mut().push((id, skip));
         }
     }
@@ -169,7 +196,16 @@ pub(crate) fn remember_sizes(dom: &Dom<TuiExt>) {
     };
     let live = |id: NodeId| dom.contains(id) && dom.node(id).is_connected();
     let mut remembering = state.remembering.borrow_mut();
-    remembering.retain(|&id| live(id));
+    // CSS Sizing 4 §6.1: a remembered size goes once the element no
+    // longer has `contain-intrinsic-size: auto`.
+    remembering.retain(|&id| {
+        live(id)
+            && dom
+                .node(id)
+                .ext()
+                .and_then(|e| e.computed.as_deref())
+                .is_some_and(|c| c.contain_intrinsic_width.auto || c.contain_intrinsic_height.auto)
+    });
     let mut remembered = state.remembered.borrow_mut();
     remembered.retain(|id, _| remembering.contains(id));
     for &id in remembering.iter() {

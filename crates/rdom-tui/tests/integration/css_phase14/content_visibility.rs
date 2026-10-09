@@ -73,7 +73,9 @@ fn auto_on_screen_renders_with_containment() {
 
 /// §4.2 `auto`: off-screen, the contents are skipped and the box is sized
 /// by `contain-intrinsic-size` — its `auto` the size it was last laid out
-/// at (CSS Sizing 4 §6.1).
+/// at (CSS Sizing 4 §6.1), none for an element that starts off-screen: a
+/// new `auto` element skips until its relevance is determined
+/// (C14G-CONTAIN-FIDELITY; it was laid out once, so it remembered 3).
 #[test]
 fn auto_off_screen_skips_the_contents() {
     let markup =
@@ -85,7 +87,7 @@ fn auto_off_screen_skips_the_contents() {
         20,
         5,
     );
-    assert_eq!(rect(&dom, "c").3, 3, "remembered from its first layout");
+    assert_eq!(rect(&dom, "c").3, 7, "never rendered: nothing remembered");
     let mut dom = doc(markup);
     styled(
         &mut dom,

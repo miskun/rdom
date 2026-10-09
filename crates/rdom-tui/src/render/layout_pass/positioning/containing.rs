@@ -49,6 +49,16 @@ pub(in crate::render::layout_pass) fn containing_ancestor(
     containing_ancestor_for(dom, from, false)
 }
 
+/// The ancestor that contains a `fixed` box whose ancestors are `from`
+/// and up — layout or paint containment, a `will-change` (CSS Containment
+/// 2 §3.2, §3.4) — `None` for the viewport.
+pub(in crate::render::layout_pass) fn fixed_containing_ancestor(
+    dom: &Dom<TuiExt>,
+    from: Option<NodeId>,
+) -> Option<NodeId> {
+    containing_ancestor_for(dom, from, true)
+}
+
 /// [`containing_ancestor`] for an absolutely positioned box, or — `fixed`
 /// — a fixed one, which only containment and `will-change` contain.
 fn containing_ancestor_for(dom: &Dom<TuiExt>, from: Option<NodeId>, fixed: bool) -> Option<NodeId> {

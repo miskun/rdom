@@ -11,6 +11,7 @@ use rdom_tui::{CascadeExt, Color, LayoutExt, NodeId, PaintExt, TuiDom, TuiNodeEx
 mod aspect_block;
 mod conditional_rules;
 mod contain;
+mod contain_fidelity;
 mod container_query;
 mod container_type;
 mod content_visibility;

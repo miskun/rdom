@@ -9,17 +9,51 @@ use crate::ext::TuiExt;
 use crate::layout::Display;
 use crate::style::ComputedStyle;
 
+/// Whether size containment can apply to a box styled `c` (§3.1): it
+/// generates a principal box, its inner display is not `table`, and it is
+/// neither an internal table box nor a non-atomic inline box. Also what
+/// `content-visibility` applies to (§4).
+pub(crate) fn size_applies(c: &ComputedStyle) -> bool {
+    use crate::layout::{Flow, TablePart};
+    principal_box(c)
+        && c.flow != Flow::Table
+        && !matches!(c.display, Display::TablePart(p) if p != TablePart::Caption)
+        && !non_atomic_inline(c)
+}
+
+/// Whether layout and paint containment can apply (§3.2, §3.4): a
+/// principal box that is neither an internal table box but a cell nor a
+/// non-atomic inline box.
+fn layout_applies(c: &ComputedStyle) -> bool {
+    use crate::layout::TablePart;
+    principal_box(c)
+        && !matches!(c.display, Display::TablePart(p) if !matches!(p, TablePart::Caption | TablePart::Cell))
+        && !non_atomic_inline(c)
+}
+
+/// The box generates a principal box (`none` and `contents` do not).
+fn principal_box(c: &ComputedStyle) -> bool {
+    !matches!(c.display, Display::None | Display::Contents)
+}
+
+/// `display: inline` with an inner flow layout: an inline box, not an
+/// atomic inline (`inline-block`, `inline-flex`, …).
+fn non_atomic_inline(c: &ComputedStyle) -> bool {
+    c.display == Display::Inline && c.flow.is_block_flow()
+}
+
 /// Size containment on the inline axis (horizontal-tb: the width): `contain:
 /// size | inline-size`, or a `size` / `inline-size` query container (CSS
-/// Conditional 5 §6.1).
+/// Conditional 5 §6.1) — where size containment applies ([`size_applies`]).
 pub(crate) fn size_inline(c: &ComputedStyle) -> bool {
-    c.contain.size || c.contain.inline_size || c.container_type.queries_inline()
+    (c.contain.size || c.contain.inline_size || c.container_type.queries_inline())
+        && size_applies(c)
 }
 
 /// Size containment on the block axis: `contain: size`, or a `size`
-/// query container.
+/// query container — where size containment applies.
 pub(crate) fn size_block(c: &ComputedStyle) -> bool {
-    c.contain.size || c.container_type.queries_block()
+    (c.contain.size || c.container_type.queries_block()) && size_applies(c)
 }
 
 /// Size containment on the inline axis of the element `id` styled `c`:
@@ -34,22 +68,22 @@ pub(crate) fn size_block_of(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle) ->
 }
 
 /// `content-visibility: auto | hidden` applies layout, style and paint
-/// containment (§4).
+/// containment (§4) — where it applies at all: where size containment can.
 fn content_visibility(c: &ComputedStyle) -> bool {
-    c.content_visibility != crate::layout::ContentVisibility::Visible
+    c.content_visibility != crate::layout::ContentVisibility::Visible && size_applies(c)
 }
 
-/// Layout containment (§3.2).
+/// Layout containment (§3.2), on the boxes it applies to.
 pub(crate) fn layout(c: &ComputedStyle) -> bool {
-    c.contain.layout || content_visibility(c)
+    (c.contain.layout || content_visibility(c)) && layout_applies(c)
 }
 
-/// Paint containment (§3.4).
+/// Paint containment (§3.4), on the boxes it applies to.
 pub(crate) fn paint(c: &ComputedStyle) -> bool {
-    c.contain.paint || content_visibility(c)
+    (c.contain.paint || content_visibility(c)) && layout_applies(c)
 }
 
-/// Style containment (§3.3).
+/// Style containment (§3.3): it applies to every element.
 pub(crate) fn style(c: &ComputedStyle) -> bool {
     c.contain.style || content_visibility(c)
 }

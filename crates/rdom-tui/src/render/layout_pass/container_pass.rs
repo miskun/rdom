@@ -369,6 +369,32 @@ mod tests {
         assert_eq!(crate::style::content_visibility::probe::take(), 1);
     }
 
+    /// Architect N13 (CSS Containment 2 §4.4, HTML's initial
+    /// determination): a new `content-visibility: auto` element starts
+    /// skipping, and only those found relevant after the first layout are
+    /// laid out with their contents — a long list of off-screen rows costs
+    /// a layout per row and pass (the first, and the one after the
+    /// on-screen rows flip), not per row and descendant (1206 here: it
+    /// laid everything out once, then skipped it).
+    #[test]
+    fn auto_rows_off_screen_are_never_laid_out_with_their_contents() {
+        let rows: String = (0..300)
+            .map(|i| format!("<div class='r'><p>a {i}</p><p>b</p></div>"))
+            .collect();
+        super::super::LAYOUTS.with(|c| c.set(0));
+        let (dom, _) = run_over(
+            &rows,
+            "p { margin: 0 } .r { content-visibility: auto; contain-intrinsic-size: auto 2 }",
+            20,
+        );
+        let layouts = super::super::LAYOUTS.with(|c| c.get());
+        assert!(
+            layouts < 2 * 300 + 50,
+            "{layouts} element layouts for 300 rows"
+        );
+        drop(dom);
+    }
+
     /// Two nested containers, the inner sized by the outer's query: one
     /// pass per level.
     #[test]

@@ -23,6 +23,9 @@ use crate::render::Rect;
 #[derive(Clone, Copy)]
 struct Frame {
     positioned: bool,
+    /// It contains `fixed` descendants (layout or paint containment, a
+    /// `will-change` naming one; `containment::contains_positioned`).
+    contains_fixed: bool,
     content_clip: Rect,
     own_clip: Rect,
 }
@@ -45,13 +48,10 @@ pub(crate) fn collect_layers(
     viewport: Rect,
 ) -> Layers {
     let mut layers = Layers::default();
-    let root_positioned = dom
-        .node(root)
-        .ext()
-        .and_then(|e| e.computed.as_ref())
-        .is_some_and(|c| is_positioned(c));
+    let root_style = dom.node(root).ext().and_then(|e| e.computed.as_ref());
     let chain = vec![Frame {
-        positioned: root_positioned,
+        positioned: root_style.is_some_and(|c| contains(c, false)),
+        contains_fixed: root_style.is_some_and(|c| contains(c, true)),
         content_clip,
         own_clip,
     }];
@@ -136,6 +136,7 @@ impl Walk<'_> {
                 self.background(cid, box_parent, unit, current);
                 self.chain.push(Frame {
                     positioned: false,
+                    contains_fixed: false,
                     content_clip: current,
                     own_clip: current,
                 });
@@ -167,7 +168,8 @@ impl Walk<'_> {
                 }
                 if !context {
                     self.chain.push(Frame {
-                        positioned: false,
+                        positioned: contains(c, false),
+                        contains_fixed: contains(c, true),
                         content_clip: children_clip(dom, cid, c, current),
                         own_clip: current,
                     });
@@ -184,6 +186,7 @@ impl Walk<'_> {
                     // its in-flow boxes and floats to its own paint unit.
                     self.chain.push(Frame {
                         positioned: true,
+                        contains_fixed: contains(c, true),
                         content_clip: children_clip(dom, cid, c, clip),
                         own_clip: clip,
                     });
@@ -202,7 +205,8 @@ impl Walk<'_> {
                     self.background(cid, box_parent, unit, current);
                 }
                 self.chain.push(Frame {
-                    positioned: false,
+                    positioned: contains(c, false),
+                    contains_fixed: contains(c, true),
                     content_clip: children_clip(dom, cid, c, current),
                     own_clip: current,
                 });
@@ -217,11 +221,17 @@ impl Walk<'_> {
 
     /// The clip a positioned box styled `position`, met where the
     /// content clip is `current`, paints into (CSS 2.1 §11.1.1): the
-    /// viewport for `fixed`, the content clip at its containing block for
-    /// `absolute`, `current` otherwise.
+    /// content clip at its containing block — for `fixed`, the nearest
+    /// box containing fixed boxes (CSS Containment 2 §3.2, §3.4), else
+    /// the viewport — and `current` for an in-flow position.
     fn positioned_clip(&self, position: Position, current: Rect) -> Rect {
         match position {
-            Position::Fixed => self.viewport,
+            Position::Fixed => self
+                .chain
+                .iter()
+                .rev()
+                .find(|f| f.contains_fixed)
+                .map_or(self.viewport, |f| f.content_clip),
             Position::Absolute => self
                 .chain
                 .iter()
@@ -366,4 +376,11 @@ impl Walk<'_> {
             self.order += 1;
         }
     }
+}
+
+/// Whether a box styled `c` contains absolutely positioned descendants
+/// (`fixed`: fixed ones): a non-static `position` (absolute only) or
+/// containment (`containment::contains_positioned`).
+fn contains(c: &crate::style::ComputedStyle, fixed: bool) -> bool {
+    (!fixed && is_positioned(c)) || crate::style::containment::contains_positioned(c, fixed)
 }

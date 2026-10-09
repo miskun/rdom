@@ -9545,3 +9545,33 @@ row comes from.
   (2 decisions for 1). Mutation (restored, touched): the in-frame hook off fails both flip tests; the fresh
   set off fails the first-render test; the replay filter off fails the replay test (the animated-vars read
   alone does not pass it).
+- 2026-10-09 — C14G-CONTAIN-FIDELITY (architect N10–N15; CSS Containment 2 §3.1–§3.4, §4, §4.4, CSS Sizing 4
+  §5.1, §6.1, CSS Position 3 §2.1). Found: (N10) skipped descendants kept the rects of their last layout;
+  (N11) no box-type gating — `table { contain: size }` was 0 wide, `span { content-visibility: hidden }` hid
+  its text, `tr { contain: paint }` clipped; (N12) a `fixed` box inside layout or paint containment was
+  placed in the container but clipped by the viewport and left behind by a sticky ancestor's shift; (N13) a
+  new `auto` element was laid out with its contents before relevance was decided (1206 element layouts for
+  300 off-screen rows); (N14) a remembered size outlived `contain-intrinsic-size: auto`; (N15) the ratio
+  transferred the declared height, not the clamped one (`height: 9; max-height: 5; aspect-ratio: 2` was 18
+  wide), and its percentage basis was the parent's last-written `content_layout`. Decided: (N10) a
+  skipping element's layout zeroes its skipped DOM subtree (a `::details-content` box: the slotted
+  children; `collapse_dom_subtree`, O(1) once collapsed); (N11) `containment::size_applies` (a principal
+  box, inner display not `table`, no internal table box but a caption, no non-atomic inline) gates size
+  containment and `content-visibility` (§4: "applies to elements for which size containment can apply"),
+  `layout_applies` (cells allowed) layout and paint; style containment applies to every element; (N12) the
+  stacking walk's frames record whether they contain `fixed` boxes, and a `fixed` box's clip is the nearest
+  such frame's content clip, else the viewport (absolute ones also see containment frames now); a sticky
+  shift keeps only the `fixed` boxes whose containing block (`fixed_containing_ancestor`) lies outside the
+  shifted subtree (`Keep::Fixed(root)`); (N13) a newly tracked `auto` element starts skipping and
+  undetermined; the layout's single relevance decision (C14G-CONTAINER-FIDELITY) flips the relevant ones
+  and fires every first determination's event (HTML's initial determination); focus into `auto` content
+  shipped with C14G-SKIP-WALKS; (N14) `remember_sizes` forgets an element that no longer has `auto`;
+  (N15) `ratio_width` clamps the definite height by `min-height` / `max-height` before transferring it, and
+  takes the containing-block height the caller lays the box out in (`resolve_block_width`'s new
+  `container_height`), the box parent's only when asked before layout. Red
+  (`css_phase14/contain_fidelity.rs`, all eight, and `container_pass::auto_rows_off_screen_are_never_laid_out_with_their_contents`):
+  skipped rect `(20, 1)` for zero; table 0 wide; inline text `ad` for `abcd`; the row clipped the `X`; `F`
+  painted past its container; the fixed box at `-2` for `0`; a remembered 3 for 1; `(18, 5)` for `(10, 5)`;
+  1206 layouts for under 650. Green after. Expectation changed by the decision:
+  `content_visibility::auto_off_screen_skips_the_contents` — an element that starts off-screen never
+  rendered, so `contain-intrinsic-size: auto 7` is 7 (it remembered 3 from a first layout with contents).

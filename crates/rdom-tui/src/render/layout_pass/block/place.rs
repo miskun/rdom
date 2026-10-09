@@ -62,7 +62,7 @@ pub(super) fn place_block_child(
         .node(child)
         .computed_rc()
         .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
-    let resolved = resolve_block_width(dom, child, &computed, cb);
+    let resolved = resolve_block_width(dom, child, &computed, (cb, Some(ctx.container.height)));
     let height = resolve_block_height(
         dom,
         child,

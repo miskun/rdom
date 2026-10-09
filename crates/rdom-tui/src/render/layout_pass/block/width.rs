@@ -43,7 +43,7 @@ pub(super) fn resolve_block_width(
     dom: &Dom<TuiExt>,
     id: NodeId,
     computed: &ComputedStyle,
-    containing_block_width: u16,
+    (containing_block_width, container_height): (u16, Option<u16>),
 ) -> ResolvedWidth {
     let cb = containing_block_width as i32;
 
@@ -105,7 +105,15 @@ pub(super) fn resolve_block_width(
         // CSS Sizing 4 §5.1: with a preferred aspect ratio and a definite
         // height, the automatic width is the transferred size, not the
         // stretch fit.
-        .or_else(|| ratio_width(dom, id, computed, containing_block_width).map(i32::from));
+        .or_else(|| {
+            ratio_width(
+                dom,
+                id,
+                computed,
+                (containing_block_width, container_height),
+            )
+            .map(i32::from)
+        });
 
     // CSS Box Alignment 3 §6.1: a `justify-self` other than `normal` /
     // `stretch` sizes an `auto` width as `fit-content` and places the box
@@ -202,30 +210,51 @@ pub(super) fn resolve_block_width(
 /// (CSS Sizing 4 §5.1): a declared length, or a percentage or `calc()` of
 /// a definite containing block's height (CSS 2.1 §10.5). `None` without a
 /// ratio, for a table, or when the height is not definite.
-fn ratio_width(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedStyle, cb: u16) -> Option<u16> {
+fn ratio_width(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    (cb, container_height): (u16, Option<u16>),
+) -> Option<u16> {
     use crate::layout::Size;
     let ratio = computed.aspect_ratio?;
     if computed.flow == crate::layout::Flow::Table {
         return None;
     }
-    let height = match &computed.height {
-        Size::Fixed(n) => Some(*n),
-        Size::Percent(_) | Size::Calc(_)
-            if super::height::nearest_block_ancestor_height_is_definite(dom, id) =>
-        {
-            // The box parent's content height — the viewport's for a box of
-            // the initial containing block (CSS 2.1 §10.1), which has no Ext.
-            let basis = match crate::render::box_tree::box_parent(dom, id)
-                .and_then(|p| dom.node(p).ext())
-            {
+    // The containing block's height, when it is definite (CSS 2.1 §10.5):
+    // the one the caller lays the box out in, or — asked before layout —
+    // the box parent's content height, the viewport's for a box of the
+    // initial containing block (CSS 2.1 §10.1), which has no Ext.
+    let basis = super::height::nearest_block_ancestor_height_is_definite(dom, id).then(|| {
+        container_height.unwrap_or_else(|| {
+            match crate::render::box_tree::box_parent(dom, id).and_then(|p| dom.node(p).ext()) {
                 Some(e) => e.content_layout.height,
                 None => crate::style::cascade::document_viewport(dom).rows,
-            };
-            computed.height.cells(Some(basis))
-        }
+            }
+        })
+    });
+    let height = match &computed.height {
+        Size::Fixed(n) => Some(*n),
+        Size::Percent(_) | Size::Calc(_) => basis.and_then(|b| computed.height.cells(Some(b))),
         _ => None,
     }?;
-    let outer = crate::render::layout_pass::box_sizing::Sizer::vertical(computed, cb).outer(height);
+    // CSS Sizing 4 §5.1: the size transferred is the definite height as
+    // `min-height` / `max-height` clamp it.
+    let kw = crate::render::layout_pass::intrinsic::Keywords::new(
+        dom,
+        id,
+        computed,
+        Direction::Column,
+        cb,
+        cb,
+    );
+    let sizer = kw.sizer();
+    let outer = sizer.outer(height);
+    let outer = sizer.floor(crate::layout::clamp_size(
+        outer,
+        kw.min(&computed.min_height, basis, outer),
+        kw.max(&computed.max_height, basis, outer),
+    ));
     crate::render::layout_pass::box_sizing::aspect_cross_from_main(
         outer,
         ratio,
@@ -274,7 +303,7 @@ pub(super) fn block_content_width(
     computed: &ComputedStyle,
     containing_block_width: u16,
 ) -> u16 {
-    let width = resolve_block_width(dom, id, computed, containing_block_width).width;
+    let width = resolve_block_width(dom, id, computed, (containing_block_width, None)).width;
     compute_content_area_collapsed(
         LayoutRect::new(0, 0, width, 0),
         computed.padding.clone(),

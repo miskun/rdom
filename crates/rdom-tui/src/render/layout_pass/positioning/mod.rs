@@ -56,7 +56,9 @@ use crate::ext::TuiExt;
 use crate::layout::{LayoutRect, Position};
 
 pub(super) use axis::axis_position_anchored;
-pub(super) use containing::{absolute_containing_block, containing_ancestor};
+pub(super) use containing::{
+    absolute_containing_block, containing_ancestor, fixed_containing_ancestor,
+};
 pub(super) use place::place_positioned;
 pub(super) use pseudo_offsets::offset_in_flow_pseudos;
 pub(super) use relative::{apply_relative_shift, relative_offset};

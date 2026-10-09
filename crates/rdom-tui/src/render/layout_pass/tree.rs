@@ -57,6 +57,15 @@ pub(crate) fn is_in_flow(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 /// its own rects read zero, at `origin` (the container's content box),
 /// while its children are laid out as the container's.
 pub(crate) fn collapse_hidden_children(dom: &mut Dom<TuiExt>, id: NodeId, origin: LayoutRect) {
+    // CSS Containment 2 §4: skipped contents are not laid out, so they
+    // keep no geometry (`layout_rect()`, `scroll_into_view`, view
+    // timelines read it). O(1) once collapsed.
+    if crate::style::content_visibility::skips_contents(dom, id) {
+        for child in skipped_children(dom, id) {
+            collapse_dom_subtree(dom, child);
+        }
+        return;
+    }
     zero_contents_children(dom, id, origin);
     for child in element_children_of(dom, id) {
         let hidden = dom
@@ -84,6 +93,35 @@ pub(super) fn collapse_subtree_geometry(dom: &mut Dom<TuiExt>, id: NodeId) {
     }
     for child in element_children_of(dom, id) {
         collapse_subtree_geometry(dom, child);
+    }
+}
+
+/// The child nodes `id` skips: its own, or for a `<details>`'s
+/// `::details-content` box the `<details>`'s slotted children.
+fn skipped_children(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {
+    match crate::render::box_tree::slot::host_of(dom, id) {
+        Some(host) => dom
+            .node(host)
+            .child_nodes()
+            .map(|c| c.id())
+            .filter(|&c| crate::style::cascade::details::slotted(dom, host, c))
+            .collect(),
+        None => dom.node(id).child_nodes().map(|c| c.id()).collect(),
+    }
+}
+
+/// Zero every element's box state in the DOM subtree at `id`, stopping
+/// where it is already zero (zeroed top-down, so is all below).
+fn collapse_dom_subtree(dom: &mut Dom<TuiExt>, id: NodeId) {
+    if let Some(ext) = dom.node_mut(id).ext_mut() {
+        if ext.layout == LayoutRect::default() && ext.content_layout == LayoutRect::default() {
+            return;
+        }
+        clear_box_state(ext, LayoutRect::default());
+    }
+    let children: Vec<NodeId> = dom.node(id).child_nodes().map(|c| c.id()).collect();
+    for child in children {
+        collapse_dom_subtree(dom, child);
     }
 }
 
@@ -140,7 +178,7 @@ pub(super) fn clear_box_state(ext: &mut TuiExt, rect: LayoutRect) {
 /// boxes and fragments to their content box, a grid's lines to its
 /// `content_layout` (C7G-LINES-SHIFT) — so moving these moves it all.
 pub(super) fn shift_subtree(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32) {
-    shift(dom, id, dx, dy, Keep::Fixed);
+    shift(dom, id, dx, dy, Keep::Fixed(id));
 }
 
 /// Move `id`'s box and its laid-out subtree by `(dx, dy)`, `fixed`
@@ -155,19 +193,34 @@ pub(super) fn shift_box(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32) {
 #[derive(Clone, Copy, PartialEq)]
 enum Keep {
     None,
-    Fixed,
+    /// The `fixed` boxes whose containing block is outside the subtree
+    /// rooted here: the viewport, or a containing ancestor above it (CSS
+    /// Position 3 §2.1, CSS Containment 2 §3.2) — a contained element in
+    /// the subtree moves its `fixed` boxes with it.
+    Fixed(NodeId),
+}
+
+/// Whether a `fixed` box whose ancestors are `from` and up stays put
+/// under `keep`.
+fn keeps_fixed(dom: &Dom<TuiExt>, keep: Keep, from: Option<NodeId>) -> bool {
+    let Keep::Fixed(root) = keep else {
+        return false;
+    };
+    super::positioning::fixed_containing_ancestor(dom, from)
+        .is_none_or(|cb| !dom.node(root).contains(cb))
 }
 
 fn shift(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32, keep: Keep) {
-    if keep == Keep::Fixed
-        && dom
-            .node(id)
-            .ext()
-            .and_then(|e| e.computed.as_ref())
-            .is_some_and(|c| c.position == crate::layout::Position::Fixed)
+    if dom
+        .node(id)
+        .ext()
+        .and_then(|e| e.computed.as_ref())
+        .is_some_and(|c| c.position == crate::layout::Position::Fixed)
+        && keeps_fixed(dom, keep, crate::render::box_tree::box_parent(dom, id))
     {
         return;
     }
+    let pseudo_kept = keeps_fixed(dom, keep, Some(id));
     let shift = |r: LayoutRect| LayoutRect::new(r.x + dx, r.y + dy, r.width, r.height);
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         ext.layout = shift(ext.layout);
@@ -178,7 +231,7 @@ fn shift(dom: &mut Dom<TuiExt>, id: NodeId, dx: i32, dy: i32, keep: Keep) {
             .positioned_pseudo_boxes()
             .iter()
             .map(|a| {
-                keep == Keep::Fixed
+                pseudo_kept
                     && a.generated
                         .and_then(|g| ext.computed_pseudo(g.slot))
                         .is_some_and(|c| c.position == crate::layout::Position::Fixed)
