@@ -32,6 +32,10 @@ pub(crate) struct BoxFragments {
     pub(crate) height: u16,
     /// The unfragmented content box, relative to the border box's origin.
     pub(crate) content: LayoutRect,
+    /// `box-decoration-break: clone` (§5.4): each fragment is a whole box
+    /// of its own rows — its padding and border all round — rather than the
+    /// unfragmented box sliced.
+    pub(crate) clone: bool,
     /// The fragments, at least two.
     pub(crate) list: Vec<BoxFragment>,
 }
@@ -49,6 +53,29 @@ impl BoxFragments {
     /// The fragments of the box laid out at `layout`, as drawn.
     pub(crate) fn drawn(&self, layout: LayoutRect) -> impl Iterator<Item = DrawnFragment> + '_ {
         self.list.iter().map(move |f| {
+            let rows = LayoutRect::new(
+                layout.x + f.rect.x,
+                layout.y + f.rect.y,
+                f.rect.width,
+                f.rect.height,
+            );
+            if self.clone {
+                // The box's edges around the fragment's rows.
+                let c = self.content;
+                let right = i32::from(self.width) - c.x - i32::from(c.width);
+                let bottom = i32::from(self.height) - c.y - i32::from(c.height);
+                let height = i32::from(rows.height) - c.y - bottom;
+                return DrawnFragment {
+                    border_box: rows,
+                    content_box: LayoutRect::new(
+                        rows.x + c.x,
+                        rows.y + c.y,
+                        (i32::from(rows.width) - c.x - right).max(0) as u16,
+                        height.max(0) as u16,
+                    ),
+                    rows,
+                };
+            }
             let (x, y) = (layout.x + f.origin.0, layout.y + f.origin.1);
             DrawnFragment {
                 border_box: LayoutRect::new(x, y, self.width, self.height),
@@ -58,12 +85,7 @@ impl BoxFragments {
                     self.content.width,
                     self.content.height,
                 ),
-                rows: LayoutRect::new(
-                    layout.x + f.rect.x,
-                    layout.y + f.rect.y,
-                    f.rect.width,
-                    f.rect.height,
-                ),
+                rows,
             }
         })
     }
@@ -118,13 +140,19 @@ pub(in crate::render::layout_pass) fn apply(
     }
     for child in super::super::element_children_of(dom, root) {
         if !skip.contains(&child) {
-            place(dom, child, plan);
+            place(dom, child, plan, None);
         }
     }
 }
 
+/// Per slice of a plan, the rows the cloned edges of a box's
+/// `box-decoration-break: clone` ancestors take between the fragment's
+/// edge and the box's at a break: above its top, below its bottom. `None`
+/// with no such ancestor split there.
+type Edges<'a> = Option<&'a [(u16, u16)]>;
+
 /// Move `id`'s box into its fragmentainer, or split it across several.
-fn place(dom: &mut Dom<TuiExt>, id: NodeId, plan: &Plan) {
+fn place(dom: &mut Dom<TuiExt>, id: NodeId, plan: &Plan, edges: Edges<'_>) {
     let Some(ext) = dom.node(id).ext() else {
         return;
     };
@@ -162,7 +190,7 @@ fn place(dom: &mut Dom<TuiExt>, id: NodeId, plan: &Plan) {
             e.content_layout.y += s.dy;
         }
         for child in super::super::element_children_of(dom, id) {
-            place(dom, child, plan);
+            place(dom, child, plan, edges);
         }
         return;
     }
@@ -173,22 +201,36 @@ fn place(dom: &mut Dom<TuiExt>, id: NodeId, plan: &Plan) {
         super::super::tree::shift_subtree(dom, id, s.dx, s.dy);
         return;
     }
-    split(dom, id, plan, first, last);
+    split(dom, id, plan, first, last, edges);
 }
 
 /// Split `id`, whose border box the slices `first ..= last` of `plan`
-/// hold, into fragments; then place its content.
-fn split(dom: &mut Dom<TuiExt>, id: NodeId, plan: &Plan, first: usize, last: usize) {
+/// hold, into fragments; then place its content. A fragment ends at a
+/// break with the cloned edges (`lead`, `tail`) of the boxes split there
+/// that are around it, `edges` those of its ancestors.
+fn split(
+    dom: &mut Dom<TuiExt>,
+    id: NodeId,
+    plan: &Plan,
+    first: usize,
+    last: usize,
+    edges: Edges<'_>,
+) {
     let Some(ext) = dom.node(id).ext() else {
         return;
     };
     let (r, cl) = (ext.layout, ext.content_layout);
+    let clone = ext.computed.as_deref().is_some_and(|c| {
+        c.fragmentation.box_decoration_break == crate::layout::BoxDecorationBreak::Clone
+    });
     let mut pieces: Vec<(Slice, LayoutRect)> = Vec::new();
     let mut outer = None;
     let mut inner = None;
-    for (k, s) in plan.slices[first..=last].iter().enumerate() {
-        let top = if k == 0 { r.y } else { r.y.max(s.start) };
-        let bot = if first + k == last {
+    for k in first..=last {
+        let s = plan.slices[k];
+        // The box's rows in this slice, in the one-column flow.
+        let top = if k == first { r.y } else { r.y.max(s.start) };
+        let bot = if k == last {
             bottom(r)
         } else {
             bottom(r).min(s.end)
@@ -196,14 +238,32 @@ fn split(dom: &mut Dom<TuiExt>, id: NodeId, plan: &Plan, first: usize, last: usi
         if bot <= top {
             continue;
         }
-        let rows = LayoutRect::new(r.x + s.dx, top + s.dy, r.width, (bot - top) as u16);
+        // Where the fragment's edges go: at a break, past the cloned edges
+        // of the boxes inside it that it is around.
+        let (above, below) = edges.map_or((0, 0), |e| e[k]);
+        let drawn_top = if k == first {
+            top + s.dy
+        } else {
+            s.start + s.dy - i32::from(s.lead) + i32::from(above)
+        };
+        let drawn_bot = if k == last {
+            bot + s.dy
+        } else {
+            s.end + s.dy + i32::from(s.tail) - i32::from(below)
+        };
+        let rows = LayoutRect::new(
+            r.x + s.dx,
+            drawn_top,
+            r.width,
+            (drawn_bot - drawn_top).clamp(0, i32::from(u16::MAX)) as u16,
+        );
         outer = Some(union(outer, rows));
         let (ctop, cbot) = (cl.y.max(top), bottom(cl).min(bot));
         if cbot > ctop {
             let content = LayoutRect::new(cl.x + s.dx, ctop + s.dy, cl.width, (cbot - ctop) as u16);
             inner = Some(union(inner, content));
         }
-        pieces.push((*s, rows));
+        pieces.push((s, rows));
     }
     let Some(outer) = outer.filter(|_| pieces.len() > 1) else {
         let s = plan.slices[first];
@@ -220,6 +280,7 @@ fn split(dom: &mut Dom<TuiExt>, id: NodeId, plan: &Plan, first: usize, last: usi
         width: r.width,
         height: r.height,
         content: LayoutRect::new(cl.x - r.x, cl.y - r.y, cl.width, cl.height),
+        clone,
         list: pieces
             .iter()
             .map(|(s, rows)| BoxFragment {
@@ -228,6 +289,20 @@ fn split(dom: &mut Dom<TuiExt>, id: NodeId, plan: &Plan, first: usize, last: usi
             })
             .collect(),
     };
+    // A cloned box's own edges at its breaks, for what is inside it.
+    let own: Option<Vec<(u16, u16)>> = clone.then(|| {
+        let top = (cl.y - r.y).clamp(0, i32::from(u16::MAX)) as u16;
+        let bot = (bottom(r) - bottom(cl)).clamp(0, i32::from(u16::MAX)) as u16;
+        (0..plan.slices.len())
+            .map(|k| {
+                let (above, below) = edges.map_or((0, 0), |e| e[k]);
+                (
+                    above.saturating_add(if k > first && k <= last { top } else { 0 }),
+                    below.saturating_add(if k >= first && k < last { bot } else { 0 }),
+                )
+            })
+            .collect()
+    });
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         // A fragmentable box is no scroll container: its lines sit at its
         // content box.
@@ -240,8 +315,9 @@ fn split(dom: &mut Dom<TuiExt>, id: NodeId, plan: &Plan, first: usize, last: usi
         ext.content_layout = inner;
         ext.kept = Some(Box::new(crate::ext::KeptLayout::Fragments(fragments)));
     }
+    let edges = own.as_deref().or(edges);
     for child in super::super::element_children_of(dom, id) {
-        place(dom, child, plan);
+        place(dom, child, plan, edges);
     }
 }
 

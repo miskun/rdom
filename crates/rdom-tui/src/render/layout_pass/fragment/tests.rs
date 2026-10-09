@@ -3,7 +3,12 @@
 //! in order, forced breaks, overflow, and balancing's bounded cost.
 
 use super::breaker::{BREAKER_RUNS, slices};
-use super::{Break, Fill, RULE_1, RULE_2, RULE_3, fragmentainers};
+use super::{Break, Fill, Frag, RULE_1, RULE_2, RULE_3, fragmentainers};
+
+/// Each fragment's rows.
+fn rows(frags: Vec<Frag>) -> Vec<(i32, i32)> {
+    frags.iter().map(|f| (f.start, f.end)).collect()
+}
 
 /// `n` one-row lines from row 0, a break between each two.
 fn lines(n: i32) -> Vec<Break> {
@@ -13,6 +18,8 @@ fn lines(n: i32) -> Vec<Break> {
             resume: k,
             forced: false,
             violates: 0,
+            tail: 0,
+            lead: 0,
         })
         .collect()
 }
@@ -20,9 +27,9 @@ fn lines(n: i32) -> Vec<Break> {
 /// §4.4: a fragmentainer takes the content up to the last break that fits.
 #[test]
 fn a_fragmentainer_ends_at_the_last_break_that_fits() {
-    assert_eq!(slices(&lines(7), 0, 7, 3), [(0, 3), (3, 6), (6, 7)]);
+    assert_eq!(rows(slices(&lines(7), 0, 7, 3)), [(0, 3), (3, 6), (6, 7)]);
     // The rest fits: no break.
-    assert_eq!(slices(&lines(3), 0, 3, 5), [(0, 3)]);
+    assert_eq!(rows(slices(&lines(3), 0, 3, 5)), [(0, 3)]);
 }
 
 /// §3.1: a forced break ends the fragmentainer early, wherever it is.
@@ -30,7 +37,7 @@ fn a_fragmentainer_ends_at_the_last_break_that_fits() {
 fn a_forced_break_ends_the_fragmentainer() {
     let mut b = lines(6);
     b[0].forced = true;
-    assert_eq!(slices(&b, 0, 6, 4), [(0, 1), (1, 5), (5, 6)]);
+    assert_eq!(rows(slices(&b, 0, 6, 4)), [(0, 1), (1, 5), (5, 6)]);
 }
 
 /// §4.4: the rules are dropped in reverse order — orphans / widows first,
@@ -43,13 +50,13 @@ fn the_rules_relax_in_reverse_order() {
     b[0].violates = RULE_1; // after row 1
     // Height 3: the break after row 3 breaks only rule 3 — taken before the
     // rule-2 and rule-1 ones.
-    assert_eq!(slices(&b, 0, 6, 3)[0], (0, 3));
+    assert_eq!(rows(slices(&b, 0, 6, 3))[0], (0, 3));
     b[2].violates = RULE_1;
     // Now rule 2's (after row 2) is the least important broken.
-    assert_eq!(slices(&b, 0, 6, 3)[0], (0, 2));
+    assert_eq!(rows(slices(&b, 0, 6, 3))[0], (0, 2));
     b[1].violates = RULE_1;
     b[0].violates = RULE_2;
-    assert_eq!(slices(&b, 0, 6, 3)[0], (0, 1));
+    assert_eq!(rows(slices(&b, 0, 6, 3))[0], (0, 1));
 }
 
 /// §4.2: content taller than the fragmentainer with no break inside it
@@ -63,15 +70,19 @@ fn monolithic_content_overflows_and_margins_truncate() {
             resume: 7,
             forced: false,
             violates: 0,
+            tail: 0,
+            lead: 0,
         },
         Break {
             end: 8,
             resume: 8,
             forced: false,
             violates: 0,
+            tail: 0,
+            lead: 0,
         },
     ];
-    assert_eq!(slices(&b, 0, 9, 3), [(0, 5), (7, 9)]);
+    assert_eq!(rows(slices(&b, 0, 9, 3)), [(0, 5), (7, 9)]);
 }
 
 /// Multi-column 1 §7.1: balancing finds the least height that fits the
@@ -81,7 +92,7 @@ fn monolithic_content_overflows_and_margins_truncate() {
 #[test]
 fn balancing_is_a_bounded_search() {
     BREAKER_RUNS.with(|c| c.set(0));
-    let (rows, h) = fragmentainers(
+    let (frags, h) = fragmentainers(
         &lines(6),
         0,
         6,
@@ -90,7 +101,7 @@ fn balancing_is_a_bounded_search() {
             cap: None,
         },
     );
-    assert_eq!((rows, h), (vec![(0, 2), (2, 4), (4, 6)], 2));
+    assert_eq!((rows(frags), h), (vec![(0, 2), (2, 4), (4, 6)], 2));
     let runs = BREAKER_RUNS.with(|c| c.get());
     assert!(runs <= 5, "{runs} breaker runs");
     // A thousand rows balance in at most ⌈log₂ 1000⌉ + 2 runs.
@@ -114,7 +125,7 @@ fn balancing_is_a_bounded_search() {
 /// tall as it (no column overflows when balancing).
 #[test]
 fn balancing_respects_the_cap_and_monolithic_pieces() {
-    let (rows, h) = fragmentainers(
+    let (frags, h) = fragmentainers(
         &lines(9),
         0,
         9,
@@ -123,7 +134,7 @@ fn balancing_respects_the_cap_and_monolithic_pieces() {
             cap: Some(3),
         },
     );
-    assert_eq!((rows, h), (vec![(0, 3), (3, 6), (6, 9)], 3));
+    assert_eq!((rows(frags), h), (vec![(0, 3), (3, 6), (6, 9)], 3));
     // A 4-row piece, then two lines: two columns, four rows each.
     let b = [
         Break {
@@ -131,15 +142,19 @@ fn balancing_respects_the_cap_and_monolithic_pieces() {
             resume: 4,
             forced: false,
             violates: 0,
+            tail: 0,
+            lead: 0,
         },
         Break {
             end: 5,
             resume: 5,
             forced: false,
             violates: 0,
+            tail: 0,
+            lead: 0,
         },
     ];
-    let (rows, h) = fragmentainers(
+    let (frags, h) = fragmentainers(
         &b,
         0,
         6,
@@ -148,5 +163,29 @@ fn balancing_respects_the_cap_and_monolithic_pieces() {
             cap: None,
         },
     );
-    assert_eq!((rows, h), (vec![(0, 4), (4, 6)], 4));
+    assert_eq!((rows(frags), h), (vec![(0, 4), (4, 6)], 4));
+}
+
+/// Fragmentation 3 §5.4 (`clone`): a break inside a cloned box costs its
+/// bottom edge before it and its top edge after — six one-row lines in a
+/// box with a one-row edge each side, four-row columns: three lines and
+/// the bottom edge, then the top edge and three lines.
+#[test]
+fn cloned_edges_take_rows_at_a_break() {
+    let b: Vec<Break> = lines(6)
+        .into_iter()
+        .map(|b| Break {
+            tail: 1,
+            lead: 1,
+            ..b
+        })
+        .collect();
+    let frags = slices(&b, 0, 6, 4);
+    assert_eq!(
+        frags
+            .iter()
+            .map(|f| (f.start, f.end, f.lead, f.tail))
+            .collect::<Vec<_>>(),
+        [(0, 3, 0, 1), (3, 6, 1, 0)]
+    );
 }

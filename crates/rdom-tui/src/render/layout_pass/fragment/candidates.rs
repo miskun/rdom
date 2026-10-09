@@ -17,7 +17,7 @@ use crate::style::ComputedStyle;
 /// The breaks of `root`'s laid-out content, by the row they end at.
 pub(in crate::render::layout_pass) fn collect(dom: &Dom<TuiExt>, root: NodeId) -> Vec<Break> {
     let mut out = Vec::new();
-    flow(dom, root, 0, &mut out);
+    flow(dom, root, Around::default(), &mut out);
     out.sort_by_key(|b| (b.end, b.resume));
     out
 }
@@ -65,16 +65,60 @@ fn bottom(r: LayoutRect) -> i32 {
     r.y + i32::from(r.height)
 }
 
-/// The breaks inside `container`'s content, with `inside` the §4.4 rules a
-/// break anywhere in it breaks already (a `break-inside: avoid` around).
-fn flow(dom: &Dom<TuiExt>, container: NodeId, inside: u8, out: &mut Vec<Break>) {
+/// What the boxes around a break give it: the §4.4 rules a break anywhere
+/// in them breaks (a `break-inside: avoid` around), and the rows their
+/// cloned edges add (`box-decoration-break: clone`, §5.4).
+#[derive(Debug, Clone, Copy, Default)]
+struct Around {
+    violates: u8,
+    tail: u16,
+    lead: u16,
+}
+
+impl Around {
+    fn at(self, end: i32, resume: i32, forced: bool, violates: u8) -> Break {
+        Break {
+            end,
+            resume,
+            forced,
+            violates: self.violates | violates,
+            tail: self.tail,
+            lead: self.lead,
+        }
+    }
+
+    /// Inside the fragmentable box `id` too.
+    fn into(self, dom: &Dom<TuiExt>, id: NodeId) -> Around {
+        let Some(c) = computed(dom, id) else {
+            return self;
+        };
+        let mut around = self;
+        if c.fragmentation.break_inside.avoids_column() {
+            around.violates |= RULE_2;
+        }
+        if c.fragmentation.box_decoration_break == crate::layout::BoxDecorationBreak::Clone
+            && let Some(e) = dom.node(id).tui_ext()
+        {
+            let (l, cl) = (e.layout, e.content_layout);
+            let top = (cl.y - l.y).clamp(0, i32::from(u16::MAX)) as u16;
+            let bottom = (bottom(l) - bottom(cl)).clamp(0, i32::from(u16::MAX)) as u16;
+            around.lead = around.lead.saturating_add(top);
+            around.tail = around.tail.saturating_add(bottom);
+        }
+        around
+    }
+}
+
+/// The breaks inside `container`'s content, `around` what the boxes around
+/// it give each.
+fn flow(dom: &Dom<TuiExt>, container: NodeId, around: Around, out: &mut Vec<Break>) {
     let Some(ext) = dom.node(container).tui_ext() else {
         return;
     };
     if let Some(il) = ext.inline_layout.as_ref() {
         let origin = crate::render::inline::scrolled_content_rect(dom, container)
             .unwrap_or(ext.content_layout);
-        lines(dom, container, il, origin.y, inside, out);
+        lines(dom, container, il, origin.y, around, out);
         return;
     }
     let mut items: Vec<Item> = super::super::element_children_of(dom, container)
@@ -104,18 +148,16 @@ fn flow(dom: &Dom<TuiExt>, container: NodeId, inside: u8, out: &mut Vec<Break>) 
             };
             let asked = after.max(before);
             let end = bottom(p.rect());
-            out.push(Break {
+            out.push(around.at(
                 end,
-                resume: item.rect().y.max(end),
-                forced: asked == Ask::Force,
-                violates: inside | if asked == Ask::Avoid { RULE_1 } else { 0 },
-            });
+                item.rect().y.max(end),
+                asked == Ask::Force,
+                if asked == Ask::Avoid { RULE_1 } else { 0 },
+            ));
         }
         match item {
             Item::Element(id, _) if fragmentable(dom, *id) => {
-                let avoid = computed(dom, *id)
-                    .is_some_and(|c| c.fragmentation.break_inside.avoids_column());
-                flow(dom, *id, inside | if avoid { RULE_2 } else { 0 }, out);
+                flow(dom, *id, around.into(dom, *id), out);
             }
             Item::Anonymous(i, _) => {
                 let anon = &ext.anonymous_blocks[*i];
@@ -125,7 +167,7 @@ fn flow(dom: &Dom<TuiExt>, container: NodeId, inside: u8, out: &mut Vec<Break>) 
                         container,
                         &anon.inline_layout,
                         anon.rect.y,
-                        inside,
+                        around,
                         out,
                     );
                 }
@@ -144,7 +186,7 @@ fn lines(
     block: NodeId,
     il: &InlineLayout,
     top: i32,
-    inside: u8,
+    around: Around,
     out: &mut Vec<Break>,
 ) {
     let (orphans, widows) = computed(dom, block).map_or((2, 2), |c| {
@@ -154,12 +196,12 @@ fn lines(
     for k in 1..n {
         let (before, after) = (k as u32, (n - k) as u32);
         let short = before < orphans || after < widows;
-        out.push(Break {
-            end: top + i32::from(il.lines[k - 1].bottom()),
-            resume: top + i32::from(il.lines[k].top),
-            forced: false,
-            violates: inside | if short { RULE_3 } else { 0 },
-        });
+        out.push(around.at(
+            top + i32::from(il.lines[k - 1].bottom()),
+            top + i32::from(il.lines[k].top),
+            false,
+            if short { RULE_3 } else { 0 },
+        ));
     }
 }
 

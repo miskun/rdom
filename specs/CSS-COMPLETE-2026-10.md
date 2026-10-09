@@ -278,7 +278,7 @@ row comes from.
 | C15-FILTER | `filter` color-matrix functions; `backdrop-filter` | done |
 | C15-BLEND | `mix-blend-mode`, `isolation` | done |
 | C15-CLIP-PATH | `clip-path: inset()` | done |
-| C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | partial — `box-decoration-break: clone` remains |
+| C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | done |
 | C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | |
 
 ## Log
@@ -9916,3 +9916,14 @@ row comes from.
   (`overflow_columns_scroll_and_hit`). Red → green: `a_spanner_splits_the_columns_into_sets`, red with the
   spanner laid out in its column (the sets ran together: `["a1 │ b1", "a2 │ b2", "Title │ b3"]`). The item
   stays partial for `box-decoration-break: clone`.
+- 2026-10-09 — C15-COLUMNS part 5, `box-decoration-break: clone` (CSS Fragmentation 3 §5.4); the item is done. A
+  break inside a cloned box costs its bottom padding and border before it and its top border and padding after
+  it: each `Break` carries the rows the cloned boxes around it add (`tail`, `lead`, summed over nested ones),
+  the breaker fits a break with its `tail` and starts the next fragment below its `lead` (`Frag`), balancing
+  counts both in a fragment's height, and a slice moves its content down by its `lead`. `fragment::apply`
+  draws a cloned box's fragment as a whole box of its own rows — its edge at a break past the cloned edges of
+  the boxes inside it (`Edges`, per slice, passed down) — and a sliced box around a cloned one covers the
+  cloned rows, as the break is inside it. Paint draws a cloned fragment whole (no band). Red → green:
+  `fragment::tests::cloned_edges_take_rows_at_a_break`, `css_phase15::multicol::clone_draws_each_fragment_whole`;
+  mutation runs — no cloned edges in the breaks, and cloned fragments drawn sliced — each fail the integration
+  test (the first put `k2` on the bottom border, the second cut the boxes open).

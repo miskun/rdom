@@ -117,15 +117,17 @@ pub(super) fn lay_out(
         if let (Fill::Sequential(h), true) = (set_fill, content_sized) {
             // An `auto` height capped by `max-height`: as tall as the
             // fullest column.
-            let fullest = rows.iter().map(|(a, b)| b - a).max().unwrap_or(0);
+            let fullest = rows.iter().map(fragment::Frag::height).max().unwrap_or(0);
             used = fullest.clamp(0, i32::from(h)) as u16;
         }
         plan.slices
-            .extend(rows.iter().enumerate().map(|(i, &(start, end))| Slice {
-                start,
-                end,
+            .extend(rows.iter().enumerate().map(|(i, f)| Slice {
+                start: f.start,
+                end: f.end,
                 dx: step.saturating_mul(i as i32),
-                dy: cursor - start,
+                dy: cursor + i32::from(f.lead) - f.start,
+                lead: f.lead,
+                tail: f.tail,
             }));
         let count = rows.len().max(usize::from(cols.count));
         sets.push(ColumnSet {
@@ -135,7 +137,7 @@ pub(super) fn lay_out(
                 .map(|i| ColumnBox {
                     x: first_x - inner.x + step.saturating_mul(i as i32),
                     width: cols.width,
-                    filled: rows.get(i).is_some_and(|(a, b)| b > a),
+                    filled: rows.get(i).is_some_and(|f| f.end > f.start),
                 })
                 .collect(),
         });
@@ -152,6 +154,8 @@ pub(super) fn lay_out(
             end: origin.1,
             dx: 0,
             dy: 0,
+            lead: 0,
+            tail: 0,
         });
     }
     set_content_box(dom, id, inner);

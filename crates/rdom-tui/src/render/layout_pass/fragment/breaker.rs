@@ -35,16 +35,35 @@ pub(in crate::render::layout_pass) enum Fill {
     Balance { count: u16, cap: Option<u16> },
 }
 
+/// One fragmentainer's piece of a flow: its rows `start .. end`, and the
+/// rows a `box-decoration-break: clone` box split at its edges adds — `lead`
+/// above them (the cloned top edges of the boxes the break before it is
+/// inside), `tail` below (their bottom edges at the break after it).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::render::layout_pass) struct Frag {
+    pub(in crate::render::layout_pass) start: i32,
+    pub(in crate::render::layout_pass) end: i32,
+    pub(in crate::render::layout_pass) lead: u16,
+    pub(in crate::render::layout_pass) tail: u16,
+}
+
+impl Frag {
+    /// The rows it takes in its fragmentainer.
+    pub(in crate::render::layout_pass) fn height(&self) -> i32 {
+        i32::from(self.lead) + (self.end - self.start) + i32::from(self.tail)
+    }
+}
+
 /// The fragmentainers of the flow whose rows run `start .. end`, with
 /// `breaks` its possible breaks by end row, filled by `fill`: each one's
-/// rows, and the fragmentainer height used — the balanced height, or the
+/// piece, and the fragmentainer height used — the balanced height, or the
 /// sequential one.
 pub(in crate::render::layout_pass) fn fragmentainers(
     breaks: &[Break],
     start: i32,
     end: i32,
     fill: Fill,
-) -> (Vec<(i32, i32)>, u16) {
+) -> (Vec<Frag>, u16) {
     match fill {
         Fill::Sequential(h) => (slices(breaks, start, end, h), h),
         Fill::Balance { count, cap } => {
@@ -53,7 +72,7 @@ pub(in crate::render::layout_pass) fn fragmentainers(
                 Some(cap) if h > cap => (slices(breaks, start, end, cap), cap),
                 _ => {
                     let s = slices(breaks, start, end, h);
-                    let used = s.iter().map(|(a, b)| b - a).max().unwrap_or(0);
+                    let used = s.iter().map(Frag::height).max().unwrap_or(0);
                     (s, used.clamp(0, i32::from(u16::MAX)) as u16)
                 }
             }
@@ -69,18 +88,23 @@ fn balanced(breaks: &[Break], start: i32, end: i32, count: u16) -> u16 {
         return 0;
     }
     // One fragmentainer per forced break at the full height — always
-    // feasible, the most the count can be held to.
-    let target = slices(breaks, start, end, total)
-        .len()
-        .max(usize::from(count.max(1)));
+    // feasible but where cloned box edges make a fragment taller than the
+    // flow, the most the count can be held to.
+    let whole = slices(breaks, start, end, total);
+    let target = whole.len().max(usize::from(count.max(1)));
     let fits = |h: u16| {
         let s = slices(breaks, start, end, h);
-        s.len() <= target && s.iter().all(|(a, b)| b - a <= i32::from(h))
+        s.len() <= target && s.iter().all(|f| f.height() <= i32::from(h))
     };
     let mut lo = total
         .div_ceil(target.min(usize::from(u16::MAX)) as u16)
         .max(1);
-    let mut hi = total;
+    let mut hi = whole
+        .iter()
+        .map(Frag::height)
+        .max()
+        .unwrap_or(0)
+        .clamp(i32::from(total), i32::from(u16::MAX)) as u16;
     while lo < hi {
         let mid = lo + (hi - lo) / 2;
         if fits(mid) {
@@ -92,41 +116,64 @@ fn balanced(breaks: &[Break], start: i32, end: i32, count: u16) -> u16 {
     hi
 }
 
-/// The rows of each fragmentainer `h` rows tall the flow `start .. end`
+/// The pieces of each fragmentainer `h` rows tall the flow `start .. end`
 /// fills, one after another.
-pub(super) fn slices(breaks: &[Break], start: i32, end: i32, h: u16) -> Vec<(i32, i32)> {
+pub(super) fn slices(breaks: &[Break], start: i32, end: i32, h: u16) -> Vec<Frag> {
     #[cfg(test)]
     BREAKER_RUNS.with(|c| c.set(c.get() + 1));
     let mut out = Vec::new();
     let mut s = start;
+    let mut lead = 0;
     let mut from = 0;
     while s < end {
-        let limit = s.saturating_add(i32::from(h));
+        // The cloned edges above the content come out of the height.
+        let limit = s
+            .saturating_add(i32::from(h))
+            .saturating_sub(i32::from(lead));
         // The breaks after the fragmentainer's start.
         from += breaks[from..].partition_point(|b| b.end <= s);
         match pick(&breaks[from..], s, limit, end) {
             Some(b) if b.resume < end => {
-                out.push((s, b.end));
+                out.push(Frag {
+                    start: s,
+                    end: b.end,
+                    lead,
+                    tail: b.tail,
+                });
                 s = b.resume.max(b.end);
+                lead = b.lead;
             }
             Some(b) => {
-                out.push((s, b.end.max(s)));
+                out.push(Frag {
+                    start: s,
+                    end: b.end.max(s),
+                    lead,
+                    tail: b.tail,
+                });
                 return out;
             }
             None => break,
         }
     }
-    out.push((s, end.max(s)));
+    out.push(Frag {
+        start: s,
+        end: end.max(s),
+        lead,
+        tail: 0,
+    });
     out
 }
 
 /// The break ending the fragmentainer that starts at `s` and fits up to
-/// `limit` (§4.4), among `breaks` (all ending after `s`); `None` when the
-/// rest of the flow, ending at `end`, fits — or has no break left.
+/// `limit` (§4.4) — its cloned edges below it included — among `breaks`
+/// (all ending after `s`); `None` when the rest of the flow, ending at
+/// `end`, fits — or has no break left.
 fn pick(breaks: &[Break], s: i32, limit: i32, end: i32) -> Option<Break> {
+    let fits = |b: &Break| b.end + i32::from(b.tail) <= limit;
     // A forced break that fits ends it (§3.1).
     if let Some(b) = breaks.iter().find(|b| b.forced)
-        && b.end <= limit.min(end)
+        && b.end <= end
+        && fits(b)
     {
         return Some(*b);
     }
@@ -139,7 +186,7 @@ fn pick(breaks: &[Break], s: i32, limit: i32, end: i32) -> Option<Break> {
         if let Some(b) = fitting
             .iter()
             .rev()
-            .find(|b| b.end > s && b.violates & !allowed == 0)
+            .find(|b| b.end > s && fits(b) && b.violates & !allowed == 0)
         {
             return Some(*b);
         }

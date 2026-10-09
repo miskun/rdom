@@ -46,7 +46,7 @@ pub(crate) use apply::BoxFragments;
 pub(super) use apply::apply;
 #[cfg(test)]
 pub(super) use breaker::BREAKER_RUNS;
-pub(super) use breaker::{Fill, fragmentainers};
+pub(super) use breaker::{Fill, Frag, fragmentainers};
 pub(super) use candidates::collect;
 
 /// One possible break in a flow (CSS Fragmentation 3 §4.1), in the
@@ -61,6 +61,12 @@ pub(crate) struct Break {
     pub(crate) forced: bool,
     /// The §4.4 rules a break here breaks, as [`RULE_1`] | … bits.
     pub(crate) violates: u8,
+    /// The rows the `box-decoration-break: clone` boxes the break is inside
+    /// add (§5.4): their bottom padding and border after the content
+    /// before it (`tail`), their top border and padding before the content
+    /// after it (`lead`).
+    pub(crate) tail: u16,
+    pub(crate) lead: u16,
 }
 
 /// §4.4 rule 1: a class A break whose `break-after` / `break-before` is
@@ -73,13 +79,16 @@ pub(crate) const RULE_2: u8 = 2;
 pub(crate) const RULE_3: u8 = 4;
 
 /// One fragmentainer's piece of the flow: the rows `start .. end` of the
-/// unfragmented flow, moved by `(dx, dy)`.
+/// unfragmented flow, moved by `(dx, dy)`, with the cloned box edges above
+/// and below them (`lead`, `tail`; [`Frag`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Slice {
     pub(crate) start: i32,
     pub(crate) end: i32,
     pub(crate) dx: i32,
     pub(crate) dy: i32,
+    pub(crate) lead: u16,
+    pub(crate) tail: u16,
 }
 
 /// Where each piece of a flow goes: its slices in flow order, at least

@@ -368,3 +368,43 @@ fn overflow_columns_scroll_and_hit() {
         Some(by_id(&dom, "l"))
     );
 }
+
+/// Fragmentation 3 §5.4: under `box-decoration-break: clone` each fragment
+/// of a box split across columns is a whole box — its border all round —
+/// and the cloned edges take rows at the break; under `slice` (the initial
+/// value) the box is cut there.
+#[test]
+fn clone_draws_each_fragment_whole() {
+    let html = r#"<body><div id="m"><div id="b">k1<br>k2<br>k3<br>k4</div></div></body>"#;
+    let css = |decoration: &str| {
+        format!(
+            "{PAGE} #m {{ column-count: 2; column-gap: 1; width: 13 }}
+             #b {{ border: solid; box-decoration-break: {decoration} }}"
+        )
+    };
+    let mut dom = doc(html);
+    let buf = paint(&mut dom, &css("slice"), 13, 4);
+    assert_eq!(
+        rows(&buf, 3),
+        ["┌────┐ │k3  │", "│k1  │ │k4  │", "│k2  │ └────┘"]
+    );
+    let mut dom = doc(html);
+    let buf = paint(&mut dom, &css("clone"), 13, 4);
+    assert_eq!(
+        rows(&buf, 4),
+        [
+            "┌────┐ ┌────┐",
+            "│k1  │ │k3  │",
+            "│k2  │ │k4  │",
+            "└────┘ └────┘",
+        ]
+    );
+    let b = by_id(&dom, "b");
+    let frags: Vec<_> = dom
+        .node(b)
+        .client_rects()
+        .iter()
+        .map(|r| (r.x, r.y, r.width, r.height))
+        .collect();
+    assert_eq!(frags, [(0, 0, 6, 4), (7, 0, 6, 4)]);
+}

@@ -111,7 +111,12 @@ pub(super) fn paint_box(
     {
         let n = fragments.list.len();
         for (i, f) in fragments.drawn(ext.layout).enumerate() {
-            let band = rows_band(clip, f.rows, i == 0, i + 1 == n);
+            // A cloned box draws whole in each (§5.4 `clone`).
+            let band = if fragments.clone {
+                clip
+            } else {
+                rows_band(clip, f.rows, i == 0, i + 1 == n)
+            };
             paint_own_box(
                 dom,
                 id,
