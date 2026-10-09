@@ -48,6 +48,8 @@ mod counter_styles;
 mod imports;
 mod index;
 mod keyframes;
+mod position_try;
+pub use position_try::PositionTryRule;
 mod layers;
 mod registrations;
 mod scopes;
@@ -322,6 +324,8 @@ pub struct Stylesheet {
     counter_styles: Vec<crate::counters::CounterStyleDefinition>,
     /// `@keyframes` rules, in source order (`keyframes.rs`).
     keyframes: Vec<crate::keyframes::KeyframesRule>,
+    /// `@position-try` rules, in source order (`position_try.rs`).
+    position_try: Vec<PositionTryRule>,
     /// The `@import`s that loaded (`imports.rs`).
     imports: Vec<Import>,
     /// Declared `@scope` rules, in source order (`scopes.rs`).

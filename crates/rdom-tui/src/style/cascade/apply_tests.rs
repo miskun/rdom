@@ -208,6 +208,12 @@ const PERTURB: &[(&str, &str)] = &[
     ("orphans", "4"),
     ("widows", "5"),
     ("box-decoration-break", "clone"),
+    ("anchor-name", "--a"),
+    ("anchor-scope", "all"),
+    ("position-anchor", "--a"),
+    ("position-area", "top"),
+    ("position-try", "most-width flip-block"),
+    ("position-visibility", "no-overflow"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly
@@ -332,6 +338,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         table,
         multicol,
         fragmentation,
+        anchor,
         vertical_align,
         text_decoration,
         // Derived from `text_decoration` and the parent's (§2.1).
@@ -487,6 +494,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         table,
         multicol,
         fragmentation,
+        anchor,
         vertical_align,
         text_decoration,
         user_select,

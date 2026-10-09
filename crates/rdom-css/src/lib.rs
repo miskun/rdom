@@ -23,6 +23,7 @@ mod declarations;
 mod import;
 mod keyframes;
 mod layer;
+mod position_try;
 mod property;
 mod scope;
 mod top_level;
@@ -270,6 +271,9 @@ fn warning_to_error(w: &Warning) -> ParseError {
         WarningKind::ImportantInKeyframe(_) => {
             ParseErrorKind::ExpectedToken("keyframe declaration without !important")
         }
+        WarningKind::InvalidPositionTryDescriptor(_) => {
+            ParseErrorKind::ExpectedToken("@position-try descriptor")
+        }
     };
     ParseError {
         kind,
@@ -412,6 +416,10 @@ pub enum WarningKind {
     /// A declaration (its property name) marked `!important` in a
     /// keyframe block: ignored (CSS Animations 1 §3).
     ImportantInKeyframe(String),
+    /// A declaration (its property name) in a `@position-try` rule that
+    /// is no descriptor of it, or is `!important`: dropped (CSS Anchor
+    /// Positioning 1 §4.1).
+    InvalidPositionTryDescriptor(String),
     UnterminatedComment,
     UnterminatedString,
 }

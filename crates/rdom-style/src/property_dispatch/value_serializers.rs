@@ -172,7 +172,8 @@ pub(crate) fn serialize_math(expr: &crate::calc::CalcExpr) -> String {
     match expr {
         crate::calc::CalcExpr::Percent(_)
         | crate::calc::CalcExpr::Dimension { .. }
-        | crate::calc::CalcExpr::Function { .. } => serialize_calc(expr),
+        | crate::calc::CalcExpr::Function { .. }
+        | crate::calc::CalcExpr::Anchor(_) => serialize_calc(expr),
         _ => format!("calc({})", serialize_calc(expr)),
     }
 }
@@ -236,6 +237,7 @@ pub(super) fn serialize_calc(expr: &crate::calc::CalcExpr) -> String {
         }
         CalcExpr::Length(c) => format!("{c}"),
         CalcExpr::NoBound => "none".to_string(),
+        CalcExpr::Anchor(f) => serialize_anchor(f),
         CalcExpr::Dimension { value, unit } => {
             format!(
                 "{}{}",
@@ -530,4 +532,46 @@ pub(super) fn serialize_gap(g: &crate::layout::GapValue) -> String {
         crate::layout::GapValue::Calc(expr) => serialize_math(expr),
         crate::layout::GapValue::Normal => "normal".to_string(),
     }
+}
+
+/// An anchor function as CSS text (CSS Anchor Positioning 1 §5).
+fn serialize_anchor(f: &crate::calc::AnchorFunction) -> String {
+    use crate::calc::{AnchorFunction, AnchorSide};
+    let mut parts: Vec<String> = Vec::new();
+    let mut first: Vec<String> = Vec::new();
+    if let Some(name) = f.name() {
+        first.push(name.to_string());
+    }
+    let fallback = f.fallback();
+    let func = match f {
+        AnchorFunction::Edge { side, .. } => {
+            first.push(match side {
+                AnchorSide::Percent(p) => serialize_calc(&crate::calc::CalcExpr::Percent(*p)),
+                side => AnchorSide::KEYWORDS
+                    .iter()
+                    .find(|(_, s)| s == side)
+                    .map_or("center", |(k, _)| k)
+                    .to_string(),
+            });
+            "anchor"
+        }
+        AnchorFunction::Size { size, .. } => {
+            if let Some(size) = size {
+                first.push(size.keyword().to_string());
+            }
+            "anchor-size"
+        }
+    };
+    if !first.is_empty() {
+        parts.push(first.join(" "));
+    }
+    if let Some(fb) = fallback {
+        parts.push(serialize_math_bare(fb));
+    }
+    format!("{func}({})", parts.join(", "))
+}
+
+/// A math expression inside a function's arguments: its sum, unwrapped.
+fn serialize_math_bare(expr: &crate::calc::CalcExpr) -> String {
+    serialize_calc(expr)
 }

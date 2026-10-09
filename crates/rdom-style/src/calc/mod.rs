@@ -30,11 +30,13 @@
 
 use std::fmt;
 
+mod anchor;
 mod context;
 mod functions;
 mod types;
 mod units;
 
+pub use anchor::{AnchorFunction, AnchorSide, AnchorSize};
 pub use context::{UnitContext, UnitReads, Viewport};
 use functions::eval_function;
 pub use functions::{MathFunction, RoundingStrategy};
@@ -90,6 +92,11 @@ pub enum CalcExpr {
     /// The keyword `none` in a `clamp()` bound: no bound. (Not `None`,
     /// which would shadow `Option::None` under a glob import.)
     NoBound,
+    /// An anchor function (CSS Anchor Positioning 1 §5): `anchor()` or
+    /// `anchor-size()`, a length once layout resolves it against the
+    /// anchor ([`CalcExpr::substitute_anchors`]); unresolved, its
+    /// fallback (or NaN without one).
+    Anchor(Box<AnchorFunction>),
 }
 
 /// Resolution context — the dimensions the percentage operands
@@ -168,6 +175,7 @@ impl CalcExpr {
                 }
             }
             CalcExpr::Function { func, args } => eval_function(*func, args, cx),
+            CalcExpr::Anchor(f) => f.fallback().map_or(f64::NAN, |e| e.resolve_f64(cx)),
         }
     }
 
@@ -185,6 +193,8 @@ impl CalcExpr {
             | CalcExpr::Dimension { .. } => false,
             CalcExpr::Binary { lhs, rhs, .. } => lhs.contains_percent() || rhs.contains_percent(),
             CalcExpr::Function { args, .. } => args.iter().any(CalcExpr::contains_percent),
+            // Layout resolves it: never folded at parse time.
+            CalcExpr::Anchor(_) => true,
         }
     }
 

@@ -169,6 +169,9 @@ pub(super) fn compute_element_style(
     working.normalize_overflow();
     super::line_clamp::finalize_line_clamp(&mut working);
     finalize_bfc_formation(&mut working);
+    // CSS Anchor Positioning 1: anchor functions outside an absolutely
+    // positioned box, and the `@position-try` rules its fallbacks name.
+    super::anchor::finalize_anchor(&mut working, sheets);
     // Viewport-percentage and line-height lengths are absolute at
     // computed-value time (CSS Values 4 §6.1), `line-height` first: `lh`
     // reads it.

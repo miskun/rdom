@@ -77,6 +77,7 @@
 //! The `round_trip_every_property` integration test in this module
 //! enforces this for the full table.
 
+mod anchor;
 mod animation;
 mod background;
 mod blend;
@@ -112,6 +113,8 @@ mod value_serializers;
 
 #[cfg(test)]
 mod align_tests;
+#[cfg(test)]
+mod anchor_tests;
 #[cfg(test)]
 mod animation_tests;
 #[cfg(test)]

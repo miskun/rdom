@@ -265,6 +265,15 @@ const PROPERTY_NAMES: &[&str] = &[
     "float",
     "clear",
     "inset",
+    // CSS Anchor Positioning 1
+    "anchor-name",
+    "anchor-scope",
+    "position-anchor",
+    "position-area",
+    "position-try",
+    "position-try-fallbacks",
+    "position-try-order",
+    "position-visibility",
     // Transitions (M3)
     "transition-property",
     "transition-duration",

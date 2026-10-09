@@ -117,6 +117,28 @@ impl DeclarationRun {
         });
     }
 
+    /// Drop the declarations `refuse` gives a warning for — by name and
+    /// importance — with that warning (a descriptor an at-rule's body
+    /// does not take, `@position-try`).
+    pub(crate) fn retain(
+        &mut self,
+        warnings: &mut Vec<Warning>,
+        mut refuse: impl FnMut(&str, bool) -> Option<WarningKind>,
+    ) {
+        self.first_warning.get_or_insert(warnings.len());
+        self.decls.retain(|d| match refuse(&d.name, d.important) {
+            Some(kind) => {
+                warnings.push(Warning {
+                    kind,
+                    line: d.at.0,
+                    column: d.at.1,
+                });
+                false
+            }
+            None => true,
+        });
+    }
+
     /// Write the collected declarations onto `style`: normal ones, then
     /// important ones (type doc). Warnings keep source order.
     pub(crate) fn apply(self, style: &mut TuiStyle, warnings: &mut Vec<Warning>) {

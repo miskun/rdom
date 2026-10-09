@@ -19,7 +19,11 @@ fn percent_fraction(p: f64) -> Option<f32> {
 
 pub fn parse_size(value: &[Token]) -> Option<Size> {
     // `auto` | `<n>fr` | `<length-percentage [0,∞]>` | an intrinsic keyword
-    // | `calc-size()` (CSS Values 5 §10)
+    // | `calc-size()` (CSS Values 5 §10) | `anchor-size()` (CSS Anchor
+    // Positioning 1 §5.2)
+    if let Some(e) = super::calc::parse_anchored(value, super::calc::ANCHOR_SIZE) {
+        return Some(Size::calc(e));
+    }
     if let Some(k) = parse_intrinsic(value) {
         return Some(Size::Intrinsic(k));
     }
@@ -140,6 +144,9 @@ pub fn parse_min_size(value: &[Token]) -> Option<MinSize> {
     if let Some(m) = super::calc_size::parse_calc_size_min(value) {
         return Some(m);
     }
+    if let Some(e) = super::calc::parse_anchored(value, super::calc::ANCHOR_SIZE) {
+        return Some(MinSize::calc(e));
+    }
     if let Some(k) = parse_intrinsic(value) {
         return Some(MinSize::Intrinsic(k));
     }
@@ -166,6 +173,9 @@ pub fn parse_max_size(value: &[Token]) -> Option<MaxSize> {
     }
     if let Some(m) = super::calc_size::parse_calc_size_max(value) {
         return Some(m);
+    }
+    if let Some(e) = super::calc::parse_anchored(value, super::calc::ANCHOR_SIZE) {
+        return Some(MaxSize::calc(e));
     }
     if let Some(k) = parse_intrinsic(value) {
         return Some(MaxSize::Intrinsic(k));
@@ -247,13 +257,25 @@ pub fn parse_length(value: &[Token]) -> Option<Length> {
     }
 }
 
+/// An inset property's value (`top` / `right` / `bottom` / `left`, CSS
+/// Position 3 §3.1): [`parse_length`]'s, or an `anchor()` /
+/// `anchor-size()` (CSS Anchor Positioning 1 §5) alone or in a math
+/// function.
+pub fn parse_inset(value: &[Token]) -> Option<Length> {
+    if let Some(e) =
+        super::calc::parse_anchored(value, super::calc::ANCHOR_EDGE | super::calc::ANCHOR_SIZE)
+    {
+        return Some(Length::calc(e));
+    }
+    parse_length(value)
+}
+
 /// `inset: <a> [<b> [<c> [<d>]]]` — same clockwise expansion as
-/// `padding`; each value is an inset (`auto` or a signed
-/// `<length-percentage>`).
+/// `padding`; each value is an inset ([`parse_inset`]).
 pub fn parse_inset_shorthand(value: &[Token]) -> Option<(Length, Length, Length, Length)> {
     let lengths = components(value)?
         .into_iter()
-        .map(parse_length)
+        .map(parse_inset)
         .collect::<Option<Vec<_>>>()?;
     let p = match lengths.as_slice() {
         [a] => (a.clone(), a.clone(), a.clone(), a.clone()),

@@ -181,6 +181,7 @@ pub(super) fn compute_pseudo_style(
     working.normalize_overflow();
     super::line_clamp::finalize_line_clamp(&mut working);
     finalize_bfc_formation(&mut working);
+    super::anchor::finalize_anchor(&mut working, cx.sheets);
     let root_rows = Some(super::text::root_line_height(dom));
     let (units, line_reads) = super::text::finalize_line_height(
         &mut working,

@@ -279,7 +279,7 @@ row comes from.
 | C15-BLEND | `mix-blend-mode`, `isolation` | done |
 | C15-CLIP-PATH | `clip-path: inset()` | done |
 | C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | done |
-| C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | |
+| C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | partial — properties, `anchor()` / `anchor-size()`, `anchor-center` and `@position-try` parse and cascade; the layout (anchors, `position-area`, fallbacks, `position-visibility`) remains |
 
 ## Log
 
@@ -9927,3 +9927,27 @@ row comes from.
   `fragment::tests::cloned_edges_take_rows_at_a_break`, `css_phase15::multicol::clone_draws_each_fragment_whole`;
   mutation runs — no cloned edges in the breaks, and cloned fragments drawn sliced — each fail the integration
   test (the first put `k2` on the bottom border, the second cut the boxes open).
+- 2026-10-09 — C15-ANCHOR part 1, the properties and functions (CSS Anchor Positioning 1 §2.1–§2.3, §3.1, §3.4,
+  §4.1–§4.3, §5, §5.1–§5.2; Anchor Positioning 2's `flip-x` / `flip-y`). A new style group `anchor`
+  (`AnchorStyle` / `AnchorDeclarations`): `anchor-name` and `anchor-scope` (`<dashed-ident>` lists),
+  `position-anchor` (`auto | none | <anchor-name>`), `position-area` (`PositionArea`: one or two keywords of one
+  of §3.1's vocabularies as written, `tracks()` giving the 3 × 3 grid's columns and rows for a direction —
+  §3.1's single-keyword rule, `x-start` / `inline-start` by the containing block's direction, `self-*` by the
+  box's), `position-try-fallbacks` (`TryFallback`: a rule name and / or tactics, or an area), `position-try-order`,
+  the `position-try` shorthand, `position-visibility` (initial `anchors-visible`); all discrete, none inherited.
+  Decisions: (1) `anchor()` and `anchor-size()` are math leaves, `CalcExpr::Anchor(AnchorFunction)` (breaking:
+  `CalcExpr` is closed), parsed by the calc parser only where the property takes them — `anchor()` in the
+  insets, `anchor-size()` in the insets, sizes and margins (`parse_anchored`, `parse_inset`) — alone or inside a
+  math function, typed `<length>`; unresolved, one evaluates to its fallback (NaN without). (2) Computed-value
+  time (§5.1, §5.2): in a box that is not absolutely positioned an anchor function is invalid — the cascade
+  (`cascade::anchor`) substitutes the fallback, or gives the property its initial value. (3) `@position-try`
+  (rdom-css `position_try.rs`): a `<dashed-ident>` prelude, the body kept to §4.1's descriptors — insets,
+  margins, sizes (logical forms too), self-alignment, `position-anchor`, `position-area` — others and
+  `!important` dropped with `InvalidPositionTryDescriptor`; stored per layer and condition
+  (`Stylesheet::position_try_rules`, merged by `append`); the cascade attaches the rule a fallback names (the
+  last of the name by layer, sheet and source order, as `@keyframes`: `Sheets::position_try_rule`) to the
+  computed `TryFallback`, so layout needs no sheets. (4) `anchor-center` joins `Align` (open) as a
+  `<self-position>` of the `*-self` / `*-items` properties. Nothing is laid out yet. Red → green: rdom-style
+  `anchor_tests` (6), rdom-css `position_try` (2), rdom-tui `css_phase15::anchor` (2); mutation runs — the
+  dispatch arm, `parse_inset`'s anchor path, the `@position-try` hook, the cascade's finalization — fail
+  them (five of six style tests, both css, both tui; `anchor-center` is red only before `Align::AnchorCenter`).

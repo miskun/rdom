@@ -312,6 +312,26 @@ pub(super) static LONGHANDS: &[Entry] = &[
         Discrete,
         steps!(fragmentation.box_decoration_break),
     ),
+    // CSS Anchor Positioning 1 §2–§5: discrete.
+    e("anchor-name", Discrete, steps!(anchor.anchor_name)),
+    e("anchor-scope", Discrete, steps!(anchor.anchor_scope)),
+    e("position-anchor", Discrete, steps!(anchor.position_anchor)),
+    e("position-area", Discrete, steps!(anchor.position_area)),
+    e(
+        "position-try-fallbacks",
+        Discrete,
+        steps!(anchor.position_try_fallbacks),
+    ),
+    e(
+        "position-try-order",
+        Discrete,
+        steps!(anchor.position_try_order),
+    ),
+    e(
+        "position-visibility",
+        Discrete,
+        steps!(anchor.position_visibility),
+    ),
     e("flex-grow", ByComputedValue, value!(flex_grow => fix_flex)),
     e(
         "flex-shrink",

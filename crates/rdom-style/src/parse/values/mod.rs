@@ -47,6 +47,7 @@
 //! stays the single public path.
 
 mod align;
+mod anchor;
 mod animation;
 mod background;
 mod blend;
@@ -98,6 +99,11 @@ pub use align::{
     align_keyword, parse_align_content, parse_align_items, parse_align_self, parse_justify_content,
     parse_justify_items, parse_justify_self, parse_place_content, parse_place_items,
     parse_place_self, serialize_alignment, serialize_place,
+};
+pub use anchor::{
+    parse_anchor_name, parse_anchor_scope, parse_position_anchor, parse_position_area,
+    parse_position_try, parse_position_try_fallbacks, parse_position_try_order,
+    parse_position_visibility,
 };
 pub use animation::keyframes_name;
 pub(crate) use animation::{
@@ -172,8 +178,8 @@ pub use keyword::{
 };
 pub use length::{
     FlexShorthand, parse_contain_intrinsic, parse_flex_basis, parse_flex_factor,
-    parse_flex_shorthand, parse_inset_shorthand, parse_length, parse_max_size, parse_min_size,
-    parse_size,
+    parse_flex_shorthand, parse_inset, parse_inset_shorthand, parse_length, parse_max_size,
+    parse_min_size, parse_size,
 };
 pub use line_clamp::{
     parse_block_ellipsis, parse_box_orient, parse_continue, parse_line_clamp, parse_max_lines,

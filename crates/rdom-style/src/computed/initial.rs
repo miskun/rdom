@@ -126,6 +126,7 @@ impl ComputedStyle {
             table: crate::layout::TableStyle::default(),
             multicol: crate::layout::MulticolStyle::default(),
             fragmentation: crate::layout::FragmentationStyle::default(),
+            anchor: crate::layout::AnchorStyle::default(),
             font: crate::layout::Font {
                 weight: crate::layout::FontWeight::Number(400.0),
                 ..crate::layout::Font::default()

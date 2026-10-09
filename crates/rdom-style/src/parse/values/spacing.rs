@@ -83,6 +83,10 @@ pub fn parse_padding_value(value: &[Token]) -> Option<PaddingValue> {
 /// percentage stays symbolic for layout, which resolves it against the
 /// containing block's width on every side (CSS Box 3 §3.2).
 fn parse_margin_value(value: &[Token]) -> Option<MarginValue> {
+    // CSS Anchor Positioning 1 §5.2: `anchor-size()` in the margins.
+    if let Some(e) = super::calc::parse_anchored(value, super::calc::ANCHOR_SIZE) {
+        return Some(MarginValue::calc(e));
+    }
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("auto") => Some(MarginValue::Auto),
         _ => match length_percentage(value, Range::Any)? {

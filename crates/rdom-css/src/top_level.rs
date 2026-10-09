@@ -153,6 +153,16 @@ fn consume_at_rule(
         crate::keyframes::consume_keyframes_rule(cursor, sheet, warnings, ctx, (line, column));
         return;
     }
+    if name.eq_ignore_ascii_case("position-try") {
+        crate::position_try::consume_position_try_rule(
+            cursor,
+            sheet,
+            warnings,
+            ctx,
+            (line, column),
+        );
+        return;
+    }
     if name.eq_ignore_ascii_case("counter-style") {
         crate::counter_style::consume_counter_style_rule(
             cursor,

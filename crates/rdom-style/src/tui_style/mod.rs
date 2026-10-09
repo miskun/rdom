@@ -24,6 +24,7 @@ use crate::layout::{
 };
 use crate::{Content, TuiColor, Value};
 
+pub use anchor::AnchorDeclarations;
 pub use effects::EffectsDeclarations;
 pub use important::ImportantMask;
 pub use mask::MaskDeclarations;
@@ -285,6 +286,9 @@ pub struct TuiStyle {
     pub table: TableDeclarations,
     /// The multi-column properties (`column-count`, `column-rule-*`, …).
     pub multicol: MulticolDeclarations,
+    /// The anchor positioning properties (`anchor-name`, `position-area`,
+    /// …).
+    pub anchor: AnchorDeclarations,
     /// The fragmentation properties (`break-*`, `orphans`, `widows`, …).
     pub fragmentation: FragmentationDeclarations,
     /// `vertical-align` (CSS 2.1 §10.8.1).
@@ -498,6 +502,7 @@ impl TuiStyle {
     }
 }
 
+mod anchor;
 mod builder;
 mod effects;
 mod important;

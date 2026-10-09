@@ -54,6 +54,10 @@ pub enum Align {
     Baseline,
     /// `last baseline`.
     LastBaseline,
+    /// `anchor-center` (CSS Anchor Positioning 1 §3.4, a `<self-position>`
+    /// of the `*-self` and `*-items` properties): an absolutely positioned
+    /// box centred on its default anchor; `center` for any other box.
+    AnchorCenter,
 }
 
 /// The overflow position (CSS Box Alignment 3 §4.4).
@@ -256,7 +260,7 @@ impl Alignment {
         }
         let positional = match self.keyword {
             Align::Center | Align::Start | Align::End | Align::FlexStart | Align::FlexEnd => true,
-            Align::SelfStart | Align::SelfEnd => g.self_positions,
+            Align::SelfStart | Align::SelfEnd | Align::AnchorCenter => g.self_positions,
             Align::Left | Align::Right => g.left_right,
             _ => false,
         };

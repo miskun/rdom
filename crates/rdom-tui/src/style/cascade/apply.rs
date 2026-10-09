@@ -330,6 +330,14 @@ pub(super) fn apply_style(
         fragmentation.orphans: ORPHANS,
         fragmentation.widows: WIDOWS,
         fragmentation.box_decoration_break: BOX_DECORATION_BREAK,
+        // CSS Anchor Positioning 1 §2–§5; none inherit.
+        anchor.anchor_name: ANCHOR_NAME,
+        anchor.anchor_scope: ANCHOR_SCOPE,
+        anchor.position_anchor: POSITION_ANCHOR,
+        anchor.position_area: POSITION_AREA,
+        anchor.position_try_fallbacks: POSITION_TRY_FALLBACKS,
+        anchor.position_try_order: POSITION_TRY_ORDER,
+        anchor.position_visibility: POSITION_VISIBILITY,
     );
     // Positioning (M2), transitions (M3; latest list wins), animations
     // (CSS Animations 1 §4) and counters

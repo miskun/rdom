@@ -14,6 +14,7 @@
 //!
 //! - `rect` — `LayoutRect`
 //! - `alignment` — the Box Alignment keywords (`Align`, `Alignment`)
+//! - `anchor` — the Anchor Positioning values, with `AnchorStyle`
 //! - `keywords` — keyword-valued properties
 //! - `sizing` — `Size`, `MinSize`, `MaxSize`, `FlexBasis`, `Length`
 //! - `aspect_ratio` — `AspectRatio`; `gap` — `GapValue`
@@ -39,6 +40,7 @@
 //!   `MulticolStyle` and `FragmentationStyle`
 
 pub(crate) mod alignment;
+mod anchor;
 mod aspect_ratio;
 mod background;
 mod blend;
@@ -61,6 +63,7 @@ mod line_height;
 mod list;
 mod multicol;
 mod overflow;
+mod position_area;
 mod rect;
 mod scroll;
 mod scrollbar;
@@ -79,6 +82,10 @@ mod vertical_align;
 mod white_space;
 
 pub use alignment::{Align, AlignProperty, Alignment, OverflowAlign};
+pub use anchor::{
+    AnchorName, AnchorScope, AnchorStyle, PositionAnchor, PositionTryOrder, PositionVisibility,
+    TryFallback, TryTactic,
+};
 pub use aspect_ratio::AspectRatio;
 pub use background::{BackgroundAttachment, BackgroundRepeat, BoxShadow, RepeatStyle, VisualBox};
 pub use blend::{BlendMode, Isolation};
@@ -119,6 +126,7 @@ pub use multicol::{
     ColumnWidth, FragmentationStyle, MulticolStyle,
 };
 pub use overflow::{Overflow, OverflowClipMargin, TextOverflow, TextOverflowSide};
+pub use position_area::{AreaKeyword, AreaTracks, PositionArea};
 pub use rect::LayoutRect;
 pub use scroll::{
     OverscrollBehavior, ScrollPadding, ScrollSnapAlign, ScrollSnapAxis, ScrollSnapStop,

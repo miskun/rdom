@@ -11,7 +11,7 @@ use crate::layout::{CaretTextColor, Sides, TextDirection, UserSelect};
 use crate::parse::token::Token;
 use crate::parse::values::{
     parse_aspect_ratio, parse_color, parse_content, parse_counter_ops, parse_flex_factor,
-    parse_flex_shorthand, parse_gap, parse_inset_shorthand, parse_keyword, parse_length,
+    parse_flex_shorthand, parse_gap, parse_inset, parse_inset_shorthand, parse_keyword,
     parse_margin_longhand, parse_margin_shorthand, parse_max_size, parse_min_size, parse_opacity,
     parse_overflow, parse_overflow_clip_margin, parse_overflow_shorthand, parse_padding_shorthand,
     parse_padding_value, parse_position, parse_scroll_behavior, parse_size, parse_text_overflow,
@@ -87,6 +87,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         .or_else(|| super::filter::set(name, value, style))
         .or_else(|| super::blend::set(name, value, style))
         .or_else(|| super::multicol::set(name, value, style))
+        .or_else(|| super::anchor::set(name, value, style))
         .or_else(|| super::clip::set(name, value, style))
         .or_else(|| super::line_clamp::set(name, value, style))
         .or_else(|| super::float::set(name, value, style))
@@ -425,16 +426,16 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         "position" => parse_position(value).map(|p| {
             style.position = Some(Value::Specified(p));
         }),
-        "top" => parse_length(value).map(|l| {
+        "top" => parse_inset(value).map(|l| {
             style.top = Some(Value::Specified(l));
         }),
-        "right" => parse_length(value).map(|l| {
+        "right" => parse_inset(value).map(|l| {
             style.right = Some(Value::Specified(l));
         }),
-        "bottom" => parse_length(value).map(|l| {
+        "bottom" => parse_inset(value).map(|l| {
             style.bottom = Some(Value::Specified(l));
         }),
-        "left" => parse_length(value).map(|l| {
+        "left" => parse_inset(value).map(|l| {
             style.left = Some(Value::Specified(l));
         }),
         "z-index" => parse_z_index(value).map(|z| {

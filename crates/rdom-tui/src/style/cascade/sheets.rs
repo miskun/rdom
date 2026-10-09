@@ -40,6 +40,7 @@ pub(super) struct Sheets<'a> {
     /// they are found per run rather than kept on the sheet set.
     conditional_counter_styles: std::cell::OnceCell<CounterStyleRegistry>,
     conditional_keyframes: std::cell::OnceCell<KeyframesMap>,
+    conditional_position_try: std::cell::OnceCell<KeyframesMap>,
     /// Whether `@starting-style` rules apply (CSS Transitions 2 §3): only
     /// when computing an element's starting style (`starting.rs`).
     starting: bool,
@@ -73,6 +74,9 @@ pub(super) struct SheetFacts {
     /// Each `@keyframes` name and the rule it resolves to: `(sheet,
     /// index)` into the sheets' `Stylesheet::keyframes`.
     keyframes: std::cell::OnceCell<KeyframesMap>,
+    /// Each `@position-try` name and the rule it resolves to: `(sheet,
+    /// index)` into the sheets' `Stylesheet::position_try_rules`.
+    position_try: std::cell::OnceCell<KeyframesMap>,
     /// Whether a `@counter-style` or `@keyframes` rule sits under a
     /// conditional group rule: then which one a name resolves to depends
     /// on the media environment.
@@ -118,6 +122,7 @@ impl<'a> Sheets<'a> {
             conditions,
             conditional_counter_styles: std::cell::OnceCell::new(),
             conditional_keyframes: std::cell::OnceCell::new(),
+            conditional_position_try: std::cell::OnceCell::new(),
             starting: false,
             animation: &[],
             for_animation: false,
@@ -144,6 +149,7 @@ impl<'a> Sheets<'a> {
                 s.media().is_some()
                     || s.counter_styles().iter().any(|d| d.condition.is_some())
                     || s.keyframes().iter().any(|k| k.condition.is_some())
+                    || s.position_try_rules().iter().any(|r| r.condition.is_some())
             })
         })
     }
@@ -294,6 +300,39 @@ impl<'a> Sheets<'a> {
         };
         let &(sheet, i) = map.get(name)?;
         self.list.get(sheet)?.keyframes().get(i)
+    }
+
+    /// The `@position-try` rule `name` resolves to (CSS Anchor Positioning
+    /// 1 §4.1): the last of that name — by cascade layer (unlayered last),
+    /// then sheet, then source order, as `@keyframes` (CSS Cascade 5
+    /// §6.4.3).
+    pub(super) fn position_try_rule(&self, name: &str) -> Option<&'a rdom_style::PositionTryRule> {
+        let build = || {
+            let mut defs: Vec<(u32, usize, usize)> = Vec::new();
+            for (sheet, s) in self.list.iter().enumerate() {
+                for (i, rule) in s.position_try_rules().iter().enumerate() {
+                    if self.defines(sheet, rule.condition) {
+                        defs.push((self.layers.rank(sheet, rule.layer), sheet, i));
+                    }
+                }
+            }
+            defs.sort_unstable();
+            let mut map = std::collections::HashMap::new();
+            for (_, sheet, i) in defs {
+                map.insert(
+                    self.list[sheet].position_try_rules()[i].name.clone(),
+                    (sheet, i),
+                );
+            }
+            map
+        };
+        let map = if self.has_conditional_definitions() {
+            self.conditional_position_try.get_or_init(build)
+        } else {
+            self.registry.facts.position_try.get_or_init(build)
+        };
+        let &(sheet, i) = map.get(name)?;
+        self.list.get(sheet)?.position_try_rules().get(i)
     }
 
     /// The document's preferred color scheme (CSS Color Adjust 1 §2.1).

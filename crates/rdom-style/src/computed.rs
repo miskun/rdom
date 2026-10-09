@@ -309,6 +309,9 @@ pub struct ComputedStyle {
     /// The CSS Fragmentation 3 properties (`break-*`, `orphans`, `widows`,
     /// `box-decoration-break`); `orphans` and `widows` inherit.
     pub fragmentation: crate::layout::FragmentationStyle,
+    /// The CSS Anchor Positioning 1 properties (`anchor-name`,
+    /// `position-anchor`, `position-area`, the fallbacks, …); none inherit.
+    pub anchor: crate::layout::AnchorStyle,
     /// The font properties (CSS Fonts 4), the weight computed to a
     /// number. All inherit; `modifiers` carries the bold and italic they
     /// draw.

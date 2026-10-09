@@ -231,6 +231,15 @@ const SPEC: &[(&str, Spec)] = &[
     ("orphans", L(V)),
     ("widows", L(V)),
     ("box-decoration-break", L(D)),
+    // CSS Anchor Positioning 1 §2–§5
+    ("anchor-name", L(D)),
+    ("anchor-scope", L(D)),
+    ("position-anchor", L(D)),
+    ("position-area", L(D)),
+    ("position-try", S),
+    ("position-try-fallbacks", L(D)),
+    ("position-try-order", L(D)),
+    ("position-visibility", L(D)),
     // CSS Grid 2 §7–§8
     ("grid", S),
     ("grid-template", S),

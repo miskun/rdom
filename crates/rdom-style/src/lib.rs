@@ -96,7 +96,7 @@ pub use registration::{
 };
 pub use specificity::Specificity;
 pub use stylesheet::{
-    ConditionId, ConditionKind, ConditionRule, Import, Layer, LayerId, LayerOrder,
+    ConditionId, ConditionKind, ConditionRule, Import, Layer, LayerId, LayerOrder, PositionTryRule,
     PseudoElementTarget, Rule, RuleContext, RuleIndex, RuleOrigin, Scope, ScopeId, StyleError,
     StyleSelector, Stylesheet, UserActionState,
 };
@@ -105,9 +105,9 @@ pub use transition::{
 };
 pub use tui_color::{ColorContext, ColorFunction, TuiColor, parse_color, resolve_tui_color};
 pub use tui_style::{
-    CustomDeclaration, EffectsDeclarations, FontDeclarations, FragmentationDeclarations,
-    ImportantMask, MaskDeclarations, MulticolDeclarations, TableDeclarations, TextDeclarations,
-    TextDecorationDeclarations, TuiStyle, UiDeclarations,
+    AnchorDeclarations, CustomDeclaration, EffectsDeclarations, FontDeclarations,
+    FragmentationDeclarations, ImportantMask, MaskDeclarations, MulticolDeclarations,
+    TableDeclarations, TextDeclarations, TextDecorationDeclarations, TuiStyle, UiDeclarations,
 };
 pub use value::Value;
 pub use var::PendingDeclaration;

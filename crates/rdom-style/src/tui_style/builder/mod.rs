@@ -76,6 +76,7 @@ macro_rules! side_setter {
     };
 }
 
+mod anchor;
 mod decoration;
 mod effects;
 mod flex;

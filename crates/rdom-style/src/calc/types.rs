@@ -114,6 +114,8 @@ impl CalcExpr {
                 }
             }
             CalcExpr::Function { func, args } => function_kind(*func, args, typing),
+            // §5: both functions resolve to a `<length>`.
+            CalcExpr::Anchor(_) => Some(Length),
         }
     }
 }

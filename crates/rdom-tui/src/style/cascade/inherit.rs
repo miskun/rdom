@@ -185,4 +185,6 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         // Multi-column 1, CSS Fragmentation 3).
         || a.multicol != b.multicol
         || a.fragmentation != b.fragmentation
+        // Anchor positioning places the box (CSS Anchor Positioning 1).
+        || a.anchor != b.anchor
 }

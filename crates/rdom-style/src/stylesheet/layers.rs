@@ -109,6 +109,7 @@ impl Stylesheet {
             registrations,
             counter_styles,
             keyframes,
+            position_try,
             imports,
             scopes: _,     // `append_scopes` maps them
             conditions: _, // `append_conditions` maps them
@@ -153,6 +154,12 @@ impl Stylesheet {
             rule.layer = rule.layer.map(|l| map[l.index()]);
             rule.condition = condition(rule.condition);
             self.keyframes.push(rule);
+        }
+        for rule in position_try {
+            let mut rule = rule.clone();
+            rule.layer = rule.layer.map(|l| map[l.index()]);
+            rule.condition = condition(rule.condition);
+            self.position_try.push(rule);
         }
         let rules: Vec<Rule> = rules
             .iter()

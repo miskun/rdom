@@ -65,6 +65,7 @@
 //! that set from parent to child, and a cascade test probes every
 //! property against the table so the two cannot drift.
 
+mod anchor;
 mod apply;
 mod blockify;
 pub(crate) use blockify::children_are_items;

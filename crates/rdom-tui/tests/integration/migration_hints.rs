@@ -1623,3 +1623,47 @@ fn containment_naming_hints() {
     assert_eq!(ty.css(), "inline-size scroll-state");
     let _ = TuiStyle::new().container_type(ContainerType::new(ContainerSize::Size));
 }
+
+/// C15-COLUMNS, C15-ANCHOR: `TuiStyle` / `ComputedStyle` gain the
+/// `multicol`, `fragmentation` and `anchor` groups (a pattern adds them,
+/// or `..`), and `CalcExpr` gains `Anchor` — an exhaustive walker adds the
+/// arm, reading the function's fallback (or resolving it,
+/// `substitute_anchors`).
+#[test]
+fn multicol_and_anchor_hints() {
+    let c = ComputedStyle::initial();
+    let ComputedStyle {
+        multicol,
+        fragmentation,
+        anchor,
+        ..
+    } = c;
+    assert!(!multicol.is_multicol());
+    assert_eq!(fragmentation.orphans, 2);
+    assert!(!anchor.is_anchored());
+    let _ = TuiStyle::new()
+        .column_count(ColumnCount::Count(2))
+        .position_anchor(PositionAnchor::Name("--a".into()));
+    fn leaves(e: &calc::CalcExpr) -> usize {
+        match e {
+            calc::CalcExpr::Number(_)
+            | calc::CalcExpr::Length(_)
+            | calc::CalcExpr::Percent(_)
+            | calc::CalcExpr::Dimension { .. }
+            | calc::CalcExpr::NoBound => 1,
+            calc::CalcExpr::Binary { lhs, rhs, .. } => leaves(lhs) + leaves(rhs),
+            calc::CalcExpr::Function { args, .. } => args.iter().map(leaves).sum(),
+            calc::CalcExpr::Anchor(f) => f.fallback().map_or(1, leaves),
+        }
+    }
+    let e = calc::CalcExpr::Anchor(Box::new(calc::AnchorFunction::Edge {
+        name: None,
+        side: calc::AnchorSide::Bottom,
+        fallback: Some(calc::CalcExpr::Length(2)),
+    }));
+    assert_eq!(leaves(&e), 1);
+    assert_eq!(
+        e.substitute_anchors(&mut |_| Some(5)),
+        Some(calc::CalcExpr::Length(5))
+    );
+}

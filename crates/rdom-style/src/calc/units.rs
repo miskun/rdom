@@ -409,7 +409,7 @@ impl CalcExpr {
                 rhs,
             } => lhs.is_linear() && !rhs.contains_percent(),
             CalcExpr::Function { .. } => !self.contains_percent(),
-            CalcExpr::NoBound => false,
+            CalcExpr::NoBound | CalcExpr::Anchor(_) => false,
             CalcExpr::Number(_)
             | CalcExpr::Length(_)
             | CalcExpr::Percent(_)
