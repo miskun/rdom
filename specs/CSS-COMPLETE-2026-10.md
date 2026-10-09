@@ -10323,3 +10323,11 @@ row comes from.
   a height of 7 in a definite 10 less margins 1 + 2 and 1 row against an indefinite parent; an absolute
   box at `(3, 1, 16, 8)`; a flex item at `(2, 0, 16, 1)` in 20; a grid item at `(1, 0, 10, 1)` in a 12-wide
   area under `justify-items: start`).
+- 2026-10-09 — Phase 15 gate batch A closed (docs): the three stale CSS-COVERAGE rows the architect named are
+  Supported — `@import` (§3.1: its `supports()` and media conditions condition the imported rules since
+  C14-MEDIA / C14-SUPPORTS, `rdom-css/src/import.rs`; the row still said "ignored"), `contain-intrinsic-size`
+  (§3.6: it sizes a size-contained box since C14-CONTAIN, `layout_pass/containment.rs`) and `pointer-events`
+  (§3.19: the SVG values are N/A, not a gap). §1 counts 258 Supported, 3 Partial, 3 Missing, 43 N/A: what
+  stays Partial is `opacity` (per-cell group opacity), `writing-mode` and `direction` / `unicode-bidi`, and
+  Missing the decided exclusions (`masonry` / `grid-lanes`, `:blank`, `nav-*`), each with its reason in
+  DIVERGENCES. Batch A (C15G-HYGIENE … C15G-STRETCH, 15 items) done; batches B and C pending.
