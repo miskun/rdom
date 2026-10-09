@@ -45,11 +45,18 @@ pub(crate) fn set_document_media_preferences(dom: &mut Dom<TuiExt>, prefs: Media
 
 /// The environment `dom`'s media queries evaluate in.
 pub(crate) fn document_media(dom: &Dom<TuiExt>) -> MediaEnvironment {
-    MediaEnvironment::new(
+    let env = MediaEnvironment::new(
         super::document_viewport(dom),
         super::document_color_scheme(dom),
         document_media_preferences(dom),
-    )
+    );
+    // No viewport yet (a headless cascade before `set_viewport` or a
+    // layout): the size features are unknown, not 0 × 0.
+    if super::viewport::has_document_viewport(dom) {
+        env
+    } else {
+        env.without_viewport()
+    }
 }
 
 /// What the cascades left behind for a change of the media environment.

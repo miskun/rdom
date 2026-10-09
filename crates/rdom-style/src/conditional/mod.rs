@@ -99,23 +99,32 @@ pub enum Condition<L> {
     /// `<in-parens> [or <in-parens>]+`.
     Or(Vec<Condition<L>>),
     /// `<general-enclosed>`: a function or parenthesized block no grammar
-    /// knows, kept as written. Always unknown.
+    /// knows, kept as written. Unknown in `@media` and `@container`,
+    /// false in `@supports` ([`evaluate_enclosed`](Self::evaluate_enclosed)).
     Unknown(String),
 }
 
 impl<L> Condition<L> {
-    /// Evaluate in Kleene logic, each leaf by `leaf`.
+    /// Evaluate in Kleene logic, each leaf by `leaf`, a
+    /// `<general-enclosed>` unknown (Media Queries 4 §3.1, CSS Conditional
+    /// 5 §6.4).
     pub fn evaluate(&self, leaf: &mut impl FnMut(&L) -> Truth) -> Truth {
+        self.evaluate_enclosed(leaf, Truth::Unknown)
+    }
+
+    /// [`evaluate`](Self::evaluate) with a `<general-enclosed>` worth
+    /// `enclosed` — false in `@supports` (CSS Conditional 3 §6.1).
+    pub fn evaluate_enclosed(&self, leaf: &mut impl FnMut(&L) -> Truth, enclosed: Truth) -> Truth {
         match self {
             Condition::Leaf(l) => leaf(l),
-            Condition::Not(c) => c.evaluate(leaf).not(),
-            Condition::And(cs) => cs
-                .iter()
-                .fold(Truth::True, |acc, c| acc.and(c.evaluate(leaf))),
-            Condition::Or(cs) => cs
-                .iter()
-                .fold(Truth::False, |acc, c| acc.or(c.evaluate(leaf))),
-            Condition::Unknown(_) => Truth::Unknown,
+            Condition::Not(c) => c.evaluate_enclosed(leaf, enclosed).not(),
+            Condition::And(cs) => cs.iter().fold(Truth::True, |acc, c| {
+                acc.and(c.evaluate_enclosed(leaf, enclosed))
+            }),
+            Condition::Or(cs) => cs.iter().fold(Truth::False, |acc, c| {
+                acc.or(c.evaluate_enclosed(leaf, enclosed))
+            }),
+            Condition::Unknown(_) => enclosed,
         }
     }
 

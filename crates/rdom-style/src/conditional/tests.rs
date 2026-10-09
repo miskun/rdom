@@ -190,8 +190,9 @@ fn a_declaration_is_tested_with_the_value_parser() {
     assert!(!holds("(color:)"));
 }
 
-/// §6: `not` / `and` / `or`, and `<general-enclosed>` unknown — false,
-/// and so is its `not`.
+/// §6: `not` / `and` / `or`; a `<general-enclosed>` is false (Conditional
+/// 3 §6.1, C14G-CONDITIONAL-SPEC — it was unknown, so its `not` was false
+/// too), so its `not` is true.
 #[test]
 fn supports_conditions_combine() {
     assert!(holds("not (display: frobnicate)"));
@@ -200,7 +201,9 @@ fn supports_conditions_combine() {
     assert!(holds("(display: frob) or (display: flex)"));
     assert!(holds("((display: grid) or (x: y)) and (not (z: w))"));
     assert!(!holds("unknown(1)"));
-    assert!(!holds("not unknown(1)"));
+    assert!(holds("not unknown(1)"));
+    assert!(holds("not (foo(bar))"));
+    assert!(holds("unknown(1) or (display: grid)"));
     assert!(!holds("(display: grid) and unknown(1)"));
     assert!(
         SupportsCondition::parse("display: grid").is_none(),

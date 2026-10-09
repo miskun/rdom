@@ -221,9 +221,11 @@ pub trait CascadeExt: crate::sealed::Sealed {
     /// against (CSS Values 4 §6.1.2), for every cascade form. The `App`
     /// sets its terminal's size each frame, and
     /// [`LayoutExt::layout_dom`](crate::LayoutExt::layout_dom) records
-    /// its area; a headless document is 0 × 0 until one of them runs.
-    /// A new size does not re-cascade: cascade the whole tree again
-    /// (the `App` does).
+    /// its area; a headless document is 0 × 0 until one of them runs, and
+    /// until then `@media`'s size features (`width`, `height`,
+    /// `orientation`, …) are unknown — call this before a first cascade
+    /// whose sheets query the size. A new size does not re-cascade:
+    /// cascade the whole tree again (the `App` does).
     fn set_viewport(&mut self, viewport: Viewport);
 
     /// The viewport the document's style resolves against

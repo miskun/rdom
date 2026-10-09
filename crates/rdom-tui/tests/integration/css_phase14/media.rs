@@ -233,3 +233,28 @@ fn an_import_media_list_conditions_its_rules() {
     dom.cascade_all(&[&sheet2, &sheet]);
     assert_eq!(fg(&dom, "a"), BLUE, "and not in a wide one");
 }
+
+/// C14G-CONDITIONAL-SPEC (API N3): a cascade with no viewport — no
+/// `set_viewport`, no layout, no `App` — does not evaluate `@media`
+/// against 0 × 0: the size features are unknown, so neither a width query
+/// nor its `not` matches (`(max-width: 40)` held, every `max-width` block
+/// applying); the others answer as ever.
+#[test]
+fn an_unknown_viewport_makes_the_size_features_unknown() {
+    let rule = |q: &str| format!("#a {{ color: blue }} @media {q} {{ #a {{ color: red }} }}");
+    let color = |css: &str| {
+        let mut dom = doc(MARKUP);
+        dom.cascade(&sheet(css));
+        fg(&dom, "a")
+    };
+    assert_eq!(color(&rule("(max-width: 40)")), BLUE);
+    assert_eq!(color(&rule("not (max-width: 40)")), BLUE);
+    assert_eq!(color(&rule("(orientation: landscape)")), BLUE);
+    assert_eq!(color(&rule("(hover: hover)")), RED, "not a size feature");
+    let mut dom = doc(MARKUP);
+    let css = sheet(&rule("(max-width: 40)"));
+    dom.cascade(&css);
+    dom.layout_dom(Rect::new(0, 0, 30, 5));
+    dom.cascade(&css);
+    assert_eq!(fg(&dom, "a"), RED, "a layout gives it the viewport");
+}

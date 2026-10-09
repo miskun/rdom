@@ -5,7 +5,9 @@
 //! Stored as document data (`rdom_core::Dom::set_document_data`), so
 //! every cascade form reads the same size: `CascadeExt::set_viewport`
 //! sets it, `LayoutExt::layout_dom(area)` records its area, the `App`
-//! sets its terminal's size each frame. 0 × 0 until one of them runs.
+//! sets its terminal's size each frame. 0 × 0 until one of them runs —
+//! and until then the media size features are unknown
+//! (`has_document_viewport`).
 
 use rdom_core::Dom;
 use rdom_style::calc::Viewport;
@@ -30,4 +32,11 @@ pub(crate) fn set_document_viewport(dom: &mut Dom<TuiExt>, viewport: Viewport) {
             dom.set_document_data(DocumentViewport(viewport));
         }
     }
+}
+
+/// Whether a viewport was ever given (`set_viewport`, a layout, an `App`
+/// frame): before it, the media size features are unknown
+/// (`MediaEnvironment::viewport_known`, C14G-CONDITIONAL-SPEC).
+pub(crate) fn has_document_viewport(dom: &Dom<TuiExt>) -> bool {
+    dom.document_data::<DocumentViewport>().is_some()
 }

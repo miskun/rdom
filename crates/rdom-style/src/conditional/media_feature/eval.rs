@@ -12,6 +12,19 @@ impl MediaFeature {
     pub(crate) fn evaluate(&self, env: &MediaEnvironment) -> Truth {
         let p = &env.preferences;
         let vp = env.viewport;
+        let size = matches!(
+            self.name.as_str(),
+            "width"
+                | "device-width"
+                | "height"
+                | "device-height"
+                | "aspect-ratio"
+                | "device-aspect-ratio"
+                | "orientation"
+        );
+        if size && !env.viewport_known {
+            return Truth::Unknown;
+        }
         match self.name.as_str() {
             "width" | "device-width" => self.range(Kind::Columns, f64::from(vp.cols)),
             "height" | "device-height" => self.range(Kind::Rows, f64::from(vp.rows)),

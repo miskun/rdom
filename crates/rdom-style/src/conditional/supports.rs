@@ -42,7 +42,10 @@ impl SupportsCondition {
         let prelude = Prelude::parse(text)?;
         let values = prelude.values();
         let condition = prelude.condition(&values, true, &feature)?;
-        let holds = condition.evaluate(&mut |f| f.evaluate()).holds();
+        // CSS Conditional 3 §6.1: a `<general-enclosed>` is false.
+        let holds = condition
+            .evaluate_enclosed(&mut |f| f.evaluate(), Truth::False)
+            .holds();
         Some(SupportsCondition {
             text: text.trim().to_string(),
             condition,

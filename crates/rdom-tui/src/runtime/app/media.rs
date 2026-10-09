@@ -63,6 +63,7 @@ impl<B: Backend> App<B> {
         let mut env = crate::style::cascade::document_media(&self.dom);
         if let Ok(size) = self.terminal.backend().size() {
             env.viewport = rdom_style::calc::Viewport::new(size.width, size.height);
+            env.viewport_known = true;
         }
         env
     }

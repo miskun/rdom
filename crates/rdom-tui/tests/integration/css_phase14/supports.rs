@@ -23,7 +23,8 @@ fn supports_tests_declarations_against_the_parser() {
 }
 
 /// Conditional 4 §6.1 / 5 §5: `selector()`, the font functions, and a
-/// `<general-enclosed>` that is neither true nor (negated) false.
+/// `<general-enclosed>`, false — so its `not` holds (Conditional 3 §6.1,
+/// C14G-CONDITIONAL-SPEC; it was unknown).
 #[test]
 fn supports_functions() {
     assert_eq!(color_under("selector(:has(+ p))"), RED);
@@ -31,7 +32,7 @@ fn supports_functions() {
     assert_eq!(color_under("font-tech(variations)"), BLUE);
     assert_eq!(color_under("not font-format(woff2)"), RED);
     assert_eq!(color_under("frob(1)"), BLUE);
-    assert_eq!(color_under("not frob(1)"), BLUE);
+    assert_eq!(color_under("not frob(1)"), RED);
 }
 
 /// Nested in a style rule, with `@media` around and inside.

@@ -22,6 +22,12 @@ pub struct MediaEnvironment {
     pub color_scheme: ColorScheme,
     /// The user's and the device's preferences.
     pub preferences: MediaPreferences,
+    /// Whether the viewport is known: a backend that has none yet (a
+    /// cascade before any layout or viewport) says so, and the size
+    /// features — `width`, `height`, `aspect-ratio`, `orientation` and
+    /// their `device-*` forms — are then unknown rather than measured
+    /// against 0 × 0. `new` makes it known; `Default` does not.
+    pub viewport_known: bool,
 }
 
 impl MediaEnvironment {
@@ -35,7 +41,14 @@ impl MediaEnvironment {
             viewport,
             color_scheme,
             preferences,
+            viewport_known: true,
         }
+    }
+
+    /// The same environment with no known viewport (`viewport_known`).
+    pub fn without_viewport(mut self) -> Self {
+        self.viewport_known = false;
+        self
     }
 }
 

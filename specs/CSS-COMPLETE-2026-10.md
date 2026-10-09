@@ -9480,3 +9480,18 @@ row comes from.
   silent change 28, the rdom-tui README, ACID tile 20 and CSS-COVERAGE's `@media` row follow. Split (the
   file reached 593 lines; architect N20 asked for it): `rdom-style/src/conditional/media_feature.rs` →
   `media_feature/mod.rs` (parse, values, serialization) + `media_feature/eval.rs` (evaluation, `Kind`).
+- 2026-10-09 — C14G-CONDITIONAL-SPEC (1/2: `@supports` and the unknown viewport; decision 4, API N3; CSS
+  Conditional 3 §6.1, Media Queries 4 §2.4, §3.1). Found: `@supports` evaluated a `<general-enclosed>` as
+  unknown, so `@supports not (foo(bar))` did not apply (Conditional 3 §6.1 makes it false); a headless
+  cascade without `set_viewport` evaluated `@media` against a 0 × 0 viewport, every `max-width` block
+  applying. Decided: (1) `Condition::evaluate_enclosed(leaf, enclosed)` takes a `<general-enclosed>`'s worth
+  — `@supports` passes false, `@media` / `@container` keep unknown (`evaluate`); (2) an unknown viewport
+  makes the size features unknown (chosen over a default size: a guessed 80 × 24 would pick rules for a
+  terminal nobody has): `MediaEnvironment::viewport_known` (`new` known, `Default` and `without_viewport`
+  not), set from whether the document ever had a viewport (`has_document_viewport`: `set_viewport`, a
+  layout, an `App` frame); `width`, `height`, `aspect-ratio`, `orientation` and their `device-*` forms are
+  then unknown, so neither a size query nor its `not` matches, while the other features answer;
+  `CascadeExt::set_viewport` documents it. Red: rdom-style `supports_conditions_combine` (`not unknown(1)`
+  false), `css_phase14::media::an_unknown_viewport_makes_the_size_features_unknown` (`(max-width: 40)` red
+  for blue); green after. Expectation changed by the decision: `css_phase14::supports::supports_functions`'
+  `not frob(1)` applies. DIVERGENCES' media entry and CSS-COVERAGE / ACID's `@supports` text follow.
