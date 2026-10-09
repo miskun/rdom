@@ -192,7 +192,7 @@ pub(super) fn junction_glyph(lines: [Line; 4]) -> Option<&'static str> {
 /// The dash glyph of a straight run of a `dashed` or `dotted` line (CSS
 /// Backgrounds 3 §4.2: a series of dashes / dots), or `None` for any
 /// other style or cell. `lines` must be one straight axis — N + S or
-/// E + W, one weight: Unicode has no dashed corner, junction or weight
+/// E + W, or one end of one where a side stops, one weight: Unicode has no dashed corner, junction or weight
 /// mix, so those cells keep the solid glyph. `dashed` is the double dash
 /// (`╌╎`, heavy `╍╏`), `dotted` the triple dash (`┄┆`, heavy `┅┇`) —
 /// the finer pattern; each glyph checked against its Unicode name
@@ -205,9 +205,14 @@ pub(super) fn dash_glyph(lines: [Line; 4], style: BorderStyle) -> Option<&'stati
         BorderStyle::Dotted => 1,
         _ => return None,
     };
+    // A straight run: both ends of one axis, or one end where the side
+    // stops with no other side meeting it (a box with no bottom border:
+    // its left side's last cell) — no direction changes in either.
     let (vertical, line) = match lines {
         [n, Line::None, s, Line::None] if n == s => (1, n),
         [Line::None, e, Line::None, w] if e == w => (0, e),
+        [l, Line::None, Line::None, Line::None] | [Line::None, Line::None, l, Line::None] => (1, l),
+        [Line::None, l, Line::None, Line::None] | [Line::None, Line::None, Line::None, l] => (0, l),
         _ => return None,
     };
     let heavy = match line {
@@ -349,7 +354,8 @@ mod tests {
     }
 
     /// `C4G-EDGE-TESTS`: the dash glyphs by code point (U+2504–U+2507
-    /// TRIPLE DASH, U+254C–U+254F DOUBLE DASH), straight runs only.
+    /// TRIPLE DASH, U+254C–U+254F DOUBLE DASH), straight runs and a run's
+    /// lone end only.
     #[test]
     fn dashed_and_dotted_runs_pick_the_dash_glyphs() {
         use BorderStyle::{Dashed, Dotted, Solid};
@@ -362,15 +368,18 @@ mod tests {
             ([O, H, O, H], Dotted, 0x2505),
             ([L, O, L, O], Dotted, 0x2506),
             ([H, O, H, O], Dotted, 0x2507),
+            // A side's end where no other side meets it is a straight
+            // run too, not a corner (ACID-FIX-2).
+            ([L, O, O, O], Dashed, 0x254E),
+            ([O, O, O, H], Dotted, 0x2505),
         ] {
             let glyph = dash_glyph(lines, style).unwrap();
             assert_eq!(glyph.chars().next().map(u32::from), Some(code), "{lines:?}");
         }
-        // Corners, junctions, lone stubs, mixed weights, other styles.
+        // Corners, junctions, mixed weights, other styles.
         for (lines, style) in [
             ([O, L, L, O], Dashed),
             ([L, L, L, L], Dotted),
-            ([L, O, O, O], Dashed),
             ([L, O, H, O], Dashed),
             ([O, D, O, D], Dashed),
             ([O, L, O, L], Solid),

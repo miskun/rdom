@@ -289,6 +289,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 |---|---|---|
 | ACID-HARNESS | The acid page in the showcase (pages of 120 × 50, `Built-ins → Acid`, `--example acid`), the reference format and the colour-aware comparator with per-tile reports; tile 1 | done |
 | ACID-FIX-1 | `VirtualScreen` (rdom-tui `test-util`) consumes OSC strings — an OSC 8 hyperlink printed as text (found by tile 4) | done |
+| ACID-FIX-2 | A dashed / dotted side's end cell where no side meets it draws the dash glyph, not the solid line (found by tile 5) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | partial — tiles 1–4 done; 5–13 remain |
 | ACID-TILES-B | Static tiles 14–26 | |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
@@ -10613,3 +10614,13 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `:has()` in four relative forms. Tiles 1–3 matched their references at first run; tile 4 showed its `<a href>` row as
   `8;;#a…`, which was the test terminal model, not rdom's paint (ACID-FIX-1); after the fix it matches. No reference
   was changed.
+- 2026-10-09 — ACID-FIX-2 (found by acid tile 5; CSS Backgrounds 3 §4.2, DIVERGENCES §2 border styles). Tile 5's `b8`
+  (`border-style: solid double hidden dashed`) drew its dashed left side `╎` on the first content row and a solid `│`
+  on the last: with the bottom border `hidden` the side's last cell meets no other side, so it is part of the straight
+  run, not a corner, and takes the dash glyph. Root cause: `border_join::dash_glyph` accepted only cells with both ends
+  of one axis (N + S, E + W); a side's end cell carries one direction and fell through to the solid table. It now
+  accepts one end alone. Red: `css_phase4_gates::a_dashed_side_ends_in_a_dash_where_no_side_meets_it` (a lone dashed
+  left side drew `│ ╎ │`); green after, the C4G dashed tests and the outline tests unchanged. One expectation changed:
+  `border_join::glyphs::tests::dashed_and_dotted_runs_pick_the_dash_glyphs` (C4G-EDGE-TESTS) listed a lone stub as a
+  non-dash cell without a spec argument; a stub is a side's end, so it moved to the dash cases. Silent change
+  `sc-dashed-ends`; DIVERGENCES' border-style entry names the end cell. The reference was not touched.

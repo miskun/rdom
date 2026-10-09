@@ -614,6 +614,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Fixed — `rdom-tui`
 
+- **A dashed or dotted side ends in a dash** (CSS Backgrounds 3 §4.2): the end cell of a side no other side meets — a box without a bottom border, a lone `border-left` — drew the solid `│` / `─`; it draws the side's dash glyph, corners and junctions staying solid. (ACID-FIX-2)
 - **`VirtualScreen` no longer prints OSC strings as text** (ECMA-48 §8.3.89): an OSC 8 hyperlink around a link's cells showed as `8;;URI` in the replayed rows; OSC strings are consumed to ST or BEL, and OSC 8 sets the cells' `Cell::link`. (ACID-FIX-1)
 - **A headless cascade copies only the sheets that changed**: outside an `App`, a cascade whose sheets query a container kept a copy of every sheet whenever any one's version moved; an unchanged sheet now stays shared, so editing one small sheet a frame no longer copies a large one beside it. (C14G-SHEET-CLONES)
 - **An inline in an anonymous block box's line is a hit target** (CSS 2.1 §9.2.1.1): a point on a `<b>` or `<a>` beside block siblings (`<div><p>…</p>text <b>x</b></div>`) hit the block; the hit test now searches the anonymous boxes' lines as an IFC block's, the document root's included. (C13-ROOT-BLOCK)

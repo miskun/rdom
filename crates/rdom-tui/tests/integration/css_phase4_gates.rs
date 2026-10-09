@@ -172,3 +172,19 @@ fn dashed_and_dotted_draw_dash_glyphs() {
     let buf = bordered(".b { width: 5; height: 3; border: solid; border-top-style: dashed }");
     assert_eq!(rows(&buf, 5, 3), ["┌╌╌╌┐", "│   │", "└───┘"]);
 }
+
+/// ACID-FIX-2 (acid tile 5). A side whose neighbour has no border ends in
+/// a straight cell, not a corner: CSS Backgrounds 3 §4.2 runs each side
+/// the box's full length, and with the bottom border `hidden` (or `none`,
+/// or the top's) there is no direction change at the end cell — so a
+/// dashed side draws its dash glyph there too (DIVERGENCES §2: dash glyphs
+/// on straight runs, solid only at corners and junctions).
+#[test]
+fn a_dashed_side_ends_in_a_dash_where_no_side_meets_it() {
+    let buf = bordered(".b { width: 5; height: 3; border-left: dashed; border-right: dotted }");
+    assert_eq!(rows(&buf, 5, 3), ["╎   ┆", "╎   ┆", "╎   ┆"]);
+    let buf = bordered(".b { width: 5; height: 3; border: dashed; border-bottom-style: hidden }");
+    assert_eq!(rows(&buf, 5, 3), ["┌╌╌╌┐", "╎   ╎", "╎   ╎"]);
+    let buf = bordered(".b { width: 5; height: 3; border-top: thick dashed }");
+    assert_eq!(rows(&buf, 5, 3), ["╍╍╍╍╍", "     ", "     "]);
+}
