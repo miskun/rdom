@@ -1314,18 +1314,25 @@ fn ua_interactive_block_tags_are_block() {
         let c = ua_computed_for(tag);
         assert_eq!(c.display, Display::Block, "<{tag}> should be Block");
     }
-    // dt / legend are also bold; `summary` is not (HTML §15.5.20 gives it
-    // only its marker — ACID-FIX-4).
+    // `summary` has no weight (HTML §15.5.20 gives it only its marker —
+    // ACID-FIX-4); nor have `dt` and `legend` (ACID-FIX-6, below).
     assert!(
         !ua_computed_for("summary")
             .modifiers
             .contains(Modifier::BOLD)
     );
+}
+
+/// ACID-FIX-6 (left open by acid part 1). HTML's rendering section gives
+/// `dt` only `display: block` (§15.3.3 "Flow content") and `legend` only
+/// its block display and inline padding (§15.3.12 "The fieldset and
+/// legend elements"): neither has a weight. rdom's UA made both bold.
+#[test]
+fn ua_dt_and_legend_have_no_weight() {
     for tag in ["dt", "legend"] {
-        let c = ua_computed_for(tag);
         assert!(
-            c.modifiers.contains(Modifier::BOLD),
-            "<{tag}> should be bold"
+            !ua_computed_for(tag).modifiers.contains(Modifier::BOLD),
+            "<{tag}> has no UA weight"
         );
     }
 }

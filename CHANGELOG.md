@@ -319,6 +319,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 ### Fixed — `rdom-style`
 
 - **`<summary>` has no UA weight** (HTML §15.5.20): the UA sheet made it bold; HTML gives it only its disclosure marker. `summary { font-weight: bold }` restores the look. (ACID-FIX-4)
+- **`<dt>` and `<legend>` have no UA weight** (HTML §15.3.3, §15.3.12): the UA sheet made both bold; HTML gives `dt` only `display: block` and `legend` its display and padding. `dt, legend { font-weight: bold }` restores the look. (ACID-FIX-6)
 - **The UA table rules follow HTML §15.3.8**: `table { box-sizing: border-box; text-indent: initial }` (a bordered `width: 100%` table fits its container; it overflowed by its border), `table > tr` is `middle` and other `tr`s inherit `vertical-align` (a `tbody { vertical-align: top }` reached no cell), and row groups and rows inherit `border-color`. (C13G-TABLE-UA)
 - **`<th>` and `<caption>` are centred as HTML's UA sheet has them** (HTML §15.3.8): a `th` is centred unless its parent's `text-align` is not the initial `start` (the UA-only, `#[doc(hidden)]` `TextAlign::InternalCenter`, Blink's `-internal-center`, which never reaches a computed style); `caption` is `text-align: center` and lost its italic, muted look. (C13G-TH-CAPTION)
 - **`Stylesheet::append` carries `@keyframes`** (CSS Animations 1 §3): it copied rules, layers, imports and counter styles but not the keyframes, so a sheet from `rdom_css::from_css_strict` — which appends the parse — had none and its animations never ran. (C12G-README-ANIM)

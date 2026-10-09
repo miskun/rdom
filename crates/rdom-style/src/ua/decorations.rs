@@ -54,7 +54,7 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // `ul` too keeps a nested bullet list from advancing the
         // enclosing numbering.
         ("dl", TuiStyle::new().display(Display::Block)),
-        ("dt", TuiStyle::new().display(Display::Block).bold(true)),
+        ("dt", TuiStyle::new().display(Display::Block)),
         (
             "dd",
             TuiStyle::new()

@@ -293,6 +293,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-3 | A glyph painted over another takes its own colour, weight and decorations, not the replaced glyph's (found by tile 9a) | done |
 | ACID-FIX-4 | `<summary>` has no UA weight (HTML §15.5.20; found by tile 9a) | done |
 | ACID-FIX-5 | `position: relative` moves a non-atomic inline box (CSS 2.1 §9.4.3; found by tile 10) | done |
+| ACID-FIX-6 | `<dt>` and `<legend>` have no UA weight (HTML §15.3.3, §15.3.12; left open by part 1) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
@@ -10715,3 +10716,10 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   markup also changed three widths (`ol` and `ul` are content-box with four cells of UA padding, so `width: 12` was 16
   cells, not 12) — the reference stayed. Part 1 found five rdom bugs (ACID-FIX-1 … 5) and two undocumented UA choices:
   the `summary::before` triangle (DIVERGENCES §2 now) and `dt` / `legend` bold (left for the Phase 16 gate).
+- 2026-10-10 — ACID-FIX-6 (Phase 16 part 2; left open by part 1's ACID-FIX-4). The UA sheet made `dt` and `legend`
+  bold; HTML's rendering section gives `dt` only `display: block` (§15.3.3) and `legend` only its block display and
+  inline padding (§15.3.12), and DIVERGENCES did not list either. Root cause in the two UA rules
+  (`ua/decorations.rs`, `ua/interactive.rs`); the bold is dropped (the rule count is unchanged). Red:
+  `cascade::tests::ua_dt_and_legend_have_no_weight`; green after. One expectation changed:
+  `ua_interactive_block_tags_are_block` pinned both bold with no spec argument (it now pins only `summary`'s absence of
+  weight). Silent change `sc-dt-legend-weight`.

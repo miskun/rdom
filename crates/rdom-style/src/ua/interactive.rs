@@ -243,6 +243,6 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
                 .display(Display::Block)
                 .padding(Padding::all(1)),
         ),
-        ("legend", TuiStyle::new().display(Display::Block).bold(true)),
+        ("legend", TuiStyle::new().display(Display::Block)),
     ]
 }
