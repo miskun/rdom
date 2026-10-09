@@ -44,7 +44,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
-| 15 | Transforms, filters, compositing, multi-column, anchor positioning | gates run 2026-10-09; `C15G-*` fixes in progress |
+| 15 | Transforms, filters, compositing, multi-column, anchor positioning | done 2026-10-09 (both gates; 22 gate fixes `C15G-*`; their re-review rides with the Phase 16 gate) |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
 
@@ -10548,3 +10548,21 @@ row comes from.
   Cross-references follow: rdom-core's highlight pointer and DIVERGENCES' "Form states" pointer name the recipe,
   DESIGN's dead `#whats-in-010` link points at `#features`, CLAUDE.md lists the doctested documents. rdom-core and
   rdom-parser READMEs carry no version pins or roadmap claims; nothing to change there.
+- 2026-10-09 — C15G-COVERAGE-DOCS (Phase 15 gate API N10). CSS-COVERAGE: the §1 headline said multi-column and anchor
+  positioning were "next" — it now says Phase 15 shipped them, names what stays Partial (`opacity` per cell,
+  `writing-mode`, `direction` / `unicode-bidi`) and Missing (the decided exclusions), and that only `container-type:
+  anchored` is unscheduled; the §2 high-impact list said "the audit's six" over ten items and left items 1, 6 and 9
+  open — they read shipped (C4-BORDER-SHORTHAND; C5-INTRINSIC with C15G-STRETCH's `stretch`; C8-OVERFLOW-CLIP) in the
+  list's struck-through form; the `@import` row names `App::with_import_loader` (renamed by C12G-APP-CONFIG); the
+  `opacity` row's Doc'd is `Yes` (DIVERGENCES §2, "`opacity` composites per cell"); in §5 the `width` / `height`,
+  `border-spacing` and `contain-intrinsic-size` annotations say shipped, and its preamble ("through C6-GAP … 85
+  remain open") says the list is the audit's record, its annotations not maintained past Phase 6, §1 / §3 being the
+  current status. Batch A had already corrected the `contain-intrinsic-size` (§3.6) and legacy `clip` rows the gate
+  named. DIVERGENCES §3 said every entry was "scheduled for 0.6.0" over twenty headings, most empty or "(none)": it is
+  now "Not in 0.6" — what has a terminal meaning and 0.6.0 does not ship, one heading, one line (`container-type:
+  anchored`, Anchor Positioning 2, not scheduled; `stretch`, the other line the gate counted, shipped with
+  C15G-STRETCH) — and the preamble's group list names §3 and §4 as they now read. Docs only; no test.
+- 2026-10-09 — Phase 15 closed. Both gates run (with the C14G re-review); 22 gate fixes in three batches — A correctness
+  (C15G-HYGIENE … C15G-STRETCH, 15 items), B performance and structure (C15G-SCROLL-NO-RELAYOUT, C15G-STYLE-SIZE,
+  C15G-SPLITS), C docs and API (C15G-API, C15G-UPGRADING, C15G-README, C15G-COVERAGE-DOCS). Their re-review rides with
+  the Phase 16 gate. Next: Phase 16, the acid test.

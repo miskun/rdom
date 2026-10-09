@@ -2,11 +2,12 @@
 
 The rdom default rule is: **track the web platform.** WHATWG DOM, CSS Working Group specs, and UI Events are the reference. If a behavior is not listed here, it should match the web platform within the supported subset.
 
-This document collects every deliberate departure in the shipped crates (current line: 0.5.x, heading to 0.6.0 under [`CSS-COMPLETE-2026-10.md`](CSS-COMPLETE-2026-10.md)). Departures fall into three groups:
+This document collects every deliberate departure in the shipped crates (current line: 0.5.x, heading to 0.6.0 under [`CSS-COMPLETE-2026-10.md`](CSS-COMPLETE-2026-10.md)). Departures fall into these groups:
 
 1. **TUI medium constraints** — fixed by the fact that we render to a character grid.
 2. **Simplifications** — places where rdom keeps a smaller model than the web platform.
-3. **Not yet shipped** — web features rdom still omits, each named with the program item that will ship it.
+3. **Not in 0.6** — web features with a terminal meaning that 0.6.0 does not ship.
+4. **Known limitations within shipped features.**
 
 Roadmap for what's coming next: see [`DESIGN.md`](DESIGN.md#roadmap).
 
@@ -306,89 +307,13 @@ The web platform has no tree element — trees are built from `role="tree"` / `r
 
 - **The HTML list attributes are presentational hints.** `li` is `display: list-item` and counts through the implicit `list-item` increment (CSS Lists 3 §4.6); `ol` / `ul` / `menu` reset `list-item` (HTML §15.3.8, so a nested bullet list does not advance the enclosing numbering), `ol[reversed]` resets it reversed, and `<ol start>` / `<li value>` / `<ol type>` / `<ul type>` / `<li type>` are presentational hints (`list-style-type` for `type`, its `1 a A i I` compared case-sensitively and its `none disc circle square` ASCII case-insensitively, as HTML's `s` / `i` flags say; `counter-reset: list-item N-1`, `reversed(list-item) N+1` with `reversed`, `counter-set: list-item N`; parsed by HTML's rules for integers), which any author rule beats. As in browsers. The marker is each item's `::marker` (C10-LIST-ITEM).
 
-## 3. Not yet shipped
+## 3. Not in 0.6
 
-Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by CSS module. All are scheduled for **0.6.0** under [`CSS-COMPLETE-2026-10.md`](CSS-COMPLETE-2026-10.md); each line names the item that ships it. Until then a declaration, selector or at-rule using one is dropped with a warning (or, where noted in §2, behaves as described there). Not-applicable CSS is in §1; the program's decided exclusions (`masonry` / `grid-lanes`, `:blank`, `nav-*`) are in §2.
-
-### Syntax and cascade
-
-(none)
-
-### Custom properties
-
-(none)
-
-### Values and units
-
-
-### Color
-
-(none)
-
-### Backgrounds and borders
-
-(none)
-
-### Box model and sizing
-
-(none — `stretch` shipped with C15G-STRETCH)
-
-### Logical properties and writing modes
-
-(none)
-
-### Display and visibility
-
-(none)
+What has a meaning in a terminal and is not in 0.6.0, by CSS module. CSS-COMPLETE-2026-10 ([`CSS-COMPLETE-2026-10.md`](CSS-COMPLETE-2026-10.md)) shipped every other gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found. A declaration, selector or at-rule using one is dropped with a warning. Not-applicable CSS is in §1; the decided exclusions (`masonry` / `grid-lanes`, `:blank`, `nav-*`) are permanent divergences in §2; what a shipped feature approximates is in §2 and §4.
 
 ### Positioned layout
 
-- `container-type: anchored` and `@container anchored(…)` (CSS Anchor Positioning 2) — not scheduled
-
-### Overflow and scrolling
-
-
-### Inline text
-
-
-### Text decoration
-
-
-### Fonts
-
-
-### Lists, counters and generated content
-
-
-### Pseudo-elements
-
-(none)
-
-### Selectors
-
-(none)
-
-### Transitions and animations
-
-(none)
-
-### User interface
-
-(none)
-
-### Tables
-
-(none)
-
-### Conditional rules and containment
-
-
-### Transforms, filters and compositing
-
-
-### Multi-column layout
-
-(none)
+- `container-type: anchored` and `@container anchored(…)` (CSS Anchor Positioning 2): not scheduled.
 
 ## 4. Known limitations within shipped features
 

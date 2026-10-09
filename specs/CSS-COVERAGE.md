@@ -98,7 +98,7 @@ Rows counted are the per-module table rows of §3 (a row is one property, proper
 
 When audited, 191 rows were Partial / Missing and **123 of them were not documented** in `DIVERGENCES.md` (Doc'd `No` or `Wrong`; 5 rows `Wrong`, where the document stated the opposite of the code) — see §5 and §6. The Doc'd column is the audit's record: Phase 0 of CSS-COMPLETE-2026-10 has since listed every gap in `DIVERGENCES.md` §3. The counts above are today's (recounted after the Phase 2 gates, then updated per item): 6 rows Partial / Missing (Phase 15 gates: C15G-LEGACY-CLIP `clip` from N/A to Supported, C15G-STRETCH `width` / `height` to Supported, and the stale `@import`, `contain-intrinsic-size` and `pointer-events` rows to Supported — their conditions, containment sizing and non-SVG values had shipped; Phase 15: C15-COLUMNS part 1 the multi-column row from Missing to Partial and the fragmentation row from N/A to Partial — multi-column gives the break properties a meaning — and part 2 lays both out, part 4 the multi-column row on to Supported with the spanners, part 5 the fragmentation row with `box-decoration-break: clone`; C15-ANCHOR part 1 the anchor positioning row from Missing to Partial, part 3 on to Supported; C15-CLIP-PATH the `clip-path` row to Supported, C15-BLEND the `mix-blend-mode` and `isolation` rows to Supported, C15-FILTER the `filter` and `backdrop-filter` rows to Supported, C15-TRANSLATE the `translate` row; Phase 14: C14-CONTAIN part 1 `contain` and `will-change` to Supported, part 2 `content-visibility`; C14-MEDIA part 1 moved `@media` from Missing to Partial, part 2 on to Supported; C14-SUPPORTS `@supports` to Supported; C14-CONTAINER part 1 the container row to Partial, part 2 on to Supported, with the `cq*` units row; Phase 13: C13-TFC part 2 moved `display: table`, `table-layout` and `caption-side` from Missing to Partial, part 3 `table-layout` and `caption-side` on to Supported, part 4 `border-spacing`, part 5 `display: table`; C13-TABLE-PROPS `empty-cells` and `vertical-align` on cells; C13-COLUMN the column combinator row; Phase 12 part 3: C12-OUTLINE the outline row, C12-CURSOR `cursor`, C12-CARET the caret row, C12-CONTROLS `accent-color`, `appearance`, `field-sizing`, `resize` and the logical-keywords row; Phase 11 part 2: C11-MODAL-POPOVER `:modal` and `:popover-open`; C11-FORM-STATES `:read-only` / `:read-write`, `:indeterminate`, `:in-range` / `:out-of-range`, `:default` and `:user-valid` / `:user-invalid`; Phase 11 part 1: C11-ATTR-FLAGS the attribute case flags, C11-NTH the three `:nth-*` / `-of-type` rows, C11-LINK-LANG `:link` / `:any-link`, `:lang()` and `:dir()`, C11-SCOPE `:scope`, C11-HAS `:has()`; C10G-DETAILS-CONTENT-BOX made `::details-content` a box, Supported, and C10G-PSEUDO-MARKER the pseudo-element-chain row, with `::before::marker` / `::after::marker`; Phase 10 part 2 shipped C10-FIRST's `::first-line` / `::first-letter` and C10-HIGHLIGHT's `::highlight()`, C10-DETAILS-CONTENT made `::details-content` Partial, and C10-PSEUDO-CHAINS took the pseudo-element-chain row's user-action pseudo-classes, the row staying Partial for nested pseudo-elements; part 1 shipped twelve: C10-LEGACY-COLON the single-colon pseudo-elements, C10-CONTENT `content` and `counters()`, C10-QUOTES `quotes`, C10-COUNTERS the counter styles, `counter-reset` and `counter-set`, C10-COUNTER-STYLE `@counter-style` / `symbols()`, C10-LIST-ITEM the list properties, `marker-side`, `::marker` and `display: list-item`; C9-FONT shipped `font-weight`, `font-style` and `font`; C9-DECORATION shipped the four text decoration rows; C9-VERTICAL-ALIGN shipped `vertical-align` on inline content; C9-LINE-HEIGHT shipped `line-height` and closed C2-LH's `lh` / `rlh`; Phase 9 part 1 shipped eleven — C9-WHITE-SPACE two, C9-BREAKING four, C9-TAB-SIZE, C9-TEXT-TRANSFORM, C9-TEXT-INDENT and C9-TEXT-WRAP one each, C9-TEXT-ALIGN three; C8G-PSEUDO-BOXES moved `::before` / `::after` from Supported to Partial — their `display` was ignored — and C8G-PSEUDO-ATOMS back: the atom, float and flex / grid forms work).
 
-Headline: rdom parses **371 property names** (`property_names()`: 303 in the table and 68 flow-relative ones, after C15G-LEGACY-CLIP). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The conditional rules shipped with Phase 14 (`@media`, `@supports`, `@container`); Phase 15 part 1 brought whole-cell translations, filters, blending and clipping; what a web developer hits next is multi-column layout and anchor positioning (part 2).
+Headline: rdom parses **371 property names** (`property_names()`: 303 in the table and 68 flow-relative ones, after C15G-LEGACY-CLIP). The cascade, selectors, generated content, positioning, overflow and form-state pseudo-classes are strong. The conditional rules shipped with Phase 14 (`@media`, `@supports`, `@container`), and Phase 15 brought whole-cell translations, filters, blending, clipping, multi-column layout and anchor positioning. What stays Partial is `opacity` (group opacity per cell), `writing-mode` (the vertical modes lay out horizontally) and `direction` / `unicode-bidi` (no bidi reordering); Missing are the decided exclusions `masonry` / `grid-lanes`, `:blank` and `nav-*` — each with its reason in `DIVERGENCES.md`. Nothing applicable is left unscheduled for 0.6 but `container-type: anchored` (CSS Anchor Positioning 2; `DIVERGENCES.md` §3).
 
 ---
 
@@ -185,12 +185,13 @@ pasted CSS. The first block is what a typical component stylesheet hits in its f
 ### High-impact *Partial* items (fix alongside the list above)
 
 These were parsed, so they did not show up as "unknown property", but common real-world values were
-dropped. The audit's six, with where each stands:
+dropped. The audit's ten, with where each stands — all shipped:
 
-1. **`border` shorthand is a single keyword.** `border: 1px solid red`, `border: solid red`,
+1. ~~**`border` shorthand is a single keyword.** `border: 1px solid red`, `border: solid red`,
    `border-top: 1px solid #ccc` are all `InvalidValue` (`V/border.rs::parse_border` and
    `parse_border_side` call `parse_keyword`, which requires exactly one token). The most common
-   border declaration on the web is dropped. **Shipped: C4-BORDER-SHORTHAND.**
+   border declaration on the web is dropped.~~ *Shipped: C4-BORDER-SHORTHAND* — width, style and
+   color in any order.
 2. ~~**`var()` works in color positions only.**~~ *Shipped: C1-VAR-ANY* — `var()` in every
    property, `content` included.
 3. ~~**`max-width` / `max-height` reject `none` and percentages.**~~ *Shipped: C2-PERCENT
@@ -198,14 +199,16 @@ dropped. The audit's six, with where each stands:
 4. ~~**`min-width` / `min-height` take `auto | <integer>` only.**~~ *Shipped: C2-PERCENT (`%`,
    `calc()`; C5-MINMAX-SIZE).*
 5. ~~**`top` / `right` / `bottom` / `left` reject a bare `%`.**~~ *Shipped: C2-PERCENT.*
-6. **`width` / `height` lack `min-content` / `max-content` / `fit-content`**, although the
-   intrinsic sizes are computed (`layout_pass/intrinsic.rs`). **Open: C5-INTRINSIC.**
+6. ~~**`width` / `height` lack `min-content` / `max-content` / `fit-content`**, although the
+   intrinsic sizes are computed (`layout_pass/intrinsic.rs`).~~ *Shipped: C5-INTRINSIC* — and
+   `stretch` with C15G-STRETCH.
 7. ~~**`font-weight` is `normal | bold` only** — `font-weight: 700` / `600` / `bolder` are dropped.~~
    *Shipped: C9-FONT.*
 8. ~~**`text-decoration` is one keyword**, matched case-sensitively; no `overline`, no
    combinations, no color / style components.~~ *Shipped: C9-DECORATION* — the full shorthand and
    its longhands.
-9. **`overflow` lacks `clip` and the two-value form** (`overflow: hidden auto`). **Doc'd: No.**
+9. ~~**`overflow` lacks `clip` and the two-value form** (`overflow: hidden auto`).~~ *Shipped:
+   C8-OVERFLOW-CLIP* — with `overflow-clip-margin` and the logical `overflow-block` / `-inline`.
 10. ~~**`rgb()` takes the legacy comma form with integer channels only** — `rgb(0 0 0 / 50%)`,
     `rgb(10%, 20%, 30%)` and `rgb(12.5, 0, 0)` are dropped.~~ *Shipped: C3-RGB* — the modern
     space syntax with `/ alpha`, percentage and fractional channels and `none`; the alpha
@@ -234,7 +237,7 @@ dropped. The audit's six, with where each stands:
 | `revert-layer` | Supported | Rolls back to the cascade without the declaration's layer (and the ones above it), important layers included; outside author layers, as `revert` (C1-LAYER). | — | `DISP/css_wide.rs`, `CASC/ladder.rs` |
 | `all` | Supported | Takes a CSS-wide keyword and sets every property of the dispatch table (`unset` resolved per property); `direction` / `unicode-bidi` (when they land) and custom properties excluded; driven by `PROPERTY_NAMES`, so a new property is covered without touching `all` (C1-ALL). | — | `DISP/table.rs` |
 | `@layer` | Supported | Statement and block forms, anonymous layers, `a.b` / nested sublayers, order by first declaration; unlayered beats layered for normal declarations, reversed for `!important`; one layer order across all the sheets of a cascade (C1-LAYER). | — | `rdom-css/src/layer.rs`, `rdom-style/src/stylesheet/layers.rs`, `CASC/ladder.rs` |
-| `@import` | Supported | Through a host-provided `rdom_css::ImportLoader` (`parse_with_loader`, `App::set_import_loader`): rules inserted at the import's position, `layer` / `layer(name)`, a late `@import` ignored, cycles cut by the loader's resolved URL (the root's own with `parse_with_loader_at`), relative URLs resolved by the loader against the importing sheet (`ImportLoader::load_from`), nesting capped at 16, a missing loader or load error warns (C1-IMPORT, C1G-IMPORT-EDGES). Its `supports()` and media conditions are recorded (`Stylesheet::imports`) and condition the imported rules (C14-MEDIA, C14-SUPPORTS: a `supports()` evaluated once, a media list while it matches). | — | `rdom-css/src/import.rs` |
+| `@import` | Supported | Through a host-provided `rdom_css::ImportLoader` (`parse_with_loader`, `App::with_import_loader`): rules inserted at the import's position, `layer` / `layer(name)`, a late `@import` ignored, cycles cut by the loader's resolved URL (the root's own with `parse_with_loader_at`), relative URLs resolved by the loader against the importing sheet (`ImportLoader::load_from`), nesting capped at 16, a missing loader or load error warns (C1-IMPORT, C1G-IMPORT-EDGES). Its `supports()` and media conditions are recorded (`Stylesheet::imports`) and condition the imported rules (C14-MEDIA, C14-SUPPORTS: a `supports()` evaluated once, a media list while it matches). | — | `rdom-css/src/import.rs` |
 | `@scope` | Supported | `@scope [(start)] [to (end)] { … }`: roots and limits (limit subtrees out of scope), scoped rules relative to `:where(:scope)`, `&` = `:where(:scope)`, `:scope`, declarations on the root at zero specificity, prelude-less `@scope` rooted at the owner `<style>`'s parent (`Stylesheet::owner_node`), nesting in style rules and other `@scope`s, scope proximity sorted between specificity and order of appearance (Cascade 6 §6.1) (C1-SCOPE). | — | `rdom-css/src/scope.rs`, `rdom-style/src/stylesheet/scopes.rs`, `CASC/scope.rs` |
 | `@charset` | N/A | Sources are Rust `&str` (already UTF-8); consumed harmlessly. | — | `AT` |
 | `@namespace` | N/A | No XML namespaces (documented). | — | — |
@@ -298,7 +301,7 @@ dropped. The audit's six, with where each stands:
 | Relative color syntax (Color 5) | Supported | `from <color>` in `rgb()` / `rgba()` / `hsl()` / `hsla()` / `hwb()` / `lab()` / `lch()` / `oklab()` / `oklch()` / `color()`: the origin converted to the function's space, its channels and `alpha` bound to keywords usable alone or in math functions; with `currentcolor` as the origin, computed at computed-value time (C3-RELATIVE). | — | `V/color/relative.rs` |
 | System colors (`Canvas`, `CanvasText`, `LinkText`, `ButtonFace`, …) | Supported | All nineteen (and the deprecated ones, mapped): `Canvas` / `ButtonFace` / `CanvasText` / `FieldText` are the terminal's defaults (`Color::Reset`), the rest the UA palette (`color::system`, documented); inside a color function the defaults take the canvas model's black / white (C3-SYSTEM). | — | `rdom-style/src/color/system.rs` |
 | `light-dark()` + `color-scheme` | Supported | `color-scheme` (`normal`, `light` / `dark` / custom identifiers, `only`; inherited) picks each element's used scheme from the document's preferred one, which the `App` reads off the terminal's background at startup (OSC 11, Unix) or is given (`App::with_color_scheme` / `set_color_scheme`; dark by default); `light-dark()` resolves at computed-value time, also inside other color functions. Theme changes are followed: `App::run` enables DEC mode 2031 on Unix and rdom's own input reader parses its reports (C3-SCHEME, C3G-INPUT-READER). | — | `rdom-style/src/color/scheme.rs`, `V/color/mod.rs`, `CASC/colors.rs`, `RT/color_scheme/`, `RT/input/` |
-| `opacity` | Partial | `<number>` / `<percentage>` clamped to 0–1 (`50%` since C2-PERCENT). Group opacity per cell (documented). | No | `V/number.rs::parse_opacity` |
+| `opacity` | Partial | `<number>` / `<percentage>` clamped to 0–1 (`50%` since C2-PERCENT). Group opacity per cell (documented). | Yes | `V/number.rs::parse_opacity` |
 | Alpha in colors | Supported | Composited per cell over the backdrop with the group-opacity rules — background blend, glyph contest, tint, canvas model of the color scheme (documented); animatable (C3-ALPHA). | — | `rdom-tui/src/render/buffer/translucent.rs`, `PAINT/mod.rs` |
 | `forced-color-adjust`, `print-color-adjust` | N/A | No forced-colors mode or print. | — | — |
 
@@ -669,9 +672,10 @@ dropped. The audit's six, with where each stands:
 Every *Partial* or *Missing* row above whose Doc'd column is `No` or `Wrong`. These need either an
 implementation or a `DIVERGENCES.md` entry before the acid page's coverage test can be honest.
 
-133 rows as audited. Through C6-GAP, 46 have shipped and two have partly shipped
-(each annotated *Shipped* where it stands); 85 remain open (Phase 0 listed each of them in
-`DIVERGENCES.md` §3).
+133 rows as audited — the audit's record, kept as written. The *Shipped* annotations were
+maintained through Phase 6 (91 rows carry one) and only in part since; every row has since
+shipped or become a documented divergence, so §1's counts and §3's per-module tables are the
+current status, and `DIVERGENCES.md` §3 lists what is not in 0.6.
 
 **3.1 Syntax, cascade and inheritance (Syntax 3, Cascade 4/5, CSS 2.1 §6)**
 
@@ -721,16 +725,16 @@ implementation or a `DIVERGENCES.md` entry before the acid page's coverage test 
 - `border-width` / `border-*-width` — Missing: `0` = none; `thin` / `medium` = light; `thick` = heavy glyphs. *Shipped: C4-BORDER-WIDTH.*
 - `border-radius` / `border-*-radius` — Missing: Non-zero → rounded corner glyphs. *Shipped: C4-RADIUS.*
 - `box-shadow` — Missing: One-cell offset shade; blur / spread N/A. *Shipped: C4-SHADOW (spread whole cells, blur inert).*
-- `border-spacing` — Missing: Gaps between separated table cells. *Partly shipped: C4-SPACING parses and inherits it; the layout lands with C13-TFC.*
+- `border-spacing` — Missing: Gaps between separated table cells. *Shipped: C4-SPACING parses and inherits it, C13-TFC lays it out.*
 
 **3.6 Box model and sizing (Box 3, Sizing 3/4)**
 
 - `margin-trim` — Missing: Trim children's margins at the container edges. *Shipped: C5-MARGIN-TRIM.*
-- `width` / `height` — Partial: `auto`, cells, `%`, `calc()`, rdom `fr`; missing `min-content` / `max-content` / `fit-content` / `fit-content(<l>)` / `stretch`. *Shipped: C5-INTRINSIC (all but `stretch`).*
+- `width` / `height` — Partial: `auto`, cells, `%`, `calc()`, rdom `fr`; missing `min-content` / `max-content` / `fit-content` / `fit-content(<l>)` / `stretch`. *Shipped: C5-INTRINSIC, and `stretch` with C15G-STRETCH.*
 - `min-width` / `min-height` — Partial: `auto` / cells only; no `%`, `calc()`, intrinsic keywords. *Shipped: C2-PERCENT, C2G-MAX-NONE, C5-INTRINSIC.*
 - `max-width` / `max-height` — Partial: Cells / constant `calc()` only; `none` (the initial value), `%`, percent `calc()`, intrinsic keywords rejected. *Shipped: C2-PERCENT, C2G-MAX-NONE, C5-INTRINSIC.*
 - `box-sizing` — Missing: rdom is implicitly `border-box`; `content-box` (CSS initial) is not expressible. *Shipped: C5-BOX-SIZING.*
-- `contain-intrinsic-size` (+ longhands) — Missing: Placeholder size for `content-visibility: auto`. *Partly shipped: C5-CONTAIN-SIZE parses and cascades them; layout with C14-CONTAIN.*
+- `contain-intrinsic-size` (+ longhands) — Missing: Placeholder size for `content-visibility: auto`. *Shipped: C5-CONTAIN-SIZE parses and cascades them, C14-CONTAIN sizes a size-contained box by them.*
 
 **3.7 Display and visibility (Display 3)**
 
