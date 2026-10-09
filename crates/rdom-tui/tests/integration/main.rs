@@ -55,6 +55,7 @@ mod flex_blockifies_inline_children;
 mod flex_shorthand;
 mod flex_shrink;
 mod flex_two_slot_layout;
+mod glyph_overpaint;
 mod implicit_detach_events;
 mod input_render_integration;
 mod m5_abortsignal;

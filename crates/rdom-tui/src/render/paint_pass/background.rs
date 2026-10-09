@@ -8,7 +8,7 @@
 
 use super::{fills, layout_rect_to_grid};
 use crate::layout::{BorderCollapse, LayoutRect, compute_content_area, compute_padding_box};
-use crate::render::{Buffer, Modifier, Rect};
+use crate::render::{Buffer, Rect};
 use crate::style::{Color, ComputedStyle};
 use rdom_style::layout::{Border, BorderStyle, VisualBox};
 
@@ -145,15 +145,11 @@ fn clear_cell_for_opaque_fill(buf: &mut Buffer, x: u16, y: u16) {
         && let Some(partner) = buf.cell_mut(partner_x, y)
     {
         partner.set_symbol(" ");
-        partner.fg = Color::Reset;
-        partner.modifier = Modifier::empty();
-        partner.underline_color = Color::Reset;
+        partner.clear_glyph_style();
         buf.mark_at(partner_x, y, crate::render::buffer::coverage::GLYPH);
     }
     if let Some(cell) = buf.cell_mut(x, y) {
         cell.set_symbol(" ");
-        cell.fg = Color::Reset;
-        cell.modifier = Modifier::empty();
-        cell.underline_color = Color::Reset;
+        cell.clear_glyph_style();
     }
 }

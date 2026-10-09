@@ -145,6 +145,7 @@ fn paint_ring(buf: &mut Buffer, o: &DeferredOutline) {
         buf.clear_border_at(xu, yu);
         if let Some(cell) = buf.cell_mut(xu, yu) {
             cell.set_symbol(glyph);
+            cell.clear_glyph_style();
             cell.set_fg(o.color);
         }
         buf.mark_at(xu, yu, crate::render::buffer::coverage::GLYPH);

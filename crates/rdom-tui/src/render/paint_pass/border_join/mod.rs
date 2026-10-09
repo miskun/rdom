@@ -109,10 +109,7 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
                     ];
                     let fg = dominant_contribution(&cell_state).fg;
                     if let Some(cell) = buf.cell_mut(x, y) {
-                        cell.set_symbol(glyph);
-                        if fg != crate::style::Color::Reset {
-                            cell.set_fg(fg);
-                        }
+                        draw_border_glyph(cell, glyph, fg);
                     }
                 }
                 continue;
@@ -153,10 +150,7 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
                 if !rounded.is_empty()
                     && let Some(cell) = buf.cell_mut(x, y)
                 {
-                    cell.set_symbol(rounded);
-                    if dominant.fg != crate::style::Color::Reset {
-                        cell.set_fg(dominant.fg);
-                    }
+                    draw_border_glyph(cell, rounded, dominant.fg);
                     continue;
                 }
             }
@@ -175,13 +169,19 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
                 continue;
             }
             if let Some(cell) = buf.cell_mut(x, y) {
-                cell.set_symbol(replacement);
-                if dominant.fg != crate::style::Color::Reset {
-                    cell.set_fg(dominant.fg);
-                }
+                draw_border_glyph(cell, replacement, dominant.fg);
             }
         }
     }
+}
+
+/// Draw a border glyph in its border's color — the default (`Reset`,
+/// `currentcolor` of a default-coloured box) included — with nothing of
+/// the glyph it replaces (ACID-FIX-3); the cell's background stays.
+fn draw_border_glyph(cell: &mut crate::render::Cell, glyph: &str, fg: crate::style::Color) {
+    cell.set_symbol(glyph);
+    cell.clear_glyph_style();
+    cell.set_fg(fg);
 }
 
 /// True iff every visible direction at this cell has the SAME

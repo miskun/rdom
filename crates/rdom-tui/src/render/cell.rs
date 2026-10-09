@@ -182,6 +182,18 @@ impl Cell {
         self
     }
 
+    /// Clear what belongs to the cell's glyph — its foreground, modifiers
+    /// and underline color — keeping the background, which belongs to the
+    /// boxes beneath. A glyph painted over another is drawn in its own
+    /// style, never the replaced glyph's (ACID-FIX-3): call this before
+    /// writing a new glyph's style.
+    pub(crate) fn clear_glyph_style(&mut self) -> &mut Self {
+        self.fg = Color::Reset;
+        self.modifier = Modifier::empty();
+        self.underline_color = Color::Reset;
+        self
+    }
+
     pub fn set_modifier(&mut self, modifier: Modifier) -> &mut Self {
         self.modifier = modifier;
         self

@@ -290,6 +290,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-HARNESS | The acid page in the showcase (pages of 120 × 50, `Built-ins → Acid`, `--example acid`), the reference format and the colour-aware comparator with per-tile reports; tile 1 | done |
 | ACID-FIX-1 | `VirtualScreen` (rdom-tui `test-util`) consumes OSC strings — an OSC 8 hyperlink printed as text (found by tile 4) | done |
 | ACID-FIX-2 | A dashed / dotted side's end cell where no side meets it draws the dash glyph, not the solid line (found by tile 5) | done |
+| ACID-FIX-3 | A glyph painted over another takes its own colour, weight and decorations, not the replaced glyph's (found by tile 9a) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | partial — tiles 1–8 done; 9a–13 remain |
 | ACID-TILES-B | Static tiles 14–26 | |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
@@ -10640,3 +10641,15 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   colour, `600` / `bolder` / `lighter` / `oblique`, the `font` shorthand resetting `line-height`, `vertical-align`
   middle / top / bottom on inline blocks, the underline styles, line-through and overline. Tiles 6–8 matched at first
   run; tile 5 found ACID-FIX-2 and matches after it. No reference was changed.
+- 2026-10-09 — ACID-FIX-3 (found by acid tile 9a; CSS 2.1 Appendix E, CSS Color 4 §3). Tile 9a's `.host` text `HOST`,
+  in the default colour, is painted over its own `z-index: -1` `::after` (red `____` on navy): the glyphs were right
+  and the colour was the pseudo's red. Root cause: a glyph write patched the cell — `put_glyph` applied the text's
+  style, whose foreground is left out when it is the default (`Color::Reset`, CanvasText) and whose modifiers are only
+  added — so a glyph kept the colour, weight and decorations of the glyph it replaced. The border joiner had the same
+  patch (`if fg != Reset { set_fg }`), and the outline ring kept the replaced glyph's modifiers. `Cell::
+  clear_glyph_style` (crate-private) now clears foreground, modifiers and underline colour, keeping the background; every
+  glyph write calls it — `Buffer::put_glyph`, `border_join`'s three glyph sites (one `draw_border_glyph`), the outline
+  ring — and the opaque background fill uses it instead of clearing the three fields by hand. Red: `glyph_overpaint` (three
+  tests: default text over a red glyph read red; plain text over a bold, italic, curly-underlined glyph kept them; a
+  default-coloured border over red bold underlined text drew red); green after. Silent change `sc-glyph-overpaint`. The
+  reference was not touched.

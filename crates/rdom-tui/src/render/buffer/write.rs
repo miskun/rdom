@@ -214,7 +214,11 @@ fn put_glyph(cell: &mut crate::render::Cell, symbol: &str, style: Style) {
         cell.apply_style(style.background_only());
         return;
     }
+    // The new glyph shows in its own style: what the replaced glyph had —
+    // its colour, weight, decorations — goes with it (ACID-FIX-3); the
+    // background stays the boxes'.
     cell.set_symbol(symbol);
+    cell.clear_glyph_style();
     cell.apply_style(style);
 }
 
