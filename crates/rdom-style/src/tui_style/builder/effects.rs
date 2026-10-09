@@ -4,7 +4,8 @@
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
 use crate::layout::{
-    FilterList, Rotate, Scale, TransformBox, TransformList, TransformOrigin, Translate,
+    BlendMode, FilterList, Isolation, Rotate, Scale, TransformBox, TransformList, TransformOrigin,
+    Translate,
 };
 
 /// A setter for one [`EffectsDeclarations`](crate::EffectsDeclarations)
@@ -63,5 +64,26 @@ impl TuiStyle {
         backdrop_filter_important,
         BACKDROP_FILTER,
         FilterList
+    );
+    effects_setter!(
+        "mix-blend-mode",
+        mix_blend_mode,
+        mix_blend_mode_important,
+        MIX_BLEND_MODE,
+        BlendMode
+    );
+    effects_setter!(
+        "isolation",
+        isolation,
+        isolation_important,
+        ISOLATION,
+        Isolation
+    );
+    effects_setter!(
+        "background-blend-mode",
+        background_blend_mode,
+        background_blend_mode_important,
+        BACKGROUND_BLEND_MODE,
+        std::borrow::Cow<'static, [BlendMode]>
     );
 }

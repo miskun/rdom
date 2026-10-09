@@ -126,6 +126,10 @@ const PROPERTY_NAMES: &[&str] = &[
     // Filter Effects 1 / 2
     "filter",
     "backdrop-filter",
+    // Compositing and Blending 1
+    "mix-blend-mode",
+    "isolation",
+    "background-blend-mode",
     "container",
     "container-name",
     "container-type",

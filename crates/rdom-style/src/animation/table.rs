@@ -233,6 +233,10 @@ pub(super) static LONGHANDS: &[Entry] = &[
         ByComputedValue,
         value!(effects.backdrop_filter),
     ),
+    // Compositing and Blending 1 §3.2, §3.4, §5.2: not animatable.
+    e("mix-blend-mode", NotAnimatable, None),
+    e("isolation", NotAnimatable, None),
+    e("background-blend-mode", NotAnimatable, None),
     // §4: discrete, `hidden` shown only at its end.
     e("content-visibility", Discrete, CONTENT_VISIBILITY),
     // CSS Conditional 5 §6.1–§6.2: not animatable.

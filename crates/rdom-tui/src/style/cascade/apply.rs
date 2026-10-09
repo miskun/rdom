@@ -306,6 +306,10 @@ pub(super) fn apply_style(
         effects.transform: TRANSFORM,
         effects.transform_origin: TRANSFORM_ORIGIN,
         effects.transform_box: TRANSFORM_BOX,
+        // Compositing and Blending 1 §3.2, §3.4, §5.2; none inherit.
+        effects.mix_blend_mode: MIX_BLEND_MODE,
+        effects.isolation: ISOLATION,
+        effects.background_blend_mode: BACKGROUND_BLEND_MODE,
     );
     // Positioning (M2), transitions (M3; latest list wins), animations
     // (CSS Animations 1 §4) and counters

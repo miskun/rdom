@@ -1,6 +1,8 @@
 //! The graphical effects a stacking context paints through a layer
 //! (`group`): group `opacity` (OPACITY-1), `filter` (Filter Effects 1 §5,
-//! C15-FILTER) and `backdrop-filter` (Filter Effects 2 §3).
+//! C15-FILTER), `backdrop-filter` (Filter Effects 2 §3), `mix-blend-mode`
+//! and the isolated groups it blends within (Compositing 1 §3.2, §5.2,
+//! C15-BLEND).
 //!
 //! - **`backdrop-filter`** maps the colors of the cells behind the
 //!   element's border box — the layer's copy of the backdrop, before the
@@ -17,6 +19,16 @@
 //!   at its offset from the painted ones that the element does not paint
 //!   itself, in its color through the functions after it. `opacity()`
 //!   multiplies the group opacity. `blur()` and `url()` draw nothing.
+//! - **`mix-blend-mode`** paints the element into a layer that tracks
+//!   coverage, then blends each color it painted with the backdrop's
+//!   background beneath (§10's `B(Cb, Cs)`, opaque sRGB): a background
+//!   with the backdrop's background, a glyph's or border's color with it
+//!   too — one glyph per cell, the element's showing. The backdrop is the
+//!   content of the parent stacking context, an isolated group (§3.2):
+//!   inside one — a context with a blending member gets a layer that
+//!   tracks coverage — a cell the group painted nothing on is transparent,
+//!   and the element's color stays as it is; in the document's own
+//!   context every cell is the backdrop.
 //!
 //! A stacking context with none of them paints straight into its
 //! parent's buffer: no layer, no coverage.
@@ -25,7 +37,7 @@ use rdom_core::{Dom, NodeId};
 
 use super::layout_rect_to_grid;
 use crate::ext::TuiExt;
-use crate::layout::FilterList;
+use crate::layout::{BlendMode, FilterList};
 use crate::node::TuiNodeExt;
 use crate::render::buffer::coverage::{ALL, BG, BORDER, GLYPH, SHADOW};
 use crate::render::compose::{canvas_bg, canvas_fg};
@@ -41,6 +53,11 @@ pub(super) struct Effects<'a> {
     /// A `backdrop-filter` with something to draw, and the cells behind
     /// the border box it maps.
     pub backdrop: Option<(&'a FilterList<Color>, Rect)>,
+    /// A `mix-blend-mode` other than `normal`.
+    pub blend: Option<BlendMode>,
+    /// The context is an isolated group a member blends within: its layer
+    /// tracks coverage, the members' backdrop.
+    pub isolate: bool,
 }
 
 #[cfg(test)]
@@ -70,11 +87,16 @@ impl<'a> Effects<'a> {
         .then(|| layout_rect_to_grid(ext.layout, clip))
         .flatten()
         .map(|area| (&c.effects.backdrop_filter, area));
-        (alpha < 1.0 || filter.is_some() || backdrop.is_some()).then_some(Effects {
-            alpha,
-            filter,
-            backdrop,
-        })
+        let blend = crate::style::effects::blends(c).then_some(c.effects.mix_blend_mode);
+        let isolate = crate::style::doc_flags::has_blends(dom) && has_blending_member(dom, root);
+        (alpha < 1.0 || filter.is_some() || backdrop.is_some() || blend.is_some() || isolate)
+            .then_some(Effects {
+                alpha,
+                filter,
+                backdrop,
+                blend,
+                isolate,
+            })
     }
 
     /// How many rows past the subtree's own a drop shadow can shade.
@@ -107,11 +129,11 @@ impl<'a> Effects<'a> {
                     let inside = in_root(x, y);
                     (inside, inside, inside)
                 },
-                |c| filtered(list, 0, canvas_bg(c, scheme)),
-                |c| filtered(list, 0, canvas_fg(c, scheme)),
+                |_, c| filtered(list, 0, canvas_bg(c, scheme)),
+                |_, c| filtered(list, 0, canvas_fg(c, scheme)),
             );
         }
-        if self.filter.is_some() {
+        if self.filter.is_some() || self.blend.is_some() || self.isolate {
             layer.track_coverage();
         }
         paint(layer);
@@ -128,11 +150,83 @@ impl<'a> Effects<'a> {
                         own && bits & BORDER != 0,
                     )
                 },
-                |c| filtered(list, 0, canvas_bg(c, scheme)),
-                |c| filtered(list, 0, canvas_fg(c, scheme)),
+                |_, c| filtered(list, 0, canvas_bg(c, scheme)),
+                |_, c| filtered(list, 0, canvas_fg(c, scheme)),
             );
         }
+        if let Some(mode) = self.blend {
+            blend_cells(parent, layer, mode);
+        }
     }
+}
+
+/// Whether a member of the stacking context `root` — a box it paints,
+/// down to and including the nested contexts — blends with its backdrop.
+fn has_blending_member(dom: &Dom<TuiExt>, root: NodeId) -> bool {
+    use rdom_core::NodeType;
+    fn walk(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+        crate::render::box_tree::children(dom, id)
+            .into_iter()
+            .any(|child| {
+                let node = dom.node(child);
+                if !matches!(node.node_type(), NodeType::Element | NodeType::Fragment) {
+                    return false;
+                }
+                let Some(c) = node.computed() else {
+                    return walk(dom, child);
+                };
+                if crate::style::effects::blends(c) {
+                    return true;
+                }
+                !crate::render::stacking::creates_stacking_context(dom, id, c) && walk(dom, child)
+            })
+    }
+    walk(dom, root)
+}
+
+/// The opaque sRGB channels of a definite color.
+fn rgb_of(c: Color) -> (u8, u8, u8) {
+    match c {
+        Color::Rgb(r, g, b) | Color::Rgba(r, g, b, _) => (r, g, b),
+        Color::Indexed(n) => rdom_style::color::palette::xterm_rgb(n),
+        Color::Reset => (0, 0, 0),
+    }
+}
+
+/// Blend the colors `layer` painted with `parent`'s — the backdrop the
+/// layer was copied from — by `mode` (Compositing 1 §10): each with the
+/// backdrop cell's background, where the backdrop is in the group (the
+/// document's context, or a cell its isolated group painted).
+fn blend_cells(parent: &Buffer, layer: &mut Buffer, mode: BlendMode) {
+    let scheme = layer.color_scheme();
+    let area = layer.area;
+    let backdrop = |i: usize| -> Option<(u8, u8, u8)> {
+        let x = area.x + (i % usize::from(area.width)) as u16;
+        let y = area.y + (i / usize::from(area.width)) as u16;
+        let j = parent.index_of(x, y)?;
+        let in_group = !parent.tracks_coverage() || parent.coverage_of(j) != 0;
+        in_group.then(|| rgb_of(canvas_bg(parent.content[j].bg, scheme)))
+    };
+    let mix = |i: usize, c: Color, canvas: Color| match backdrop(i) {
+        Some(cb) => {
+            let (r, g, b) = mode.blend(cb, rgb_of(if c == Color::Reset { canvas } else { c }));
+            Color::Rgb(r, g, b)
+        }
+        None => c,
+    };
+    let (canvas_back, canvas_text) = scheme.canvas();
+    layer.map_colors(
+        area,
+        |_, _, bits| {
+            (
+                bits & (BG | SHADOW) != 0,
+                bits & GLYPH != 0,
+                bits & BORDER != 0,
+            )
+        },
+        |i, c| mix(i, c, canvas_back),
+        |i, c| mix(i, c, canvas_text),
+    );
 }
 
 /// `c` (a definite color: the canvas resolved) through `list`'s

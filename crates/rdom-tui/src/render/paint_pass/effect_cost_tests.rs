@@ -52,3 +52,26 @@ fn a_page_without_effects_makes_no_layer() {
     let (layers, _) = paint_counts(30, &format!("{plain} p {{ filter: blur(2px) url(#x) }}"));
     assert_eq!(layers, 0);
 }
+
+/// C15-BLEND: isolation costs nothing until something blends — an
+/// isolated group gets a coverage layer only when a member of it blends
+/// (the document's `blends` flag gates the look) — and a blending element
+/// costs its own layer.
+#[test]
+fn isolation_makes_a_layer_only_around_a_blend() {
+    let plain = "p { background-color: rgb(0, 0, 200); margin: 0 }";
+    let (layers_iso, iso) = paint_counts(30, &format!("{plain} body, p {{ isolation: isolate }}"));
+    let (_, contexts) = paint_counts(30, &format!("{plain} body, p {{ will-change: opacity }}"));
+    assert_eq!(layers_iso, 0);
+    assert_eq!(
+        iso, contexts,
+        "isolation costs what any stacking context costs"
+    );
+    let blend = format!("{plain} p:first-child {{ mix-blend-mode: multiply }}");
+    assert_eq!(paint_counts(30, &blend).0, 1, "the blending element's");
+    let isolated = format!("{blend} body {{ isolation: isolate }}");
+    // The isolated group's layer, and the blending one's inside it —
+    // twice, as every nested group paints twice in the crate's tests
+    // (`group`).
+    assert_eq!(paint_counts(30, &isolated).0, 3, "and its isolated group's");
+}

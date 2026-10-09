@@ -356,6 +356,9 @@ fn style_element<'a>(
     if computed.list_item {
         crate::style::doc_flags::note_list_item(dom);
     }
+    if computed.effects.mix_blend_mode != rdom_style::layout::BlendMode::Normal {
+        crate::style::doc_flags::note_blend(dom);
+    }
     if crate::style::doc_flags::is_calc_sized(overlaid.as_ref().unwrap_or(&computed)) {
         crate::style::doc_flags::note_calc_size(dom);
     }

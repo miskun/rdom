@@ -31,6 +31,8 @@
 //! - `text_decoration.rs` — `text-decoration` and its longhands, the
 //!   underline placement properties.
 //! - `filter.rs` — Filter Effects 1 / 2: `filter`, `backdrop-filter`.
+//! - `blend.rs` — Compositing and Blending: `mix-blend-mode`, `isolation`,
+//!   `background-blend-mode`.
 //! - `transform.rs` — CSS Transforms 1 / 2: `translate`, `transform`,
 //!   `rotate`, `scale`, `transform-origin`, `transform-box`.
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
@@ -45,6 +47,7 @@
 mod align;
 mod animation;
 mod background;
+mod blend;
 mod border;
 mod calc;
 mod calc_size;
@@ -105,6 +108,7 @@ pub use background::{
 pub(crate) use background::{
     INITIAL_CLIP, INITIAL_IMAGE, INITIAL_ORIGIN, INITIAL_POSITION, INITIAL_SIZE,
 };
+pub use blend::{parse_background_blend_mode, parse_isolation, parse_mix_blend_mode};
 pub use border::{
     BorderRing, BorderShorthand, parse_border, parse_border_radius, parse_border_side,
     parse_border_side_shorthand, parse_border_spacing, parse_corner_radius, parse_line_width,

@@ -35,6 +35,10 @@ struct DocumentFlags {
     /// (CSS Values 5 §10), authored or a running transition's value: layout
     /// sizes such boxes in a second pass (`layout_pass::calc_size`).
     calc_sizes: bool,
+    /// An element has computed a `mix-blend-mode` other than `normal`
+    /// (Compositing 1 §3.2): paint looks for the isolated groups its
+    /// blending needs only then.
+    blends: bool,
 }
 
 fn flags(dom: &Dom<TuiExt>) -> DocumentFlags {
@@ -134,4 +138,19 @@ pub(crate) fn root_has_anchor(dom: &Dom<TuiExt>) -> bool {
 /// ([`note_has_anchor`] since the document was first cascaded).
 pub(crate) fn has_has_anchors(dom: &Dom<TuiExt>) -> bool {
     flags(dom).has_anchors
+}
+
+/// Record that an element of the document blends.
+pub(crate) fn note_blend(dom: &mut Dom<TuiExt>) {
+    if !flags(dom).blends {
+        let mut next = flags(dom);
+        next.blends = true;
+        dom.set_document_data(next);
+    }
+}
+
+/// Whether an element of the document may blend ([`note_blend`] since
+/// the document was first cascaded).
+pub(crate) fn has_blends(dom: &Dom<TuiExt>) -> bool {
+    flags(dom).blends
 }

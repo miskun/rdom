@@ -54,11 +54,23 @@ pub(crate) fn backdrop_filtered(c: &ComputedStyle) -> bool {
     !c.effects.backdrop_filter.is_none() && layerable(c)
 }
 
+/// Whether the box styled `c` blends with its backdrop: its
+/// `mix-blend-mode` is not `normal` (Compositing 1 §3.2).
+pub(crate) fn blends(c: &ComputedStyle) -> bool {
+    c.effects.mix_blend_mode != rdom_style::layout::BlendMode::Normal && layerable(c)
+}
+
+/// Whether the box styled `c` is isolated: `isolation: isolate` (§5.2).
+pub(crate) fn isolates(c: &ComputedStyle) -> bool {
+    c.effects.isolation == rdom_style::layout::Isolation::Isolate && layerable(c)
+}
+
 /// Whether the element styled `c` establishes a stacking context through
 /// its graphical effects: a transform (Transforms 1 §2), a filter or a
-/// backdrop filter (Filter Effects 1 §5, 2 §3).
+/// backdrop filter (Filter Effects 1 §5, 2 §3), blending or isolation
+/// (Compositing 1 §3.2, §5.2).
 pub(crate) fn makes_stacking_context(c: &ComputedStyle) -> bool {
-    transformed(c) || filtered(c) || backdrop_filtered(c)
+    transformed(c) || filtered(c) || backdrop_filtered(c) || blends(c) || isolates(c)
 }
 
 /// Whether the element styled `c` is the containing block of its

@@ -69,8 +69,8 @@ impl Buffer {
         &mut self,
         area: Rect,
         select: impl Fn(u16, u16, u8) -> (bool, bool, bool),
-        bg: impl Fn(Color) -> Color,
-        fg: impl Fn(Color) -> Color,
+        bg: impl Fn(usize, Color) -> Color,
+        fg: impl Fn(usize, Color) -> Color,
     ) {
         let region = self.area.intersection(area);
         for y in region.y..region.bottom() {
@@ -81,18 +81,18 @@ impl Buffer {
                 let (b, g, border) = select(x, y, self.coverage_of(i));
                 let cell: &mut Cell = &mut self.content[i];
                 if b {
-                    cell.bg = bg(cell.bg);
+                    cell.bg = bg(i, cell.bg);
                 }
                 if g {
-                    cell.fg = fg(cell.fg);
+                    cell.fg = fg(i, cell.fg);
                     if cell.underline_color != Color::Reset {
-                        cell.underline_color = fg(cell.underline_color);
+                        cell.underline_color = fg(i, cell.underline_color);
                     }
                 }
                 if border {
                     for d in &mut self.border_dirs[i] {
                         if let Some(w) = &mut d.winner {
-                            w.fg = fg(w.fg);
+                            w.fg = fg(i, w.fg);
                         }
                     }
                 }

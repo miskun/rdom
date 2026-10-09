@@ -276,7 +276,7 @@ row comes from.
 |---|---|---|
 | C15-TRANSLATE | `translate` and `transform: translate()` (whole-cell offsets; other transforms documented N/A) | done |
 | C15-FILTER | `filter` color-matrix functions; `backdrop-filter` | done |
-| C15-BLEND | `mix-blend-mode`, `isolation` | |
+| C15-BLEND | `mix-blend-mode`, `isolation` | done |
 | C15-CLIP-PATH | `clip-path: inset()` | |
 | C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | |
 | C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | |
@@ -9775,3 +9775,25 @@ row comes from.
   the costs. Combined mutation run (no fill mark, no shadows, no backdrop, a layer for every context, the
   layout test reading `differs`, a sepia coefficient, no containing block) fails all nine. Also: CSS-COVERAGE
   §2 row 69 (`translate`) marked shipped — missed by C15-TRANSLATE. Silent change `sc-filters`.
+- 2026-10-09 — C15-BLEND (Compositing and Blending 1 §3.2, §3.4, §5.2, §10; Compositing 2 §9).
+  `mix-blend-mode` (the sixteen `<blend-mode>`s and `plus-darker` / `plus-lighter`), `isolation` and
+  `background-blend-mode` parse into the `effects` group (`BlendMode`, `Isolation`; the list a `Cow` whose
+  initial `normal` is static, so the initial style allocates nothing); not animatable (§3.2, §5.2). The
+  blend functions are §10's on opaque sRGB channels (`BlendMode::blend`; the non-separable ones through
+  `SetLum` / `SetSat` / `ClipColor`), one rounding. Paint (`paint_pass/effects.rs`): a blending element's
+  layer tracks coverage; after its filter, every color it painted becomes `B(Cb, Cs)` against the backdrop
+  cell's background — the layer was copied from the backdrop, so the parent buffer is it. Decisions: (1)
+  the glyph rule — one glyph per cell, so a glyph's color blends with the backdrop's background beneath it
+  and the element's glyph shows; a backdrop glyph under a cell the element filled was covered by the fill
+  already. (2) Isolation: every stacking context is an isolated group (§3.2); the backdrop of a blend is
+  its parent context's content, which a coverage layer records — a context with a blending member
+  (`has_blending_member`, a walk of its members down to nested contexts) tracks coverage, and a backdrop
+  cell it painted nothing on is transparent (the source shows: `B` with `αb = 0`); the document's own
+  context is the frame, every cell in it. The look happens only on a page where something blends
+  (`doc_flags::blends`, set by the cascade; the property does not animate, so no other path sets one). (3)
+  `opacity` after the blend: the group composites `α·B + (1-α)·Cb`, §3.2's order. (4) `background-blend-mode`
+  is inert — one background layer per cell. Red → green: `blend_tests` (1), `css_phase15::blend` (5), red on
+  the unknown properties; `effect_cost_tests::isolation_makes_a_layer_only_around_a_blend` pins the gating
+  (isolation alone: no layer, and the allocations of any in-flow stacking context). Combined mutation run
+  (no blend, no `blends` flag, no stacking context, an exclusion coefficient) fails all five paint tests and
+  the cost pin. Changed test: none. Silent change `sc-blending`.

@@ -1,7 +1,10 @@
 //! [`EffectsStyle`]: the computed group of the transform, filter and
 //! compositing properties.
 
-use super::{FilterList, Rotate, Scale, TransformBox, TransformList, TransformOrigin, Translate};
+use super::{
+    BlendMode, FilterList, Isolation, Rotate, Scale, TransformBox, TransformList, TransformOrigin,
+    Translate,
+};
 use crate::Color;
 
 /// The computed transform, filter and compositing properties of an
@@ -10,7 +13,7 @@ use crate::Color;
 ///
 /// Closed (DESIGN), as the other style groups: a new field fails a
 /// destructuring pattern. `Default` is the initial values.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EffectsStyle {
     /// `translate` (CSS Transforms 2 §6.1); `None` is `none`.
     pub translate: Option<Translate>,
@@ -28,6 +31,32 @@ pub struct EffectsStyle {
     pub filter: FilterList<Color>,
     /// `backdrop-filter` (Filter Effects 2 §3), likewise.
     pub backdrop_filter: FilterList<Color>,
+    /// `mix-blend-mode` (Compositing 1 §3.2).
+    pub mix_blend_mode: BlendMode,
+    /// `isolation` (§5.2).
+    pub isolation: Isolation,
+    /// `background-blend-mode` (§3.4), one per background layer. Inert:
+    /// a cell's background is one color.
+    pub background_blend_mode: std::borrow::Cow<'static, [BlendMode]>,
+}
+
+impl Default for EffectsStyle {
+    /// The initial values; nothing allocated.
+    fn default() -> Self {
+        EffectsStyle {
+            translate: None,
+            rotate: None,
+            scale: None,
+            transform: TransformList::default(),
+            transform_origin: TransformOrigin::default(),
+            transform_box: TransformBox::default(),
+            filter: FilterList::default(),
+            backdrop_filter: FilterList::default(),
+            mix_blend_mode: BlendMode::Normal,
+            isolation: Isolation::Auto,
+            background_blend_mode: std::borrow::Cow::Borrowed(&[BlendMode::Normal]),
+        }
+    }
 }
 
 impl EffectsStyle {

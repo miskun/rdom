@@ -175,6 +175,10 @@ const SPEC: &[(&str, Spec)] = &[
     // Filter Effects 1 §5 / 2 §3 ("see prose": §14, by computed value)
     ("filter", L(V)),
     ("backdrop-filter", L(V)),
+    // Compositing and Blending 1 §3.2, §3.4, §5.2
+    ("mix-blend-mode", L(N)),
+    ("isolation", L(N)),
+    ("background-blend-mode", L(N)),
     ("content-visibility", L(D)),
     // CSS Conditional 5 §6.1–§6.3
     ("container", S),

@@ -30,6 +30,7 @@
 //! - `spacing` — `letter-spacing` / `word-spacing` (`Spacing`)
 //! - `text` — `TextStyle`, the computed CSS Text group
 //! - `filter` — the Filter Effects values and their color math
+//! - `blend` — the compositing values and the blend functions
 //! - `transform` — the CSS Transforms values
 //! - `effects` — `EffectsStyle`, the computed transform, filter and
 //!   compositing group
@@ -37,6 +38,7 @@
 pub(crate) mod alignment;
 mod aspect_ratio;
 mod background;
+mod blend;
 mod border;
 mod box_model;
 mod calc_size;
@@ -74,6 +76,7 @@ mod white_space;
 pub use alignment::{Align, AlignProperty, Alignment, OverflowAlign};
 pub use aspect_ratio::AspectRatio;
 pub use background::{BackgroundAttachment, BackgroundRepeat, BoxShadow, RepeatStyle, VisualBox};
+pub use blend::{BlendMode, Isolation};
 pub use border::{
     Border, BorderCollapse, BorderRadius, BorderSpacing, BorderStyle, BorderWeight, BorderWidth,
     CornerStyle, PaintLength,

@@ -4,7 +4,8 @@
 
 use crate::Value;
 use crate::layout::{
-    FilterList, Rotate, Scale, TransformBox, TransformList, TransformOrigin, Translate,
+    BlendMode, FilterList, Isolation, Rotate, Scale, TransformBox, TransformList, TransformOrigin,
+    Translate,
 };
 
 /// The transform, filter and compositing properties a
@@ -31,4 +32,10 @@ pub struct EffectsDeclarations {
     pub filter: Option<Value<FilterList>>,
     /// `backdrop-filter` (Filter Effects 2 §3).
     pub backdrop_filter: Option<Value<FilterList>>,
+    /// `mix-blend-mode` (Compositing 1 §3.2).
+    pub mix_blend_mode: Option<Value<BlendMode>>,
+    /// `isolation` (§5.2).
+    pub isolation: Option<Value<Isolation>>,
+    /// `background-blend-mode` (§3.4).
+    pub background_blend_mode: Option<Value<std::borrow::Cow<'static, [BlendMode]>>>,
 }
