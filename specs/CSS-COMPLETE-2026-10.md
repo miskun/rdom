@@ -267,6 +267,8 @@ row comes from.
 | C14-SUPPORTS | `@supports` (feature queries against the dispatch table; `CSS.supports`) | done |
 | C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | done |
 | C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | done |
+| C14-ASPECT-BLOCK | `aspect-ratio` on a block-level box in block flow (CSS Sizing 4 §5.1): the width transferred from a definite height, the height from the width (found by C13-ROOT-BLOCK) | done |
+| C14-HIT-HTML | A point outside every box hits the document element, as `elementFromPoint` does (found by C13-ROOT-BLOCK; implement, or keep the divergence) | |
 
 ### Phase 15 — Transforms, filters, compositing, multi-column, anchor positioning (audit §3.23, §3.24)
 
@@ -9233,3 +9235,20 @@ row comes from.
   188; the closing-animation note in `geometry_transition_tests` became its own test. DIVERGENCES §2's "A
   closed `<details>`'s content computes `display: none`" rewritten as "A `<details>`'s content slot is a box";
   silent change 55 (the old 55–90 move to 56–91). Item done.
+- 2026-10-09 — C14-ASPECT-BLOCK (carry-over from C13-ROOT-BLOCK; CSS Sizing 4 §5.1, CSS 2.1 §10.3.3, §10.5,
+  §10.6.3). Found: `aspect-ratio` had no effect on a block-level box in block flow at all — the flex and grid
+  paths (C6G-FLEX-SPEC, C7-GRID-RERESOLVE) were its only users — so not only did `height: 9; aspect-ratio: 16/9`
+  stretch to the containing block (Chrome: 16 wide), an `auto` height ignored the ratio too (an empty `div {
+  aspect-ratio: 2 }` was 0 high). Fixed both directions at their one place each: `block::width::ratio_width`
+  joins `resolve_block_width`'s declared width — an `auto` width with a ratio and a definite height (a length, or
+  a percentage / `calc()` of a definite containing block — the viewport at the initial containing block, which
+  has no Ext) is the transferred size, so auto margins and the min / max clamp treat it as a declared width; and
+  `block::height::ratio_height` gives the `auto` height from the width in both places it is decided
+  (`resolve_block_height`'s pre-layout estimate and `auto_height`'s post-layout one, content box to content box):
+  the transferred size floored at the content height — §5.1's automatic minimum size in the ratio-dependent
+  axis — unless the box is a scroll container or its `min-height` is not `auto`. Tables are left out (the ratio
+  does not apply to their internal boxes and their width is the table algorithm's). Red:
+  `css_phase14/aspect_block.rs` — both failed on HEAD (`(40, 9)` for `(16, 9)`, `(40, 0)` for `(40, 20)`); the
+  percentage case failed once more after the first fix (the ICB has no Ext to read a height from — the viewport
+  now). Green after; the workspace suite unchanged. Mutation (restored, touched): no transferred width → the
+  width test; no ratio in `auto_height` → the height test. Silent change 29 (the old 29–91 move to 30–92).

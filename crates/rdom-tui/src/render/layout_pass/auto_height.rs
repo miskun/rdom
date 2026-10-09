@@ -55,6 +55,21 @@ pub(crate) fn resolve_auto_height(
     } else {
         measurement.content_height
     };
+    // CSS Sizing 4 §5.1: a preferred aspect ratio transfers the width
+    // (content box to content box: the chrome off and back on).
+    let content_height = match ext_width(dom, id) {
+        Some(width) => {
+            let sizer = Sizer::vertical(computed, containing_block_width);
+            block::ratio_height(
+                computed,
+                width,
+                sizer.outer(content_height),
+                containing_block_width,
+            )
+            .map_or(content_height, |h| sizer.inner(h))
+        }
+        None => content_height,
+    };
     let content_h = used_content_height(dom, id, computed, containing_block_width, content_height);
     let sizer = Sizer::vertical(computed, containing_block_width);
     let outer_h = content_h
@@ -64,6 +79,11 @@ pub(crate) fn resolve_auto_height(
         ext.layout.height = outer_h;
         ext.content_layout.height = content_h;
     }
+}
+
+/// The border-box width layout gave `id`.
+fn ext_width(dom: &Dom<TuiExt>, id: NodeId) -> Option<u16> {
+    dom.node(id).ext().map(|e| e.layout.width)
 }
 
 /// Whether `id`'s height is resolved from its content here (the gating

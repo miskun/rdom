@@ -71,13 +71,15 @@ pub(super) fn resolve_block_height(
     // the cross axis is the row): the child's own resolved width, which
     // text wraps to.
     let raw = definite.unwrap_or_else(|| {
-        intrinsic_size(
+        let content = intrinsic_size(
             dom,
             id,
             Direction::Column,
             resolved_width,
             containing_block_width,
-        )
+        );
+        // CSS Sizing 4 §5.1: a preferred aspect ratio transfers the width.
+        ratio_height(computed, resolved_width, content, containing_block_width).unwrap_or(content)
     });
 
     // Clamp by min-height / max-height. Min:auto on block elements
@@ -89,6 +91,38 @@ pub(super) fn resolve_block_height(
     let min_cells = kw.min(&computed.min_height, basis, raw);
     let max_cells = kw.max(&computed.max_height, basis, raw);
     sizer.floor(clamp_size(raw, min_cells, max_cells))
+}
+
+/// The automatic height `computed`'s `aspect-ratio` gives a box
+/// `width` cells wide whose content is `content` rows (both border
+/// boxes, CSS Sizing 4 §5.1): the transferred size, floored at the
+/// content — the automatic minimum size in the ratio-dependent axis —
+/// unless the box is a scroll container or `min-height` is not `auto`.
+/// `None` without a ratio (or for a table).
+pub(crate) fn ratio_height(
+    computed: &ComputedStyle,
+    width: u16,
+    content: u16,
+    containing_block_width: u16,
+) -> Option<u16> {
+    let ratio = computed.aspect_ratio?;
+    if computed.flow == crate::layout::Flow::Table {
+        return None;
+    }
+    let transferred = crate::render::layout_pass::box_sizing::aspect_cross_from_main(
+        width,
+        ratio,
+        Direction::Row,
+        computed,
+        containing_block_width,
+    )?;
+    let floors = !computed.is_scroll_container()
+        && matches!(computed.min_height, crate::layout::MinSize::Auto);
+    Some(if floors {
+        transferred.max(content)
+    } else {
+        transferred
+    })
 }
 
 /// CSS 2.1 §10.5 — walk up to find the nearest block-flow ancestor

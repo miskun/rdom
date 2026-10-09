@@ -101,7 +101,11 @@ pub(super) fn resolve_block_width(
                     available,
                 ))
             })
-        });
+        })
+        // CSS Sizing 4 §5.1: with a preferred aspect ratio and a definite
+        // height, the automatic width is the transferred size, not the
+        // stretch fit.
+        .or_else(|| ratio_width(dom, id, computed, containing_block_width).map(i32::from));
 
     // CSS Box Alignment 3 §6.1: a `justify-self` other than `normal` /
     // `stretch` sizes an `auto` width as `fit-content` and places the box
@@ -192,6 +196,43 @@ pub(super) fn resolve_block_width(
         margin_left: ml_clamped.clamp(i16::MIN as i32, i16::MAX as i32) as i16,
         width: clamped_width.max(0).min(u16::MAX as i32) as u16,
     }
+}
+
+/// The width `computed`'s `aspect-ratio` transfers from a definite height
+/// (CSS Sizing 4 §5.1): a declared length, or a percentage or `calc()` of
+/// a definite containing block's height (CSS 2.1 §10.5). `None` without a
+/// ratio, for a table, or when the height is not definite.
+fn ratio_width(dom: &Dom<TuiExt>, id: NodeId, computed: &ComputedStyle, cb: u16) -> Option<u16> {
+    use crate::layout::Size;
+    let ratio = computed.aspect_ratio?;
+    if computed.flow == crate::layout::Flow::Table {
+        return None;
+    }
+    let height = match &computed.height {
+        Size::Fixed(n) => Some(*n),
+        Size::Percent(_) | Size::Calc(_)
+            if super::height::nearest_block_ancestor_height_is_definite(dom, id) =>
+        {
+            // The box parent's content height — the viewport's for a box of
+            // the initial containing block (CSS 2.1 §10.1), which has no Ext.
+            let basis = match crate::render::box_tree::box_parent(dom, id)
+                .and_then(|p| dom.node(p).ext())
+            {
+                Some(e) => e.content_layout.height,
+                None => crate::style::cascade::document_viewport(dom).rows,
+            };
+            computed.height.cells(Some(basis))
+        }
+        _ => None,
+    }?;
+    let outer = crate::render::layout_pass::box_sizing::Sizer::vertical(computed, cb).outer(height);
+    crate::render::layout_pass::box_sizing::aspect_cross_from_main(
+        outer,
+        ratio,
+        Direction::Column,
+        computed,
+        cb,
+    )
 }
 
 /// `width` clamped by `max-width`, then `min-width` (CSS 2.1 §10.4:

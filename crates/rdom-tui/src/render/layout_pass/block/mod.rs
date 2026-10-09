@@ -73,7 +73,9 @@ use super::is_in_flow;
 use super::layout_node;
 pub(super) use align::{align_content_lead, aligns, justify_offset};
 use height::resolve_block_height;
-pub(super) use height::{height_is_definite_below, nearest_block_ancestor_height_is_definite};
+pub(super) use height::{
+    height_is_definite_below, nearest_block_ancestor_height_is_definite, ratio_height,
+};
 #[cfg(debug_assertions)]
 pub(super) use margin_collapse::debug_assert_no_margin_chain_memo;
 pub(super) use margin_collapse::establishes_independent_formatting_context as establishes_bfc;
