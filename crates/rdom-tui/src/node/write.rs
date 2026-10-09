@@ -169,7 +169,7 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     /// refused: a [`GridTemplateAreas`] is valid by construction
     /// (`GridTemplateAreas::new` returns `None` for rows that are not).
     fn set_grid_template_areas(&mut self, areas: GridTemplateAreas) -> &mut Self {
-        self.write_inline_style(|s| s.grid_template_areas = Some(Value::Specified(areas)));
+        self.write_inline_style(|s| s.grid.grid_template_areas = Some(Value::Specified(areas)));
         self
     }
 
@@ -190,7 +190,7 @@ pub trait TuiNodeMutExt<'a>: crate::sealed::Sealed {
     /// Declare `grid-auto-flow` inline (CSS Grid 2 §7.7). Never refused:
     /// every [`GridAutoFlow`] is a value.
     fn set_grid_auto_flow(&mut self, flow: GridAutoFlow) -> &mut Self {
-        self.write_inline_style(|s| s.grid_auto_flow = Some(Value::Specified(flow)));
+        self.write_inline_style(|s| s.grid.grid_auto_flow = Some(Value::Specified(flow)));
         self
     }
     /// Declare `grid-row` inline (CSS Grid 2 §8.4): its start and end

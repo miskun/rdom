@@ -752,12 +752,12 @@ fn grid_template_hints() {
             [TrackSize::minmax(4, TrackBreadth::Fr(1.0))],
         ))
         .grid_template_rows(vec![TrackSize::cells(1), TrackSize::AUTO]);
-    assert!(s.grid_template_columns.is_some());
-    let ComputedStyle {
+    assert!(s.grid.grid_template_columns.is_some());
+    let GridStyle {
         grid_template_columns,
         grid_template_rows,
         ..
-    } = ComputedStyle::initial();
+    } = (*ComputedStyle::initial().grid).clone();
     assert_eq!(grid_template_columns, GridTemplate::None);
     assert!(grid_template_rows.tracks().is_none());
     let tokens = style::parse::tokenize("[a] 1fr repeat(2, 3)").unwrap();
@@ -777,7 +777,7 @@ fn grid_template_hints() {
     assert_eq!(
         dom.node(div)
             .inline_style()
-            .and_then(|s| s.grid_template_columns.clone()),
+            .and_then(|s| s.grid.grid_template_columns.clone()),
         Some(Value::Specified(GridTemplate::from(vec![
             TrackSize::cells(2)
         ])))
@@ -792,12 +792,12 @@ fn grid_auto_hints() {
     let s = TuiStyle::new()
         .grid_auto_rows([TrackSize::cells(1), TrackSize::fr(1.0)])
         .grid_auto_columns_important([TrackSize::AUTO]);
-    assert!(s.grid_auto_rows.is_some());
-    let ComputedStyle {
+    assert!(s.grid.grid_auto_rows.is_some());
+    let GridStyle {
         grid_auto_columns,
         grid_auto_rows,
         ..
-    } = ComputedStyle::initial();
+    } = (*ComputedStyle::initial().grid).clone();
     assert_eq!(
         (grid_auto_columns.len(), grid_auto_rows[0].clone()),
         (1, TrackSize::AUTO)
@@ -820,7 +820,7 @@ fn grid_auto_hints() {
     assert!(
         dom.node(div)
             .inline_style()
-            .is_some_and(|s| s.grid_auto_rows.is_some() && s.grid_auto_columns.is_some())
+            .is_some_and(|s| s.grid.grid_auto_rows.is_some() && s.grid.grid_auto_columns.is_some())
     );
 }
 
@@ -838,12 +838,12 @@ fn grid_placement_hints() {
             GridLine::Auto,
         )
         .grid_auto_flow(GridAutoFlow::COLUMN.dense());
-    assert!(s.grid_row_start.is_some() && s.grid_column_end.is_some());
-    let ComputedStyle {
+    assert!(s.grid.grid_row_start.is_some() && s.grid.grid_column_end.is_some());
+    let GridStyle {
         grid_row_start,
         grid_auto_flow,
         ..
-    } = ComputedStyle::initial();
+    } = (*ComputedStyle::initial().grid).clone();
     assert_eq!(
         (grid_row_start, grid_auto_flow),
         (GridLine::Auto, GridAutoFlow::ROW)
@@ -871,7 +871,7 @@ fn grid_placement_hints() {
     assert!(
         dom.node(div)
             .inline_style()
-            .is_some_and(|s| s.grid_row_start.is_some() && s.grid_auto_flow.is_some())
+            .is_some_and(|s| s.grid.grid_row_start.is_some() && s.grid.grid_auto_flow.is_some())
     );
 }
 
@@ -889,9 +889,9 @@ fn grid_template_areas_hints() {
         }
     );
     let s = TuiStyle::new().grid_template_areas(areas.clone());
-    assert!(s.grid_template_areas.is_some());
+    assert!(s.grid.grid_template_areas.is_some());
     assert_eq!(
-        ComputedStyle::initial().grid_template_areas,
+        ComputedStyle::initial().grid.grid_template_areas,
         GridTemplateAreas::NONE
     );
     let tokens = style::parse::tokenize("\"a a\" \"b .\"").unwrap();
@@ -906,7 +906,7 @@ fn grid_template_areas_hints() {
     assert!(
         dom.node(div)
             .inline_style()
-            .is_some_and(|s| s.grid_template_areas.is_some())
+            .is_some_and(|s| s.grid.grid_template_areas.is_some())
     );
 }
 
@@ -1503,7 +1503,10 @@ fn timing_hints() {
     };
     assert_eq!(name, "linear()");
     let s = TuiStyle::new().transition_delay(vec![-500]);
-    assert_eq!(s.transition_delay, Some(Value::Specified(vec![-500])));
+    assert_eq!(
+        s.motion.transition_delay,
+        Some(Value::Specified(vec![-500]))
+    );
     let tokens = style::parse::tokenize("1s, 2s").unwrap();
     assert_eq!(
         style::parse::values::parse_duration_list(&tokens),
@@ -1536,7 +1539,7 @@ fn animation_api_hygiene_hints() {
     let s = TuiStyle::new().cursor(layout::CursorKeyword::Pointer);
     assert!(s.ui.cursor.is_some());
     let s = TuiStyle::new().timeline_scope(TimelineScope::All);
-    assert!(s.timeline_scope.is_some());
+    assert!(s.motion.timeline_scope.is_some());
 }
 
 /// C12G-APP-CONFIG: every construction-time `App` option is a consuming
@@ -1706,4 +1709,40 @@ fn shared_group_hints() {
         &TuiStyle::new().masks,
         &TuiStyle::new().masks
     ));
+}
+
+/// C15G-STYLE-SIZE: the grid fields live in the `grid` group
+/// (`GridStyle` / `GridDeclarations`), the `transition-*`, `animation-*`,
+/// timeline and range fields in the `motion` group (`MotionStyle` /
+/// `MotionDeclarations`) — `c.grid_auto_flow` is `c.grid.grid_auto_flow`,
+/// `c.transition_duration` is `c.motion.transition_duration`; the builders
+/// are unchanged.
+#[test]
+fn grid_and_motion_group_hints() {
+    let s = TuiStyle::new()
+        .grid_auto_flow(GridAutoFlow::COLUMN)
+        .transition_duration(vec![250]);
+    assert!(s.grid.grid_auto_flow.is_some());
+    assert_eq!(
+        s.motion.transition_duration,
+        Some(Value::Specified(vec![250]))
+    );
+    let literal = TuiStyle {
+        motion: MotionDeclarations {
+            transition_duration: Some(Value::Inherit),
+            ..Default::default()
+        }
+        .into(),
+        grid: GridDeclarations::default().into(),
+        ..TuiStyle::new()
+    };
+    assert_eq!(literal.motion.transition_duration, Some(Value::Inherit));
+    let c = ComputedStyle::initial();
+    assert_eq!(c.grid.grid_auto_flow, GridAutoFlow::ROW);
+    assert!(c.motion.transition_duration.is_empty() && c.motion.animation_name.is_empty());
+    let GridStyle { grid_row_start, .. } = (*c.grid).clone();
+    let MotionStyle {
+        animation_delay, ..
+    } = (*c.motion).clone();
+    assert_eq!((grid_row_start, animation_delay.len()), (GridLine::Auto, 0));
 }

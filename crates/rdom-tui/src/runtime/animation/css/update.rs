@@ -34,7 +34,7 @@ impl AnimationRegistry {
         let mut existing: Vec<usize> = (0..self.css.len())
             .filter(|&i| self.css[i].node == id && self.css[i].slot == slot)
             .collect();
-        let names = style.map_or(&[][..], |s| s.animation_name.as_slice());
+        let names = style.map_or(&[][..], |s| s.motion.animation_name.as_slice());
         let mut kept: Vec<usize> = Vec::new();
         let mut started: Vec<CssAnimation> = Vec::new();
         for (index, name) in names.iter().enumerate() {

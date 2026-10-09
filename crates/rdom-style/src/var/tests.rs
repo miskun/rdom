@@ -93,7 +93,10 @@ fn substitution_never_forms_a_dimension() {
     .substituted(&v, &SubstitutionContext::new());
     let unset = with(&[("width", "unset"), ("transition-duration", "unset")]);
     assert_eq!(got.width, unset.width);
-    assert_eq!(got.transition_duration, unset.transition_duration);
+    assert_eq!(
+        got.motion.transition_duration,
+        unset.motion.transition_duration
+    );
     // A dimension inside the custom property substitutes whole.
     let v = vars(&[("w", "1fr")]);
     let got = with(&[("width", "var(--w)")]).substituted(&v, &SubstitutionContext::new());

@@ -148,20 +148,24 @@ pub(crate) fn abspos_area(
     let (right, bottom) = (cb.x + i32::from(cb.width), cb.y + i32::from(cb.height));
     let x_cb = if rtl { (right, cb.x) } else { (cb.x, right) };
     let content_right = content.x + i32::from(content.width);
-    let (x0, x1) = lines
-        .columns
-        .area(&c.grid_column_start, &c.grid_column_end, x_cb, |x| {
+    let (x0, x1) = lines.columns.area(
+        &c.grid.grid_column_start,
+        &c.grid.grid_column_end,
+        x_cb,
+        |x| {
             if rtl {
                 content_right - x
             } else {
                 content.x + x
             }
-        });
-    let (y0, y1) = lines
-        .rows
-        .area(&c.grid_row_start, &c.grid_row_end, (cb.y, bottom), |y| {
-            content.y + y
-        });
+        },
+    );
+    let (y0, y1) = lines.rows.area(
+        &c.grid.grid_row_start,
+        &c.grid.grid_row_end,
+        (cb.y, bottom),
+        |y| content.y + y,
+    );
     let extent = |a: i32, b: i32| (a - b).unsigned_abs().min(u32::from(u16::MAX)) as u16;
     Some(LayoutRect::new(
         x0.min(x1),

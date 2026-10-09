@@ -322,13 +322,22 @@ pub(super) fn serialize_transition_behavior(
 /// the other lists repeated to its length (CSS Transitions 1 §2: "the
 /// values are repeated as necessary"; excess values are unused).
 pub(super) fn serialize_transition_shorthand(style: &TuiStyle) -> Option<String> {
-    let props = style.transition_property.as_ref().and_then(specified)?;
-    let durs = style.transition_duration.as_ref().and_then(specified)?;
+    let props = style
+        .motion
+        .transition_property
+        .as_ref()
+        .and_then(specified)?;
+    let durs = style
+        .motion
+        .transition_duration
+        .as_ref()
+        .and_then(specified)?;
     let timings = style
+        .motion
         .transition_timing_function
         .as_ref()
         .and_then(specified)?;
-    let delays = style.transition_delay.as_ref().and_then(specified)?;
+    let delays = style.motion.transition_delay.as_ref().and_then(specified)?;
     let n = props.len();
     if n == 0 || durs.is_empty() || timings.is_empty() || delays.is_empty() {
         return None;
@@ -338,6 +347,7 @@ pub(super) fn serialize_transition_shorthand(style: &TuiStyle) -> Option<String>
     let pad_delay = |i: usize| delays[i % delays.len()];
     // `transition-behavior`: `normal` (left out) when not given.
     let behaviors = style
+        .motion
         .transition_behavior
         .as_ref()
         .and_then(specified)

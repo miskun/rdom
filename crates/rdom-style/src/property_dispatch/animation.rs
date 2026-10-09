@@ -23,31 +23,43 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         Some(())
     }
     Some(match name {
-        "animation-name" => put(&mut style.animation_name, parse_animation_name_list(value)),
+        "animation-name" => put(
+            &mut style.motion.animation_name,
+            parse_animation_name_list(value),
+        ),
         "animation-duration" => put(
-            &mut style.animation_duration,
+            &mut style.motion.animation_duration,
             parse_animation_duration_list(value),
         ),
         "animation-timing-function" => put(
-            &mut style.animation_timing_function,
+            &mut style.motion.animation_timing_function,
             parse_timing_function_list(value),
         ),
-        "animation-delay" => put(&mut style.animation_delay, parse_time_list(value)),
+        "animation-delay" => put(&mut style.motion.animation_delay, parse_time_list(value)),
         "animation-iteration-count" => put(
-            &mut style.animation_iteration_count,
+            &mut style.motion.animation_iteration_count,
             parse_iteration_count_list(value),
         ),
-        "animation-direction" => put(&mut style.animation_direction, parse_direction_list(value)),
-        "animation-fill-mode" => put(&mut style.animation_fill_mode, parse_fill_mode_list(value)),
+        "animation-direction" => put(
+            &mut style.motion.animation_direction,
+            parse_direction_list(value),
+        ),
+        "animation-fill-mode" => put(
+            &mut style.motion.animation_fill_mode,
+            parse_fill_mode_list(value),
+        ),
         "animation-play-state" => put(
-            &mut style.animation_play_state,
+            &mut style.motion.animation_play_state,
             parse_play_state_list(value),
         ),
         "animation-composition" => put(
-            &mut style.animation_composition,
+            &mut style.motion.animation_composition,
             parse_composition_list(value),
         ),
-        "animation-timeline" => put(&mut style.animation_timeline, parse_timeline_list(value)),
+        "animation-timeline" => put(
+            &mut style.motion.animation_timeline,
+            parse_timeline_list(value),
+        ),
         "animation" => parse_animation_shorthand(value).map(|pieces| set_shorthand(&pieces, style)),
         _ => return None,
     })
@@ -63,27 +75,28 @@ fn set_shorthand(pieces: &[AnimationPiece], style: &mut TuiStyle) {
     ) -> Option<Value<Vec<T>>> {
         Some(Value::Specified(pieces.iter().map(f).collect()))
     }
-    style.animation_name = each(pieces, |p| p.name.clone().unwrap_or(AnimationName::None));
-    style.animation_duration = each(pieces, |p| p.duration.unwrap_or_default());
-    style.animation_timing_function = each(pieces, |p| {
+    style.motion.animation_name = each(pieces, |p| p.name.clone().unwrap_or(AnimationName::None));
+    style.motion.animation_duration = each(pieces, |p| p.duration.unwrap_or_default());
+    style.motion.animation_timing_function = each(pieces, |p| {
         p.timing
             .clone()
             .unwrap_or(crate::transition::TimingFunction::Ease)
     });
-    style.animation_delay = each(pieces, |p| p.delay.unwrap_or(0));
-    style.animation_iteration_count = each(pieces, |p| p.iterations.unwrap_or_default());
-    style.animation_direction = each(pieces, |p| p.direction.unwrap_or_default());
-    style.animation_fill_mode = each(pieces, |p| p.fill.unwrap_or_default());
-    style.animation_play_state = each(pieces, |p| p.play_state.unwrap_or_default());
-    style.animation_composition = Some(Value::Specified(vec![AnimationComposition::Replace]));
-    style.animation_timeline = Some(Value::Specified(vec![AnimationTimeline::Auto]));
+    style.motion.animation_delay = each(pieces, |p| p.delay.unwrap_or(0));
+    style.motion.animation_iteration_count = each(pieces, |p| p.iterations.unwrap_or_default());
+    style.motion.animation_direction = each(pieces, |p| p.direction.unwrap_or_default());
+    style.motion.animation_fill_mode = each(pieces, |p| p.fill.unwrap_or_default());
+    style.motion.animation_play_state = each(pieces, |p| p.play_state.unwrap_or_default());
+    style.motion.animation_composition =
+        Some(Value::Specified(vec![AnimationComposition::Replace]));
+    style.motion.animation_timeline = Some(Value::Specified(vec![AnimationTimeline::Auto]));
     let normal = || {
         Some(Value::Specified(vec![
             crate::keyframes::RangeBoundary::Normal,
         ]))
     };
-    style.animation_range_start = normal();
-    style.animation_range_end = normal();
+    style.motion.animation_range_start = normal();
+    style.motion.animation_range_end = normal();
 }
 
 /// A `<keyframes-name>` as CSS text: an identifier when it is one as
@@ -134,18 +147,29 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             .map(|list| join_csv(list.iter(), f))
     }
     Some(match name {
-        "animation-name" => csv(&style.animation_name, name_text),
-        "animation-duration" => csv(&style.animation_duration, duration_text),
-        "animation-timing-function" => {
-            csv(&style.animation_timing_function, serialize_timing_function)
+        "animation-name" => csv(&style.motion.animation_name, name_text),
+        "animation-duration" => csv(&style.motion.animation_duration, duration_text),
+        "animation-timing-function" => csv(
+            &style.motion.animation_timing_function,
+            serialize_timing_function,
+        ),
+        "animation-delay" => csv(&style.motion.animation_delay, |ms| format!("{ms}ms")),
+        "animation-iteration-count" => {
+            csv(&style.motion.animation_iteration_count, iterations_text)
         }
-        "animation-delay" => csv(&style.animation_delay, |ms| format!("{ms}ms")),
-        "animation-iteration-count" => csv(&style.animation_iteration_count, iterations_text),
-        "animation-direction" => csv(&style.animation_direction, |d| d.keyword().to_string()),
-        "animation-fill-mode" => csv(&style.animation_fill_mode, |f| f.keyword().to_string()),
-        "animation-play-state" => csv(&style.animation_play_state, |s| s.keyword().to_string()),
-        "animation-composition" => csv(&style.animation_composition, |c| c.keyword().to_string()),
-        "animation-timeline" => csv(&style.animation_timeline, timeline_text),
+        "animation-direction" => csv(&style.motion.animation_direction, |d| {
+            d.keyword().to_string()
+        }),
+        "animation-fill-mode" => csv(&style.motion.animation_fill_mode, |f| {
+            f.keyword().to_string()
+        }),
+        "animation-play-state" => csv(&style.motion.animation_play_state, |s| {
+            s.keyword().to_string()
+        }),
+        "animation-composition" => csv(&style.motion.animation_composition, |c| {
+            c.keyword().to_string()
+        }),
+        "animation-timeline" => csv(&style.motion.animation_timeline, timeline_text),
         "animation" => serialize_shorthand(style),
         _ => return None,
     })
@@ -159,15 +183,15 @@ fn serialize_shorthand(style: &TuiStyle) -> Option<String> {
     fn of_len<T>(field: &Option<Value<Vec<T>>>, n: usize) -> Option<&Vec<T>> {
         field.as_ref().and_then(specified).filter(|l| l.len() == n)
     }
-    let name = style.animation_name.as_ref().and_then(specified)?;
+    let name = style.motion.animation_name.as_ref().and_then(specified)?;
     let n = name.len();
-    let duration = of_len(&style.animation_duration, n)?;
-    let timing = of_len(&style.animation_timing_function, n)?;
-    let delay = of_len(&style.animation_delay, n)?;
-    let iterations = of_len(&style.animation_iteration_count, n)?;
-    let direction = of_len(&style.animation_direction, n)?;
-    let fill = of_len(&style.animation_fill_mode, n)?;
-    let play = of_len(&style.animation_play_state, n)?;
+    let duration = of_len(&style.motion.animation_duration, n)?;
+    let timing = of_len(&style.motion.animation_timing_function, n)?;
+    let delay = of_len(&style.motion.animation_delay, n)?;
+    let iterations = of_len(&style.motion.animation_iteration_count, n)?;
+    let direction = of_len(&style.motion.animation_direction, n)?;
+    let fill = of_len(&style.motion.animation_fill_mode, n)?;
+    let play = of_len(&style.motion.animation_play_state, n)?;
     let initial_only = |c: &[AnimationComposition], t: &[AnimationTimeline]| {
         c.iter().all(|c| *c == AnimationComposition::Replace)
             && t.iter().all(|t| *t == AnimationTimeline::Auto)
@@ -178,16 +202,20 @@ fn serialize_shorthand(style: &TuiStyle) -> Option<String> {
                 .all(|b| *b == crate::keyframes::RangeBoundary::Normal)
         })
     };
-    if !range_normal(&style.animation_range_start) || !range_normal(&style.animation_range_end) {
+    if !range_normal(&style.motion.animation_range_start)
+        || !range_normal(&style.motion.animation_range_end)
+    {
         return None;
     }
     if !initial_only(
         style
+            .motion
             .animation_composition
             .as_ref()
             .and_then(specified)
             .map_or(&[][..], Vec::as_slice),
         style
+            .motion
             .animation_timeline
             .as_ref()
             .and_then(specified)

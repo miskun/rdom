@@ -89,25 +89,26 @@ fn an_empty_track_list_is_none() {
 fn an_invalid_field_value_is_ignored() {
     let sheet = ".g { grid-template-columns: 4 6 }";
     let mut style = TuiStyle::new();
-    style.grid_template_columns =
+    style.grid.grid_template_columns =
         Some(Value::Specified(GridTemplate::Tracks(TrackList::default())));
     assert_eq!(items(style, sheet, None), [(0, 4), (4, 6)]);
 
     let mut style = TuiStyle::new();
-    style.grid_template_columns = Some(Value::Specified(GridTemplate::Tracks(TrackList::new([
-        TrackSize::Breadth(TrackBreadth::Fr(f32::NAN)),
-    ]))));
+    style.grid.grid_template_columns =
+        Some(Value::Specified(GridTemplate::Tracks(TrackList::new([
+            TrackSize::Breadth(TrackBreadth::Fr(f32::NAN)),
+        ]))));
     assert_eq!(items(style, sheet, None), [(0, 4), (4, 6)]);
 
     let mut style = TuiStyle::new();
-    style.grid_auto_columns = Some(Value::Specified(Vec::new()));
+    style.grid.grid_auto_columns = Some(Value::Specified(Vec::new()));
     assert_eq!(
         items(style, ".g { grid-template-columns: 4 }", None),
         [(0, 4), (0, 4)]
     );
 
     let mut place = TuiStyle::new();
-    place.grid_column_end = Some(Value::Specified(GridLine::Span {
+    place.grid.grid_column_end = Some(Value::Specified(GridLine::Span {
         count: 0,
         name: None,
     }));

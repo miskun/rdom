@@ -26,7 +26,7 @@ fn grid_template_sets_rows_and_columns() {
         Some("[a] repeat(2, 3)")
     );
     assert_eq!(
-        style.grid_template_areas,
+        style.grid.grid_template_areas,
         Some(Value::Specified(GridTemplateAreas::NONE))
     );
     assert_eq!(
@@ -35,7 +35,7 @@ fn grid_template_sets_rows_and_columns() {
     );
     set("grid-template", "NONE", &mut style).unwrap();
     assert_eq!(
-        style.grid_template_rows,
+        style.grid.grid_template_rows,
         Some(Value::Specified(GridTemplate::None))
     );
     assert_eq!(serialized("grid-template", &style).as_deref(), Some("none"));
@@ -64,7 +64,7 @@ fn grid_template_takes_areas_with_row_sizes_and_line_names() {
     )
     .unwrap();
     assert_eq!(
-        style.grid_template_areas,
+        style.grid.grid_template_areas,
         Some(Value::Specified(
             GridTemplateAreas::new(["a a", "b ."]).unwrap()
         ))
@@ -83,7 +83,7 @@ fn grid_template_takes_areas_with_row_sizes_and_line_names() {
     );
     set("grid-template", "\"x\" \"y\"", &mut style).unwrap();
     assert_eq!(
-        style.grid_template_columns,
+        style.grid.grid_template_columns,
         Some(Value::Specified(GridTemplate::None))
     );
     assert_eq!(
@@ -146,11 +146,11 @@ fn grid_resets_the_implicit_grid() {
     set("gap", "1", &mut style).unwrap();
     set("grid", "\"a\" 2 / 4", &mut style).unwrap();
     assert_eq!(
-        style.grid_auto_flow,
+        style.grid.grid_auto_flow,
         Some(Value::Specified(GridAutoFlow::ROW))
     );
     assert_eq!(
-        style.grid_auto_rows,
+        style.grid.grid_auto_rows,
         Some(Value::Specified(vec![TrackSize::AUTO]))
     );
     assert!(style.row_gap.is_some());
@@ -180,11 +180,11 @@ fn grid_takes_the_auto_flow_forms() {
     set("grid-template-areas", "\"a\"", &mut style).unwrap();
     set("grid", "1 / dense auto-flow 2 3", &mut style).unwrap();
     assert_eq!(
-        style.grid_auto_flow,
+        style.grid.grid_auto_flow,
         Some(Value::Specified(GridAutoFlow::COLUMN.dense()))
     );
     assert_eq!(
-        style.grid_template_areas,
+        style.grid.grid_template_areas,
         Some(Value::Specified(GridTemplateAreas::NONE))
     );
     assert_eq!(

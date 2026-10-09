@@ -85,9 +85,13 @@ shared_default!(
     crate::layout::MulticolStyle,
     crate::layout::AnchorStyle,
     crate::layout::UiStyle,
+    crate::layout::GridStyle,
+    crate::layout::MotionStyle,
     crate::tui_style::EffectsDeclarations,
     crate::tui_style::MaskDeclarations,
     crate::tui_style::MulticolDeclarations,
     crate::tui_style::AnchorDeclarations,
     crate::tui_style::UiDeclarations,
+    crate::tui_style::GridDeclarations,
+    crate::tui_style::MotionDeclarations,
 );

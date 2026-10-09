@@ -853,7 +853,7 @@ fn marker_rules_keep_only_the_marker_properties() {
     let s = &rule.style;
     assert!(s.fg.is_some() && s.font.weight.is_some());
     assert!(s.text.white_space_collapse.is_some() && s.content.is_some());
-    assert!(s.text_direction.is_some() && s.transition_duration.is_some());
+    assert!(s.text_direction.is_some() && s.motion.transition_duration.is_some());
     assert!(
         s.padding.top.is_none(),
         "padding does not apply to ::marker"

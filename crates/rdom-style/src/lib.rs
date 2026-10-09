@@ -109,8 +109,9 @@ pub use transition::{
 pub use tui_color::{ColorContext, ColorFunction, TuiColor, parse_color, resolve_tui_color};
 pub use tui_style::{
     AnchorDeclarations, CustomDeclaration, EffectsDeclarations, FontDeclarations,
-    FragmentationDeclarations, ImportantMask, MaskDeclarations, MulticolDeclarations,
-    TableDeclarations, TextDeclarations, TextDecorationDeclarations, TuiStyle, UiDeclarations,
+    FragmentationDeclarations, GridDeclarations, ImportantMask, MaskDeclarations,
+    MotionDeclarations, MulticolDeclarations, TableDeclarations, TextDeclarations,
+    TextDecorationDeclarations, TuiStyle, UiDeclarations,
 };
 pub use value::Value;
 pub use var::PendingDeclaration;

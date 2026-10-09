@@ -73,13 +73,13 @@ pub use rdom_style::{
 pub use rdom_style::{
     Color, ColorContext, ColorFunction, ComputedStyle, Content, ContentContext, CounterOp,
     CounterStyle, CustomDeclaration, CustomValue, EffectsDeclarations, FontDeclarations,
-    FragmentationDeclarations, ImportantMask, LayerId, MaskDeclarations, Modifier,
-    MulticolDeclarations, PropertyRegistration, PropertySyntax, PropertySyntaxError,
-    PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError, Rule, RuleContext,
-    RuleOrigin, Shared, Specificity, StyleError, StyleSelector, Stylesheet, TableDeclarations,
-    TextDeclarations, TextDecorationDeclarations, TimingFunction, TransitionProperty,
-    TransitionRule, TuiColor, TuiStyle, UiDeclarations, UserActionState, Value, VarMap,
-    parse_color, resolve_tui_color,
+    FragmentationDeclarations, GridDeclarations, ImportantMask, LayerId, MaskDeclarations,
+    Modifier, MotionDeclarations, MulticolDeclarations, PropertyRegistration, PropertySyntax,
+    PropertySyntaxError, PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError,
+    Rule, RuleContext, RuleOrigin, Shared, Specificity, StyleError, StyleSelector, Stylesheet,
+    TableDeclarations, TextDeclarations, TextDecorationDeclarations, TimingFunction,
+    TransitionProperty, TransitionRule, TuiColor, TuiStyle, UiDeclarations, UserActionState, Value,
+    VarMap, parse_color, resolve_tui_color,
 };
 /// The declaration-level CSS parsing primitives (`parse::tokenize`,
 /// `parse::Token`, `parse::values::*`), the property dispatch table

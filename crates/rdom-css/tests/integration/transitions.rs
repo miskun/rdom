@@ -22,7 +22,7 @@ fn first_style(source: &str) -> rdom_tui::TuiStyle {
 fn transition_property_named() {
     let s = first_style("a { transition-property: color; }");
     assert_eq!(
-        s.transition_property,
+        s.motion.transition_property,
         Some(Value::Specified(vec![TransitionProperty::named("color")]))
     );
 }
@@ -31,7 +31,7 @@ fn transition_property_named() {
 fn transition_property_all() {
     let s = first_style("a { transition-property: all; }");
     assert_eq!(
-        s.transition_property,
+        s.motion.transition_property,
         Some(Value::Specified(vec![TransitionProperty::All]))
     );
 }
@@ -40,7 +40,7 @@ fn transition_property_all() {
 fn transition_property_none() {
     let s = first_style("a { transition-property: none; }");
     assert_eq!(
-        s.transition_property,
+        s.motion.transition_property,
         Some(Value::Specified(vec![TransitionProperty::None]))
     );
 }
@@ -49,7 +49,7 @@ fn transition_property_none() {
 fn transition_property_list() {
     let s = first_style("a { transition-property: color, background-color, width; }");
     assert_eq!(
-        s.transition_property,
+        s.motion.transition_property,
         Some(Value::Specified(vec![
             TransitionProperty::named("color"),
             TransitionProperty::named("background-color"),
@@ -63,26 +63,35 @@ fn transition_property_list() {
 #[test]
 fn transition_duration_ms() {
     let s = first_style("a { transition-duration: 200ms; }");
-    assert_eq!(s.transition_duration, Some(Value::Specified(vec![200])));
+    assert_eq!(
+        s.motion.transition_duration,
+        Some(Value::Specified(vec![200]))
+    );
 }
 
 #[test]
 fn transition_duration_seconds() {
     let s = first_style("a { transition-duration: 0.5s; }");
-    assert_eq!(s.transition_duration, Some(Value::Specified(vec![500])));
+    assert_eq!(
+        s.motion.transition_duration,
+        Some(Value::Specified(vec![500]))
+    );
 }
 
 #[test]
 fn transition_duration_zero_seconds() {
     let s = first_style("a { transition-duration: 0s; }");
-    assert_eq!(s.transition_duration, Some(Value::Specified(vec![0])));
+    assert_eq!(
+        s.motion.transition_duration,
+        Some(Value::Specified(vec![0]))
+    );
 }
 
 #[test]
 fn transition_duration_list() {
     let s = first_style("a { transition-duration: 100ms, 200ms, 300ms; }");
     assert_eq!(
-        s.transition_duration,
+        s.motion.transition_duration,
         Some(Value::Specified(vec![100, 200, 300]))
     );
 }
@@ -101,7 +110,7 @@ fn transition_timing_function_keywords() {
         let source = format!("a {{ transition-timing-function: {css}; }}");
         let s = first_style(&source);
         assert_eq!(
-            s.transition_timing_function,
+            s.motion.transition_timing_function,
             Some(Value::Specified(vec![expected])),
             "css: {css}"
         );
@@ -113,7 +122,7 @@ fn transition_timing_function_keywords() {
 #[test]
 fn transition_delay_ms() {
     let s = first_style("a { transition-delay: 50ms; }");
-    assert_eq!(s.transition_delay, Some(Value::Specified(vec![50])));
+    assert_eq!(s.motion.transition_delay, Some(Value::Specified(vec![50])));
 }
 
 // ── transition shorthand ──────────────────────────────────────────
@@ -122,65 +131,77 @@ fn transition_delay_ms() {
 fn transition_shorthand_all_pieces() {
     let s = first_style("a { transition: color 200ms ease-in 50ms; }");
     assert_eq!(
-        s.transition_property,
+        s.motion.transition_property,
         Some(Value::Specified(vec![TransitionProperty::named("color")]))
     );
-    assert_eq!(s.transition_duration, Some(Value::Specified(vec![200])));
     assert_eq!(
-        s.transition_timing_function,
+        s.motion.transition_duration,
+        Some(Value::Specified(vec![200]))
+    );
+    assert_eq!(
+        s.motion.transition_timing_function,
         Some(Value::Specified(vec![TimingFunction::EaseIn]))
     );
-    assert_eq!(s.transition_delay, Some(Value::Specified(vec![50])));
+    assert_eq!(s.motion.transition_delay, Some(Value::Specified(vec![50])));
 }
 
 #[test]
 fn transition_shorthand_property_and_duration() {
     let s = first_style("a { transition: color 200ms; }");
     assert_eq!(
-        s.transition_property,
+        s.motion.transition_property,
         Some(Value::Specified(vec![TransitionProperty::named("color")]))
     );
-    assert_eq!(s.transition_duration, Some(Value::Specified(vec![200])));
+    assert_eq!(
+        s.motion.transition_duration,
+        Some(Value::Specified(vec![200]))
+    );
     // Timing + delay default to ease + 0.
     assert_eq!(
-        s.transition_timing_function,
+        s.motion.transition_timing_function,
         Some(Value::Specified(vec![TimingFunction::Ease]))
     );
-    assert_eq!(s.transition_delay, Some(Value::Specified(vec![0])));
+    assert_eq!(s.motion.transition_delay, Some(Value::Specified(vec![0])));
 }
 
 #[test]
 fn transition_shorthand_all_keyword() {
     let s = first_style("a { transition: all 100ms; }");
     assert_eq!(
-        s.transition_property,
+        s.motion.transition_property,
         Some(Value::Specified(vec![TransitionProperty::All]))
     );
-    assert_eq!(s.transition_duration, Some(Value::Specified(vec![100])));
+    assert_eq!(
+        s.motion.transition_duration,
+        Some(Value::Specified(vec![100]))
+    );
 }
 
 #[test]
 fn transition_shorthand_multiple_rules() {
     let s = first_style("a { transition: color 200ms, background-color 300ms ease-in; }");
     assert_eq!(
-        s.transition_property,
+        s.motion.transition_property,
         Some(Value::Specified(vec![
             TransitionProperty::named("color"),
             TransitionProperty::named("background-color"),
         ]))
     );
     assert_eq!(
-        s.transition_duration,
+        s.motion.transition_duration,
         Some(Value::Specified(vec![200, 300]))
     );
     assert_eq!(
-        s.transition_timing_function,
+        s.motion.transition_timing_function,
         Some(Value::Specified(vec![
             TimingFunction::Ease,
             TimingFunction::EaseIn
         ]))
     );
-    assert_eq!(s.transition_delay, Some(Value::Specified(vec![0, 0])));
+    assert_eq!(
+        s.motion.transition_delay,
+        Some(Value::Specified(vec![0, 0]))
+    );
 }
 
 #[test]
@@ -189,10 +210,13 @@ fn transition_shorthand_pieces_in_any_order() {
     // Our parser detects each piece by token shape.
     let s = first_style("a { transition: 200ms color; }");
     assert_eq!(
-        s.transition_property,
+        s.motion.transition_property,
         Some(Value::Specified(vec![TransitionProperty::named("color")]))
     );
-    assert_eq!(s.transition_duration, Some(Value::Specified(vec![200])));
+    assert_eq!(
+        s.motion.transition_duration,
+        Some(Value::Specified(vec![200]))
+    );
 }
 
 #[test]
@@ -200,8 +224,11 @@ fn transition_shorthand_two_durations_first_is_duration_second_is_delay() {
     // Per CSS L1: when two <time> values appear in a single
     // shorthand, first = duration, second = delay.
     let s = first_style("a { transition: color 200ms 50ms; }");
-    assert_eq!(s.transition_duration, Some(Value::Specified(vec![200])));
-    assert_eq!(s.transition_delay, Some(Value::Specified(vec![50])));
+    assert_eq!(
+        s.motion.transition_duration,
+        Some(Value::Specified(vec![200]))
+    );
+    assert_eq!(s.motion.transition_delay, Some(Value::Specified(vec![50])));
 }
 
 // ── discrete names are valid (Transitions L1 §2.1) ──
@@ -214,7 +241,7 @@ fn transition_with_non_animatable_property_is_valid_and_inert() {
     let r = parse("a { transition-property: display; }");
     assert!(r.warnings.is_empty(), "{:?}", r.warnings);
     assert_eq!(
-        r.stylesheet.rules()[0].style.transition_property,
+        r.stylesheet.rules()[0].style.motion.transition_property,
         Some(Value::Specified(vec![TransitionProperty::named("display")]))
     );
 }
@@ -235,7 +262,7 @@ fn shorthand_accepts_cubic_bezier_and_steps() {
         "a { transition: width 200ms cubic-bezier(0.4, 0, 0.2, 1), color 1s steps(2, jump-both); }",
     );
     assert_eq!(
-        s.transition_timing_function,
+        s.motion.transition_timing_function,
         Some(Value::Specified(vec![
             TimingFunction::CubicBezier {
                 x1: 0.4,

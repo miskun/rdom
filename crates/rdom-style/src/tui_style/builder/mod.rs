@@ -22,19 +22,19 @@ use crate::{Content, TuiColor, Value};
 /// the property's range. The docs name the CSS property (`css-name`),
 /// not the Rust field (`direction` is `flex-direction`).
 macro_rules! setter {
-    ($css:literal, $field:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
-        setter!($css, $field, $setter, $important_setter, $mask, $ty, std::convert::identity);
+    ($css:literal, $($field:ident).+, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
+        setter!($css, $($field).+, $setter, $important_setter, $mask, $ty, std::convert::identity);
     };
-    ($css:literal, $field:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty, $valid:path) => {
+    ($css:literal, $($field:ident).+, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty, $valid:path) => {
         #[doc = concat!("Set the `", $css, "` property to `v`. Chainable.")]
         pub fn $setter(mut self, v: $ty) -> Self {
-            self.$field = Some(Value::Specified($valid(v)));
+            self.$($field).+ = Some(Value::Specified($valid(v)));
             self
         }
 
         #[doc = concat!("Like `", stringify!($setter), "` but also marks the `", $css, "` declaration `!important`.")]
         pub fn $important_setter(mut self, v: $ty) -> Self {
-            self.$field = Some(Value::Specified($valid(v)));
+            self.$($field).+ = Some(Value::Specified($valid(v)));
             self.important |= ImportantMask::$mask;
             self
         }
@@ -46,10 +46,10 @@ macro_rules! setter {
 /// `side_setter!("css-name", field, side, setter, important_setter,
 /// MASK, ValueType)`.
 macro_rules! side_setter {
-    ($css:literal, $field:ident, $side:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
+    ($css:literal, $($field:ident).+, $side:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
         #[doc = concat!("Set the `", $css, "` longhand to `v` (cells, or a `", stringify!($ty), "`), leaving the other sides as they are. Chainable.")]
         pub fn $setter(mut self, v: impl Into<$ty>) -> Self {
-            self.$field.$side = Some(Value::Specified(v.into()));
+            self.$($field).+.$side = Some(Value::Specified(v.into()));
             self
         }
 
@@ -61,10 +61,10 @@ macro_rules! side_setter {
     };
     // A side whose value type is a plain number: `v` taken as it is, so a
     // literal infers it.
-    (exact $css:literal, $field:ident, $side:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
+    (exact $css:literal, $($field:ident).+, $side:ident, $setter:ident, $important_setter:ident, $mask:ident, $ty:ty) => {
         #[doc = concat!("Set the `", $css, "` longhand to `v`, leaving the other sides as they are. Chainable.")]
         pub fn $setter(mut self, v: $ty) -> Self {
-            self.$field.$side = Some(Value::Specified(v));
+            self.$($field).+.$side = Some(Value::Specified(v));
             self
         }
 

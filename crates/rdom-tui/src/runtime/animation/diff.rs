@@ -342,7 +342,7 @@ fn update_css(
     let style = ext
         .base_computed_for(slot)
         .filter(|s| rendered && s.display != crate::layout::Display::None);
-    let wants = style.is_some_and(|s| !s.animation_name.is_empty());
+    let wants = style.is_some_and(|s| !s.motion.animation_name.is_empty());
     if !(animated || wants) || !changed {
         return;
     }

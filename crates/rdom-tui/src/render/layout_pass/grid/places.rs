@@ -79,7 +79,7 @@ pub(super) fn place_grid<'a>(
     // §8.5: placement takes the items in order-modified document order
     // (CSS Display 3 §3).
     items::sort_by_order(dom, &mut children);
-    let areas = &computed.grid_template_areas;
+    let areas = &computed.grid.grid_template_areas;
     let explicit = |template: &'a GridTemplate, bounds, dimension| {
         let rows = dimension == Dimension::Rows;
         match (inherit.on(dimension), template.subgrid()) {
@@ -92,11 +92,15 @@ pub(super) fn place_grid<'a>(
         .with_areas(areas, rows)
     };
     let columns = explicit(
-        &computed.grid_template_columns,
+        &computed.grid.grid_template_columns,
         column_bounds,
         Dimension::Columns,
     );
-    let rows = explicit(&computed.grid_template_rows, row_bounds, Dimension::Rows);
+    let rows = explicit(
+        &computed.grid.grid_template_rows,
+        row_bounds,
+        Dimension::Rows,
+    );
     let subgrids: Vec<SubAxes> = children.iter().map(|c| subgrid::axes(dom, c)).collect();
     // §8.3: each item's lines on both axes, against the explicit grid's;
     // an auto-placed subgrid spans its `<line-name-list>`'s lines less one
@@ -107,23 +111,27 @@ pub(super) fn place_grid<'a>(
         .zip(&subgrids)
         .map(|(c, sub)| {
             let s = c.computed(dom);
-            let mut row = placement::resolve(&s.grid_row_start, &s.grid_row_end, row_lines);
-            let mut column =
-                placement::resolve(&s.grid_column_start, &s.grid_column_end, column_lines);
+            let mut row =
+                placement::resolve(&s.grid.grid_row_start, &s.grid.grid_row_end, row_lines);
+            let mut column = placement::resolve(
+                &s.grid.grid_column_start,
+                &s.grid.grid_column_end,
+                column_lines,
+            );
             if sub.rows {
                 row = own_span(
                     row,
-                    &s.grid_row_start,
-                    &s.grid_row_end,
-                    &s.grid_template_rows,
+                    &s.grid.grid_row_start,
+                    &s.grid.grid_row_end,
+                    &s.grid.grid_template_rows,
                 );
             }
             if sub.columns {
                 column = own_span(
                     column,
-                    &s.grid_column_start,
-                    &s.grid_column_end,
-                    &s.grid_template_columns,
+                    &s.grid.grid_column_start,
+                    &s.grid.grid_column_end,
+                    &s.grid.grid_template_columns,
                 );
             }
             if inherit.rows.is_some() {
@@ -140,7 +148,7 @@ pub(super) fn place_grid<'a>(
         areas,
         rows.count,
         columns.count,
-        computed.grid_auto_flow,
+        computed.grid.grid_auto_flow,
     );
     // Auto-placement may still have gone past a subgridded axis's end.
     if inherit.columns.is_some() {

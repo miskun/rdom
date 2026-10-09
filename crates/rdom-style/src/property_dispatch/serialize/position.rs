@@ -71,36 +71,39 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
 
         // Transitions (M3)
         "transition-property" => style
+            .motion
             .transition_property
             .as_ref()
             .and_then(specified)
             .map(|list| join_csv(list.iter(), serialize_transition_property)),
         "transition-duration" => style
+            .motion
             .transition_duration
             .as_ref()
             .and_then(specified)
             .map(|list| join_csv(list.iter(), |ms| format!("{ms}ms"))),
         "transition-timing-function" => style
+            .motion
             .transition_timing_function
             .as_ref()
             .and_then(specified)
             .map(|list| join_csv(list.iter(), serialize_timing_function)),
         "transition-delay" => style
+            .motion
             .transition_delay
             .as_ref()
             .and_then(specified)
             .map(|list| join_csv(list.iter(), |ms| format!("{ms}ms"))),
-        "transition-behavior" => {
-            style
-                .transition_behavior
-                .as_ref()
-                .and_then(specified)
-                .map(|list| {
-                    join_csv(list.iter(), |b| {
-                        serialize_transition_behavior(*b).to_string()
-                    })
+        "transition-behavior" => style
+            .motion
+            .transition_behavior
+            .as_ref()
+            .and_then(specified)
+            .map(|list| {
+                join_csv(list.iter(), |b| {
+                    serialize_transition_behavior(*b).to_string()
                 })
-        }
+            }),
         "transition" => serialize_transition_shorthand(style),
         "counter-reset" => style
             .counter_reset

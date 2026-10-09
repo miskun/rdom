@@ -63,9 +63,9 @@ impl Rule {
 /// Whether any entry of `style` could start a transition — the diff's
 /// fast path for the elements that declare none.
 pub(super) fn any(style: &ComputedStyle) -> bool {
-    !style.transition_property.is_empty()
-        && (style.transition_duration.iter().any(|d| *d > 0)
-            || style.transition_delay.iter().any(|d| *d > 0))
+    !style.motion.transition_property.is_empty()
+        && (style.motion.transition_duration.iter().any(|d| *d > 0)
+            || style.motion.transition_delay.iter().any(|d| *d > 0))
 }
 
 /// The entry at `idx`, the other lists cycled (§2: "the values are
@@ -79,10 +79,18 @@ fn at(style: &ComputedStyle, idx: usize) -> Rule {
         }
     }
     Rule {
-        duration_ms: cycle(&style.transition_duration, idx, 0),
-        timing: cycle(&style.transition_timing_function, idx, TimingFunction::Ease),
-        delay_ms: cycle(&style.transition_delay, idx, 0),
-        behavior: cycle(&style.transition_behavior, idx, TransitionBehavior::Normal),
+        duration_ms: cycle(&style.motion.transition_duration, idx, 0),
+        timing: cycle(
+            &style.motion.transition_timing_function,
+            idx,
+            TimingFunction::Ease,
+        ),
+        delay_ms: cycle(&style.motion.transition_delay, idx, 0),
+        behavior: cycle(
+            &style.motion.transition_behavior,
+            idx,
+            TransitionBehavior::Normal,
+        ),
     }
 }
 
@@ -96,7 +104,7 @@ impl Coverage {
     pub(super) fn of(style: &ComputedStyle) -> Coverage {
         let mut slots = vec![None; Longhand::all().count()];
         let direction = style.text_direction;
-        for (i, p) in style.transition_property.iter().enumerate() {
+        for (i, p) in style.motion.transition_property.iter().enumerate() {
             let i = Some(i as u16);
             match p {
                 TransitionProperty::All => {
@@ -124,10 +132,14 @@ impl Coverage {
 /// The rule covering the custom property `--name` (`all` or the name
 /// itself).
 pub(super) fn custom(style: &ComputedStyle, name: &str) -> Option<Rule> {
-    let idx = style.transition_property.iter().rposition(|p| match p {
-        TransitionProperty::All => true,
-        TransitionProperty::Other(n) => n.strip_prefix("--") == Some(name),
-        _ => false,
-    })?;
+    let idx = style
+        .motion
+        .transition_property
+        .iter()
+        .rposition(|p| match p {
+            TransitionProperty::All => true,
+            TransitionProperty::Other(n) => n.strip_prefix("--") == Some(name),
+            _ => false,
+        })?;
     Some(at(style, idx))
 }

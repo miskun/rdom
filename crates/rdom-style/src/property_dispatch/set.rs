@@ -460,31 +460,31 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
 
         // Transitions (M3)
         "transition-property" => parse_transition_property_list(value).map(|list| {
-            style.transition_property = Some(Value::Specified(list));
+            style.motion.transition_property = Some(Value::Specified(list));
         }),
         "transition-duration" => crate::parse::values::parse_duration_list(value).map(|list| {
-            style.transition_duration = Some(Value::Specified(list));
+            style.motion.transition_duration = Some(Value::Specified(list));
         }),
         "transition-timing-function" => parse_timing_function_list(value).map(|list| {
-            style.transition_timing_function = Some(Value::Specified(list));
+            style.motion.transition_timing_function = Some(Value::Specified(list));
         }),
         "transition-delay" => parse_time_list(value).map(|list| {
-            style.transition_delay = Some(Value::Specified(list));
+            style.motion.transition_delay = Some(Value::Specified(list));
         }),
         "transition-behavior" => {
             crate::parse::values::parse_transition_behavior_list(value).map(|list| {
-                style.transition_behavior = Some(Value::Specified(list));
+                style.motion.transition_behavior = Some(Value::Specified(list));
             })
         }
         "transition" => parse_transition_shorthand(value).map(|rules| {
             let (props, durs, timings, delays) = unzip_transition_rules(&rules);
-            style.transition_behavior = Some(Value::Specified(
+            style.motion.transition_behavior = Some(Value::Specified(
                 rules.iter().map(|r| r.behavior()).collect(),
             ));
-            style.transition_property = Some(Value::Specified(props));
-            style.transition_duration = Some(Value::Specified(durs));
-            style.transition_timing_function = Some(Value::Specified(timings));
-            style.transition_delay = Some(Value::Specified(delays));
+            style.motion.transition_property = Some(Value::Specified(props));
+            style.motion.transition_duration = Some(Value::Specified(durs));
+            style.motion.transition_timing_function = Some(Value::Specified(timings));
+            style.motion.transition_delay = Some(Value::Specified(delays));
         }),
 
         "counter-reset" => parse_counter_ops(value, 0, true).map(|ops| {

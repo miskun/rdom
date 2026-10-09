@@ -26,8 +26,10 @@ use crate::{Content, TuiColor, Value};
 
 pub use anchor::AnchorDeclarations;
 pub use effects::EffectsDeclarations;
+pub use grid::GridDeclarations;
 pub use important::ImportantMask;
 pub use mask::MaskDeclarations;
+pub use motion::MotionDeclarations;
 pub use multicol::{FragmentationDeclarations, MulticolDeclarations};
 pub use table::TableDeclarations;
 pub use text::{FontDeclarations, TextDeclarations, TextDecorationDeclarations};
@@ -137,28 +139,9 @@ pub struct TuiStyle {
     pub flex_grow: Option<Value<f32>>,
     /// `flex-basis` (§7.3.3), also set by the `flex` shorthand.
     pub flex_basis: Option<Value<crate::layout::FlexBasis>>,
-    /// `grid-template-columns` (CSS Grid 2 §7.2): the explicit grid's
-    /// columns.
-    pub grid_template_columns: Option<Value<crate::layout::GridTemplate>>,
-    /// `grid-template-rows` (§7.2): the explicit grid's rows.
-    pub grid_template_rows: Option<Value<crate::layout::GridTemplate>>,
-    /// `grid-template-areas` (CSS Grid 2 §7.3): the explicit grid's named
-    /// areas.
-    pub grid_template_areas: Option<Value<crate::layout::GridTemplateAreas>>,
-    /// `grid-auto-columns` (CSS Grid 2 §7.6): the implicit columns'
-    /// sizes, a pattern of one or more.
-    pub grid_auto_columns: Option<Value<Vec<crate::layout::TrackSize>>>,
-    /// `grid-auto-rows` (§7.6): the implicit rows' sizes.
-    pub grid_auto_rows: Option<Value<Vec<crate::layout::TrackSize>>>,
-    /// `grid-auto-flow` (§7.7): how auto-placement fills the grid.
-    pub grid_auto_flow: Option<Value<crate::layout::GridAutoFlow>>,
-    /// `grid-row-start` / `-end`, `grid-column-start` / `-end` (§8.3):
-    /// the item's grid area; set together by `grid-row`, `grid-column`
-    /// and `grid-area` (§8.4).
-    pub grid_row_start: Option<Value<crate::layout::GridLine>>,
-    pub grid_row_end: Option<Value<crate::layout::GridLine>>,
-    pub grid_column_start: Option<Value<crate::layout::GridLine>>,
-    pub grid_column_end: Option<Value<crate::layout::GridLine>>,
+    /// The grid declarations (CSS Grid 2 §7–§8), one shared group
+    /// (C15G-STYLE-SIZE).
+    pub grid: crate::Shared<GridDeclarations>,
     /// `border-top-style` … `border-left-style` (CSS Backgrounds 3
     /// §4.2), one longhand per side; initial `none`.
     pub border_style: Sides<Option<Value<crate::layout::BorderStyle>>>,
@@ -337,59 +320,10 @@ pub struct TuiStyle {
     /// `clear` (CSS 2.1 §9.5.2).
     pub clear: Option<Value<crate::layout::Clear>>,
 
-    // ── Transitions (M3) ─────────────────────────────────────────────
-    /// `transition-property` longhand. Each entry covers one
-    /// CSS property (or `all` / `none`) at the matching index in
-    /// the duration / timing / delay lists.
-    pub transition_property: Option<Value<Vec<crate::transition::TransitionProperty>>>,
-    /// `transition-duration` longhand, in milliseconds.
-    pub transition_duration: Option<Value<Vec<u32>>>,
-    /// `transition-timing-function` longhand.
-    pub transition_timing_function: Option<Value<Vec<crate::transition::TimingFunction>>>,
-    /// `transition-delay` longhand, in milliseconds.
-    pub transition_delay: Option<Value<Vec<i32>>>,
-    /// `transition-behavior` (CSS Transitions 2 §3.1).
-    pub transition_behavior: Option<Value<Vec<crate::transition::TransitionBehavior>>>,
-
-    // ── Animations (CSS Animations 1 / 2) ────────────────────────────
-    /// `animation-name` (CSS Animations 1 §4.1): which `@keyframes` each animation runs.
-    pub animation_name: Option<Value<Vec<crate::keyframes::AnimationName>>>,
-    /// `animation-duration` (§4.2, CSS Animations 2 §3.3: `auto`).
-    pub animation_duration: Option<Value<Vec<crate::keyframes::AnimationDuration>>>,
-    /// `animation-timing-function` (§4.3): each keyframe interval's easing.
-    pub animation_timing_function: Option<Value<Vec<crate::transition::TimingFunction>>>,
-    /// `animation-delay` in milliseconds (§4.7); negative starts part-way.
-    pub animation_delay: Option<Value<Vec<i32>>>,
-    /// `animation-iteration-count` (§4.4).
-    pub animation_iteration_count: Option<Value<Vec<crate::keyframes::IterationCount>>>,
-    /// `animation-direction` (§4.5).
-    pub animation_direction: Option<Value<Vec<crate::keyframes::AnimationDirection>>>,
-    /// `animation-fill-mode` (§4.8).
-    pub animation_fill_mode: Option<Value<Vec<crate::keyframes::AnimationFillMode>>>,
-    /// `animation-play-state` (§4.6).
-    pub animation_play_state: Option<Value<Vec<crate::keyframes::AnimationPlayState>>>,
-    /// `animation-composition` (CSS Animations 2 §3.2).
-    pub animation_composition: Option<Value<Vec<crate::keyframes::AnimationComposition>>>,
-    /// `animation-timeline` (CSS Animations 2 §3.7, Scroll-driven Animations 1 §4.1).
-    pub animation_timeline: Option<Value<Vec<crate::keyframes::AnimationTimeline>>>,
-
-    // ── Scroll-driven animations (Scroll-driven Animations 1) ────────
-    /// `scroll-timeline-name` (Scroll-driven Animations 1 §2.2.1).
-    pub scroll_timeline_name: Option<Value<Vec<crate::keyframes::TimelineName>>>,
-    /// `scroll-timeline-axis` (§2.2.2).
-    pub scroll_timeline_axis: Option<Value<Vec<crate::keyframes::TimelineAxis>>>,
-    /// `view-timeline-name` (§3.2.1).
-    pub view_timeline_name: Option<Value<Vec<crate::keyframes::TimelineName>>>,
-    /// `view-timeline-axis` (§3.2.2).
-    pub view_timeline_axis: Option<Value<Vec<crate::keyframes::TimelineAxis>>>,
-    /// `view-timeline-inset` (§3.2.3).
-    pub view_timeline_inset: Option<Value<Vec<crate::keyframes::TimelineInset>>>,
-    /// `timeline-scope` (§4.2).
-    pub timeline_scope: Option<Value<crate::keyframes::TimelineScope>>,
-    /// `animation-range-start` (§4.3.1).
-    pub animation_range_start: Option<Value<Vec<crate::keyframes::RangeBoundary>>>,
-    /// `animation-range-end` (§4.3.2).
-    pub animation_range_end: Option<Value<Vec<crate::keyframes::RangeBoundary>>>,
+    // ── Transitions, animations and their timelines ─────────────────
+    /// The `transition-*`, `animation-*`, timeline and range
+    /// declarations, one shared group (C15G-STYLE-SIZE).
+    pub motion: crate::Shared<MotionDeclarations>,
 
     // ── Counters (CSS Lists 3 §4) ────────────────────────────────────
     pub counter_reset: Option<Value<Vec<crate::counters::CounterOp>>>,
@@ -505,8 +439,10 @@ impl TuiStyle {
 mod anchor;
 mod builder;
 mod effects;
+mod grid;
 mod important;
 mod mask;
+mod motion;
 mod multicol;
 mod subsets;
 mod table;

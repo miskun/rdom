@@ -107,7 +107,7 @@ impl Keyframe {
     /// The block's `animation-timing-function` (§3: the easing from this
     /// keyframe to the next one), if it declares one.
     pub fn easing(&self) -> Option<&TimingFunction> {
-        match self.style.animation_timing_function.as_ref()? {
+        match self.style.motion.animation_timing_function.as_ref()? {
             crate::Value::Specified(list) => list.first(),
             _ => None,
         }
@@ -116,7 +116,7 @@ impl Keyframe {
     /// The block's `animation-composition` (CSS Animations 2 §3.2: the
     /// keyframe's composite operation), if it declares one.
     pub fn composition(&self) -> Option<AnimationComposition> {
-        match self.style.animation_composition.as_ref()? {
+        match self.style.motion.animation_composition.as_ref()? {
             crate::Value::Specified(list) => list.first().copied(),
             _ => None,
         }

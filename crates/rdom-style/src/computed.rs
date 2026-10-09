@@ -108,34 +108,10 @@ pub struct ComputedStyle {
     /// `flex-basis` (CSS Flexbox §7.3.3): the flex base size (§9.2
     /// step 3). Initial `auto`.
     pub flex_basis: crate::layout::FlexBasis,
-    /// `grid-template-columns` (CSS Grid 2 §7.2): the explicit columns of
-    /// a grid container, viewport units resolved. Initial `none`.
-    pub grid_template_columns: crate::layout::GridTemplate,
-    /// `grid-template-rows` (§7.2): the explicit rows. Initial `none`.
-    pub grid_template_rows: crate::layout::GridTemplate,
-    /// `grid-template-areas` (CSS Grid 2 §7.3): the explicit grid's
-    /// named areas. Initial `none`.
-    pub grid_template_areas: crate::layout::GridTemplateAreas,
-    /// `grid-auto-columns` (CSS Grid 2 §7.6): the implicit columns'
-    /// sizes, repeated as a pattern; never empty. Initial `auto`, the
-    /// shared [`TrackSize::AUTO_LIST`](crate::layout::TrackSize::AUTO_LIST)
-    /// borrowed — every element starts from the initial style, so it
-    /// allocates nothing (C7G-INITIAL-ALLOC); a declared list is owned.
-    pub grid_auto_columns: std::borrow::Cow<'static, [crate::layout::TrackSize]>,
-    /// `grid-auto-rows` (§7.6): the implicit rows' sizes. Initial `auto`,
-    /// borrowed as `grid_auto_columns`'.
-    pub grid_auto_rows: std::borrow::Cow<'static, [crate::layout::TrackSize]>,
-    /// `grid-auto-flow` (CSS Grid 2 §7.7). Initial `row`.
-    pub grid_auto_flow: crate::layout::GridAutoFlow,
-    /// `grid-row-start` (CSS Grid 2 §8.3): where the item's grid area
-    /// starts among the rows. Initial `auto`, as are the next three.
-    pub grid_row_start: crate::layout::GridLine,
-    /// `grid-row-end` (§8.3).
-    pub grid_row_end: crate::layout::GridLine,
-    /// `grid-column-start` (§8.3).
-    pub grid_column_start: crate::layout::GridLine,
-    /// `grid-column-end` (§8.3).
-    pub grid_column_end: crate::layout::GridLine,
+    /// The grid properties (CSS Grid 2 §7–§8): the container's tracks and
+    /// areas, the item's placement — set on few elements, so held
+    /// [`Shared`](crate::Shared) (C15G-STYLE-SIZE).
+    pub grid: crate::Shared<crate::layout::GridStyle>,
     /// The used border: [`border_style`](Self::border_style) with every
     /// zero-width side `none` (CSS Backgrounds 3 §4.3) — what layout
     /// reserves cells for and paint draws.
@@ -388,44 +364,12 @@ pub struct ComputedStyle {
     /// `clear` (CSS 2.1 §9.5.2). Not inherited.
     pub clear: crate::layout::Clear,
 
-    // ── Transitions (M3) ─────────────────────────────────────────────
-    /// Resolved `transition-*` longhand lists. Empty when no
-    /// transition rules apply. Engine reads them by index per the
-    /// CSS L1 reconciliation rule (shorter lists cycle).
-    pub transition_property: Vec<crate::transition::TransitionProperty>,
-    pub transition_duration: Vec<u32>,
-    pub transition_timing_function: Vec<crate::transition::TimingFunction>,
-    pub transition_delay: Vec<i32>,
-    /// `transition-behavior` (CSS Transitions 2 §3.1); empty is `normal`.
-    pub transition_behavior: Vec<crate::transition::TransitionBehavior>,
-
-    // ── Animations (CSS Animations 1 / 2) ────────────────────────────
-    /// The `animation-*` longhand lists, matched to `animation-name` by
-    /// index (CSS Animations 1 §4.1: shorter lists repeat). Empty is the
-    /// longhand's initial value. Not inherited.
-    pub animation_name: Vec<crate::keyframes::AnimationName>,
-    pub animation_duration: Vec<crate::keyframes::AnimationDuration>,
-    pub animation_timing_function: Vec<crate::transition::TimingFunction>,
-    pub animation_delay: Vec<i32>,
-    pub animation_iteration_count: Vec<crate::keyframes::IterationCount>,
-    pub animation_direction: Vec<crate::keyframes::AnimationDirection>,
-    pub animation_fill_mode: Vec<crate::keyframes::AnimationFillMode>,
-    pub animation_play_state: Vec<crate::keyframes::AnimationPlayState>,
-    pub animation_composition: Vec<crate::keyframes::AnimationComposition>,
-    pub animation_timeline: Vec<crate::keyframes::AnimationTimeline>,
-
-    // ── Scroll-driven animations (Scroll-driven Animations 1) ────────
-    /// The timeline longhands' lists (empty: `none` / the initial axis),
-    /// `timeline-scope`, and the animations' ranges (empty: `normal`).
-    /// Not inherited.
-    pub scroll_timeline_name: Vec<crate::keyframes::TimelineName>,
-    pub scroll_timeline_axis: Vec<crate::keyframes::TimelineAxis>,
-    pub view_timeline_name: Vec<crate::keyframes::TimelineName>,
-    pub view_timeline_axis: Vec<crate::keyframes::TimelineAxis>,
-    pub view_timeline_inset: Vec<crate::keyframes::TimelineInset>,
-    pub timeline_scope: crate::keyframes::TimelineScope,
-    pub animation_range_start: Vec<crate::keyframes::RangeBoundary>,
-    pub animation_range_end: Vec<crate::keyframes::RangeBoundary>,
+    // ── Transitions, animations and their timelines ─────────────────
+    /// The `transition-*`, `animation-*`, timeline and range longhands
+    /// (CSS Transitions 1 / 2, CSS Animations 1 / 2, Scroll-driven
+    /// Animations 1): set on few elements, so held
+    /// [`Shared`](crate::Shared) (C15G-STYLE-SIZE).
+    pub motion: crate::Shared<crate::layout::MotionStyle>,
 
     /// `counter-reset` / `counter-increment` / `counter-set` (CSS Lists
     /// 3 §4). Non-inheriting; the cascade applies them to its counter

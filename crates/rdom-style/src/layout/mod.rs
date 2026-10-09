@@ -57,10 +57,12 @@ mod gap;
 mod grid;
 mod grid_areas;
 mod grid_placement;
+mod grid_style;
 mod keywords;
 mod line_clamp;
 mod line_height;
 mod list;
+mod motion;
 mod multicol;
 mod overflow;
 mod position_area;
@@ -113,6 +115,7 @@ pub use grid::{
 };
 pub use grid_areas::{GridTemplateAreas, NamedArea};
 pub use grid_placement::{GridAutoFlow, GridLine};
+pub use grid_style::GridStyle;
 pub use keywords::{
     BoxSizing, CaretColor, CaretTextColor, Direction, Display, FlexDirection, FlexWrap, Flow,
     Overlay, PointerEvents, Position, ScrollBehavior, TextDecoration, TextDirection, UserSelect,
@@ -121,6 +124,7 @@ pub use keywords::{
 pub use line_clamp::{BlockEllipsis, BoxOrient, Continue};
 pub use line_height::LineHeight;
 pub use list::{ListStyleImage, ListStylePosition, ListStyleType, MarkerSide};
+pub use motion::MotionStyle;
 pub use multicol::{
     BoxDecorationBreak, BreakBetween, BreakInside, ColumnCount, ColumnFill, ColumnSpan,
     ColumnWidth, FragmentationStyle, MulticolStyle,

@@ -108,12 +108,13 @@ fn flex_direction_reads_axis_and_reverse_as_one() {
 
 /// Every element carries a `ComputedStyle` (and its `::before` / `::after`
 /// one); the rarely set groups — effects, multi-column, anchor positioning,
-/// the UI properties — are `Shared`, one pointer each, so their size is
+/// the UI properties, the grid properties and the transition, animation
+/// and timeline lists — are `Shared`, one pointer each, so their size is
 /// paid once by the elements that set one. Tripwire: a new inline field
 /// lands in a group, or raises this bound in review.
 #[test]
 fn computed_style_size_tripwire() {
-    const MAX: usize = 2560;
+    const MAX: usize = 1700;
     let size = std::mem::size_of::<ComputedStyle>();
     assert!(
         size <= MAX,
@@ -125,7 +126,7 @@ fn computed_style_size_tripwire() {
 /// its rare groups are `Shared` as the computed ones are.
 #[test]
 fn tui_style_size_tripwire() {
-    const MAX: usize = 3000;
+    const MAX: usize = 2160;
     let size = std::mem::size_of::<crate::TuiStyle>();
     assert!(size <= MAX, "size_of::<TuiStyle>() = {size}, bound {MAX}");
 }
@@ -140,6 +141,8 @@ fn the_initial_styles_share_their_rare_groups_until_written() {
     assert!(crate::Shared::ptr_eq(&a.multicol, &b.multicol));
     assert!(crate::Shared::ptr_eq(&a.anchor, &b.anchor));
     assert!(crate::Shared::ptr_eq(&a.ui, &b.ui));
+    assert!(crate::Shared::ptr_eq(&a.grid, &b.grid));
+    assert!(crate::Shared::ptr_eq(&a.motion, &b.motion));
     b.effects.isolation = crate::layout::Isolation::Isolate;
     assert!(!crate::Shared::ptr_eq(&a.effects, &b.effects));
     assert_eq!(a.effects.isolation, crate::layout::Isolation::Auto);
@@ -148,4 +151,6 @@ fn the_initial_styles_share_their_rare_groups_until_written() {
     let e = crate::TuiStyle::new();
     assert!(crate::Shared::ptr_eq(&d.effects, &e.effects));
     assert!(crate::Shared::ptr_eq(&d.masks, &e.masks));
+    assert!(crate::Shared::ptr_eq(&d.grid, &e.grid));
+    assert!(crate::Shared::ptr_eq(&d.motion, &e.motion));
 }

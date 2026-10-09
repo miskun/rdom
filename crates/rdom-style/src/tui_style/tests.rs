@@ -670,14 +670,17 @@ fn the_view_timeline_and_scope_longhands_have_setters() {
         .view_timeline_inset(vec![TimelineInset::default()])
         .timeline_scope(TimelineScope::All);
     assert_eq!(
-        s.view_timeline_axis,
+        s.motion.view_timeline_axis,
         Some(Value::Specified(vec![TimelineAxis::Inline]))
     );
     assert_eq!(
-        s.view_timeline_inset,
+        s.motion.view_timeline_inset,
         Some(Value::Specified(vec![TimelineInset::default()]))
     );
-    assert_eq!(s.timeline_scope, Some(Value::Specified(TimelineScope::All)));
+    assert_eq!(
+        s.motion.timeline_scope,
+        Some(Value::Specified(TimelineScope::All))
+    );
 }
 
 /// C12G-API-HYGIENE: the UI setters take `impl Into` of their value, as

@@ -355,7 +355,7 @@ fn property_names_and_keywords_are_case_insensitive() {
         Some(Value::Specified(TextDecorationLine::UNDERLINE))
     );
     assert_eq!(
-        s.transition_duration,
+        s.motion.transition_duration,
         Some(Value::Specified(vec![2000, 300]))
     );
     assert!(s.position.is_some());

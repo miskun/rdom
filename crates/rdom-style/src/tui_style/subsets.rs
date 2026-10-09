@@ -151,11 +151,15 @@ impl TuiStyle {
             text,
             content: self.content.clone(),
             text_direction: self.text_direction,
-            transition_property: self.transition_property.clone(),
-            transition_duration: self.transition_duration.clone(),
-            transition_timing_function: self.transition_timing_function.clone(),
-            transition_delay: self.transition_delay.clone(),
-            transition_behavior: self.transition_behavior.clone(),
+            motion: super::MotionDeclarations {
+                transition_property: self.motion.transition_property.clone(),
+                transition_duration: self.motion.transition_duration.clone(),
+                transition_timing_function: self.motion.transition_timing_function.clone(),
+                transition_delay: self.motion.transition_delay.clone(),
+                transition_behavior: self.motion.transition_behavior.clone(),
+                ..Default::default()
+            }
+            .into(),
             ..self.restricted_to(keep, false)
         }
     }

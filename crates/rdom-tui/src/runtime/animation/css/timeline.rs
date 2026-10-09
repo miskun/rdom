@@ -340,7 +340,7 @@ fn named(dom: &Dom<TuiExt>, id: NodeId, name: &str) -> Resolved {
         if let Some(found) = declared(dom, a, name) {
             return found;
         }
-        if style(dom, a).is_some_and(|c| c.timeline_scope.covers(name)) {
+        if style(dom, a).is_some_and(|c| c.motion.timeline_scope.covers(name)) {
             let mut found = Vec::new();
             descendants_declaring(dom, a, name, &mut found);
             return match found.as_slice() {
@@ -369,16 +369,21 @@ fn declared(dom: &Dom<TuiExt>, a: NodeId, name: &str) -> Option<Resolved> {
             list[i % list.len()]
         }
     };
-    if let Some(i) = index(&c.scroll_timeline_name) {
-        return Some(scroll(dom, a, cycled(&c.scroll_timeline_axis, i)));
+    if let Some(i) = index(&c.motion.scroll_timeline_name) {
+        return Some(scroll(dom, a, cycled(&c.motion.scroll_timeline_axis, i)));
     }
-    let i = index(&c.view_timeline_name)?;
-    let inset = if c.view_timeline_inset.is_empty() {
+    let i = index(&c.motion.view_timeline_name)?;
+    let inset = if c.motion.view_timeline_inset.is_empty() {
         TimelineInset::default()
     } else {
-        c.view_timeline_inset[i % c.view_timeline_inset.len()].clone()
+        c.motion.view_timeline_inset[i % c.motion.view_timeline_inset.len()].clone()
     };
-    Some(view(dom, a, cycled(&c.view_timeline_axis, i), &inset))
+    Some(view(
+        dom,
+        a,
+        cycled(&c.motion.view_timeline_axis, i),
+        &inset,
+    ))
 }
 
 /// The elements under `a` declaring a timeline named `name`, in tree
@@ -396,9 +401,10 @@ fn descendants_declaring(dom: &Dom<TuiExt>, a: NodeId, name: &str, out: &mut Vec
             continue;
         }
         if style(dom, c).is_some_and(|s| {
-            s.scroll_timeline_name
+            s.motion
+                .scroll_timeline_name
                 .iter()
-                .chain(&s.view_timeline_name)
+                .chain(&s.motion.view_timeline_name)
                 .any(|n| n.name() == Some(name))
         }) {
             out.push(c);

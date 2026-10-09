@@ -215,14 +215,32 @@ impl ComputedStyle {
                 });
             }
         }
-        for template in [
-            &mut self.grid_template_columns,
-            &mut self.grid_template_rows,
-        ] {
-            absolutize_template(template, vp);
-        }
-        for list in [&mut self.grid_auto_columns, &mut self.grid_auto_rows] {
-            absolutize_list(list, vp);
+        // The grid group is shared: a grid that declares track lists is
+        // worked on as a copy, written back only when a value moved.
+        let g = &*self.grid;
+        let tracks =
+            |t: &crate::layout::GridTemplate| matches!(t, crate::layout::GridTemplate::Tracks(_));
+        let owned = |l: &std::borrow::Cow<'static, [crate::layout::TrackSize]>| {
+            matches!(l, std::borrow::Cow::Owned(_))
+        };
+        if tracks(&g.grid_template_columns)
+            || tracks(&g.grid_template_rows)
+            || owned(&g.grid_auto_columns)
+            || owned(&g.grid_auto_rows)
+        {
+            let mut grid = g.clone();
+            for template in [
+                &mut grid.grid_template_columns,
+                &mut grid.grid_template_rows,
+            ] {
+                absolutize_template(template, vp);
+            }
+            for list in [&mut grid.grid_auto_columns, &mut grid.grid_auto_rows] {
+                absolutize_list(list, vp);
+            }
+            if grid != *self.grid {
+                self.grid = grid.into();
+            }
         }
         // CSS Transforms 2 §6.1: the translations' offsets (a percentage of
         // the reference box stays for layout).
@@ -290,18 +308,30 @@ impl ComputedStyle {
         });
         // Scroll-driven Animations 1 §3.2.3 / §4.3: the view timeline
         // insets and the range offsets are length-percentages.
-        for inset in &mut self.view_timeline_inset {
-            for side in [&mut inset.start, &mut inset.end] {
-                absolutize(side, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
-            }
-        }
-        for boundary in self
-            .animation_range_start
-            .iter_mut()
-            .chain(&mut self.animation_range_end)
+        // The motion group is shared: one that holds insets or ranges is
+        // worked on as a copy, written back only when a value moved.
+        let m = &*self.motion;
+        if !(m.view_timeline_inset.is_empty()
+            && m.animation_range_start.is_empty()
+            && m.animation_range_end.is_empty())
         {
-            if let crate::keyframes::RangeBoundary::Offset { offset, .. } = boundary {
-                absolutize(offset, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
+            let mut motion = m.clone();
+            for inset in &mut motion.view_timeline_inset {
+                for side in [&mut inset.start, &mut inset.end] {
+                    absolutize(side, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
+                }
+            }
+            for boundary in motion
+                .animation_range_start
+                .iter_mut()
+                .chain(&mut motion.animation_range_end)
+            {
+                if let crate::keyframes::RangeBoundary::Offset { offset, .. } = boundary {
+                    absolutize(offset, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
+                }
+            }
+            if motion != *self.motion {
+                self.motion = motion.into();
             }
         }
         vp.reads.get()

@@ -136,11 +136,11 @@ fn keywords_lengths_and_math() {
 #[test]
 fn viewport_units_in_a_track_list_compute_to_cells() {
     let mut c = crate::ComputedStyle::initial();
-    c.grid_template_columns =
+    c.grid.grid_template_columns =
         parse("50vw repeat(2, minmax(10vh, 1fr)) fit-content(calc(50% + 10vw))").expect("parses");
     c.resolve_viewport_units(crate::calc::Viewport::new(80, 20));
     assert_eq!(
-        serialize_grid_template(&c.grid_template_columns),
+        serialize_grid_template(&c.grid.grid_template_columns),
         "40 repeat(2, minmax(2, 1fr)) fit-content(calc(50% + 8))"
     );
 }
@@ -152,11 +152,14 @@ fn viewport_units_in_a_track_list_compute_to_cells() {
 fn viewport_units_in_an_auto_track_list_compute_to_cells() {
     let mut c = crate::ComputedStyle::initial();
     let sizes = parse_track_sizes(&tokenize("50vw minmax(10vh, 1fr)").unwrap()).expect("parses");
-    c.grid_auto_columns = std::borrow::Cow::Owned(sizes);
+    c.grid.grid_auto_columns = std::borrow::Cow::Owned(sizes);
     c.resolve_viewport_units(crate::calc::Viewport::new(80, 20));
     assert_eq!(
-        serialize_track_sizes(&c.grid_auto_columns),
+        serialize_track_sizes(&c.grid.grid_auto_columns),
         "40 minmax(2, 1fr)"
     );
-    assert!(matches!(c.grid_auto_rows, std::borrow::Cow::Borrowed(_)));
+    assert!(matches!(
+        c.grid.grid_auto_rows,
+        std::borrow::Cow::Borrowed(_)
+    ));
 }

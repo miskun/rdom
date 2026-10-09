@@ -65,7 +65,7 @@ pub(super) fn size_grid(
         }
         let mut tracks = tracks_of(
             &grid.columns,
-            &computed.grid_auto_columns,
+            &computed.grid.grid_auto_columns,
             Extent {
                 count: grid.placement.columns,
                 before: grid.placement.columns_before,
@@ -112,7 +112,7 @@ pub(super) fn size_grid(
         }
         let mut tracks = tracks_of(
             &grid.rows,
-            &computed.grid_auto_rows,
+            &computed.grid.grid_auto_rows,
             Extent {
                 count: grid.placement.rows,
                 before: grid.placement.rows_before,

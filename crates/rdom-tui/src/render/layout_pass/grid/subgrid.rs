@@ -81,8 +81,8 @@ pub(super) fn styled_axes(c: &ComputedStyle) -> SubAxes {
         return SubAxes::default();
     }
     SubAxes {
-        columns: c.grid_template_columns.subgrid().is_some(),
-        rows: c.grid_template_rows.subgrid().is_some(),
+        columns: c.grid.grid_template_columns.subgrid().is_some(),
+        rows: c.grid.grid_template_rows.subgrid().is_some(),
     }
 }
 

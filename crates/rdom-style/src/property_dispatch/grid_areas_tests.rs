@@ -22,7 +22,7 @@ fn grid_template_areas_take_strings_of_cell_tokens() {
     .unwrap();
     let areas = GridTemplateAreas::new(["head head", "nav main", ". foot"]).unwrap();
     assert_eq!(
-        style.grid_template_areas,
+        style.grid.grid_template_areas,
         Some(Value::Specified(areas.clone()))
     );
     assert_eq!(
@@ -66,7 +66,7 @@ fn grid_template_areas_take_strings_of_cell_tokens() {
         Some(ImportantMask::GRID_TEMPLATE_AREAS)
     );
     assert_eq!(
-        crate::ComputedStyle::initial().grid_template_areas,
+        crate::ComputedStyle::initial().grid.grid_template_areas,
         GridTemplateAreas::NONE
     );
 }

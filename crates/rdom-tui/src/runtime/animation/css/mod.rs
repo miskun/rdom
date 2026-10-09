@@ -137,33 +137,34 @@ impl Entry {
                 list[i % list.len()].clone()
             }
         }
-        let duration = at(&style.animation_duration, i);
-        let easing = if style.animation_timing_function.is_empty() {
+        let duration = at(&style.motion.animation_duration, i);
+        let easing = if style.motion.animation_timing_function.is_empty() {
             TimingFunction::Ease
         } else {
-            style.animation_timing_function[i % style.animation_timing_function.len()].clone()
+            style.motion.animation_timing_function[i % style.motion.animation_timing_function.len()]
+                .clone()
         };
-        let delay = if style.animation_delay.is_empty() {
+        let delay = if style.motion.animation_delay.is_empty() {
             0
         } else {
-            style.animation_delay[i % style.animation_delay.len()]
+            style.motion.animation_delay[i % style.motion.animation_delay.len()]
         };
         Entry {
             timing: Timing {
                 duration: f64::from(duration.ms()),
                 delay: f64::from(delay),
-                iterations: at(&style.animation_iteration_count, i).get(),
-                direction: at(&style.animation_direction, i),
-                fill: at(&style.animation_fill_mode, i),
+                iterations: at(&style.motion.animation_iteration_count, i).get(),
+                direction: at(&style.motion.animation_direction, i),
+                fill: at(&style.motion.animation_fill_mode, i),
             },
             easing,
-            composition: at(&style.animation_composition, i),
-            play_state: at(&style.animation_play_state, i),
-            timeline: at(&style.animation_timeline, i),
+            composition: at(&style.motion.animation_composition, i),
+            play_state: at(&style.motion.animation_play_state, i),
+            timeline: at(&style.motion.animation_timeline, i),
             duration_auto: duration == AnimationDuration::Auto,
             range: (
-                at(&style.animation_range_start, i),
-                at(&style.animation_range_end, i),
+                at(&style.motion.animation_range_start, i),
+                at(&style.motion.animation_range_end, i),
             ),
         }
     }

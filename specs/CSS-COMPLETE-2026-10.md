@@ -10413,3 +10413,25 @@ row comes from.
   `translate` (0 before: the cost of copy on write, now counted). Mutation (restored): inheriting the UI
   fields one by one, as before, costs 200 per 20 plain children and fails the pin (the C10G-INHERIT-COST
   table, comparing with and without a value, cannot see a cost both pay).
+- 2026-10-09 — C15G-STYLE-SIZE 2/2 (architect N13; the brief's grid placement and timelines). Found: after 1/2
+  the largest flat runs left were the 23 `transition-*` / `animation-*` / timeline / range lists (24 bytes each,
+  552 per style, empty on almost every element) and the 10 grid fields (298 bytes in `ComputedStyle`), set on
+  grid containers and items only. Decided: two new closed groups, both `Shared` — `motion` (`MotionStyle` /
+  `MotionDeclarations`: the transitions, the animations and Scroll-driven Animations 1's timelines and ranges,
+  none inherited) and `grid` (`GridStyle` / `GridDeclarations`: the explicit and implicit tracks, the areas,
+  `grid-auto-flow` and the four placement lines; `GridStyle::default()` keeps the borrowed `auto` lists, so the
+  initial style still allocates nothing, C7G-INITIAL-ALLOC). Field names stay inside the groups
+  (`c.motion.animation_name`, `c.grid.grid_auto_flow`, as `c.anchor.anchor_name`), the builders and the
+  property dispatch are unchanged in behaviour, and every reader moved mechanically. Writes stay lazy: the
+  cascade's grid applicator writes only an applying declaration (`apply::resolved`), and `resolve_context_units`
+  works on a copy of a grid that declares track lists, or of a motion group that holds insets or ranges,
+  written back only when a value moved. The transition fields existed in 0.5 — an API-table row in the 0.5
+  section; the rest are post-0.5 rows; `migration_hints.rs::grid_and_motion_group_hints`; DESIGN classifies the
+  four types with the other style groups; root re-exports. Sizes: `ComputedStyle` 2 536 → 1 696 (3 072 at the
+  start of the item), `TuiStyle` 2 984 → 2 152 (3 912); tripwires tightened to 1 700 / 2 160. Red: the tightened
+  tripwires against 1/2's layout (2 536 > 1 700, 2 984 > 2 160), and the sharing test's `grid` / `motion`
+  pointers (no such fields: compile error). The allocation pin adds a parent declaring a grid, `transition`,
+  `animation` and `view-timeline-inset`: its plain children still cost 160 per 20. Expectations moved:
+  `apply_tests`' exhaustive `ComputedStyle` pattern binds `grid` / `motion` whole (each still moved by the
+  perturbation and reset by `initial`), three grid hint tests destructure `GridStyle`, and two cascade tests
+  build their `TuiStyle` literal's `motion`.

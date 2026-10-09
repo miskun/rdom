@@ -2447,10 +2447,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.bottom = Length::Cells(1);
     parent.left = Length::Cells(1);
     parent.z_index = ZIndex::Value(1);
-    parent.transition_property = vec![TransitionProperty::All];
-    parent.transition_duration = vec![100];
-    parent.transition_timing_function = vec![TimingFunction::Linear];
-    parent.transition_delay = vec![5];
+    parent.motion.transition_property = vec![TransitionProperty::All];
+    parent.motion.transition_duration = vec![100];
+    parent.motion.transition_timing_function = vec![TimingFunction::Linear];
+    parent.motion.transition_delay = vec![5];
     parent.color_scheme =
         rdom_style::color::ColorSchemeList::of(&[rdom_style::color::ColorScheme::Light]);
     parent.vars = Rc::new(HashMap::from([("a".to_string(), "b".into())]));
@@ -2713,19 +2713,19 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ("z-index", child.z_index == parent.z_index),
         (
             "transition-property",
-            child.transition_property == parent.transition_property,
+            child.motion.transition_property == parent.motion.transition_property,
         ),
         (
             "transition-duration",
-            child.transition_duration == parent.transition_duration,
+            child.motion.transition_duration == parent.motion.transition_duration,
         ),
         (
             "transition-timing-function",
-            child.transition_timing_function == parent.transition_timing_function,
+            child.motion.transition_timing_function == parent.motion.transition_timing_function,
         ),
         (
             "transition-delay",
-            child.transition_delay == parent.transition_delay,
+            child.motion.transition_delay == parent.motion.transition_delay,
         ),
         ("color-scheme", child.color_scheme == parent.color_scheme),
         (
@@ -2836,10 +2836,14 @@ fn transition_inherit_and_initial_resolve_against_the_parent() {
         .rule_unchecked(
             "i",
             TuiStyle {
-                transition_property: Some(Value::Inherit),
-                transition_duration: Some(Value::Inherit),
-                transition_timing_function: Some(Value::Inherit),
-                transition_delay: Some(Value::Inherit),
+                motion: rdom_style::MotionDeclarations {
+                    transition_property: Some(Value::Inherit),
+                    transition_duration: Some(Value::Inherit),
+                    transition_timing_function: Some(Value::Inherit),
+                    transition_delay: Some(Value::Inherit),
+                    ..Default::default()
+                }
+                .into(),
                 ..TuiStyle::new()
             },
         )
@@ -2852,7 +2856,11 @@ fn transition_inherit_and_initial_resolve_against_the_parent() {
         .rule_unchecked(
             "b",
             TuiStyle {
-                transition_duration: Some(Value::Initial),
+                motion: rdom_style::MotionDeclarations {
+                    transition_duration: Some(Value::Initial),
+                    ..Default::default()
+                }
+                .into(),
                 ..TuiStyle::new()
             },
         );
@@ -2860,21 +2868,24 @@ fn transition_inherit_and_initial_resolve_against_the_parent() {
 
     let p = computed_of(&dom, parent);
     let i = computed_of(&dom, inheriting);
-    assert_eq!(i.transition_property, p.transition_property);
-    assert_eq!(i.transition_duration, vec![250]);
-    assert_eq!(i.transition_timing_function, vec![TimingFunction::Linear]);
-    assert_eq!(i.transition_delay, vec![10]);
+    assert_eq!(i.motion.transition_property, p.motion.transition_property);
+    assert_eq!(i.motion.transition_duration, vec![250]);
+    assert_eq!(
+        i.motion.transition_timing_function,
+        vec![TimingFunction::Linear]
+    );
+    assert_eq!(i.motion.transition_delay, vec![10]);
 
     let b = computed_of(&dom, resetting);
-    assert_eq!(b.transition_property, vec![TransitionProperty::All]);
+    assert_eq!(b.motion.transition_property, vec![TransitionProperty::All]);
     assert!(
-        b.transition_duration.is_empty(),
+        b.motion.transition_duration.is_empty(),
         "initial is the empty list"
     );
 
     let u = computed_of(&dom, plain);
     assert!(
-        u.transition_property.is_empty(),
+        u.motion.transition_property.is_empty(),
         "transitions do not inherit by default"
     );
 }

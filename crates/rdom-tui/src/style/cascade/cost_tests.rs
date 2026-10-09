@@ -652,7 +652,8 @@ fn no_conditional_rules_cost_nothing() {
 }
 
 /// C15G-STYLE-SIZE. The rare groups of a computed style (effects,
-/// multi-column, anchor positioning, the UI properties) are shared: a
+/// multi-column, anchor positioning, the UI properties, the grid
+/// properties, the transition / animation / timeline lists) are shared: a
 /// plain element's cascade allocates none of them, whatever its parent
 /// set of either the inherited UI properties (`cursor`, `accent-color`:
 /// the parent's group is shared) or the rest — and an element that writes
@@ -666,6 +667,8 @@ fn the_rare_style_groups_are_shared_until_written() {
     for parent in [
         ".p { color: red; cursor: pointer; accent-color: red }",
         ".p { color: red; outline: solid; translate: 1; column-count: 2; anchor-name: --a }",
+        ".p { color: red; display: grid; grid-template-columns: 1 1; grid-auto-rows: 2; \
+            transition: color 1s; animation: none 1s; view-timeline-inset: 1 }",
     ] {
         assert_eq!(per_element(parent), plain, "under `{parent}`");
     }

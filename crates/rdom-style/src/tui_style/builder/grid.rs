@@ -11,11 +11,11 @@ use crate::layout::{Display, Flow, GridLine, GridTemplate, TrackSize};
 /// `template_setter!("css-name", field, setter, important_setter, MASK)`.
 /// A value outside the grammar ([`GridTemplate::is_valid`]) is refused.
 macro_rules! template_setter {
-    ($css:literal, $field:ident, $setter:ident, $important_setter:ident, $mask:ident) => {
+    ($css:literal, $($field:ident).+, $setter:ident, $important_setter:ident, $mask:ident) => {
         #[doc = concat!("Set `", $css, "` to `v` — `GridTemplate::None`, a `TrackList`, or a `Vec<TrackSize>`. Chainable. A list outside the grammar ([`GridTemplate::is_valid`]: an `fr` minimum, an automatic repetition beside a non-fixed size, …) is refused: a debug build panics, a release build leaves the declaration unset, as a CSS parser drops it. A list of no tracks is `none`; `TrackSize::fr` / `percent`, `TrackList::repeat` and `GridLine::span` keep their numbers in range.")]
         pub fn $setter(mut self, v: impl Into<GridTemplate>) -> Self {
             if let Some(v) = checked(v.into(), $css) {
-                self.$field = Some(Value::Specified(v));
+                self.$($field).+ = Some(Value::Specified(v));
             }
             self
         }
@@ -23,7 +23,7 @@ macro_rules! template_setter {
         #[doc = concat!("Like `", stringify!($setter), "` but also marks the `", $css, "` declaration `!important`.")]
         pub fn $important_setter(mut self, v: impl Into<GridTemplate>) -> Self {
             if let Some(v) = checked(v.into(), $css) {
-                self.$field = Some(Value::Specified(v));
+                self.$($field).+ = Some(Value::Specified(v));
                 self.important |= ImportantMask::$mask;
             }
             self
@@ -48,11 +48,11 @@ fn checked(v: GridTemplate, property: &str) -> Option<GridTemplate> {
 /// A list outside `<track-size>+` (empty, or a size
 /// [`TrackSize::is_valid`] refuses) is refused.
 macro_rules! auto_setter {
-    ($css:literal, $field:ident, $setter:ident, $important_setter:ident, $mask:ident) => {
+    ($css:literal, $($field:ident).+, $setter:ident, $important_setter:ident, $mask:ident) => {
         #[doc = concat!("Set `", $css, "` (CSS Grid 2 §7.6) to `sizes`, the implicit tracks' sizes repeated as a pattern. Chainable. An empty list or a size outside the grammar (an `fr` minimum) is refused: a debug build panics, a release build leaves the declaration unset.")]
         pub fn $setter(mut self, sizes: impl IntoIterator<Item = TrackSize>) -> Self {
             if let Some(v) = checked_sizes(sizes.into_iter().collect(), $css) {
-                self.$field = Some(Value::Specified(v));
+                self.$($field).+ = Some(Value::Specified(v));
             }
             self
         }
@@ -60,7 +60,7 @@ macro_rules! auto_setter {
         #[doc = concat!("Like `", stringify!($setter), "` but also marks the `", $css, "` declaration `!important`.")]
         pub fn $important_setter(mut self, sizes: impl IntoIterator<Item = TrackSize>) -> Self {
             if let Some(v) = checked_sizes(sizes.into_iter().collect(), $css) {
-                self.$field = Some(Value::Specified(v));
+                self.$($field).+ = Some(Value::Specified(v));
                 self.important |= ImportantMask::$mask;
             }
             self
@@ -83,11 +83,11 @@ fn checked_sizes(sizes: Vec<TrackSize>, property: &str) -> Option<Vec<TrackSize>
 /// `line_setter!("css-name", field, setter, important_setter, MASK)`.
 /// A line outside `<grid-line>` ([`GridLine::is_valid`]) is refused.
 macro_rules! line_setter {
-    ($css:literal, $field:ident, $setter:ident, $important_setter:ident, $mask:ident) => {
+    ($css:literal, $($field:ident).+, $setter:ident, $important_setter:ident, $mask:ident) => {
         #[doc = concat!("Set `", $css, "` (CSS Grid 2 §8.3) to `line`. Chainable. A line outside the grammar (line `0`, a span below one, a name `span` / `auto`) is refused: a debug build panics, a release build leaves the declaration unset.")]
         pub fn $setter(mut self, line: GridLine) -> Self {
             if let Some(v) = checked_line(line, $css) {
-                self.$field = Some(Value::Specified(v));
+                self.$($field).+ = Some(Value::Specified(v));
             }
             self
         }
@@ -95,7 +95,7 @@ macro_rules! line_setter {
         #[doc = concat!("Like `", stringify!($setter), "` but also marks the `", $css, "` declaration `!important`.")]
         pub fn $important_setter(mut self, line: GridLine) -> Self {
             if let Some(v) = checked_line(line, $css) {
-                self.$field = Some(Value::Specified(v));
+                self.$($field).+ = Some(Value::Specified(v));
                 self.important |= ImportantMask::$mask;
             }
             self
@@ -138,21 +138,21 @@ impl TuiStyle {
 
     template_setter!(
         "grid-template-columns",
-        grid_template_columns,
+        grid.grid_template_columns,
         grid_template_columns,
         grid_template_columns_important,
         GRID_TEMPLATE_COLUMNS
     );
     template_setter!(
         "grid-template-rows",
-        grid_template_rows,
+        grid.grid_template_rows,
         grid_template_rows,
         grid_template_rows_important,
         GRID_TEMPLATE_ROWS
     );
     setter!(
         "grid-template-areas",
-        grid_template_areas,
+        grid.grid_template_areas,
         grid_template_areas,
         grid_template_areas_important,
         GRID_TEMPLATE_AREAS,
@@ -160,21 +160,21 @@ impl TuiStyle {
     );
     auto_setter!(
         "grid-auto-columns",
-        grid_auto_columns,
+        grid.grid_auto_columns,
         grid_auto_columns,
         grid_auto_columns_important,
         GRID_AUTO_COLUMNS
     );
     auto_setter!(
         "grid-auto-rows",
-        grid_auto_rows,
+        grid.grid_auto_rows,
         grid_auto_rows,
         grid_auto_rows_important,
         GRID_AUTO_ROWS
     );
     setter!(
         "grid-auto-flow",
-        grid_auto_flow,
+        grid.grid_auto_flow,
         grid_auto_flow,
         grid_auto_flow_important,
         GRID_AUTO_FLOW,
@@ -182,28 +182,28 @@ impl TuiStyle {
     );
     line_setter!(
         "grid-row-start",
-        grid_row_start,
+        grid.grid_row_start,
         grid_row_start,
         grid_row_start_important,
         GRID_ROW_START
     );
     line_setter!(
         "grid-row-end",
-        grid_row_end,
+        grid.grid_row_end,
         grid_row_end,
         grid_row_end_important,
         GRID_ROW_END
     );
     line_setter!(
         "grid-column-start",
-        grid_column_start,
+        grid.grid_column_start,
         grid_column_start,
         grid_column_start_important,
         GRID_COLUMN_START
     );
     line_setter!(
         "grid-column-end",
-        grid_column_end,
+        grid.grid_column_end,
         grid_column_end,
         grid_column_end_important,
         GRID_COLUMN_END

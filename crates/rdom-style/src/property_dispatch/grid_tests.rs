@@ -14,7 +14,7 @@ fn grid_template_properties_take_track_lists() {
     set("grid-template-columns", "[a] 1fr repeat(2, 3)", &mut style).unwrap();
     set("grid-template-rows", "NONE", &mut style).unwrap();
     assert_eq!(
-        style.grid_template_columns,
+        style.grid.grid_template_columns,
         Some(Value::Specified(GridTemplate::from(
             TrackList::new([])
                 .line("a")
@@ -53,9 +53,9 @@ fn grid_template_properties_take_track_lists() {
         Some(ImportantMask::GRID_TEMPLATE_ROWS)
     );
     assert!(remove("grid-template-columns", &mut style));
-    assert_eq!(style.grid_template_columns, None);
+    assert_eq!(style.grid.grid_template_columns, None);
     assert_eq!(
-        crate::ComputedStyle::initial().grid_template_columns,
+        crate::ComputedStyle::initial().grid.grid_template_columns,
         GridTemplate::None
     );
 }
@@ -120,7 +120,7 @@ fn grid_auto_properties_take_track_sizes() {
     .unwrap();
     set("grid-auto-columns", "auto", &mut style).unwrap();
     assert_eq!(
-        style.grid_auto_rows,
+        style.grid.grid_auto_rows,
         Some(Value::Specified(vec![
             TrackSize::cells(1),
             TrackSize::minmax(2, crate::layout::TrackBreadth::Fr(1.0)),
@@ -152,7 +152,7 @@ fn grid_auto_properties_take_track_sizes() {
         Some(ImportantMask::GRID_AUTO_ROWS)
     );
     assert_eq!(
-        crate::ComputedStyle::initial().grid_auto_rows,
+        crate::ComputedStyle::initial().grid.grid_auto_rows,
         vec![TrackSize::AUTO]
     );
     let built = TuiStyle::new()
@@ -185,7 +185,11 @@ fn grid_placement_longhands_take_grid_lines() {
     ] {
         let mut style = TuiStyle::new();
         set("grid-row-start", css, &mut style).unwrap_or_else(|e| panic!("{css}: {e:?}"));
-        assert_eq!(style.grid_row_start, Some(Value::Specified(line)), "{css}");
+        assert_eq!(
+            style.grid.grid_row_start,
+            Some(Value::Specified(line)),
+            "{css}"
+        );
         assert_eq!(
             serialize("grid-row-start", &style).as_deref(),
             Some(out),
@@ -218,7 +222,7 @@ fn grid_placement_longhands_take_grid_lines() {
     ] {
         assert!(!inherits(name));
         assert_eq!(
-            crate::ComputedStyle::initial().grid_row_start,
+            crate::ComputedStyle::initial().grid.grid_row_start,
             GridLine::Auto,
             "{name}"
         );
@@ -236,7 +240,10 @@ fn grid_placement_shorthands_expand_and_serialize() {
     let mut style = TuiStyle::new();
     set("grid-row", "2 / span 3", &mut style).unwrap();
     assert_eq!(
-        (style.grid_row_start.clone(), style.grid_row_end.clone()),
+        (
+            style.grid.grid_row_start.clone(),
+            style.grid.grid_row_end.clone()
+        ),
         (
             Some(Value::Specified(GridLine::line(2))),
             Some(Value::Specified(GridLine::span(3)))
@@ -245,30 +252,30 @@ fn grid_placement_shorthands_expand_and_serialize() {
     assert_eq!(serialize("grid-row", &style).as_deref(), Some("2 / span 3"));
     set("grid-column", "a", &mut style).unwrap();
     assert_eq!(
-        style.grid_column_end,
+        style.grid.grid_column_end,
         Some(Value::Specified(GridLine::named("a")))
     );
     assert_eq!(serialize("grid-column", &style).as_deref(), Some("a"));
     set("grid-column", "3", &mut style).unwrap();
     assert_eq!(
-        style.grid_column_end,
+        style.grid.grid_column_end,
         Some(Value::Specified(GridLine::Auto))
     );
     assert_eq!(serialize("grid-column", &style).as_deref(), Some("3"));
 
     set("grid-area", "x", &mut style).unwrap();
     for f in [
-        &style.grid_row_start,
-        &style.grid_column_start,
-        &style.grid_row_end,
-        &style.grid_column_end,
+        &style.grid.grid_row_start,
+        &style.grid.grid_column_start,
+        &style.grid.grid_row_end,
+        &style.grid.grid_column_end,
     ] {
         assert_eq!(f, &Some(Value::Specified(GridLine::named("x"))));
     }
     assert_eq!(serialize("grid-area", &style).as_deref(), Some("x"));
     set("grid-area", "1 / 2 / 3", &mut style).unwrap();
     assert_eq!(
-        style.grid_column_end,
+        style.grid.grid_column_end,
         Some(Value::Specified(GridLine::Auto))
     );
     assert_eq!(serialize("grid-area", &style).as_deref(), Some("1 / 2 / 3"));
@@ -310,7 +317,11 @@ fn grid_auto_flow_takes_its_keywords() {
     ] {
         let mut style = TuiStyle::new();
         set("grid-auto-flow", css, &mut style).unwrap();
-        assert_eq!(style.grid_auto_flow, Some(Value::Specified(flow)), "{css}");
+        assert_eq!(
+            style.grid.grid_auto_flow,
+            Some(Value::Specified(flow)),
+            "{css}"
+        );
         assert_eq!(serialize("grid-auto-flow", &style).as_deref(), Some(out));
     }
     for bad in ["row column", "dense dense", "auto", ""] {
@@ -321,7 +332,7 @@ fn grid_auto_flow_takes_its_keywords() {
         );
     }
     assert_eq!(
-        crate::ComputedStyle::initial().grid_auto_flow,
+        crate::ComputedStyle::initial().grid.grid_auto_flow,
         GridAutoFlow::ROW
     );
     assert_eq!(GridAutoFlow::COLUMN.direction, Direction::Column);
@@ -368,7 +379,7 @@ fn grid_template_takes_subgrid_with_line_names() {
     )
     .unwrap();
     assert_eq!(
-        style.grid_template_columns,
+        style.grid.grid_template_columns,
         Some(Value::Specified(GridTemplate::Subgrid(LineNameList {
             items: vec![
                 LineNameItem::Names(vec!["a".into()]),

@@ -219,8 +219,8 @@ pub(super) fn apply_style(
         flex_shrink: FLEX_SHRINK,
         flex_basis: FLEX_BASIS,
         order: ORDER,
-        grid_template_areas: GRID_TEMPLATE_AREAS,
-        grid_auto_flow: GRID_AUTO_FLOW,
+        grid.grid_template_areas: GRID_TEMPLATE_AREAS,
+        grid.grid_auto_flow: GRID_AUTO_FLOW,
     );
     apply_grid(working, style, important_pass, kw);
     super::text::apply_text(working, style, important_pass, kw);
@@ -359,29 +359,29 @@ pub(super) fn apply_style(
         overlay: OVERLAY,
         float: FLOAT,
         clear: CLEAR,
-        transition_property: TRANSITION_PROPERTY,
-        transition_duration: TRANSITION_DURATION,
-        transition_timing_function: TRANSITION_TIMING_FUNCTION,
-        transition_delay: TRANSITION_DELAY,
-        transition_behavior: TRANSITION_BEHAVIOR,
-        animation_name: ANIMATION_NAME,
-        animation_duration: ANIMATION_DURATION,
-        animation_timing_function: ANIMATION_TIMING_FUNCTION,
-        animation_delay: ANIMATION_DELAY,
-        animation_iteration_count: ANIMATION_ITERATION_COUNT,
-        animation_direction: ANIMATION_DIRECTION,
-        animation_fill_mode: ANIMATION_FILL_MODE,
-        animation_play_state: ANIMATION_PLAY_STATE,
-        animation_composition: ANIMATION_COMPOSITION,
-        animation_timeline: ANIMATION_TIMELINE,
-        scroll_timeline_name: SCROLL_TIMELINE_NAME,
-        scroll_timeline_axis: SCROLL_TIMELINE_AXIS,
-        view_timeline_name: VIEW_TIMELINE_NAME,
-        view_timeline_axis: VIEW_TIMELINE_AXIS,
-        view_timeline_inset: VIEW_TIMELINE_INSET,
-        timeline_scope: TIMELINE_SCOPE,
-        animation_range_start: ANIMATION_RANGE_START,
-        animation_range_end: ANIMATION_RANGE_END,
+        motion.transition_property: TRANSITION_PROPERTY,
+        motion.transition_duration: TRANSITION_DURATION,
+        motion.transition_timing_function: TRANSITION_TIMING_FUNCTION,
+        motion.transition_delay: TRANSITION_DELAY,
+        motion.transition_behavior: TRANSITION_BEHAVIOR,
+        motion.animation_name: ANIMATION_NAME,
+        motion.animation_duration: ANIMATION_DURATION,
+        motion.animation_timing_function: ANIMATION_TIMING_FUNCTION,
+        motion.animation_delay: ANIMATION_DELAY,
+        motion.animation_iteration_count: ANIMATION_ITERATION_COUNT,
+        motion.animation_direction: ANIMATION_DIRECTION,
+        motion.animation_fill_mode: ANIMATION_FILL_MODE,
+        motion.animation_play_state: ANIMATION_PLAY_STATE,
+        motion.animation_composition: ANIMATION_COMPOSITION,
+        motion.animation_timeline: ANIMATION_TIMELINE,
+        motion.scroll_timeline_name: SCROLL_TIMELINE_NAME,
+        motion.scroll_timeline_axis: SCROLL_TIMELINE_AXIS,
+        motion.view_timeline_name: VIEW_TIMELINE_NAME,
+        motion.view_timeline_axis: VIEW_TIMELINE_AXIS,
+        motion.view_timeline_inset: VIEW_TIMELINE_INSET,
+        motion.timeline_scope: TIMELINE_SCOPE,
+        motion.animation_range_start: ANIMATION_RANGE_START,
+        motion.animation_range_end: ANIMATION_RANGE_END,
         counter_reset: COUNTER_RESET,
         counter_increment: COUNTER_INCREMENT,
         counter_set: COUNTER_SET,
@@ -440,17 +440,20 @@ fn apply_grid(
     };
     let line = |v: &GridLine| v.is_valid().then(|| v.clone());
     let important = |mask| style.important.contains(mask);
+    // Written only when a declaration applies: the group is shared
+    // (C15G-STYLE-SIZE).
     macro_rules! grid {
         ($($field:ident: $mask:ident => $to:expr),* $(,)?) => {$(
-            apply_converted(
-                &mut working.$field,
-                &style.$field,
+            if let Some(x) = resolved(
+                &style.grid.$field,
                 important(ImportantMask::$mask),
                 important_pass,
                 kw,
-                |c| &c.$field,
+                |c| &c.grid.$field,
                 $to,
-            );
+            ) {
+                working.grid.$field = x;
+            }
         )*};
     }
     grid!(

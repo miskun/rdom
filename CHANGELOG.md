@@ -160,6 +160,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 | 0.5 | Unreleased | Item | Hint test |
 |---|---|---|---|
 | `ComputedStyle::min_width` / `min_height: Option<MinSize>` | `MinSize` (`None` → `MinSize::Auto`) | C3G-MIN-AUTO | `sizing_hints` |
+| `TuiStyle::transition_*` / `ComputedStyle::transition_*` fields (`c.transition_duration`) | in the `motion` group: `c.motion.transition_duration` (`MotionStyle` / `MotionDeclarations`, `Shared`); a literal sets `motion: MotionDeclarations { … }.into()`; the builders are unchanged | C15G-STYLE-SIZE | `grid_and_motion_group_hints` |
 | `VarMap` = `Rc<HashMap<String, String>>`; `CustomDeclaration::value: String` | `Rc<HashMap<String, CustomValue>>`; `CustomValue` (`as_str()`, `Deref<Target = str>`, `"text".into()`) | C1G-VAR-COST | `cascade_hints` |
 | `ContentContext for HashMap<String, String>` | `ContentContext for HashMap<String, CustomValue>` | C1G-VAR-COST | `cascade_hints` |
 | `parse::values::parse_var_args` | removed (`var()` declarations kept on `TuiStyle::pending`) | C1-VAR-ANY | `cascade_hints` |
@@ -276,6 +277,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 | `Stylesheet::add_rule_in_layer(…)` | `add_style_rule(…, RuleContext::default().in_layer(layer))` | C1G-API-SURFACE | — |
 | exhaustive `match` on `IntrinsicSize` | add an `IntrinsicSize::Stretch` arm (CSS Sizing 4 `stretch`, `-webkit-fill-available`) | C15G-STRETCH | `stretch_hints` |
 | `ComputedStyle::{effects, multicol, anchor, ui}` / `TuiStyle::{effects, masks, multicol, anchor, ui}`: the group type itself | `Shared<…>`: a field reads and writes as before (copied on write); `*c.effects` names the group, `EffectsStyle::default().into()` builds one | C15G-STYLE-SIZE | `shared_group_hints` |
+| the `animation_*`, `scroll_timeline_*`, `view_timeline_*`, `timeline_scope`, `animation_range_*` and `grid_*` fields of `TuiStyle` / `ComputedStyle` | in the `motion` group (`c.motion.animation_name`) and the `grid` group (`c.grid.grid_auto_flow`): `MotionStyle` / `MotionDeclarations`, `GridStyle` / `GridDeclarations`, each `Shared`; the builders are unchanged | C15G-STYLE-SIZE | `grid_and_motion_group_hints` |
 | `TuiStyle::scroll_padding_top` … / `scroll_margin_left` fields; `ComputedStyle::scroll_padding_top` … / `scroll_margin_left` | `TuiStyle::scroll_padding` / `scroll_margin: Sides<Option<Value<…>>>` (`style.scroll_padding.top`), `ComputedStyle::scroll_padding: Sides<ScrollPadding>` / `scroll_margin: Sides<i16>`; the per-side builders unchanged | C8G-API-TYPES | `scroll_sides_and_root_hints` |
 | `App::register_property(…) -> Result<(), String>` | `-> Result<(), RegisterPropertyError>` | C1G-TYPED-ERRORS | `typed_error_hints` |
 | `FontFamily::Names(Vec<String>)` | `FontFamily::Names(Arc<[String]>)` (`vec![…].into()`), shared by the elements that inherit it | C9G-PACKER-ALLOC | — |
@@ -361,6 +363,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Breaking — `rdom-style`
 
+- **The transition, animation, timeline and grid fields move into two groups**: `TuiStyle` / `ComputedStyle`'s `transition_*`, `animation_*`, timeline and range fields are in `motion` (`MotionDeclarations` / `MotionStyle`), the `grid_*` fields in `grid` (`GridDeclarations` / `GridStyle`), both `Shared` — `ComputedStyle` 2 536 → 1 696 bytes, `TuiStyle` 2 984 → 2 152. Migration: `c.transition_duration` → `c.motion.transition_duration`; builders unchanged. (C15G-STYLE-SIZE)
 - **The rare style groups are `Shared`**: `ComputedStyle::{effects, multicol, anchor, ui}` and `TuiStyle::{effects, masks, multicol, anchor, ui}` hold a `Shared<…>` (copy on write), so a style that sets none shares one default — `ComputedStyle` 3 072 → 2 536 bytes, `TuiStyle` 3 912 → 2 984. Migration: fields read and write as before; `*c.effects` names the group, `.into()` builds one. (C15G-STYLE-SIZE)
 - **`CalcExpr` gains `Anchor`; `ComputedStyle` / `TuiStyle` gain `anchor`** (CSS Anchor Positioning 1: `anchor()` / `anchor-size()` as math leaves; `AnchorStyle` / `AnchorDeclarations`). Migration: a `CalcExpr` walker adds the arm (`f.fallback()`, or `substitute_anchors`); a pattern adds `anchor: _`. (C15-ANCHOR)
 - **`ComputedStyle` / `TuiStyle` gain `multicol` and `fragmentation`** (`MulticolStyle` / `FragmentationStyle`, CSS Multi-column 1, Fragmentation 3). Migration: build with `TuiStyle::new()` / `ComputedStyle::initial()`; a pattern adds `multicol: _, fragmentation: _`. (C15-COLUMNS)
@@ -449,6 +452,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **`MotionStyle` / `MotionDeclarations` and `GridStyle` / `GridDeclarations`**: the transition, animation and timeline lists and the grid properties as two shared groups of `ComputedStyle` / `TuiStyle` (`motion`, `grid`); re-exported at the `rdom_tui` root. (C15G-STYLE-SIZE)
 - **`Shared<T>`**: a style group behind a shared pointer, copied on write (`Deref` / `DerefMut`, `Shared::new`, `From`, `ptr_eq`, one `Default` per group type); re-exported at the `rdom_tui` root. (C15G-STYLE-SIZE)
 - **The anchor positioning properties** (CSS Anchor Positioning 1 §2–§5): `anchor-name`, `anchor-scope`, `position-anchor`, `position-area`, `position-try` / `-fallbacks` / `-order`, `position-visibility`; `anchor()` / `anchor-size()` in insets, sizes and margins (`AnchorFunction`); `anchor-center`; `PositionTryRule`. (C15-ANCHOR)
 - **The multi-column and fragmentation properties** (CSS Multi-column 1 §3–§7, Fragmentation 3 §3, §5.4): `columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`, `break-before` / `-after` / `-inside`, the legacy `page-break-*`, `orphans` / `widows` (inherited), `box-decoration-break` — parsed, serialized, interpolated (`MulticolStyle`, `FragmentationStyle`, `ComputedStyle::is_multicol_container`, …). (C15-COLUMNS)

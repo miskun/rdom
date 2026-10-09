@@ -26,28 +26,28 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
     }
     Some(match name {
         "scroll-timeline-name" => put(
-            &mut style.scroll_timeline_name,
+            &mut style.motion.scroll_timeline_name,
             parse_timeline_name_list(value),
         ),
         "scroll-timeline-axis" => put(
-            &mut style.scroll_timeline_axis,
+            &mut style.motion.scroll_timeline_axis,
             parse_timeline_axis_list(value),
         ),
         "scroll-timeline" => parse_scroll_timeline(value).map(|pieces| {
             let (names, axes) = pieces.into_iter().unzip();
-            style.scroll_timeline_name = Some(Value::Specified(names));
-            style.scroll_timeline_axis = Some(Value::Specified(axes));
+            style.motion.scroll_timeline_name = Some(Value::Specified(names));
+            style.motion.scroll_timeline_axis = Some(Value::Specified(axes));
         }),
         "view-timeline-name" => put(
-            &mut style.view_timeline_name,
+            &mut style.motion.view_timeline_name,
             parse_timeline_name_list(value),
         ),
         "view-timeline-axis" => put(
-            &mut style.view_timeline_axis,
+            &mut style.motion.view_timeline_axis,
             parse_timeline_axis_list(value),
         ),
         "view-timeline-inset" => put(
-            &mut style.view_timeline_inset,
+            &mut style.motion.view_timeline_inset,
             parse_timeline_inset_list(value),
         ),
         "view-timeline" => parse_view_timeline(value).map(|pieces| {
@@ -59,20 +59,26 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
                 axes.push(a);
                 insets.push(i);
             }
-            style.view_timeline_name = Some(Value::Specified(names));
-            style.view_timeline_axis = Some(Value::Specified(axes));
-            style.view_timeline_inset = Some(Value::Specified(insets));
+            style.motion.view_timeline_name = Some(Value::Specified(names));
+            style.motion.view_timeline_axis = Some(Value::Specified(axes));
+            style.motion.view_timeline_inset = Some(Value::Specified(insets));
         }),
-        "timeline-scope" => put(&mut style.timeline_scope, parse_timeline_scope(value)),
+        "timeline-scope" => put(
+            &mut style.motion.timeline_scope,
+            parse_timeline_scope(value),
+        ),
         "animation-range-start" => put(
-            &mut style.animation_range_start,
+            &mut style.motion.animation_range_start,
             parse_range_start_list(value),
         ),
-        "animation-range-end" => put(&mut style.animation_range_end, parse_range_end_list(value)),
+        "animation-range-end" => put(
+            &mut style.motion.animation_range_end,
+            parse_range_end_list(value),
+        ),
         "animation-range" => parse_animation_range(value).map(|pieces| {
             let (starts, ends) = pieces.into_iter().unzip();
-            style.animation_range_start = Some(Value::Specified(starts));
-            style.animation_range_end = Some(Value::Specified(ends));
+            style.motion.animation_range_start = Some(Value::Specified(starts));
+            style.motion.animation_range_end = Some(Value::Specified(ends));
         }),
         _ => return None,
     })
@@ -160,23 +166,39 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         (a.len() == b.len()).then(|| join_csv(a.iter().zip(b), |(a, b)| f(a, b)))
     }
     Some(match name {
-        "scroll-timeline-name" => csv(&style.scroll_timeline_name, name_text),
-        "scroll-timeline-axis" => csv(&style.scroll_timeline_axis, |a| a.keyword().to_string()),
+        "scroll-timeline-name" => csv(&style.motion.scroll_timeline_name, name_text),
+        "scroll-timeline-axis" => csv(&style.motion.scroll_timeline_axis, |a| {
+            a.keyword().to_string()
+        }),
         "scroll-timeline" => pair(
-            &style.scroll_timeline_name,
-            &style.scroll_timeline_axis,
+            &style.motion.scroll_timeline_name,
+            &style.motion.scroll_timeline_axis,
             |n, a| match a {
                 TimelineAxis::Block => name_text(n),
                 a => format!("{} {}", name_text(n), a.keyword()),
             },
         ),
-        "view-timeline-name" => csv(&style.view_timeline_name, name_text),
-        "view-timeline-axis" => csv(&style.view_timeline_axis, |a| a.keyword().to_string()),
-        "view-timeline-inset" => csv(&style.view_timeline_inset, inset_text),
+        "view-timeline-name" => csv(&style.motion.view_timeline_name, name_text),
+        "view-timeline-axis" => csv(&style.motion.view_timeline_axis, |a| {
+            a.keyword().to_string()
+        }),
+        "view-timeline-inset" => csv(&style.motion.view_timeline_inset, inset_text),
         "view-timeline" => {
-            let names = style.view_timeline_name.as_ref().and_then(specified)?;
-            let axes = style.view_timeline_axis.as_ref().and_then(specified)?;
-            let insets = style.view_timeline_inset.as_ref().and_then(specified)?;
+            let names = style
+                .motion
+                .view_timeline_name
+                .as_ref()
+                .and_then(specified)?;
+            let axes = style
+                .motion
+                .view_timeline_axis
+                .as_ref()
+                .and_then(specified)?;
+            let insets = style
+                .motion
+                .view_timeline_inset
+                .as_ref()
+                .and_then(specified)?;
             (names.len() == axes.len() && names.len() == insets.len()).then(|| {
                 join_csv(0..names.len(), |i| {
                     format!(
@@ -189,6 +211,7 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             })
         }
         "timeline-scope" => style
+            .motion
             .timeline_scope
             .as_ref()
             .and_then(specified)
@@ -199,11 +222,11 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
                     rdom_core::css_syntax::serialize_identifier(n)
                 }),
             }),
-        "animation-range-start" => csv(&style.animation_range_start, boundary_text),
-        "animation-range-end" => csv(&style.animation_range_end, boundary_text),
+        "animation-range-start" => csv(&style.motion.animation_range_start, boundary_text),
+        "animation-range-end" => csv(&style.motion.animation_range_end, boundary_text),
         "animation-range" => pair(
-            &style.animation_range_start,
-            &style.animation_range_end,
+            &style.motion.animation_range_start,
+            &style.motion.animation_range_end,
             |s, e| format!("{} {}", boundary_text(s), boundary_text(e)),
         ),
         _ => return None,
