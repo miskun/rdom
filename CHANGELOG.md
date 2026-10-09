@@ -684,6 +684,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **Spanners** (CSS Multi-column 1 §6): a `column-span: all` child spans the columns, splitting the content into a balanced column set before it and one after, each with its own rules. (C15-COLUMNS)
 - **Column rules** (CSS Multi-column 1 §4): `column-rule` draws a line of border glyphs in the gap between two columns that hold content, its width a weight, joining the container's border (`┬` / `┴`). (C15-COLUMNS)
 - **Multi-column layout** (CSS Multi-column 1, Fragmentation 3): §3.4's column boxes in whole cells, the content fragmented into them — balanced, or filled in turn under a constrained height — with class A / B breaks, monolithic boxes, `break-*` and `orphans` / `widows`; a split box draws, hits and reports its fragments (`TuiAccessors::client_rects`, `InlineLayout::line_at`). (C15-COLUMNS)
 - **`clip-path` clips** (CSS Masking 1 §5): a cell of the element or a descendant paints and is hit only when its centre is inside the shape or reference box; a stacking context; `path()` / `url()` and the `mask*` properties draw nothing. (C15-CLIP-PATH)

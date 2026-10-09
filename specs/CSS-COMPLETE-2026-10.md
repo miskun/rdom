@@ -278,7 +278,7 @@ row comes from.
 | C15-FILTER | `filter` color-matrix functions; `backdrop-filter` | done |
 | C15-BLEND | `mix-blend-mode`, `isolation` | done |
 | C15-CLIP-PATH | `clip-path: inset()` | done |
-| C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | partial — spanners remain |
+| C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | partial — `box-decoration-break: clone` remains |
 | C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | |
 
 ## Log
@@ -9902,3 +9902,17 @@ row comes from.
   `css_phase15::multicol::column_rules_draw_between_filled_columns`, red with no rule drawn; mutation runs —
   no junctions, and rules beside empty columns — fail it (the second only after a one-row case was added: a
   one-row rule had drawn nothing, fixed by (2)).
+- 2026-10-09 — C15-COLUMNS part 4, spanners (CSS Multi-column 1 §6.1, §7.1, §8.2). `multicol::spanners`: the
+  container's in-flow block-level children with `column-span: all`, in flow order, cut the one-column flow into
+  runs at the breaks around them (a run ends where the content before its spanner does — the break whose
+  `resume` is the spanner's top — and the next starts where the content after it does, the margins truncated
+  as at a break). Each run is fragmented as its own column set below the last: balanced always but the last
+  (§7.1: a set before a spanner is balanced), which fills as `column-fill` says in the height left; the
+  spanner is laid out again across the whole content box (`block::place_alone` — its width by §10.3.3 at the
+  content width, its margins its own, not collapsing) below its set, and `fragment::apply` skips it. The
+  container keeps one `ColumnSet` per run, so each set draws its own rules. Decision: a spanner deeper in the
+  flow lays out in its column — its ancestors would have to be fragmented around it (DIVERGENCES). Also: overflow
+  columns scroll — a scroll container's scrollable width reaches them, and scrolled into view they are hit
+  (`overflow_columns_scroll_and_hit`). Red → green: `a_spanner_splits_the_columns_into_sets`, red with the
+  spanner laid out in its column (the sets ran together: `["a1 │ b1", "a2 │ b2", "Title │ b3"]`). The item
+  stays partial for `box-decoration-break: clone`.

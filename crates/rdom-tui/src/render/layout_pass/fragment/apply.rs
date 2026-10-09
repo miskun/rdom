@@ -99,13 +99,15 @@ fn union(a: Option<LayoutRect>, b: LayoutRect) -> LayoutRect {
 /// Move `root`'s laid-out content into the fragmentainers of `plan`: its
 /// lines, whose origin moves from `old` to `new` (the content box's
 /// scrolled origin before and after), its anonymous and floated boxes,
-/// and its children's subtrees.
+/// and its children's subtrees — but the children `skip` (spanners, which
+/// the caller lays out again).
 pub(in crate::render::layout_pass) fn apply(
     dom: &mut Dom<TuiExt>,
     root: NodeId,
     plan: &Plan,
     old: (i32, i32),
     new: (i32, i32),
+    skip: &[NodeId],
 ) {
     if let Some(ext) = dom.node_mut(root).ext_mut() {
         if let Some(il) = ext.inline_layout.as_mut() {
@@ -115,7 +117,9 @@ pub(in crate::render::layout_pass) fn apply(
         move_floated(ext.floated_pseudos.as_deref_mut(), plan);
     }
     for child in super::super::element_children_of(dom, root) {
-        place(dom, child, plan);
+        if !skip.contains(&child) {
+            place(dom, child, plan);
+        }
     }
 }
 

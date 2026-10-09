@@ -11,11 +11,15 @@
 //! flow into its column. Columns past the count overflow in the inline
 //! direction (§8.2). The multi-column container keeps its column boxes
 //! (`KeptLayout::Columns`) for the rules paint draws between them (§4).
+//! A spanner (§6, `spanners`) splits the columns into sets: the content
+//! before it balanced in its own row of columns, the spanner across the
+//! content box, the content after it in the next row.
 //!
 //! A page without a multi-column container pays one `is_multicol` test per
 //! laid-out block container.
 
 pub(crate) mod geometry;
+mod spanners;
 #[cfg(test)]
 mod tests;
 
@@ -75,28 +79,81 @@ pub(super) fn lay_out(
     );
     let origin = (first_x - scroll.0, inner.y - scroll.1);
     let breaks = fragment::collect(dom, id);
+    let spanners = spanners::of(dom, id);
+    let pieces = spanners::pieces(dom, &spanners, &breaks, origin.1, origin.1 + tall);
     let content_sized = super::auto_height::is_content_sized(dom, id, computed);
     let fill = fill(dom, id, computed, containing_block_width, inner, cols.count);
-    let (rows, mut used) = fragment::fragmentainers(&breaks, origin.1, origin.1 + tall, fill);
-    if let (Fill::Sequential(h), true) = (fill, content_sized) {
-        // An `auto` height capped by `max-height`: as tall as the fullest
-        // column.
-        let fullest = rows.iter().map(|(a, b)| b - a).max().unwrap_or(0);
-        used = fullest.clamp(0, i32::from(h)) as u16;
-    }
     let step = if rtl { -cols.pitch() } else { cols.pitch() };
-    let plan = Plan {
-        slices: rows
+    let mut plan = Plan { slices: Vec::new() };
+    let mut sets = Vec::new();
+    // Where the next set or spanner goes, in the final layout.
+    let mut cursor = origin.1;
+    let last = pieces.len().saturating_sub(1);
+    for (k, piece) in pieces.iter().enumerate() {
+        let (start, end) = piece.rows;
+        let within: Vec<_> = breaks
             .iter()
-            .enumerate()
-            .map(|(i, &(start, end))| Slice {
+            .filter(|b| b.end > start && b.end < end)
+            .copied()
+            .collect();
+        // §7.1: a set before a spanner is balanced; the last fills as
+        // `column-fill` says, in what height is left.
+        let set_fill = match fill {
+            Fill::Sequential(h) if k == last => Fill::Sequential(
+                h.saturating_sub((cursor - origin.1).clamp(0, i32::from(u16::MAX)) as u16),
+            ),
+            Fill::Balance { count, cap } if k == last => Fill::Balance {
+                count,
+                cap: cap.map(|c| {
+                    c.saturating_sub((cursor - origin.1).clamp(0, i32::from(u16::MAX)) as u16)
+                }),
+            },
+            _ => Fill::Balance {
+                count: cols.count,
+                cap: None,
+            },
+        };
+        let (rows, mut used) = fragment::fragmentainers(&within, start, end, set_fill);
+        if let (Fill::Sequential(h), true) = (set_fill, content_sized) {
+            // An `auto` height capped by `max-height`: as tall as the
+            // fullest column.
+            let fullest = rows.iter().map(|(a, b)| b - a).max().unwrap_or(0);
+            used = fullest.clamp(0, i32::from(h)) as u16;
+        }
+        plan.slices
+            .extend(rows.iter().enumerate().map(|(i, &(start, end))| Slice {
                 start,
                 end,
                 dx: step.saturating_mul(i as i32),
-                dy: origin.1 - start,
-            })
-            .collect(),
-    };
+                dy: cursor - start,
+            }));
+        let count = rows.len().max(usize::from(cols.count));
+        sets.push(ColumnSet {
+            top: cursor - origin.1,
+            height: used,
+            columns: (0..count)
+                .map(|i| ColumnBox {
+                    x: first_x - inner.x + step.saturating_mul(i as i32),
+                    width: cols.width,
+                    filled: rows.get(i).is_some_and(|(a, b)| b > a),
+                })
+                .collect(),
+        });
+        cursor += i32::from(used);
+        // §6: a spanner is laid out across the whole content box, below
+        // the set.
+        if let Some(spanner) = piece.spanner {
+            cursor = spanners::lay_out(dom, spanner, inner.x - scroll.0, cursor, inner.width);
+        }
+    }
+    if plan.slices.is_empty() {
+        plan.slices.push(Slice {
+            start: origin.1,
+            end: origin.1,
+            dx: 0,
+            dy: 0,
+        });
+    }
     set_content_box(dom, id, inner);
     fragment::apply(
         dom,
@@ -104,24 +161,13 @@ pub(super) fn lay_out(
         &plan,
         origin,
         (inner.x - scroll.0, inner.y - scroll.1),
+        &spanners,
     );
-    let count = rows.len().max(usize::from(cols.count));
-    let set = ColumnSet {
-        top: 0,
-        height: used,
-        columns: (0..count)
-            .map(|i| ColumnBox {
-                x: first_x - inner.x + step.saturating_mul(i as i32),
-                width: cols.width,
-                filled: rows.get(i).is_some_and(|(a, b)| b > a),
-            })
-            .collect(),
-    };
     if let Some(ext) = dom.node_mut(id).ext_mut() {
-        ext.kept = Some(Box::new(KeptLayout::Columns(vec![set])));
+        ext.kept = Some(Box::new(KeptLayout::Columns(sets)));
     }
     Some(BlockMeasurement {
-        content_height: used,
+        content_height: (cursor - origin.1).clamp(0, i32::from(u16::MAX)) as u16,
     })
 }
 

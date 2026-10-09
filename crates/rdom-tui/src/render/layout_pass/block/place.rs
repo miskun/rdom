@@ -101,6 +101,34 @@ pub(super) fn place_block_child(
     }
 }
 
+/// The block-level `child` placed alone at `(x, y)` in a containing block
+/// `width` cells wide (no margins collapse with it): its border box — the
+/// pre-layout height — below its top margin, and its bottom margin. A
+/// multi-column container's spanner (CSS Multi-column 1 §6) is placed so.
+pub(in crate::render::layout_pass) fn place_alone(
+    dom: &Dom<TuiExt>,
+    child: NodeId,
+    x: i32,
+    y: i32,
+    width: u16,
+) -> (LayoutRect, i32) {
+    let computed = dom
+        .node(child)
+        .computed_rc()
+        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+    let resolved = resolve_block_width(dom, child, &computed, (width, None));
+    let height = resolve_block_height(dom, child, &computed, resolved.width, 0, width);
+    let top = i32::from(computed.margin.top.resolve(width));
+    let bottom = i32::from(computed.margin.bottom.resolve(width));
+    let rect = LayoutRect::new(
+        x + i32::from(resolved.margin_left),
+        y + top,
+        resolved.width,
+        height,
+    );
+    (rect, bottom)
+}
+
 /// CSS 2.1 §9.5: a box that establishes a formatting context of its own
 /// "must not overlap the margin box of any floats" — at the height it
 /// gets. Placed at its pre-layout height, a root beside floats that is

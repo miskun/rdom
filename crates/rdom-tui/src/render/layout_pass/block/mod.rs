@@ -84,6 +84,7 @@ use margin_collapse::{
     store_margin_chain_memo,
 };
 use place::BlockPlace;
+pub(super) use place::place_alone;
 #[cfg(test)]
 pub(super) use runs::FLOW_RUNS;
 use runs::last_flow_run;

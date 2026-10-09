@@ -306,3 +306,65 @@ fn column_rules_draw_between_filled_columns() {
     );
     assert_eq!(row(&buf, 0), "only         ");
 }
+
+/// Multi-column 1 §6: a `column-span: all` child spans every column,
+/// splitting the content into the column set before it and the one after,
+/// each balanced (§7.1: a set before a spanner always is); each set has its
+/// own rules (§4).
+#[test]
+fn a_spanner_splits_the_columns_into_sets() {
+    let mut dom = doc(
+        r#"<body><div id="m"><div>a1</div><div>a2</div><h2 id="s">Title</h2><div>b1</div><div>b2</div><div>b3</div></div><p id="n">n</p></body>"#,
+    );
+    let buf = paint(
+        &mut dom,
+        &format!(
+            "{PAGE} #m {{ column-count: 2; column-gap: 3; width: 13; column-rule: solid }}
+             h2 {{ margin: 0; column-span: all }} p {{ margin: 0 }}"
+        ),
+        13,
+        5,
+    );
+    assert_eq!(
+        rows(&buf, 5),
+        [
+            "a1    │ a2   ",
+            "Title        ",
+            "b1    │ b3   ",
+            "b2    │      ",
+            "n            ",
+        ]
+    );
+    assert_eq!(rect(&dom, "s"), (0, 1, 13, 1));
+    assert_eq!(rect(&dom, "m"), (0, 0, 13, 4));
+}
+
+/// §8.2: columns past the count overflow the container in the inline
+/// direction — into its scrollable overflow, so a scroll container
+/// scrolls to them; and a point in a column hits its text.
+#[test]
+fn overflow_columns_scroll_and_hit() {
+    let mut dom = doc(
+        r#"<body><div id="m"><div>o1</div><div>o2</div><div>o3</div><div>o4</div><div id="l">o5</div></div></body>"#,
+    );
+    paint(
+        &mut dom,
+        &format!(
+            "{PAGE} #m {{ column-count: 2; column-gap: 1; width: 11; height: 2; column-fill: auto; overflow-x: auto; overflow-y: hidden; scrollbar-width: none }}"
+        ),
+        20,
+        3,
+    );
+    let m = by_id(&dom, "m");
+    assert_eq!(dom.node(m).scroll_width(), Some(17));
+    assert_eq!(rect(&dom, "l"), (12, 0, 5, 1));
+    // Scrolled six columns along, the third column is in view, and hit.
+    dom.node_mut(m).ext_mut().unwrap().scroll_x = 6;
+    dom.layout_dom(Rect::new(0, 0, 20, 3));
+    assert_eq!(rect(&dom, "l"), (6, 0, 5, 1));
+    let hit = dom.position_at(7, 0).expect("a text position");
+    assert_eq!(
+        dom.node(hit.node).parent_node().map(|p| p.id()),
+        Some(by_id(&dom, "l"))
+    );
+}
