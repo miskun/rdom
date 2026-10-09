@@ -241,3 +241,44 @@ fn hit_testing_descends_into_an_atom() {
         assert_eq!(dom.hit_test(2, 1), Some(p), "bare: {bare}");
     }
 }
+
+/// ACID-FIX-10 (found by acid tile 25). CSS 2.1 §10.3.9 / §9.4.2: an
+/// inline block's margins apply, and the box it places in its line is its
+/// margin box (§10.8.1) — `margin-left: 1` and `margin-right: 2` put a
+/// blank cell before the atom and two after it, in a line and in a
+/// shrink-to-fit width alike. rdom placed the border box alone, the
+/// horizontal margins dropped. A negative horizontal margin counts as
+/// zero, as a negative vertical one does (DIVERGENCES §2).
+#[test]
+fn an_inline_blocks_horizontal_margins_take_their_cells() {
+    for bare in [false, true] {
+        let (mut dom, ib, _) = line_with_atom(bare);
+        let buf = paint(
+            &mut dom,
+            ".ib { display: inline-block; margin-left: 1; margin-right: 2 }",
+            8,
+            2,
+        );
+        assert_eq!(rows(&buf, 8, 1), vec!["aa b  cc"], "bare text: {bare}");
+        assert_eq!(rect(&dom, ib).x, 3, "bare text: {bare}");
+    }
+    // The shrink-to-fit width of a float holding the line counts them.
+    let (mut dom, _, p) = line_with_atom(true);
+    let buf = paint(
+        &mut dom,
+        "p { float: left } .ib { display: inline-block; margin: 0 2 0 1 }",
+        10,
+        2,
+    );
+    assert_eq!(rows(&buf, 10, 1), vec!["aa b  cc  "]);
+    assert_eq!(rect(&dom, p).width, 8);
+    // An inline-block `::before` likewise (CSS Pseudo-Elements 4 §2).
+    let (mut dom, _, _) = line_with_atom(true);
+    let buf = paint(
+        &mut dom,
+        ".ib::before { content: 'x'; display: inline-block; margin: 0 2 0 1 }",
+        10,
+        2,
+    );
+    assert_eq!(rows(&buf, 10, 1), vec!["aa x  bcc "]);
+}

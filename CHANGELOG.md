@@ -618,6 +618,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Fixed — `rdom-tui`
 
+- **An inline block's horizontal margins take their cells** (CSS 2.1 §10.3.9, §10.8.1): `margin-left` / `margin-right` on an `inline-block` (or an inline-block `::before` / `::after`) were dropped — the atom sat flush against its neighbours; the line now takes its margin box, and shrink-to-fit widths count it. (ACID-FIX-10)
 - **A layer at full opacity keeps the terminal's default colours** (Compositing 1 §5.1): a clip path, a filter, a blend mode or an isolated group paints through a layer, and its composite turned every default-coloured cell it painted into explicit white text on black — white on white in a light terminal. Nothing blends at opacity 1; the cells keep their colours. (ACID-FIX-9)
 - **A border junction joins the line that won beside it** (CSS Tables 3 §11.5, DIVERGENCES §1): a collapsed table cell with no top border did not reach the top line, so the junction above its `double` side drew the losing `solid` arm (`┬`, not `╥`) and the corner took the table's colour. (ACID-FIX-7)
 - **`position: relative` moves an inline element** (CSS 2.1 §9.4.3): its insets were ignored; its text and atoms now draw, are hit and carry the caret at the moved place, the line keeping their cells, nested relative boxes adding up. (ACID-FIX-5)

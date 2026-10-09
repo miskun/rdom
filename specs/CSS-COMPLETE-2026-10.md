@@ -297,6 +297,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-7 | A border junction joins the line that won beside it, where the winning box stops short of the junction (CSS Tables 3 §11.5; found by tile 14) | done |
 | ACID-FIX-8 | A disabled `<fieldset>` does not grey its legend and text; the UA's muted look is the disabled controls' (found by tile 15a) | done |
 | ACID-FIX-9 | A layer composited at full opacity keeps its cells' colours, the terminal's default ones included (found by tile 24) | done |
+| ACID-FIX-10 | An inline block's horizontal margins take their cells in its line (CSS 2.1 §10.3.9; found by tile 25) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | partial — tiles 14–24 done; 25–26 next |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
@@ -10815,3 +10816,14 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   their arguments: tile 22's card parts are blocks (two inline `<b>`s share a line — the markup, not the reference,
   had to say "block"); tile 24's rows (a drop shadow takes no layout room) and the mask box's column (x 39). Tiles 20,
   21 and 23 matched at first run.
+- 2026-10-10 — ACID-FIX-10 (found by acid tile 25; CSS 2.1 §10.3.9, §10.8.1). Tile 25 sets its three multi-column
+  articles side by side as `inline-block`s with `margin-right: 2`, and they sat flush: the inline packer placed an
+  atom's border box alone (`push_atomic_inline_block(node, width, …)`), so an inline block's — and an inline-block
+  `::before` / `::after`'s — horizontal margins were dropped, in layout and in intrinsic widths alike, while its
+  vertical ones counted. Root cause in the packer: the line now takes the atom's margin box and its fragment the
+  border box after the left margin; both atom kinds carry `(left, right)` margins through the replay log (`Op::Atom`,
+  `Op::GeneratedAtom`), a percentage against the line's containing block, `auto` as 0 and a negative one as 0, as its
+  vertical margins already were. Red: `css_phase5::atom_box::an_inline_blocks_horizontal_margins_take_their_cells`
+  (`aabcc` for `aa b  cc`; extended to a `::before` and a float's shrink-to-fit width before the fix); green after, the
+  rest of rdom-tui and the showcase unchanged. DIVERGENCES' inline-block entry gains the negative horizontal margin;
+  silent change `sc-inline-block-margins`.

@@ -218,28 +218,34 @@ impl LinePacker<'_> {
     /// single inline-level atom (CSS 2.1 §10.8).
     ///
     /// `rows` is the atom's block-axis geometry; the line it lands on
-    /// grows to hold it when the line is settled (`vertical`).
+    /// grows to hold it when the line is settled (`vertical`). `margins`
+    /// are its left and right margins in cells: the line takes its margin
+    /// box (CSS 2.1 §10.8.1), the fragment its border box after the left
+    /// one (ACID-FIX-10).
     pub(in crate::render::inline) fn push_atomic_inline_block(
         &mut self,
         node: NodeId,
         width: u16,
         rows: AtomRows,
         align: BoxAlign,
+        margins: (u16, u16),
     ) {
         self.log(Op::Atom {
             node,
             width,
             rows,
             align,
+            margins,
         });
-        let x = self.open_atom(node, width);
+        let outer = width.saturating_add(margins.0).saturating_add(margins.1);
+        let x = self.open_atom(node, outer);
         let frame = self.atom_frame(rows, align);
         self.cur_atoms
             .push((AtomAt::Fragment(self.cur_fragments.len()), rows, frame));
-        let mut atom = InlineFragment::atom(node, x, width, rows.height);
+        let mut atom = InlineFragment::atom(node, x + i32::from(margins.0), width, rows.height);
         atom.frame = frame;
         self.cur_fragments.push(atom);
-        self.close_atom(width);
+        self.close_atom(outer);
     }
 
     /// The inline box of an atom `rows` tall aligned by `align`, in the
@@ -258,7 +264,7 @@ impl LinePacker<'_> {
     /// Push an atomic inline `::before` / `::after` (CSS Display 3 §2.4,
     /// CSS Pseudo 4 §2) — `host`'s `slot` pseudo-element, `width` cells
     /// wide with `rows` — as one generated fragment holding its box,
-    /// placed in the line as an element's atom is
+    /// placed in the line as an element's atom is, its margins too
     /// ([`Self::push_atomic_inline_block`]). Its content is laid out
     /// inside it by the layout pass.
     pub(in crate::render::inline) fn push_generated_atom(
@@ -268,6 +274,7 @@ impl LinePacker<'_> {
         width: u16,
         rows: AtomRows,
         align: BoxAlign,
+        margins: (u16, u16),
     ) {
         self.log(Op::GeneratedAtom {
             host,
@@ -275,12 +282,14 @@ impl LinePacker<'_> {
             width,
             rows,
             align,
+            margins,
         });
-        let x = self.open_atom(host, width);
+        let outer = width.saturating_add(margins.0).saturating_add(margins.1);
+        let x = self.open_atom(host, outer);
         let frame = self.atom_frame(rows, align);
         self.cur_atoms
             .push((AtomAt::Generated(self.cur_generated.len()), rows, frame));
-        let mut atom = GeneratedFragment::text(host, slot, x, "");
+        let mut atom = GeneratedFragment::text(host, slot, x + i32::from(margins.0), "");
         atom.width = width;
         atom.frame = frame;
         atom.atom = Some(Box::new(GeneratedAtom {
@@ -289,7 +298,7 @@ impl LinePacker<'_> {
             content: None,
         }));
         self.cur_generated.push(atom);
-        self.close_atom(width);
+        self.close_atom(outer);
     }
 
     /// Make room for an atom `width` cells wide at the inline-flow

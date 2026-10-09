@@ -319,10 +319,10 @@ fn push_float(dom: &Dom<TuiExt>, item: BoxItem, packer: &mut LinePacker<'_>) {
         let rows = vertical::AtomRows::UNMEASURED;
         match item {
             BoxItem::Node(id) => {
-                packer.push_atomic_inline_block(id, width, rows, BoxAlign::Baseline);
+                packer.push_atomic_inline_block(id, width, rows, BoxAlign::Baseline, (0, 0));
             }
             BoxItem::Generated(host, slot) => {
-                packer.push_generated_atom(host, slot, width, rows, BoxAlign::Baseline);
+                packer.push_generated_atom(host, slot, width, rows, BoxAlign::Baseline, (0, 0));
             }
         }
         return;
@@ -345,7 +345,9 @@ fn push_generated_atom(
         crate::render::layout_pass::generated_atoms::measure(dom, host, slot, cb_width, measuring)
     {
         let (_, align) = pseudo_box(dom, host, slot);
-        packer.push_generated_atom(host, slot, width, rows, align);
+        let style = dom.node(host).computed_pseudo(slot);
+        let margins = style.map_or((0, 0), |c| horizontal_margins_of(c, cb_width));
+        packer.push_generated_atom(host, slot, width, rows, align, margins);
     }
 }
 
@@ -369,7 +371,8 @@ fn push_atom(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'_>) {
             max_content,
         );
         let rows = vertical::AtomRows::UNMEASURED;
-        packer.push_atomic_inline_block(id, width, rows, BoxAlign::Baseline);
+        let margins = horizontal_margins(dom, id, 0);
+        packer.push_atomic_inline_block(id, width, rows, BoxAlign::Baseline, margins);
         return;
     }
     let cb_width = packer.content_width();
@@ -378,7 +381,25 @@ fn push_atom(dom: &Dom<TuiExt>, id: NodeId, packer: &mut LinePacker<'_>) {
             .width;
     let rows = vertical::atom_rows(dom, id, width, cb_width);
     let (_, align) = element_box(dom, id);
-    packer.push_atomic_inline_block(id, width, rows, align);
+    let margins = horizontal_margins(dom, id, cb_width);
+    packer.push_atomic_inline_block(id, width, rows, align, margins);
+}
+
+/// The left and right margins of the inline block `id` in cells (CSS 2.1
+/// §10.3.9: they apply; `auto` is 0), a percentage against `cb_width` —
+/// a negative one as 0, as its vertical margins count in its line
+/// (`vertical`; DIVERGENCES §2).
+fn horizontal_margins(dom: &Dom<TuiExt>, id: NodeId, cb_width: u16) -> (u16, u16) {
+    dom.node(id)
+        .computed()
+        .map_or((0, 0), |c| horizontal_margins_of(c, cb_width))
+}
+
+/// [`horizontal_margins`] of the computed style `c`.
+fn horizontal_margins_of(c: &ComputedStyle, cb_width: u16) -> (u16, u16) {
+    let cells =
+        |m: &crate::layout::MarginValue| u16::try_from(m.resolve(cb_width).max(0)).unwrap_or(0);
+    (cells(&c.margin.left), cells(&c.margin.right))
 }
 
 /// Push a list item's marker (CSS Lists 3 §3.5) — an element's, or a
