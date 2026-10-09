@@ -37,6 +37,16 @@ struct SheetResults {
 
 impl ConditionResults {
     fn evaluate(list: &[&Stylesheet], env: &MediaEnvironment) -> Self {
+        // Nothing conditional: every rule holds (`holds` of a sheet with no
+        // results), with nothing evaluated or allocated.
+        if list
+            .iter()
+            .all(|s| s.media().is_none() && s.conditions().is_empty())
+        {
+            return ConditionResults {
+                per_sheet: Vec::new(),
+            };
+        }
         #[cfg(test)]
         probe::EVALUATIONS.with(|c| c.set(c.get() + 1));
         let per_sheet = list
@@ -76,7 +86,8 @@ impl ConditionResults {
 
     /// Whether a rule of sheet `sheet` under `condition` applies: the
     /// sheet's media list matches and `condition` (`None`: unconditional)
-    /// holds.
+    /// holds. A sheet with no results (a set with nothing conditional)
+    /// applies whole.
     pub(super) fn holds(&self, sheet: usize, condition: Option<ConditionId>) -> bool {
         let Some(results) = self.per_sheet.get(sheet) else {
             return true;
@@ -106,15 +117,22 @@ fn own(kind: &ConditionKind, env: &MediaEnvironment) -> bool {
 #[derive(Debug, Default)]
 pub(super) struct ConditionCache {
     last: RefCell<Option<(MediaEnvironment, Rc<ConditionResults>)>>,
+    /// Whether any result depends on the environment: a sheet has a media
+    /// list or a rule is an `@media` (`@supports` is decided when parsed,
+    /// `@container` per element). Without one, the first results serve
+    /// every environment — a sheet set with no conditional rule evaluates
+    /// once, ever (C14G-COST-PINS).
+    reads_environment: std::cell::OnceCell<bool>,
 }
 
 impl ConditionCache {
     /// The results for `list` in `env`: the cached ones when `env` is
-    /// theirs, or when evaluating again changes nothing.
+    /// theirs, when no result depends on the environment, or when
+    /// evaluating again changes nothing.
     pub(super) fn get(&self, list: &[&Stylesheet], env: &MediaEnvironment) -> Rc<ConditionResults> {
         let mut last = self.last.borrow_mut();
         if let Some((seen, results)) = last.as_mut() {
-            if seen == env {
+            if seen == env || !self.reads_environment(list) {
                 return results.clone();
             }
             let fresh = ConditionResults::evaluate(list, env);
@@ -127,6 +145,18 @@ impl ConditionCache {
         let results = Rc::new(ConditionResults::evaluate(list, env));
         *last = Some((*env, results.clone()));
         results
+    }
+
+    fn reads_environment(&self, list: &[&Stylesheet]) -> bool {
+        *self.reads_environment.get_or_init(|| {
+            list.iter().any(|sheet| {
+                sheet.media().is_some()
+                    || sheet
+                        .conditions()
+                        .iter()
+                        .any(|rule| matches!(rule.kind, ConditionKind::Media(_)))
+            })
+        })
     }
 }
 

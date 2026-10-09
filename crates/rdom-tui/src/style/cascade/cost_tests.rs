@@ -608,3 +608,43 @@ fn a_headless_cascade_copies_only_the_sheet_that_changed() {
         "{allocations} allocations to keep a two-rule sheet beside a 300-rule one"
     );
 }
+
+// ─── C14G-COST-PINS: no conditional rule, no conditional cost ──────────
+
+/// CSS Conditional 3 §2: a sheet set with no conditional group rule and
+/// no media list has nothing to evaluate. Cascades at any viewport
+/// evaluate no condition, a cascade in a new media environment allocates
+/// no more than one in the same, no element tests a container
+/// condition, and layout runs no container pass.
+#[test]
+fn no_conditional_rules_cost_nothing() {
+    use crate::LayoutExt;
+    use crate::render::layout_pass::container_pass;
+    use crate::test_alloc::allocations_in;
+    let mut dom = one_div();
+    let css = sheet("div { color: red; padding: 1 } p { margin: 0 }");
+    super::conditions::probe::take();
+    super::container::probe::EVALUATIONS.with(|c| c.set(0));
+    container_pass::probe::take();
+    dom.set_viewport(Viewport::new(10, 2));
+    dom.cascade(&css);
+    dom.cascade(&css);
+    let same = allocations_in(|| dom.cascade(&css));
+    dom.set_viewport(Viewport::new(20, 3));
+    let moved = allocations_in(|| dom.cascade(&css));
+    dom.set_color_scheme(rdom_style::color::ColorScheme::Light);
+    let scheme = allocations_in(|| dom.cascade(&css));
+    dom.layout_dom(crate::render::Rect::new(0, 0, 20, 3));
+    assert_eq!(super::conditions::probe::take(), 0, "nothing to evaluate");
+    assert_eq!(
+        (moved, scheme),
+        (same, same),
+        "a new environment costs nothing"
+    );
+    assert_eq!(
+        super::container::probe::EVALUATIONS.with(std::cell::Cell::get),
+        0,
+        "no container condition"
+    );
+    assert_eq!(container_pass::probe::take(), 0, "no container pass");
+}

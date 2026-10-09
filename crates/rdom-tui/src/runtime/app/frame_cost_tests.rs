@@ -288,3 +288,63 @@ fn a_stepped_transition_paints_only_at_its_steps() {
     assert_eq!(super::keyframes_tests::width(&app, div), 10);
     assert!(!needs_frames(&app));
 }
+
+/// C14G-COST-PINS (architect N1, N21): the worst case TECH_DEBT
+/// `ANIM-RELAYOUT-1` states for the layouts of one frame, constructed. A
+/// frame runs at most four `layout_dom`s — its layout, the in-frame
+/// transition hook's relayout after it (C14G-CONTAINER-FIDELITY), the
+/// services' shared relayout, and the hook's relayout after that — and
+/// each runs at most `1 + MAX_PASSES` layouts while query containers'
+/// sizes move (CSS Conditional 5 §6.4). Here: 40 nested containers, each
+/// as wide as its container less one (`100cqw - 1`), so each pass settles
+/// one level; a resize by one column moves the outermost, so every level
+/// moves; each re-cascaded level's `padding-bottom` (the parity of its
+/// container's width) flips under a `step-end` transition, so the hook's
+/// composite moves a value layout reads; and a row focused in a scroller
+/// needs a focus scroll. No positioned box and no `calc-size()`, so each
+/// layout is one run of phases 1–2: 4 × 9 = 36.
+#[test]
+fn a_frame_runs_at_most_four_layouts_of_the_container_cap() {
+    use crate::render::layout_pass::ROUNDS;
+    use crate::render::layout_pass::container_pass::MAX_PASSES;
+    let mut markup = String::from(r#"<div class="list">"#);
+    for i in 0..6 {
+        markup.push_str(&format!(r#"<div class="row" id="r{i}">x</div>"#));
+    }
+    markup.push_str("</div>");
+    markup.push_str(&r#"<div class="c">"#.repeat(40));
+    markup.push('x');
+    markup.push_str(&"</div>".repeat(40));
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    rdom_parser::parse_into(&mut dom, &markup, root).unwrap();
+    let last = dom.get_element_by_id("r5").unwrap();
+    dom.set_attribute(last, "tabindex", "0").unwrap();
+    let sheet = rdom_css::parse(
+        ".list { overflow-y: auto; height: 2; width: 8 } .row { height: 1 } \
+         .c { container-type: inline-size; width: calc(100cqw - 1); \
+              padding-bottom: mod(100cqw, 2); transition: padding-bottom 1s step-end }",
+    );
+    assert!(sheet.warnings.is_empty(), "{:?}", sheet.warnings);
+    let terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
+    let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
+    app.push_stylesheet(sheet.stylesheet);
+    // Settle the chain: 40 levels at 8 a layout.
+    for _ in 0..20 {
+        app.advance(2000).unwrap();
+    }
+    crate::runtime::focus::focus_node(app.dom_mut(), Some(last));
+    app.terminal_mut().backend_mut().resize(79, 10);
+    app.handle_event(crossterm::event::Event::Resize(79, 10));
+    app.take_frame_stats();
+    ROUNDS.with(|r| r.set(0));
+    app.draw_if_dirty().unwrap();
+    let layouts = ROUNDS.with(std::cell::Cell::get);
+    use crate::TuiAccessors;
+    let list = app.dom().node(root).first_child().unwrap().id();
+    assert!(
+        app.dom().node(list).scroll_top().unwrap_or(0) > 0,
+        "focus scrolled"
+    );
+    assert_eq!(layouts, 4 * (1 + MAX_PASSES), "four layout_doms at the cap");
+}

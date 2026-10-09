@@ -9628,3 +9628,24 @@ row comes from.
   `cascade_all`. Red (`cascade/cost_tests.rs` `a_headless_cascade_copies_only_the_sheet_that_changed`,
   a 300-rule sheet beside a two-rule one that gains a rule): the large sheet's kept `Rc` was a new copy
   (`ptr_eq` false); green after, the large sheet shared and the keep under 100 allocations.
+- 2026-10-09 — C14G-COST-PINS (architect N1, N21; CSS Conditional 3 §2, CSS Conditional 5 §6.4). Found: (1) the
+  "no conditional rule, no cost" claim was unpinned, and not quite true — a sheet set with no conditional
+  rule and no media list still evaluated its (empty) conditions at every new media environment, allocating
+  a result set each time (3 evaluations for three environments); (2) `ANIM-RELAYOUT-1`'s bound, restated by
+  C14G-CONTAINER-LOOP as 2 layouts × 9 container layouts × 2 × 3, left out C14G-CONTAINER-FIDELITY's
+  in-frame transition hook, whose relayout follows each of the frame's two layouts: a frame can run four
+  `layout_dom`s. Decided: (1) `ConditionResults::evaluate` returns empty results — every rule holds —
+  without evaluating or allocating when no sheet has a media list or a conditional rule, and
+  `ConditionCache` reuses its results across environments when nothing depends on one (no media list, no
+  `@media`; `@supports` is decided when parsed, `@container` per element) — so `must_restyle` sees the
+  same `Rc`; (2) the bound restated: 4 `layout_dom`s × 9 = 36 layouts a frame, 216 phase runs with a moving
+  `calc-size()` box (108 without, 4 × 9 × (d + 2) × 3 nested), up to 32 subtree cascades, doubled under
+  drag autoscroll; C12G-FRAME-COST's CHANGELOG bullet says four with a container flip. Red:
+  `cascade/cost_tests.rs` `no_conditional_rules_cost_nothing` (3 condition evaluations, then 1 after the
+  cache fix, for 0); green after, with a new environment (viewport, scheme) allocating exactly what the same
+  one does, no container condition tested and no container pass. The worst case is constructed by
+  `frame_cost_tests::a_frame_runs_at_most_four_layouts_of_the_container_cap`: 40 nested containers each
+  `100cqw - 1` wide (one level settles a pass), a one-column resize moving all of them, each re-cascaded
+  level's `padding-bottom: mod(100cqw, 2)` flipping under a `step-end` transition (the hook's composite
+  moves a value layout reads), and a focus scroll — 36 layouts, against the 18 the old statement allowed
+  (no code change: the behaviour was the documented hook's; the statement was wrong).
