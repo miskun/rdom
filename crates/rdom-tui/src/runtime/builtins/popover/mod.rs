@@ -48,9 +48,10 @@
 //!   centres it in the viewport (HTML's rendering rules); the top layer
 //!   paints it above the document (`paint_pass::top_layer`).
 //!
-//! Anchor positioning (`position-anchor`, a popover placed against its
-//! invoker) is C15-ANCHOR: the invoker is recorded per popover
-//! ([`invoker_of`]) for it.
+//! Anchor positioning: a showing popover's invoker ([`invoker_of`]) is
+//! its implicit anchor (HTML §6.12, CSS Anchor Positioning 1 §2.3), so
+//! `position-area` or `anchor()` place it against the button that opened
+//! it (`layout_pass::positioning::anchor`, C15-ANCHOR).
 
 mod algorithms;
 pub(crate) mod attribute;

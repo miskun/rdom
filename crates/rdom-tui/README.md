@@ -976,16 +976,19 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
 ## Popovers and the top layer
 
-`popover` elements (HTML §6.12) and modal dialogs render in the top layer: above every `z-index`, outside every ancestor's `overflow`, centred in the viewport by the UA sheet, on a `Canvas` background that hides the page under them. A `popovertarget` button toggles its popover; a click outside an auto popover, or Esc, closes it (light dismiss); `runtime::builtins::popover` has `show_popover` / `hide_popover` / `toggle_popover` for script. Until anchor positioning lands, place a popover yourself: in a `beforetoggle` listener the event's `source` is the invoker (`popover::invoker_of` answers once it shows), and its `bounding_rect` gives the cells to put the popover under, as `top` / `left` after `inset: auto`. Tab moves through a popover in tree order, so a popover placed away from its invoker should give the control to start at `autofocus`.
+`popover` elements (HTML §6.12) and modal dialogs render in the top layer: above every `z-index`, outside every ancestor's `overflow`, centred in the viewport by the UA sheet, on a `Canvas` background that hides the page under them. A `popovertarget` button toggles its popover; a click outside an auto popover, or Esc, closes it (light dismiss); `runtime::builtins::popover` has `show_popover` / `hide_popover` / `toggle_popover` for script. Tab moves through a popover in tree order, so a popover placed away from its invoker should give the control to start at `autofocus`.
+
+### Anchored popovers, pickers and tooltips
+
+A popover's invoker is its implicit anchor (CSS Anchor Positioning 1 §2.3): `position-area` places it against the button that opened it, in the 3 × 3 grid of the button's and the screen's edges — `bottom span-right` under the button, running right from its left edge. Any absolutely positioned box can name an anchor instead (`anchor-name` on the anchor, `position-anchor` on the box), and `anchor()` / `anchor-size()` in its insets and sizes read the anchor's edges and size.
 
 ```rust
 use crossterm::event::{Event, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use rdom_tui::prelude::*;
 use rdom_tui::runtime::builtins::popover;
-use rdom_tui::ToggleState;
 
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
-    let sheet = rdom_css::from_css_strict(".menu { inset: auto }")?;
+    let sheet = rdom_css::from_css_strict("[popover] { position-area: bottom span-right }")?;
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let body = dom.create_element("body");
@@ -1006,27 +1009,9 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let menu = add(body, "div", "");
     add(menu, "div", "Copy");
     add(menu, "div", "Paste");
-    dom.set_attribute(button, "popovertarget", "menu")?;
-    dom.set_attribute(menu, "id", "menu")?;
+    dom.set_attribute(button, "popovertarget", "m")?;
+    dom.set_attribute(menu, "id", "m")?;
     dom.set_attribute(menu, "popover", "")?;
-    dom.set_attribute(menu, "class", "menu")?;
-
-    // Place the menu under its invoker as it opens.
-    dom.add_event_listener(menu, "beforetoggle", ListenerOptions::default(), move |ctx| {
-        let Some(toggle) = ctx.event.detail.as_toggle() else {
-            return;
-        };
-        if toggle.new_state != ToggleState::Open {
-            return;
-        }
-        let Some(at) = toggle.source.and_then(|b| ctx.dom.node(b).bounding_rect()) else {
-            return;
-        };
-        let mut node = ctx.dom.node_mut(menu);
-        let mut style = node.style_mut().unwrap();
-        style.set_property("top", &(at.y + i32::from(at.height)).to_string()).unwrap();
-        style.set_property("left", &at.x.to_string()).unwrap();
-    })?;
 
     let terminal = Terminal::new(TestBackend::new(24, 8))?;
     let mut app = App::with_backend(dom, sheet, terminal)?;
@@ -1035,7 +1020,6 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     // The invoker opens it, under itself.
     app.dom_mut().node_mut(button).click();
     assert!(popover::is_showing(app.dom(), menu));
-    assert_eq!(popover::invoker_of(app.dom(), menu), Some(button));
     app.draw_if_dirty()?;
     let r = app.dom().node(menu).bounding_rect().unwrap();
     let b = app.dom().node(button).bounding_rect().unwrap();
@@ -1063,6 +1047,89 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     app.handle_event(mouse(MouseEventKind::Down(MouseButton::Left)));
     app.handle_event(mouse(MouseEventKind::Up(MouseButton::Left)));
     assert!(!popover::is_showing(app.dom(), menu));
+    Ok(())
+}
+```
+
+A picker — a custom drop-down list — opens below its button and, where the screen ends, above it: `position-try-fallbacks: flip-block` is tried when the box would overflow below (§4). (rdom's native `<select>` drops its own option list below its row.)
+
+```rust
+use rdom_tui::prelude::*;
+use rdom_tui::runtime::builtins::popover;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        "body { margin: 0 } .spacer { height: 5 }
+         [popover] { position-area: bottom span-right; position-try-fallbacks: flip-block }",
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let body = dom.create_element("body");
+    dom.append_child(root, body)?;
+    let spacer = dom.create_element("div");
+    dom.set_attribute(spacer, "class", "spacer")?;
+    dom.append_child(body, spacer)?;
+    let button = dom.create_element("button");
+    let label = dom.create_text_node("Size: M");
+    dom.append_child(button, label)?;
+    dom.append_child(body, button)?;
+    let list = dom.create_element("div");
+    dom.set_attribute(list, "popover", "")?;
+    for size in ["S", "M", "L"] {
+        let option = dom.create_element("div");
+        let text = dom.create_text_node(size);
+        dom.append_child(option, text)?;
+        dom.append_child(list, option)?;
+    }
+    dom.append_child(body, list)?;
+    popover::show_popover_from(&mut dom, list, Some(button))?;
+    dom.set_viewport(Viewport::new(20, 8));
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 20, 8));
+
+    // Three options and a border are five rows: no room below row 5, so
+    // the list opens above its button.
+    let b = dom.node(button).bounding_rect().unwrap();
+    let r = dom.node(list).bounding_rect().unwrap();
+    assert_eq!((r.x, r.y + i32::from(r.height)), (b.x, b.y));
+    Ok(())
+}
+```
+
+A tooltip names its anchor and sits above it, centred on it (`position-area: top` spans the columns, so the box is `anchor-center`ed); `position-visibility: anchors-visible` (the initial value) hides it while its anchor is scrolled out of view.
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        "body { margin: 0 } .save { anchor-name: --save; margin: 2 0 0 6 }
+         .tip { position: absolute; position-anchor: --save; position-area: top }",
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let body = dom.create_element("body");
+    dom.append_child(root, body)?;
+    let save = dom.create_element("button");
+    dom.set_attribute(save, "class", "save")?;
+    let text = dom.create_text_node("Save");
+    dom.append_child(save, text)?;
+    dom.append_child(body, save)?;
+    let tip = dom.create_element("div");
+    dom.set_attribute(tip, "class", "tip")?;
+    let hint = dom.create_text_node("Ctrl-S");
+    dom.append_child(tip, hint)?;
+    dom.append_child(body, tip)?;
+    dom.set_viewport(Viewport::new(30, 6));
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 30, 6));
+
+    let b = dom.node(save).bounding_rect().unwrap();
+    let t = dom.node(tip).bounding_rect().unwrap();
+    // On the row above the button, centred on it.
+    assert_eq!(t.y + i32::from(t.height), b.y);
+    let centre = |x: i32, w: u16| 2 * x + i32::from(w);
+    assert!((centre(t.x, t.width) - centre(b.x, b.width)).abs() <= 1);
     Ok(())
 }
 ```

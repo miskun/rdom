@@ -44,7 +44,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
-| 15 | Transforms, filters, compositing, multi-column, anchor positioning | part 1 done 2026-10-09 (C15-TRANSLATE, C15-FILTER, C15-BLEND, C15-CLIP-PATH); part 2 (C15-COLUMNS, C15-ANCHOR) and both gates pending |
+| 15 | Transforms, filters, compositing, multi-column, anchor positioning | items done, gates pending (2026-10-09: part 1 C15-TRANSLATE, C15-FILTER, C15-BLEND, C15-CLIP-PATH; part 2 C15-COLUMNS, C15-ANCHOR) |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
 
@@ -279,7 +279,7 @@ row comes from.
 | C15-BLEND | `mix-blend-mode`, `isolation` | done |
 | C15-CLIP-PATH | `clip-path: inset()` | done |
 | C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | done |
-| C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | partial — the README's anchored popover, `<select>` picker and tooltip examples remain |
+| C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | done |
 
 ## Log
 
@@ -9998,3 +9998,20 @@ row comes from.
   §10.3.7's shrink-to-fit is and what an `auto` width always gave. Red → green: `css_phase15::anchor` (4 new);
   mutation runs together — no ordering, rules not applied, block flips not mapping the anchor sides, nothing
   hidden — fail the four, one each.
+- 2026-10-09 — C15-ANCHOR part 4 and Phase 15 part 2 closed (docs). The rdom-tui README's popover section drops the
+  manual placement recipe (a `beforetoggle` listener writing `top` / `left` from the invoker's rect) for
+  "Anchored popovers, pickers and tooltips": the anchored popover doctest — `<button popovertarget>` and
+  `[popover] { position-area: bottom span-right }`, the menu under its button with no listener — a picker that
+  opens above its button where the screen ends (`position-try-fallbacks: flip-block`; mutation-checked: no
+  fallback options fails it; rdom's native `<select>` keeps dropping its own option list) and a tooltip centred
+  above its named anchor. The root README lists multi-column layout and anchor positioning. ACID.md gains tile 25
+  (multi-column: balanced columns, rules joining the border, a split paragraph with its fragments, `widows`, a
+  spanner, a forced break, a monolithic box, `column-fill: auto` into an overflow column, `clone`), tile 26
+  (anchor positioning: the anchored popover and its flip, a tooltip, `anchor()` / `anchor-size()`,
+  `anchor-center`, `@position-try`, `position-try-order`, `anchor-scope`, `position-visibility`) and step I21
+  (a scrolled anchor followed then hidden, a picker flipping on a resize, columns rebalancing). CSS-COVERAGE
+  §3.24: the multi-column, fragmentation and anchor positioning rows Supported (3 / 0 / 0 / 3); the §1 counts 253
+  Supported, 7 Partial, 3 Missing. What is left Partial or Missing in the audit, each with its reason in
+  DIVERGENCES: Partial — `@import` (§3.1), `opacity` (§3.4), `width` / `height` and `contain-intrinsic-size`
+  (§3.6), `pointer-events` (§3.19), `writing-mode` and `direction` / `unicode-bidi` (§3.22); Missing — the decided
+  exclusions `masonry` / `grid-lanes`, `:blank`, `nav-*`. Phase 15: items done, gates pending.
