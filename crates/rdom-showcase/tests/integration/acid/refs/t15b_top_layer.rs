@@ -33,7 +33,9 @@
 //!   (rounded down), row (50 − 3) / 2 = 23 — tile x 24–34, rows 9–11. Its
 //!   border in `CanvasText` (the default colour) and its box blanked by
 //!   `Canvas`: the padding cells beside `Popover` show no digit. Its
-//!   `[popover]` sibling is not showing: nothing.
+//!   `[popover]` sibling is not showing: nothing. It is `:popover-open`
+//!   (Selectors 4 §11): its text green, and its border, `currentcolor`,
+//!   with it (ACID-COVERAGE).
 
 use super::super::reference::Reference;
 
@@ -45,6 +47,7 @@ pub const REF: Reference = Reference {
         "DIVERGENCES §2 select picker, system colors; §1 alignment",
     ],
     legend: &[
+        ('G', "fg #00a000"),
         ('f', "bg #1f2123"),
         ('w', "fg #ffffff bg #1f2123"),
         ('a', "bg #1e90ff"),
@@ -70,11 +73,11 @@ pub const REF: Reference = Reference {
 |012345678901234567890123456789012345678901234567890123456789|
 |............................................................|
 |012345678901234567890123┌─────────┐5678901234567890123456789|
-|............................................................|
+|........................GGGGGGGGGGG.........................|
 |012345678901234567890123│ Popover │5678901234567890123456789|
-|............................................................|
+|........................GGGGGGGGGGG.........................|
 |012345678901234567890123└─────────┘5678901234567890123456789|
-|............................................................|
+|........................GGGGGGGGGGG.........................|
 |012345678901234567890123456789012345678901234567890123456789|
 |............................................................|
 |012345678901234567890123456789012345678901234567890123456789|

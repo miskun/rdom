@@ -41,6 +41,7 @@ abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij
   position: absolute; z-index: 5; left: 50; top: 21; width: 20; height: 3;
   background-color: rgb(0, 100, 0);
 }
+.acid-t15c .dlg:modal { color: rgb(0, 160, 0); }
 .acid-t15c .dlg::backdrop { background-color: rgb(0 0 100 / 60%); }
 "#,
     late_css: "",

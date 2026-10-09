@@ -289,3 +289,38 @@ fn tile_25_multicol() {
 fn tile_26_anchor() {
     assert_tile(&refs::t26_anchor::REF);
 }
+
+#[test]
+fn tile_27_logical() {
+    assert_tile(&refs::t27_logical::REF);
+}
+
+#[test]
+fn tile_28_boxes() {
+    assert_tile(&refs::t28_boxes::REF);
+}
+
+#[test]
+fn tile_29_text() {
+    assert_tile(&refs::t29_text::REF);
+}
+
+#[test]
+fn tile_30_layout() {
+    assert_tile(&refs::t30_layout::REF);
+}
+
+#[test]
+fn tile_31_motion() {
+    assert_tile(&refs::t31_motion::REF);
+}
+
+#[test]
+fn tile_32_scroll() {
+    assert_tile(&refs::t32_scroll::REF);
+}
+
+#[test]
+fn tile_33_states() {
+    assert_tile(&refs::t33_states::REF);
+}

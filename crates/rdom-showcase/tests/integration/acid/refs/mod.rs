@@ -34,6 +34,13 @@ pub mod t23_transforms;
 pub mod t24_effects;
 pub mod t25_multicol;
 pub mod t26_anchor;
+pub mod t27_logical;
+pub mod t28_boxes;
+pub mod t29_text;
+pub mod t30_layout;
+pub mod t31_motion;
+pub mod t32_scroll;
+pub mod t33_states;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -67,4 +74,11 @@ pub const ALL: &[&Reference] = &[
     &t24_effects::REF,
     &t25_multicol::REF,
     &t26_anchor::REF,
+    &t27_logical::REF,
+    &t28_boxes::REF,
+    &t29_text::REF,
+    &t30_layout::REF,
+    &t31_motion::REF,
+    &t32_scroll::REF,
+    &t33_states::REF,
 ];

@@ -10890,3 +10890,17 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   recolor (`Buffer::tint_glyphs`, its only caller) is removed; the translucent background still tints the page's
   glyphs. Red: `color_tests::a_dialogs_color_does_not_recolor_the_page_under_its_backdrop` (`Rgb(255, 0, 0)` for the
   tinted white); green after. DIVERGENCES' filter entry corrected; silent change `sc-backdrop-color`.
+- 2026-10-10 — ACID-COVERAGE, the coverage tiles (pages 8–9). A first run of the coverage test listed 238 properties, 13
+  pseudo-classes, 3 pseudo-elements and 4 at-rules unused; seven tiles, each one kind of CSS, give every one a place
+  with derived cells: 27 flow-relative properties (an `ltr` and an `rtl` column), 28 box longhands, 29 text and font
+  longhands, 30 layout longhands, 31 animations and transitions at the clock's 0 (`@keyframes`, `@property`,
+  `@starting-style`, `@scope`), 32 scrolling at rest (a scripted `scrollTop` that snaps, both scrollbars' axis
+  pseudo-elements), 33 states and the caret (a script focuses a field and presses a button); `:modal` and
+  `:popover-open` rules join tiles 15c and 15b. Found ACID-FIX-12 (tile 27) and ACID-FIX-13 (tile 15c). References
+  changed with their arguments in their derivations: tile 28's empty box has no content row (a `::before` space
+  collapses, CSS 2.1 §9.4.2); tile 30's `r` follows the sparse auto-placement cursor (Grid 2 §8.5); tile 32's box is a
+  row taller, its 3-row items no longer longer than the snapport (Scroll Snap 1 §6.2.3 made the snap a tie); tile 33's
+  caret is at the field's start, where `focus()` leaves a fresh field's selection (HTML §6.6.3). The inert properties —
+  fonts, masks, the 3-D-free transform properties, `background-blend-mode`, `box-decoration-break` without a break,
+  `interpolate-size`, `cursor`, `pointer-events`, scroll-chaining ones — are declared in their tiles with the
+  derivation saying they draw nothing there, so the exemption list stays empty.

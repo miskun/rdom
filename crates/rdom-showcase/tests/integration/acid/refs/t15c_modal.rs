@@ -25,7 +25,9 @@
 //!   row (50 − 5) / 2 = 22, tile rows 21–25: `╭─────────╮`, its sides, and
 //!   `Modal` at x 57, tile row 23; every other cell inside blank on the
 //!   default background (`Canvas`), no letter of the page text through
-//!   it. Its in-flow parent's 1 × 1 clip does not reach it.
+//!   it. Its in-flow parent's 1 × 1 clip does not reach it. It is
+//!   `:modal` (Selectors 4 §11): `Modal` green; the UA's accent border
+//!   colour is its own (ACID-COVERAGE).
 //! - The backdrop, `rgb(0 0 100 / 60%)` (α = 153 / 255 = 0.6), over every
 //!   other cell: an empty cell's black canvas becomes 0.6 · (0, 0, 100) =
 //!   `#00003c`; the page text (tile rows 18–27, `abcdefghij` × 12, white
@@ -45,6 +47,7 @@ pub const REF: Reference = Reference {
         "DIVERGENCES §2 translucent colors, modal dialog, system colors",
     ],
     legend: &[
+        ('G', "fg #00a000"),
         ('k', "bg #00003c"),
         ('t', "fg #6666a2 bg #00003c"),
         ('z', "bg #00283c"),
@@ -98,7 +101,7 @@ pub const REF: Reference = Reference {
 |abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij    │         │     abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij|
 |ttttttttttttttttttttttttttttttttttttttttttttttttttzzzza.........azzzzztttttttttttttttttttttttttttttttttttttttttttttttttt|
 |abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij    │  Modal  │     abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij|
-|ttttttttttttttttttttttttttttttttttttttttttttttttttzzzza.........azzzzztttttttttttttttttttttttttttttttttttttttttttttttttt|
+|ttttttttttttttttttttttttttttttttttttttttttttttttttzzzza..GGGGG..azzzzztttttttttttttttttttttttttttttttttttttttttttttttttt|
 |abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcd│         │fghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij|
 |tttttttttttttttttttttttttttttttttttttttttttttttttttttta.........attttttttttttttttttttttttttttttttttttttttttttttttttttttt|
 |abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcd╰─────────╯fghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij|

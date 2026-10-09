@@ -51,6 +51,7 @@ pub const TILE: Tile = Tile {
 .acid-t15b .sh { position: absolute; left: 2; top: 1; width: 12; height: 1; overflow: hidden; }
 .acid-t15b .so { width: 12; }
 .acid-t15b .pop { padding: 0 1; }
+.acid-t15b .pop:popover-open { color: rgb(0, 160, 0); }
 "#,
     late_css: "",
     setup: None,

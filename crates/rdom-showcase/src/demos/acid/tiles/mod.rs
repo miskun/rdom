@@ -32,6 +32,13 @@ mod t23_transforms;
 mod t24_effects;
 mod t25_multicol;
 mod t26_anchor;
+mod t27_logical;
+mod t28_boxes;
+mod t29_text;
+mod t30_layout;
+mod t31_motion;
+mod t32_scroll;
+mod t33_states;
 
 /// Every tile, in `ACID.md` order.
 pub const TILES: &[&Tile] = &[
@@ -65,6 +72,13 @@ pub const TILES: &[&Tile] = &[
     &t24_effects::TILE,
     &t25_multicol::TILE,
     &t26_anchor::TILE,
+    &t27_logical::TILE,
+    &t28_boxes::TILE,
+    &t29_text::TILE,
+    &t30_layout::TILE,
+    &t31_motion::TILE,
+    &t32_scroll::TILE,
+    &t33_states::TILE,
 ];
 
 /// The sheets the tiles' `<style>` elements `@import`, by URL — what the
