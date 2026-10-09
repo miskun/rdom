@@ -93,6 +93,8 @@ pub struct TuiStyle {
     pub interpolate_size: Option<Value<crate::layout::InterpolateSize>>,
     /// `contain` (CSS Containment 2 §2).
     pub contain: Option<Value<crate::layout::Contain>>,
+    /// `content-visibility` (CSS Containment 2 §4).
+    pub content_visibility: Option<Value<crate::layout::ContentVisibility>>,
     /// `will-change` (CSS Will Change 1 §2).
     pub will_change: Option<Value<crate::layout::WillChange>>,
     /// `container-type` (CSS Conditional 5 §6.1).

@@ -367,6 +367,14 @@ impl TuiStyle {
         crate::layout::Contain
     );
     setter!(
+        "content-visibility",
+        content_visibility,
+        content_visibility,
+        content_visibility_important,
+        CONTENT_VISIBILITY,
+        crate::layout::ContentVisibility
+    );
+    setter!(
         "will-change",
         will_change,
         will_change,

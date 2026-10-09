@@ -201,6 +201,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         // CSS Sizing 4 §6.1; the logical longhands are the physical ones
         // in horizontal-tb (CSS Logical 1 §4), sharing their storage.
         "contain" => &[Contain],
+        "content-visibility" => &[ContentVisibility],
         "will-change" => &[WillChange],
         "container-type" => &[ContainerType],
         "container-name" => &[ContainerName],

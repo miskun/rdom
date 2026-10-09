@@ -40,6 +40,17 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
         "contain" => parse_contain(value).map(|c| {
             style.contain = Some(Value::Specified(c));
         }),
+        "content-visibility" => crate::parse::values::parse_keyword(
+            value,
+            &[
+                ("visible", crate::layout::ContentVisibility::Visible),
+                ("auto", crate::layout::ContentVisibility::Auto),
+                ("hidden", crate::layout::ContentVisibility::Hidden),
+            ],
+        )
+        .map(|v| {
+            style.content_visibility = Some(Value::Specified(v));
+        }),
         "will-change" => parse_will_change(value).map(|w| {
             style.will_change = Some(Value::Specified(w));
         }),
@@ -77,6 +88,11 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
             field(&style.contain_intrinsic_height).map(serialize_one)
         }
         "contain" => style.contain.as_ref().and_then(specified).map(|c| c.css()),
+        "content-visibility" => style
+            .content_visibility
+            .as_ref()
+            .and_then(specified)
+            .map(|v| v.css().to_string()),
         "will-change" => style.will_change.as_ref().and_then(specified).map(|w| {
             if w.features().is_empty() {
                 "auto".to_string()

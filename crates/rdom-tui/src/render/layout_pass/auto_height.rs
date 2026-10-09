@@ -49,9 +49,9 @@ pub(crate) fn resolve_auto_height(
     };
     // Size containment (CSS Containment 2 §3.1): the content's height
     // counts as nothing — `contain-intrinsic-height` where given.
-    let content_height = if super::containment::contains(computed, crate::layout::Direction::Column)
-    {
-        super::containment::contained_size(computed, crate::layout::Direction::Column)
+    let column = crate::layout::Direction::Column;
+    let content_height = if super::containment::contains(dom, id, computed, column) {
+        super::containment::contained_size(dom, id, computed, column)
     } else {
         measurement.content_height
     };

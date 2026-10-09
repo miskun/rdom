@@ -49,9 +49,15 @@ pub(super) fn finish_element<'a>(
             counters: &mut *counters,
             scratch: &mut *scratch,
         };
-        let after = compute_box(&mut cx, Slot::After, cached, &mut recorder, |cx, rules| {
-            compute_pseudo_style(cx, &computed, &[PseudoElementTarget::After], rules)
-        });
+        // An element skipping its contents (CSS Containment 2 §4) has no
+        // `::after`: it is part of them.
+        let after = if crate::style::content_visibility::skips(cx.dom, id, &computed) {
+            None
+        } else {
+            compute_box(&mut cx, Slot::After, cached, &mut recorder, |cx, rules| {
+                compute_pseudo_style(cx, &computed, &[PseudoElementTarget::After], rules)
+            })
+        };
         let marker =
             super::early_pseudos::after_marker(&mut cx, after.as_ref(), cached, &mut recorder);
         (after, marker)

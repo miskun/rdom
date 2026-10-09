@@ -17,12 +17,17 @@
 //! The re-cascades use the sheets the `App` publishes (and note the
 //! restyled roots on its dirty tracker, so the next frame starts their
 //! transitions), or those of the last `CascadeExt` cascade.
+//!
+//! The same passes settle `content-visibility: auto` (CSS Containment 2
+//! §4): after each layout the elements whose relevance changed start or
+//! stop skipping their contents, and are re-cascaded and laid out again.
 
 use rdom_core::Dom;
 
 use crate::ext::TuiExt;
 use crate::render::Rect;
 use crate::style::cascade::{cascade_subtrees_all_with, container};
+use crate::style::content_visibility;
 
 /// The most re-cascades one layout makes: one per level of nested query
 /// containers.
@@ -36,7 +41,10 @@ pub(super) fn lay_out(
     layout: impl Fn(&mut Dom<TuiExt>, Rect),
 ) {
     layout(dom, viewport);
-    if !container::any_queried(dom) {
+    if !container::any_queried(dom) && !content_visibility::any_auto(dom) {
+        // Only the sizes the elements remember can move
+        // (`contain-intrinsic-size: auto`).
+        content_visibility::after_layout(dom, layout_viewport(viewport));
         return;
     }
     let Some(crate::runtime::style_flush::CascadeInputs {
@@ -49,7 +57,14 @@ pub(super) fn lay_out(
     };
     let sheets: Vec<&crate::style::Stylesheet> = sheets.iter().map(|s| &**s).collect();
     for _ in 0..MAX_PASSES {
-        let stale = container::stale(dom);
+        // The queried containers whose size moved, and the
+        // `content-visibility: auto` elements that started or stopped
+        // skipping their contents (`style::content_visibility`).
+        let mut stale = container::stale(dom);
+        stale.extend(content_visibility::after_layout(
+            dom,
+            layout_viewport(viewport),
+        ));
         if stale.is_empty() {
             return;
         }
@@ -61,6 +76,12 @@ pub(super) fn lay_out(
         }
         layout(dom, viewport);
     }
+}
+
+/// The viewport as a layout rect (what `content-visibility` relevance is
+/// measured against).
+fn layout_viewport(r: Rect) -> crate::layout::LayoutRect {
+    crate::layout::LayoutRect::new(i32::from(r.x), i32::from(r.y), r.width, r.height)
 }
 
 /// Test-only: the re-cascades the passes made.

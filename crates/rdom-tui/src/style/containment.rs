@@ -3,6 +3,9 @@
 //! `container-type` implies — and what `will-change` makes of it. The
 //! layout, paint and cascade effects all ask here.
 
+use rdom_core::{Dom, NodeId};
+
+use crate::ext::TuiExt;
 use crate::layout::Display;
 use crate::style::ComputedStyle;
 
@@ -19,19 +22,36 @@ pub(crate) fn size_block(c: &ComputedStyle) -> bool {
     c.contain.size || c.container_type.queries_block()
 }
 
+/// Size containment on the inline axis of the element `id` styled `c`:
+/// [`size_inline`], or its contents skipped (`content-visibility`, §4).
+pub(crate) fn size_inline_of(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle) -> bool {
+    size_inline(c) || super::content_visibility::skips(dom, id, c)
+}
+
+/// [`size_inline_of`] for the block axis.
+pub(crate) fn size_block_of(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle) -> bool {
+    size_block(c) || super::content_visibility::skips(dom, id, c)
+}
+
+/// `content-visibility: auto | hidden` applies layout, style and paint
+/// containment (§4).
+fn content_visibility(c: &ComputedStyle) -> bool {
+    c.content_visibility != crate::layout::ContentVisibility::Visible
+}
+
 /// Layout containment (§3.2).
 pub(crate) fn layout(c: &ComputedStyle) -> bool {
-    c.contain.layout
+    c.contain.layout || content_visibility(c)
 }
 
 /// Paint containment (§3.4).
 pub(crate) fn paint(c: &ComputedStyle) -> bool {
-    c.contain.paint
+    c.contain.paint || content_visibility(c)
 }
 
 /// Style containment (§3.3).
 pub(crate) fn style(c: &ComputedStyle) -> bool {
-    c.contain.style
+    c.contain.style || content_visibility(c)
 }
 
 /// The properties whose non-initial value makes a stacking context (CSS

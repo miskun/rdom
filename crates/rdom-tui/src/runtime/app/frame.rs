@@ -131,6 +131,9 @@ impl<B: Backend> App<B> {
         // §5.4), queued between layout and paint: HTML fires them at the
         // rendering update, never in the middle of one.
         self.prelude.touched |= crate::runtime::scrollbar::fire_queued_scroll_events(&mut self.dom);
+        // CSS Containment 2 §4: the `content-visibility: auto` elements
+        // whose skipping changed in this frame's layout.
+        self.prelude.touched |= crate::style::content_visibility::fire_queued_events(&mut self.dom);
         // Drain transition and animation events queued during this frame.
         self.dispatch_animation_events();
 

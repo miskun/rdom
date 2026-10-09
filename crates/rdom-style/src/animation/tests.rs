@@ -163,6 +163,7 @@ const SPEC: &[(&str, Spec)] = &[
     // CSS Containment 2 §2, CSS Will Change 1 §2
     ("contain", L(N)),
     ("will-change", L(N)),
+    ("content-visibility", L(D)),
     // CSS Conditional 5 §6.1–§6.3
     ("container", S),
     ("container-name", L(N)),

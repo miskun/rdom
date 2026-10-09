@@ -28,22 +28,30 @@ pub(crate) fn is_text_input<Ext>(dom: &rdom_core::Dom<Ext>, id: rdom_core::NodeI
 }
 
 /// Whether `id` generates a box as far as `display` goes: neither it nor
-/// any ancestor has a computed `display: none` (CSS Display 3 §2.5 — the
-/// element and its descendants generate no boxes). `display` does not
+/// any ancestor box has a computed `display: none` (CSS Display 3 §2.5 —
+/// the element and its descendants generate no boxes), and no ancestor
+/// box skips its contents (CSS Containment 2 §4). `display` does not
 /// inherit, so the ancestors must be walked; the cascade still computes
 /// styles inside such a subtree and layout leaves their rects zeroed.
 /// O(depth). Elements never cascaded do not count as `none`.
 pub(crate) fn is_rendered(dom: &crate::TuiDom, id: rdom_core::NodeId) -> bool {
-    let mut cur = Some(id);
-    while let Some(n) = cur {
-        let node = dom.node(n);
-        if node
+    let none = |n: rdom_core::NodeId| {
+        dom.node(n)
             .computed()
             .is_some_and(|c| c.display == crate::layout::Display::None)
-        {
+    };
+    if none(id) {
+        return false;
+    }
+    // Up the box tree: an ancestor box that is `display: none` or skips
+    // its contents (`content-visibility`, CSS Containment 2 §4) — a closed
+    // `<details>`'s slot among them.
+    let mut cur = crate::render::box_tree::box_parent(dom, id);
+    while let Some(n) = cur {
+        if none(n) || crate::style::content_visibility::skips_contents(dom, n) {
             return false;
         }
-        cur = node.parent_node().map(|p| p.id());
+        cur = crate::render::box_tree::box_parent(dom, n);
     }
     true
 }

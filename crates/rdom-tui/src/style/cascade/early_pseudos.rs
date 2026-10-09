@@ -83,7 +83,13 @@ pub(super) fn compute(
     } else {
         None
     };
-    let mut before = pseudo(cx, Slot::Before, computed, before_targets(dom, id));
+    // An element skipping its contents (CSS Containment 2 §4) has no
+    // `::before`: it is part of them.
+    let mut before = if crate::style::content_visibility::skips(dom, id, computed) {
+        None
+    } else {
+        pseudo(cx, Slot::Before, computed, before_targets(dom, id))
+    };
     // CSS UI 4 §6.3: a checked toggle's mark in its accent.
     if let Some(b) = before.as_mut() {
         crate::style::accent::tint_mark(dom, id, computed, b);

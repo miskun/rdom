@@ -266,7 +266,7 @@ row comes from.
 | C14-MEDIA | `@media` (cell-sized viewport, `prefers-color-scheme`, `prefers-reduced-motion`, `hover` / `pointer`, …) and `matchMedia` | done |
 | C14-SUPPORTS | `@supports` (feature queries against the dispatch table; `CSS.supports`) | done |
 | C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | done |
-| C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | partial — part 2: `content-visibility`; part 3: `<details>` through it |
+| C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | partial — part 3: `<details>` through `content-visibility` |
 
 ### Phase 15 — Transforms, filters, compositing, multi-column, anchor positioning (audit §3.23, §3.24)
 
@@ -9189,3 +9189,29 @@ row comes from.
   the clip test; no counter barrier → the counter test; no containment containing block → the layout and
   `will-change` tests; no containment formatting context → the layout test. Silent change 28 (the old 28–89
   move to 29–90). CSS-COVERAGE §3.21 5 / 0 / 1 / 1, total 243 / 7 / 12 / 45.
+- 2026-10-09 — C14-CONTAIN (part 2 of 3: `content-visibility`; CSS Containment 2 §4, CSS Sizing 4 §6.1's last
+  remembered size). rdom-style: `content-visibility: visible | auto | hidden` (`ContentVisibility`), not inherited,
+  discrete with `hidden` shown only at a transition's end (`animation::entry::CONTENT_VISIBILITY`, `display`'s
+  rule). rdom-tui `style/content_visibility.rs` (document data): the `auto` elements and the elements with
+  `contain-intrinsic-size: auto` the cascade met, the `auto` ones skipping, the remembered content boxes, the
+  queued events; `skips(dom, id, style)` — `hidden` always, `auto` while recorded as skipping. Decided — where
+  skipping takes effect: `box_tree::PaintOrder::tree` gives a skipping element no children, the one hook every
+  walk shares (layout, paint, hit-testing, intrinsic sizes, the positioned and stacking walks); the cascade
+  generates no `::before` / `::after` for it (they are part of the contents — `early_pseudos`, `finish`), so the
+  25 readers of a pseudo-element's style need no check; `node::is_rendered` climbs the box tree and refuses an
+  element under a skipping box (focus, Tab, `focus()`); its descendants keep their computed styles. Containment:
+  `style::containment` gives `auto` / `hidden` layout, style and paint containment and a skipping element size
+  containment on both axes, and `layout_pass::containment::contained_size` takes the last remembered size when
+  `contain-intrinsic-*` is `auto …` and the element skips. Relevance (§4.4) is decided after each layout
+  (`after_layout`): on the viewport, holding the focus, or holding a top-layer element; a change re-cascades the
+  element and lays out again — the container pass's loop (`container_pass`, which now also runs when an `auto`
+  element exists, and `remember_inputs` keeps the sheets for it) — and queues `contentvisibilityautostatechange`,
+  which an `App` fires after the frame (`EventDetail::ContentVisibilityAutoState { skipped }`, rdom-core, not
+  bubbling). Remembered sizes are taken after every layout from the elements that did not skip. Red:
+  `css_phase14/content_visibility.rs` — all 4 failed on HEAD (the strict sheet rejected the property); the App
+  event test was compile-red. Green after. Mutation (restored, touched): no box-tree skip → the hidden and the
+  off-screen tests; relevance always kept → the off-screen and event tests; no remembered size → the off-screen
+  and remembered tests; `::before` generated → the hidden test. Silent change 28 gains `content-visibility`.
+  Gate fixes before commit: the relevance check took a render `Rect` into `style/` (the layering test) — now a
+  `LayoutRect`; the longhand interpolation table gains `content-visibility` (`visible` at 50 %). CSS-COVERAGE
+  §3.21 6 / 0 / 0 / 1, total 244 / 7 / 11 / 45.

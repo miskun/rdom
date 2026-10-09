@@ -231,3 +231,46 @@ fn reduced_motion_turns_an_animation_off_through_css() {
     app.draw_if_dirty().unwrap();
     assert!(app.get_animations(div).is_empty());
 }
+
+// ─── content-visibility: auto in an App ────────────────────────────────
+
+/// CSS Containment 2 §4: an `auto` element that starts skipping its
+/// contents fires `contentvisibilityautostatechange` at itself with
+/// `skipped`, after the frame that laid it out.
+#[test]
+fn content_visibility_auto_fires_its_state_change() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    rdom_parser::parse_into(
+        &mut dom,
+        r#"<body><div id="spacer"></div><div id="c"><p>a</p></div></body>"#,
+        root,
+    )
+    .unwrap();
+    let c = dom.get_element_by_id("c").unwrap();
+    let seen: Rc<RefCell<Vec<bool>>> = Rc::default();
+    let log = seen.clone();
+    dom.add_event_listener(
+        c,
+        "contentvisibilityautostatechange",
+        rdom_core::ListenerOptions::default(),
+        move |ev| {
+            log.borrow_mut()
+                .push(ev.event.detail.as_content_visibility_skipped().unwrap())
+        },
+    )
+    .unwrap();
+    let sheet =
+        rdom_css::parse("#spacer { height: 10 } #c { content-visibility: auto }").stylesheet;
+    let terminal = Terminal::new(TestBackend::new(10, 3)).unwrap();
+    let mut app = App::with_backend(dom, sheet, terminal).unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(*seen.borrow(), [true]);
+    resize(&mut app, 10, 20);
+    app.draw_if_dirty().unwrap();
+    assert_eq!(
+        *seen.borrow(),
+        [true, false],
+        "on screen once the terminal is taller"
+    );
+}

@@ -206,6 +206,29 @@ pub(super) const OVERLAY: Option<Ops> = Some(Ops {
     add: no_add,
 });
 
+/// `content-visibility` (CSS Containment 2 §4): discrete, but a
+/// transition to or from `hidden` shows the other value for every progress
+/// strictly between 0 and 1, as `display`'s does `none` — so a box closing
+/// under `transition-behavior: allow-discrete` keeps its contents until
+/// the end.
+pub(super) const CONTENT_VISIBILITY: Option<Ops> = Some(Ops {
+    differs: |a, b| a.content_visibility != b.content_visibility,
+    interpolable: |_, _| false,
+    blend: |a, b, p, _, out| {
+        use crate::layout::ContentVisibility::Hidden;
+        out.content_visibility = if p <= 0.0 {
+            a.content_visibility
+        } else if p >= 1.0 || a.content_visibility == Hidden {
+            b.content_visibility
+        } else if b.content_visibility == Hidden {
+            a.content_visibility
+        } else {
+            discrete(&a.content_visibility, &b.content_visibility, p)
+        };
+    },
+    add: no_add,
+});
+
 /// `visibility` (CSS Display 3 §4, Web Animations 1 §5.3.2): discrete,
 /// but `visible` for the whole interval when an end is.
 pub(super) const VISIBILITY: Option<Ops> = Some(Ops {

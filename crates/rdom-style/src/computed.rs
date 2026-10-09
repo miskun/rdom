@@ -62,6 +62,8 @@ pub struct ComputedStyle {
     /// `contain` (CSS Containment 2 §2): the containment types the
     /// element applies itself.
     pub contain: crate::layout::Contain,
+    /// `content-visibility` (CSS Containment 2 §4).
+    pub content_visibility: crate::layout::ContentVisibility,
     /// `will-change` (CSS Will Change 1 §2): the features the author
     /// expects to change.
     pub will_change: crate::layout::WillChange,

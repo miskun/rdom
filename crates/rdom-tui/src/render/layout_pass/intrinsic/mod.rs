@@ -314,8 +314,8 @@ fn content_size(
     // Size containment (CSS Containment 2 §3.1): on a contained axis the
     // content counts as nothing — `contain-intrinsic-size` where given —
     // and only the box's own padding, border and gutter remain.
-    if super::containment::contains(computed, direction) {
-        return contained_content_size(computed, direction, containing_block_width);
+    if super::containment::contains(dom, id, computed, direction) {
+        return contained_content_size(dom, id, computed, direction, containing_block_width);
     }
     let key = (!super::grid::reads_parent_lines(computed)).then_some((
         id,
@@ -351,6 +351,8 @@ fn content_size(
 /// `contain-intrinsic-*` content size plus its padding, border and
 /// permanent scrollbar gutter.
 fn contained_content_size(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
     computed: &ComputedStyle,
     direction: Direction,
     containing_block_width: u16,
@@ -367,7 +369,7 @@ fn contained_content_size(
             g.bottom,
         ),
     };
-    super::containment::contained_size(computed, direction)
+    super::containment::contained_size(dom, id, computed, direction)
         .saturating_add(chrome)
         .saturating_add(gutter)
 }

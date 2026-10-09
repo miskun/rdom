@@ -279,7 +279,9 @@ struct HeadlessInputs {
 /// After a cascade outside an `App` (`CascadeExt`): when it queried a
 /// container, keep its sheets for the layout pass.
 pub(crate) fn remember_inputs(dom: &mut Dom<TuiExt>, stylesheets: &[&Stylesheet]) {
-    if !any_queried(dom) || crate::runtime::style_flush::published(dom).is_some() {
+    if !(any_queried(dom) || crate::style::content_visibility::any_auto(dom))
+        || crate::runtime::style_flush::published(dom).is_some()
+    {
         return;
     }
     let key: Vec<u64> = stylesheets.iter().map(|s| s.version()).collect();

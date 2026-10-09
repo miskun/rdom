@@ -27,6 +27,7 @@
 pub(crate) mod accent;
 pub mod cascade;
 pub(crate) mod containment;
+pub(crate) mod content_visibility;
 pub(crate) mod dir_auto;
 pub mod dirty_tracker;
 pub(crate) mod doc_flags;

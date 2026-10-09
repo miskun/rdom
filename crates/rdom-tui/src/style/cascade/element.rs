@@ -184,6 +184,7 @@ pub(super) fn compute_element_style(
     working.resolve_context_units(&units);
     super::container::note_unit_reads(dom, reads, containers);
     super::container::note_style(dom, &working);
+    crate::style::content_visibility::note_style(dom, id, &working);
     finalize_used_border(&mut working);
 
     working

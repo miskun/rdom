@@ -42,6 +42,7 @@ impl ComputedStyle {
             box_sizing: crate::layout::BoxSizing::ContentBox,
             interpolate_size: crate::layout::InterpolateSize::NumericOnly,
             contain: crate::layout::Contain::NONE,
+            content_visibility: crate::layout::ContentVisibility::Visible,
             will_change: crate::layout::WillChange::auto(),
             container_type: crate::layout::ContainerType::default(),
             container_name: crate::layout::ContainerName::none(),

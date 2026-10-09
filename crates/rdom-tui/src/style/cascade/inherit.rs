@@ -170,6 +170,7 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         // Containment's formatting context, containing blocks, clip and
         // stacking (CSS Containment 2 §3, CSS Will Change 1 §3).
         || a.contain != b.contain
+        || a.content_visibility != b.content_visibility
         || a.will_change != b.will_change
         || a.contain_intrinsic_width != b.contain_intrinsic_width
         || a.contain_intrinsic_height != b.contain_intrinsic_height

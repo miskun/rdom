@@ -24,7 +24,9 @@
 //!
 //! A `<details>` element's `::details-content` slot is a box between it
 //! and its content ([`slot`]): [`children`] and [`box_parent`] see it, so
-//! every walk here does.
+//! every walk here does. An element that skips its contents
+//! (`content-visibility`, CSS Containment 2 §4) has no box children: no
+//! walk lays them out, paints or hits them.
 
 pub(crate) mod icb;
 pub(crate) mod slot;
@@ -410,6 +412,11 @@ impl<'a> PaintOrder<'a> {
     /// `id`'s box-tree children in tree order ([`children`]).
     pub(crate) fn tree(dom: &'a Dom<TuiExt>, id: NodeId) -> Self {
         use crate::ext::ContentBoxLink;
+        // CSS Containment 2 §4: an element skipping its contents has no
+        // box children.
+        if crate::style::content_visibility::skips_contents(dom, id) {
+            return PaintOrder::Sorted(Vec::new().into_iter());
+        }
         let link = dom
             .node(id)
             .ext()

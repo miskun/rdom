@@ -217,6 +217,8 @@ const SAMPLES: &[(&str, &str, &str, Mid)] = &[
     ("left", "2", "4", Is("3")),
     ("z-index", "0", "4", Is("2")),
     ("overlay", "none", "auto", Holds("auto")),
+    // CSS Containment 2 §4: `hidden` only at its end.
+    ("content-visibility", "visible", "hidden", Holds("visible")),
     ("float", "none", "left", Flips),
     ("clear", "none", "both", Flips),
     ("counter-reset", "a 0", "a 4", Is("a 2")),

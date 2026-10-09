@@ -6,8 +6,8 @@
 
 use super::AnimationType::{ByComputedValue, Discrete, NotAnimatable, RepeatableList, ShadowList};
 use super::entry::{
-    DISPLAY, Entry, OVERLAY, Ops, Role, VISIBILITY, e, fix_border, fix_decorations, fix_flex,
-    fix_font, fix_opacity, size, steps, value,
+    CONTENT_VISIBILITY, DISPLAY, Entry, OVERLAY, Ops, Role, VISIBILITY, e, fix_border,
+    fix_decorations, fix_flex, fix_font, fix_opacity, size, steps, value,
 };
 use super::value::{blend, discrete, interpolable};
 
@@ -215,6 +215,8 @@ pub(super) static LONGHANDS: &[Entry] = &[
     // CSS Containment 2 §2, CSS Will Change 1 §2: not animatable.
     e("contain", NotAnimatable, None),
     e("will-change", NotAnimatable, None),
+    // §4: discrete, `hidden` shown only at its end.
+    e("content-visibility", Discrete, CONTENT_VISIBILITY),
     // CSS Conditional 5 §6.1–§6.2: not animatable.
     e("container-type", NotAnimatable, None),
     e("container-name", NotAnimatable, None),

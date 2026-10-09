@@ -1,6 +1,6 @@
 //! Containment: query containers (CSS Conditional 5 §6.1–§6.3:
 //! `container-type`, `container-name`), `contain` (CSS Containment 2 §2)
-//! and `will-change` (CSS Will Change 1 §2).
+//! `content-visibility` (§4) and `will-change` (CSS Will Change 1 §2).
 
 use std::sync::Arc;
 
@@ -188,5 +188,27 @@ impl WillChange {
     /// Whether `feature` is one of them.
     pub fn names(&self, feature: &str) -> bool {
         self.features.iter().any(|f| &**f == feature)
+    }
+}
+
+/// `content-visibility` (CSS Containment 2 §4): whether the element
+/// skips its contents — never (`visible`), always (`hidden`), or while it
+/// is not relevant to the user (`auto`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ContentVisibility {
+    #[default]
+    Visible,
+    Auto,
+    Hidden,
+}
+
+impl ContentVisibility {
+    /// The CSS keyword.
+    pub fn css(self) -> &'static str {
+        match self {
+            ContentVisibility::Visible => "visible",
+            ContentVisibility::Auto => "auto",
+            ContentVisibility::Hidden => "hidden",
+        }
     }
 }

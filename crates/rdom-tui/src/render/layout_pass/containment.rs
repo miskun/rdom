@@ -7,25 +7,50 @@
 //! container on the axes it answers size queries on (`container-type`,
 //! CSS Conditional 5 §6.1).
 
+use rdom_core::{Dom, NodeId};
+
+use crate::ext::TuiExt;
 use crate::layout::Direction;
 use crate::style::ComputedStyle;
 
-/// Whether `computed` has size containment on `direction`'s axis (Row:
-/// the inline axis — horizontal-tb, the width; Column: the block axis).
-pub(crate) fn contains(computed: &ComputedStyle, direction: Direction) -> bool {
+/// Whether the element `id` styled `computed` has size containment on
+/// `direction`'s axis (Row: the inline axis — horizontal-tb, the width;
+/// Column: the block axis) — a skipping `content-visibility` included.
+pub(crate) fn contains(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    direction: Direction,
+) -> bool {
     match direction {
-        Direction::Row => crate::style::containment::size_inline(computed),
-        Direction::Column => crate::style::containment::size_block(computed),
+        Direction::Row => crate::style::containment::size_inline_of(dom, id, computed),
+        Direction::Column => crate::style::containment::size_block_of(dom, id, computed),
     }
 }
 
 /// The content-box size a size-contained box has on `direction`'s axis
-/// in place of its content's: `contain-intrinsic-*`'s length, else 0.
-pub(crate) fn contained_size(computed: &ComputedStyle, direction: Direction) -> u16 {
+/// in place of its content's: its last remembered size when its
+/// `contain-intrinsic-*` is `auto …` and it skips its contents (CSS
+/// Sizing 4 §6.1), else the length, else 0.
+pub(crate) fn contained_size(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    direction: Direction,
+) -> u16 {
     let size = match direction {
         Direction::Row => &computed.contain_intrinsic_width,
         Direction::Column => &computed.contain_intrinsic_height,
     };
+    if size.auto
+        && crate::style::content_visibility::skips(dom, id, computed)
+        && let Some((w, h)) = crate::style::content_visibility::remembered(dom, id)
+    {
+        return match direction {
+            Direction::Row => w,
+            Direction::Column => h,
+        };
+    }
     // A computed length: cells, its viewport units absolute.
     size.length.as_ref().map_or(0, |l| {
         let cells =

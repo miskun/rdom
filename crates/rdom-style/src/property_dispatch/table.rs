@@ -214,6 +214,7 @@ define_fields! {
     BoxSizing => box_sizing : BOX_SIZING,
     InterpolateSize => interpolate_size : INTERPOLATE_SIZE,
     Contain => contain : CONTAIN,
+    ContentVisibility => content_visibility : CONTENT_VISIBILITY,
     WillChange => will_change : WILL_CHANGE,
     ContainerType => container_type : CONTAINER_TYPE,
     ContainerName => container_name : CONTAINER_NAME,

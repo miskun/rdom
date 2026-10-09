@@ -166,6 +166,10 @@ pub enum EventDetail {
     /// the inner `key: String` would otherwise push the enum
     /// past its 32-byte budget.
     Keyboard(Box<KeyboardDetail>),
+    /// `contentvisibilityautostatechange` payload (CSS Containment 2 §4,
+    /// `ContentVisibilityAutoStateChangeEvent`): whether the element now
+    /// skips its contents.
+    ContentVisibilityAutoState { skipped: bool },
 }
 
 /// Permanent regression guard for [`EventDetail`]'s size budget.
@@ -218,6 +222,14 @@ impl EventDetail {
     pub fn as_submit(&self) -> Option<&SubmitDetail> {
         match self {
             EventDetail::Submit(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// `skipped` iff this is a `contentvisibilityautostatechange` payload.
+    pub fn as_content_visibility_skipped(&self) -> Option<bool> {
+        match self {
+            EventDetail::ContentVisibilityAutoState { skipped } => Some(*skipped),
             _ => None,
         }
     }

@@ -186,6 +186,7 @@ pub(super) fn apply_style(
         container_name: CONTAINER_NAME,
         contain: CONTAIN,
         will_change: WILL_CHANGE,
+        content_visibility: CONTENT_VISIBILITY,
     );
     // `aspect-ratio`: the declared value is the computed `Option` itself
     // (`auto` alone is `None`).
