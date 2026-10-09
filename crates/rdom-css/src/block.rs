@@ -266,8 +266,8 @@ fn consume_nested_at_rule(
             };
             consume_block_contents(cursor, sheet, warnings, inner, false);
         };
-        let layer = block.ctx.layer;
-        crate::layer::consume_layer_rule(cursor, sheet, warnings, layer, at, &mut body);
+        let place = (block.ctx.layer, block.ctx.condition);
+        crate::layer::consume_layer_rule(cursor, sheet, warnings, place, at, &mut body);
         return;
     }
     if crate::conditional::is_conditional(&name) {

@@ -132,7 +132,7 @@ pub(super) fn compute_pseudo_style(
             &mut working,
             plan,
             decls,
-            cx.sheets.registry(),
+            cx.sheets.active_registry(),
             None,
             &attrs,
             cx.sheets.viewport(),

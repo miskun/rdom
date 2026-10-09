@@ -84,7 +84,7 @@ pub(super) fn compute_element_style(
                 &mut working,
                 plan,
                 decls,
-                sheets.registry(),
+                sheets.active_registry(),
                 transitions,
                 &attrs,
                 sheets.viewport(),

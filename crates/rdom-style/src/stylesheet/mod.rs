@@ -312,6 +312,10 @@ pub struct Stylesheet {
     /// Declared cascade layers, in order of first declaration
     /// (`layers.rs`).
     layers: Vec<Layer>,
+    /// Every declaration of a layer, in source order, with the
+    /// conditional group rule it sits in: what orders the layers when a
+    /// condition does not hold (CSS Cascade 5 §6.4.3, `layers.rs`).
+    layer_uses: Vec<(LayerId, Option<ConditionId>)>,
     /// Registered custom properties (`@property`), in source order.
     registrations: Vec<crate::PropertyRegistration>,
     /// `@counter-style` definitions, in source order (`counter_styles.rs`).

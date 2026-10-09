@@ -9495,3 +9495,27 @@ row comes from.
   false), `css_phase14::media::an_unknown_viewport_makes_the_size_features_unknown` (`(max-width: 40)` red
   for blue); green after. Expectation changed by the decision: `css_phase14::supports::supports_functions`'
   `not frob(1)` applies. DIVERGENCES' media entry and CSS-COVERAGE / ACID's `@supports` text follow.
+- 2026-10-09 — C14G-CONDITIONAL-SPEC (2/2: `@property` and `@layer` under a condition; decision 3, architect
+  N8a/b, API N5/N6; CSS Conditional 3 §2, CSS Cascade 5 §6.4.3, CSS Properties and Values 1 §3). Found: the
+  parser passed no rule context to `@property` (`top_level.rs`), so a registration inside `@media` /
+  `<style media>` / an appended conditional sheet always registered; `Layer` had no condition and
+  `LayerOrder` was static, so a layer first named inside an unmatched `@media` took its place first.
+  Cascade 5 §6.4.3, checked: "Layers that are defined inside of a conditional group rule do not contribute
+  to the layer order unless the condition is true or unless the conditional group rule can evaluate
+  differently for different elements in the document" — global conditions (`@media`, `@supports`) gate,
+  element-sensitive ones (`@container`) do not. Decided: (1) rdom-style records every layer declaration
+  with its condition (`Stylesheet::layer_uses`; `declare_layer_under` / `declare_anonymous_layer_under`,
+  the old methods unconditional); `LayerOrder::new_where(sheets, holds)` creates the layer tree in the
+  order of the declarations that count (a layer's ancestors before it), then every other layer after (it
+  can have no applying rule); `append` remaps the uses and maps its own layers without recording uses;
+  the cascade orders with `ConditionResults::holds`, which takes an `@container` as holding; an
+  `@import`'s `layer()` stays unconditional (declared at the import). (2) `PropertyRegistration::condition`
+  (set by rdom-css from the rule context; `in_condition`; remapped by `append`); `PropertyRegistry::new`
+  keeps the unconditional registrations (and none from a sheet with a media list) and notes whether any
+  is conditional; `active(sheets, results)` builds — and keeps until the results change — the registry
+  with each conditional one whose condition holds; the cascade's `Sheets::registry()` and the animation
+  engine (`active_registry`) read it; a flip changes the condition results, so the `App` re-cascades
+  (`must_restyle`) and re-registers. Red (`css_phase14/conditional_rules.rs`): an `@property` in an
+  unmatched `@media` gave `margin-left: var(--g)` 2 for 0; `theme` first named in an unmatched `@media`
+  ranked before `base` (red for blue); `a_layer_in_a_container_rule_always_counts` pins §6.4.3's exception
+  (passed before, passes after). Green after.

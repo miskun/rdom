@@ -22,6 +22,7 @@ pub(crate) fn consume_property_rule(
     cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
+    condition: Option<rdom_style::ConditionId>,
     at: (u32, u32),
 ) {
     let Some(prelude) = read_prelude(cursor, warnings) else {
@@ -44,7 +45,9 @@ pub(crate) fn consume_property_rule(
         .ok_or_else(|| "an `@property` rule needs a block".to_string())
         .and_then(|body| registration(&name, &body));
     match registration {
-        Ok(registration) => sheet.register_property(registration),
+        // CSS Conditional 3 §2: inside a conditional group rule it
+        // registers only while the condition holds (C14G-CONDITIONAL-SPEC).
+        Ok(registration) => sheet.register_property(registration.in_condition(condition)),
         Err(reason) => warnings.push(Warning {
             kind: WarningKind::InvalidPropertyRule { name, reason },
             line: at.0,

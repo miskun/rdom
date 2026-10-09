@@ -91,9 +91,9 @@ pub(crate) use matching::probe as match_probe;
 pub(crate) use media::{
     document_media, document_media_preferences, must_restyle, set_document_media_preferences,
 };
-pub(crate) use registered::PropertyRegistry;
 #[cfg(test)]
 pub(crate) use registered::probe as registry_probe;
+pub(crate) use registered::{PropertyRegistry, active_registry};
 pub(crate) use scheme::{document_color_scheme, set_document_color_scheme};
 pub(crate) use starting::starting_style;
 pub(crate) use viewport::{document_viewport, set_document_viewport};

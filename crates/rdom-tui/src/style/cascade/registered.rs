@@ -86,6 +86,8 @@ fn needs_viewport(value: &CustomValue) -> bool {
 pub(crate) struct PropertyRegistry {
     entries: HashMap<String, Entry>,
     pub(super) facts: super::sheets::SheetFacts,
+    /// Some registration sits under a condition (`active`).
+    conditional: bool,
 }
 
 /// The document-data slot holding the registry of the sheet set the
@@ -119,20 +121,87 @@ pub(super) fn document_registry(
     registry
 }
 
+/// The registry in effect for `sheets` in `dom`'s media environment
+/// ([`PropertyRegistry::active`]): what the animation engine reads.
+pub(crate) fn active_registry(
+    dom: &Dom<TuiExt>,
+    sheets: &[&Stylesheet],
+    registry: &Rc<PropertyRegistry>,
+) -> Rc<PropertyRegistry> {
+    let results = registry
+        .facts
+        .conditions
+        .get(sheets, &super::media::document_media(dom));
+    registry.active(sheets, &results)
+}
+
 impl PropertyRegistry {
+    /// The sheet set's registry: its unconditional registrations — an
+    /// `@property` under a conditional group rule (or in a sheet with a
+    /// media list) registers only while that holds (CSS Conditional 3 §2,
+    /// C14G-CONDITIONAL-SPEC), which [`Self::active`] answers per
+    /// environment.
     pub(crate) fn new(sheets: &[&Stylesheet]) -> Self {
         #[cfg(test)]
         probe::BUILDS.with(|c| c.set(c.get() + 1));
+        let unconditional = |sheet: usize, c: Option<rdom_style::ConditionId>| {
+            c.is_none() && sheets[sheet].media().is_none()
+        };
+        let mut registry = Self::new_where(sheets, unconditional);
+        registry.conditional = sheets.iter().any(|sheet| {
+            sheet
+                .media()
+                .is_some_and(|_| !sheet.registered_properties().is_empty())
+                || sheet
+                    .registered_properties()
+                    .iter()
+                    .any(|r| r.condition.is_some())
+        });
+        registry
+    }
+
+    /// The registrations of `sheets` for which `holds(sheet, condition)`,
+    /// a later one of a name replacing an earlier one.
+    fn new_where(
+        sheets: &[&Stylesheet],
+        holds: impl Fn(usize, Option<rdom_style::ConditionId>) -> bool,
+    ) -> Self {
         let mut map = HashMap::new();
-        for sheet in sheets {
+        for (index, sheet) in sheets.iter().enumerate() {
             for reg in sheet.registered_properties() {
-                map.insert(reg.name.clone(), Entry::new(reg));
+                if holds(index, reg.condition) {
+                    map.insert(reg.name.clone(), Entry::new(reg));
+                }
             }
         }
         PropertyRegistry {
             entries: map,
             facts: Default::default(),
+            conditional: false,
         }
+    }
+
+    /// The registrations in effect under `results` (the sheets'
+    /// conditions in the current environment): this registry when none
+    /// is conditional, else one with each conditional registration whose
+    /// condition holds — an `@container`'s counting, as it can hold for
+    /// some element — kept until the results change.
+    pub(crate) fn active(
+        self: &Rc<Self>,
+        sheets: &[&Stylesheet],
+        results: &Rc<super::conditions::ConditionResults>,
+    ) -> Rc<Self> {
+        if !self.conditional {
+            return self.clone();
+        }
+        if let Some((seen, active)) = &*self.facts.active_registry.borrow()
+            && Rc::ptr_eq(seen, results)
+        {
+            return active.clone();
+        }
+        let active = Rc::new(Self::new_where(sheets, |s, c| results.holds(s, c)));
+        *self.facts.active_registry.borrow_mut() = Some((results.clone(), active.clone()));
+        active
     }
 
     pub(crate) fn is_empty(&self) -> bool {

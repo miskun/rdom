@@ -135,11 +135,18 @@ fn consume_at_rule(
                         layer: Option<LayerId>| {
             parse_rule_list(cursor, sheet, warnings, ctx.in_layer(layer), None);
         };
-        crate::layer::consume_layer_rule(cursor, sheet, warnings, layer, (line, column), &mut body);
+        let place = (layer, ctx.condition);
+        crate::layer::consume_layer_rule(cursor, sheet, warnings, place, (line, column), &mut body);
         return;
     }
     if name.eq_ignore_ascii_case("property") {
-        crate::property::consume_property_rule(cursor, sheet, warnings, (line, column));
+        crate::property::consume_property_rule(
+            cursor,
+            sheet,
+            warnings,
+            ctx.condition,
+            (line, column),
+        );
         return;
     }
     if name.eq_ignore_ascii_case("keyframes") {

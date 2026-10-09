@@ -539,6 +539,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **Query containers** (CSS Conditional 5 §6.1–§6.3): `container-type` (`ContainerType`, `ContainerSize`), `container-name` (`ContainerName`) and the `container` shorthand, with `TuiStyle` builders. (C14-CONTAINER)
 - **Feature queries** (CSS Conditional 3 §6, 4 §6, 5 §5): `conditional::SupportsCondition` (a declaration tested with the dispatch table's value parser, `selector()`, `font-tech()` / `font-format()` false), evaluated once when parsed; `supports(property, value)` and `supports_condition(text)` are `CSS.supports()`. (C14-SUPPORTS)
 - **Media queries** (Media Queries 4 / 5): `conditional::MediaList::parse` (ranges, `not` / `and` / `or`, `<general-enclosed>` unknown, `not all` for an invalid query) and `matches(&MediaEnvironment)` (`MediaEnvironment::without_viewport` leaves the size features unknown); `MediaPreferences`, Kleene `Truth`, `Condition<L>`; sheets declare `ConditionRule`s, rules record their `condition`. (C14-MEDIA)
+- **Conditional layer declarations and registrations** (CSS Cascade 5 §6.4.3, CSS Conditional 3 §2): `Stylesheet::declare_layer_under` / `declare_anonymous_layer_under` record the condition a declaration sits in, `LayerOrder::new_where(sheets, holds)` orders by the declarations that count, and `PropertyRegistration::condition` / `in_condition` carry an `@property`'s; `append` remaps them. (C14G-CONDITIONAL-SPEC)
 
 ### Changed — `rdom-style`
 
@@ -983,6 +984,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **A `matchMedia` list with a listener stays alive** (CSSOM View §4.2): the App keeps a `MediaQueryList` while it has a listener, so the chained `app.match_media(q).add_listener(f)` hears its flips (the list died with its handle); `match_media` is `#[must_use]`; `add_event_listener("change", …)` / `remove_event_listener` join the legacy-named pair. (C14G-MATCH-MEDIA)
 - **Pixel and `em` breakpoints select** (Media Queries 4 §1.3, DESIGN "Pixel lengths select"): a `@media` / `@container` feature value in `px`, `em`, `rem` or an absolute unit compares at 8px a column and 16px a row — Tailwind's `sm` / `md` / `lg` switch at 80 / 96 / 128 columns — where it was unknown, so neither it nor its `not` matched. (C14G-PX-BREAKPOINTS)
 - **`@supports` `<general-enclosed>` is false, and a viewport-less cascade leaves size queries unknown** (CSS Conditional 3 §6.1, Media Queries 4 §2.4): `@supports not (foo(bar))` applies (it was unknown, so it did not); a `CascadeExt` cascade before any `set_viewport` or layout reads `width` / `height` / `orientation` as unknown instead of 0 × 0, so `max-width` blocks no longer all apply. (C14G-CONDITIONAL-SPEC)
+- **`@property` and `@layer` inside a condition follow it** (CSS Conditional 3 §2, CSS Cascade 5 §6.4.3): an `@property` in `@media` registers only while the query matches (it always did), and a layer first named in an unmatched `@media` / `@supports` no longer takes its place in the layer order; under `@container` a layer always counts. (C14G-CONDITIONAL-SPEC)
 
 ### Changed — `rdom-showcase`
 

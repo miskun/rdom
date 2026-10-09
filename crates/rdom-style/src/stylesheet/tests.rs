@@ -693,6 +693,7 @@ fn version_is_renewed_by_mutation_and_clone() {
         syntax: crate::PropertySyntax::Universal,
         inherits: false,
         initial_value: None,
+        condition: None,
     });
     assert_ne!(sheet.version(), before);
 }

@@ -27,6 +27,9 @@ pub(super) struct Sheets<'a> {
     list: &'a [&'a Stylesheet],
     layers: LayerOrder,
     registry: Rc<PropertyRegistry>,
+    /// The registrations in effect under `conditions` (`registry`'s
+    /// `active`).
+    active: Rc<PropertyRegistry>,
     /// The media environment: the viewport, the preferred color scheme
     /// and the preferences `@media` reads.
     media: MediaEnvironment,
@@ -71,6 +74,14 @@ pub(super) struct SheetFacts {
     /// The conditions' results in the last media environment
     /// (`conditions.rs`).
     pub(super) conditions: super::conditions::ConditionCache,
+    /// The registry in effect under the last results, when a registration
+    /// is conditional (`PropertyRegistry::active`).
+    pub(super) active_registry: std::cell::RefCell<
+        Option<(
+            std::rc::Rc<super::conditions::ConditionResults>,
+            std::rc::Rc<super::registered::PropertyRegistry>,
+        )>,
+    >,
 }
 
 /// Each `@keyframes` name and the rule it resolves to: `(sheet, index)`.
@@ -87,9 +98,15 @@ impl<'a> Sheets<'a> {
         media: MediaEnvironment,
     ) -> Self {
         let conditions = registry.facts.conditions.get(list, &media);
+        // CSS Cascade 5 §6.4.3: a layer declaration under a condition that
+        // does not hold takes no place in the order (an `@container`'s
+        // holds here); an `@property` registers only while its holds.
+        let layers = LayerOrder::new_where(list, |sheet, c| conditions.holds(sheet, c));
+        let active = registry.active(list, &conditions);
         Sheets {
             list,
-            layers: LayerOrder::new(list),
+            layers,
+            active,
             registry,
             media,
             conditions,
@@ -279,9 +296,11 @@ impl<'a> Sheets<'a> {
         self.media.viewport
     }
 
-    /// The custom properties the sheets register.
-    pub(super) fn registry(&self) -> &PropertyRegistry {
-        &self.registry
+    /// The custom properties the sheets register in this run's
+    /// environment (`PropertyRegistry::active`: an `@property` under a
+    /// condition only while it holds).
+    pub(super) fn active_registry(&self) -> &PropertyRegistry {
+        &self.active
     }
 
     /// The identity of this sheet set: the registry `Rc`, rebuilt by an

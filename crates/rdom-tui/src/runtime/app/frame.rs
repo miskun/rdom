@@ -356,7 +356,11 @@ fn style_and_layout(
     };
     let flushed_any = !flushed.is_empty();
     if cascade.is_some() || flushed_any {
-        animations.set_registered_properties(registry.clone());
+        // The registrations in effect: an `@property` under a condition
+        // only while it holds (C14G-CONDITIONAL-SPEC).
+        animations.set_registered_properties(crate::style::cascade::active_registry(
+            dom, sheets, registry,
+        ));
         // A newly rendered element's transitions start from its starting
         // style (CSS Transitions 2 §3, `@starting-style`); its CSS
         // animations follow its `animation-*` lists (CSS Animations 1 §4).

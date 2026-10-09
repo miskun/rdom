@@ -38,7 +38,7 @@ pub(super) fn merge_root_vars(dom: &Dom<TuiExt>, sheets: &Sheets<'_>) -> VarMap 
     // validated as they resolve, before a dependent reads them
     // (Properties and Values 1 §2.1, §2.4); the root has no parent, so
     // an invalid one is its initial value.
-    let registry = sheets.registry();
+    let registry = sheets.active_registry();
     if !registry.is_empty() {
         registry.seed_root(&mut merged, sheets.viewport());
     }

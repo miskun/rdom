@@ -50,17 +50,43 @@ impl Stylesheet {
     /// (CSS Cascade 5 §6.4.2); a later mention finds the same layer.
     /// `None` for an empty path.
     pub fn declare_layer(&mut self, parent: Option<LayerId>, path: &[&str]) -> Option<LayerId> {
+        self.declare_layer_under(parent, path, None)
+    }
+
+    /// [`declare_layer`](Self::declare_layer) inside the conditional group
+    /// rule `condition`: the declaration takes part in the layer order
+    /// only while the condition holds (CSS Cascade 5 §6.4.3, [`LayerOrder::new_where`]).
+    pub fn declare_layer_under(
+        &mut self,
+        parent: Option<LayerId>,
+        path: &[&str],
+        condition: Option<ConditionId>,
+    ) -> Option<LayerId> {
         let mut at = parent;
         for segment in path {
             at = Some(self.named_child(at, segment));
         }
-        if path.is_empty() { None } else { at }
+        let layer = if path.is_empty() { None } else { at }?;
+        self.layer_uses.push((layer, condition));
+        Some(layer)
     }
 
     /// Declare a new anonymous layer inside `parent` (`@layer { … }`).
     /// It is distinct from every other layer.
     pub fn declare_anonymous_layer(&mut self, parent: Option<LayerId>) -> LayerId {
-        self.push_layer(Layer { name: None, parent })
+        self.declare_anonymous_layer_under(parent, None)
+    }
+
+    /// [`declare_anonymous_layer`](Self::declare_anonymous_layer) inside
+    /// the conditional group rule `condition`.
+    pub fn declare_anonymous_layer_under(
+        &mut self,
+        parent: Option<LayerId>,
+        condition: Option<ConditionId>,
+    ) -> LayerId {
+        let layer = self.push_layer(Layer { name: None, parent });
+        self.layer_uses.push((layer, condition));
+        layer
     }
 
     /// Append `other`'s layers, rules, `@keyframes` and root variables after this
@@ -79,6 +105,7 @@ impl Stylesheet {
             next_source_idx: _, // each appended rule takes the next of ours
             root_vars,
             layers,
+            layer_uses,
             registrations,
             counter_styles,
             keyframes,
@@ -95,14 +122,21 @@ impl Stylesheet {
             let parent = layer.parent.map(|p| map[p.index()]);
             let id = match &layer.name {
                 Some(name) => self.named_child(parent, name),
-                None => self.declare_anonymous_layer(parent),
+                None => self.push_layer(Layer { name: None, parent }),
             };
             map.push(id);
         }
         let scopes = self.append_scopes(other);
         let (conditions, root) = self.append_conditions(other);
         let condition = |c: Option<ConditionId>| c.map(|c| conditions[c.index()]).or(root);
-        self.registrations.extend(registrations.iter().cloned());
+        for &(layer, c) in layer_uses {
+            self.layer_uses.push((map[layer.index()], condition(c)));
+        }
+        for registration in registrations {
+            let mut registration = registration.clone();
+            registration.condition = condition(registration.condition);
+            self.registrations.push(registration);
+        }
         for def in counter_styles {
             let mut def = def.clone();
             def.layer = def.layer.map(|l| map[l.index()]);
@@ -173,32 +207,65 @@ impl LayerOrder {
     pub const UNLAYERED: u32 = u32::MAX;
 
     /// Merge and rank the layers of `sheets`, in the order the sheets
-    /// cascade.
+    /// cascade, every declaration counting.
     pub fn new(sheets: &[&Stylesheet]) -> Self {
+        Self::new_where(sheets, |_, _| true)
+    }
+
+    /// [`new`](Self::new), a declaration under a conditional group rule
+    /// counting only when `holds(sheet index, condition)`: "layers that
+    /// are defined inside of a conditional group rule do not contribute
+    /// to the layer order unless the condition is true or unless the
+    /// conditional group rule can evaluate differently for different
+    /// elements" (CSS Cascade 5 §6.4.3) — so `holds` answers true for an
+    /// `@container`. A layer with no declaration that counts still gets a
+    /// rank, after the others (none of its rules can apply).
+    pub fn new_where(
+        sheets: &[&Stylesheet],
+        holds: impl Fn(usize, Option<ConditionId>) -> bool,
+    ) -> Self {
         // A tree of every distinct layer; node 0 is the unlayered root.
         let mut names: Vec<Option<String>> = vec![None];
         let mut children: Vec<Vec<usize>> = vec![Vec::new()];
         let mut nodes: Vec<Vec<usize>> = Vec::with_capacity(sheets.len());
-        for sheet in sheets {
-            let mut local: Vec<usize> = Vec::with_capacity(sheet.layers.len());
-            for layer in &sheet.layers {
-                let parent = layer.parent.map_or(0, |p| local[p.index()]);
-                let existing = layer.name.as_ref().and_then(|name| {
-                    children[parent]
-                        .iter()
-                        .copied()
-                        .find(|&c| names[c].as_ref() == Some(name))
-                });
-                let node = existing.unwrap_or_else(|| {
-                    names.push(layer.name.clone());
-                    children.push(Vec::new());
-                    let node = names.len() - 1;
-                    children[parent].push(node);
-                    node
-                });
-                local.push(node);
+        for (index, sheet) in sheets.iter().enumerate() {
+            let mut local: Vec<Option<usize>> = vec![None; sheet.layers.len()];
+            // The layers in the order their counting declarations name
+            // them (a layer's ancestors before it), then every other.
+            let counting = sheet
+                .layer_uses
+                .iter()
+                .filter(|(_, c)| holds(index, *c))
+                .map(|(l, _)| *l);
+            let all = (0..sheet.layers.len()).map(|i| LayerId(i as u32));
+            for layer in counting.chain(all) {
+                let mut chain = vec![layer];
+                while let Some(p) = sheet.layers[chain[chain.len() - 1].index()].parent {
+                    chain.push(p);
+                }
+                for id in chain.into_iter().rev() {
+                    if local[id.index()].is_some() {
+                        continue;
+                    }
+                    let layer = &sheet.layers[id.index()];
+                    let parent = layer.parent.map_or(0, |p| local[p.index()].unwrap_or(0));
+                    let existing = layer.name.as_ref().and_then(|name| {
+                        children[parent]
+                            .iter()
+                            .copied()
+                            .find(|&c| names[c].as_ref() == Some(name))
+                    });
+                    let node = existing.unwrap_or_else(|| {
+                        names.push(layer.name.clone());
+                        children.push(Vec::new());
+                        let node = names.len() - 1;
+                        children[parent].push(node);
+                        node
+                    });
+                    local[id.index()] = Some(node);
+                }
             }
-            nodes.push(local);
+            nodes.push(local.into_iter().map(|n| n.unwrap_or(0)).collect());
         }
         // Post-order: a layer's sublayers rank below its own rules.
         let mut rank = vec![Self::UNLAYERED; names.len()];

@@ -25,13 +25,15 @@ pub(crate) type LayerBody<'b> =
     dyn FnMut(&mut SourceCursor, &mut Stylesheet, &mut Vec<Warning>, Option<LayerId>) + 'b;
 
 /// Consume an `@layer` rule; the cursor is just past the at-keyword.
-/// `parent` is the layer the rule sits in; `at` the position of `@`;
-/// `body` parses the block form's contents.
+/// `parent` is the layer the rule sits in, `condition` the conditional
+/// group rule (its declarations count in the layer order only while it
+/// holds, CSS Cascade 5 §6.4.3); `at` the position of `@`; `body` parses
+/// the block form's contents.
 pub(crate) fn consume_layer_rule(
     cursor: &mut SourceCursor,
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
-    parent: Option<LayerId>,
+    (parent, condition): (Option<LayerId>, Option<rdom_style::ConditionId>),
     at: (u32, u32),
     body: &mut LayerBody<'_>,
 ) {
@@ -51,8 +53,8 @@ pub(crate) fn consume_layer_rule(
     };
     if cursor.peek() == Some('{') {
         let layer = match names.as_deref() {
-            Some([]) => Some(sheet.declare_anonymous_layer(parent)),
-            Some([name]) => sheet.declare_layer(parent, &segments(name)),
+            Some([]) => Some(sheet.declare_anonymous_layer_under(parent, condition)),
+            Some([name]) => sheet.declare_layer_under(parent, &segments(name), condition),
             _ => {
                 invalid(warnings);
                 skip_balanced_block(cursor);
@@ -70,7 +72,7 @@ pub(crate) fn consume_layer_rule(
     match names {
         Some(list) if !list.is_empty() => {
             for name in &list {
-                sheet.declare_layer(parent, &segments(name));
+                sheet.declare_layer_under(parent, &segments(name), condition);
             }
         }
         _ => invalid(warnings),

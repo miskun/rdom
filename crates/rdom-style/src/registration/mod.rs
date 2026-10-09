@@ -262,6 +262,9 @@ pub struct PropertyRegistration {
     pub inherits: bool,
     /// The initial value's text; `None` only for the `*` syntax.
     pub initial_value: Option<String>,
+    /// The conditional group rule the `@property` sits in: it registers
+    /// only while that holds (CSS Conditional 3 §2, C14G-CONDITIONAL-SPEC).
+    pub condition: Option<crate::ConditionId>,
 }
 
 impl PropertyRegistration {
@@ -302,7 +305,15 @@ impl PropertyRegistration {
             syntax,
             inherits,
             initial_value,
+            condition: None,
         })
+    }
+
+    /// The registration made only while the conditional group rule
+    /// `condition` holds (an `@property` inside `@media`).
+    pub fn in_condition(mut self, condition: Option<crate::ConditionId>) -> Self {
+        self.condition = condition;
+        self
     }
 }
 
