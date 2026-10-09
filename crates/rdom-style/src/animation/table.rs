@@ -212,6 +212,9 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("aspect-ratio", ByComputedValue, value!(aspect_ratio)),
     e("box-sizing", Discrete, steps!(box_sizing)),
     e("interpolate-size", NotAnimatable, None),
+    // CSS Containment 2 §2, CSS Will Change 1 §2: not animatable.
+    e("contain", NotAnimatable, None),
+    e("will-change", NotAnimatable, None),
     // CSS Conditional 5 §6.1–§6.2: not animatable.
     e("container-type", NotAnimatable, None),
     e("container-name", NotAnimatable, None),

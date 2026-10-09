@@ -113,6 +113,8 @@ const PROPERTY_NAMES: &[&str] = &[
     "box-sizing",
     "interpolate-size",
     "contain-intrinsic-size",
+    "contain",
+    "will-change",
     "container",
     "container-name",
     "container-type",

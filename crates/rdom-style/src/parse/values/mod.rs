@@ -110,7 +110,9 @@ pub use calc::{MAX_CALC_DEPTH, MAX_CALC_NESTING, looks_like_calc, parse_calc};
 pub use calc_size::{parse_calc_size, parse_interpolate_size};
 pub(crate) use color::{ColorExpr, compute_function as compute_color_function};
 pub use color::{MAX_COLOR_NESTING, parse_color, parse_color_at, parse_rgb_args, parse_rgba_args};
-pub use containment::{parse_container, parse_container_name, parse_container_type};
+pub use containment::{
+    parse_contain, parse_container, parse_container_name, parse_container_type, parse_will_change,
+};
 pub use content::{parse_content, parse_counter_ops, parse_quotes};
 pub use cursor::{
     parse_accent_color, parse_appearance, parse_caret, parse_caret_animation, parse_caret_color,

@@ -73,7 +73,7 @@ pub use border::{
 };
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
 pub use calc_size::{CalcSize, CalcSizeBasis, InterpolateSize};
-pub use containment::{ContainerName, ContainerSize, ContainerType};
+pub use containment::{Contain, ContainerName, ContainerSize, ContainerType, WillChange};
 pub use float::{Clear, Float, FloatSide};
 pub use font::{
     Font, FontFamily, FontSize, FontSizeKeyword, FontStretch, FontStretchKeyword, FontStyle,

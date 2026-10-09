@@ -10,7 +10,8 @@ use crate::calc::CalcExpr;
 use crate::layout::{ContainIntrinsicSize, ContainerName};
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_contain_intrinsic, parse_container, parse_container_name, parse_container_type,
+    parse_contain, parse_contain_intrinsic, parse_container, parse_container_name,
+    parse_container_type, parse_will_change,
 };
 use crate::{TuiStyle, Value};
 
@@ -36,6 +37,12 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
                 style.contain_intrinsic_height = spec(v.remove(0));
             })
         }
+        "contain" => parse_contain(value).map(|c| {
+            style.contain = Some(Value::Specified(c));
+        }),
+        "will-change" => parse_will_change(value).map(|w| {
+            style.will_change = Some(Value::Specified(w));
+        }),
         "container-type" => parse_container_type(value).map(|t| {
             style.container_type = Some(Value::Specified(t));
         }),
@@ -69,6 +76,18 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
         "contain-intrinsic-height" | "contain-intrinsic-block-size" => {
             field(&style.contain_intrinsic_height).map(serialize_one)
         }
+        "contain" => style.contain.as_ref().and_then(specified).map(|c| c.css()),
+        "will-change" => style.will_change.as_ref().and_then(specified).map(|w| {
+            if w.features().is_empty() {
+                "auto".to_string()
+            } else {
+                w.features()
+                    .iter()
+                    .map(|f| f.as_ref())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            }
+        }),
         "container-type" => style
             .container_type
             .as_ref()

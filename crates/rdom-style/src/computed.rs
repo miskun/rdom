@@ -59,6 +59,12 @@ pub struct ComputedStyle {
     /// `interpolate-size` (CSS Values 5 §11): whether a sizing keyword
     /// interpolates with a length. Inherited; initial `numeric-only`.
     pub interpolate_size: crate::layout::InterpolateSize,
+    /// `contain` (CSS Containment 2 §2): the containment types the
+    /// element applies itself.
+    pub contain: crate::layout::Contain,
+    /// `will-change` (CSS Will Change 1 §2): the features the author
+    /// expects to change.
+    pub will_change: crate::layout::WillChange,
     /// `container-type` (CSS Conditional 5 §6.1): a query container, and
     /// the size containment its size axes apply.
     pub container_type: crate::layout::ContainerType,

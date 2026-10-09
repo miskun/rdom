@@ -1,5 +1,6 @@
-//! Query containers (CSS Conditional 5 §6.1–§6.3): `container-type` and
-//! `container-name`.
+//! Containment: query containers (CSS Conditional 5 §6.1–§6.3:
+//! `container-type`, `container-name`), `contain` (CSS Containment 2 §2)
+//! and `will-change` (CSS Will Change 1 §2).
 
 use std::sync::Arc;
 
@@ -88,5 +89,104 @@ impl ContainerName {
     /// Whether `name` is one of the names.
     pub fn has(&self, name: &str) -> bool {
         self.names.iter().any(|n| &**n == name)
+    }
+}
+
+/// `contain` (CSS Containment 2 §2, Containment 3): `none | strict |
+/// content | [ [ size | inline-size ] || layout || style || paint ]` —
+/// `strict` is `size layout style paint`, `content` `layout style paint`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Contain {
+    /// Size containment on both axes (§3.1).
+    pub size: bool,
+    /// Size containment on the inline axis (Containment 3).
+    pub inline_size: bool,
+    /// Layout containment (§3.2).
+    pub layout: bool,
+    /// Style containment (§3.3).
+    pub style: bool,
+    /// Paint containment (§3.4).
+    pub paint: bool,
+}
+
+impl Contain {
+    /// `none`.
+    pub const NONE: Contain = Contain {
+        size: false,
+        inline_size: false,
+        layout: false,
+        style: false,
+        paint: false,
+    };
+    /// `content`: `layout style paint`.
+    pub const CONTENT: Contain = Contain {
+        size: false,
+        inline_size: false,
+        layout: true,
+        style: true,
+        paint: true,
+    };
+    /// `strict`: `size layout style paint`.
+    pub const STRICT: Contain = Contain {
+        size: true,
+        ..Contain::CONTENT
+    };
+
+    /// The CSS text: a keyword where one names the value, else the
+    /// containment types in grammar order.
+    pub fn css(self) -> String {
+        if self == Contain::NONE {
+            return "none".to_string();
+        }
+        if self == Contain::STRICT {
+            return "strict".to_string();
+        }
+        if self == Contain::CONTENT {
+            return "content".to_string();
+        }
+        [
+            (self.size, "size"),
+            (self.inline_size, "inline-size"),
+            (self.layout, "layout"),
+            (self.style, "style"),
+            (self.paint, "paint"),
+        ]
+        .iter()
+        .filter(|(on, _)| *on)
+        .map(|(_, n)| *n)
+        .collect::<Vec<_>>()
+        .join(" ")
+    }
+}
+
+/// `will-change` (CSS Will Change 1 §2): `auto | <animateable-feature>#`,
+/// the features as written (property names ASCII-lowercased); `auto`
+/// when empty.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WillChange {
+    features: Arc<[Arc<str>]>,
+}
+
+impl WillChange {
+    /// `auto`.
+    pub fn auto() -> Self {
+        Self::default()
+    }
+
+    /// `features`, in order (the parser checks each).
+    pub fn new(features: impl IntoIterator<Item = Arc<str>>) -> Self {
+        WillChange {
+            features: features.into_iter().collect(),
+        }
+    }
+
+    /// The features, in order; empty for `auto`.
+    pub fn features(&self) -> &[Arc<str>] {
+        &self.features
+    }
+
+    /// Whether `feature` is one of them.
+    pub fn names(&self, feature: &str) -> bool {
+        self.features.iter().any(|f| &**f == feature)
     }
 }

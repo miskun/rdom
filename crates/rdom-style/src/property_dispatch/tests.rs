@@ -116,6 +116,8 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("box-sizing", "border-box"),
         ("interpolate-size", "allow-keywords"),
         ("contain-intrinsic-size", "auto 10 none"),
+        ("contain", "layout paint"),
+        ("will-change", "opacity, scroll-position"),
         ("container", "card / size"),
         ("container-name", "a b"),
         ("container-type", "inline-size"),

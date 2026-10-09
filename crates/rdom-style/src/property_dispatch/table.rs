@@ -213,6 +213,8 @@ define_fields! {
     AspectRatio => aspect_ratio : ASPECT_RATIO,
     BoxSizing => box_sizing : BOX_SIZING,
     InterpolateSize => interpolate_size : INTERPOLATE_SIZE,
+    Contain => contain : CONTAIN,
+    WillChange => will_change : WILL_CHANGE,
     ContainerType => container_type : CONTAINER_TYPE,
     ContainerName => container_name : CONTAINER_NAME,
     ContainIntrinsicWidth => contain_intrinsic_width : CONTAIN_INTRINSIC_WIDTH,

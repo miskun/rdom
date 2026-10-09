@@ -28,7 +28,10 @@ impl ClipEdges {
     /// `overflow-clip-margin` box outset by its margin (§3.2); none on a
     /// `visible` axis.
     pub(crate) fn of(ext: &TuiExt, c: &ComputedStyle) -> Self {
-        if !c.clips_overflow() {
+        // CSS Containment 2 §3.4: paint containment clips the content to
+        // the overflow clip edge on both axes.
+        let paint = crate::style::containment::paint(c);
+        if !c.clips_overflow() && !paint {
             return Self::NONE;
         }
         let (edge, grow) = if c.is_scroll_container() {
@@ -48,8 +51,8 @@ impl ClipEdges {
             clips.then(|| (start - grow, start + i32::from(len) + grow))
         };
         Self {
-            x: axis(c.overflow_x.clips(), edge.x, edge.width),
-            y: axis(c.overflow_y.clips(), edge.y, edge.height),
+            x: axis(c.overflow_x.clips() || paint, edge.x, edge.width),
+            y: axis(c.overflow_y.clips() || paint, edge.y, edge.height),
         }
     }
 

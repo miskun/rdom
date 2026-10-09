@@ -204,7 +204,9 @@ pub(crate) fn creates_stacking_context(
     c.display != Display::Contents
         && ((is_positioned(c) && !matches!(c.z_index, ZIndex::Auto))
             || c.opacity < 1.0
-            || is_z_indexed_item(dom, parent, c))
+            || is_z_indexed_item(dom, parent, c)
+            // CSS Containment 2 §3.2, §3.4; CSS Will Change 1 §3.
+            || crate::style::containment::makes_stacking_context(c))
 }
 
 /// A flex or grid item with a `z-index` other than `auto` (CSS Flexbox

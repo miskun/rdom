@@ -2,9 +2,12 @@
 //! CSS Position 3 §2.1) — one ancestor walk for elements and for
 //! positioned `::before` / `::after`.
 //!
-//! - `fixed` → the viewport.
+//! - `fixed` → the nearest ancestor that contains fixed boxes — layout
+//!   or paint containment, a `will-change` naming such a property (CSS
+//!   Containment 2 §3.2, §3.4, CSS Will Change 1 §3) — else the viewport.
 //! - `absolute` → the nearest ancestor box whose `position` is not
-//!   `static` (`relative`, `absolute`, `fixed` and `sticky` alike): its
+//!   `static` (`relative`, `absolute`, `fixed` and `sticky` alike), or
+//!   that contains positioned boxes as a fixed one's does: its
 //!   padding box less its scrollbar gutters ([`padding_box`]); when it
 //!   is a grid container, the grid area the box's placement properties
 //!   name (CSS Grid 2 §9.1); when it is a scroll container, in its
@@ -28,10 +31,8 @@ pub(in crate::render::layout_pass) fn absolute_containing_block(
     style: &ComputedStyle,
     viewport: LayoutRect,
 ) -> LayoutRect {
-    if style.position == Position::Fixed {
-        return viewport;
-    }
-    match containing_ancestor(dom, from) {
+    let fixed = style.position == Position::Fixed;
+    match containing_ancestor_for(dom, from, fixed) {
         Some(p) => of_ancestor(dom, p, style).unwrap_or(viewport),
         None => viewport,
     }
@@ -45,9 +46,21 @@ pub(in crate::render::layout_pass) fn containing_ancestor(
     dom: &Dom<TuiExt>,
     from: Option<NodeId>,
 ) -> Option<NodeId> {
+    containing_ancestor_for(dom, from, false)
+}
+
+/// [`containing_ancestor`] for an absolutely positioned box, or — `fixed`
+/// — a fixed one, which only containment and `will-change` contain.
+fn containing_ancestor_for(dom: &Dom<TuiExt>, from: Option<NodeId>, fixed: bool) -> Option<NodeId> {
     let mut cur = from;
     while let Some(p) = cur {
-        if establishes_containing_block(computed_position(dom, p)) {
+        let by_position = !fixed && establishes_containing_block(computed_position(dom, p));
+        let by_containment = dom
+            .node(p)
+            .ext()
+            .and_then(|e| e.computed.as_deref())
+            .is_some_and(|c| crate::style::containment::contains_positioned(c, fixed));
+        if by_position || by_containment {
             return Some(p);
         }
         cur = parent_id(dom, p);

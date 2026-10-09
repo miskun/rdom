@@ -119,3 +119,85 @@ fn container_properties_do_not_inherit() {
     assert!(!inherits("container-type"));
     assert!(!inherits("container-name"));
 }
+
+/// CSS Containment 2 §2 / Containment 3: `contain`'s keywords and
+/// combinations — `size` and `inline-size` exclusive, each type once.
+#[test]
+fn contain_parses() {
+    use crate::layout::Contain;
+    let parse = |css: &str| {
+        let mut style = TuiStyle::new();
+        set("contain", css, &mut style).ok()?;
+        spec(&style.contain)
+    };
+    assert_eq!(parse("none"), Some(Contain::NONE));
+    assert_eq!(parse("strict"), Some(Contain::STRICT));
+    assert_eq!(parse("CONTENT"), Some(Contain::CONTENT));
+    assert_eq!(
+        parse("paint inline-size"),
+        Some(Contain {
+            inline_size: true,
+            paint: true,
+            ..Contain::NONE
+        })
+    );
+    assert_eq!(parse("size layout style paint"), Some(Contain::STRICT));
+    for bad in [
+        "size inline-size",
+        "layout layout",
+        "none paint",
+        "strict size",
+        "auto",
+        "",
+    ] {
+        assert_eq!(parse(bad), None, "{bad}");
+    }
+    let mut style = TuiStyle::new();
+    set("contain", "layout style paint", &mut style).unwrap();
+    assert_eq!(serialize("contain", &style).as_deref(), Some("content"));
+    set("contain", "style layout", &mut style).unwrap();
+    assert_eq!(
+        serialize("contain", &style).as_deref(),
+        Some("layout style")
+    );
+}
+
+/// CSS Will Change 1 §2: `auto` or a list of `scroll-position`,
+/// `contents` and custom idents — not `will-change`, `none`, `all`,
+/// `auto` or a CSS-wide keyword; property names lowercased.
+#[test]
+fn will_change_parses() {
+    let mut style = TuiStyle::new();
+    set(
+        "will-change",
+        "Opacity, scroll-position, --mine",
+        &mut style,
+    )
+    .unwrap();
+    let w = spec(&style.will_change).unwrap();
+    assert!(w.names("opacity"));
+    assert!(w.names("scroll-position"));
+    assert!(w.names("--mine"));
+    assert_eq!(
+        serialize("will-change", &style).as_deref(),
+        Some("opacity, scroll-position, --mine")
+    );
+    set("will-change", "auto", &mut style).unwrap();
+    assert!(spec(&style.will_change).unwrap().features().is_empty());
+    for bad in [
+        "none",
+        "all",
+        "opacity, auto",
+        "will-change",
+        "opacity transform",
+        "1",
+        "",
+    ] {
+        assert!(
+            set("will-change", bad, &mut TuiStyle::new()).is_err(),
+            "{bad}"
+        );
+    }
+    assert!(!inherits("contain"));
+    assert!(!inherits("will-change"));
+}

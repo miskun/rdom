@@ -8,6 +8,7 @@
 use rdom_tui::render::{Buffer, Rect};
 use rdom_tui::{CascadeExt, Color, LayoutExt, NodeId, PaintExt, TuiDom, TuiNodeExt, Viewport};
 
+mod contain;
 mod container_query;
 mod container_type;
 mod media;

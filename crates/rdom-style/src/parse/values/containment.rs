@@ -94,3 +94,79 @@ pub fn parse_container(tokens: &[Token]) -> Option<(ContainerName, ContainerType
     };
     Some((name, kind))
 }
+
+/// `contain`: `none | strict | content | [ [ size | inline-size ] ||
+/// layout || style || paint ]` (CSS Containment 2 §2, Containment 3).
+pub fn parse_contain(tokens: &[Token]) -> Option<crate::layout::Contain> {
+    use crate::layout::Contain;
+    let idents: Vec<String> = tokens
+        .iter()
+        .map(|t| match t {
+            Token::Ident(s) => Some(s.to_ascii_lowercase()),
+            _ => None,
+        })
+        .collect::<Option<_>>()?;
+    match idents.as_slice() {
+        [] => return None,
+        [one] if one == "none" => return Some(Contain::NONE),
+        [one] if one == "strict" => return Some(Contain::STRICT),
+        [one] if one == "content" => return Some(Contain::CONTENT),
+        _ => {}
+    }
+    let mut out = Contain::NONE;
+    for word in &idents {
+        let slot = match word.as_str() {
+            "size" if !out.inline_size => &mut out.size,
+            "inline-size" if !out.size => &mut out.inline_size,
+            "layout" => &mut out.layout,
+            "style" => &mut out.style,
+            "paint" => &mut out.paint,
+            _ => return None,
+        };
+        if std::mem::replace(slot, true) {
+            return None;
+        }
+    }
+    Some(out)
+}
+
+/// `will-change`: `auto | <animateable-feature>#`, a feature
+/// `scroll-position`, `contents` or a `<custom-ident>` other than
+/// `will-change`, `none`, `all`, `auto`, `scroll-position`, `contents` and
+/// the CSS-wide keywords (CSS Will Change 1 §2).
+pub fn parse_will_change(tokens: &[Token]) -> Option<crate::layout::WillChange> {
+    if let [Token::Ident(s)] = tokens
+        && s.eq_ignore_ascii_case("auto")
+    {
+        return Some(crate::layout::WillChange::auto());
+    }
+    let mut features = Vec::new();
+    for item in tokens.split(|t| *t == Token::Comma) {
+        let [Token::Ident(name)] = item else {
+            return None;
+        };
+        let lower = name.to_ascii_lowercase();
+        let keyword = matches!(lower.as_str(), "scroll-position" | "contents");
+        let excluded = [
+            "will-change",
+            "none",
+            "all",
+            "auto",
+            "initial",
+            "inherit",
+            "unset",
+            "revert",
+            "revert-layer",
+            "default",
+        ]
+        .contains(&lower.as_str());
+        if excluded {
+            return None;
+        }
+        // A keyword or a property name is ASCII case-insensitive; any
+        // other ident is kept as written.
+        let known = keyword || crate::property_dispatch::property_names().contains(&lower.as_str());
+        features.push(Arc::<str>::from(if known { lower } else { name.clone() }));
+    }
+    Some(crate::layout::WillChange::new(features))
+}

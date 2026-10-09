@@ -266,7 +266,7 @@ row comes from.
 | C14-MEDIA | `@media` (cell-sized viewport, `prefers-color-scheme`, `prefers-reduced-motion`, `hover` / `pointer`, …) and `matchMedia` | done |
 | C14-SUPPORTS | `@supports` (feature queries against the dispatch table; `CSS.supports`) | done |
 | C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | done |
-| C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | |
+| C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | partial — part 2: `content-visibility`; part 3: `<details>` through it |
 
 ### Phase 15 — Transforms, filters, compositing, multi-column, anchor positioning (audit §3.23, §3.24)
 
@@ -9159,3 +9159,33 @@ row comes from.
   transition test. DESIGN: "Query containers interleave the cascade and layout"; DIVERGENCES §2: the passes,
   the first-pass unknowns, style queries, `scroll-state()`. CSS-COVERAGE §3.21 3 / 0 / 3 / 1, §3.3 18 / 0 / 0 /
   4, total 241 / 7 / 14 / 45. Item done.
+- 2026-10-09 — C14-CONTAIN (part 1 of 3: `contain` and `will-change`; CSS Containment 2 §2–§3.4, CSS Containment
+  3's inline-size containment, CSS Will Change 1 §2–§3). rdom-style: `contain: none | strict | content | [ [ size
+  | inline-size ] || layout || style || paint ]` (`Contain`, five flags, `NONE` / `CONTENT` / `STRICT`,
+  serialized to the keyword where one names it) and `will-change: auto | <animateable-feature>#` (`WillChange`;
+  property names ASCII-lowercased, other idents kept; `will-change`, `none`, `all`, `auto` and the CSS-wide
+  keywords rejected), not inherited, not animatable. rdom-tui `style/containment.rs`, the one place that says what
+  an element contains: size on the inline / block axis (`contain: size | inline-size`, a query container), layout,
+  paint, style; `makes_stacking_context` (layout or paint containment, or a `will-change` naming a property whose
+  non-initial value stacks — `opacity`, `transform`, `filter`, `isolation`, `contain`, …) and
+  `contains_positioned(fixed)` (layout or paint containment, or a `will-change` naming a property that would
+  contain positioned boxes — `transform`, `filter`, `perspective`, `contain`, …; `position` for absolute boxes
+  only). Effects: `layout_pass::containment` reads the size axes from it (query containers and `contain: size`
+  alike); `finalize_bfc_formation` makes layout and paint containment independent formatting contexts (floats
+  contained, no margin collapsing through); `creates_stacking_context` takes the containment ones;
+  `positioning::containing`'s ancestor walk finds a containing block for a fixed box too (it was always the
+  viewport) — `containing_ancestor_for(fixed)`; `ClipEdges::of` clips both axes at the overflow clip edge under
+  paint containment (paint, hit-testing and the scrollable extent share it); `CounterState` keeps a `Contained`
+  frame per style-contained element (§3.3): an increment or set inside of a counter from outside creates a new
+  one there (the barrier index), nothing created inside outlives the element, and the quote depth is restored
+  on leaving it. `layout_differs` gains `contain` and `will_change`. Decided: `will-change` names properties
+  Phase 15 has not implemented (`transform`, `filter`) and they stack and contain already, as §3 asks; the
+  `will-change` features that do nothing in rdom (`scroll-position`, `contents`) are inert. Red:
+  `css_phase14/contain.rs` — all 6 failed on HEAD (the strict sheet rejected `contain` / `will-change`). Two guard
+  fixtures were wrong as first written and corrected before green: the stacking guard put `#c` at the document
+  root, whose background is the canvas (C13-ROOT-CANVAS) — now inside a `<body>`; the counter guard expected the
+  outside `p` to continue a counter only the contained subtree had created — now a counter created before it.
+  Green after. Mutation (restored, touched): no containment stacking → the two stacking tests; no paint clip →
+  the clip test; no counter barrier → the counter test; no containment containing block → the layout and
+  `will-change` tests; no containment formatting context → the layout test. Silent change 28 (the old 28–89
+  move to 29–90). CSS-COVERAGE §3.21 5 / 0 / 1 / 1, total 243 / 7 / 12 / 45.

@@ -2,8 +2,10 @@
 //! inline-size containment): a box's intrinsic size on a contained axis
 //! is computed as if it had no content — its `contain-intrinsic-size`
 //! (CSS Sizing 4 §6.1) where given, else nothing — so laying it out never
-//! depends on what it holds. A query container applies it on the axes it
-//! answers size queries on (`container-type`, CSS Conditional 5 §6.1).
+//! depends on what it holds. Which axes are contained is
+//! `style::containment`'s: `contain: size | inline-size`, and a query
+//! container on the axes it answers size queries on (`container-type`,
+//! CSS Conditional 5 §6.1).
 
 use crate::layout::Direction;
 use crate::style::ComputedStyle;
@@ -12,8 +14,8 @@ use crate::style::ComputedStyle;
 /// the inline axis — horizontal-tb, the width; Column: the block axis).
 pub(crate) fn contains(computed: &ComputedStyle, direction: Direction) -> bool {
     match direction {
-        Direction::Row => computed.container_type.queries_inline(),
-        Direction::Column => computed.container_type.queries_block(),
+        Direction::Row => crate::style::containment::size_inline(computed),
+        Direction::Column => crate::style::containment::size_block(computed),
     }
 }
 

@@ -11,6 +11,12 @@
 //! element instantiates replaces the same-named one its previous
 //! sibling (or itself) created, rather than nesting in it (§4.5).
 //!
+//! Style containment (CSS Containment 2 §3.3) scopes both to the
+//! element's subtree: an increment or set there of a counter created
+//! outside creates a new one inside, and on leaving the element every
+//! counter created in it is dropped and the quote depth restored
+//! ([`Contained`]).
+//!
 //! A reversed counter's initial value without an integer depends on the
 //! increments after it ([`reversed`]): the cascade computes it from the
 //! boxes in its scope as last cascaded, and checks it once the walk is
@@ -163,6 +169,18 @@ pub(super) struct CounterState {
     /// A [`reversed`] scan: the instance it follows, and per box that
     /// touched it, the box's increment and set.
     trace: Option<Box<reversed::Trace>>,
+    /// The style-contained elements the walk is inside, innermost last.
+    contained: Vec<Contained>,
+}
+
+/// A style-contained element the walk entered (CSS Containment 2 §3.3):
+/// the instances before `barrier` are outside it — read, never changed —
+/// and the quote depth to restore on leaving it.
+#[derive(Debug, Clone)]
+struct Contained {
+    element: NodeId,
+    barrier: usize,
+    quote_depth: u32,
 }
 
 impl CounterState {
@@ -281,6 +299,13 @@ impl CounterState {
     /// items. `parent` is the box's parent, which bounds the scope of
     /// anything created here; `owner` the box.
     pub(super) fn enter(&mut self, parent: Option<NodeId>, owner: Owner, style: &ComputedStyle) {
+        if owner.slot == OpBox::Element && crate::style::containment::style(style) {
+            self.contained.push(Contained {
+                element: owner.element,
+                barrier: self.instances.len(),
+                quote_depth: self.quote_depth.get(),
+            });
+        }
         let mut touched = reversed::Touch::aimed_at(self.touch_target());
         for op in &style.counter_reset {
             if op.is_auto_reversed() && self.trace.is_none() {
@@ -305,7 +330,12 @@ impl CounterState {
             self.increment(LIST_ITEM, if down { -1 } else { 1 }, parent, &mut touched);
         }
         for op in &style.counter_set {
-            match self.instances.iter_mut().rev().find(|i| i.name == op.name) {
+            let barrier = self.barrier();
+            match self.instances[barrier..]
+                .iter_mut()
+                .rev()
+                .find(|i| i.name == op.name)
+            {
                 Some(inst) => {
                     inst.value = op.value;
                     touched.set(inst.id, op.value);
@@ -334,7 +364,10 @@ impl CounterState {
         reversed: bool,
         parent: Option<NodeId>,
     ) -> u32 {
+        // A counter outside a style-contained element is never replaced
+        // from inside it.
         if let Some(at) = self.instances.iter().rposition(|i| i.name == name)
+            && at >= self.barrier()
             && self.instances[at].scope_parent == parent
         {
             self.instances.remove(at);
@@ -360,10 +393,17 @@ impl CounterState {
         parent: Option<NodeId>,
         touched: &mut reversed::Touch,
     ) {
-        if self.innermost(name).is_none() {
+        // Inside a style-contained element, a counter from outside is not
+        // in scope for an increment: it creates a new one (§3.3).
+        let barrier = self.barrier();
+        if !self.instances[barrier..].iter().any(|i| i.name == name) {
             self.instantiate(name, 0, false, parent);
         }
-        if let Some(inst) = self.instances.iter_mut().rev().find(|i| i.name == name) {
+        if let Some(inst) = self.instances[barrier..]
+            .iter_mut()
+            .rev()
+            .find(|i| i.name == name)
+        {
             inst.value = inst.value.saturating_add(by);
             touched.increment(inst.id, by);
         }
@@ -374,9 +414,22 @@ impl CounterState {
     }
 
     /// Leave `element`: instances created by its children go out of
-    /// scope.
+    /// scope — every one created in it, and its quote moves, when it is
+    /// style-contained (§3.3).
     pub(super) fn exit(&mut self, element: NodeId) {
         self.instances.retain(|i| i.scope_parent != Some(element));
+        if self.contained.last().is_some_and(|c| c.element == element)
+            && let Some(frame) = self.contained.pop()
+        {
+            self.instances.truncate(frame.barrier);
+            self.quote_depth.set(frame.quote_depth);
+        }
+    }
+
+    /// The first instance the innermost style-contained element may
+    /// change (0 outside any).
+    fn barrier(&self) -> usize {
+        self.contained.last().map_or(0, |c| c.barrier)
     }
 
     /// The text of a `<quote>` item at this point of the walk, moving

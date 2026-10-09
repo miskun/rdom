@@ -359,6 +359,22 @@ impl TuiStyle {
         crate::layout::MarginTrim
     );
     setter!(
+        "contain",
+        contain,
+        contain,
+        contain_important,
+        CONTAIN,
+        crate::layout::Contain
+    );
+    setter!(
+        "will-change",
+        will_change,
+        will_change,
+        will_change_important,
+        WILL_CHANGE,
+        crate::layout::WillChange
+    );
+    setter!(
         "container-type",
         container_type,
         container_type,

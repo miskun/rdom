@@ -167,6 +167,10 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         // Size containment and the size it gives a contained box (CSS
         // Containment 2 §3.1, CSS Sizing 4 §6.1).
         || a.container_type != b.container_type
+        // Containment's formatting context, containing blocks, clip and
+        // stacking (CSS Containment 2 §3, CSS Will Change 1 §3).
+        || a.contain != b.contain
+        || a.will_change != b.will_change
         || a.contain_intrinsic_width != b.contain_intrinsic_width
         || a.contain_intrinsic_height != b.contain_intrinsic_height
 }

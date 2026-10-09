@@ -88,7 +88,11 @@ pub(super) fn finalize_bfc_formation(working: &mut ComputedStyle) {
         // `align-content` is not `normal` is an independent formatting
         // context.
         || (working.flow.is_block_flow()
-            && working.align_content.keyword != crate::layout::Align::Normal);
+            && working.align_content.keyword != crate::layout::Align::Normal)
+        // CSS Containment 2 §3.2, §3.4: layout and paint containment make
+        // an independent formatting context.
+        || crate::style::containment::layout(working)
+        || crate::style::containment::paint(working);
 }
 
 /// CSS Box Alignment 3 §6.2: `justify-items: legacy` (its initial value)
@@ -175,10 +179,13 @@ pub(super) fn apply_style(
         contain_intrinsic_width: CONTAIN_INTRINSIC_WIDTH,
         contain_intrinsic_height: CONTAIN_INTRINSIC_HEIGHT,
     );
-    // CSS Conditional 5 §6.1–§6.2; not inherited.
+    // CSS Conditional 5 §6.1–§6.2, CSS Containment 2 §2, CSS Will Change
+    // 1 §2; not inherited.
     value!(
         container_type: CONTAINER_TYPE,
         container_name: CONTAINER_NAME,
+        contain: CONTAIN,
+        will_change: WILL_CHANGE,
     );
     // `aspect-ratio`: the declared value is the computed `Option` itself
     // (`auto` alone is `None`).
