@@ -524,3 +524,26 @@ fn a_restyled_contents_slot_reblockifies_its_content() {
     app.advance(0).unwrap();
     assert_eq!(display(&app), rdom_tui::layout::Display::Block);
 }
+
+/// ACID-FIX-4 (found by acid tile 9a). HTML §15.5.20 renders `summary` as
+/// a `list-item` with its disclosure marker and no other styling: no
+/// weight, no colour — a page's summary text is drawn like the text around
+/// it (rdom's UA had made it bold).
+#[test]
+fn a_summary_has_no_ua_weight() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = details(&mut dom, root, true);
+    super::paint(&mut dom, "", 8, 3);
+    let summary = dom
+        .node(d)
+        .children()
+        .find(|c| c.tag_name() == Some("summary"))
+        .map(|c| c.id())
+        .unwrap();
+    let computed = dom.node(summary).computed().unwrap().clone();
+    assert!(
+        !computed.modifiers.contains(rdom_tui::Modifier::BOLD),
+        "summary is not bold"
+    );
+}

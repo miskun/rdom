@@ -291,6 +291,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-1 | `VirtualScreen` (rdom-tui `test-util`) consumes OSC strings — an OSC 8 hyperlink printed as text (found by tile 4) | done |
 | ACID-FIX-2 | A dashed / dotted side's end cell where no side meets it draws the dash glyph, not the solid line (found by tile 5) | done |
 | ACID-FIX-3 | A glyph painted over another takes its own colour, weight and decorations, not the replaced glyph's (found by tile 9a) | done |
+| ACID-FIX-4 | `<summary>` has no UA weight (HTML §15.5.20; found by tile 9a) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | partial — tiles 1–8 done; 9a–13 remain |
 | ACID-TILES-B | Static tiles 14–26 | |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
@@ -10653,3 +10654,13 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   tests: default text over a red glyph read red; plain text over a bold, italic, curly-underlined glyph kept them; a
   default-coloured border over red bold underlined text drew red); green after. Silent change `sc-glyph-overpaint`. The
   reference was not touched.
+- 2026-10-09 — ACID-FIX-4 (found by acid tile 9a; HTML §15.5.20). Both `details` summaries drew bold: the UA sheet's
+  `summary` rule set `font-weight: bold`, which HTML's rendering section does not — it gives `summary` its disclosure
+  marker and nothing else — and DIVERGENCES did not list it. Root cause in the UA rule; the bold is dropped (the rule
+  count is unchanged). Red: `css_phase10::details_content::a_summary_has_no_ua_weight`; green after; one expectation
+  changed — `cascade::tests::ua_interactive_block_tags_are_block` pinned `summary` bold beside `dt` and `legend` (which
+  stay bold: neither is in a tile yet, and both are the same kind of undocumented UA choice). Silent change
+  `sc-summary-weight`. Deriving the tile also showed that the summary's triangle is `summary::before` content where
+  HTML has a `list-item` `::marker`, so `summary { list-style: none }` does not hide it: the glyphs and their place are
+  the browser's, the selector is not — recorded in DIVERGENCES §2 rather than changed here (a `list-item` summary is a
+  larger UA change, left for the Phase 16 gate to weigh). The reference was not touched.

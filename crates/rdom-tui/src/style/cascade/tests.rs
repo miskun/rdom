@@ -1314,8 +1314,14 @@ fn ua_interactive_block_tags_are_block() {
         let c = ua_computed_for(tag);
         assert_eq!(c.display, Display::Block, "<{tag}> should be Block");
     }
-    // summary / dt / legend are also bold.
-    for tag in ["summary", "dt", "legend"] {
+    // dt / legend are also bold; `summary` is not (HTML §15.5.20 gives it
+    // only its marker — ACID-FIX-4).
+    assert!(
+        !ua_computed_for("summary")
+            .modifiers
+            .contains(Modifier::BOLD)
+    );
+    for tag in ["dt", "legend"] {
         let c = ua_computed_for(tag);
         assert!(
             c.modifiers.contains(Modifier::BOLD),

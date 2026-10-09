@@ -10,10 +10,9 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
     vec![
         // ── Block interactive ──
         ("details", TuiStyle::new().display(Display::Block)),
-        (
-            "summary",
-            TuiStyle::new().display(Display::Block).bold(true),
-        ),
+        // HTML §15.5.20 gives `summary` its disclosure marker and nothing
+        // else: no weight (ACID-FIX-4).
+        ("summary", TuiStyle::new().display(Display::Block)),
         // Disclosure triangle — `▸` (collapsed, U+25B8) / `▾`
         // (open, U+25BE). The base rule lands the right-pointing
         // small triangle; the more specific `details:open >
