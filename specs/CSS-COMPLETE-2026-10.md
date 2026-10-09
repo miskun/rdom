@@ -43,7 +43,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 11 | Selectors | done 2026-10-08 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
 | 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
-| 14 | Conditional rules, containment | |
+| 14 | Conditional rules, containment | items done 2026-10-09, gates pending |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
@@ -9264,3 +9264,13 @@ row comes from.
   canvas hit routes to everything's ancestor; rdom's equivalent of that is the root fragment, which is not an
   element. The code was reverted; `css_phase14/hit_html.rs` pins the decision (the canvas hits nothing, the
   content still does) and DIVERGENCES §2's `Dom::root()` entry gives the reason. No production code changed.
+- 2026-10-09 — Phase 14 items done (C14-MEDIA in two commits, C14-SUPPORTS, C14-CONTAINER in two, C14-CONTAIN in
+  three, the carry-overs C14-ASPECT-BLOCK and C14-HIT-HTML — the latter decided as a kept divergence). Docs:
+  ACID.md gains tiles 20 (media queries), 21 (feature queries), 22 (container queries and containment) and
+  interactive step I19 (a resize flipping width queries, a `matchMedia` listener, a container re-query and a
+  `content-visibility: auto` state change); the rdom-tui README gains "Responsive layout: `@media` and container
+  queries" with two doctests — columns stacking under `@media (width < 60)`, and one card a column in a 20-cell
+  sidebar and a row in a 50-cell pane through `@container (width >= 30)`; the root README's 0.6.0 list gains the
+  conditional rules and containment. CSS-COVERAGE §3.21 is 6 / 0 / 0 / 1 (`@page` N/A), the total 244 Supported,
+  7 Partial, 11 Missing, 45 N/A. Status: items done, gates pending; the Phase 13 gate fixes' re-review rides with
+  this phase's gate.

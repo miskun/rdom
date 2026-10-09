@@ -259,6 +259,80 @@ fn main() -> std::result::Result<(), StyleError> {
 
 A node can carry the same declarations inline: `set_grid()`, `set_grid_template_columns(…)`, `set_grid_area_named("head")`, `set_grid_row(…)` and the other `TuiNodeMutExt` grid setters.
 
+## Responsive layout: `@media` and container queries
+
+`@media` (Media Queries 4 / 5) reads the terminal: `width` / `height` are its columns and rows — a unitless number or `ch` is cells, as in every rdom length (a `600px` breakpoint has no cell measure and matches nothing, nor does its `not`) — and the preferences an `App` reports (`App::with_media_preferences`: `prefers-reduced-motion`, …), `prefers-color-scheme` from the terminal's background. A resize restyles only when a query flips or a viewport unit is in use; `App::match_media` is `matchMedia()`, its listeners called on each flip. Columns that stack on a narrow terminal:
+
+```rust
+use rdom_tui::prelude::*;
+
+/// `(x, y)` of `#b` with the sheet laid out in a `width`-column terminal.
+fn second_column(width: u16) -> std::result::Result<(i32, i32), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        ".cols { display: flex }
+         .cols > div { flex: 1 }
+         @media (width < 60) { .cols { flex-direction: column } }",
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    rdom_parser::parse_into(
+        &mut dom,
+        r#"<div class="cols"><div id="a">nav</div><div id="b">main</div></div>"#,
+        root,
+    )?;
+    // The viewport first: the cascade evaluates the queries against it.
+    dom.set_viewport(Viewport::new(width, 10));
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, width, 10));
+    let b = dom.node(dom.get_element_by_id("b").unwrap()).layout_rect().unwrap();
+    Ok((b.x, b.y))
+}
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    assert_eq!(second_column(80)?, (40, 0), "side by side");
+    assert_eq!(second_column(40)?, (0, 1), "stacked");
+    Ok(())
+}
+```
+
+A container query asks the size of the box a component sits in rather than the terminal's (CSS Conditional 5 §6): `container-type: inline-size` makes an element a query container — its width no longer depends on its content — and `@container` rules inside it apply while its content box matches. The `cq*` units are percentages of it. The same card, a column in a narrow sidebar and a row in the wide main pane:
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        ".page { display: flex }
+         .side { width: 20 }
+         .main { flex: 1 }
+         .side, .main { container-type: inline-size }
+         .card { display: flex; flex-direction: column }
+         .card .title { width: 10 }
+         @container (width >= 30) { .card { flex-direction: row } }",
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    rdom_parser::parse_into(
+        &mut dom,
+        r#"<div class="page">
+             <div class="side"><div class="card"><div class="title">A</div><div id="sa">x</div></div></div>
+             <div class="main"><div class="card"><div class="title">B</div><div id="ma">y</div></div></div>
+           </div>"#,
+        root,
+    )?;
+    dom.set_viewport(Viewport::new(70, 10));
+    dom.cascade(&sheet);
+    // Layout re-cascades each container's subtree once its width is known.
+    dom.layout_dom(Rect::new(0, 0, 70, 10));
+    let at = |id: &str| dom.node(dom.get_element_by_id(id).unwrap()).layout_rect().unwrap();
+    // In the 20-wide sidebar the card stacks: its body is below the title.
+    assert_eq!((at("sa").x, at("sa").y), (0, 1));
+    // In the 50-wide main pane it is a row: its body is beside the title.
+    assert_eq!((at("ma").x, at("ma").y), (30, 0));
+    Ok(())
+}
+```
+
 ## Tables
 
 HTML tables, and `display: table` on any element, lay out in a table formatting context (CSS 2.1 §17): columns sized by the automatic or `fixed` algorithm, `colspan` / `rowspan`, captions, separated borders with `border-spacing` or collapsed ones joined into junctions — all in whole cells. The UA sheet is HTML's: `th` bold and centred, `caption` centred, rows centring their cells, no borders. A data table — collapsed borders, zebra rows, a right-aligned numeric column picked by the column combinator, one-line rows at `width: max-content` in a wrapper that scrolls — and its used column ranges read back with `table_tracks()`, for a header or a resize handle drawn outside it:
