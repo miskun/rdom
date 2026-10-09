@@ -1,13 +1,19 @@
 //! The possible breaks of a laid-out flow (CSS Fragmentation 3 §4.1):
-//! class A between block-level siblings, class B between line boxes, each
+//! class A between block-level siblings, class B between line boxes, class
+//! C between a block container's content edge and its children's outer
+//! edges where a gap separates them (an explicit height past its content),
+//! each
 //! with the §4.4 rules it breaks and whether `break-before` /
 //! `break-after` force it (§3.1, propagated from a first or last child,
 //! §3.1's "propagates to its parent"). Monolithic boxes (§4.1) are not
-//! looked into.
+//! looked into. A float is kept whole (monolithic, as rdom lays it out —
+//! DIVERGENCES): a break inside its rows is marked [`FLOAT`], given up
+//! after every §4.4 rule, so the float moves to the next fragmentainer when
+//! a break before it fits and overflows its own otherwise.
 
 use rdom_core::{Dom, NodeId};
 
-use super::{Break, RULE_1, RULE_2, RULE_3};
+use super::{Break, FLOAT, RULE_1, RULE_2, RULE_3, RULE_4};
 use crate::ext::TuiExt;
 use crate::layout::{BreakBetween, LayoutRect};
 use crate::node::TuiNodeExt;
@@ -17,9 +23,34 @@ use crate::style::ComputedStyle;
 /// The breaks of `root`'s laid-out content, by the row they end at.
 pub(in crate::render::layout_pass) fn collect(dom: &Dom<TuiExt>, root: NodeId) -> Vec<Break> {
     let mut out = Vec::new();
-    flow(dom, root, Around::default(), &mut out);
+    let mut floats = Vec::new();
+    flow(dom, root, Around::default(), &mut out, &mut floats);
     out.sort_by_key(|b| (b.end, b.resume));
+    mark_floats(&mut out, floats);
     out
+}
+
+/// Mark each break strictly inside a float's rows `[top, bottom)` —
+/// `O((b + f) log f)`: the floats sorted by top, a running deepest bottom.
+fn mark_floats(breaks: &mut [Break], mut floats: Vec<(i32, i32)>) {
+    if floats.is_empty() {
+        return;
+    }
+    floats.sort_unstable();
+    let deepest: Vec<i32> = floats
+        .iter()
+        .scan(i32::MIN, |d, &(_, b)| {
+            *d = (*d).max(b);
+            Some(*d)
+        })
+        .collect();
+    for b in breaks {
+        // The floats starting above the break; one of them reaching past it.
+        let k = floats.partition_point(|&(top, _)| top < b.end);
+        if k > 0 && deepest[k - 1] > b.end {
+            b.violates |= FLOAT;
+        }
+    }
 }
 
 /// What a `break-before` / `-after` asks of the break at a box's edge.
@@ -76,6 +107,7 @@ struct Around {
 }
 
 impl Around {
+    /// A class A break.
     fn at(self, end: i32, resume: i32, forced: bool, violates: u8) -> Break {
         Break {
             end,
@@ -84,6 +116,20 @@ impl Around {
             violates: self.violates | violates,
             tail: self.tail,
             lead: self.lead,
+        }
+    }
+
+    /// A class B or C break: a `break-inside: avoid` around it breaks rule
+    /// 4, not rule 2.
+    fn at_bc(self, end: i32, resume: i32, violates: u8) -> Break {
+        let inside = if self.violates & RULE_2 != 0 {
+            RULE_4
+        } else {
+            0
+        };
+        Break {
+            violates: (self.violates & !RULE_2) | inside | violates,
+            ..self.at(end, resume, false, 0)
         }
     }
 
@@ -111,14 +157,42 @@ impl Around {
 
 /// The breaks inside `container`'s content, `around` what the boxes around
 /// it give each.
-fn flow(dom: &Dom<TuiExt>, container: NodeId, around: Around, out: &mut Vec<Break>) {
+fn flow(
+    dom: &Dom<TuiExt>,
+    container: NodeId,
+    around: Around,
+    out: &mut Vec<Break>,
+    floats: &mut Vec<(i32, i32)>,
+) {
     let Some(ext) = dom.node(container).tui_ext() else {
         return;
     };
+    let content_bottom = bottom(ext.content_layout);
+    floats.extend(
+        ext.floated_pseudos
+            .iter()
+            .flat_map(|v| v.iter())
+            .map(|a| a.border_box())
+            .chain(
+                super::super::element_children_of(dom, container)
+                    .into_iter()
+                    .filter(|&c| super::super::float::float_side(dom, c).is_some())
+                    .filter_map(|c| Some(dom.node(c).tui_ext()?.layout)),
+            )
+            .filter(|r| r.height > 0)
+            .map(|r| (r.y, bottom(r))),
+    );
     if let Some(il) = ext.inline_layout.as_ref() {
         let origin = crate::render::inline::scrolled_content_rect(dom, container)
             .unwrap_or(ext.content_layout);
         lines(dom, container, il, origin.y, around, out);
+        // Class C: below the last line, a gap to the content edge.
+        if let Some(last) = il.lines.last() {
+            let end = origin.y + i32::from(last.bottom());
+            if content_bottom > end {
+                out.push(around.at_bc(end, end, 0));
+            }
+        }
         return;
     }
     let mut items: Vec<Item> = super::super::element_children_of(dom, container)
@@ -157,7 +231,7 @@ fn flow(dom: &Dom<TuiExt>, container: NodeId, around: Around, out: &mut Vec<Brea
         }
         match item {
             Item::Element(id, _) if fragmentable(dom, *id) => {
-                flow(dom, *id, around.into(dom, *id), out);
+                flow(dom, *id, around.into(dom, *id), out, floats);
             }
             Item::Anonymous(i, _) => {
                 let anon = &ext.anonymous_blocks[*i];
@@ -175,6 +249,21 @@ fn flow(dom: &Dom<TuiExt>, container: NodeId, around: Around, out: &mut Vec<Brea
             Item::Element(..) => {}
         }
         prev = Some(item);
+    }
+    // Class C: between the last child's margin edge and the content edge,
+    // where a gap separates them; the child's margin is truncated at it
+    // (§5.2), as at an unforced break.
+    if let Some(last) = items.iter().max_by_key(|i| bottom(i.rect())) {
+        let end = bottom(last.rect());
+        let margin = match last {
+            Item::Element(id, _) => computed(dom, *id).map_or(0, |c| {
+                i32::from(c.margin.bottom.resolve(ext.content_layout.width)).max(0)
+            }),
+            Item::Anonymous(..) => 0,
+        };
+        if content_bottom > end + margin {
+            out.push(around.at_bc(end, end + margin, 0));
+        }
     }
 }
 
@@ -196,10 +285,9 @@ fn lines(
     for k in 1..n {
         let (before, after) = (k as u32, (n - k) as u32);
         let short = before < orphans || after < widows;
-        out.push(around.at(
+        out.push(around.at_bc(
             top + i32::from(il.lines[k - 1].bottom()),
             top + i32::from(il.lines[k].top),
-            false,
             if short { RULE_3 } else { 0 },
         ));
     }
@@ -247,7 +335,8 @@ fn edge(dom: &Dom<TuiExt>, id: NodeId, before: bool) -> Ask {
 /// Whether a break can fall inside `id` (§4.1): a block container in
 /// block flow that is not monolithic — not a scroll container, not
 /// size-contained, not a multi-column container of its own (rdom does not
-/// fragment nested fragmentation contexts) and not a line-clamp container.
+/// fragment nested fragmentation contexts), not a line-clamp container and
+/// not a float (kept whole).
 /// Flex, grid and table boxes and atomic inlines are monolithic in rdom
 /// (DIVERGENCES).
 pub(in crate::render::layout_pass) fn fragmentable(dom: &Dom<TuiExt>, id: NodeId) -> bool {
@@ -256,6 +345,7 @@ pub(in crate::render::layout_pass) fn fragmentable(dom: &Dom<TuiExt>, id: NodeId
     };
     c.flow.is_block_flow()
         && c.display == crate::layout::Display::Block
+        && super::super::float::float_side(dom, id).is_none()
         && !c.is_scroll_container()
         && !c.is_multicol_container()
         && !c.line_clamp_container

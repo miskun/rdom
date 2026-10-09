@@ -12,6 +12,7 @@ mod anchor;
 mod blend;
 mod clip_path;
 mod filter;
+mod fragmentation;
 mod multicol;
 mod translate;
 mod translate_motion;

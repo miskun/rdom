@@ -4,9 +4,11 @@
 //!
 //! A fragmentainer takes the content up to the last break that fits it,
 //! a forced break before that ending it early (§3.1). When no break fits
-//! the rules are relaxed in reverse order — `orphans` / `widows` (rule 3)
-//! first, then `break-inside: avoid` (rule 2), then `break-before` /
-//! `-after: avoid` (rule 1) — and when none fits at all the content
+//! the rules are relaxed in §4.4's order — "rule 3 is dropped … then
+//! rules 1, 2 and 4 are dropped in order": `orphans` / `widows` first,
+//! then `break-before` / `-after: avoid`, then `break-inside: avoid` at a
+//! class A point, then at a class B or C one — then a break inside a
+//! float (rdom keeps floats whole); and when none fits at all the content
 //! overflows to the first break after it (§4.2: a monolithic box taller
 //! than the fragmentainer).
 //!
@@ -15,7 +17,7 @@
 //! breaker over the flow's `b` breaks for a flow `h` rows tall — `O(b log
 //! h)`, pinned by `fragment::tests`.
 
-use super::{Break, RULE_1, RULE_2, RULE_3};
+use super::{Break, FLOAT, RULE_1, RULE_2, RULE_3, RULE_4};
 
 #[cfg(test)]
 thread_local! {
@@ -181,8 +183,16 @@ fn pick(breaks: &[Break], s: i32, limit: i32, end: i32) -> Option<Break> {
         return None;
     }
     let fitting = &breaks[..breaks.partition_point(|b| b.end <= limit)];
-    // Rules dropped in reverse order (§4.4).
-    for allowed in [0, RULE_3, RULE_3 | RULE_2, RULE_3 | RULE_2 | RULE_1] {
+    // Rules dropped in §4.4's order: 3, then 1, 2 and 4; a float last.
+    const RELAXED: [u8; 6] = [
+        0,
+        RULE_3,
+        RULE_3 | RULE_1,
+        RULE_3 | RULE_1 | RULE_2,
+        RULE_3 | RULE_1 | RULE_2 | RULE_4,
+        RULE_3 | RULE_1 | RULE_2 | RULE_4 | FLOAT,
+    ];
+    for allowed in RELAXED {
         if let Some(b) = fitting
             .iter()
             .rev()

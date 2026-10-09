@@ -10127,3 +10127,30 @@ row comes from.
   the base kept — and is `(11, 1, 9, 2)`, the 9 cells there with its text wrapped (shrink-to-fit is the
   available width once the text is wider; it does not shrink to the wrapped lines), the base fitting. A silent
   behaviour change (`sc-abspos-shrink`); no existing expectation moved.
+- 2026-10-09 — C15G-FRAGMENT-GAPS (Phase 15 gate architect N2; CSS Fragmentation 3 §4.1, §4.4, §5.2,
+  CSS 2.1 §9.5). Checked the spec text (TR, §4.4 "Unforced Breaks"): "If the above doesn't provide enough
+  break points to keep content from overflowing the fragmentainer, then rule 3 is dropped … If that still
+  does not lead to sufficient break points, then rules 1, 2 and 4 are dropped in order". Rule 1 is
+  `break-before` / `-after: avoid` at a class A point, rule 2 a `break-inside: avoid` ancestor at a class A
+  point, rule 4 one at a class B or C point. rdom relaxed 3, then its one `break-inside` bit, then 1 — the
+  architect's reading was right. Decided: (1) the order is 3, 1, 2, 4 exactly, with rules 2 and 4 two bits
+  (`RULE_4` new; a class B or C break inside an `avoid` box carries 4, a class A one 2). (2) Class C breaks
+  (§4.1: "between the content edge of a block container box and the outer edges of its child content …
+  if there is a (non-zero) gap between them"): at the block-end of a fragmentable container, below its last
+  child's margin edge (the margin truncated, §5.2) or its last line, when the content box reaches further —
+  an explicit height past the content. The architect's `padding-bottom: 5` case is not one: padding is
+  outside the content edge, so §4.1 gives no break point between the last line and the padding (no gap at
+  the content edge), and rdom keeps the spec there. The block-start side has no gap in rdom's block layout
+  (a first child's margin either collapses through or is inside the content box), so it is not emitted.
+  (3) Floats (§3.1 lets UAs apply the break properties to floats; their fragmentation is otherwise
+  undefined): rdom keeps a float whole — `fragmentable` refuses it, so it moves by its top row — and a break
+  strictly inside its rows carries a `FLOAT` bit given up after every rule, so the break lands at or
+  before its top when one fits (the float moves to the next column) and inside it only as a last resort (it
+  overflows its column). The marks are one sorted sweep, `O((b + f) log f)`. DIVERGENCES' multicol entry
+  gains (6), the float. Red: the unit test `the_rules_relax_in_the_spec_order` (the architect's case: a
+  rule-1 point at row 3 and a rule-2 point at row 2 — rdom broke at 2, the spec at 3) and
+  `a_break_inside_a_float_is_the_last_resort`; integration (`css_phase15/fragmentation.rs`): ten lines in a
+  14-row box in 12-row columns put the tenth in column 2 at `(6, 0)` (green: column 1, row 9); a 3-row float
+  at row 2 of 4-row columns was sliced (bounding box `(0, 0, 8, 4)`; green: `(6, 0, 2, 3)`, the top of
+  column 2). Mutation (restored, touched): the old order fails the order test; no float marks fail the
+  float test.

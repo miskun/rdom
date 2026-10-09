@@ -1031,6 +1031,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **A filter or blend sees what nested groups painted** (Filter Effects 1 §5, Compositing 1 §3.2): a child with `opacity`, or a translucent background, that paints black on a black page inside `filter: invert(1)` now inverts to white (it stayed black), and a blend in an isolated group sees such a paint as its backdrop. (C15G-FILTER-COVERAGE)
 - **A first or last spanner's margin counts once** (CSS Multi-column 1 §6): a `column-span: all` first child with `margin: 1 0` sits one row down, not two, and a last one adds one row below, not two — its margin was also an empty column set, which could draw a column rule. (C15G-SPANNER-MARGIN)
 - **Absolutely positioned boxes shrink to fit** (CSS 2.1 §10.3.7): an `auto` width is `min(max(min-content, available), max-content)`, the available width the containing block's less the other inset and the margins; it was max-content, never clamped, so long text overflowed the screen and anchored tooltips flipped. See [`sc-abspos-shrink`](#sc-abspos-shrink). (C15G-ABSPOS-CLAMP)
+- **Column breaks follow CSS Fragmentation 3 §4.1 / §4.4 more closely**: `break-before` / `-after: avoid` is given up before `break-inside: avoid` (it was the other way), a block with a definite height taller than its content may break between its last child and its content edge (class C), and a float moves whole to the next column instead of being sliced across the break. (C15G-FRAGMENT-GAPS)
 
 ### Changed — `rdom-showcase`
 

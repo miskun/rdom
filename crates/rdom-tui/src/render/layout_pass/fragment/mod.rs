@@ -8,10 +8,13 @@
 //! each). Then:
 //!
 //! 1. [`candidates`] reads the possible breaks off the laid-out boxes
-//!    (§4.1): between block-level siblings (class A) and between line
-//!    boxes (class B), each with the rules of §4.4 it would break — a
-//!    `break-before` / `-after` of `avoid` (rule 1), a `break-inside:
-//!    avoid` around it (rule 2), `orphans` / `widows` (rule 3) — and
+//!    (§4.1): between block-level siblings (class A), between line
+//!    boxes (class B) and between a block container's content edge and
+//!    its children where a gap separates them (class C), each with the
+//!    rules of §4.4 it would break — a `break-before` / `-after` of
+//!    `avoid` (rule 1), a `break-inside: avoid` around it (rule 2 at a
+//!    class A point, rule 4 at a B or C one), `orphans` / `widows` (rule
+//!    3), and whether it falls inside a float's rows — and
 //!    whether `break-before` / `-after` force it (§3.1). A monolithic box
 //!    (§4.1: an atomic inline, a flex, grid or table box, a scroll
 //!    container, a size-contained box, a nested multi-column container) has
@@ -72,11 +75,17 @@ pub(crate) struct Break {
 /// §4.4 rule 1: a class A break whose `break-after` / `break-before` is
 /// `avoid`.
 pub(crate) const RULE_1: u8 = 1;
-/// Rule 2: a break inside a box with `break-inside: avoid`.
+/// Rule 2: a class A break inside a box with `break-inside: avoid`.
 pub(crate) const RULE_2: u8 = 2;
 /// Rule 3: a break between lines leaving fewer than `orphans` before it or
 /// `widows` after it.
 pub(crate) const RULE_3: u8 = 4;
+/// Rule 4: a class B or C break inside a box with `break-inside: avoid`.
+pub(crate) const RULE_4: u8 = 8;
+/// Not a §4.4 rule: a break inside the rows of a float, which rdom keeps
+/// whole (monolithic) — given up last, after every rule
+/// (C15G-FRAGMENT-GAPS).
+pub(crate) const FLOAT: u8 = 16;
 
 /// One fragmentainer's piece of the flow: the rows `start .. end` of the
 /// unfragmented flow, moved by `(dx, dy)`, with the cloned box edges above

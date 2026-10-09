@@ -3,7 +3,7 @@
 //! in order, forced breaks, overflow, and balancing's bounded cost.
 
 use super::breaker::{BREAKER_RUNS, slices};
-use super::{Break, Fill, Frag, RULE_1, RULE_2, RULE_3, fragmentainers};
+use super::{Break, FLOAT, Fill, Frag, RULE_1, RULE_2, RULE_3, RULE_4, fragmentainers};
 
 /// Each fragment's rows.
 fn rows(frags: Vec<Frag>) -> Vec<(i32, i32)> {
@@ -40,23 +40,40 @@ fn a_forced_break_ends_the_fragmentainer() {
     assert_eq!(rows(slices(&b, 0, 6, 4)), [(0, 1), (1, 5), (5, 6)]);
 }
 
-/// §4.4: the rules are dropped in reverse order — orphans / widows first,
-/// then `break-inside: avoid`, then `break-before` / `-after: avoid`.
+/// §4.4: "If the above doesn't provide enough break points … rule 3 is
+/// dropped … If that still does not lead to sufficient break points, then
+/// rules 1, 2 and 4 are dropped in order" — orphans / widows first, then
+/// `break-before` / `-after: avoid` (rule 1), then `break-inside: avoid`
+/// (rule 2 at a class A point, rule 4 at a class B or C one).
 #[test]
-fn the_rules_relax_in_reverse_order() {
+fn the_rules_relax_in_the_spec_order() {
     let mut b = lines(6);
     b[2].violates = RULE_3; // a break after row 3
     b[1].violates = RULE_2; // after row 2
     b[0].violates = RULE_1; // after row 1
-    // Height 3: the break after row 3 breaks only rule 3 — taken before the
-    // rule-2 and rule-1 ones.
+    // Height 3: the break after row 3 breaks only rule 3 — taken first.
     assert_eq!(rows(slices(&b, 0, 6, 3))[0], (0, 3));
+    // The architect's case: a `break-after: avoid` point at row 3 and one
+    // inside a `break-inside: avoid` box at row 2 — rule 1 goes first.
     b[2].violates = RULE_1;
-    // Now rule 2's (after row 2) is the least important broken.
+    assert_eq!(rows(slices(&b, 0, 6, 3))[0], (0, 3));
+    // Rule 2 (class A) before rule 4 (class B / C).
+    b[2].violates = RULE_4;
+    b[0].violates = RULE_4;
     assert_eq!(rows(slices(&b, 0, 6, 3))[0], (0, 2));
-    b[1].violates = RULE_1;
-    b[0].violates = RULE_2;
-    assert_eq!(rows(slices(&b, 0, 6, 3))[0], (0, 1));
+}
+
+/// A float straddling a break (`FLOAT`) is the last thing given up: after
+/// every §4.4 rule, and before overflowing (C15G-FRAGMENT-GAPS).
+#[test]
+fn a_break_inside_a_float_is_the_last_resort() {
+    let mut b = lines(6);
+    b[2].violates = FLOAT;
+    b[1].violates = RULE_1 | RULE_2 | RULE_3 | RULE_4;
+    b[0].violates = FLOAT;
+    assert_eq!(rows(slices(&b, 0, 6, 3))[0], (0, 2));
+    b[1].violates = FLOAT;
+    assert_eq!(rows(slices(&b, 0, 6, 3))[0], (0, 3));
 }
 
 /// §4.2: content taller than the fragmentainer with no break inside it
