@@ -12,31 +12,47 @@
 //!
 //! ## Visibility
 //!
-//! - `Scroll` → always paints a track; thumb fills the track
-//!   when content fits, shrinks proportionally when it overflows.
-//! - `Auto` → paints nothing when the area fits the scrollport. The gutter was reserved either way so the
-//!   layout doesn't reflow.
+//! A bar shows only on an axis whose gutter layout reserved
+//! ([`bars_shown`]), and then:
+//!
+//! - `Scroll` → always: a track, its thumb filling it while the content
+//!   fits and shrinking proportionally once it overflows.
+//! - `Auto` → only while the scrollable overflow exceeds the scrollport.
+//!   Under `scrollbar-gutter: auto` (the initial value) layout reserves an
+//!   `auto` axis's gutter only while it overflows — classic scrollbars
+//!   take space when present, and a terminal cannot overlay one — so a box
+//!   that fits has neither bar nor gutter; `stable` (and `stable
+//!   both-edges`) keeps the gutter reserved, blank, whether or not the
+//!   box overflows (CSS Overflow 3 §3).
+//! - `scrollbar-width: none` reserves no gutter, so no bar paints; the box
+//!   still scrolls (CSS Scrollbars 1 §3).
 //!
 //! ## Thumb geometry
 //!
 //! ```text
-//! thumb_size = max(1, viewport * viewport / content)          [cells]
+//! thumb_size = max(1, track * viewport / content)             [cells]
 //! thumb_pos  = scroll_offset * (track - thumb_size)
 //!             / (content - viewport)                          [cells]
 //! ```
 //!
-//! Clamped to `[0, track - thumb_size]` on both ends.
+//! Clamped to `[0, track - thumb_size]` on both ends ([`thumb_geometry`]).
 //!
 //! ## Author styling
 //!
-//! Track and thumb cells are styled via the `::scrollbar` and
+//! While `scrollbar-width` and `scrollbar-color` are both `auto`, track
+//! and thumb cells are styled via the `::scrollbar` and
 //! `::scrollbar-thumb` pseudo-elements (modeled after WebKit's
 //! `::-webkit-scrollbar`). The cascade populates
 //! `TuiExt::computed_scrollbar` / `computed_scrollbar_thumb_{vertical,horizontal}` for
 //! scrollable elements; paint reads them via `track_cell` /
 //! `thumb_cell` and falls back to a minimal DarkGray-bg gutter
 //! when the cascade output is `None` (i.e. consumer used
-//! `Stylesheet::bare()` and didn't supply their own rules).
+//! `Stylesheet::bare()` and didn't supply their own rules). Once either
+//! standard property is set, the bar takes them alone, as Chromium does
+//! over its `::-webkit-scrollbar` pseudo-elements: `thin` draws no track
+//! glyph and the thumb in the light line, `scrollbar-color` fills the
+//! track's cells with the track color and draws the thumb in the thumb
+//! color (DIVERGENCES §1 "A scrollbar is one cell").
 
 use rdom_core::{Dom, NodeId};
 
