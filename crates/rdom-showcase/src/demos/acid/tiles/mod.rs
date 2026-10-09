@@ -22,6 +22,9 @@ mod t15a_forms;
 mod t15b_top_layer;
 mod t15c_modal;
 mod t16_display;
+mod t17_selection;
+mod t18_grid;
+mod t19_floats;
 
 /// Every tile, in `ACID.md` order.
 pub const TILES: &[&Tile] = &[
@@ -45,4 +48,7 @@ pub const TILES: &[&Tile] = &[
     &t15b_top_layer::TILE,
     &t15c_modal::TILE,
     &t16_display::TILE,
+    &t17_selection::TILE,
+    &t18_grid::TILE,
+    &t19_floats::TILE,
 ];

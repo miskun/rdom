@@ -239,3 +239,18 @@ fn tile_15c_modal() {
 fn tile_16_display() {
     assert_tile(&refs::t16_display::REF);
 }
+
+#[test]
+fn tile_17_selection() {
+    assert_tile(&refs::t17_selection::REF);
+}
+
+#[test]
+fn tile_18_grid() {
+    assert_tile(&refs::t18_grid::REF);
+}
+
+#[test]
+fn tile_19_floats() {
+    assert_tile(&refs::t19_floats::REF);
+}

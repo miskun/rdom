@@ -297,7 +297,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-7 | A border junction joins the line that won beside it, where the winning box stops short of the junction (CSS Tables 3 §11.5; found by tile 14) | done |
 | ACID-FIX-8 | A disabled `<fieldset>` does not grey its legend and text; the UA's muted look is the disabled controls' (found by tile 15a) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
-| ACID-TILES-B | Static tiles 14–26 | partial — tiles 14–16 done; 17–26 next |
+| ACID-TILES-B | Static tiles 14–26 | partial — tiles 14–19 done; 20–26 next |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
 | ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
 
@@ -10769,3 +10769,17 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   fields are content-box, as in the engines' sheets), the select's `▾` on the field background (it is inside the
   select's padding box) and the date / time fields' text (DIVERGENCES §2: those types are not rendered as fields);
   tile 16's collapsed flex item (Flexbox 1 §9.8 ignores it, gaps included, after line collection).
+- 2026-10-10 — ACID-TILES-B, tiles 17–19 (page 4). Tile 17, selection and highlights (CSS UI 4 §6.1, Pseudo-Elements 4
+  §3, Custom Highlight API 1, DOM §5.3): a selection set by the page's script across `user-select: none`, `contain`
+  and `all` spans and a generated `::before` into the next paragraph; `::highlight(err)` (registered first, priority
+  1) over `::highlight(hit)` and both under the selection; a highlight whose text the load script edits before it,
+  the live range following. Tile 18, grid (CSS Grid 2 §5–§11): areas with line names, `fr` / `minmax()` /
+  `fit-content()` sizing, `auto-fill` against `auto-fit`, `dense` placement and `1 / -1`, a padded subgrid sizing its
+  parent, an abspos child in a named area, `1fr` against `minmax(0, 1fr)` with a long word, `z-index` in one cell, an
+  `inline-grid`, an `rtl` grid, `space-between` widening a spanned area with self-alignment and `auto` margins. Tile 19,
+  floats (CSS 2.1 §9.5, §10.6.7): left and right floats with a third going below, a float mid-line, a word moving below a
+  float, `flow-root`, an `overflow: hidden` box beside a float over a block's background, `clear`, `inline-start` in
+  `rtl`, a clearfix, a media float, a float inside `display: contents`, a floated `::before`. All three matched their
+  references at first run but for tile 17's underline colour, first chosen equal to the text colour — rdom then
+  emits no SGR 58, which draws the same; the tile now gives the underline its own colour, so the comparison sees it.
+  No rdom bug found; no reference changed.

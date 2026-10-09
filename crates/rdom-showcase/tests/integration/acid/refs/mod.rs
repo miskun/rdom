@@ -24,6 +24,9 @@ pub mod t15a_forms;
 pub mod t15b_top_layer;
 pub mod t15c_modal;
 pub mod t16_display;
+pub mod t17_selection;
+pub mod t18_grid;
+pub mod t19_floats;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -47,4 +50,7 @@ pub const ALL: &[&Reference] = &[
     &t15b_top_layer::REF,
     &t15c_modal::REF,
     &t16_display::REF,
+    &t17_selection::REF,
+    &t18_grid::REF,
+    &t19_floats::REF,
 ];
