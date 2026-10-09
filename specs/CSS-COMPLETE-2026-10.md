@@ -290,7 +290,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-HARNESS | The acid page in the showcase (pages of 120 × 50, `Built-ins → Acid`, `--example acid`), the reference format and the colour-aware comparator with per-tile reports; tile 1 | done |
 | ACID-FIX-1 | `VirtualScreen` (rdom-tui `test-util`) consumes OSC strings — an OSC 8 hyperlink printed as text (found by tile 4) | done |
 | ACID-FIX-2 | A dashed / dotted side's end cell where no side meets it draws the dash glyph, not the solid line (found by tile 5) | done |
-| ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | partial — tiles 1–4 done; 5–13 remain |
+| ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | partial — tiles 1–8 done; 9a–13 remain |
 | ACID-TILES-B | Static tiles 14–26 | |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
 | ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
@@ -10624,3 +10624,19 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `border_join::glyphs::tests::dashed_and_dotted_runs_pick_the_dash_glyphs` (C4G-EDGE-TESTS) listed a lone stub as a
   non-dash cell without a spec argument; a stub is a side's end, so it moved to the dash cases. Silent change
   `sc-dashed-ends`; DIVERGENCES' border-style entry names the end cell. The reference was not touched.
+- 2026-10-09 — ACID-TILES-A, tiles 5–8 (page 1). Tile 5, box model (Box 3, Sizing 3 / 4, Backgrounds 3 §4–§5):
+  content- and border-box widths, `25%` of 58 rounding half to even to 14, `calc(50% - 20)`, `min-width` /
+  `max-width` / `max-height` clamps, `aspect-ratio: 2`, per-side padding, per-side styles (`solid double hidden dashed`)
+  and colours with the corner contests of DIVERGENCES §1. Tile 6, margin collapsing (CSS 2.1 §8.3.1): nine lanes —
+  siblings, parent / first child, collapse-through, a negative margin, blocked by padding, border and a line box, flex
+  items (additive), parent / last child. Tile 7, flex (Flexbox 1 §5–§9.7): grow shares, a shrink whose min-content clamp
+  freezes an item and redistributes, `row-reverse`, `space-between`, `center` rounding down, `auto` margins,
+  `align-self` stretch / center / end / baseline, `column-reverse`, `wrap` with `order` and both gaps, `wrap-reverse`,
+  anonymous and `::before` / `::after` items. Tile 8, inline formatting (Text 3 / 4, Text Decoration 4, CSS 2.1 §10.8,
+  Fonts 4): the six `white-space` modes, an inline block in a line, `sub` / `super`, a decorated span across a wrap,
+  `overflow-wrap: anywhere`, `break-all`, `keep-all`, a soft hyphen, `tab-size`, the transforms, `text-indent` (and
+  `hanging`), `center` / `right` / `justify` with `text-align-last`, `text-wrap: balance`, `line-height` (number,
+  percentage, `lh`), decorations propagating past a nested span but not into an inline block, a curly underline's
+  colour, `600` / `bolder` / `lighter` / `oblique`, the `font` shorthand resetting `line-height`, `vertical-align`
+  middle / top / bottom on inline blocks, the underline styles, line-through and overline. Tiles 6–8 matched at first
+  run; tile 5 found ACID-FIX-2 and matches after it. No reference was changed.

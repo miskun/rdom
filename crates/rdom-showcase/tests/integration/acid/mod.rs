@@ -159,3 +159,23 @@ fn tile_03_inheritance() {
 fn tile_04_selectors() {
     assert_tile(&refs::t04_selectors::REF);
 }
+
+#[test]
+fn tile_05_box_model() {
+    assert_tile(&refs::t05_box_model::REF);
+}
+
+#[test]
+fn tile_06_margins() {
+    assert_tile(&refs::t06_margins::REF);
+}
+
+#[test]
+fn tile_07_flex() {
+    assert_tile(&refs::t07_flex::REF);
+}
+
+#[test]
+fn tile_08_inline() {
+    assert_tile(&refs::t08_inline::REF);
+}
