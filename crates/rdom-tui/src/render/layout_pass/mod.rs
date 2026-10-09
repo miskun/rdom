@@ -90,6 +90,7 @@ mod border_collapse;
 pub(crate) mod box_sizing;
 mod calc_size;
 mod clip_edge;
+pub(crate) mod containment;
 mod dispatch;
 mod distribution;
 mod flex;

@@ -265,7 +265,7 @@ row comes from.
 |---|---|---|
 | C14-MEDIA | `@media` (cell-sized viewport, `prefers-color-scheme`, `prefers-reduced-motion`, `hover` / `pointer`, …) and `matchMedia` | done |
 | C14-SUPPORTS | `@supports` (feature queries against the dispatch table; `CSS.supports`) | done |
-| C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | |
+| C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | partial — part 2: `@container`, the `cq*` units, the interleaved cascade / layout pass |
 | C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | |
 
 ### Phase 15 — Transforms, filters, compositing, multi-column, anchor positioning (audit §3.23, §3.24)
@@ -9104,3 +9104,24 @@ row comes from.
   after. Mutation (restored, touched): the cascade ignoring the result → 2 integration tests; the declaration
   test skipping the value parser → 3 unit tests, 1 integration and the import test. Silent change 26 now
   "`@media` and `@supports` rules apply". CSS-COVERAGE §3.21 2 / 0 / 4 / 1, total 239 / 7 / 16 / 45.
+- 2026-10-09 — C14-CONTAINER (part 1 of 2: the query-container properties and their size containment; CSS
+  Conditional 5 §6.1–§6.3, CSS Containment 2 §3.1, CSS Containment 3's inline-size containment, CSS Sizing 4
+  §6.1). rdom-style: `container-type: normal | [ [ size | inline-size ] || scroll-state ]` (`ContainerType {
+  size: ContainerSize, scroll_state }`), `container-name: none | <custom-ident>+` (`ContainerName`, an
+  `Arc<[Arc<str>]>`, case-sensitive; `none`, `and`, `not`, `or`, the CSS-wide keywords and `default` excluded),
+  the `container` shorthand (`<name> [ / <type> ]?`, the type reset to `normal` when omitted), not inherited,
+  not animatable, in the dispatch table (`contain.rs`, which now holds containment), builders, the cascade.
+  Decided: `scroll-state` parses and combines (a container of that type is a valid `container-type`); its
+  `scroll-state()` queries come with part 2. rdom-tui: `layout_pass/containment.rs` — a `size` / `inline-size`
+  container has size containment on those axes (CSS Containment 3: the inline axis for `inline-size`, both for
+  `size`); `intrinsic::content_size` returns the contained size (`contain-intrinsic-*`'s length, else 0) plus
+  padding, border and permanent gutter before measuring anything — so shrink-to-fit widths, flex bases and
+  automatic minimums, grid contributions and atoms see it — and `auto_height` takes it for a block's `auto`
+  height (the content still lays out, overflowing); `layout_differs` gains `container_type` and the two
+  `contain-intrinsic-*` fields (they were left out by C5-CONTAIN-SIZE until something used them). Red:
+  `css_phase14/container_type.rs` — 3 of 5 failed on HEAD (the float 11 wide for 0, the size container 1 row
+  for 0, the inline block `(7, 3)` for `(2, 2)`); the two guards (inline-size keeps the block size, a normal
+  container applies nothing) held; the dispatch tests were compile-red; `layout_dirty_flag_reacts_to_containment`
+  failed (no dirty flag). Green after. Mutation (each alone, restored, touched): the intrinsic hook out → the
+  float and atom tests; the auto-height hook out → the size and atom tests. Changed expectation: the cascade's
+  every-property reset test perturbs `container` too. Silent change 27 (the old 27–88 move to 28–89).

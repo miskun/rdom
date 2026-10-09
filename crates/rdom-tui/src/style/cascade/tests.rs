@@ -3308,3 +3308,26 @@ fn a_placeholder_color_from_a_custom_property_applies() {
     let b = placeholder_box(&sheet, None).unwrap();
     assert_eq!(b.fg, Color::Rgb(255, 0, 0));
 }
+
+/// C14-CONTAINER: `container-type` applies size containment (CSS
+/// Containment 2 §3.1) and `contain-intrinsic-size` sizes a contained box
+/// (CSS Sizing 4 §6.1): a change to either dirties layout.
+#[test]
+fn layout_dirty_flag_reacts_to_containment() {
+    use crate::node::TuiNodeExt;
+    use crate::render::LayoutExt;
+    let (mut dom, div) = dom_with_div();
+    let plain = Stylesheet::bare();
+    dom.cascade(&plain);
+    dom.layout_dom(crate::render::Rect::new(0, 0, 20, 5));
+    dom.cascade(&plain);
+    assert!(!dom.node(div).is_layout_dirty());
+    let contained = rdom_css::parse("div { container-type: size }").stylesheet;
+    dom.cascade(&contained);
+    assert!(dom.node(div).is_layout_dirty(), "container-type");
+    dom.cascade(&contained);
+    let sized =
+        rdom_css::parse("div { container-type: size; contain-intrinsic-size: 3 }").stylesheet;
+    dom.cascade(&sized);
+    assert!(dom.node(div).is_layout_dirty(), "contain-intrinsic-size");
+}

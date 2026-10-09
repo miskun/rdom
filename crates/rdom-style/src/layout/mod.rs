@@ -36,6 +36,7 @@ mod background;
 mod border;
 mod box_model;
 mod calc_size;
+mod containment;
 mod float;
 mod font;
 mod gap;
@@ -72,6 +73,7 @@ pub use border::{
 };
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
 pub use calc_size::{CalcSize, CalcSizeBasis, InterpolateSize};
+pub use containment::{ContainerName, ContainerSize, ContainerType};
 pub use float::{Clear, Float, FloatSide};
 pub use font::{
     Font, FontFamily, FontSize, FontSizeKeyword, FontStretch, FontStretchKeyword, FontStyle,

@@ -164,4 +164,9 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.flow != b.flow
         || a.scrollbar_gutter != b.scrollbar_gutter
         || a.scrollbar_width != b.scrollbar_width
+        // Size containment and the size it gives a contained box (CSS
+        // Containment 2 §3.1, CSS Sizing 4 §6.1).
+        || a.container_type != b.container_type
+        || a.contain_intrinsic_width != b.contain_intrinsic_width
+        || a.contain_intrinsic_height != b.contain_intrinsic_height
 }

@@ -1,0 +1,121 @@
+//! Dispatch tests for the query-container properties (C14-CONTAINER):
+//! `container-type`, `container-name` and the `container` shorthand (CSS
+//! Conditional 5 §6.1–§6.3).
+
+use super::*;
+use crate::layout::{ContainerName, ContainerSize, ContainerType};
+use crate::{TuiStyle, Value};
+
+fn spec<T: Clone>(v: &Option<Value<T>>) -> Option<T> {
+    match v {
+        Some(Value::Specified(x)) => Some(x.clone()),
+        _ => None,
+    }
+}
+
+fn container_type(css: &str) -> Option<ContainerType> {
+    let mut style = TuiStyle::new();
+    set("container-type", css, &mut style).ok()?;
+    spec(&style.container_type)
+}
+
+fn names(n: &ContainerName) -> Vec<&str> {
+    n.names().iter().map(|s| &**s).collect()
+}
+
+/// §6.1: `normal | [ [ size | inline-size ] || scroll-state ]`.
+#[test]
+fn container_type_parses() {
+    let t = |size, scroll_state| Some(ContainerType { size, scroll_state });
+    assert_eq!(container_type("normal"), t(ContainerSize::Normal, false));
+    assert_eq!(container_type("size"), t(ContainerSize::Size, false));
+    assert_eq!(
+        container_type("INLINE-SIZE"),
+        t(ContainerSize::InlineSize, false)
+    );
+    assert_eq!(
+        container_type("scroll-state"),
+        t(ContainerSize::Normal, true)
+    );
+    assert_eq!(
+        container_type("scroll-state inline-size"),
+        t(ContainerSize::InlineSize, true)
+    );
+    for bad in [
+        "size inline-size",
+        "normal size",
+        "size size",
+        "auto",
+        "",
+        "1",
+    ] {
+        assert_eq!(container_type(bad), None, "{bad}");
+    }
+    let mut style = TuiStyle::new();
+    set("container-type", "inline-size scroll-state", &mut style).unwrap();
+    assert_eq!(
+        serialize("container-type", &style).as_deref(),
+        Some("inline-size scroll-state")
+    );
+}
+
+/// §6.2: `none | <custom-ident>+`, excluding `none`, `and`, `not`, `or`
+/// (and the CSS-wide keywords, `default`) as names; case-sensitive.
+#[test]
+fn container_name_parses() {
+    let mut style = TuiStyle::new();
+    set("container-name", "sidebar Card", &mut style).unwrap();
+    assert_eq!(
+        names(&spec(&style.container_name).unwrap()),
+        ["sidebar", "Card"]
+    );
+    assert_eq!(
+        serialize("container-name", &style).as_deref(),
+        Some("sidebar Card")
+    );
+    set("container-name", "none", &mut style).unwrap();
+    assert!(spec(&style.container_name).unwrap().is_none());
+    for bad in [
+        "none a", "a none", "and", "a or", "not", "default", "1", "'a'",
+    ] {
+        assert!(
+            set("container-name", bad, &mut TuiStyle::new()).is_err(),
+            "{bad}"
+        );
+    }
+}
+
+/// §6.3: `container: <'container-name'> [ / <'container-type'> ]?` — the
+/// type resets to `normal` when omitted.
+#[test]
+fn container_shorthand_parses() {
+    let mut style = TuiStyle::new();
+    set("container", "card / inline-size", &mut style).unwrap();
+    assert_eq!(names(&spec(&style.container_name).unwrap()), ["card"]);
+    assert_eq!(
+        spec(&style.container_type).unwrap().size,
+        ContainerSize::InlineSize
+    );
+    assert_eq!(
+        serialize("container", &style).as_deref(),
+        Some("card / inline-size")
+    );
+    set("container", "a b", &mut style).unwrap();
+    assert_eq!(spec(&style.container_type), Some(ContainerType::default()));
+    assert_eq!(serialize("container", &style).as_deref(), Some("a b"));
+    set("container", "none", &mut style).unwrap();
+    assert!(spec(&style.container_name).unwrap().is_none());
+    for bad in ["/ size", "a /", "a / b", "a / size /", ""] {
+        assert!(
+            set("container", bad, &mut TuiStyle::new()).is_err(),
+            "{bad}"
+        );
+    }
+}
+
+/// Neither inherits (§6.1, §6.2).
+#[test]
+fn container_properties_do_not_inherit() {
+    assert!(!inherits("container-type"));
+    assert!(!inherits("container-name"));
+}

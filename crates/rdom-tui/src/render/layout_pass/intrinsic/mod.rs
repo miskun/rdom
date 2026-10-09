@@ -311,6 +311,12 @@ fn content_size(
     // enclosing level.
     // A subgrid's size takes its parent's laid-out tracks, which are
     // written during the pass: measured each time, never memoized.
+    // Size containment (CSS Containment 2 §3.1): on a contained axis the
+    // content counts as nothing — `contain-intrinsic-size` where given —
+    // and only the box's own padding, border and gutter remain.
+    if super::containment::contains(computed, direction) {
+        return contained_content_size(computed, direction, containing_block_width);
+    }
     let key = (!super::grid::reads_parent_lines(computed)).then_some((
         id,
         direction == Direction::Row,
@@ -339,4 +345,29 @@ fn content_size(
         memo::put(dom, key, value);
     }
     value
+}
+
+/// A size-contained box's size on `direction`'s axis: its
+/// `contain-intrinsic-*` content size plus its padding, border and
+/// permanent scrollbar gutter.
+fn contained_content_size(
+    computed: &ComputedStyle,
+    direction: Direction,
+    containing_block_width: u16,
+) -> u16 {
+    use super::box_sizing::Sizer;
+    let g = super::gutters(computed, false, false);
+    let (chrome, gutter) = match direction {
+        Direction::Row => (
+            Sizer::horizontal(computed, containing_block_width).chrome(),
+            g.columns(),
+        ),
+        Direction::Column => (
+            Sizer::vertical(computed, containing_block_width).chrome(),
+            g.bottom,
+        ),
+    };
+    super::containment::contained_size(computed, direction)
+        .saturating_add(chrome)
+        .saturating_add(gutter)
 }

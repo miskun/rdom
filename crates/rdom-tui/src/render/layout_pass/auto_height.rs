@@ -47,13 +47,15 @@ pub(crate) fn resolve_auto_height(
     }) else {
         return;
     };
-    let content_h = used_content_height(
-        dom,
-        id,
-        computed,
-        containing_block_width,
-        measurement.content_height,
-    );
+    // Size containment (CSS Containment 2 §3.1): the content's height
+    // counts as nothing — `contain-intrinsic-height` where given.
+    let content_height = if super::containment::contains(computed, crate::layout::Direction::Column)
+    {
+        super::containment::contained_size(computed, crate::layout::Direction::Column)
+    } else {
+        measurement.content_height
+    };
+    let content_h = used_content_height(dom, id, computed, containing_block_width, content_height);
     let sizer = Sizer::vertical(computed, containing_block_width);
     let outer_h = content_h
         .saturating_add(sizer.chrome())

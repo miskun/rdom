@@ -359,6 +359,22 @@ impl TuiStyle {
         crate::layout::MarginTrim
     );
     setter!(
+        "container-type",
+        container_type,
+        container_type,
+        container_type_important,
+        CONTAINER_TYPE,
+        crate::layout::ContainerType
+    );
+    setter!(
+        "container-name",
+        container_name,
+        container_name,
+        container_name_important,
+        CONTAINER_NAME,
+        crate::layout::ContainerName
+    );
+    setter!(
         "contain-intrinsic-width",
         contain_intrinsic_width,
         contain_intrinsic_width,

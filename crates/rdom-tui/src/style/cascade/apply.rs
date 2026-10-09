@@ -175,6 +175,11 @@ pub(super) fn apply_style(
         contain_intrinsic_width: CONTAIN_INTRINSIC_WIDTH,
         contain_intrinsic_height: CONTAIN_INTRINSIC_HEIGHT,
     );
+    // CSS Conditional 5 §6.1–§6.2; not inherited.
+    value!(
+        container_type: CONTAINER_TYPE,
+        container_name: CONTAINER_NAME,
+    );
     // `aspect-ratio`: the declared value is the computed `Option` itself
     // (`auto` alone is `None`).
     value!(aspect_ratio: ASPECT_RATIO);

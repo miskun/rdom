@@ -160,6 +160,10 @@ const SPEC: &[(&str, Spec)] = &[
     // CSS Values 5 §11
     ("interpolate-size", L(N)),
     ("contain-intrinsic-size", S),
+    // CSS Conditional 5 §6.1–§6.3
+    ("container", S),
+    ("container-name", L(N)),
+    ("container-type", L(N)),
     ("contain-intrinsic-width", L(V)),
     ("contain-intrinsic-height", L(V)),
     ("contain-intrinsic-inline-size", S),

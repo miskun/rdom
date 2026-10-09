@@ -91,6 +91,10 @@ pub struct TuiStyle {
     pub box_sizing: Option<Value<crate::layout::BoxSizing>>,
     /// `interpolate-size` (CSS Values 5 §11).
     pub interpolate_size: Option<Value<crate::layout::InterpolateSize>>,
+    /// `container-type` (CSS Conditional 5 §6.1).
+    pub container_type: Option<Value<crate::layout::ContainerType>>,
+    /// `container-name` (CSS Conditional 5 §6.2).
+    pub container_name: Option<Value<crate::layout::ContainerName>>,
     /// `contain-intrinsic-width` (CSS Sizing 4 §6.1; also
     /// `contain-intrinsic-inline-size` in horizontal-tb).
     pub contain_intrinsic_width: Option<Value<crate::layout::ContainIntrinsicSize>>,

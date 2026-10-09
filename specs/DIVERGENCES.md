@@ -323,7 +323,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 ### Box model and sizing
 
 - `stretch` sizes (CSS Sizing 4; the intrinsic keywords shipped with C5-INTRINSIC) — not yet scheduled
-- `contain-intrinsic-size` in layout: the shorthand and its longhands parse and cascade (C5-CONTAIN-SIZE), but they size a box only under size containment — C14-CONTAIN
+- `contain-intrinsic-size` sizes a box only under the size containment a query container applies (C14-CONTAINER); `contain: size` and `content-visibility`'s, and its `auto` (a remembered size) — C14-CONTAIN
 
 ### Logical properties and writing modes
 
@@ -374,7 +374,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Conditional rules and containment
 
-- `@container`, `container-type` / `-name` / `container` — C14-CONTAINER
+- `@container` (the properties and their size containment shipped) — C14-CONTAINER part 2
 - `contain`, `content-visibility`, `will-change` — C14-CONTAIN (`content-visibility`'s discrete transition under `allow-discrete`, CSS Transitions 2 §3.1, comes with the property: its animation type goes in the `rdom_style::animation` table then)
 
 ### Transforms, filters and compositing
