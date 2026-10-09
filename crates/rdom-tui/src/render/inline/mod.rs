@@ -51,8 +51,10 @@
 
 mod align;
 mod baselines;
+mod bounds;
 mod boxes;
 mod breaking;
+pub(crate) use bounds::inline_box_rect;
 mod caret;
 mod feed;
 pub(crate) mod first_letter;

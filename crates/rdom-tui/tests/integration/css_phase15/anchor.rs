@@ -389,3 +389,26 @@ fn position_visibility_hides_anchored_boxes() {
     assert!(!shows("position-visibility: no-overflow; width: 30", 0));
     assert!(shows("position-visibility: always; width: 30", 0));
 }
+
+/// ACID-FIX-11 (found by acid tile 26). CSS Anchor Positioning 1 §2: any
+/// element with a principal box can be an anchor — a non-atomic inline
+/// one too, its anchor box the bounding box of its fragments (§2,
+/// "fragmented"). rdom read an inline element's `layout` rect, which an
+/// inline box does not have: the anchor was 0 × 0, `anchor()` resolved
+/// against nothing and `position-visibility: anchors-visible` (the
+/// initial value) hid the box as clipped.
+#[test]
+fn an_inline_element_anchors_by_its_fragments() {
+    let mut dom = doc(r#"<body><p>ab <span id="s">cde</span> fg</p><div id="t">T</div></body>"#);
+    let buf = paint(
+        &mut dom,
+        &format!(
+            "{PAGE} body {{ position: relative }} #s {{ anchor-name: --s }}
+             #t {{ position: absolute; top: anchor(--s bottom); left: anchor(--s right) }}"
+        ),
+        12,
+        3,
+    );
+    assert_eq!(rect(&dom, "t"), (6, 1, 1, 1));
+    assert_eq!(row(&buf, 1), "      T     ");
+}

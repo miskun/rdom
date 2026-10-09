@@ -248,10 +248,20 @@ pub(in crate::render::layout_pass) fn default_anchor(
 }
 
 /// The anchor box's rect: its border box (the fragments' bounding box
-/// for a fragmented one).
+/// for a fragmented one) — for a non-atomic inline element, which has no
+/// rect, the bounding box of its line fragments (§2; ACID-FIX-11).
 pub(in crate::render::layout_pass) fn anchor_box(
     dom: &Dom<TuiExt>,
     anchor: NodeId,
 ) -> Option<LayoutRect> {
-    dom.node(anchor).tui_ext().map(|e| e.border_box())
+    let ext = dom.node(anchor).tui_ext()?;
+    if ext
+        .computed
+        .as_deref()
+        .is_some_and(|c| c.display == Display::Inline)
+        && let Some(rect) = crate::render::inline::inline_box_rect(dom, anchor)
+    {
+        return Some(rect);
+    }
+    Some(ext.border_box())
 }

@@ -298,6 +298,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-8 | A disabled `<fieldset>` does not grey its legend and text; the UA's muted look is the disabled controls' (found by tile 15a) | done |
 | ACID-FIX-9 | A layer composited at full opacity keeps its cells' colours, the terminal's default ones included (found by tile 24) | done |
 | ACID-FIX-10 | An inline block's horizontal margins take their cells in its line (CSS 2.1 §10.3.9; found by tile 25) | done |
+| ACID-FIX-11 | An inline element anchors by the bounding box of its fragments (CSS Anchor Positioning 1 §2; found by tile 26) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | partial — tiles 14–24 done; 25–26 next |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
@@ -10827,3 +10828,14 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   (`aabcc` for `aa b  cc`; extended to a `::before` and a float's shrink-to-fit width before the fix); green after, the
   rest of rdom-tui and the showcase unchanged. DIVERGENCES' inline-block entry gains the negative horizontal margin;
   silent change `sc-inline-block-margins`.
+- 2026-10-10 — ACID-FIX-11 (found by acid tile 26; CSS Anchor Positioning 1 §2, §5). Tile 26's two `anchor-scope` list
+  items anchor their tooltips to an inline `<b anchor-name: --item>`, and neither tooltip was drawn: `lookup::anchor_box`
+  read the anchor's `layout` rect, which a non-atomic inline box does not have (its geometry is fragments in its block's
+  lines), so the anchor box was 0 × 0 at the origin — `anchor()` resolved against it, and `position-visibility:
+  anchors-visible`, the initial value, judged a zero-size anchor clipped and hid the box. §2 gives every element with
+  a principal box an anchor box, a fragmented one's the bounding box of its fragments. Fix: `render::inline::
+  inline_box_rect` — the bounding box of an inline element's text, atom and generated fragments where they are drawn,
+  in its block's own lines or its anonymous blocks' — is the anchor box of an inline anchor. Red:
+  `css_phase15::anchor::an_inline_element_anchors_by_its_fragments` (the anchored box at (0, 0) where (6, 1)); green
+  after, the rest of rdom-tui unchanged. DIVERGENCES' anchor entry names the inline anchor box; silent change
+  `sc-inline-anchor`.
