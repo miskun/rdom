@@ -4,7 +4,7 @@
 //! `match-parent` alignments fixed up once the ladder has run.
 
 use rdom_core::Dom;
-use rdom_style::calc::{UnitContext, Viewport};
+use rdom_style::calc::{UnitContext, UnitReads, Viewport};
 
 use super::apply::{Keywords, apply_value};
 use crate::ext::TuiExt;
@@ -77,18 +77,20 @@ pub(super) fn finalize_line_height(
     parent: &ComputedStyle,
     root_rows: Option<u16>,
     viewport: Viewport,
-) -> UnitContext {
+) -> (UnitContext, UnitReads) {
     let parent_rows = f64::from(parent.text.line_height.rows());
     let rlh = root_rows.map_or(1.0, f64::from);
     let parent_cx = UnitContext::new(viewport).with_line_heights(parent_rows, rlh);
-    working.text.line_height = working.text.line_height.computed(&parent_cx);
+    let (line_height, line_reads) = working.text.line_height.computed(&parent_cx);
+    working.text.line_height = line_height;
     let rows = working.text.line_height.rows();
     let own = f64::from(rows);
     let units = UnitContext::new(viewport).with_line_heights(own, root_rows.map_or(own, f64::from));
     // CSS 2.1 §10.8.1: a `vertical-align` percentage is of the element's
     // own line height.
-    working.vertical_align = working.vertical_align.computed(rows, &units);
-    units
+    let (vertical_align, align_reads) = working.vertical_align.computed(rows, &units);
+    working.vertical_align = vertical_align;
+    (units, line_reads | align_reads)
 }
 
 /// The used line height of the document's root element — an element root,

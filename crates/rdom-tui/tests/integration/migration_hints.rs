@@ -1581,3 +1581,25 @@ fn table_span_and_unit_context_hints() {
     ctx.lh = 2.0;
     assert_eq!(ctx.lh, 2.0);
 }
+
+/// C14G-READ-COUNTERS: the thread-wide `calc::viewport_reads()` /
+/// `container_reads()` counts are gone; a unit resolver returns what it
+/// read (`calc::UnitReads`) beside the value.
+#[test]
+fn unit_reads_hints() {
+    let cx = calc::UnitContext::new(Viewport::new(80, 24)).with_container(Some(40.0), None);
+    let vw = calc::CalcExpr::Dimension {
+        value: 10.0,
+        unit: calc::CalcUnit::parse("vw").unwrap(),
+    };
+    let (absolute, reads) = vw.absolutize_in(&cx);
+    assert_eq!(absolute, calc::CalcExpr::Number(8.0));
+    assert!(reads.viewport && !reads.container);
+    let mut style = ComputedStyle::initial();
+    style.width = Size::calc(calc::CalcExpr::Dimension {
+        value: 50.0,
+        unit: calc::CalcUnit::parse("cqw").unwrap(),
+    });
+    assert_eq!(style.resolve_context_units(&cx), calc::UnitReads::CONTAINER);
+    assert_eq!(style.width, Size::Fixed(20));
+}

@@ -306,8 +306,11 @@ fn lh_units_wait_for_the_line_height() {
         Some(LengthPercentage::Expr(e)) => e,
         other => panic!("{other:?}"),
     };
-    assert_eq!(three_rlh.absolutize_in(&cx).resolve(&ResolveCtx::new(0)), 6);
-    assert_eq!(two_lh.absolutize_in(&cx).resolve(&ResolveCtx::new(0)), 6);
+    assert_eq!(
+        three_rlh.absolutize_in(&cx).0.resolve(&ResolveCtx::new(0)),
+        6
+    );
+    assert_eq!(two_lh.absolutize_in(&cx).0.resolve(&ResolveCtx::new(0)), 6);
     let mut s = TuiStyle::default();
     set("height", "calc(50% - 1lh + 2rlh)", &mut s).unwrap();
     assert_eq!(

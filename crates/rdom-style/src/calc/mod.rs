@@ -38,8 +38,7 @@ use functions::eval_function;
 pub use functions::{MathFunction, RoundingStrategy};
 pub use types::CalcKind;
 pub use units::{
-    CalcUnit, UnitContext, Viewport, ViewportAxis, ViewportSize, ViewportUnit, container_reads,
-    viewport_reads,
+    CalcUnit, UnitContext, UnitReads, Viewport, ViewportAxis, ViewportSize, ViewportUnit,
 };
 
 /// One operator in a calc() expression.

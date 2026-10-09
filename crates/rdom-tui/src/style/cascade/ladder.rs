@@ -409,7 +409,7 @@ pub(super) fn prepare(
     registry: &super::registered::PropertyRegistry,
     transitions: Option<&HashMap<String, rdom_style::CustomValue>>,
     attrs: rdom_style::backend::AttrLookup<'_>,
-    viewport: rdom_style::calc::Viewport,
+    units: super::registered::ViewportUse<'_>,
 ) -> Option<Substituted> {
     // CSS Variables 1 §2 — same ladder, folded into the element's own
     // map before any `var()` consumer runs.
@@ -420,7 +420,7 @@ pub(super) fn prepare(
         registry,
         transitions,
         attrs,
-        viewport,
+        units,
     );
     let vars = working.animated_vars.as_ref().unwrap_or(&working.vars);
     Substituted::new(decls, vars, attrs, working.text_direction)

@@ -140,6 +140,8 @@ mod scope_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod unit_reads_tests;
+#[cfg(test)]
 mod var_tests;
 
 use std::rc::Rc;
@@ -317,7 +319,7 @@ pub(crate) fn cascade_all_with(
     registry: Option<Rc<PropertyRegistry>>,
 ) {
     let registry = registry.unwrap_or_else(|| registered::document_registry(dom, stylesheets));
-    let reads = media::begin(dom);
+    media::begin(dom);
     media::begin_tree(dom);
     container::begin(dom);
     container::begin_tree(dom);
@@ -348,7 +350,7 @@ pub(crate) fn cascade_all_with(
         walk::Mode::Cascade,
     );
     scratch.flag_has_anchors(dom);
-    media::finish(dom, reads, &sheets);
+    media::finish(dom, &sheets);
     // A reversed counter's initial value read the boxes after it as last
     // cascaded (CSS Lists 3 §4.2): re-cascade from those it moved.
     let stale = counters.stale_reversed(dom);

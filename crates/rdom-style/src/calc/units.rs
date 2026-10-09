@@ -60,26 +60,61 @@ impl Viewport {
     }
 }
 
-thread_local! {
-    static VIEWPORT_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
-    static CONTAINER_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+/// Which context sizes resolving a value at computed-value time read: the
+/// viewport (a viewport-percentage length, CSS Values 4 §6.1.2, or a
+/// container-relative one with no query container) and a query
+/// container's size (a container-relative length, CSS Conditional 5
+/// §6.6). Returned beside the value by every unit resolver
+/// ([`CalcExpr::absolutize_in`], `ComputedStyle::resolve_context_units`,
+/// `LineHeight::computed`, …), so a backend learns what a style depends
+/// on — a resize restyles only what read the viewport — from the
+/// resolution itself, with no state outside it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct UnitReads {
+    /// A length read the viewport's size.
+    pub viewport: bool,
+    /// A length read a query container's size.
+    pub container: bool,
 }
 
-/// How many container-relative lengths this thread has resolved against
-/// a query container's size, ever — sampled around one element's style,
-/// as [`viewport_reads`] is around a cascade: a backend learns that the
-/// style depends on the container's size (CSS Conditional 5 §6.6).
-pub fn container_reads() -> u64 {
-    CONTAINER_READS.with(std::cell::Cell::get)
+impl UnitReads {
+    /// Nothing read.
+    pub const NONE: UnitReads = UnitReads {
+        viewport: false,
+        container: false,
+    };
+    /// The viewport read.
+    pub const VIEWPORT: UnitReads = UnitReads {
+        viewport: true,
+        container: false,
+    };
+    /// A query container read.
+    pub const CONTAINER: UnitReads = UnitReads {
+        viewport: false,
+        container: true,
+    };
+
+    /// Whether anything was read.
+    pub fn any(self) -> bool {
+        self.viewport || self.container
+    }
 }
 
-/// How many viewport-percentage lengths this thread has resolved, ever —
-/// a backend samples it around a cascade to learn whether the styles it
-/// computed depend on the viewport's size (CSS Values 4 §6.1.2), so a
-/// resize restyles only a document that read one. A monotonic count, read
-/// as a difference: it carries no state between cascades.
-pub fn viewport_reads() -> u64 {
-    VIEWPORT_READS.with(std::cell::Cell::get)
+impl std::ops::BitOr for UnitReads {
+    type Output = UnitReads;
+    fn bitor(self, rhs: UnitReads) -> UnitReads {
+        UnitReads {
+            viewport: self.viewport || rhs.viewport,
+            container: self.container || rhs.container,
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for UnitReads {
+    fn bitor_assign(&mut self, rhs: UnitReads) {
+        *self = *self | rhs;
+    }
 }
 
 /// What the units resolved at computed-value time are relative to (CSS
@@ -126,34 +161,33 @@ impl UnitContext {
     }
 
     /// The cells 1% of the query container is on `axis`, the small
-    /// viewport's on an axis with none. Counted ([`container_reads`])
-    /// when a container size is read.
-    fn container_percent(&self, axis: ViewportAxis) -> f64 {
-        let viewport = |axis| {
-            ViewportUnit {
-                size: ViewportSize::Small,
-                axis,
-            }
-            .percent_of(self.viewport)
-        };
+    /// viewport's on an axis with none, and what that read.
+    fn container_percent(&self, axis: ViewportAxis) -> (f64, UnitReads) {
         let one = |size: Option<f64>, fallback: ViewportAxis| match size {
-            Some(cells) => {
-                CONTAINER_READS.with(|c| c.set(c.get().wrapping_add(1)));
-                cells / 100.0
-            }
-            None => viewport(fallback),
+            Some(cells) => (cells / 100.0, UnitReads::CONTAINER),
+            None => (
+                ViewportUnit {
+                    size: ViewportSize::Small,
+                    axis: fallback,
+                }
+                .percent_of(self.viewport),
+                UnitReads::VIEWPORT,
+            ),
         };
+        let inline = || one(self.container_inline, ViewportAxis::Width);
+        let block = || one(self.container_block, ViewportAxis::Height);
         match axis {
-            ViewportAxis::Width | ViewportAxis::Inline => {
-                one(self.container_inline, ViewportAxis::Width)
+            ViewportAxis::Width | ViewportAxis::Inline => inline(),
+            ViewportAxis::Height | ViewportAxis::Block => block(),
+            ViewportAxis::Min | ViewportAxis::Max => {
+                let ((i, a), (b, c)) = (inline(), block());
+                let v = if axis == ViewportAxis::Min {
+                    i.min(b)
+                } else {
+                    i.max(b)
+                };
+                (v, a | c)
             }
-            ViewportAxis::Height | ViewportAxis::Block => {
-                one(self.container_block, ViewportAxis::Height)
-            }
-            ViewportAxis::Min => one(self.container_inline, ViewportAxis::Width)
-                .min(one(self.container_block, ViewportAxis::Height)),
-            ViewportAxis::Max => one(self.container_inline, ViewportAxis::Width)
-                .max(one(self.container_block, ViewportAxis::Height)),
         }
     }
 
@@ -250,10 +284,8 @@ impl ViewportUnit {
     }
 
     /// The cells 1% of `viewport` is on this unit's axis — every
-    /// viewport-percentage length resolves here, counted
-    /// ([`viewport_reads`]).
+    /// viewport-percentage length resolves here.
     fn percent_of(self, viewport: Viewport) -> f64 {
-        VIEWPORT_READS.with(|c| c.set(c.get().wrapping_add(1)));
         let (w, h) = (f64::from(viewport.cols), f64::from(viewport.rows));
         let extent = match self.axis {
             ViewportAxis::Width | ViewportAxis::Inline => w,
@@ -409,23 +441,37 @@ impl CalcExpr {
     /// its cells in `viewport`, and the line-height units by one row
     /// each ([`Self::absolutize_in`] with [`UnitContext::new`]).
     pub fn absolutize(&self, viewport: Viewport) -> CalcExpr {
-        self.absolutize_in(&UnitContext::new(viewport))
+        self.absolutize_in(&UnitContext::new(viewport)).0
     }
 
     /// The expression with every unit that needs a context replaced by
     /// its cells in `cx` — the computed value (CSS Values 4 §6.1: the
     /// viewport-percentage and font-relative lengths are absolute once
-    /// computed). Percentages stay for layout.
-    pub fn absolutize_in(&self, cx: &UnitContext) -> CalcExpr {
+    /// computed) — and the context sizes that read. Percentages stay for
+    /// layout.
+    pub fn absolutize_in(&self, cx: &UnitContext) -> (CalcExpr, UnitReads) {
+        let mut reads = UnitReads::NONE;
+        let expr = self.absolutize_reading(cx, &mut reads);
+        (expr, reads)
+    }
+
+    fn absolutize_reading(&self, cx: &UnitContext, reads: &mut UnitReads) -> CalcExpr {
         match self {
             CalcExpr::Dimension {
                 value,
                 unit: CalcUnit::Viewport(v),
-            } => CalcExpr::Number(value * v.percent_of(cx.viewport)),
+            } => {
+                *reads |= UnitReads::VIEWPORT;
+                CalcExpr::Number(value * v.percent_of(cx.viewport))
+            }
             CalcExpr::Dimension {
                 value,
                 unit: CalcUnit::Container(axis),
-            } => CalcExpr::Number(value * cx.container_percent(*axis)),
+            } => {
+                let (percent, read) = cx.container_percent(*axis);
+                *reads |= read;
+                CalcExpr::Number(value * percent)
+            }
             CalcExpr::Dimension {
                 value,
                 unit: CalcUnit::Lh,
@@ -434,14 +480,46 @@ impl CalcExpr {
                 value,
                 unit: CalcUnit::Rlh,
             } => CalcExpr::Number(value * cx.rlh),
-            CalcExpr::Binary { op, lhs, rhs } => {
-                CalcExpr::binary(*op, lhs.absolutize_in(cx), rhs.absolutize_in(cx))
-            }
-            CalcExpr::Function { func, args } => {
-                CalcExpr::function(*func, args.iter().map(|a| a.absolutize_in(cx)).collect())
-            }
+            CalcExpr::Binary { op, lhs, rhs } => CalcExpr::binary(
+                *op,
+                lhs.absolutize_reading(cx, reads),
+                rhs.absolutize_reading(cx, reads),
+            ),
+            CalcExpr::Function { func, args } => CalcExpr::function(
+                *func,
+                args.iter()
+                    .map(|a| a.absolutize_reading(cx, reads))
+                    .collect(),
+            ),
             other => other.clone(),
         }
+    }
+
+    /// What resolving the expression's lengths against a bare viewport
+    /// (`ResolveCtx::with_viewport`, no query container) reads: the
+    /// viewport, when a viewport-percentage or container-relative length
+    /// is in it.
+    pub fn viewport_reads(&self) -> UnitReads {
+        let reads_viewport = |e: &CalcExpr| match e {
+            CalcExpr::Dimension { unit, .. } => {
+                matches!(unit, CalcUnit::Viewport(_) | CalcUnit::Container(_))
+            }
+            _ => false,
+        };
+        if self.any_node(&reads_viewport) {
+            UnitReads::VIEWPORT
+        } else {
+            UnitReads::NONE
+        }
+    }
+
+    fn any_node(&self, f: &impl Fn(&CalcExpr) -> bool) -> bool {
+        f(self)
+            || match self {
+                CalcExpr::Binary { lhs, rhs, .. } => lhs.any_node(f) || rhs.any_node(f),
+                CalcExpr::Function { args, .. } => args.iter().any(|a| a.any_node(f)),
+                _ => false,
+            }
     }
 }
 

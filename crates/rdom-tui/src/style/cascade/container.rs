@@ -313,16 +313,15 @@ pub(super) fn with_unit_sizes(
     cx.with_container(inline_size, block_size)
 }
 
-/// After resolving an element's units with [`with_unit_sizes`] since
-/// `before` (`rdom_style::calc::container_reads`): when a
-/// container-relative unit read a container, record its containers as
-/// read.
+/// After resolving an element's units with [`with_unit_sizes`], which
+/// read `reads`: when a container-relative unit read a container, record
+/// its containers as read.
 pub(super) fn note_unit_reads(
     dom: &Dom<TuiExt>,
-    before: u64,
+    reads: rdom_style::calc::UnitReads,
     (inline, block): (Option<NodeId>, Option<NodeId>),
 ) {
-    if rdom_style::calc::container_reads() == before {
+    if !reads.container {
         return;
     }
     for c in [inline, block].into_iter().flatten() {

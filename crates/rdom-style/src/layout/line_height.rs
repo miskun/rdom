@@ -1,7 +1,7 @@
 //! `line-height` (CSS Inline 3 §5.1, CSS 2.1 §10.8.1): how tall an
 //! inline box is, in whole rows on a terminal grid.
 
-use crate::calc::{CalcExpr, ResolveCtx, UnitContext};
+use crate::calc::{CalcExpr, ResolveCtx, UnitContext, UnitReads};
 
 /// `line-height: normal | <number [0,∞]> | <length-percentage [0,∞]>`
 /// (CSS Inline 3 §5.1). Inherited; initial `normal`.
@@ -43,14 +43,17 @@ impl LineHeight {
     /// size (one row) and a length in context units resolved against
     /// `cx` — whose `lh` is the parent's line height (CSS Values 4 §6.1.1:
     /// "when specified in the line-height property itself, refer to the
-    /// parent's") — to rows; `normal` and a number unchanged.
-    pub fn computed(&self, cx: &UnitContext) -> LineHeight {
+    /// parent's") — to rows; `normal` and a number unchanged. Returns the
+    /// context sizes that read beside it.
+    pub fn computed(&self, cx: &UnitContext) -> (LineHeight, UnitReads) {
         match self {
             LineHeight::Calc(expr) => {
-                let rows = expr.absolutize_in(cx).resolve_f64(&ResolveCtx::new(1));
-                LineHeight::Rows(if rows.is_finite() { rows.max(0.0) } else { 0.0 } as f32)
+                let (expr, reads) = expr.absolutize_in(cx);
+                let rows = expr.resolve_f64(&ResolveCtx::new(1));
+                let rows = if rows.is_finite() { rows.max(0.0) } else { 0.0 };
+                (LineHeight::Rows(rows as f32), reads)
             }
-            other => other.clone(),
+            other => (other.clone(), UnitReads::NONE),
         }
     }
 
@@ -134,16 +137,35 @@ mod tests {
     #[test]
     fn a_context_length_computes_to_rows() {
         let cx = UnitContext::new(Viewport::new(80, 20)).with_line_heights(2.0, 3.0);
-        let lh = |unit| LineHeight::calc(CalcExpr::Dimension { value: 2.0, unit }).computed(&cx);
+        let lh = |unit| {
+            LineHeight::calc(CalcExpr::Dimension { value: 2.0, unit })
+                .computed(&cx)
+                .0
+        };
         assert_eq!(lh(CalcUnit::Lh), LineHeight::Rows(4.0));
         assert_eq!(lh(CalcUnit::Rlh), LineHeight::Rows(6.0));
         assert_eq!(
-            LineHeight::calc(CalcExpr::Percent(150.0)).computed(&cx),
+            LineHeight::calc(CalcExpr::Percent(150.0)).computed(&cx).0,
             LineHeight::Rows(1.5)
         );
         assert_eq!(
-            LineHeight::Number(1.5).computed(&cx),
+            LineHeight::Number(1.5).computed(&cx).0,
             LineHeight::Number(1.5)
         );
+        let vh = LineHeight::calc(CalcExpr::Dimension {
+            value: 10.0,
+            unit: CalcUnit::parse("vh").unwrap(),
+        });
+        assert_eq!(
+            vh.computed(&cx),
+            (LineHeight::Rows(2.0), UnitReads::VIEWPORT)
+        );
+        let reads = LineHeight::calc(CalcExpr::Dimension {
+            value: 2.0,
+            unit: CalcUnit::Lh,
+        })
+        .computed(&cx)
+        .1;
+        assert_eq!(reads, UnitReads::NONE, "lh reads no size");
     }
 }

@@ -6,9 +6,10 @@
 //!
 //! Also what the cascades leave behind for a change of that environment
 //! (`MediaState`): whether a computed style read the viewport — a
-//! viewport-percentage length (CSS Values 4 §6.1.2), counted by
-//! `rdom_style::calc::viewport_reads` — and the condition results the
-//! last cascade ran under. A resize or a new preference restyles the tree
+//! viewport-percentage length (CSS Values 4 §6.1.2), as the unit
+//! resolvers return (`rdom_style::calc::UnitReads`), noted per element
+//! ([`note_reads`]) — and the condition results the last cascade ran
+//! under. A resize or a new preference restyles the tree
 //! only when one of them says it must ([`must_restyle`]).
 
 use std::cell::{Cell, RefCell};
@@ -16,6 +17,7 @@ use std::rc::Rc;
 
 use rdom_core::Dom;
 use rdom_style::Stylesheet;
+use rdom_style::calc::UnitReads;
 use rdom_style::conditional::{MediaEnvironment, MediaPreferences};
 
 use super::conditions::ConditionResults;
@@ -74,13 +76,11 @@ struct MediaState {
     conditions: RefCell<Option<Rc<ConditionResults>>>,
 }
 
-/// Before a cascade: make sure the state exists, and sample the viewport
-/// reads.
-pub(crate) fn begin(dom: &mut Dom<TuiExt>) -> u64 {
+/// Before a cascade: make sure the state exists.
+pub(crate) fn begin(dom: &mut Dom<TuiExt>) {
     if dom.document_data::<MediaState>().is_none() {
         dom.set_document_data(MediaState::default());
     }
-    rdom_style::calc::viewport_reads()
 }
 
 /// Before a whole-tree cascade: every element is about to say again
@@ -91,23 +91,35 @@ pub(crate) fn begin_tree(dom: &Dom<TuiExt>) {
     }
 }
 
-/// After a whole-tree cascade under `sheets` that began at `before`: note
-/// a viewport read and the condition results it ran under. (A subtree
-/// cascade notes only the read: the rest of the tree is still under the
-/// results recorded last.)
-pub(super) fn finish(dom: &Dom<TuiExt>, before: u64, sheets: &Sheets<'_>) {
-    note_reads(dom, before);
+/// After a whole-tree cascade under `sheets`: note what it read and the
+/// condition results it ran under. (A subtree cascade notes only the
+/// reads: the rest of the tree is still under the results recorded
+/// last.)
+pub(super) fn finish(dom: &Dom<TuiExt>, sheets: &Sheets<'_>) {
+    note_reads(dom, sheets, UnitReads::NONE);
     if let Some(state) = dom.document_data::<MediaState>() {
         *state.conditions.borrow_mut() = Some(sheets.conditions().clone());
     }
 }
 
-/// After a subtree cascade that began at `before`: note a viewport read.
-pub(super) fn note_reads(dom: &Dom<TuiExt>, before: u64) {
-    if rdom_style::calc::viewport_reads() != before
-        && let Some(state) = dom.document_data::<MediaState>()
-    {
-        state.reads_viewport.set(true);
+/// As an element's (or a pseudo-element's) style is computed by the run
+/// `sheets`, whose unit resolutions read `reads` for it: note a viewport
+/// read the run made on the document — at once, so a run that stops
+/// part-way (a panic) leaves the reads of the styles it wrote, and only
+/// this document's runs mark it. A keyframe or starting style's run
+/// notes the sticky animation flag instead.
+pub(super) fn note_reads(dom: &Dom<TuiExt>, sheets: &Sheets<'_>, reads: UnitReads) {
+    sheets.note_reads(reads);
+    if !sheets.unit_reads().viewport {
+        return;
+    }
+    if let Some(state) = dom.document_data::<MediaState>() {
+        let flag = if sheets.for_animation() {
+            &state.animations_read_viewport
+        } else {
+            &state.reads_viewport
+        };
+        flag.set(true);
     }
 }
 
@@ -137,31 +149,4 @@ pub(crate) fn must_restyle(
         .borrow()
         .as_ref()
         .is_none_or(|then| !Rc::ptr_eq(then, &now))
-}
-
-/// Notes a viewport read when dropped ([`note_reads`]): a style
-/// computation with several returns (a keyframe's, a starting style)
-/// holds one for its run.
-pub(super) struct ReadsGuard<'d> {
-    dom: &'d Dom<TuiExt>,
-    before: u64,
-}
-
-impl<'d> ReadsGuard<'d> {
-    pub(super) fn new(dom: &'d Dom<TuiExt>) -> Self {
-        ReadsGuard {
-            dom,
-            before: rdom_style::calc::viewport_reads(),
-        }
-    }
-}
-
-impl Drop for ReadsGuard<'_> {
-    fn drop(&mut self) {
-        if rdom_style::calc::viewport_reads() != self.before
-            && let Some(state) = self.dom.document_data::<MediaState>()
-        {
-            state.animations_read_viewport.set(true);
-        }
-    }
 }

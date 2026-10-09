@@ -11,7 +11,7 @@
 use std::rc::Rc;
 
 use rdom_style::LayerOrder;
-use rdom_style::calc::Viewport;
+use rdom_style::calc::{UnitReads, Viewport};
 use rdom_style::color::ColorScheme;
 use rdom_style::conditional::MediaEnvironment;
 use rdom_style::counters::{CounterStyleDefinition, CounterStyleRegistry};
@@ -47,6 +47,12 @@ pub(super) struct Sheets<'a> {
     /// when computing a keyframe style (`keyframe_style.rs`); empty
     /// otherwise.
     animation: &'a [&'a crate::style::TuiStyle],
+    /// Whether this run computes a keyframe or a starting style — resolved
+    /// when an animation or a transition starts, not by every cascade.
+    for_animation: bool,
+    /// The context sizes this run's styles read so far (C14G-READ-COUNTERS:
+    /// returned by the unit resolvers, accumulated per element here).
+    reads: std::cell::Cell<UnitReads>,
 }
 
 /// What a sheet set holds that every element's cascade asks, each found
@@ -114,6 +120,8 @@ impl<'a> Sheets<'a> {
             conditional_keyframes: std::cell::OnceCell::new(),
             starting: false,
             animation: &[],
+            for_animation: false,
+            reads: std::cell::Cell::new(UnitReads::NONE),
         }
     }
 
@@ -146,6 +154,7 @@ impl<'a> Sheets<'a> {
     pub(super) fn with_animation(self, blocks: &'a [&'a crate::style::TuiStyle]) -> Self {
         Sheets {
             animation: blocks,
+            for_animation: true,
             ..self
         }
     }
@@ -160,6 +169,7 @@ impl<'a> Sheets<'a> {
     pub(super) fn with_starting_style(self) -> Self {
         Sheets {
             starting: true,
+            for_animation: true,
             ..self
         }
     }
@@ -294,6 +304,27 @@ impl<'a> Sheets<'a> {
     /// The terminal size the viewport-percentage units resolve against.
     pub(super) fn viewport(&self) -> Viewport {
         self.media.viewport
+    }
+
+    /// The viewport a registered property's lengths compute against, with
+    /// this run's record of what they read.
+    pub(super) fn viewport_use(&self) -> super::registered::ViewportUse<'_> {
+        super::registered::ViewportUse::new(self.media.viewport, &self.reads)
+    }
+
+    /// Note what a unit resolution of this run read.
+    pub(super) fn note_reads(&self, reads: UnitReads) {
+        self.reads.set(self.reads.get() | reads);
+    }
+
+    /// What this run's unit resolutions read so far.
+    pub(super) fn unit_reads(&self) -> UnitReads {
+        self.reads.get()
+    }
+
+    /// Whether this run computes a keyframe or a starting style.
+    pub(super) fn for_animation(&self) -> bool {
+        self.for_animation
     }
 
     /// The custom properties the sheets register in this run's

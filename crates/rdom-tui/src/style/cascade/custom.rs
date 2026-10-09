@@ -9,9 +9,9 @@ use std::collections::{HashMap, HashSet};
 
 use super::ladder::{Declarations, Plan, Rollback, Step};
 use super::registered::PropertyRegistry;
+use super::registered::ViewportUse;
 use crate::style::ComputedStyle;
 use rdom_style::backend::{SubstitutionContext, resolve_custom_properties};
-use rdom_style::calc::Viewport;
 
 type Map = HashMap<String, rdom_style::CustomValue>;
 
@@ -27,7 +27,7 @@ pub(super) fn apply_custom_properties(
     registry: &PropertyRegistry,
     transitions: Option<&Map>,
     attrs: rdom_style::backend::AttrLookup<'_>,
-    viewport: Viewport,
+    units: ViewportUse<'_>,
 ) {
     let inherited = working.vars.clone();
     let declared: HashSet<&str> = decls
@@ -44,17 +44,17 @@ pub(super) fn apply_custom_properties(
                 &inherited,
                 rollback,
                 registry,
-                viewport,
+                units,
             );
         };
         let rollback = Rollback::new(plan.steps().len(), &base, &apply);
         let map = std::rc::Rc::make_mut(&mut working.vars);
         for step in plan.steps() {
-            put_step(map, step, decls, &inherited, &rollback, registry, viewport);
+            put_step(map, step, decls, &inherited, &rollback, registry, units);
         }
     }
     if !registry.is_empty() {
-        registry.settle_undeclared(&mut working.vars, &declared, viewport);
+        registry.settle_undeclared(&mut working.vars, &declared, units);
     }
     if !declared.is_empty() {
         // CSS Variables 1 §3: a custom property's own `var()`s substitute
@@ -65,7 +65,7 @@ pub(super) fn apply_custom_properties(
         // Their `attr()`s read the element's attributes (CSS Values 5 §8.7).
         let cx = SubstitutionContext::new().with_attrs(attrs);
         let mut computed =
-            |name: &str, value| registry.computed_value(name, value, &inherited, viewport);
+            |name: &str, value| registry.computed_value(name, value, &inherited, units);
         let cx = if registry.is_empty() {
             cx
         } else {
@@ -123,7 +123,7 @@ fn put_step(
     inherited: &Map,
     rollback: &Rollback<'_, Map>,
     registry: &PropertyRegistry,
-    viewport: Viewport,
+    units: ViewportUse<'_>,
 ) {
     for style in decls.of(step) {
         for d in &style.custom_properties {
@@ -135,9 +135,9 @@ fn put_step(
             // inherit, `unset`) is its initial value (Properties and
             // Values 1 §2.1).
             let keyword = if v.eq_ignore_ascii_case("initial") {
-                registry.keyword_value(&d.name, false, viewport)
+                registry.keyword_value(&d.name, false, units)
             } else if v.eq_ignore_ascii_case("unset") {
-                registry.keyword_value(&d.name, true, viewport)
+                registry.keyword_value(&d.name, true, units)
             } else {
                 None
             };

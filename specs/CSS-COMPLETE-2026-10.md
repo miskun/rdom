@@ -9592,3 +9592,27 @@ row comes from.
   sets. Red: `column_tests::the_column_model_stops_where_layout_does` (`td:nth-col(69001)` matched),
   `table::tests::covered_columns_are_skipped_in_bounded_steps` (650 000 000 steps for under 100 000),
   `tree::tests::a_text_or_comment_parent_takes_no_child` (`Ok`); green after (the steps a few a row).
+- 2026-10-09 — C14G-READ-COUNTERS (architect N7, API N4; CSS Values 4 §6.1.2, CSS Conditional 5 §6.6). Found:
+  whether a style read the viewport or a query container came from two thread-wide monotonic counts in
+  rdom-style (`calc::viewport_reads` / `container_reads`, public), sampled by rdom-tui around a cascade
+  (`media::begin` / `finish`, a `ReadsGuard` for keyframe and starting styles) — ambient state coupling the
+  two crates: a cascade nested in another marked the outer document, and a cascade that stopped part-way
+  (a panic between `begin` and `finish`) lost the reads of the styles it had written, leaving them stale
+  after a resize. Decided (returned flags, the gate's preferred design): every unit resolver returns
+  `calc::UnitReads { viewport, container }` beside its value — `CalcExpr::absolutize_in` (a pair),
+  `ComputedStyle::resolve_context_units` / `resolve_viewport_units`, `LineHeight::computed`,
+  `VerticalAlign::computed`, `PropertySyntax::computed` (`CalcExpr::viewport_reads` says what a bare
+  viewport resolution reads); the counters are gone, not hidden. rdom-tui accumulates the reads per element
+  and per run: `Sheets` keeps the run's `UnitReads`, a registered property's computation notes into it
+  through `ViewportUse` (the viewport plus the run's record, replacing the bare `Viewport` parameter), and
+  each element's and pseudo-element's cascade notes its own reads (`media::note_reads`) — on the document
+  at once, so a run that stops part-way keeps what its written styles read, and only a document's own runs
+  mark it; a keyframe or starting style's run (`Sheets::for_animation`) sets the sticky animation flag the
+  guard used to. Container reads stay per element (`container::note_unit_reads` takes the flags). `UnitReads`
+  is classified as an outcome record (`#[non_exhaustive]`) in DESIGN. Red (`cascade/unit_reads_tests.rs`, a
+  test-only hook run as each element's cascade begins): `a_nested_cascade_marks_only_its_own_document` — the
+  outer document read no viewport but a resize would restyle it (`true` for `false`);
+  `a_panic_mid_cascade_keeps_the_reads_already_made` — after the panic the written `50vw` style was not
+  marked (`false` for `true`). Green after, with the resolvers' own reads pinned in rdom-style
+  (`container_units_resolve_against_the_container`, `a_context_length_computes_to_rows`,
+  `length_is_absolute_cells`) and `migration_hints::unit_reads_hints`.

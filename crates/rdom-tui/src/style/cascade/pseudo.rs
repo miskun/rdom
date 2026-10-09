@@ -135,7 +135,7 @@ pub(super) fn compute_pseudo_style(
             cx.sheets.active_registry(),
             None,
             &attrs,
-            cx.sheets.viewport(),
+            cx.sheets.viewport_use(),
         );
         let colors = apply_cascade_ladder(
             &mut working,
@@ -182,7 +182,7 @@ pub(super) fn compute_pseudo_style(
     super::line_clamp::finalize_line_clamp(&mut working);
     finalize_bfc_formation(&mut working);
     let root_rows = Some(super::text::root_line_height(dom));
-    let units = super::text::finalize_line_height(
+    let (units, line_reads) = super::text::finalize_line_height(
         &mut working,
         host_computed,
         root_rows,
@@ -192,9 +192,9 @@ pub(super) fn compute_pseudo_style(
     // element (CSS Conditional 5 §6.4).
     let containers = super::container::unit_containers(dom, id, true);
     let units = super::container::with_unit_sizes(dom, units, containers);
-    let reads = rdom_style::calc::container_reads();
-    working.resolve_context_units(&units);
+    let reads = line_reads | working.resolve_context_units(&units);
     super::container::note_unit_reads(dom, reads, containers);
+    super::media::note_reads(dom, cx.sheets, reads);
     finalize_used_border(&mut working);
 
     // Resolve content:

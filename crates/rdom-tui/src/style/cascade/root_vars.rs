@@ -40,7 +40,7 @@ pub(super) fn merge_root_vars(dom: &Dom<TuiExt>, sheets: &Sheets<'_>) -> VarMap 
     // an invalid one is its initial value.
     let registry = sheets.active_registry();
     if !registry.is_empty() {
-        registry.seed_root(&mut merged, sheets.viewport());
+        registry.seed_root(&mut merged, sheets.viewport_use());
     }
     let names: Vec<String> = merged.keys().cloned().collect();
     let mut cx = rdom_style::backend::SubstitutionContext::new();
@@ -49,7 +49,7 @@ pub(super) fn merge_root_vars(dom: &Dom<TuiExt>, sheets: &Sheets<'_>) -> VarMap 
     }
     let no_parent = std::collections::HashMap::new();
     let mut computed =
-        |name: &str, value| registry.computed_value(name, value, &no_parent, sheets.viewport());
+        |name: &str, value| registry.computed_value(name, value, &no_parent, sheets.viewport_use());
     if !registry.is_empty() {
         cx = cx.with_computed(&mut computed);
     }

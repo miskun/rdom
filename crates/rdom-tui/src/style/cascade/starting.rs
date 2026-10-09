@@ -25,7 +25,6 @@ pub(crate) fn starting_style(
     id: NodeId,
     slot: StyleSlot,
 ) -> Option<ComputedStyle> {
-    let _reads = super::media::ReadsGuard::new(dom);
     let sheets = Sheets::new(
         stylesheets,
         registry.clone(),

@@ -8,7 +8,7 @@ use super::{
     Multiplier, PropertySyntax, SyntaxComponent, consume, matches_term, top_level_segments,
 };
 use crate::CustomValue;
-use crate::calc::{CalcExpr, ResolveCtx, Viewport, to_cells};
+use crate::calc::{CalcExpr, ResolveCtx, UnitReads, Viewport, to_cells};
 use crate::parse::token::Token;
 use crate::parse::values::{LengthPercentage, Range, length_percentage};
 
@@ -16,8 +16,25 @@ impl PropertySyntax {
     /// The computed value of `value`, which matches this syntax, in a
     /// document presented in `viewport`; `None` when that is `value`
     /// itself. The first alternative `value` matches decides its type;
-    /// a list computes item by item.
-    pub fn computed(&self, value: &CustomValue, viewport: Viewport) -> Option<CustomValue> {
+    /// a list computes item by item. Returns the context sizes the
+    /// computation read beside it (a viewport-percentage length reads the
+    /// viewport).
+    pub fn computed(
+        &self,
+        value: &CustomValue,
+        viewport: Viewport,
+    ) -> (Option<CustomValue>, UnitReads) {
+        let mut reads = UnitReads::NONE;
+        let computed = self.computed_reading(value, viewport, &mut reads);
+        (computed, reads)
+    }
+
+    fn computed_reading(
+        &self,
+        value: &CustomValue,
+        viewport: Viewport,
+        reads: &mut UnitReads,
+    ) -> Option<CustomValue> {
         let PropertySyntax::Alternatives(alternatives) = self else {
             return None;
         };
@@ -37,7 +54,7 @@ impl PropertySyntax {
         };
         let computed: Vec<String> = items
             .into_iter()
-            .map(|item| length(item, percent, viewport))
+            .map(|item| length(item, percent, viewport, reads))
             .collect::<Option<_>>()?;
         let text = computed.join(separator);
         (text != value.as_str()).then(|| CustomValue::new(&text))
@@ -58,11 +75,17 @@ fn space_items<'t>(component: &SyntaxComponent, tokens: &'t [Token]) -> Vec<&'t 
 /// One `<length>` (or, with `percent`, `<length-percentage>`) as its
 /// computed value's text: whole cells, or — holding a percentage — that
 /// percentage beside the cells (`calc(2 + 50%)`).
-fn length(item: &[Token], percent: bool, viewport: Viewport) -> Option<String> {
+fn length(
+    item: &[Token],
+    percent: bool,
+    viewport: Viewport,
+    reads: &mut UnitReads,
+) -> Option<String> {
     Some(match length_percentage(item, Range::Any)? {
         LengthPercentage::Integer(n) => n.to_string(),
         LengthPercentage::Cells(v) => to_cells(v).to_string(),
         LengthPercentage::Expr(e) => {
+            *reads |= e.viewport_reads();
             let e = absolute(&e, viewport);
             if !e.contains_percent() {
                 to_cells(e.resolve_f64(&ResolveCtx::new(0))).to_string()
@@ -120,7 +143,15 @@ mod tests {
         PropertySyntax::parse(syntax)
             .unwrap()
             .computed(&CustomValue::new(value), Viewport::new(80, 20))
+            .0
             .map(|v| v.as_str().to_string())
+    }
+
+    fn reads(syntax: &str, value: &str) -> UnitReads {
+        PropertySyntax::parse(syntax)
+            .unwrap()
+            .computed(&CustomValue::new(value), Viewport::new(80, 20))
+            .1
     }
 
     /// §2.4: a `<length>` computes to an absolute length — `vw` / `vh`
@@ -133,6 +164,15 @@ mod tests {
         assert_eq!(computed("<length>", "calc(2ch + 3)").as_deref(), Some("5"));
         assert_eq!(computed("<length>", "-2ch").as_deref(), Some("-2"));
         assert_eq!(computed("<length>", "7"), None, "already absolute");
+        // C14G-READ-COUNTERS: what the computation read, returned with it.
+        assert_eq!(reads("<length>", "10vw"), UnitReads::VIEWPORT);
+        assert_eq!(
+            reads("<length>", "5cqw"),
+            UnitReads::VIEWPORT,
+            "no container here"
+        );
+        assert_eq!(reads("<length>", "calc(2ch + 3)"), UnitReads::NONE);
+        assert_eq!(reads("<number>", "1.5"), UnitReads::NONE);
     }
 
     /// §2.4: a `<length-percentage>` keeps its percentage; the length part

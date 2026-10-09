@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 use rdom_core::Dom;
 
-use rdom_style::calc::{CalcUnit, Viewport};
+use rdom_style::calc::{CalcUnit, UnitReads, Viewport};
 use rdom_style::parse::token::Token;
 use rdom_style::{CustomValue, PropertyRegistration};
 
@@ -35,7 +35,7 @@ impl Entry {
         let initial_needs_viewport = initial.as_ref().is_some_and(needs_viewport);
         let initial = match initial {
             Some(v) if !initial_needs_viewport => {
-                Some(reg.syntax.computed(&v, Viewport::default()).unwrap_or(v))
+                Some(reg.syntax.computed(&v, Viewport::default()).0.unwrap_or(v))
             }
             other => other,
         };
@@ -46,16 +46,43 @@ impl Entry {
         }
     }
 
-    /// The computed initial value in `viewport`.
-    fn initial(&self, viewport: Viewport) -> Option<Cow<'_, CustomValue>> {
+    /// The computed initial value against `units`.
+    fn initial(&self, units: ViewportUse<'_>) -> Option<Cow<'_, CustomValue>> {
         let initial = self.initial.as_ref()?;
         if !self.initial_needs_viewport {
             return Some(Cow::Borrowed(initial));
         }
-        Some(match self.reg.syntax.computed(initial, viewport) {
+        Some(match units.computed(&self.reg.syntax, initial) {
             Some(v) => Cow::Owned(v),
             None => Cow::Borrowed(initial),
         })
+    }
+}
+
+/// The viewport a registered property's lengths compute against (§2.4),
+/// and the cascade run's record of what they read (`Sheets::unit_reads`):
+/// a computation that reads the viewport says so as it returns.
+#[derive(Clone, Copy)]
+pub(super) struct ViewportUse<'a> {
+    viewport: Viewport,
+    reads: &'a std::cell::Cell<UnitReads>,
+}
+
+impl<'a> ViewportUse<'a> {
+    pub(super) fn new(viewport: Viewport, reads: &'a std::cell::Cell<UnitReads>) -> Self {
+        ViewportUse { viewport, reads }
+    }
+
+    /// `syntax`'s computed value of `value` (`PropertySyntax::computed`),
+    /// its reads noted.
+    fn computed(
+        self,
+        syntax: &rdom_style::PropertySyntax,
+        value: &CustomValue,
+    ) -> Option<CustomValue> {
+        let (computed, reads) = syntax.computed(value, self.viewport);
+        self.reads.set(self.reads.get() | reads);
+        computed
     }
 }
 
@@ -225,13 +252,13 @@ impl PropertyRegistry {
         &self,
         name: &str,
         unset: bool,
-        viewport: Viewport,
+        units: ViewportUse<'_>,
     ) -> Option<Option<CustomValue>> {
         let e = self.entries.get(name)?;
         if unset && e.reg.inherits {
             return None;
         }
-        Some(e.initial(viewport).map(Cow::into_owned))
+        Some(e.initial(units).map(Cow::into_owned))
     }
 
     /// The registered properties `declared` does not cover: a property
@@ -241,14 +268,14 @@ impl PropertyRegistry {
         &self,
         map: &mut std::rc::Rc<Map>,
         declared: &HashSet<&str>,
-        viewport: Viewport,
+        units: ViewportUse<'_>,
     ) {
         for (name, e) in &self.entries {
             if declared.contains(name.as_str()) {
                 continue;
             }
             let current = map.get(name);
-            let initial = e.initial(viewport);
+            let initial = e.initial(units);
             let want = if e.reg.inherits {
                 current.or(initial.as_deref())
             } else {
@@ -287,7 +314,7 @@ impl PropertyRegistry {
         name: &str,
         value: Option<CustomValue>,
         inherited: &Map,
-        viewport: Viewport,
+        units: ViewportUse<'_>,
     ) -> Option<CustomValue> {
         let Some(e) = self.entries.get(name) else {
             return value;
@@ -295,15 +322,15 @@ impl PropertyRegistry {
         if let Some(v) = value
             && e.reg.syntax.matches(v.as_str())
         {
-            return Some(e.reg.syntax.computed(&v, viewport).unwrap_or(v));
+            return Some(units.computed(&e.reg.syntax, &v).unwrap_or(v));
         }
         if e.reg.inherits {
             inherited
                 .get(name)
                 .cloned()
-                .or_else(|| e.initial(viewport).map(Cow::into_owned))
+                .or_else(|| e.initial(units).map(Cow::into_owned))
         } else {
-            e.initial(viewport).map(Cow::into_owned)
+            e.initial(units).map(Cow::into_owned)
         }
     }
 
@@ -311,12 +338,12 @@ impl PropertyRegistry {
     /// `var()`s resolve: every registered property they lack gets its
     /// initial value, so a dependent can read it (§2.1). Validation runs
     /// during resolution ([`computed_value`](Self::computed_value)).
-    pub(super) fn seed_root(&self, map: &mut Map, viewport: Viewport) {
+    pub(super) fn seed_root(&self, map: &mut Map, units: ViewportUse<'_>) {
         for (name, e) in &self.entries {
             if map.contains_key(name) {
                 continue;
             }
-            if let Some(v) = e.initial(viewport) {
+            if let Some(v) = e.initial(units) {
                 map.insert(name.clone(), v.into_owned());
             }
         }

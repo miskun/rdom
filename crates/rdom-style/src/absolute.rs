@@ -6,7 +6,7 @@
 //! expression left with none folds to whole cells.
 
 use crate::ComputedStyle;
-use crate::calc::{CalcExpr, UnitContext, Viewport};
+use crate::calc::{CalcExpr, UnitContext, UnitReads, Viewport};
 use crate::layout::{
     BorderWidth, FlexBasis, GapValue, IntrinsicSize, Length, MarginValue, MaxSize, MinSize,
     PaddingValue, PaintLength, Size,
@@ -16,18 +16,19 @@ impl ComputedStyle {
     /// Resolve every viewport-percentage length in the style's
     /// length-bearing values against `viewport`, and the line-height
     /// units as one row each ([`Self::resolve_context_units`] with
-    /// [`UnitContext::new`]).
-    pub fn resolve_viewport_units(&mut self, viewport: Viewport) {
-        self.resolve_context_units(&UnitContext::new(viewport));
+    /// [`UnitContext::new`]); returns what that read.
+    pub fn resolve_viewport_units(&mut self, viewport: Viewport) -> UnitReads {
+        self.resolve_context_units(&UnitContext::new(viewport))
     }
 
     /// Resolve every unit that needs a context — the viewport-percentage
     /// lengths, `lh` and `rlh` — in the style's length-bearing values
     /// against `cx`. The cascade calls this once per computed style, once
     /// `line-height` is computed (`lh` reads it); values without such a
-    /// unit are untouched.
-    pub fn resolve_context_units(&mut self, cx: &UnitContext) {
-        let vp = cx;
+    /// unit are untouched. Returns the context sizes the values read —
+    /// what the style depends on beside its declarations.
+    pub fn resolve_context_units(&mut self, cx: &UnitContext) -> UnitReads {
+        let vp = &Reading::new(cx);
         absolutize(&mut self.width, vp, Size::Calc, |v| {
             Size::Fixed(cells_u16(v))
         });
@@ -38,7 +39,7 @@ impl ComputedStyle {
         let absolute = |c: &std::sync::Arc<crate::layout::CalcSize>| {
             c.offset.needs_context().then(|| {
                 let mut absolute = (**c).clone();
-                absolute.offset = absolute.offset.absolutize_in(vp);
+                absolute.offset = vp.absolutize(&absolute.offset);
                 std::sync::Arc::new(absolute)
             })
         };
@@ -111,7 +112,7 @@ impl ComputedStyle {
             &mut self.contain_intrinsic_height,
         ] {
             if let Some(expr) = size.length.as_mut().filter(|e| e.needs_context()) {
-                let absolute = expr.absolutize_in(vp);
+                let absolute = vp.absolutize(expr);
                 *expr = CalcExpr::Length(cells_i32(
                     absolute.resolve_f64(&crate::calc::ResolveCtx::new(0)),
                 ));
@@ -121,7 +122,7 @@ impl ComputedStyle {
             if let IntrinsicSize::FitContentLimit(expr) = limit
                 && expr.needs_context()
             {
-                *expr = std::sync::Arc::new(expr.absolutize_in(vp));
+                *expr = std::sync::Arc::new(vp.absolutize(expr));
             }
         }
         let p = &mut self.padding;
@@ -259,13 +260,36 @@ impl ComputedStyle {
                 absolutize(offset, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
             }
         }
+        vp.reads.get()
+    }
+}
+
+/// A [`UnitContext`] and what the values resolved against it so far read.
+struct Reading<'a> {
+    cx: &'a UnitContext,
+    reads: std::cell::Cell<UnitReads>,
+}
+
+impl<'a> Reading<'a> {
+    fn new(cx: &'a UnitContext) -> Self {
+        Reading {
+            cx,
+            reads: std::cell::Cell::new(UnitReads::NONE),
+        }
+    }
+
+    /// `expr` made absolute ([`CalcExpr::absolutize_in`]), its reads kept.
+    fn absolutize(&self, expr: &CalcExpr) -> CalcExpr {
+        let (expr, reads) = expr.absolutize_in(self.cx);
+        self.reads.set(self.reads.get() | reads);
+        expr
     }
 }
 
 /// Every breadth of a track list, its viewport units absolute: a
 /// percentage-bearing `calc()` stays one, any other is whole cells.
 #[deny(clippy::wildcard_enum_match_arm)]
-fn absolutize_template(template: &mut crate::layout::GridTemplate, vp: &UnitContext) {
+fn absolutize_template(template: &mut crate::layout::GridTemplate, vp: &Reading<'_>) {
     use crate::layout::TrackListItem;
     let Some(list) = (match template {
         crate::layout::GridTemplate::Tracks(list) => Some(list),
@@ -284,7 +308,7 @@ fn absolutize_template(template: &mut crate::layout::GridTemplate, vp: &UnitCont
 /// holds a math expression (the initial, borrowed `auto` never does).
 fn absolutize_list(
     list: &mut std::borrow::Cow<'static, [crate::layout::TrackSize]>,
-    vp: &UnitContext,
+    vp: &Reading<'_>,
 ) {
     use crate::layout::{TrackBreadth, TrackSize};
     let calc = |b: &TrackBreadth| matches!(b, TrackBreadth::Calc(_));
@@ -300,7 +324,7 @@ fn absolutize_list(
 /// [`absolutize_template`] for each of `sizes`.
 fn absolutize_sizes<'a>(
     sizes: impl Iterator<Item = &'a mut crate::layout::TrackSize>,
-    vp: &UnitContext,
+    vp: &Reading<'_>,
 ) {
     use crate::layout::{TrackBreadth, TrackSize};
     for size in sizes {
@@ -385,14 +409,14 @@ impl HasExpr for BorderWidth {
 /// takes the cells of one left without a percentage.
 fn absolutize<T: HasExpr>(
     value: &mut T,
-    cx: &UnitContext,
+    cx: &Reading<'_>,
     calc: fn(std::sync::Arc<CalcExpr>) -> T,
     fixed: impl FnOnce(f64) -> T,
 ) {
     let Some(expr) = value.expr().filter(|e| e.needs_context()) else {
         return;
     };
-    let expr = expr.absolutize_in(cx);
+    let expr = cx.absolutize(expr);
     *value = if expr.contains_percent() {
         calc(std::sync::Arc::new(expr))
     } else {

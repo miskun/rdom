@@ -170,7 +170,7 @@ fn a_viewport_unit_with_a_viewport_resolves() {
 /// and serialize like the viewport units.
 #[test]
 fn container_units_resolve_against_the_container() {
-    use super::{CalcExpr, CalcUnit, UnitContext, Viewport, ViewportAxis};
+    use super::{CalcExpr, CalcUnit, UnitContext, UnitReads, Viewport, ViewportAxis};
     assert_eq!(
         CalcUnit::parse("CQW"),
         Some(CalcUnit::Container(ViewportAxis::Width))
@@ -180,16 +180,17 @@ fn container_units_resolve_against_the_container() {
         Some("cqmax")
     );
     let cx = UnitContext::new(Viewport::new(80, 20)).with_container(Some(40.0), None);
-    let cells = |unit: &str, v: f64| {
+    let resolve = |unit: &str, v: f64| {
         let e = CalcExpr::Dimension {
             value: v,
             unit: CalcUnit::parse(unit).unwrap(),
         };
         match e.absolutize_in(&cx) {
-            CalcExpr::Number(n) => n,
+            (CalcExpr::Number(n), reads) => (n, reads),
             other => panic!("{other:?}"),
         }
     };
+    let cells = |unit: &str, v: f64| resolve(unit, v).0;
     assert_eq!(cells("cqw", 50.0), 20.0);
     assert_eq!(cells("cqi", 10.0), 4.0);
     assert_eq!(
@@ -199,10 +200,28 @@ fn container_units_resolve_against_the_container() {
     );
     assert_eq!(cells("cqmin", 50.0), 10.0);
     assert_eq!(cells("cqmax", 50.0), 20.0);
-    let before = super::container_reads();
-    cells("cqw", 1.0);
-    assert!(
-        super::container_reads() > before,
-        "a container read is counted"
+    // What each read (C14G-READ-COUNTERS): returned with the value.
+    assert_eq!(resolve("cqw", 1.0).1, UnitReads::CONTAINER);
+    assert_eq!(
+        resolve("cqh", 1.0).1,
+        UnitReads::VIEWPORT,
+        "no block container"
+    );
+    assert_eq!(
+        resolve("cqmin", 1.0).1,
+        UnitReads::CONTAINER | UnitReads::VIEWPORT
+    );
+    let sum = CalcExpr::binary(
+        super::CalcOp::Add,
+        CalcExpr::Dimension {
+            value: 1.0,
+            unit: CalcUnit::parse("lh").unwrap(),
+        },
+        CalcExpr::Number(2.0),
+    );
+    assert_eq!(
+        sum.absolutize_in(&cx).1,
+        UnitReads::NONE,
+        "lh reads no size"
     );
 }

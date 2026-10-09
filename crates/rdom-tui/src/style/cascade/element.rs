@@ -26,6 +26,8 @@ pub(super) fn compute_element_style(
     rules: Rules<'_>,
 ) -> ComputedStyle {
     let (dom, sheets, id) = (cx.dom, cx.sheets, cx.id);
+    #[cfg(test)]
+    hook::run(id);
     // Collect matching non-pseudo-element rules across all sheets.
     // Cascade order is (specificity, scope proximity, sheet_idx,
     // source_idx) — later sheets win same-specificity contests just
@@ -87,7 +89,7 @@ pub(super) fn compute_element_style(
                 sheets.active_registry(),
                 transitions,
                 &attrs,
-                sheets.viewport(),
+                sheets.viewport_use(),
             );
             let colors = apply_cascade_ladder(
                 &mut working,
@@ -171,15 +173,15 @@ pub(super) fn compute_element_style(
     // computed-value time (CSS Values 4 §6.1), `line-height` first: `lh`
     // reads it.
     let root_rows = (!root).then(|| super::text::root_line_height(dom));
-    let units =
+    let (units, line_reads) =
         super::text::finalize_line_height(&mut working, parent, root_rows, sheets.viewport());
     // The container-relative units, against the query containers above
     // (CSS Conditional 5 §6.6).
     let containers = super::container::unit_containers(dom, id, false);
     let units = super::container::with_unit_sizes(dom, units, containers);
-    let reads = rdom_style::calc::container_reads();
-    working.resolve_context_units(&units);
+    let reads = line_reads | working.resolve_context_units(&units);
     super::container::note_unit_reads(dom, reads, containers);
+    super::media::note_reads(dom, sheets, reads);
     super::container::note_style(dom, &working);
     crate::style::content_visibility::note_style(dom, id, &working);
     finalize_used_border(&mut working);
@@ -204,4 +206,44 @@ pub(super) fn settle_direction<T>(
     }
     let (second, settled) = run(own);
     (second, settled == own)
+}
+
+/// Test-only: a closure run as each element's cascade begins — to nest a
+/// cascade inside one, or to panic in the middle of one.
+#[cfg(test)]
+pub(super) mod hook {
+    use std::cell::RefCell;
+
+    use rdom_core::NodeId;
+
+    type Hook = Box<dyn FnMut(NodeId)>;
+
+    thread_local! {
+        static ON_ELEMENT: RefCell<Option<Hook>> = const { RefCell::new(None) };
+    }
+
+    /// Run `f` as each element's cascade begins, until [`clear`].
+    pub fn set(f: impl FnMut(NodeId) + 'static) {
+        ON_ELEMENT.with(|h| *h.borrow_mut() = Some(Box::new(f)));
+    }
+
+    /// Stop running the hook.
+    pub fn clear() {
+        ON_ELEMENT.with(|h| h.borrow_mut().take());
+    }
+
+    /// Run the hook, taken out while it runs (a cascade it nests sees
+    /// none) and put back after unless it was replaced or it panicked.
+    pub(super) fn run(id: NodeId) {
+        let Some(mut f) = ON_ELEMENT.with(|h| h.borrow_mut().take()) else {
+            return;
+        };
+        f(id);
+        ON_ELEMENT.with(|h| {
+            let mut slot = h.borrow_mut();
+            if slot.is_none() {
+                *slot = Some(f);
+            }
+        });
+    }
 }

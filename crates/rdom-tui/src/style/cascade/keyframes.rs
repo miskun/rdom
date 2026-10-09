@@ -43,7 +43,6 @@ pub(crate) fn keyframe_style(
     slot: StyleSlot,
     blocks: &[&TuiStyle],
 ) -> Option<ComputedStyle> {
-    let _reads = super::media::ReadsGuard::new(dom);
     let sheets = sheets(dom, stylesheets, registry).with_animation(blocks);
     let mut scratch = Scratch::default();
     let mut counters = CounterState::default();

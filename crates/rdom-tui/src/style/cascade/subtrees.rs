@@ -68,7 +68,7 @@ fn walk_subtrees(
     mode: Mode,
 ) -> (Vec<NodeId>, Vec<NodeId>) {
     let roots = outermost(dom, &roots);
-    let reads = super::media::begin(dom);
+    super::media::begin(dom);
     super::container::begin(dom);
     super::container::begin_subtrees(dom, &roots);
     crate::style::content_visibility::begin(dom);
@@ -87,7 +87,7 @@ fn walk_subtrees(
         &mut scratch,
     );
     scratch.flag_has_anchors(dom);
-    super::media::note_reads(dom, reads);
+    super::media::note_reads(dom, &sheets, rdom_style::calc::UnitReads::NONE);
     walked
 }
 

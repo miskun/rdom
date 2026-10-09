@@ -1,7 +1,7 @@
 //! `vertical-align` (CSS 2.1 §10.8.1, CSS Inline 3 §4): where an inline
 //! box sits in its line, in whole rows on a terminal grid.
 
-use crate::calc::{CalcExpr, ResolveCtx, UnitContext, to_cells};
+use crate::calc::{CalcExpr, ResolveCtx, UnitContext, UnitReads, to_cells};
 
 /// `vertical-align: baseline | sub | super | text-top | text-bottom |
 /// middle | top | bottom | <length-percentage>` (CSS 2.1 §10.8.1). Not
@@ -47,16 +47,17 @@ impl VerticalAlign {
 impl VerticalAlign {
     /// The computed value: a percentage — "refer to the line-height of
     /// the element itself" (CSS 2.1 §10.8.1) — against `line_height` rows,
-    /// a context unit against `cx`; every other value unchanged.
-    pub fn computed(&self, line_height: u16, cx: &UnitContext) -> VerticalAlign {
+    /// a context unit against `cx`; every other value unchanged. Returns
+    /// the context sizes that read beside it.
+    pub fn computed(&self, line_height: u16, cx: &UnitContext) -> (VerticalAlign, UnitReads) {
         match self {
             VerticalAlign::Calc(expr) => {
-                let rows = expr
-                    .absolutize_in(cx)
-                    .resolve_f64(&ResolveCtx::new(i32::from(line_height)));
-                VerticalAlign::Rows(if rows.is_finite() { rows as f32 } else { 0.0 })
+                let (expr, reads) = expr.absolutize_in(cx);
+                let rows = expr.resolve_f64(&ResolveCtx::new(i32::from(line_height)));
+                let rows = if rows.is_finite() { rows as f32 } else { 0.0 };
+                (VerticalAlign::Rows(rows), reads)
             }
-            other => other.clone(),
+            other => (other.clone(), UnitReads::NONE),
         }
     }
 
@@ -96,8 +97,8 @@ mod tests {
     fn a_percentage_computes_against_the_line_height() {
         let cx = UnitContext::new(Viewport::new(80, 20));
         let half = VerticalAlign::calc(CalcExpr::Percent(50.0));
-        assert_eq!(half.computed(4, &cx), VerticalAlign::Rows(2.0));
-        assert_eq!(half.computed(4, &cx).raise(), Some(2));
+        assert_eq!(half.computed(4, &cx).0, VerticalAlign::Rows(2.0));
+        assert_eq!(half.computed(4, &cx).0.raise(), Some(2));
         assert_eq!(VerticalAlign::Rows(-1.0).raise(), Some(-1));
         assert_eq!(VerticalAlign::Super.raise(), None);
         assert_eq!(VerticalAlign::TextTop.keyword(), Some("text-top"));
