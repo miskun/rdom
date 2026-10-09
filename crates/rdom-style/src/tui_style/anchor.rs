@@ -22,7 +22,7 @@ pub struct AnchorDeclarations {
     /// `position-anchor` (§2.3).
     pub position_anchor: Option<Value<PositionAnchor>>,
     /// `position-area` (§3.1); `Specified(None)` is `none`.
-    pub position_area: Option<Value<Option<PositionArea>>>,
+    pub position_area: Option<Value<PositionArea>>,
     /// `position-try-fallbacks` (§4.1); `Specified` empty is `none`.
     pub position_try_fallbacks: Option<Value<Vec<TryFallback>>>,
     /// `position-try-order` (§4.2).

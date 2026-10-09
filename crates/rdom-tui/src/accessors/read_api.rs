@@ -120,8 +120,16 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// Fragmentation 3: a block across the column boxes of a multi-column
     /// container, each fragment the rows of the box that column holds),
     /// whose [`bounding_rect`](Self::bounding_rect) is their bounding box.
-    /// An inline box's line fragments are not listed: it reports its own
-    /// rect. Empty for non-element nodes.
+    /// Empty, as §6.1 step 1 has it, for an element with no box —
+    /// `display: none` (its own or an ancestor's, or inside skipped
+    /// contents such as a closed `<details>`) or `display: contents` — and
+    /// for non-element nodes: `client_rects().is_empty()` is "not
+    /// rendered".
+    ///
+    /// **Divergence from DOM:** one rect per box, not per line box — an
+    /// inline box that wraps reports its own rect
+    /// ([`bounding_rect`](Self::bounding_rect)), where `getClientRects()` lists one rect per line
+    /// (DIVERGENCES §2, "DOM API shape").
     fn client_rects(&self) -> Vec<DomRect>;
 
     /// `Element.scrollTop` — vertical scroll offset in cells, measured

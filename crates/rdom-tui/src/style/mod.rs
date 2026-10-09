@@ -50,6 +50,9 @@ pub use dirty_tracker::DirtyTracker;
 // rdom-style extraction keeps working through these re-exports.
 // Internal rdom-tui code uses `rdom_style::X` directly for clarity.
 
+/// `@position-try` rules (CSS Anchor Positioning 1 §4.1), what
+/// `Stylesheet::position_try_rules` returns.
+pub use rdom_style::PositionTryRule;
 /// The animation types and interpolation of computed values
 /// (`animation::Longhand`, `animation::AnimationType`) — what a running
 /// transition composites onto a style.
@@ -65,14 +68,8 @@ pub use rdom_style::counters::CounterStyleName;
 pub use rdom_style::keyframes;
 pub use rdom_style::transition;
 pub use rdom_style::{
-    AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
-    AnimationPlayState, AnimationTimeline, IterationCount, Keyframe, KeyframeSelector,
-    KeyframesRule, RangeBoundary, ResolvedKeyframe, TimelineAxis, TimelineInset, TimelineName,
-    TimelineRangeName, TimelineScope, TimelineScroller,
-};
-pub use rdom_style::{
-    Color, ColorContext, ColorFunction, ComputedStyle, Content, ContentContext, CounterOp,
-    CounterStyle, CustomDeclaration, CustomValue, EffectsDeclarations, FontDeclarations,
+    AnchorDeclarations, Color, ColorContext, ColorFunction, ComputedStyle, Content, ContentContext,
+    CounterOp, CounterStyle, CustomDeclaration, CustomValue, EffectsDeclarations, FontDeclarations,
     FragmentationDeclarations, GridDeclarations, ImportantMask, LayerId, MaskDeclarations,
     Modifier, MotionDeclarations, MulticolDeclarations, PropertyRegistration, PropertySyntax,
     PropertySyntaxError, PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError,
@@ -80,6 +77,12 @@ pub use rdom_style::{
     TableDeclarations, TextDeclarations, TextDecorationDeclarations, TimingFunction,
     TransitionProperty, TransitionRule, TuiColor, TuiStyle, UiDeclarations, UserActionState, Value,
     VarMap, parse_color, resolve_tui_color,
+};
+pub use rdom_style::{
+    AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
+    AnimationPlayState, AnimationTimeline, IterationCount, Keyframe, KeyframeSelector,
+    KeyframesRule, RangeBoundary, ResolvedKeyframe, TimelineAxis, TimelineInset, TimelineName,
+    TimelineRangeName, TimelineScope, TimelineScroller,
 };
 /// The declaration-level CSS parsing primitives (`parse::tokenize`,
 /// `parse::Token`, `parse::values::*`), the property dispatch table

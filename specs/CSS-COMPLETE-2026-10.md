@@ -10461,3 +10461,32 @@ row comes from.
   entries are new — `PARTIAL-RELAYOUT-1` (the post-0.6 pay-down the architect asked to name), `SCROLL-UPDATE-1` and
   `STYLE-SHARED-1` (what this batch's scroll update and shared groups still cost, and when), and `PHASE15-APPROX-1`
   (the approximations, which are DIVERGENCES entries). No test expectation moved.
+- 2026-10-09 — C15G-API (Phase 15 gate API N5–N8; CSSOM View §6.1, CSS Anchor Positioning 1 §3.1, §4.1). Found:
+  `Stylesheet::position_try_rules()` returned `PositionTryRule`, which an `rdom_tui`-only consumer could not name, nor
+  `AnchorDeclarations` (its effects / multicol / fragmentation siblings were at the root); the prelude, whose doc
+  promises the builders' arguments, had none of Phase 14's or 15's. Root: the C14 / C15 commits added the types to
+  `rdom_style` and to `rdom_tui`'s layout list but not to `style/mod.rs`'s data-model list or the prelude. Decided:
+  (1) the prelude takes a typical app's set — `ContainerType` / `ContainerSize` / `Contain`, `ColumnCount` /
+  `ColumnWidth` / `ColumnSpan`, `BreakInside` / `BreakBetween`, `AnchorName` / `PositionAnchor` / `PositionArea` /
+  `AreaKeyword` / `TryFallback` / `TryTactic`, `Translate` / `TransformList` / `TransformFunction`, `FilterList` /
+  `FilterFunction`, `BlendMode` / `Isolation`, `ClipPath` / `ClipRect` / `BasicShape`, and `Length` (which
+  `Translate::new` and the insets take); the rarer value records (`TransformOrigin`, `ShapeRadius`, `GeometryBox`, …)
+  stay at the root only. (2) `WarningKind::InvalidPositionTryDescriptor(String)` becomes
+  `PositionTryDescriptorDropped { name, descriptor, reason: PositionTryDescriptorReason }` (`NotADescriptor`,
+  `Important`; `#[non_exhaustive]`, DESIGN's warning sets), the counter-style shape — the rule's name was lost and
+  the two causes merged; a non-descriptor that is also `!important` reports `NotADescriptor`. (3) `PositionArea` holds
+  `none` itself (`PositionArea::NONE`, `Default`, `is_none()`; `keywords()` / `tracks()` answer `None` for it):
+  `AnchorStyle::position_area` is a `PositionArea`, the builder and `parse_position_area` take / return it, as
+  `PositionAnchor::None` is a value of its type; `TryFallback::area` keeps its `Option` (an entry either has an area or
+  not). (4) `TryFallback::tactics(..)` spells a tactics-only option. (5) `InlineLayout::line_at` → `line_at_point(x,
+  row)`, its rustdoc saying why it needs `x` (the lines of a fragmented flow share rows, one per column). (6)
+  `client_rects()` follows §6.1 step 1: an element with no box — `display: none`, its own or an ancestor's, skipped
+  contents (a closed `<details>`), or `display: contents` — returns an empty list (it returned `[layout]`, a zero
+  rect), through the one box-tree predicate `node::is_rendered`; an inline box's one rect, not one per line, is now a
+  DIVERGENCES §2 entry. None of these items existed in 0.5, so the API table and `migration_hints.rs` gain no rows;
+  the CHANGELOG `@position-try` bullet names the new warning. Red: `css_phase15/api.rs` and rdom-css's
+  `position_try.rs` did not compile (no `rdom_tui::PositionTryRule` / `AnchorDeclarations`, no prelude
+  `ContainerType` …, no `PositionArea::NONE`, no `PositionTryDescriptorDropped`); with those in,
+  `client_rects_is_empty_for_an_element_without_a_box` failed (`#gone: [LayoutRect { 0, 0, 0, 0 }]`); green after.
+  Expectations changed: `position_try_refuses_other_descriptors_and_bad_preludes` (the reshaped warning) and
+  `tui_style/tests.rs`'s `.position_area_important(None)` → `PositionArea::NONE`.

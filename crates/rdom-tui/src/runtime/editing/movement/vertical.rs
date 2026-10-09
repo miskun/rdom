@@ -106,7 +106,7 @@ pub(crate) fn line_edge_position(dom: &TuiDom, from: Position, forward: bool) ->
     let (x, y) = caret_cell(dom, from)?;
     let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
     let row = u16::try_from(y - content.y).ok()?;
-    let target_line = &layout.lines[layout.line_at(x - content.x, row)?];
+    let target_line = &layout.lines[layout.line_at_point(x - content.x, row)?];
     if forward {
         target_line
             .fragments
@@ -144,7 +144,7 @@ fn compute_vertical_target(
     let from_x = i32::from(target_x) - content.x;
     let from_line = match u16::try_from(row)
         .ok()
-        .and_then(|r| layout.line_at(from_x, r))
+        .and_then(|r| layout.line_at_point(from_x, r))
     {
         Some(i) => i as i64,
         None if row >= height => layout.lines.len() as i64 + i64::from(row - height),

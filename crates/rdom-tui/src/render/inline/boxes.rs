@@ -432,13 +432,14 @@ impl InlineLayout {
         }
     }
 
-    /// The index of the line box at `row` (counted from the top of the
-    /// layout) nearest the column `x` (counted from its content edge): the
-    /// line at `row` ([`line_at_row`](Self::line_at_row)) — or, once a
-    /// fragmented flow moved the lines into columns (CSS Multi-column 1),
-    /// the line at `row` of the column holding `x`, or the nearest column
-    /// with one. `None` with no line at `row`.
-    pub fn line_at(&self, x: i32, row: u16) -> Option<usize> {
+    /// The index of the line box at the point (`x`, `row`) — `row` counted
+    /// from the top of the layout, `x` from its content edge. It needs `x`
+    /// because a row is not enough once a fragmented flow moved the lines
+    /// into columns (CSS Multi-column 1): several lines then share a row,
+    /// one per column, and the answer is the line at `row` of the column
+    /// holding `x`, or of the nearest column with one. In one column it is
+    /// [`line_at_row`](Self::line_at_row). `None` with no line at `row`.
+    pub fn line_at_point(&self, x: i32, row: u16) -> Option<usize> {
         if self.lines.first().is_none_or(|l| l.column.is_none()) {
             return self.line_at_row(row);
         }

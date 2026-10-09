@@ -53,7 +53,7 @@ impl TuiStyle {
         position_area,
         position_area_important,
         POSITION_AREA,
-        Option<PositionArea>
+        PositionArea
     );
     anchor_setter!(
         "position-try-fallbacks",

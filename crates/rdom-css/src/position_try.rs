@@ -7,8 +7,9 @@
 //! (`WarningKind::InvalidAtRulePrelude`). The body takes the inset,
 //! margin, sizing and self-alignment properties, `position-anchor` and
 //! `position-area` (`PositionTryRule::accepts`): any other declaration
-//! is dropped (`WarningKind::InvalidPositionTryDescriptor`), and so is an
-//! `!important` one (§4.1: the descriptors take no `!important`).
+//! is dropped (`WarningKind::PositionTryDescriptorDropped`, reason
+//! `NotADescriptor`), and so is an `!important` one (`Important` — §4.1:
+//! the descriptors take no `!important`).
 
 use rdom_style::parse::SourceCursor;
 use rdom_style::parse::token::{Token, tokenize};
@@ -18,7 +19,7 @@ use crate::declarations::DeclarationRun;
 use crate::layer::read_prelude;
 use crate::property::read_body;
 use crate::top_level::skip_at_rule_rest;
-use crate::{Warning, WarningKind};
+use crate::{PositionTryDescriptorReason, Warning, WarningKind};
 
 /// Consume a `@position-try` rule; the cursor is just past the
 /// at-keyword, `at` is the position of `@`, `ctx` the cascade layer and
@@ -55,14 +56,19 @@ pub(crate) fn consume_position_try_rule(
     let body = read_body(cursor).unwrap_or_default();
     let mut run = DeclarationRun::default();
     run.push(&body, line, column, warnings);
-    run.retain(warnings, |name, important| {
-        if important || !PositionTryRule::accepts(name) {
-            Some(WarningKind::InvalidPositionTryDescriptor(
-                name.to_ascii_lowercase(),
-            ))
+    run.retain(warnings, |descriptor, important| {
+        let reason = if !PositionTryRule::accepts(descriptor) {
+            PositionTryDescriptorReason::NotADescriptor
+        } else if important {
+            PositionTryDescriptorReason::Important
         } else {
-            None
-        }
+            return None;
+        };
+        Some(WarningKind::PositionTryDescriptorDropped {
+            name: name.to_string(),
+            descriptor: descriptor.to_ascii_lowercase(),
+            reason,
+        })
     });
     let mut style = TuiStyle::new();
     run.apply(&mut style, warnings);

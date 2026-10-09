@@ -141,12 +141,12 @@ impl Anchoring<'_> {
 
     /// The containing block `position-area` makes (§3.1.1): the area of
     /// the 3 × 3 grid of the containing block's and the default anchor's
-    /// edges it spans. `None` without a default anchor (the property then
-    /// has no effect).
+    /// edges it spans. `None` for `none` and without a default anchor (the
+    /// property then has no effect).
     fn area(&self, area: &PositionArea, tactics: &[TryTactic]) -> Option<(LayoutRect, AreaTracks)> {
         let a = self.default?;
         let cb = self.cb;
-        let t = flipped(area.tracks(self.cb_rtl, self.self_rtl), tactics);
+        let t = flipped(area.tracks(self.cb_rtl, self.self_rtl)?, tactics);
         let clamp_x = |x: i32| x.clamp(cb.x, right(cb));
         let clamp_y = |y: i32| y.clamp(cb.y, bottom(cb));
         let xs = [
@@ -276,8 +276,8 @@ pub(in crate::render::layout_pass) fn resolve_style(
     let mut cb = an.cb;
     // §3.1: the area is the containing block; an `auto` inset is 0 in it,
     // and `normal` self-alignment hugs the anchor (§3.1.3).
-    if let Some(area) = style.anchor.position_area
-        && let Some((rect, AreaTracks { columns, rows })) = an.area(&area, tactics)
+    if let Some((rect, AreaTracks { columns, rows })) =
+        an.area(&style.anchor.position_area, tactics)
     {
         cb = rect;
         for inset in [&mut s.top, &mut s.right, &mut s.bottom, &mut s.left] {

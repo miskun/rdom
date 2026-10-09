@@ -120,8 +120,8 @@ impl TryTactic {
 /// One entry of `position-try-fallbacks` (§4.1): a `@position-try` rule's
 /// name, try tactics, or both — or a `position-area`.
 ///
-/// `#[non_exhaustive]`: built by [`TryFallback::rule`] /
-/// [`TryFallback::area`]; the cascade attaches the named rule's
+/// `#[non_exhaustive]`: built by [`TryFallback::rule`],
+/// [`TryFallback::tactics`] / [`TryFallback::area`]; the cascade attaches the named rule's
 /// declarations ([`declarations`](Self::declarations)).
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -147,6 +147,12 @@ impl TryFallback {
             area: None,
             declarations: None,
         }
+    }
+
+    /// A tactics-only option (`flip-block`, `flip-inline flip-start`, …):
+    /// the box's own style, flipped.
+    pub fn tactics(tactics: Vec<TryTactic>) -> Self {
+        Self::rule(None, tactics)
     }
 
     /// A `position-area` option.
@@ -250,8 +256,8 @@ pub struct AnchorStyle {
     pub anchor_scope: AnchorScope,
     /// `position-anchor` (§2.3).
     pub position_anchor: PositionAnchor,
-    /// `position-area` (§3.1); `None` is `none`.
-    pub position_area: Option<PositionArea>,
+    /// `position-area` (§3.1).
+    pub position_area: PositionArea,
     /// `position-try-fallbacks` (§4.1); empty is `none`.
     pub position_try_fallbacks: Vec<TryFallback>,
     /// `position-try-order` (§4.2).
@@ -264,6 +270,6 @@ impl AnchorStyle {
     /// Whether the values give layout anything to do for a positioned
     /// box: an anchor reference or a fallback.
     pub fn is_anchored(&self) -> bool {
-        self.position_area.is_some() || !self.position_try_fallbacks.is_empty()
+        !self.position_area.is_none() || !self.position_try_fallbacks.is_empty()
     }
 }

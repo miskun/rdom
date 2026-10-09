@@ -2,7 +2,9 @@
 //! brings in the types a typical app needs: `TuiDom`, the node
 //! accessor traits, the style types a stylesheet is built from (the
 //! builders' arguments: sizes, colors, borders, `box-sizing`, text
-//! alignment, line height, decorations, font weight, …), and
+//! alignment, line height, decorations, font weight, containment,
+//! columns, anchor positioning, transforms, filters, blending,
+//! clipping, …), and
 //! extension traits whose methods (`cascade`, `set_width`, `computed`,
 //! ...) would otherwise be invisible until imported.
 //!
@@ -68,27 +70,43 @@ pub use crate::{
     // Ext + layout
     Align,
     Alignment,
+    // Containment, multi-column, anchor positioning, transforms, filters,
+    // compositing and clipping (the builders' arguments)
+    AnchorName,
     // Runtime primitives
     App,
     AppContext,
     AppHandle,
+    AreaKeyword,
     Backend,
+    BasicShape,
+    BlendMode,
     // Style values (the builders' arguments)
     Border,
     BorderRadius,
     BorderStyle,
     BoxShadow,
     BoxSizing,
+    BreakBetween,
+    BreakInside,
     // Render primitives (paint layer)
     Buffer,
     // Style types (cascade layer)
     CascadeExt,
     Cell,
     CellDiff,
+    ClipPath,
+    ClipRect,
     Color,
     ColorScheme,
+    ColumnCount,
+    ColumnSpan,
+    ColumnWidth,
     CompletedFrame,
     ComputedStyle,
+    Contain,
+    ContainerSize,
+    ContainerType,
     Content,
     ControlFlow,
     CounterStyle,
@@ -99,6 +117,8 @@ pub use crate::{
     DomError,
     Event,
     EventPhase,
+    FilterFunction,
+    FilterList,
     FlexDirection,
     FlexWrap,
     Flow,
@@ -116,8 +136,10 @@ pub use crate::{
     ImportantMask,
     InteractionKind,
     IntrinsicSize,
+    Isolation,
     LayoutExt,
     LayoutRect,
+    Length,
     LineHeight,
     // List styles (`list_style_type(ListStyleType::Style(CounterStyle::named(…)))`)
     ListStylePosition,
@@ -138,6 +160,8 @@ pub use crate::{
     PaintExt,
     // Selection types (re-exported from rdom-core)
     Position,
+    PositionAnchor,
+    PositionArea,
     PseudoElementTarget,
     Range,
     Rect,
@@ -167,6 +191,11 @@ pub use crate::{
     TrackBreadth,
     TrackList,
     TrackSize,
+    TransformFunction,
+    TransformList,
+    Translate,
+    TryFallback,
+    TryTactic,
     // Author-facing accessor traits (M4b)
     TuiAccessors,
     TuiAccessorsMut,

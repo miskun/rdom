@@ -272,7 +272,7 @@ fn warning_to_error(w: &Warning) -> ParseError {
         WarningKind::ImportantInKeyframe(_) => {
             ParseErrorKind::ExpectedToken("keyframe declaration without !important")
         }
-        WarningKind::InvalidPositionTryDescriptor(_) => {
+        WarningKind::PositionTryDescriptorDropped { .. } => {
             ParseErrorKind::ExpectedToken("@position-try descriptor")
         }
     };
@@ -417,10 +417,15 @@ pub enum WarningKind {
     /// A declaration (its property name) marked `!important` in a
     /// keyframe block: ignored (CSS Animations 1 §3).
     ImportantInKeyframe(String),
-    /// A declaration (its property name) in a `@position-try` rule that
-    /// is no descriptor of it, or is `!important`: dropped (CSS Anchor
-    /// Positioning 1 §4.1).
-    InvalidPositionTryDescriptor(String),
+    /// A declaration of the `@position-try` rule `name` dropped (CSS
+    /// Anchor Positioning 1 §4.1): `descriptor` is its property name
+    /// (lowercased) and `reason` why — no descriptor of the rule, or
+    /// `!important`.
+    PositionTryDescriptorDropped {
+        name: String,
+        descriptor: String,
+        reason: PositionTryDescriptorReason,
+    },
     UnterminatedComment,
     UnterminatedString,
 }
@@ -450,6 +455,20 @@ pub enum CounterStyleDescriptorReason {
     /// [`apply_descriptor`](rdom_style::counters::apply_descriptor)
     /// refused it.
     Descriptor(rdom_style::counters::DescriptorError),
+}
+
+/// Why a declaration of a `@position-try` rule was dropped
+/// ([`WarningKind::PositionTryDescriptorDropped`], CSS Anchor Positioning
+/// 1 §4.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum PositionTryDescriptorReason {
+    /// The property is none of the rule's descriptors (the inset, margin,
+    /// sizing and self-alignment properties, `position-anchor`,
+    /// `position-area`).
+    NotADescriptor,
+    /// The declaration is `!important`, which the descriptors do not take.
+    Important,
 }
 
 /// The README's examples, compiled and run as doctests so they keep

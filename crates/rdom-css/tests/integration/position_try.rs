@@ -4,7 +4,7 @@
 //! sheet keeps every rule in source order with its layer; which rule a
 //! name resolves to is the backend's.
 
-use rdom_css::{WarningKind, parse};
+use rdom_css::{PositionTryDescriptorReason, WarningKind, parse};
 
 /// §4.1: the prelude is a `<dashed-ident>`; the body's accepted
 /// descriptors are kept.
@@ -29,8 +29,10 @@ fn position_try_rules_keep_their_descriptors() {
     );
 }
 
-/// §4.1: any other property, and `!important`, is dropped with a warning;
-/// a prelude that is not one `<dashed-ident>` drops the rule.
+/// §4.1: any other property, and `!important`, is dropped with a warning
+/// naming the rule, the declaration and why (the shape of the
+/// `@counter-style` warnings); a prelude that is not one `<dashed-ident>`
+/// drops the rule.
 #[test]
 fn position_try_refuses_other_descriptors_and_bad_preludes() {
     let r = parse("@position-try --x { color: red; top: 1 !important; left: 2 }");
@@ -38,8 +40,16 @@ fn position_try_refuses_other_descriptors_and_bad_preludes() {
     assert_eq!(
         dropped,
         [
-            WarningKind::InvalidPositionTryDescriptor("color".into()),
-            WarningKind::InvalidPositionTryDescriptor("top".into()),
+            WarningKind::PositionTryDescriptorDropped {
+                name: "--x".into(),
+                descriptor: "color".into(),
+                reason: PositionTryDescriptorReason::NotADescriptor,
+            },
+            WarningKind::PositionTryDescriptorDropped {
+                name: "--x".into(),
+                descriptor: "top".into(),
+                reason: PositionTryDescriptorReason::Important,
+            },
         ]
     );
     let d = r.stylesheet.position_try_rules()[0].declarations();

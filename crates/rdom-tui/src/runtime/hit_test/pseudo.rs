@@ -153,7 +153,7 @@ fn in_lines_of(
 
 /// The pseudo-element under `(x, y)` on `layout`'s lines (laid out at
 /// `content`) that belongs to `target`: on the line at the point's row
-/// (`InlineLayout::line_at`), or — when a generated run was `moved`
+/// (`InlineLayout::line_at_point`), or — when a generated run was `moved`
 /// off its line — on any line.
 fn in_layout(
     dom: &Dom<TuiExt>,
@@ -167,7 +167,10 @@ fn in_layout(
     let lines = if moved {
         &layout.lines[..]
     } else {
-        match u16::try_from(row).ok().and_then(|r| layout.line_at(x, r)) {
+        match u16::try_from(row)
+            .ok()
+            .and_then(|r| layout.line_at_point(x, r))
+        {
             Some(i) => std::slice::from_ref(&layout.lines[i]),
             None => &[],
         }

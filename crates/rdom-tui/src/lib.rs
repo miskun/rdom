@@ -154,21 +154,21 @@ pub use style::transition::{
     TransitionRule,
 };
 pub use style::{
-    AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
-    AnimationPlayState, AnimationTimeline, IterationCount, Keyframe, KeyframeSelector,
-    KeyframesRule, RangeBoundary, ResolvedKeyframe, TimelineAxis, TimelineInset, TimelineName,
-    TimelineRangeName, TimelineScope, TimelineScroller,
+    AnchorDeclarations, CascadeExt, Color, ColorContext, ColorFunction, ColorScheme,
+    ColorSchemeList, ComputedStyle, Content, ContentContext, CounterOp, CounterStyle,
+    CounterStyleName, CustomValue, DirtyTracker, EffectsDeclarations, FontDeclarations,
+    FragmentationDeclarations, GridDeclarations, ImportantMask, LayerId, MaskDeclarations,
+    Modifier, MotionDeclarations, MulticolDeclarations, PropertyRegistration, PropertySyntax,
+    PropertySyntaxError, PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError,
+    Rule, RuleContext, RuleOrigin, Shared, Specificity, StyleError, StyleSelector, Stylesheet,
+    SystemColor, TableDeclarations, TextDeclarations, TextDecorationDeclarations, TuiColor,
+    TuiStyle, UiDeclarations, UserActionState, Value, VarMap, parse_color, resolve_tui_color,
 };
 pub use style::{
-    CascadeExt, Color, ColorContext, ColorFunction, ColorScheme, ColorSchemeList, ComputedStyle,
-    Content, ContentContext, CounterOp, CounterStyle, CounterStyleName, CustomValue, DirtyTracker,
-    EffectsDeclarations, FontDeclarations, FragmentationDeclarations, GridDeclarations,
-    ImportantMask, LayerId, MaskDeclarations, Modifier, MotionDeclarations, MulticolDeclarations,
-    PropertyRegistration, PropertySyntax, PropertySyntaxError, PseudoElementTarget, QuoteKind,
-    QuotePair, Quotes, RegisterPropertyError, Rule, RuleContext, RuleOrigin, Shared, Specificity,
-    StyleError, StyleSelector, Stylesheet, SystemColor, TableDeclarations, TextDeclarations,
-    TextDecorationDeclarations, TuiColor, TuiStyle, UiDeclarations, UserActionState, Value, VarMap,
-    parse_color, resolve_tui_color,
+    AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
+    AnimationPlayState, AnimationTimeline, IterationCount, Keyframe, KeyframeSelector,
+    KeyframesRule, PositionTryRule, RangeBoundary, ResolvedKeyframe, TimelineAxis, TimelineInset,
+    TimelineName, TimelineRangeName, TimelineScope, TimelineScroller,
 };
 
 /// `Dom<TuiExt>` — the full TUI document.

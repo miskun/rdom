@@ -284,7 +284,7 @@ fn caret_line_start(dom: &TuiDom, from: Position) -> Option<Position> {
     let (x, y) = caret_cell(dom, from)?;
     let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
     let row = u16::try_from(y - content.y).ok()?;
-    let target_line = &layout.lines[layout.line_at(x - content.x, row)?];
+    let target_line = &layout.lines[layout.line_at_point(x - content.x, row)?];
     // Start of line = position of the first fragment's first byte.
     // Going through `position_at(0, y)` doesn't work because column
     // 0 sits inside the textarea's left padding (no fragment there)
@@ -306,7 +306,7 @@ fn caret_line_end(dom: &TuiDom, from: Position) -> Option<Position> {
     let (x, y) = caret_cell(dom, from)?;
     let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
     let row = u16::try_from(y - content.y).ok()?;
-    let target_line = &layout.lines[layout.line_at(x - content.x, row)?];
+    let target_line = &layout.lines[layout.line_at_point(x - content.x, row)?];
     // End of line = position just past the last fragment on the
     // line. `position_at(u16::MAX, y)` doesn't work because no
     // fragment covers cells past the line's content; the hit-test

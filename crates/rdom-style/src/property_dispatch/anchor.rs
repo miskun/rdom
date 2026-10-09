@@ -51,8 +51,9 @@ fn names_text(names: &[std::sync::Arc<str>]) -> String {
 /// A `<position-area>` as CSS text.
 pub(super) fn area_text(area: &PositionArea) -> String {
     match area.keywords() {
-        (a, Some(b)) => format!("{} {}", a.keyword(), b.keyword()),
-        (a, None) => a.keyword().to_string(),
+        Some((a, Some(b))) => format!("{} {}", a.keyword(), b.keyword()),
+        Some((a, None)) => a.keyword().to_string(),
+        None => "none".to_string(),
     }
 }
 
@@ -122,11 +123,7 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
                 PositionAnchor::None => "none".to_string(),
                 PositionAnchor::Name(n) => n.to_string(),
             }),
-        "position-area" => a
-            .position_area
-            .as_ref()
-            .and_then(specified)
-            .map(|p| p.as_ref().map_or("none".to_string(), area_text)),
+        "position-area" => a.position_area.as_ref().and_then(specified).map(area_text),
         "position-try-fallbacks" => fallbacks.map(|f| fallbacks_text(f)),
         "position-try-order" => order.map(|o| o.keyword().to_string()),
         // The shortest form: the order when not `normal`, then the

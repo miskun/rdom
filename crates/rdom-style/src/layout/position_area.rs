@@ -234,11 +234,14 @@ impl AreaKeyword {
 /// as written (one keyword alone completed by §3.1's rule: `span-all` for
 /// an axis-specific keyword, itself again otherwise).
 ///
+/// `none` is a value of the type ([`PositionArea::NONE`], the initial
+/// value and `Default`), as `PositionAnchor::None` is of its own.
+///
 /// Closed (DESIGN): a value record read through [`tracks`](Self::tracks).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct PositionArea {
-    first: AreaKeyword,
-    second: Option<AreaKeyword>,
+    /// The keywords as written; `None` is `none`.
+    keywords: Option<(AreaKeyword, Option<AreaKeyword>)>,
 }
 
 /// The tracks a `position-area` spans in the 3 × 3 grid of its
@@ -252,6 +255,9 @@ pub struct AreaTracks {
 }
 
 impl PositionArea {
+    /// `none`: the box is not placed in the grid (the initial value).
+    pub const NONE: PositionArea = PositionArea { keywords: None };
+
     /// `first` and, when written, `second` — `None` when the pair is not
     /// one of §3.1's (two keywords of one axis, or of two vocabularies).
     pub fn new(first: AreaKeyword, second: Option<AreaKeyword>) -> Option<Self> {
@@ -270,18 +276,26 @@ impl PositionArea {
                 return None;
             }
         }
-        Some(PositionArea { first, second })
+        Some(PositionArea {
+            keywords: Some((first, second)),
+        })
     }
 
-    /// The keywords as written.
-    pub fn keywords(&self) -> (AreaKeyword, Option<AreaKeyword>) {
-        (self.first, self.second)
+    /// Whether this is `none`.
+    pub fn is_none(&self) -> bool {
+        self.keywords.is_none()
+    }
+
+    /// The keywords as written; `None` for `none`.
+    pub fn keywords(&self) -> Option<(AreaKeyword, Option<AreaKeyword>)> {
+        self.keywords
     }
 
     /// The columns and rows the area spans, for a containing block whose
     /// `direction` is `rtl` when `cb_rtl` and a box whose own is when
-    /// `self_rtl` (rdom lays out `horizontal-tb`: block is vertical).
-    pub fn tracks(&self, cb_rtl: bool, self_rtl: bool) -> AreaTracks {
+    /// `self_rtl` (rdom lays out `horizontal-tb`: block is vertical);
+    /// `None` for `none`, which spans no area.
+    pub fn tracks(&self, cb_rtl: bool, self_rtl: bool) -> Option<AreaTracks> {
         use AreaAxis as A;
         // Which physical axis each keyword lands on: a horizontal one
         // (`true`) or the vertical.
@@ -309,7 +323,7 @@ impl PositionArea {
                 };
             if flip { (2 - b, 2 - a) } else { (a, b) }
         };
-        let (first, second) = (self.first, self.second);
+        let (first, second) = self.keywords?;
         let mut columns = (0, 2);
         let mut rows = (0, 2);
         let h1 = horizontal(first, 0, second);
@@ -339,6 +353,6 @@ impl PositionArea {
                 }
             },
         }
-        AreaTracks { columns, rows }
+        Some(AreaTracks { columns, rows })
     }
 }

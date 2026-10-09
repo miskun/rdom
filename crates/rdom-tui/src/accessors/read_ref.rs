@@ -97,6 +97,15 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
         let Some(ext) = self.tui_ext() else {
             return Vec::new();
         };
+        // CSSOM View §6.1 step 1: no associated layout box, no rects —
+        // `display: none` (its own or an ancestor's, or skipped contents)
+        // and `display: contents`.
+        let contents = self
+            .computed()
+            .is_some_and(|c| c.display == crate::layout::Display::Contents);
+        if contents || !crate::node::is_rendered(self.dom(), self.id()) {
+            return Vec::new();
+        }
         match ext.box_fragments() {
             Some(f) => f.drawn(ext.layout).map(|d| d.rows).collect(),
             None => vec![ext.layout],

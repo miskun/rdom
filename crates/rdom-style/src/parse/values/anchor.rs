@@ -81,13 +81,12 @@ fn position_area(value: &[Token]) -> Option<PositionArea> {
     }
 }
 
-/// `position-area` (§3.1): `none | <position-area>`; `None` inside is
-/// `none`.
-pub fn parse_position_area(value: &[Token]) -> Option<Option<PositionArea>> {
+/// `position-area` (§3.1): `none | <position-area>`.
+pub fn parse_position_area(value: &[Token]) -> Option<PositionArea> {
     if is(value, "none") {
-        return Some(None);
+        return Some(PositionArea::NONE);
     }
-    position_area(value).map(Some)
+    position_area(value)
 }
 
 /// `position-try-fallbacks` (§4.1): `none | [ [<dashed-ident> ||

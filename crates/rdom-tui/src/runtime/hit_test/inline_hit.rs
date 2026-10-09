@@ -180,7 +180,7 @@ fn hit_fragment(dom: &Dom<TuiExt>, lines: &Lines<'_>, x: u16, y: u16) -> Option<
     // Local x within content — negative left of it, where an overflowing
     // `rtl` line's start sits.
     let x_local = x as i32 - content.x;
-    let line = &layout.lines[layout.line_at(x_local, row)?];
+    let line = &layout.lines[layout.line_at_point(x_local, row)?];
 
     for fragment in &line.fragments {
         if x_local >= fragment.x

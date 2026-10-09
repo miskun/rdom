@@ -339,7 +339,7 @@ fn every_property_has_important_setter() {
         .anchor_name_important(crate::layout::AnchorName::none())
         .anchor_scope_important(crate::layout::AnchorScope::All)
         .position_anchor_important(crate::layout::PositionAnchor::None)
-        .position_area_important(None)
+        .position_area_important(crate::layout::PositionArea::NONE)
         .position_try_fallbacks_important(Vec::new())
         .position_try_order_important(crate::layout::PositionTryOrder::MostWidth)
         .position_visibility_important(crate::layout::PositionVisibility::ALWAYS)

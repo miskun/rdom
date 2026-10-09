@@ -39,7 +39,7 @@ pub(super) fn options(base: &ComputedStyle) -> Vec<PositionOption> {
 fn option(base: &ComputedStyle, f: &TryFallback) -> Option<PositionOption> {
     let mut style = base.clone();
     if let Some(area) = f.area {
-        style.anchor.position_area = Some(area);
+        style.anchor.position_area = area;
         return Some(PositionOption {
             style,
             tactics: Vec::new(),
