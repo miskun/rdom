@@ -13,6 +13,7 @@ mod contain;
 mod container_query;
 mod container_type;
 mod content_visibility;
+mod hit_html;
 mod media;
 mod supports;
 

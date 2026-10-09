@@ -268,7 +268,7 @@ row comes from.
 | C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | done |
 | C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | done |
 | C14-ASPECT-BLOCK | `aspect-ratio` on a block-level box in block flow (CSS Sizing 4 §5.1): the width transferred from a definite height, the height from the width (found by C13-ROOT-BLOCK) | done |
-| C14-HIT-HTML | A point outside every box hits the document element, as `elementFromPoint` does (found by C13-ROOT-BLOCK; implement, or keep the divergence) | |
+| C14-HIT-HTML | A point outside every box hits the document element, as `elementFromPoint` does (found by C13-ROOT-BLOCK; implement, or keep the divergence) | done — decided: keep the divergence |
 
 ### Phase 15 — Transforms, filters, compositing, multi-column, anchor positioning (audit §3.23, §3.24)
 
@@ -9252,3 +9252,15 @@ row comes from.
   percentage case failed once more after the first fix (the ICB has no Ext to read a height from — the viewport
   now). Green after; the workspace suite unchanged. Mutation (restored, touched): no transferred width → the
   width test; no ratio in `auto_height` → the height test. Silent change 29 (the old 29–91 move to 30–92).
+- 2026-10-09 — C14-HIT-HTML (carry-over from C13-ROOT-BLOCK; CSSOM View §5, CSS Backgrounds 3 §2.11.2). Decided:
+  keep the documented divergence — a point on the canvas outside every box hits nothing. Tried first: the hit
+  test's empty path falling back to `Dom::document_element` when the point is in the viewport (`canvas_hit`); 12
+  tests then failed, and they showed why it is wrong for rdom rather than stale: the document element is the
+  root fragment's first element child, which in a fragment document need not contain the other top-level
+  elements — popover light-dismiss tests whose first top-level element is the popover stopped dismissing on
+  an outside click (it now hit the popover), `mouseout` on leaving every element became a move onto that first
+  element, `:hover` chains and a label-click test got a stray target, and `position_at`'s below-all-blocks snap
+  and two clip tests read a hit where there is none. A browser's `<html>` is an ancestor of every box, so its
+  canvas hit routes to everything's ancestor; rdom's equivalent of that is the root fragment, which is not an
+  element. The code was reverted; `css_phase14/hit_html.rs` pins the decision (the canvas hits nothing, the
+  content still does) and DIVERGENCES §2's `Dom::root()` entry gives the reason. No production code changed.
