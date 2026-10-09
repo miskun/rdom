@@ -44,7 +44,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
-| 15 | Transforms, filters, compositing, multi-column, anchor positioning | items done, gates pending (2026-10-09: part 1 C15-TRANSLATE, C15-FILTER, C15-BLEND, C15-CLIP-PATH; part 2 C15-COLUMNS, C15-ANCHOR) |
+| 15 | Transforms, filters, compositing, multi-column, anchor positioning | gates run 2026-10-09; `C15G-*` fixes in progress |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
 
@@ -10015,3 +10015,35 @@ row comes from.
   DIVERGENCES: Partial — `@import` (§3.1), `opacity` (§3.4), `width` / `height` and `contain-intrinsic-size`
   (§3.6), `pointer-events` (§3.19), `writing-mode` and `direction` / `unicode-bidi` (§3.22); Missing — the decided
   exclusions `masonry` / `grid-lanes`, `:blank`, `nav-*`. Phase 15: items done, gates pending.
+- 2026-10-09 — Phase 15 gates (with the C14G re-review: root fixes; one regression). Architect: 4 blocking —
+  filters lose coverage through nested groups (`buffer/composite.rs` never ORs a child layer's
+  coverage); a first / last `column-span: all` spanner's margin counts twice and margin-only sets
+  draw rules; `LayerOrder::new_where` orders non-counting layers across sheets wrongly (C14G
+  regression, Cascade 5 §6.4.3); three empty mutation-run files committed (two under `src/`) and
+  `value_serializers.rs` at 577. API: 1 blocking — READMEs claim false or stale things (`@position-try`
+  "scheduled", px "rejected", property lists missing Phases 14–15, root README feature list).
+  Non-blocking: abspos shrink-to-fit never clamps to the available width (CSS 2.1 §10.3.7); fragmentation
+  gaps (avoid-relaxation order, class C breaks, straddling floats); `position-try-order` sorts the base
+  style with the fallbacks; translate gaps (`tr`, sticky reading the translated rect, percentage
+  translate laying out every frame); anchor lookups unmemoized on the every-scroll layout path,
+  `anchors-visible` walking every ancestor per painted node; `column-count: 65535` allocation and an
+  O(fragments × breaks) forced-break scan; `:root{cursor}` ignored over the canvas; `sc-root-element`
+  omits `*` matching the root; `::backdrop` ignores `backdrop-filter` / `filter`; a web `rotate`
+  spinner never idles (`transform` is now known, the "rotate costs no frames" pin was swapped to
+  `zoom`); native `<select>` list overflows the viewport bottom; `columns: 15em` / `column-width:
+  200px` dropped; re-exports and prelude gaps; `InvalidPositionTryDescriptor(String)` shape;
+  `client_rects()` for a box-less element and the inline-box rule; API nits; upgrade-guide accuracy;
+  stale coverage records, legacy `clip` wrongly N/A (Tailwind / Bootstrap visually-hidden); `width` /
+  `height: stretch` unscheduled; `ComputedStyle` / `TuiStyle` ~147 flat fields with four new inline
+  groups and no size pin; SIZE-1 stale; a full layout on every scroll (ANIM-RELAYOUT-1) is the largest
+  release performance risk now that multicol balancing and anchor fallbacks run inside it; the
+  `[Unreleased]` CHANGELOG (~1,030 lines, 100 silent changes) and the rdom-tui README (1,595 lines, 23
+  sections in phase order) are not usable entry points. Decisions: (1) `column-width` and `columns`
+  take px / em through the query mapping (it selects a count — DESIGN's selection rule); (2) legacy
+  `clip: rect()` is supported on absolutely positioned boxes (CSS 2.1 §11.1.2); (3) `width` /
+  `height: stretch` ship before 0.6; (4) scrolling must not run a full layout — only scroll-dependent
+  boxes (sticky, anchored, `position-visibility`, scroll-driven) are updated; (5) an
+  `UPGRADING-0.6.md` (top 15, by-symptom index, full list by area with the `sc-*` anchors, compile
+  breaks with hint tests) replaces the CHANGELOG's long section, and the rdom-tui README is restructured
+  into an overview plus a "CSS at a glance" table with the recipes moved to their own document. Fix as
+  `C15G-*`, three batches (A correctness, B performance and structure, C docs and API).
