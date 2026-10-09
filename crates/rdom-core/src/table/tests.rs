@@ -182,3 +182,83 @@ fn spans_are_clamped_however_made() {
         vec![vec![(0, 0, 1000, 1), (0, 1000, 1000, 1)]]
     );
 }
+
+// ── Cost (C14G-CORE-GAPS) ───────────────────────────────────────────
+
+/// Architect N17: a row's cells skip the slots covered from above in time
+/// independent of how many columns they cover — 65 cells of `colspan=1000
+/// rowspan=0` then 10 000 one-cell rows step a few times a row (each row
+/// walked 65 000 covered columns, 6.5·10⁸ steps).
+#[test]
+fn covered_columns_are_skipped_in_bounded_steps() {
+    let mut rows = vec![vec![span(1000, 0); 65]];
+    rows.extend(std::iter::repeat_n(vec![span(1, 1)], 10_000));
+    probe::take();
+    let slots = assign_slots(&[rows]);
+    assert_eq!(slots.cells[1][0].column, 65_000);
+    let steps = probe::take();
+    assert!(steps < 100_000, "{steps} steps");
+}
+
+/// The run-based coverage places every cell where the column-by-column
+/// algorithm (HTML §4.9.12.1 as written) does: 300 pseudo-random tables of
+/// mixed spans, overlapping rowspans and `rowspan=0` included.
+#[test]
+fn coverage_runs_place_cells_as_the_slot_by_slot_algorithm() {
+    fn naive(groups: &[Vec<Vec<CellSpan>>]) -> TableSlots {
+        let mut out = TableSlots::default();
+        for group in groups {
+            let first_row = out.rows;
+            let end = first_row + group.len();
+            let mut covered_until: Vec<usize> = Vec::new();
+            for (r, row) in group.iter().enumerate() {
+                let y = first_row + r;
+                let mut x = 0usize;
+                let mut placed = Vec::new();
+                for cell in row {
+                    while covered_until.get(x).is_some_and(|&u| u > y) {
+                        x += 1;
+                    }
+                    let rows = match cell.rows {
+                        0 => end - y,
+                        n => n.min(end - y),
+                    };
+                    if covered_until.len() < x + cell.columns {
+                        covered_until.resize(x + cell.columns, 0);
+                    }
+                    for u in &mut covered_until[x..x + cell.columns] {
+                        *u = (*u).max(y + rows);
+                    }
+                    placed.push(Slot {
+                        row: y,
+                        column: x,
+                        columns: cell.columns,
+                        rows,
+                    });
+                    x += cell.columns;
+                }
+                out.columns = out.columns.max(x).max(covered_until.len());
+                out.cells.push(placed);
+            }
+            out.rows = end;
+        }
+        out
+    }
+    let mut seed = 0x2545_f491_4f6c_dd1du64;
+    let mut next = |n: u64| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed % n) as usize
+    };
+    for _ in 0..300 {
+        let groups: Vec<Vec<Vec<CellSpan>>> = (0..1 + next(3))
+            .map(|_| {
+                (0..1 + next(6))
+                    .map(|_| (0..next(5)).map(|_| span(1 + next(3), next(4))).collect())
+                    .collect()
+            })
+            .collect();
+        assert_eq!(assign_slots(&groups), naive(&groups), "{groups:?}");
+    }
+}

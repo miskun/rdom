@@ -82,12 +82,14 @@ pub(super) enum TableBox<'a> {
     },
 }
 
-/// The widest grid a table lays out: 65 535 columns. HTML caps each
-/// `colspan` and `span` at 1000 (§4.9.11, §4.9.3) but not their sum; a
-/// terminal cell offset is a `u16`, so a column past this could never
-/// show — and every per-column list a pass builds stays bounded, whatever
-/// the attributes say (DIVERGENCES §2).
-const MAX_COLUMNS: usize = u16::MAX as usize;
+/// The widest grid a table lays out: 65 535 columns
+/// (`rdom_core::table::MAX_COLUMNS`, where the column model the column
+/// combinator and `:nth-col()` match stops too). HTML caps each `colspan`
+/// and `span` at 1000 (§4.9.11, §4.9.3) but not their sum; a terminal
+/// cell offset is a `u16`, so a column past this could never show — and
+/// every per-column list a pass builds stays bounded, whatever the
+/// attributes say (DIVERGENCES §2).
+const MAX_COLUMNS: usize = rdom_core::table::MAX_COLUMNS;
 
 /// The table's two border models (CSS 2.1 §17.6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -401,11 +401,24 @@ impl<Ext: 'static> Dom<Ext> {
         self.highlights_inserted(parent, child);
     }
 
-    /// Validate that inserting `child` under `parent` is legal.
-    /// Cycle check + id existence.
+    /// Validate that inserting `child` under `parent` is legal (DOM §4.2.3
+    /// "ensure pre-insertion validity"): both exist, the parent can have
+    /// children, and no cycle. Step 3 (the reference child is the
+    /// parent's) is the callers'; steps 4–6 restrict kinds rdom has no
+    /// counterpart for (a Document, a DocumentType).
     pub(crate) fn validate_insert(&self, parent: NodeId, child: NodeId) -> Result<()> {
-        self.node_or_err(parent)?;
+        let parent_node = self.node_or_err(parent)?;
         self.node_or_err(child)?;
+        // DOM §4.2.3 "ensure pre-insertion validity" step 1: a parent is
+        // a Document, a DocumentFragment or an Element — a Text or a
+        // Comment takes no child.
+        if !matches!(
+            parent_node.data,
+            crate::node::NodeData::Element { .. } | crate::node::NodeData::Fragment
+        ) {
+            return Err(DomError::HierarchyRequest);
+        }
+        // Step 2: no node goes under itself or its descendant.
         if self.is_ancestor(child, parent) {
             return Err(DomError::HierarchyRequest);
         }
@@ -429,6 +442,67 @@ mod tests {
         let b = dom.create_element("b");
         let c = dom.create_element("c");
         (dom, a, b, c)
+    }
+
+    // ── Pre-insertion validity (DOM §4.2.3, C14G-CORE-GAPS) ──────────
+
+    /// Step 1: "If parent is not a Document, DocumentFragment, or Element
+    /// node, then throw a HierarchyRequestError" — a Text or Comment node
+    /// takes no child (it did).
+    #[test]
+    fn a_text_or_comment_parent_takes_no_child() {
+        let mut dom: Dom = Dom::new();
+        let text = dom.create_text_node("t");
+        let comment = dom.create_comment("c");
+        let x = dom.create_text_node("x");
+        assert_eq!(dom.append_child(text, x), Err(DomError::HierarchyRequest));
+        assert_eq!(
+            dom.append_child(comment, x),
+            Err(DomError::HierarchyRequest)
+        );
+        assert_eq!(
+            dom.insert_before(text, x, None),
+            Err(DomError::HierarchyRequest)
+        );
+        assert!(dom.node(text).first_child().is_none());
+    }
+
+    /// Step 2: "If node is a host-including inclusive ancestor of parent,
+    /// then throw a HierarchyRequestError".
+    #[test]
+    fn an_ancestor_cannot_go_under_its_descendant() {
+        let (mut dom, a, b, _) = sample();
+        dom.append_child(a, b).unwrap();
+        assert_eq!(dom.append_child(b, a), Err(DomError::HierarchyRequest));
+        assert_eq!(dom.append_child(a, a), Err(DomError::HierarchyRequest));
+    }
+
+    /// Step 3: "If child is non-null and its parent is not parent, then
+    /// throw a NotFoundError".
+    #[test]
+    fn a_reference_child_must_be_the_parents() {
+        let (mut dom, a, b, c) = sample();
+        assert_eq!(dom.insert_before(a, b, Some(c)), Err(DomError::NotFound));
+    }
+
+    /// Steps 4–6 restrict node kinds rdom has no counterpart for (a
+    /// Document, a DocumentType, a Document parent): every rdom node kind —
+    /// Element, Text, Comment, DocumentFragment — may be inserted under an
+    /// Element or a DocumentFragment.
+    #[test]
+    fn every_node_kind_goes_under_an_element_or_a_fragment() {
+        let mut dom: Dom = Dom::new();
+        let e = dom.create_element("e");
+        let f = dom.create_document_fragment();
+        for kid in [
+            dom.create_element("k"),
+            dom.create_text_node("t"),
+            dom.create_comment("c"),
+        ] {
+            dom.append_child(f, kid).unwrap();
+        }
+        dom.append_child(e, f).unwrap();
+        assert_eq!(dom.node(e).child_nodes().count(), 3);
     }
 
     // ── append_child ─────────────────────────────────────────────────

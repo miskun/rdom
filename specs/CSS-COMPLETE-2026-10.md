@@ -43,7 +43,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 11 | Selectors | done 2026-10-08 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
 | 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
-| 14 | Conditional rules, containment | gates run 2026-10-09; `C14G-*` fixes in progress |
+| 14 | Conditional rules, containment | gates run 2026-10-09; `C14G-*` batch A (correctness and the root model, 9 items) done 2026-10-09, batch B pending |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
@@ -9575,3 +9575,20 @@ row comes from.
   1206 layouts for under 650. Green after. Expectation changed by the decision:
   `content_visibility::auto_off_screen_skips_the_contents` — an element that starts off-screen never
   rendered, so `contain-intrinsic-size: auto 7` is 7 (it remembered 3 from a first layout with contents).
+- 2026-10-09 — C14G-CORE-GAPS (architect N16–N18; Selectors 4 §16.1–§16.3, HTML §4.9.12.1, DOM §4.2.3). Found:
+  (N16) the column model `||` and `:nth-col()` read was uncapped while layout's grid stops at 65 535 columns,
+  so `td:nth-col(69001)` matched a cell layout gave no box; (N17) `assign_slots` skipped covered columns one
+  by one — 65 cells of `colspan=1000 rowspan=0` and 10 000 one-cell rows took 6.5·10⁸ steps; (N18)
+  `validate_insert` lacked pre-insertion validity step 1, so a Text node took a child; `first_not_in` and
+  `before`'s back-walk scanned the item list per sibling. Decided: (1) `rdom_core::table::MAX_COLUMNS`
+  (public), which rdom-tui's grid now uses: the HTML column model drops a cell starting past it, cuts one
+  reaching past it, and the same for `<col>` / `<colgroup>` columns; (2) `assign_slots` keeps each row
+  group's coverage as disjoint runs `start → (end, until)` with equal neighbours merged — a cell skips a
+  run in one step, and an expired run is dropped when met (rows only grow), so the skip costs the runs
+  met, not the columns; placement is unchanged (pinned against the slot-by-slot algorithm on 300
+  pseudo-random tables); (3) step 1 — a parent is an Element or a DocumentFragment (rdom has no
+  Document) — in `validate_insert`, with a test per §4.2.3 step (steps 4–6 restrict kinds rdom has no
+  counterpart for, pinned as "every rdom kind goes under an element or a fragment"); the item lists are
+  sets. Red: `column_tests::the_column_model_stops_where_layout_does` (`td:nth-col(69001)` matched),
+  `table::tests::covered_columns_are_skipped_in_bounded_steps` (650 000 000 steps for under 100 000),
+  `tree::tests::a_text_or_comment_parent_takes_no_child` (`Ok`); green after (the steps a few a row).

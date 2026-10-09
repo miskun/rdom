@@ -258,11 +258,14 @@ impl<'a, Ext: 'static> NodeMut<'a, Ext> {
         };
         let items: Vec<NodeOrString> = siblings.into_iter().collect();
         self.dom.check_insertable(parent, &items)?;
-        let listed = |n: NodeId| {
-            items
-                .iter()
-                .any(|i| matches!(i, NodeOrString::Node(m) if *m == n))
-        };
+        let listed: std::collections::HashSet<NodeId> = items
+            .iter()
+            .filter_map(|i| match i {
+                NodeOrString::Node(n) => Some(*n),
+                _ => None,
+            })
+            .collect();
+        let listed = |n: NodeId| listed.contains(&n);
         let mut previous = self.dom.get_node(id).and_then(|n| n.prev_sibling);
         while let Some(p) = previous.filter(|&p| listed(p)) {
             previous = self.dom.get_node(p).and_then(|n| n.prev_sibling);

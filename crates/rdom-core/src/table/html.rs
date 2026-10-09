@@ -15,7 +15,7 @@
 
 use std::collections::HashMap;
 
-use super::{CellSpan, assign_slots, cell_span_of, column_span_of, is_html};
+use super::{CellSpan, MAX_COLUMNS, assign_slots, cell_span_of, column_span_of, is_html};
 use crate::dom::Dom;
 use crate::node_id::NodeId;
 
@@ -177,12 +177,21 @@ impl<Ext> Dom<Ext> {
             })
             .collect();
         let slots = assign_slots(&spans);
+        // The grid stops at `MAX_COLUMNS`, as the renderer's does: a cell
+        // starting past it has no column, one reaching past it is cut.
         for (row, placed) in cells.iter().flatten().zip(&slots.cells) {
             for (&cell, slot) in row.iter().zip(placed) {
-                model.cells.insert(cell, (slot.column, slot.columns));
+                if slot.column < MAX_COLUMNS {
+                    let span = slot.columns.min(MAX_COLUMNS - slot.column);
+                    model.cells.insert(cell, (slot.column, span));
+                }
             }
         }
-        model.width = slots.columns.max(x);
+        model.columns.retain(|&(_, start, _)| start < MAX_COLUMNS);
+        for (_, start, len) in &mut model.columns {
+            *len = (*len).min(MAX_COLUMNS - *start);
+        }
+        model.width = slots.columns.max(x).min(MAX_COLUMNS);
         model
     }
 }

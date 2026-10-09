@@ -23,6 +23,12 @@ use crate::node_id::NodeId;
 
 /// HTML §4.9.11: the largest `colspan`, `<col span>` and `<colgroup span>`.
 const MAX_COLSPAN: usize = 1000;
+/// The widest table grid: 65 535 columns. HTML caps each span at 1000 but
+/// not their sum; a terminal cell offset is a `u16`, so a column past this
+/// could never show. The renderer's grid and the column model the column
+/// combinator and `:nth-col()` match stop here alike — a cell or column
+/// starting past it has none, one reaching past it is cut.
+pub const MAX_COLUMNS: usize = u16::MAX as usize;
 /// HTML §4.9.11: the largest `rowspan`.
 const MAX_ROWSPAN: usize = 65534;
 
@@ -162,27 +168,19 @@ pub fn assign_slots(groups: &[Vec<Vec<CellSpan>>]) -> TableSlots {
     for group in groups {
         let first_row = out.rows;
         let end = first_row + group.len();
-        // `covered_until[x]`: the first row at which column `x` is no
-        // longer covered by a cell above (rowspans never leave the group).
-        let mut covered_until: Vec<usize> = Vec::new();
+        // The slots covered by a cell above (rowspans never leave the group).
+        let mut covered = Coverage::default();
         for (r, row) in group.iter().enumerate() {
             let y = first_row + r;
             let mut x = 0usize;
             let mut placed = Vec::with_capacity(row.len());
             for cell in row {
-                while covered_until.get(x).is_some_and(|&until| until > y) {
-                    x += 1;
-                }
+                x = covered.next_free(x, y);
                 let rows = match cell.rows {
                     0 => end - y,
                     n => n.min(end - y),
                 };
-                if covered_until.len() < x + cell.columns {
-                    covered_until.resize(x + cell.columns, 0);
-                }
-                for until in &mut covered_until[x..x + cell.columns] {
-                    *until = (*until).max(y + rows);
-                }
+                covered.cover(x, cell.columns, y + rows);
                 placed.push(Slot {
                     row: y,
                     column: x,
@@ -191,7 +189,7 @@ pub fn assign_slots(groups: &[Vec<Vec<CellSpan>>]) -> TableSlots {
                 });
                 x += cell.columns;
             }
-            out.columns = out.columns.max(x).max(covered_until.len());
+            out.columns = out.columns.max(x).max(covered.width);
             out.cells.push(placed);
         }
         out.rows = end;
@@ -199,6 +197,118 @@ pub fn assign_slots(groups: &[Vec<Vec<CellSpan>>]) -> TableSlots {
     out
 }
 
+/// The slots of a row group covered from above, as runs of columns that
+/// stay covered until the same row: `start → (end, until)`, disjoint,
+/// adjacent runs with the same `until` merged. A row's cells skip a run
+/// in one step whatever its width, and a run expired at a row stays
+/// expired for the rows below (they only come later), so it is dropped
+/// when met — the skip costs O(runs met), not O(columns).
+#[derive(Debug, Default)]
+struct Coverage {
+    runs: std::collections::BTreeMap<usize, (usize, usize)>,
+    /// One past the last column ever covered.
+    width: usize,
+}
+
+impl Coverage {
+    /// The first column at or after `x` not covered at row `y`.
+    fn next_free(&mut self, mut x: usize, y: usize) -> usize {
+        while let Some((&start, &(end, until))) = self.runs.range(..=x).next_back() {
+            #[cfg(test)]
+            probe::step();
+            if end <= x {
+                return x;
+            }
+            if until <= y {
+                // Expired: no later row is covered by it either.
+                self.runs.remove(&start);
+                return x;
+            }
+            x = end;
+        }
+        x
+    }
+
+    /// Cover `columns` columns from `x` until row `until` (each slot the
+    /// later of its cover and this one).
+    fn cover(&mut self, x: usize, columns: usize, until: usize) {
+        let end = x + columns;
+        self.width = self.width.max(end);
+        // The runs meeting `x..end`, cut out; the parts outside kept.
+        let mut pieces: Vec<(usize, usize, usize)> = Vec::new();
+        let first = self.runs.range(..x).next_back().map(|(&s, _)| s);
+        let starts: Vec<usize> = first
+            .into_iter()
+            .chain(self.runs.range(x..end).map(|(&s, _)| s))
+            .collect();
+        for start in starts {
+            let (run_end, run_until) = self.runs[&start];
+            if run_end <= x {
+                continue;
+            }
+            self.runs.remove(&start);
+            if start < x {
+                self.runs.insert(start, (x, run_until));
+            }
+            if run_end > end {
+                self.runs.insert(end, (run_end, run_until));
+            }
+            pieces.push((start.max(x), run_end.min(end), run_until));
+        }
+        // `x..end` at `until`, and later where an old run outlasts it.
+        let mut at = x;
+        for (s, e, u) in pieces {
+            if s > at {
+                self.runs.insert(at, (s, until));
+            }
+            self.runs.insert(s, (e, u.max(until)));
+            at = e;
+        }
+        if at < end {
+            self.runs.insert(at, (end, until));
+        }
+        self.merge_around(x, end);
+    }
+
+    /// Merge the runs from the one before `x` to the one at `end` with
+    /// their neighbours of the same `until`.
+    fn merge_around(&mut self, x: usize, end: usize) {
+        let from = self.runs.range(..x).next_back().map_or(x, |(&s, _)| s);
+        let mut cur = self.runs.range(from..).next().map(|(&s, _)| s);
+        while let Some(start) = cur {
+            let (run_end, until) = self.runs[&start];
+            match self.runs.get(&run_end).copied() {
+                Some((next_end, next_until)) if next_until == until => {
+                    self.runs.remove(&run_end);
+                    self.runs.insert(start, (next_end, until));
+                }
+                _ => {
+                    if start > end {
+                        break;
+                    }
+                    cur = self.runs.range(start + 1..).next().map(|(&s, _)| s);
+                }
+            }
+        }
+    }
+}
+
 pub(crate) mod html;
 #[cfg(test)]
 mod tests;
+
+/// Test-only: the steps slot assignment took skipping covered slots.
+#[cfg(test)]
+pub(crate) mod probe {
+    thread_local! {
+        static STEPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+
+    pub(crate) fn step() {
+        STEPS.with(|c| c.set(c.get() + 1));
+    }
+
+    pub(crate) fn take() -> u64 {
+        STEPS.with(|c| c.replace(0))
+    }
+}

@@ -237,3 +237,36 @@ fn a_pass_models_each_table_once() {
     assert_eq!(hits, 50);
     assert_eq!(caches.work().table_models, 1);
 }
+
+// ── The column cap (C14G-CORE-GAPS) ──────────────────────────────────
+
+/// Architect N16: the column model stops at [`crate::table::MAX_COLUMNS`]
+/// (65 535) as the layout's grid does — a cell starting past it has no
+/// column (layout gives it no box), so `:nth-col()` does not match it and
+/// a `<col>` past it represents nothing (they matched at column 69 001).
+#[test]
+fn the_column_model_stops_where_layout_does() {
+    let mut dom: Dom = Dom::new();
+    let root = dom.root();
+    let t = el(&mut dom, root, "table", &[]);
+    let g = el(&mut dom, t, "colgroup", &[("span", "1000")]);
+    for _ in 1..70 {
+        el(&mut dom, t, "colgroup", &[("span", "1000")]);
+    }
+    let _ = g;
+    let far = el(&mut dom, t, "col", &[("class", "far")]);
+    let _ = far;
+    let r = el(&mut dom, t, "tr", &[]);
+    for i in 0..70 {
+        el(
+            &mut dom,
+            r,
+            "td",
+            &[("id", &format!("c{i}")), ("colspan", "1000")],
+        );
+    }
+    assert_eq!(ids(&dom, "td:nth-col(65000)"), ["c64"]);
+    assert!(ids(&dom, "td:nth-col(69001)").is_empty());
+    assert!(ids(&dom, "col.far || td").is_empty());
+    assert_eq!(ids(&dom, "td:nth-col(65535)"), ["c65"], "cut at the cap");
+}

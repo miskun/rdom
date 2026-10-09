@@ -35,11 +35,15 @@ impl<Ext: 'static> Dom<Ext> {
         from: Option<NodeId>,
         items: &[NodeOrString],
     ) -> Option<NodeId> {
-        let listed = |id: NodeId| {
-            items
-                .iter()
-                .any(|i| matches!(i, NodeOrString::Node(n) if *n == id))
-        };
+        // One set, not a scan of the list per sibling (O(items + siblings)).
+        let listed: std::collections::HashSet<NodeId> = items
+            .iter()
+            .filter_map(|i| match i {
+                NodeOrString::Node(n) => Some(*n),
+                _ => None,
+            })
+            .collect();
+        let listed = |id: NodeId| listed.contains(&id);
         let mut cur = from;
         while let Some(id) = cur {
             if !listed(id) {

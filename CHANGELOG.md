@@ -328,6 +328,8 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-core`
 
+- **A Text or Comment node takes no child** (DOM §4.2.3 pre-insertion validity, step 1): `append_child`, `insert_before` and the `ParentNode` helpers on one return `HierarchyRequest` (a Text node gained the child). (C14G-CORE-GAPS)
+- **The column model stops where the table grid does** (Selectors 4 §16): `rdom_core::table::MAX_COLUMNS` (65 535) caps both, so `td:nth-col(70000)` no longer matches a cell layout gives no box; `assign_slots` skips covered columns in runs, not one by one (6.5·10⁸ steps for 100 KB of hostile spans). (C14G-CORE-GAPS)
 - **The `ParentNode` / `ChildNode` helpers follow DOM §4.2.6** ("converting nodes into a node", viable siblings): `NodeMut::after([fragment, x])` failed after a partial insert, `replace_with([self])` removed the node, `replace_children` cleared before validating; each now checks every node first and inserts before the viable sibling. (C13G-DOM-CONVENIENCE)
 - **`||` tries every column a cell spans, and a bare `<col>` is a column** (Selectors 4 §16.1, §3.1; HTML §13.2.6.4.9): a cell spanning two `<colgroup>`s missed `.hl col || td` when the first group's column failed it; a `<col>` child of the `<table>` before its rows (an HTML parser's implied `<colgroup>`) now counts, as in layout. (C13G-COLUMN-MATCH)
 - **Moving a node records its removal** (DOM §4.2.3 "insert" → "adopt" → "remove", "replace"): `append_child` / `insert_before` of a node with a parent fire the old parent's `ChildListChanged` removal first; a fragment insertion fires one record emptying the fragment; `replace_child` names the replaced child, and replacing a child with its next sibling no longer corrupts the list. (C12G-MOVE-RECORD)
