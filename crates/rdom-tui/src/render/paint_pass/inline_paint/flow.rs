@@ -137,96 +137,41 @@ pub(super) fn paint_inline_layout(
                 }
                 continue;
             }
+            if fragment.offset != (0, 0) {
+                // Moved by a relatively positioned inline box around it:
+                // painted after the line's text (below).
+                continue;
+            }
             let row = row_of(fragment.y);
-            if !visible(row) || frag_x >= clip.right() as i32 {
+            if !visible(row) {
                 continue;
             }
-            // Text is drawn by its owner's `visibility` (CSS Display 3
-            // §4; it inherits, so a `visible` span shows inside a hidden
-            // block).
-            if !crate::render::visibility::shows(dom, fragment.node, crate::ext::StyleSlot::Host) {
+            let text = TextAt {
+                x: frag_x,
+                row,
+                clip,
+                right: line_right,
+                first,
+            };
+            paint_text_fragment(dom, fragment, text, bg_dedup_owner, overlays.as_ref(), buf);
+        }
+        // Text a relatively positioned inline box moved off its place
+        // (CSS 2.1 §9.4.3, ACID-FIX-5): over the line's text, uncut by its
+        // `text-overflow`, as a moved pseudo-element's run below.
+        for fragment in line.fragments.iter().filter(|f| f.offset != (0, 0)) {
+            let (dx, dy) = fragment.offset;
+            let row = row_of(fragment.y) + dy;
+            if !visible(row) {
                 continue;
             }
-
-            let computed = dom
-                .node(fragment.node)
-                .ext()
-                .and_then(|e| e.computed.clone())
-                .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
-            // Fragments owned by the bg-dedup owner (text directly
-            // inside the block / anon box) have their bg painted by
-            // the owner's `fill_bg`, which stays the one owner of the
-            // cell bg (`glyph_style_from_computed`). Inline-
-            // child fragments (`<span>` etc.) DO need their own bg
-            // in the glyph style since they have no `fill_bg` of
-            // their own. A box-less (`display: contents`) owner has no
-            // background to paint (CSS Display 3 §2.5).
-            // On a first formatted line, in the style the line's
-            // `::first-line` gives it — its background, behind a run with
-            // none of its own, painted with the run.
-            let first_style = first.and_then(|hosts| {
-                crate::render::inline::first_line::effective(dom, hosts, &computed)
-            });
-            // Its block's first letter takes the `::first-letter` style
-            // over that (§2.3.1).
-            let first_style = match fragment.first_letter {
-                Some(host) => {
-                    let line = first_style.as_ref().unwrap_or(&computed);
-                    crate::render::inline::first_letter::effective(dom, host, line).or(first_style)
-                }
-                None => first_style,
+            let text = TextAt {
+                x: inner.x + fragment.x + dx,
+                row,
+                clip: outer_clip,
+                right: outer_clip.right(),
+                first,
             };
-            let painted = first_style.as_ref().unwrap_or(&computed);
-            let line_bg = first_style.as_ref().is_some_and(|f| f.bg != computed.bg);
-            let style = if (fragment.node == bg_dedup_owner
-                || computed.display == crate::layout::Display::Contents)
-                && !line_bg
-            {
-                glyph_style_from_computed(painted)
-            } else {
-                style_from_computed(painted)
-            };
-
-            let start_x = frag_x.max(clip.x as i32) as u16;
-            let skip = start_x as i32 - frag_x;
-            let budget_right = line_right;
-            if start_x >= budget_right {
-                continue;
-            }
-            let max_width = budget_right - start_x;
-
-            let text_to_paint: &str = if skip > 0 {
-                advance_text_by_cells(&fragment.text, skip as u16)
-            } else {
-                &fragment.text
-            };
-
-            // Route through `paint_text` so painted content occludes any
-            // border the joiner would re-derive beneath it (z-aware borders).
-            paint_text(buf, start_x, row as u16, budget_right, text_to_paint, style);
-
-            // Polish #9: tag this fragment's cells with the
-            // enclosing `<a href>`'s URL, if any. The fragment's
-            // owner might be the `<a>` directly or a styled
-            // descendant (e.g. `<a><b>bold</b></a>`) — walk up.
-            if let Some(href) = anchor_href_for(dom, fragment.node) {
-                let written_cells = text_to_paint
-                    .chars()
-                    .map(|_| 1u16)
-                    .sum::<u16>()
-                    .min(max_width);
-                if written_cells > 0 {
-                    buf.set_link_range(start_x, row as u16, written_cells, Some(&href));
-                }
-            }
-
-            // Highlight overlays (CSS Pseudo-Elements 4 §3): restyle the
-            // cells inside a highlight's or the selection's range, the
-            // fragment's symbols kept so a repaint without them restores
-            // the original appearance.
-            if let Some(ref overlays) = overlays {
-                overlays.paint(dom, buf, row as u16, frag_x, clip, fragment);
-            }
+            paint_text_fragment(dom, fragment, text, bg_dedup_owner, overlays.as_ref(), buf);
         }
         // A relatively positioned or sticky run (CSS 2.1 §9.4.3) moved
         // off its place: over the line's text, uncut by its
@@ -259,6 +204,125 @@ pub(super) fn paint_inline_layout(
     }
     // The rings of its inline elements' outlines (CSS UI 4 §5).
     super::outline::defer_inline_outlines(dom, inline_layout, inner, buf, outer_clip);
+}
+
+/// Where a run of text paints: its first cell `x` and its `row`, in
+/// viewport coordinates; the `clip` and the `right` edge its cells stop
+/// at; the line's `::first-line` hosts.
+struct TextAt<'a> {
+    x: i32,
+    row: i32,
+    clip: Rect,
+    right: u16,
+    first: Option<&'a [NodeId]>,
+}
+
+/// Paint the text `fragment` where `at` says, in its owner's style (and
+/// its line's `::first-line` / its block's `::first-letter`), with its
+/// link and the highlight overlays over it.
+fn paint_text_fragment(
+    dom: &Dom<TuiExt>,
+    fragment: &crate::render::inline::InlineFragment,
+    at: TextAt<'_>,
+    bg_dedup_owner: NodeId,
+    overlays: Option<&Overlays>,
+    buf: &mut Buffer,
+) {
+    let TextAt {
+        x: frag_x,
+        row,
+        clip,
+        right: line_right,
+        first,
+    } = at;
+    if frag_x >= clip.right() as i32 {
+        return;
+    }
+    // Text is drawn by its owner's `visibility` (CSS Display 3
+    // §4; it inherits, so a `visible` span shows inside a hidden
+    // block).
+    if !crate::render::visibility::shows(dom, fragment.node, crate::ext::StyleSlot::Host) {
+        return;
+    }
+
+    let computed = dom
+        .node(fragment.node)
+        .ext()
+        .and_then(|e| e.computed.clone())
+        .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
+    // Fragments owned by the bg-dedup owner (text directly
+    // inside the block / anon box) have their bg painted by
+    // the owner's `fill_bg`, which stays the one owner of the
+    // cell bg (`glyph_style_from_computed`). Inline-
+    // child fragments (`<span>` etc.) DO need their own bg
+    // in the glyph style since they have no `fill_bg` of
+    // their own. A box-less (`display: contents`) owner has no
+    // background to paint (CSS Display 3 §2.5).
+    // On a first formatted line, in the style the line's
+    // `::first-line` gives it — its background, behind a run with
+    // none of its own, painted with the run.
+    let first_style =
+        first.and_then(|hosts| crate::render::inline::first_line::effective(dom, hosts, &computed));
+    // Its block's first letter takes the `::first-letter` style
+    // over that (§2.3.1).
+    let first_style = match fragment.first_letter {
+        Some(host) => {
+            let line = first_style.as_ref().unwrap_or(&computed);
+            crate::render::inline::first_letter::effective(dom, host, line).or(first_style)
+        }
+        None => first_style,
+    };
+    let painted = first_style.as_ref().unwrap_or(&computed);
+    let line_bg = first_style.as_ref().is_some_and(|f| f.bg != computed.bg);
+    let style = if (fragment.node == bg_dedup_owner
+        || computed.display == crate::layout::Display::Contents)
+        && !line_bg
+    {
+        glyph_style_from_computed(painted)
+    } else {
+        style_from_computed(painted)
+    };
+
+    let start_x = frag_x.max(clip.x as i32) as u16;
+    let skip = start_x as i32 - frag_x;
+    let budget_right = line_right;
+    if start_x >= budget_right {
+        return;
+    }
+    let max_width = budget_right - start_x;
+
+    let text_to_paint: &str = if skip > 0 {
+        advance_text_by_cells(&fragment.text, skip as u16)
+    } else {
+        &fragment.text
+    };
+
+    // Route through `paint_text` so painted content occludes any
+    // border the joiner would re-derive beneath it (z-aware borders).
+    paint_text(buf, start_x, row as u16, budget_right, text_to_paint, style);
+
+    // Polish #9: tag this fragment's cells with the
+    // enclosing `<a href>`'s URL, if any. The fragment's
+    // owner might be the `<a>` directly or a styled
+    // descendant (e.g. `<a><b>bold</b></a>`) — walk up.
+    if let Some(href) = anchor_href_for(dom, fragment.node) {
+        let written_cells = text_to_paint
+            .chars()
+            .map(|_| 1u16)
+            .sum::<u16>()
+            .min(max_width);
+        if written_cells > 0 {
+            buf.set_link_range(start_x, row as u16, written_cells, Some(&href));
+        }
+    }
+
+    // Highlight overlays (CSS Pseudo-Elements 4 §3): restyle the
+    // cells inside a highlight's or the selection's range, the
+    // fragment's symbols kept so a repaint without them restores
+    // the original appearance.
+    if let Some(overlays) = overlays {
+        overlays.paint(dom, buf, row as u16, frag_x, clip, fragment);
+    }
 }
 
 /// `clip` narrowed to the columns `[left, right)`.

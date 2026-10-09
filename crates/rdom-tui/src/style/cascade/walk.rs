@@ -33,6 +33,8 @@ pub(super) struct SubtreeFlags {
     pub has_collapse: bool,
     /// `TuiExt::tree_has_counters`.
     pub has_counters: bool,
+    /// `TuiExt::tree_has_relative_inline`.
+    pub has_relative_inline: bool,
 }
 
 impl SubtreeFlags {
@@ -40,6 +42,7 @@ impl SubtreeFlags {
         self.has_positioned_pseudo |= other.has_positioned_pseudo;
         self.has_collapse |= other.has_collapse;
         self.has_counters |= other.has_counters;
+        self.has_relative_inline |= other.has_relative_inline;
     }
 
     /// The flags `id` recorded at its last cascade.
@@ -49,6 +52,7 @@ impl SubtreeFlags {
             has_positioned_pseudo: ext.is_some_and(|e| e.tree_has_positioned_pseudo),
             has_collapse: ext.is_some_and(|e| e.tree_has_collapse),
             has_counters: ext.is_some_and(|e| e.tree_has_counters),
+            has_relative_inline: ext.is_some_and(|e| e.tree_has_relative_inline),
         }
     }
 }
@@ -184,6 +188,8 @@ pub(super) fn cascade_subtree<'a>(
         has_positioned_pseudo: false,
         has_collapse: styled.computed.border_collapse == crate::layout::BorderCollapse::Collapse,
         has_counters: false,
+        has_relative_inline: styled.computed.position == crate::layout::Position::Relative
+            && styled.computed.display == crate::layout::Display::Inline,
     };
     let mut child = first_child(dom, id);
     while let Some(c) = child {

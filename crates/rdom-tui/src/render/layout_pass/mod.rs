@@ -246,6 +246,8 @@ fn layout_once(dom: &mut Dom<TuiExt>, viewport: Rect) {
     // `::after` from their in-flow places (phase 2 placed the
     // absolute and fixed ones with the elements).
     positioning::offset_in_flow_pseudos(dom);
+    // … and relatively positioned inline boxes (ACID-FIX-5).
+    positioning::offset_relative_inlines(dom);
     intrinsic::end_pass(dom);
     // The highlight layers the paints after this layout read, indexed
     // once (`highlight_index`).

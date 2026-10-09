@@ -96,6 +96,7 @@ pub(super) fn finish_element<'a>(
         ext.tree_has_positioned_pseudo = flags.has_positioned_pseudo;
         ext.tree_has_collapse = flags.has_collapse;
         ext.tree_has_counters = flags.has_counters;
+        ext.tree_has_relative_inline = flags.has_relative_inline;
         ext.reads_counters = reads_counters;
         ext.matched = Some(recorder.finish(sheets));
     }

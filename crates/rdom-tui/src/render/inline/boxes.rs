@@ -94,9 +94,29 @@ pub struct InlineFragment {
     /// Pseudo-Elements 4 §2.3, `first_letter`): paint styles it so.
     /// `None` for any other text.
     pub(crate) first_letter: Option<NodeId>,
+    /// The `(dx, dy)` cells the relatively positioned inline boxes it is
+    /// inside move it by from where the packer put it (CSS 2.1 §9.4.3),
+    /// set after layout (`positioning::relative_inlines`); paint and
+    /// hit-testing draw and find it there. `(0, 0)` for any other.
+    pub(crate) offset: (i32, i32),
 }
 
 impl InlineFragment {
+    /// The `(dx, dy)` cells the relatively positioned inline boxes
+    /// around a text fragment move it by from where the packer put it
+    /// (CSS 2.1 §9.4.3); `(0, 0)` for any other. An atom moves as a box:
+    /// its element's rects carry the move.
+    pub fn offset(&self) -> (i32, i32) {
+        self.offset
+    }
+
+    /// Where the fragment is drawn — `(x, y)` moved by its
+    /// [`offset`](Self::offset), in the coordinates of `x` and `y` (its
+    /// inline flow's content edge, its line's top).
+    pub fn drawn_at(&self) -> (i32, i32) {
+        (self.x + self.offset.0, i32::from(self.y) + self.offset.1)
+    }
+
     /// A text fragment: `text` from byte `source_byte_offset` of
     /// `text_node`, owned by `node`, at `x` on its line's top row (`y`
     /// 0, the baseline of a one-row line; set `y` to its inline box's
@@ -124,6 +144,7 @@ impl InlineFragment {
             map: None,
             frame: 0,
             first_letter: None,
+            offset: (0, 0),
         }
     }
 
@@ -144,6 +165,7 @@ impl InlineFragment {
             map: None,
             frame: 0,
             first_letter: None,
+            offset: (0, 0),
         }
     }
 }

@@ -134,6 +134,7 @@ fn try_update(dom: &mut Dom<TuiExt>, viewport: LayoutRect) -> Option<Update> {
     journal::set_sticky(dom, &sticky);
     crate::render::layout_pass::picker::place_pickers(dom, viewport);
     crate::render::layout_pass::positioning::offset_in_flow_pseudos(dom);
+    crate::render::layout_pass::positioning::offset_relative_inlines(dom);
     if crate::style::content_visibility::would_change(dom, viewport) {
         return None;
     }

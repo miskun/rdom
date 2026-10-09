@@ -33,7 +33,8 @@ pub(crate) fn resolve_in_target(
     let (inline_layout, content) = target.layout_and_rect(dom)?;
     match fragment_at_layout(inline_layout, content, x, y) {
         Some(fragment) => {
-            let cell_offset_in_frag = (x as i32 - content.x - fragment.x).max(0) as u16;
+            let drawn_x = fragment.drawn_at().0;
+            let cell_offset_in_frag = (x as i32 - content.x - drawn_x).max(0) as u16;
             let bytes_into_text = fragment.source_at_cell(cell_offset_in_frag);
             Some(Position::new(
                 fragment.text_node,
@@ -143,9 +144,19 @@ fn fragment_at_layout(
     x: u16,
     y: u16,
 ) -> Option<&InlineFragment> {
-    let row = u16::try_from(y as i32 - content.y).ok()?;
     // Negative left of the content box (an overflowing `rtl` line).
     let x_local = x as i32 - content.x;
+    // Text a relatively positioned inline box moved is found where it is
+    // drawn (CSS 2.1 §9.4.3, ACID-FIX-5).
+    let row_i = y as i32 - content.y;
+    if let Some(moved) = layout
+        .lines
+        .iter()
+        .find_map(|line| super::inline_hit::moved_text_at(line, row_i, x_local))
+    {
+        return Some(moved);
+    }
+    let row = u16::try_from(y as i32 - content.y).ok()?;
     let line = &layout.lines[layout.line_at_point(x_local, row)?];
 
     // A text fragment's inline box spans its line's rows — the leading
@@ -153,6 +164,7 @@ fn fragment_at_layout(
     // of them hits it; an atom only on its own rows.
     line.fragments
         .iter()
+        .filter(|f| f.offset() == (0, 0))
         .find(|&fragment| {
             x_local >= fragment.x
                 && x_local < fragment.x + i32::from(fragment.width)

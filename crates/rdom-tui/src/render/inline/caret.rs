@@ -83,10 +83,12 @@ pub(crate) fn caret_cell(dom: &Dom<TuiExt>, pos: Position) -> Option<(i32, i32)>
     let offset_in_frag = pos.offset.saturating_sub(fragment.source_byte_offset);
     let cell_in_frag = fragment.cells_before_source(offset_in_frag);
 
-    let x = content.x + fragment.x + cell_in_frag as i32;
-    // The fragment's own row: its inline box's baseline row, which
-    // `vertical-align` may have moved off the line's.
-    let y = content.y + i32::from(layout.lines[line_idx].top) + i32::from(fragment.y);
+    // Where the fragment is drawn — moved by a relatively positioned
+    // inline box around it (ACID-FIX-5) — on its own row: its inline box's
+    // baseline row, which `vertical-align` may have moved off the line's.
+    let (fx, fy) = fragment.drawn_at();
+    let x = content.x + fx + cell_in_frag as i32;
+    let y = content.y + i32::from(layout.lines[line_idx].top) + fy;
     Some((x, y))
 }
 

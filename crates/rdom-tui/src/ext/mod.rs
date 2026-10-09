@@ -241,6 +241,14 @@ pub struct TuiExt {
     /// subtree that drops its counters may leave ancestors stale-`true`).
     pub(crate) tree_has_counters: bool,
 
+    /// Bottom-up flag: `true` when this element or a descendant is a
+    /// relatively positioned inline box (`display: inline`, `position:
+    /// relative`), as of its last cascade — read by the layout pass that
+    /// moves such boxes' fragments (`positioning::relative_inlines`) to
+    /// skip the walk when none are in play. Conservative like
+    /// `tree_has_collapse`.
+    pub(crate) tree_has_relative_inline: bool,
+
     /// `true` when this element's own `content` or one of its
     /// pseudo-elements' read a counter (`counter()`), as of its last
     /// cascade: a walk whose counter values moved before it recomputes it.

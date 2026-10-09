@@ -172,6 +172,11 @@ fn hit_fragment(dom: &Dom<TuiExt>, lines: &Lines<'_>, x: u16, y: u16) -> Option<
         if let Some(g) = moved {
             return is_descendant(dom, g.host, ifc_block).then_some((g.host, false));
         }
+        // Text a relatively positioned inline box moved (ACID-FIX-5),
+        // likewise, for its owner.
+        if let Some(f) = moved_text_at(line, row_i, x_i) {
+            return Some((f.node, false));
+        }
     }
 
     // The line box spanning the row (CSS 2.1 §10.8: a line is as tall
@@ -182,7 +187,7 @@ fn hit_fragment(dom: &Dom<TuiExt>, lines: &Lines<'_>, x: u16, y: u16) -> Option<
     let x_local = x as i32 - content.x;
     let line = &layout.lines[layout.line_at_point(x_local, row)?];
 
-    for fragment in &line.fragments {
+    for fragment in line.fragments.iter().filter(|f| f.offset() == (0, 0)) {
         if x_local >= fragment.x
             && x_local < fragment.x + i32::from(fragment.width)
             && line.covers(fragment, row)
@@ -206,6 +211,24 @@ fn hit_fragment(dom: &Dom<TuiExt>, lines: &Lines<'_>, x: u16, y: u16) -> Option<
                 && crate::render::visibility::shows(dom, g.host, g.slot.into())
         })
         .map(|g| (g.host, false))
+}
+
+/// The text fragment of `line` a relatively positioned inline box moved
+/// onto row `row` (from the flow's content top) and column `x` (from its
+/// content edge), if any (CSS 2.1 §9.4.3): it is found where it is drawn.
+pub(super) fn moved_text_at(
+    line: &crate::render::inline::LineBox,
+    row: i32,
+    x: i32,
+) -> Option<&crate::render::inline::InlineFragment> {
+    line.fragments.iter().find(|f| {
+        let (fx, fy) = f.drawn_at();
+        !f.atomic
+            && f.offset() != (0, 0)
+            && row == i32::from(line.top) + fy
+            && x >= fx
+            && x < fx + i32::from(f.width)
+    })
 }
 
 /// `id` is a strict descendant of `ancestor`.

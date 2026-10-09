@@ -115,9 +115,17 @@ pub(super) fn mirror_flags(dom: &mut Dom<TuiExt>, host: NodeId) {
     let crate::ext::ContentBoxLink::Box(b) = ext.content_box_link() else {
         return;
     };
-    let flags = (ext.tree_has_positioned_pseudo, ext.tree_has_collapse);
+    let flags = (
+        ext.tree_has_positioned_pseudo,
+        ext.tree_has_collapse,
+        ext.tree_has_relative_inline,
+    );
     if let Some(e) = dom.node_mut(b).ext_mut() {
-        (e.tree_has_positioned_pseudo, e.tree_has_collapse) = flags;
+        (
+            e.tree_has_positioned_pseudo,
+            e.tree_has_collapse,
+            e.tree_has_relative_inline,
+        ) = flags;
     }
 }
 

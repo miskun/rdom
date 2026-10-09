@@ -416,6 +416,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-tui`
 
+- **`InlineFragment::offset()` and `InlineFragment::drawn_at()`**: the move a relatively positioned inline box gives a text fragment, and where it is drawn, as `GeneratedFragment` has for moved pseudo-elements. (ACID-FIX-5)
 - **The Phase 14 / 15 types at the root and in the prelude**: `AnchorDeclarations` and `PositionTryRule` (what `Stylesheet::position_try_rules()` returns) at the root; the prelude names the containment, multi-column, anchor, transform, filter, blending and clipping builders' arguments (`ContainerType`, `ColumnCount`, `PositionArea`, `TryFallback`, `Translate`, `FilterList`, `ClipPath`, `ClipRect`, …) and `Length`. (C15G-API)
 - **`client_rects()` is empty for an element with no box** (CSSOM View §6.1 step 1): `display: none` (its own or an ancestor's), skipped contents, `display: contents`; `InlineLayout::line_at_point(x, row)` (was `line_at`) names why it reads `x`. A wrapped inline box still reports one rect (DIVERGENCES). (C15G-API)
 - **Position fallback and visibility** (CSS Anchor Positioning 1 §4–§5): `position-try-fallbacks` (`@position-try` rules, `flip-block` / `-inline` / `-start`, areas) tried in `position-try-order` until one fits; `position-visibility` hides an anchored box whose anchor is clipped away, missing, or that overflows. (C15-ANCHOR)
@@ -615,6 +616,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Fixed — `rdom-tui`
 
+- **`position: relative` moves an inline element** (CSS 2.1 §9.4.3): its insets were ignored; its text and atoms now draw, are hit and carry the caret at the moved place, the line keeping their cells, nested relative boxes adding up. (ACID-FIX-5)
 - **A glyph painted over another is drawn in its own style** (CSS 2.1 Appendix E): text in the default colour over a red glyph showed red, plain text over a bold underlined one bold and underlined, and a default-coloured border over coloured text took the text's colour; each glyph write now replaces the cell's foreground, modifiers and underline colour, keeping its background. (ACID-FIX-3)
 - **A dashed or dotted side ends in a dash** (CSS Backgrounds 3 §4.2): the end cell of a side no other side meets — a box without a bottom border, a lone `border-left` — drew the solid `│` / `─`; it draws the side's dash glyph, corners and junctions staying solid. (ACID-FIX-2)
 - **`VirtualScreen` no longer prints OSC strings as text** (ECMA-48 §8.3.89): an OSC 8 hyperlink around a link's cells showed as `8;;URI` in the replayed rows; OSC strings are consumed to ST or BEL, and OSC 8 sets the cells' `Cell::link`. (ACID-FIX-1)

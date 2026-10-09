@@ -292,6 +292,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-2 | A dashed / dotted side's end cell where no side meets it draws the dash glyph, not the solid line (found by tile 5) | done |
 | ACID-FIX-3 | A glyph painted over another takes its own colour, weight and decorations, not the replaced glyph's (found by tile 9a) | done |
 | ACID-FIX-4 | `<summary>` has no UA weight (HTML §15.5.20; found by tile 9a) | done |
+| ACID-FIX-5 | `position: relative` moves a non-atomic inline box (CSS 2.1 §9.4.3; found by tile 10) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | partial — tiles 1–9a done; 9b–13 remain |
 | ACID-TILES-B | Static tiles 14–26 | |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
@@ -10674,3 +10675,18 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   its host's text, a `z-index: 5` `::after` held below a sibling `z-index: 2` context, a relative `::before` moved off
   its cell; a closed and an open `details` with `::details-content`. It found ACID-FIX-3 (the host's text kept the
   pseudo's red) and ACID-FIX-4 (bold summaries) and matches after both. No reference was changed.
+- 2026-10-09 — ACID-FIX-5 (found by acid tile 10; CSS 2.1 §9.4.3, CSS Position 3 §3.4). Tile 10's `ab <span class=rel>rel
+  </span> cd`, the span `position: relative; top: 1; left: 2`, drew `ab rel cd` on one row: a relative offset was applied
+  to boxes with rects (`apply_relative_shift` in `layout_node`) and to `::before` / `::after` (C10-PSEUDO-UNIFY), never
+  to a non-atomic inline box, which has no rect — only fragments in its block's lines — and DIVERGENCES did not say so.
+  Fix, in the shape of `pseudo_offsets`: a cascade flag `tree_has_relative_inline` (crate-private; bubbled like
+  `tree_has_counters`) gates a layout pass 3 step, `positioning::relative_inlines`, which sets each text fragment's
+  `InlineFragment::offset` to the summed move of the relative inline boxes between it and its block (set, not added,
+  so the scroll update can run it again) and shifts an atom inside one as a box, journalled (`PostMove::Box`). Paint draws
+  moved text after its line's text (`inline_paint::flow`, the fragment painter split out as `paint_text_fragment`);
+  hit-testing (`inline_hit::moved_text_at`, `fragment_at_layout`), the caret and inline outlines read
+  `InlineFragment::drawn_at`. Red: `css_phase8::relative_inline` (two tests: the span stayed in place; nested relative
+  boxes did not add up); green after, the rest of rdom-tui unchanged. DIVERGENCES §2 gains "A relatively positioned
+  inline box paints with its flow" (its line's turn, no `z-index` layer, not in scrollable overflow, hit inside its
+  block's box; `sticky` inline boxes not moved); CSS-COVERAGE's `position` row, silent change `sc-relative-inline`,
+  CHANGELOG Added (`offset()`, `drawn_at()`) and Fixed follow. The reference was not touched.

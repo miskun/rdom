@@ -339,12 +339,17 @@ pub(super) fn parent_computed_for(
 }
 
 /// If a partial cascade introduced a positioned pseudo, a
-/// `border-collapse: collapse` element or a counter anywhere in `root`'s
+/// `border-collapse: collapse` element, a counter or a relatively
+/// positioned inline box anywhere in `root`'s
 /// subtree, bubble `true` up through the ancestors so the document-level
 /// early-exit checks don't stale-`false`. Never bubbles `false` — that
 /// would require seeing every ancestor's other subtrees.
 fn bubble_subtree_flags(dom: &mut Dom<TuiExt>, root: NodeId, flags: SubtreeFlags) {
-    if !(flags.has_positioned_pseudo || flags.has_collapse || flags.has_counters) {
+    if !(flags.has_positioned_pseudo
+        || flags.has_collapse
+        || flags.has_counters
+        || flags.has_relative_inline)
+    {
         return;
     }
     let mut cur = dom.node(root).parent_node().map(|p| p.id());
@@ -353,6 +358,7 @@ fn bubble_subtree_flags(dom: &mut Dom<TuiExt>, root: NodeId, flags: SubtreeFlags
             ext.tree_has_positioned_pseudo |= flags.has_positioned_pseudo;
             ext.tree_has_collapse |= flags.has_collapse;
             ext.tree_has_counters |= flags.has_counters;
+            ext.tree_has_relative_inline |= flags.has_relative_inline;
         }
         cur = dom.node(p).parent_node().map(|n| n.id());
     }

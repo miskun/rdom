@@ -48,8 +48,11 @@ pub(super) fn defer_inline_outlines(
             } else {
                 Some(f.node)
             };
-            let x = inner.x + f.x;
-            let y = top + i32::from(f.y);
+            // Text where it is drawn: moved by the relatively positioned
+            // inline boxes around it (ACID-FIX-5).
+            let (fx, fy) = f.drawn_at();
+            let x = inner.x + fx;
+            let y = top + fy;
             let cells = (x, x + i32::from(f.width), y, y + i32::from(f.height.max(1)));
             note(dom, start, cells, &mut extents);
         }

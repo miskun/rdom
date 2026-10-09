@@ -53,6 +53,7 @@ mod pseudo;
 mod pseudo_offsets;
 mod rect;
 mod relative;
+mod relative_inlines;
 mod static_pos;
 
 use rdom_core::{Dom, NodeId};
@@ -71,6 +72,7 @@ pub(super) use containing::{
 pub(super) use place::place_positioned;
 pub(super) use pseudo_offsets::{PseudoMove, offset_in_flow_pseudos};
 pub(super) use relative::{apply_relative_shift, relative_offset};
+pub(super) use relative_inlines::offset_relative_inlines;
 pub(super) use static_pos::{
     out_of_flow_positioned_children, record_static_position, record_static_positions_in_ifc,
     static_anchors, static_position_in_ifc,
