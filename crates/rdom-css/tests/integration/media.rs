@@ -129,3 +129,36 @@ fn container_rules_record_their_condition() {
     assert_eq!(r.warnings.len(), 1);
     assert_eq!(r.stylesheet.rules().len(), 1);
 }
+
+/// C14G-PX-BREAKPOINTS (API B3): a `px` or `em` breakpoint has a cell
+/// measure now and parses quietly; a unit that still has none — `ex`, a
+/// viewport unit, a resolution — warns, naming the value, and the feature
+/// stays unknown (it failed silently).
+#[test]
+fn an_unmeasured_query_value_warns() {
+    assert!(
+        parse("@media (min-width: 600px) and (max-width: 40em) { .a { color: red } }")
+            .warnings
+            .is_empty()
+    );
+    assert!(
+        parse("@container (width > 400px) { .a { color: red } }")
+            .warnings
+            .is_empty()
+    );
+    for (css, value) in [
+        ("@media (min-width: 30ex) { .a { color: red } }", "30ex"),
+        ("@media (width > 50vw) { .a { color: red } }", "50vw"),
+        ("@container (width > 2rlh) { .a { color: red } }", "2rlh"),
+    ] {
+        let r = parse(css);
+        assert_eq!(
+            r.warnings.iter().map(|w| &w.kind).collect::<Vec<_>>(),
+            [&rdom_css::WarningKind::UnmeasuredQueryValue(
+                value.to_string()
+            )],
+            "{css}"
+        );
+        assert_eq!(r.stylesheet.rules().len(), 1, "the rule is kept: {css}");
+    }
+}

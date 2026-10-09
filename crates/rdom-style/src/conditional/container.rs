@@ -105,6 +105,15 @@ impl ContainerQuery {
         })
     }
 
+    /// The size feature values of the query with no cell measure, as
+    /// written ([`MediaList::unmeasured_values`](super::MediaList::unmeasured_values)).
+    pub fn unmeasured_values(&self) -> Vec<String> {
+        self.conditions()
+            .iter()
+            .flat_map(ContainerCondition::unmeasured_values)
+            .collect()
+    }
+
     /// The conditions, in order.
     pub fn conditions(&self) -> &[ContainerCondition] {
         &self.conditions
@@ -158,6 +167,17 @@ impl ContainerCondition {
     pub fn needs_scroll_state(&self) -> bool {
         self.leaves()
             .any(|f| matches!(f, ContainerFeature::ScrollState(_)))
+    }
+
+    /// The size feature values with no cell measure, as written
+    /// ([`MediaList::unmeasured_values`](super::MediaList::unmeasured_values)).
+    pub(crate) fn unmeasured_values(&self) -> Vec<String> {
+        self.leaves()
+            .flat_map(|f| match f {
+                ContainerFeature::Size(feature) => feature.unmeasured(),
+                _ => Vec::new(),
+            })
+            .collect()
     }
 
     fn leaves(&self) -> impl Iterator<Item = &ContainerFeature> {

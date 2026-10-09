@@ -255,6 +255,9 @@ fn warning_to_error(w: &Warning) -> ParseError {
         WarningKind::InvalidAtRulePrelude { .. } | WarningKind::InvalidPropertyRule { .. } => {
             ParseErrorKind::ExpectedToken("at-rule prelude")
         }
+        WarningKind::UnmeasuredQueryValue(_) => {
+            ParseErrorKind::ExpectedToken("query value with a cell measure")
+        }
         WarningKind::InvalidCounterStyleRule { .. } => {
             ParseErrorKind::ExpectedToken("valid counter style")
         }
@@ -357,6 +360,12 @@ pub enum WarningKind {
         prelude: String,
     },
     InvalidSelector(String),
+    /// A value in an `@media` or `@container` feature (as written) whose
+    /// unit has no cell measure — `ex`, `cap`, `lh`, a viewport unit, a
+    /// resolution: the feature is unknown, so neither it nor its `not`
+    /// matches. `px`, `em`, `rem` and the absolute units map onto cells
+    /// (DIVERGENCES §2, C14G-PX-BREAKPOINTS). The rule is kept.
+    UnmeasuredQueryValue(String),
     /// An `@import` (its URL) after a rule other than `@charset` and
     /// `@layer` statements, or inside a block: ignored (CSS Cascade 5 §3).
     ImportIgnored(String),

@@ -24,6 +24,21 @@ fn a_size_query_reads_the_container_width() {
     assert_eq!(fg(&dom, "t"), BLUE, "content box 20");
 }
 
+/// C14G-PX-BREAKPOINTS: a container feature maps `px` as a media feature
+/// does — 8px a column — so `(width > 160px)` is 20 columns.
+#[test]
+fn a_pixel_container_query_maps_eight_pixels_a_column() {
+    let css = "#card { container-type: inline-size }
+               #t { color: blue }
+               @container (width > 160px) { #t { color: red } }";
+    let mut dom = doc(CARD);
+    styled(&mut dom, &format!("{css} #card {{ width: 21 }}"), 40, 5);
+    assert_eq!(fg(&dom, "t"), RED, "21 > 20");
+    let mut dom = doc(CARD);
+    styled(&mut dom, &format!("{css} #card {{ width: 20 }}"), 40, 5);
+    assert_eq!(fg(&dom, "t"), BLUE, "20");
+}
+
 /// §6.4: the container is the nearest ancestor of the right type — a
 /// `normal` element is skipped for a size query — and a name selects
 /// among them.

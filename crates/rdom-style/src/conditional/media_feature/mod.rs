@@ -1,13 +1,15 @@
 //! One media feature (Media Queries 4 §2.4, §3): `(name)`, `(name:
-//! value)` or a range, parsed from its parenthesized block and evaluated
-//! against a [`MediaEnvironment`] by the terminal mapping (Media Queries
-//! 4 §4–§7, Media Queries 5 §12; DIVERGENCES §2 "Media features answer
-//! for a terminal").
+//! value)` or a range, parsed from its parenthesized block, serialized,
+//! and evaluated (`eval`) against a
+//! [`MediaEnvironment`](super::MediaEnvironment) by the terminal mapping
+//! (Media Queries 4 §4–§7, Media Queries 5 §12; DIVERGENCES §2 "Media
+//! features answer for a terminal").
 
 use crate::parse::Token;
 
 use super::syntax::{Cv, Prelude};
-use super::{MediaEnvironment, PointerAccuracy, Truth};
+
+mod eval;
 
 /// One media feature test: `(name)`, `(name: value)` or a range.
 #[derive(Debug, Clone, PartialEq)]
@@ -77,8 +79,16 @@ enum Value {
     Number(f64),
     /// A `ch` length: cells.
     Cells(f64),
-    /// A length in a unit with no cell measure (`px`, `em`, …), or a
-    /// `<resolution>`: kept as written, compared as unknown.
+    /// A pixel length — `px`, `em` / `rem` (16px, the initial font size,
+    /// §1.3), or an absolute unit (CSS Values 4 §6.2) — kept as written,
+    /// compared at 8px a column and 16px a row (DESIGN "Pixel lengths
+    /// select, cells measure", C14G-PX-BREAKPOINTS).
+    Pixels {
+        px: f64,
+        text: String,
+    },
+    /// A length in a unit with no cell measure (`ex`, `lh`, a viewport
+    /// unit, …), or a `<resolution>`: kept as written, compared as unknown.
     Unmeasured(String),
     /// `<ratio>`: `a / b`.
     Ratio(f64, f64),
@@ -90,7 +100,7 @@ impl Value {
         match self {
             Value::Number(n) => fmt_number(*n),
             Value::Cells(n) => format!("{}ch", fmt_number(*n)),
-            Value::Unmeasured(t) => t.clone(),
+            Value::Pixels { text, .. } | Value::Unmeasured(text) => text.clone(),
             Value::Ratio(a, b) => format!("{} / {}", fmt_number(*a), fmt_number(*b)),
             Value::Ident(s) => s.clone(),
         }
@@ -119,6 +129,27 @@ pub(super) fn feature(prelude: &Prelude<'_>, cv: &Cv) -> Option<MediaFeature> {
 }
 
 impl MediaFeature {
+    /// The values of this feature with no cell measure, as written
+    /// (`Value::Unmeasured`): what a parser warns about. `resolution` is
+    /// left out — a terminal has none, so it is false whatever its value.
+    pub(crate) fn unmeasured(&self) -> Vec<String> {
+        if self.name == "resolution" {
+            return Vec::new();
+        }
+        let values: Vec<&Value> = match &self.test {
+            Test::Boolean => Vec::new(),
+            Test::Equals(v) => vec![v],
+            Test::Range(pairs) => pairs.iter().map(|(_, v)| v).collect(),
+        };
+        values
+            .into_iter()
+            .filter_map(|v| match v {
+                Value::Unmeasured(t) => Some(t.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
     pub(super) fn parse(prelude: &Prelude<'_>, inner: &[Cv]) -> Option<Self> {
         // `(name)`.
         if let [only] = inner {
@@ -247,210 +278,6 @@ impl MediaFeature {
         }
         out.push(')');
     }
-
-    /// Evaluate against `env` (Media Queries 4 §4–§7, 5 §12), by the
-    /// terminal mapping in the module doc of `media_env`.
-    pub(crate) fn evaluate(&self, env: &MediaEnvironment) -> Truth {
-        let p = &env.preferences;
-        let vp = env.viewport;
-        match self.name.as_str() {
-            "width" | "device-width" => self.range(Kind::Length, f64::from(vp.cols)),
-            "height" | "device-height" => self.range(Kind::Length, f64::from(vp.rows)),
-            "aspect-ratio" | "device-aspect-ratio" => {
-                self.range(Kind::Ratio, f64::from(vp.cols) / f64::from(vp.rows))
-            }
-            "color" => self.range(Kind::Integer, f64::from(p.color_bits)),
-            "color-index" => self.range(Kind::Integer, 0.0),
-            "monochrome" => self.range(Kind::Integer, if p.color_bits == 0 { 1.0 } else { 0.0 }),
-            // §4.4: a grid device — a terminal is the spec's example.
-            "grid" => self.range(Kind::Integer, 1.0),
-            // A terminal has no pixel density: the concept does not exist
-            // on the device, so the feature is false (§2.4).
-            "resolution" => Truth::False,
-            "orientation" => {
-                let v = if vp.rows > vp.cols {
-                    "portrait"
-                } else {
-                    "landscape"
-                };
-                self.discrete(v, &["portrait", "landscape"], None)
-            }
-            "update" => self.discrete("fast", &["none", "slow", "fast"], Some("none")),
-            "overflow-block" => self.discrete("scroll", &["none", "scroll", "paged"], Some("none")),
-            "overflow-inline" => self.discrete("scroll", &["none", "scroll"], Some("none")),
-            "color-gamut" | "video-color-gamut" => {
-                // `srgb` holds for a device that covers sRGB; the wider
-                // gamuts do not.
-                self.discrete("srgb", &["srgb", "p3", "rec2020"], None)
-            }
-            "dynamic-range" | "video-dynamic-range" => {
-                self.discrete("standard", &["standard", "high"], None)
-            }
-            "environment-blending" => {
-                self.discrete("opaque", &["opaque", "additive", "subtractive"], None)
-            }
-            "scripting" => self.discrete(
-                "enabled",
-                &["none", "initial-only", "enabled"],
-                Some("none"),
-            ),
-            "display-mode" => self.discrete(
-                "standalone",
-                &[
-                    "fullscreen",
-                    "standalone",
-                    "minimal-ui",
-                    "browser",
-                    "picture-in-picture",
-                ],
-                None,
-            ),
-            "hover" | "any-hover" => {
-                let v = if p.hover { "hover" } else { "none" };
-                self.discrete(v, &["none", "hover"], Some("none"))
-            }
-            "pointer" | "any-pointer" => {
-                let v = match p.pointer {
-                    PointerAccuracy::None => "none",
-                    PointerAccuracy::Coarse => "coarse",
-                    PointerAccuracy::Fine => "fine",
-                };
-                self.discrete(v, &["none", "coarse", "fine"], Some("none"))
-            }
-            "prefers-color-scheme" => {
-                let v = match env.color_scheme {
-                    crate::color::ColorScheme::Light => "light",
-                    crate::color::ColorScheme::Dark => "dark",
-                };
-                self.discrete(v, &["light", "dark"], None)
-            }
-            "prefers-reduced-motion" => self.preference(p.reduced_motion),
-            "prefers-reduced-transparency" => self.preference(p.reduced_transparency),
-            "prefers-reduced-data" => self.preference(p.reduced_data),
-            "prefers-contrast" => {
-                let v = match p.contrast {
-                    super::Contrast::NoPreference => "no-preference",
-                    super::Contrast::More => "more",
-                    super::Contrast::Less => "less",
-                    super::Contrast::Custom => "custom",
-                };
-                self.discrete(
-                    v,
-                    &["no-preference", "more", "less", "custom"],
-                    Some("no-preference"),
-                )
-            }
-            "forced-colors" => {
-                let v = if p.forced_colors { "active" } else { "none" };
-                self.discrete(v, &["none", "active"], Some("none"))
-            }
-            "inverted-colors" => {
-                let v = if p.inverted_colors {
-                    "inverted"
-                } else {
-                    "none"
-                };
-                self.discrete(v, &["none", "inverted"], Some("none"))
-            }
-            _ => Truth::Unknown,
-        }
-    }
-
-    /// Evaluate as a container size feature (CSS Conditional 5 §6.5)
-    /// against a query container's content box: `width` / `inline-size`
-    /// read `width`, `height` / `block-size` read `height`, `aspect-ratio`
-    /// and `orientation` read both — `None`, an axis the container does
-    /// not answer on, is unknown, as is any other feature.
-    pub(crate) fn evaluate_size(&self, width: Option<f64>, height: Option<f64>) -> Truth {
-        let unknown = |v: Option<f64>| v.is_none();
-        match self.name.as_str() {
-            "width" | "inline-size" => match width {
-                Some(w) => self.range(Kind::Length, w),
-                None => Truth::Unknown,
-            },
-            "height" | "block-size" => match height {
-                Some(h) => self.range(Kind::Length, h),
-                None => Truth::Unknown,
-            },
-            "aspect-ratio" | "orientation" if unknown(width) || unknown(height) => Truth::Unknown,
-            "aspect-ratio" => self.range(Kind::Ratio, width.unwrap_or(0.0) / height.unwrap_or(0.0)),
-            "orientation" => {
-                let v = if height > width {
-                    "portrait"
-                } else {
-                    "landscape"
-                };
-                self.discrete(v, &["portrait", "landscape"], None)
-            }
-            _ => Truth::Unknown,
-        }
-    }
-
-    /// A `no-preference | reduce` preference.
-    fn preference(&self, reduce: bool) -> Truth {
-        let v = if reduce { "reduce" } else { "no-preference" };
-        self.discrete(v, &["no-preference", "reduce"], Some("no-preference"))
-    }
-
-    /// A discrete feature whose value is `actual`, one of `values`;
-    /// `falsy`: the value that is false in the boolean context (else
-    /// every value is true). A range test, or a value not among
-    /// `values`, is unknown.
-    fn discrete(&self, actual: &str, values: &[&str], falsy: Option<&str>) -> Truth {
-        match &self.test {
-            Test::Boolean => Truth::from_bool(falsy != Some(actual)),
-            Test::Equals(Value::Ident(v)) => {
-                let v = v.to_ascii_lowercase();
-                if values.contains(&v.as_str()) {
-                    Truth::from_bool(v == actual)
-                } else {
-                    Truth::Unknown
-                }
-            }
-            _ => Truth::Unknown,
-        }
-    }
-
-    /// A range feature whose value is `actual`.
-    fn range(&self, kind: Kind, actual: f64) -> Truth {
-        let value = |v: &Value| -> Option<f64> {
-            match (kind, v) {
-                (Kind::Length, Value::Number(n) | Value::Cells(n)) => Some(*n),
-                (Kind::Ratio, Value::Ratio(a, b)) => Some(a / b),
-                (Kind::Ratio, Value::Number(n)) => Some(*n),
-                (Kind::Integer, Value::Number(n)) if n.fract() == 0.0 => Some(*n),
-                _ => None,
-            }
-        };
-        match &self.test {
-            Test::Boolean => Truth::from_bool(actual != 0.0 && !actual.is_nan()),
-            Test::Equals(v) => match value(v) {
-                Some(n) => Truth::from_bool(actual == n),
-                None => Truth::Unknown,
-            },
-            Test::Range(pairs) => {
-                let mut result = Truth::True;
-                for (op, v) in pairs {
-                    result = result.and(match value(v) {
-                        Some(n) => Truth::from_bool(op.holds(actual, n)),
-                        None => Truth::Unknown,
-                    });
-                }
-                result
-            }
-        }
-    }
-}
-
-/// What a range feature's values are.
-#[derive(Clone, Copy)]
-enum Kind {
-    /// Cells: a number or `ch`.
-    Length,
-    /// `<ratio>` (or a number, `n / 1`).
-    Ratio,
-    /// `<integer>`.
-    Integer,
 }
 
 /// A comparison operator at the start of `values`, and how many
@@ -523,16 +350,32 @@ fn parse_value(prelude: &Prelude<'_>, values: &[Cv]) -> Option<Value> {
     }
 }
 
-/// A dimension as an `<mf-value>`: `ch` is cells; a pixel, font-relative
-/// or resolution unit is kept unmeasured; any other unit is invalid.
+/// A dimension as an `<mf-value>`: `ch` is cells; `px`, `em` / `rem` (the
+/// initial font size, 16px — Media Queries 4 §1.3) and the absolute units
+/// (CSS Values 4 §6.2: 96px an inch) are pixels; the other font-relative,
+/// the viewport and the resolution units are kept unmeasured; any other
+/// unit is invalid.
 fn dimension(value: f64, unit: &str, text: &str) -> Option<Value> {
     let unit = unit.to_ascii_lowercase();
-    match unit.as_str() {
-        "ch" => Some(Value::Cells(value)),
-        "px" | "cm" | "mm" | "q" | "in" | "pt" | "pc" | "em" | "rem" | "ex" | "rex" | "cap"
-        | "rcap" | "ic" | "ric" | "lh" | "rlh" | "dpi" | "dpcm" | "dppx" | "x" => {
-            Some(Value::Unmeasured(text.to_string()))
+    let px_per = match unit.as_str() {
+        "ch" => return Some(Value::Cells(value)),
+        "px" => 1.0,
+        "em" | "rem" | "pc" => 16.0,
+        "in" => 96.0,
+        "cm" => 96.0 / 2.54,
+        "mm" => 96.0 / 25.4,
+        "q" => 96.0 / 101.6,
+        "pt" => 96.0 / 72.0,
+        "ex" | "rex" | "cap" | "rcap" | "ic" | "ric" | "lh" | "rlh" | "dpi" | "dpcm" | "dppx"
+        | "x" | "vw" | "vh" | "vi" | "vb" | "vmin" | "vmax" | "svw" | "svh" | "svi" | "svb"
+        | "svmin" | "svmax" | "lvw" | "lvh" | "lvi" | "lvb" | "lvmin" | "lvmax" | "dvw" | "dvh"
+        | "dvi" | "dvb" | "dvmin" | "dvmax" => {
+            return Some(Value::Unmeasured(text.to_string()));
         }
-        _ => None,
-    }
+        _ => return None,
+    };
+    Some(Value::Pixels {
+        px: value * px_per,
+        text: text.to_string(),
+    })
 }

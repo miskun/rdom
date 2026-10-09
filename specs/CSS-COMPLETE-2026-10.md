@@ -9459,3 +9459,24 @@ row comes from.
   no break. Red: `media_tests::a_chained_listener_fires` (`[]` for `[true]`),
   `an_unheld_list_without_listeners_is_forgotten` (0 lists kept for 1); green after, with
   `add_event_listener_change_fires`.
+- 2026-10-09 — C14G-PX-BREAKPOINTS (decision 2; API B3; Media Queries 4 §1.3, §4.1–§4.2, §4.6, CSS
+  Conditional 5 §6.5, CSS Values 4 §6.2). Found: a `@media` / `@container` feature value in `px` or `em` was
+  `Value::Unmeasured` — unknown, so neither it nor its `not` matched — with no warning: a mobile-first sheet
+  showed its phone layout on a 250-column terminal, a desktop-first one its desktop layout on 40 columns, and
+  Media Queries 4's own narrow-console example `(grid) and (max-width: 15em)` failed. Decided (decision 2;
+  DESIGN's pixel rule now names query selection): a breakpoint selects a rule set and never becomes a box
+  dimension, so `px`, `em` / `rem` (16px, the initial font size, §1.3) and the absolute units (96px an inch)
+  are `Value::Pixels`, compared at 8px a column for `width` / `inline-size` and 16px a row for `height` /
+  `block-size` (`Kind::Columns` / `Kind::Rows` where `Kind::Length` was) — Tailwind 640 / 768 / 1024 / 1280px
+  at 80 / 96 / 128 / 160 columns, Bootstrap 576 / 768 / 992 / 1200px at 72 / 96 / 124 / 150; the other
+  font-relative units, the viewport units (which made the query invalid, `not all`) and resolutions stay
+  unmeasured — unknown — and rdom-css warns for each (`WarningKind::UnmeasuredQueryValue(value)`, the rule
+  kept; `resolution` exempt, false whatever its value), through `MediaList::unmeasured_values` /
+  `ContainerQuery::unmeasured_values`. `@supports (width: 10px)` stays false (a declaration, not a
+  selection). Red: `css_phase14::media::pixel_breakpoints_select_at_eight_pixels_a_column` and
+  `the_specs_narrow_console_example_matches` (blue for red), `container_query::a_pixel_container_query_maps_eight_pixels_a_column`,
+  rdom-css `media::an_unmeasured_query_value_warns` (no warning for `30ex`); green after. Expectation changed
+  by the decision: `a_pixel_length_is_unknown` became the breakpoint test. DIVERGENCES §2's media entry,
+  silent change 28, the rdom-tui README, ACID tile 20 and CSS-COVERAGE's `@media` row follow. Split (the
+  file reached 593 lines; architect N20 asked for it): `rdom-style/src/conditional/media_feature.rs` →
+  `media_feature/mod.rs` (parse, values, serialization) + `media_feature/eval.rs` (evaluation, `Kind`).

@@ -55,6 +55,18 @@ pub(crate) fn open_conditional_rule(
         return None;
     };
     cursor.bump(); // '{'
+    // A feature value with no cell measure leaves its feature unknown:
+    // say so, as a value rdom cannot use (C14G-PX-BREAKPOINTS).
+    let unmeasured = match &kind {
+        ConditionKind::Media(list) => list.unmeasured_values(),
+        ConditionKind::Container(query) => query.unmeasured_values(),
+        _ => Vec::new(),
+    };
+    warnings.extend(unmeasured.into_iter().map(|value| Warning {
+        kind: WarningKind::UnmeasuredQueryValue(value),
+        line: at.0,
+        column: at.1,
+    }));
     Some(declare(sheet, ctx, kind))
 }
 

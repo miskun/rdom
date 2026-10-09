@@ -87,6 +87,18 @@ impl MediaList {
         self.queries.is_empty() || self.queries.iter().any(|q| q.matches(env))
     }
 
+    /// The feature values of the list with no cell measure, as written
+    /// (`30ex`, `50vw`, `2dppx`): each makes its feature unknown. A parser
+    /// warns about them; `px` and `em` are measured (C14G-PX-BREAKPOINTS).
+    pub fn unmeasured_values(&self) -> Vec<String> {
+        self.queries
+            .iter()
+            .filter_map(|q| q.condition.as_ref())
+            .flat_map(|c| c.leaves())
+            .flat_map(MediaFeature::unmeasured)
+            .collect()
+    }
+
     /// Whether any query of the list reads the viewport (`width`,
     /// `height`, `aspect-ratio`, `orientation`, the `device-*` ones): only
     /// such a list can change when the terminal is resized.

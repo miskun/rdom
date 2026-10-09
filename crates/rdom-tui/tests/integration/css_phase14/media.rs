@@ -87,15 +87,42 @@ fn conditions_combine_in_three_valued_logic() {
     assert_eq!(color_at(&rule("not (fn(x) and (width > 5))"), 10, 5), BLUE);
 }
 
-/// DESIGN "Pixel lengths select, cells measure": a pixel length has no
-/// cell measure, so `(min-width: 600px)` is unknown — neither it nor its
-/// negation matches.
+/// DESIGN "Pixel lengths select, cells measure" (C14G-PX-BREAKPOINTS, the
+/// Phase 14 gate's decision 2): a breakpoint selects a rule set and never
+/// sizes a box, so `px` and `em` in a media feature map at 16px = 1em =
+/// one row, 8px a column — Tailwind's `sm` / `md` / `lg` (640 / 768 /
+/// 1024px) switch at 80 / 96 / 128 columns (they matched nothing, nor did
+/// their `not`).
 #[test]
-fn a_pixel_length_is_unknown() {
+fn pixel_breakpoints_select_at_eight_pixels_a_column() {
     let rule = |q: &str| format!("#a {{ color: blue }} @media {q} {{ #a {{ color: red }} }}");
-    assert_eq!(color_at(&rule("(min-width: 600px)"), 100, 5), BLUE);
-    assert_eq!(color_at(&rule("not (min-width: 600px)"), 100, 5), BLUE);
-    assert_eq!(color_at(&rule("(max-width: 40em)"), 10, 5), BLUE);
+    for (px, cols) in [(640, 80), (768, 96), (1024, 128)] {
+        let q = format!("(min-width: {px}px)");
+        assert_eq!(color_at(&rule(&q), cols, 5), RED, "{q} at {cols}");
+        assert_eq!(
+            color_at(&rule(&q), cols - 1, 5),
+            BLUE,
+            "{q} at {}",
+            cols - 1
+        );
+        let not = format!("not {q}");
+        assert_eq!(color_at(&rule(&not), cols - 1, 5), RED, "{not}");
+    }
+    assert_eq!(
+        color_at(&rule("(min-height: 400px)"), 10, 25),
+        RED,
+        "16px a row"
+    );
+    assert_eq!(color_at(&rule("(min-height: 400px)"), 10, 24), BLUE);
+}
+
+/// Media Queries 4 §4.6's own example for a narrow console — `(grid) and
+/// (max-width: 15em)` — with `em` the initial font size, 16px: 30 columns.
+#[test]
+fn the_specs_narrow_console_example_matches() {
+    let css = "#a { color: blue } @media (grid) and (max-width: 15em) { #a { color: red } }";
+    assert_eq!(color_at(css, 30, 5), RED);
+    assert_eq!(color_at(css, 31, 5), BLUE);
 }
 
 /// The terminal mapping (DIVERGENCES §2): a grid device, a mouse that
