@@ -184,3 +184,33 @@ fn tile_08_inline() {
 fn tile_09a_generated() {
     assert_tile(&refs::t09a_generated::REF);
 }
+
+#[test]
+fn tile_09b_lists() {
+    assert_tile(&refs::t09b_lists::REF);
+}
+
+#[test]
+fn tile_09c_first() {
+    assert_tile(&refs::t09c_first::REF);
+}
+
+#[test]
+fn tile_10_positioning() {
+    assert_tile(&refs::t10_positioning::REF);
+}
+
+#[test]
+fn tile_11_stacking() {
+    assert_tile(&refs::t11_stacking::REF);
+}
+
+#[test]
+fn tile_12_opacity() {
+    assert_tile(&refs::t12_opacity::REF);
+}
+
+#[test]
+fn tile_13_overflow() {
+    assert_tile(&refs::t13_overflow::REF);
+}

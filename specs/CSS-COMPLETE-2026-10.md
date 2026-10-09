@@ -45,7 +45,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | done 2026-10-09 (both gates; 22 gate fixes `C15G-*`; their re-review rides with the Phase 16 gate) |
-| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
+| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | part 1 done 2026-10-09 (harness, tiles 1–13, ACID-FIX-1 … 5); part 2 (tiles 14–26, coverage test) and part 3 (interactive script) next |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
 
 Phases follow dependencies: values and color before the properties that use them; flex alignment
@@ -293,7 +293,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-3 | A glyph painted over another takes its own colour, weight and decorations, not the replaced glyph's (found by tile 9a) | done |
 | ACID-FIX-4 | `<summary>` has no UA weight (HTML §15.5.20; found by tile 9a) | done |
 | ACID-FIX-5 | `position: relative` moves a non-atomic inline box (CSS 2.1 §9.4.3; found by tile 10) | done |
-| ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | partial — tiles 1–9a done; 9b–13 remain |
+| ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
 | ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
@@ -10690,3 +10690,28 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   inline box paints with its flow" (its line's turn, no `z-index` layer, not in scrollable overflow, hit inside its
   block's box; `sticky` inline boxes not moved); CSS-COVERAGE's `position` row, silent change `sc-relative-inline`,
   CHANGELOG Added (`offset()`, `drawn_at()`) and Fixed follow. The reference was not touched.
+- 2026-10-09 — ACID-TILES-A, tiles 9b–13 (page 2); part 1 closed. `Tile` gains two hooks: `setup` (run on the tile's box
+  when the page is built: tile 9c registers its `::highlight(search)` range from Rust, walking the text nodes as a
+  find-in-page script would) and `script` (a load handler run after the page's first frame, then the page is drawn
+  again: tile 13 sets `scrollTop`, which needs layout to clamp against; the tests and the example run it, the showcase
+  entry does not). Tile 9b, lists and markers (Lists 3 §3–§4, Counter Styles 3 §6, HTML §4.4 / §15.3.8): `start`,
+  `reversed`, `value`, `type`, a marker cut at the tile's left edge and whole beside a margin, wrapped lines under the
+  text, an empty item's own marker line, `inside`, three nested bullet levels on one line, an `rtl` marker, `::marker`
+  colour and `content`, `::before::marker`, `inline list-item`. Tile 9c (Pseudo-Elements 4 §2.2–§2.3, Highlight API):
+  an uppercased, coloured, letter-spaced `::first-line` inside a first child, a floated two-row drop cap taking `“A`,
+  a highlight across three text nodes keeping the bold of its middle one. Tile 10, positioning (CSS 2.1 §9.4.3,
+  §10.3.7, §10.6.4): a relative span, `top` / `left`, `right` / `bottom`, `inset` with `auto` sizes, every offset
+  `auto` at the static position, `fixed` against the page. Tile 11, stacking (Appendix E): negative, zero and positive
+  `z-index` over in-flow text, a `z-index: 99` held inside a `z-index: 1` context under a `z-index: 2` sibling. Tile 12,
+  group opacity (Color 4 §3.2, DESIGN's per-cell rules): 0.5 tinting text and a border, 0.5 in 0.5, 0, a 0.5 box's own
+  glyphs winning and a 0.4 box's losing, colours chosen so every channel is exact. Tile 13, overflow (Overflow 3 / 4,
+  Scrollbars 1): `hidden` cutting text and a positioned child, a scripted `scrollTop` with a thin coloured bar, `clip`
+  per axis with `overflow-clip-margin`, `ellipsis` `ltr` and `rtl`, `line-clamp` and the `-webkit-box` pair, an
+  abspos box in the scrollable overflow with `::scrollbar` styling, `scrollbar-gutter: stable` and `both-edges`, a
+  nested scroller whose overflow stays its own. Tiles 9c, 11, 12 and 13 matched at first run; tile 10 found ACID-FIX-5.
+  One reference changed, with its argument in its derivation: tile 9b's `rtl` marker, first derived in logical order
+  `• ` from DIVERGENCES §1's general "no bidirectional reordering", is `" •"` — §2's outside-marker entry writes a
+  right-hanging marker in visual order (as a browser's bidi shows it), the specific rule over the general one. Tile 9b's
+  markup also changed three widths (`ol` and `ul` are content-box with four cells of UA padding, so `width: 12` was 16
+  cells, not 12) — the reference stayed. Part 1 found five rdom bugs (ACID-FIX-1 … 5) and two undocumented UA choices:
+  the `summary::before` triangle (DIVERGENCES §2 now) and `dt` / `legend` bold (left for the Phase 16 gate).

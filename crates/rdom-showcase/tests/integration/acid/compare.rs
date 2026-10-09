@@ -19,7 +19,9 @@ use super::reference::{Reference, Style, describe, shows_fg, visible_modifiers};
 const MAX_LISTED: usize = 40;
 
 /// Paint `page` as the whole document of a 120 × 50 `App`, with the acid
-/// sheets in their order: the main sheet, then the late one pushed on top.
+/// sheets in their order: the main sheet, then the late one pushed on top;
+/// after the first frame the tiles' scripts run (`Tile::script`) and the
+/// page is drawn again.
 pub fn paint_page(page: u8) -> VirtualScreen {
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
@@ -31,6 +33,9 @@ pub fn paint_page(page: u8) -> VirtualScreen {
         .unwrap()
         .with_sgr_capabilities(SgrCapabilities::EXTENDED);
     app.push_stylesheet(acid::late_stylesheet());
+    app.advance(0).unwrap();
+    // The tiles' load scripts, then the frame they change.
+    acid::run_scripts(app.dom_mut(), page);
     app.advance(0).unwrap();
     let mut screen = VirtualScreen::new(PAGE_WIDTH, PAGE_HEIGHT);
     screen.apply(app.terminal().backend().bytes());

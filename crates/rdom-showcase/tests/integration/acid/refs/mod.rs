@@ -13,6 +13,12 @@ pub mod t06_margins;
 pub mod t07_flex;
 pub mod t08_inline;
 pub mod t09a_generated;
+pub mod t09b_lists;
+pub mod t09c_first;
+pub mod t10_positioning;
+pub mod t11_stacking;
+pub mod t12_opacity;
+pub mod t13_overflow;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -25,4 +31,10 @@ pub const ALL: &[&Reference] = &[
     &t07_flex::REF,
     &t08_inline::REF,
     &t09a_generated::REF,
+    &t09b_lists::REF,
+    &t09c_first::REF,
+    &t10_positioning::REF,
+    &t11_stacking::REF,
+    &t12_opacity::REF,
+    &t13_overflow::REF,
 ];

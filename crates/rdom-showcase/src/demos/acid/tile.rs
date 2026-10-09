@@ -1,5 +1,7 @@
 //! [`Tile`] — one labelled square of the acid page.
 
+use rdom_tui::{NodeId, TuiDom};
+
 /// One acid tile: a feature *interaction* rendered into a fixed rectangle
 /// of one acid page (`specs/ACID.md` ground rule 3).
 ///
@@ -40,4 +42,13 @@ pub struct Tile {
     /// (`App::push_stylesheet`), for the cascade-order contests that need
     /// a later sheet; empty for most tiles.
     pub late_css: &'static str,
+    /// Script the tile runs on its box after the page is built — what the
+    /// static markup cannot say (a custom highlight's ranges, built from
+    /// Rust as a page's script builds them); `None` for most tiles.
+    pub setup: Option<fn(&mut TuiDom, NodeId)>,
+    /// Script the tile runs on its box once the page has laid out and
+    /// painted its first frame — a page's load handler, for what needs
+    /// layout (a scroll offset is clamped to the laid-out range); the page
+    /// is painted again after it. `None` for most tiles.
+    pub script: Option<fn(&mut TuiDom, NodeId)>,
 }

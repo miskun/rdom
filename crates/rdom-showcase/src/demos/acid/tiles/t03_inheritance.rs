@@ -45,4 +45,6 @@ pub const TILE: Tile = Tile {
 .acid-t3 .v4 a { color: var(--c); }
 "#,
     late_css: "",
+    setup: None,
+    script: None,
 };

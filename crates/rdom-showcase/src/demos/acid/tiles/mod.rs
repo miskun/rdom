@@ -11,6 +11,12 @@ mod t06_margins;
 mod t07_flex;
 mod t08_inline;
 mod t09a_generated;
+mod t09b_lists;
+mod t09c_first;
+mod t10_positioning;
+mod t11_stacking;
+mod t12_opacity;
+mod t13_overflow;
 
 /// Every tile, in `ACID.md` order.
 pub const TILES: &[&Tile] = &[
@@ -23,4 +29,10 @@ pub const TILES: &[&Tile] = &[
     &t07_flex::TILE,
     &t08_inline::TILE,
     &t09a_generated::TILE,
+    &t09b_lists::TILE,
+    &t09c_first::TILE,
+    &t10_positioning::TILE,
+    &t11_stacking::TILE,
+    &t12_opacity::TILE,
+    &t13_overflow::TILE,
 ];

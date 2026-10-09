@@ -42,4 +42,6 @@ pub const TILE: Tile = Tile {
 .acid-t5 .b9 { width: 3; height: 5; max-height: 1; border: hidden; }
 "#,
     late_css: "",
+    setup: None,
+    script: None,
 };

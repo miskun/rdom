@@ -1,6 +1,6 @@
 # ACID — an rdom acid test
 
-**Status:** PROPOSAL (2026-10-03) — tile list for review; nothing built yet.
+**Status:** IN PROGRESS (2026-10-09) — part 1 built: the harness (pages, reference format, colour-aware comparator) and static tiles 1–13 (9a / 9b / 9c), all green after ACID-FIX-1 … 5 (`CSS-COMPLETE-2026-10.md` Phase 16). Next: tiles 14–26 and the coverage test (part 2), the interactive script (part 3).
 
 ## Why
 
@@ -58,6 +58,10 @@ Decided while building the harness (ACID-HARNESS, 2026-10-09):
   foreground, weight or slant, so those are compared on a blank only when it carries a line
   decoration. Each reference file (`tests/integration/acid/refs/`) carries its spec citations and
   the derivation of its cells.
+- **Hooks.** A tile's `setup` runs on its box when the page is built — what markup cannot say, as a
+  page's script would: tile 9c registers a custom highlight from Rust. Its `script` runs after the
+  page's first frame, and the page is drawn again — a load handler, for what needs layout: tile 13's
+  `scrollTop`. The tests and the example run both; the showcase entry runs only `setup`.
 - **Comparator** (`acid/compare.rs`). The page's ANSI output, with every SGR extension enabled, is
   replayed into a `VirtualScreen` — what a terminal shows — and each tile's crop compared cell by
   cell: glyph, foreground, background, modifiers, underline colour. A failure names the tile, its

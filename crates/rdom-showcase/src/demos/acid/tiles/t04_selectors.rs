@@ -90,4 +90,6 @@ pub const TILE: Tile = Tile {
 .acid-t4 .x7:not(:has(.img)) { color: rgb(192, 0, 0); }
 "#,
     late_css: "",
+    setup: None,
+    script: None,
 };

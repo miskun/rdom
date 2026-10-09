@@ -777,6 +777,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 ### Added — `rdom-showcase`
 
 - **The acid test** (`specs/ACID.md`): `Built-ins → Acid` and `cargo run -p rdom-showcase --example acid -- <page>` render feature-interaction tiles on 120 × 50 pages, and `tests/integration/acid/` compares each tile's glyphs, colours and modifiers cell by cell against a reference derived from the spec, reporting every tile's result. (ACID-HARNESS)
+- **Acid tiles 1–13** — cascade, specificity, inheritance, selectors, box model, margins, flex, inline formatting, generated content, lists, first line / letter and highlights, positioning, stacking, group opacity, overflow — each with a spec-derived reference; a tile may run a `setup` hook at build and a `script` after its first frame. (ACID-TILES-A)
 
 ### Changed — `rdom-showcase`
 

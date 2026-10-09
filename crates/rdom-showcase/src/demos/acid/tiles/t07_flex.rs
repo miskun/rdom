@@ -68,4 +68,6 @@ pub const TILE: Tile = Tile {
 .acid-t7 .f9::after { content: "A"; }
 "#,
     late_css: "",
+    setup: None,
+    script: None,
 };

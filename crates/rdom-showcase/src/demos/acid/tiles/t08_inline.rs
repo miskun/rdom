@@ -92,4 +92,6 @@ ab&#9;c</div><div class=\"tt\"><span class=\"up\">ab</span> <span class=\"cap\">
 .acid-t8 .ov { text-decoration: overline; }
 "#,
     late_css: "",
+    setup: None,
+    script: None,
 };

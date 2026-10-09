@@ -53,4 +53,6 @@ pub const TILE: Tile = Tile {
 .acid-t1 .c-implate { color: rgb(192, 0, 0); }
 .acid-t1 .c-spec { color: rgb(192, 0, 0); }
 "#,
+    setup: None,
+    script: None,
 };

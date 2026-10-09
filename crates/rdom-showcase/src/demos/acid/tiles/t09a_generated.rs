@@ -90,4 +90,6 @@ pub const TILE: Tile = Tile {
 .acid-t9a details::details-content { color: rgb(0, 160, 0); }
 "#,
     late_css: "",
+    setup: None,
+    script: None,
 };

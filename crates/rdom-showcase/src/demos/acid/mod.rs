@@ -16,7 +16,10 @@
 //! pane, not the terminal, is the viewport — a tile that reads the
 //! viewport (`position: fixed`, the viewport units, `@media`) is right only
 //! on its own page at 120 × 50: `cargo run -p rdom-showcase --example acid
-//! -- <page>` runs one page full screen.
+//! -- <page>` runs one page full screen. The showcase entry runs no
+//! [`Tile::script`] (a page's load handler, which the tests and the example
+//! run after the first frame), so a scripted tile shows its initial state
+//! there.
 //!
 //! ## Sheets
 //!
@@ -122,6 +125,7 @@ pub fn build_page(dom: &mut TuiDom, page: u8) -> NodeId {
     let host = dom.create_element("div");
     dom.set_attribute(host, "class", "acid").unwrap();
     parse_into(dom, &page_markup(page), host).expect("acid page parses");
+    run_setups(dom, host, tiles_on(page));
     host
 }
 
@@ -130,7 +134,35 @@ pub fn build(dom: &mut TuiDom) -> NodeId {
     let host = dom.create_element("div");
     dom.set_attribute(host, "class", "acid").unwrap();
     parse_into(dom, &MARKUP, host).expect("acid pages parse");
+    run_setups(dom, host, TILES.iter().copied());
     host
+}
+
+/// Run each tile's [`Tile::setup`] on its box under `host`.
+fn run_setups<'a>(dom: &mut TuiDom, host: NodeId, tiles: impl Iterator<Item = &'a Tile>) {
+    for t in tiles {
+        if let Some(setup) = t.setup {
+            setup(dom, tile_box(dom, host, t));
+        }
+    }
+}
+
+/// Run the [`Tile::script`] of every tile on `page`, built under the
+/// document's root — after the page's first frame.
+pub fn run_scripts(dom: &mut TuiDom, page: u8) {
+    let root = dom.root();
+    for t in tiles_on(page) {
+        if let Some(script) = t.script {
+            script(dom, tile_box(dom, root, t));
+        }
+    }
+}
+
+/// The box of tile `t` under `host`.
+fn tile_box(dom: &TuiDom, host: NodeId, t: &Tile) -> NodeId {
+    dom.query_selector_in(host, &format!(".{}", t.class))
+        .expect("a valid class selector")
+        .expect("the tile's box is on its page")
 }
 
 /// The main sheet ([`css`]), with the UA defaults.
@@ -153,6 +185,14 @@ pub fn run_standalone(page: u8) -> io::Result<()> {
     dom.append_child(root, page_root).unwrap();
     let mut app = App::new(dom, stylesheet())?;
     app.push_stylesheet(late_stylesheet());
+    // The scripts need the first frame's layout: queue them for the
+    // loop's second iteration, after it has drawn the page once.
+    let handle = app.handle();
+    let next = handle.clone();
+    handle.inject(move |_| {
+        next.inject(move |ctx| run_scripts(ctx.dom, page));
+        next.request_redraw();
+    });
     app.run()
 }
 

@@ -45,4 +45,6 @@ pub const TILE: Tile = Tile {
 .acid-t6 .fcol { display: flex; flex-direction: column; }
 "#,
     late_css: "",
+    setup: None,
+    script: None,
 };

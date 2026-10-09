@@ -39,4 +39,6 @@ pub const TILE: Tile = Tile {
 .acid-t2 a.k8.k8 { color: rgb(192, 0, 0); }
 "#,
     late_css: "",
+    setup: None,
+    script: None,
 };
