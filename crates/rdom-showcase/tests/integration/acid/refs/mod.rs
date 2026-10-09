@@ -27,6 +27,11 @@ pub mod t16_display;
 pub mod t17_selection;
 pub mod t18_grid;
 pub mod t19_floats;
+pub mod t20_media;
+pub mod t21_supports;
+pub mod t22_container;
+pub mod t23_transforms;
+pub mod t24_effects;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -53,4 +58,9 @@ pub const ALL: &[&Reference] = &[
     &t17_selection::REF,
     &t18_grid::REF,
     &t19_floats::REF,
+    &t20_media::REF,
+    &t21_supports::REF,
+    &t22_container::REF,
+    &t23_transforms::REF,
+    &t24_effects::REF,
 ];

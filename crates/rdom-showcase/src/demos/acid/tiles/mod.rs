@@ -25,6 +25,11 @@ mod t16_display;
 mod t17_selection;
 mod t18_grid;
 mod t19_floats;
+mod t20_media;
+mod t21_supports;
+mod t22_container;
+mod t23_transforms;
+mod t24_effects;
 
 /// Every tile, in `ACID.md` order.
 pub const TILES: &[&Tile] = &[
@@ -51,4 +56,13 @@ pub const TILES: &[&Tile] = &[
     &t17_selection::TILE,
     &t18_grid::TILE,
     &t19_floats::TILE,
+    &t20_media::TILE,
+    &t21_supports::TILE,
+    &t22_container::TILE,
+    &t23_transforms::TILE,
+    &t24_effects::TILE,
 ];
+
+/// The sheets the tiles' `<style>` elements `@import`, by URL — what the
+/// page's import loader ([`super::import_loader`]) serves.
+pub const IMPORTS: &[&[(&str, &str)]] = &[t20_media::IMPORT, t21_supports::IMPORT];

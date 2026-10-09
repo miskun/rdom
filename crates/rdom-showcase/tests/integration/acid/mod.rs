@@ -254,3 +254,28 @@ fn tile_18_grid() {
 fn tile_19_floats() {
     assert_tile(&refs::t19_floats::REF);
 }
+
+#[test]
+fn tile_20_media() {
+    assert_tile(&refs::t20_media::REF);
+}
+
+#[test]
+fn tile_21_supports() {
+    assert_tile(&refs::t21_supports::REF);
+}
+
+#[test]
+fn tile_22_container() {
+    assert_tile(&refs::t22_container::REF);
+}
+
+#[test]
+fn tile_23_transforms() {
+    assert_tile(&refs::t23_transforms::REF);
+}
+
+#[test]
+fn tile_24_effects() {
+    assert_tile(&refs::t24_effects::REF);
+}

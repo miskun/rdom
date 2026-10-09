@@ -28,7 +28,8 @@
 //! it, for the cascade-order contests. The showcase entry has one sheet
 //! slot, so there the late rules follow the main ones in a single sheet
 //! (the same cascade order: a later sheet and later rules in one sheet
-//! win the same contests).
+//! win the same contests). A `<style>` element in a tile's markup is a
+//! live document sheet; its `@import`s load through [`import_loader`].
 
 use std::io;
 use std::sync::LazyLock;
@@ -165,6 +166,22 @@ fn tile_box(dom: &TuiDom, host: NodeId, t: &Tile) -> NodeId {
         .expect("the tile's box is on its page")
 }
 
+/// The page's `@import` loader: the sheets the tiles' `<style>` elements
+/// import ([`tiles::IMPORTS`]), by URL, as a host's loader would serve
+/// files. The tests and the example build their `App` with it
+/// (`App::with_import_loader`); the showcase entry has none, so there the
+/// imports load nothing.
+pub fn import_loader() -> impl rdom_css::ImportLoader + 'static {
+    |url: &str| {
+        tiles::IMPORTS
+            .iter()
+            .flat_map(|sheets| sheets.iter())
+            .find(|(u, _)| *u == url)
+            .map(|(_, text)| (*text).to_string())
+            .ok_or_else(|| format!("no acid sheet {url}"))
+    }
+}
+
 /// The main sheet ([`css`]), with the UA defaults.
 pub fn stylesheet() -> Stylesheet {
     rdom_css::from_css(css())
@@ -183,7 +200,7 @@ pub fn run_standalone(page: u8) -> io::Result<()> {
     let root = dom.root();
     let page_root = build_page(&mut dom, page);
     dom.append_child(root, page_root).unwrap();
-    let mut app = App::new(dom, stylesheet())?;
+    let mut app = App::new(dom, stylesheet())?.with_import_loader(import_loader());
     app.push_stylesheet(late_stylesheet());
     // The scripts need the first frame's layout: queue them for the
     // loop's second iteration, after it has drawn the page once.

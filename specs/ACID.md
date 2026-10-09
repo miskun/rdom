@@ -58,6 +58,9 @@ Decided while building the harness (ACID-HARNESS, 2026-10-09):
   foreground, weight or slant, so those are compared on a blank only when it carries a line
   decoration. Each reference file (`tests/integration/acid/refs/`) carries its spec citations and
   the derivation of its cells.
+- **Imports.** A tile's `<style>` element may `@import` a sheet the tile declares (`IMPORT`, gathered in
+  `tiles::IMPORTS`); the page's loader (`acid::import_loader`) serves them by URL, as a host's loader serves files —
+  the tests and the example build their `App` with it, the showcase entry has none (decided with tiles 20–21).
 - **Hooks.** A tile's `setup` runs on its box when the page is built — what markup cannot say, as a
   page's script would: tile 9c registers a custom highlight from Rust. Its `script` runs after the
   page's first frame, and the page is drawn again — a load handler, for what needs layout: tile 13's

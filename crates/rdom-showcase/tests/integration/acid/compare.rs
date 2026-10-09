@@ -31,7 +31,8 @@ pub fn paint_page(page: u8) -> VirtualScreen {
     let terminal = Terminal::new(backend).unwrap();
     let mut app = App::with_backend(dom, acid::stylesheet(), terminal)
         .unwrap()
-        .with_sgr_capabilities(SgrCapabilities::EXTENDED);
+        .with_sgr_capabilities(SgrCapabilities::EXTENDED)
+        .with_import_loader(acid::import_loader());
     app.push_stylesheet(acid::late_stylesheet());
     app.advance(0).unwrap();
     // The tiles' load scripts, then the frame they change.

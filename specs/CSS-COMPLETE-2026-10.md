@@ -298,7 +298,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-8 | A disabled `<fieldset>` does not grey its legend and text; the UA's muted look is the disabled controls' (found by tile 15a) | done |
 | ACID-FIX-9 | A layer composited at full opacity keeps its cells' colours, the terminal's default ones included (found by tile 24) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
-| ACID-TILES-B | Static tiles 14–26 | partial — tiles 14–19 done; 20–26 next |
+| ACID-TILES-B | Static tiles 14–26 | partial — tiles 14–24 done; 25–26 next |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
 | ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
 
@@ -10794,3 +10794,24 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   resolved to definite colours for the blend. Red: `css_phase15::clip_path::a_full_opacity_layer_keeps_the_terminals_
   default_colours` (a clipped and an isolated group's text read `Rgb(255, 255, 255)`); green after, the rest of rdom-tui
   unchanged. Silent change `sc-layer-default-colours`.
+- 2026-10-10 — ACID-TILES-B, tiles 20–24 (page 6). Tile 20, media queries (Media Queries 4 / 5): one word per query —
+  ranges, `min-` / `max-`, `and` / `or` / a comma list / `not` / `only`, `print`, an unknown feature and its `not`
+  (both false), `600px` (75 columns) and its `not`, `(grid) and (max-width: 15em)`, an `ex` value (unknown),
+  `prefers-color-scheme` with `light-dark()` and the `:root` variable pattern (in a `<style>` element: the showcase
+  test keeps demo sheets class-scoped), `hover` / `pointer` / `grid` / `color`, `@media` in `@layer` and nested, a
+  `<style media>` sheet, an `@import` with a media list. Tile 21, feature queries (Conditional 3–5): declarations,
+  a pixel value, `not` / `and` / `or`, `selector()`, `font-tech()` / `font-format()`, `<general-enclosed>` and its
+  `not`, nested and in `@media`, `@import … supports()` true and false. Both tiles' `@import`s load through the acid
+  page's new import loader (`acid::import_loader`, the tiles' `IMPORT` sheets; `ACID.md` "How it is built"). Tile 22,
+  container queries and containment (Conditional 5 §6, Containment 2): a card in a 20- and a 36-cell container with
+  `cqw` bars, a named container past an unnamed one, `size` against `inline-size` for `height`, `cqmin`, `style()`,
+  `contain: paint` / `layout` / `style`, `content-visibility: hidden`, `will-change: opacity`. Tile 23, transforms
+  (Transforms 1 / 2): `translate: -50%` off the tile's edge and over a sibling, a `transform` list with an inert
+  `rotate`, 2.5 and 1.5 rounding to 2, `transform-box: content-box`, `scale(1)` as a stacking context, a `fixed`
+  badge in a transformed card, a translated child giving its scroller a bar. Tile 24, filters, blending and clipping
+  (Filter Effects 1 / 2, Compositing 1, Masking 1): five filter matrices, `opacity()` against `opacity`, a
+  `drop-shadow()`, an inert `mask`, `multiply` / `difference` / `luminosity` and two isolated groups, a
+  `backdrop-filter` strip, `inset() round`, `circle()`, `polygon()`. Tile 24 found ACID-FIX-9. References changed with
+  their arguments: tile 22's card parts are blocks (two inline `<b>`s share a line — the markup, not the reference,
+  had to say "block"); tile 24's rows (a drop shadow takes no layout room) and the mask box's column (x 39). Tiles 20,
+  21 and 23 matched at first run.
