@@ -299,6 +299,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-9 | A layer composited at full opacity keeps its cells' colours, the terminal's default ones included (found by tile 24) | done |
 | ACID-FIX-10 | An inline block's horizontal margins take their cells in its line (CSS 2.1 §10.3.9; found by tile 25) | done |
 | ACID-FIX-11 | An inline element anchors by the bounding box of its fragments (CSS Anchor Positioning 1 §2; found by tile 26) | done |
+| ACID-FIX-12 | A heavy border meeting a double one draws the corner in the dominant side's set (DIVERGENCES §1; found by tile 27) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | partial — the dispatch tables are public; the coverage tiles and the test next |
@@ -10871,3 +10872,11 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `at_rules::tests::every_listed_at_rule_is_evaluated` (each failed to compile before its function existed). No
   behaviour change: rdom-core, rdom-style and rdom-css pass unchanged. A first run of the coverage test (kept back until
   the tiles it asks for land) finds 238 properties, 13 pseudo-classes, 3 pseudo-elements and 4 at-rules unused.
+- 2026-10-10 — ACID-FIX-12 (found by acid tile 27; DIVERGENCES §1 "A border corner takes one side's color"). Tile 27's
+  box with a `double` block-end and a `thick dashed` inline-end side drew their corner `┚` (up heavy, left light): Unicode
+  has no glyph where a heavy line meets a double one, and DIVERGENCES has the dominant side's set draw the whole cell,
+  but the joiner's fallback (`border_join::join_borders`) picked a single-line glyph by each arm's own weight, so the
+  double side's arm went in as a light line. Root cause in that fallback: it now draws every visible arm at the dominant
+  contribution's weight (`line_weights`, its only caller gone, is removed). Red:
+  `css_phase4_gates::a_heavy_side_meeting_a_double_one_draws_the_corner_in_its_set` (`╘═══┚` for `╘═══┛`); green after,
+  the rest of rdom-tui unchanged. Silent change `sc-heavy-double-corner`.

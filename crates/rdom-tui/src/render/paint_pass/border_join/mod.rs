@@ -161,13 +161,20 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
             }
             // A straight run of a dashed / dotted line draws Unicode's
             // dash glyphs; its corners and junctions stay solid.
+            // Where Unicode has no glyph for the lines meeting — heavy
+            // with double, or double and single on one axis — the dominant
+            // side's set draws the whole cell (DIVERGENCES §1; ACID-FIX-12).
             let replacement = dash_glyph(lines, dominant.style)
                 .or_else(|| junction_glyph(lines))
                 .unwrap_or_else(|| {
                     if dominant.style == BorderStyle::Double {
                         DOUBLE_TABLE[mask as usize]
                     } else {
-                        line_glyph(line_weights(&cell_state))
+                        let weight = match dominant.weight {
+                            BorderWeight::Light => 1,
+                            BorderWeight::Heavy => 2,
+                        };
+                        line_glyph(lines.map(|l| if l == Line::None { 0 } else { weight }))
                     }
                 });
             if replacement.is_empty() {
@@ -243,18 +250,6 @@ fn is_lone_contributor(cell_state: &[BorderDirState; 4], priority: u64) -> bool 
         }
     }
     true
-}
-
-/// Each direction's line weight, N, E, S, W: `0` not visible, `1`
-/// light, `2` heavy (its winner's `border-width`).
-fn line_weights(cell_state: &[BorderDirState; 4]) -> [u8; 4] {
-    cell_state.map(|d| match d.winner {
-        Some(c) if d.is_visible() => match c.weight {
-            BorderWeight::Light => 1,
-            BorderWeight::Heavy => 2,
-        },
-        _ => 0,
-    })
 }
 
 /// The line each direction carries, N, E, S, W: none, a double line

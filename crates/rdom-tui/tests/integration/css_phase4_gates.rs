@@ -188,3 +188,16 @@ fn a_dashed_side_ends_in_a_dash_where_no_side_meets_it() {
     let buf = bordered(".b { width: 5; height: 3; border-top: thick dashed }");
     assert_eq!(rows(&buf, 5, 3), ["╍╍╍╍╍", "     ", "     "]);
 }
+
+/// ACID-FIX-12 (found by acid tile 27). DIVERGENCES §1: Unicode has no
+/// glyph where a heavy line meets a double one, so the corner's dominant
+/// side — the wider, here the `thick` one — draws the whole cell in its
+/// set: a heavy corner `┛`, not the light-and-heavy `┚` that drew the
+/// double side as a thin single line.
+#[test]
+fn a_heavy_side_meeting_a_double_one_draws_the_corner_in_its_set() {
+    let buf = bordered(
+        ".b { width: 5; height: 3; border-right: thick solid; border-bottom: double; border-left: solid }",
+    );
+    assert_eq!(rows(&buf, 5, 3), ["│   ┃", "│   ┃", "╘═══┛"]);
+}
