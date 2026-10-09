@@ -24,6 +24,7 @@ use crate::layout::{
 };
 use crate::{Content, TuiColor, Value};
 
+pub use effects::EffectsDeclarations;
 pub use important::ImportantMask;
 pub use table::TableDeclarations;
 pub use text::{FontDeclarations, TextDeclarations, TextDecorationDeclarations};
@@ -273,6 +274,9 @@ pub struct TuiStyle {
     pub text: TextDeclarations,
     /// The CSS UI 4 properties (`outline-*`, …).
     pub ui: UiDeclarations,
+    /// The transform, filter and compositing properties (`translate`,
+    /// `transform`, …).
+    pub effects: EffectsDeclarations,
     /// The table properties (`table-layout`, `caption-side`).
     pub table: TableDeclarations,
     /// `vertical-align` (CSS 2.1 §10.8.1).
@@ -487,6 +491,7 @@ impl TuiStyle {
 }
 
 mod builder;
+mod effects;
 mod important;
 mod subsets;
 mod table;

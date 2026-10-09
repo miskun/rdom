@@ -186,6 +186,12 @@ const PERTURB: &[(&str, &str)] = &[
     ("table-layout", "fixed"),
     ("caption-side", "bottom"),
     ("empty-cells", "hide"),
+    ("translate", "1 2"),
+    ("rotate", "10deg"),
+    ("scale", "2"),
+    ("transform", "translateX(1) rotate(5deg)"),
+    ("transform-origin", "left top"),
+    ("transform-box", "content-box"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly
@@ -306,6 +312,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         text,
         font,
         ui,
+        effects,
         table,
         vertical_align,
         text_decoration,
@@ -458,6 +465,7 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         text,
         font,
         ui,
+        effects,
         table,
         vertical_align,
         text_decoration,

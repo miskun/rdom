@@ -1139,9 +1139,9 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
 ### Porting web patterns that do not carry over
 
-A terminal has no fonts, no pixels and no `transform` yet (Phase 15), so three common browser patterns need a terminal form.
+A terminal has no fonts and no pixels, and a `transform` only moves a box by whole cells (it cannot scale or rotate one), so three common browser patterns need a terminal form.
 
-**A scroll-progress bar.** The web's `.progress { position: fixed; animation: grow linear; animation-timeline: scroll(root) }` scales the bar with `transform: scaleX()` and follows the viewport's scroller; rdom has no viewport scrolling (`scroll(root)` follows the root element, an element root only when it is a scroll container, and the root fragment never scrolls) and no `transform`. Name the scroller's timeline, hoist it with `timeline-scope` to an ancestor the bar shares, and animate `width`:
+**A scroll-progress bar.** The web's `.progress { position: fixed; animation: grow linear; animation-timeline: scroll(root) }` scales the bar with `transform: scaleX()` and follows the viewport's scroller; rdom has no viewport scrolling (`scroll(root)` follows the root element, an element root only when it is a scroll container, and the root fragment never scrolls) and `scaleX()` draws nothing. Name the scroller's timeline, hoist it with `timeline-scope` to an ancestor the bar shares, and animate `width`:
 
 ```rust
 use rdom_tui::prelude::*;

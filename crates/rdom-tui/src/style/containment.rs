@@ -126,21 +126,26 @@ const CONTAINING: &[&str] = &[
 
 /// Whether the element `c` establishes a stacking context through
 /// containment: layout or paint containment (§3.2, §3.4), or a
-/// `will-change` naming such a property.
+/// `will-change` naming such a property — or through what such a property
+/// itself does (a transform, CSS Transforms 1 §2; `style::effects`).
 pub(crate) fn makes_stacking_context(c: &ComputedStyle) -> bool {
-    c.display != Display::Contents
-        && (layout(c) || paint(c) || STACKING.iter().any(|p| c.will_change.has(p)))
+    (c.display != Display::Contents
+        && (layout(c) || paint(c) || STACKING.iter().any(|p| c.will_change.has(p))))
+        || super::effects::makes_stacking_context(c)
 }
 
 /// Whether the element `c` is the containing block of its absolutely
 /// positioned descendants — of its `fixed` ones too when `fixed` — beyond
 /// what its `position` says: layout or paint containment (§3.2, §3.4),
 /// or a `will-change` naming a property that would make it one (`position`
-/// for the absolute ones only: a non-static `position` contains those).
+/// for the absolute ones only: a non-static `position` contains those),
+/// or what such a property itself does (a transform, CSS Transforms 1 §2;
+/// `style::effects`).
 pub(crate) fn contains_positioned(c: &ComputedStyle, fixed: bool) -> bool {
-    c.display != Display::Contents
+    (c.display != Display::Contents
         && (layout(c)
             || paint(c)
             || CONTAINING.iter().any(|p| c.will_change.has(p))
-            || (!fixed && c.will_change.has("position")))
+            || (!fixed && c.will_change.has("position"))))
+        || super::effects::contains_positioned(c)
 }

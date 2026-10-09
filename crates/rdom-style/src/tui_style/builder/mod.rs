@@ -77,6 +77,7 @@ macro_rules! side_setter {
 }
 
 mod decoration;
+mod effects;
 mod flex;
 mod font;
 mod grid;

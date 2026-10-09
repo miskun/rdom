@@ -24,6 +24,7 @@ mod table;
 #[cfg(test)]
 mod tests;
 mod text;
+mod transform;
 mod value;
 
 pub use value::{lerp_color, lerp_visibility};
@@ -203,7 +204,26 @@ impl Longhand {
                 | "outline-offset"
                 // §4.1: the pointer's shape.
                 | "cursor"
+                // CSS Transforms 1 §6: the origin of what a grid does not
+                // draw (rotation, scaling).
+                | "transform-origin"
         )
+    }
+
+    /// Whether the change `a` → `b` of it can move a box: it
+    /// [affects layout](Self::affects_layout) and its values differ — a
+    /// transform's only in what a cell grid draws of it (CSS Transforms 1
+    /// §2, Transforms 2 §6): its translation, and whether the box is
+    /// transformed at all (a stacking context and a containing block). A
+    /// spinner's turning `rotate()` moves nothing.
+    pub fn moves_boxes(self, a: &ComputedStyle, b: &ComputedStyle) -> bool {
+        if !self.affects_layout() {
+            return false;
+        }
+        match self.name() {
+            "translate" | "rotate" | "scale" | "transform" => a.effects.transform_moves(&b.effects),
+            _ => self.differs(a, b),
+        }
     }
 
     /// Write `underlying + value` into `out` (Web Animations 1 §5.4.4:

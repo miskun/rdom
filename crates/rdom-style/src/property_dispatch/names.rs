@@ -116,6 +116,13 @@ const PROPERTY_NAMES: &[&str] = &[
     "contain",
     "content-visibility",
     "will-change",
+    // CSS Transforms 1 / 2
+    "translate",
+    "rotate",
+    "scale",
+    "transform",
+    "transform-origin",
+    "transform-box",
     "container",
     "container-name",
     "container-type",

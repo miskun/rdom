@@ -29,6 +29,8 @@
 //! - `text_align` — the CSS Text values of transform, indent and alignment
 //! - `spacing` — `letter-spacing` / `word-spacing` (`Spacing`)
 //! - `text` — `TextStyle`, the computed CSS Text group
+//! - `transform` — the CSS Transforms values and `EffectsStyle`, the computed
+//!   transform, filter and compositing group
 
 pub(crate) mod alignment;
 mod aspect_ratio;
@@ -60,6 +62,7 @@ mod table;
 mod text;
 mod text_align;
 mod text_decoration;
+mod transform;
 mod ui;
 mod vertical_align;
 mod white_space;
@@ -120,6 +123,10 @@ pub use text_decoration::{
     AppliedDecorations, AppliedLine, TextDecorationLine, TextDecorationSkipInk,
     TextDecorationStyle, TextDecorationThickness, TextDecorations, TextUnderlineOffset,
     TextUnderlinePosition,
+};
+pub use transform::{
+    EffectsStyle, Rotate, Scale, TransformBox, TransformFunction, TransformList, TransformOrigin,
+    Translate, TranslateFunction,
 };
 pub use ui::{
     AccentColor, Appearance, CaretAnimation, CaretShape, Cursor, CursorImage, CursorKeyword,

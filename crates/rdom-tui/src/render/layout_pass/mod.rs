@@ -471,8 +471,15 @@ pub(super) fn layout_node(
     if let Some(ext) = dom.node_mut(id).ext_mut() {
         crate::runtime::scrollbar::state::note_laid_out(ext);
     }
-    if relative != (0, 0) {
-        tree::shift_box(dom, id, relative.0, relative.1);
+    // CSS Transforms 1 §3: a transform's translation moves the laid-out
+    // box and its subtree as the relative offset does — after layout, its
+    // percentages against the box as laid out (`style::effects`).
+    let translation = dom.node(id).ext().map_or((0, 0), |e| {
+        crate::style::effects::translation(&computed, e.layout, e.content_layout)
+    });
+    let (dx, dy) = (relative.0 + translation.0, relative.1 + translation.1);
+    if (dx, dy) != (0, 0) {
+        tree::shift_box(dom, id, dx, dy);
     }
 }
 

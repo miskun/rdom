@@ -163,6 +163,15 @@ const SPEC: &[(&str, Spec)] = &[
     // CSS Containment 2 §2, CSS Will Change 1 §2
     ("contain", L(N)),
     ("will-change", L(N)),
+    // CSS Transforms 2 §6.1–§6.3 ("by computed value"; `transform`: "as
+    // transform list", which interpolates by computed value), Transforms 1
+    // §6–§7
+    ("translate", L(V)),
+    ("rotate", L(V)),
+    ("scale", L(V)),
+    ("transform", L(V)),
+    ("transform-origin", L(V)),
+    ("transform-box", L(D)),
     ("content-visibility", L(D)),
     // CSS Conditional 5 §6.1–§6.3
     ("container", S),

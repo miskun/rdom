@@ -243,6 +243,22 @@ const SAMPLES: &[(&str, &str, &str, Mid)] = &[
     ("line-height", "2", "4", Is("3")),
     ("vertical-align", "2ch", "4ch", Is("3ch")),
     ("view-timeline-inset", "2 auto", "4 auto", Is("3 auto")),
+    ("translate", "2 4", "4 8", Is("3 6")),
+    ("rotate", "10deg", "30deg", Is("20deg")),
+    ("scale", "1", "3", Is("2")),
+    (
+        "transform",
+        "translateX(2)",
+        "translateX(4)",
+        Is("translateX(3)"),
+    ),
+    (
+        "transform-origin",
+        "left top",
+        "right bottom",
+        Is("50% 50%"),
+    ),
+    ("transform-box", "border-box", "content-box", Flips),
 ];
 
 /// `#t`'s computed style under `name: value`.

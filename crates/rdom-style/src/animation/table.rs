@@ -215,6 +215,17 @@ pub(super) static LONGHANDS: &[Entry] = &[
     // CSS Containment 2 §2, CSS Will Change 1 §2: not animatable.
     e("contain", NotAnimatable, None),
     e("will-change", NotAnimatable, None),
+    // CSS Transforms 2 §6.1–§6.3, §12; Transforms 1 §5–§7
+    e("translate", ByComputedValue, value!(effects.translate)),
+    e("rotate", ByComputedValue, value!(effects.rotate)),
+    e("scale", ByComputedValue, value!(effects.scale)),
+    e("transform", ByComputedValue, value!(effects.transform)),
+    e(
+        "transform-origin",
+        ByComputedValue,
+        value!(effects.transform_origin),
+    ),
+    e("transform-box", Discrete, steps!(effects.transform_box)),
     // §4: discrete, `hidden` shown only at its end.
     e("content-visibility", Discrete, CONTENT_VISIBILITY),
     // CSS Conditional 5 §6.1–§6.2: not animatable.

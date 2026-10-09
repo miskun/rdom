@@ -30,6 +30,8 @@
 //! - `inline.rs` — CSS Inline 3: `line-height`, `vertical-align`.
 //! - `text_decoration.rs` — `text-decoration` and its longhands, the
 //!   underline placement properties.
+//! - `transform.rs` — CSS Transforms 1 / 2: `translate`, `transform`,
+//!   `rotate`, `scale`, `transform-origin`, `transform-box`.
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
 //! - `animation.rs` — the `animation-*` lists and the `animation` shorthand.
 //! - `calc.rs` — the `calc()` expression parser.
@@ -79,6 +81,7 @@ mod table;
 mod text;
 mod text_decoration;
 mod timeline;
+mod transform;
 mod transition;
 
 pub use align::{
@@ -198,6 +201,10 @@ pub(crate) use timeline::{
     parse_animation_range, parse_range_end_list, parse_range_start_list, parse_scroll_timeline,
     parse_timeline_axis_list, parse_timeline_inset_list, parse_timeline_name_list,
     parse_timeline_scope, parse_view_timeline,
+};
+pub use transform::{
+    parse_rotate, parse_scale, parse_transform, parse_transform_box, parse_transform_origin,
+    parse_translate,
 };
 pub use transition::{
     TransitionShorthandRule, parse_duration_list, parse_signed_time_ms, parse_time_list,

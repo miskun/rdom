@@ -204,6 +204,22 @@ impl ComputedStyle {
         for list in [&mut self.grid_auto_columns, &mut self.grid_auto_rows] {
             absolutize_list(list, vp);
         }
+        // CSS Transforms 2 §6.1: the translations' offsets (a percentage of
+        // the reference box stays for layout).
+        if let Some(t) = &mut self.effects.translate {
+            absolutize_translate(t, vp);
+        }
+        absolutize_transform(&mut self.effects.transform, vp);
+        // Transforms 1 §6: the origin's lengths (inert, kept absolute).
+        let origin = &self.effects.transform_origin;
+        if origin.needs_context() {
+            let mut lengths = [origin.x(), origin.y(), origin.z()];
+            for l in &mut lengths {
+                absolutize(l, vp, PaintLength::Calc, |v| PaintLength::Cells(v as f32));
+            }
+            let [x, y, z] = lengths;
+            self.effects.transform_origin = crate::layout::TransformOrigin::new(x, y, z);
+        }
         for inset in [
             &mut self.top,
             &mut self.right,
@@ -302,6 +318,33 @@ fn absolutize_template(template: &mut crate::layout::GridTemplate, vp: &Reading<
         TrackListItem::Repeat(r) => r.sizes.iter_mut(),
     });
     absolutize_sizes(sizes, vp);
+}
+
+/// A translation's x and y offsets.
+fn absolutize_translate(t: &mut crate::layout::Translate, vp: &Reading<'_>) {
+    for offset in [&mut t.x, &mut t.y] {
+        absolutize(offset, vp, Length::Calc, |v| Length::Cells(cells_i32(v)));
+    }
+}
+
+/// The translate functions of a `transform` list, the list rebuilt only
+/// when one holds a math expression.
+fn absolutize_transform(list: &mut crate::layout::TransformList, vp: &Reading<'_>) {
+    use crate::layout::{TransformFunction, TransformList};
+    let calc = |l: &Length| matches!(l, Length::Calc(_));
+    let has_calc = list.functions().iter().any(|f| {
+        matches!(f, TransformFunction::Translate { offset, .. } if calc(&offset.x) || calc(&offset.y))
+    });
+    if !has_calc {
+        return;
+    }
+    let mut functions = list.functions().to_vec();
+    for f in &mut functions {
+        if let TransformFunction::Translate { offset, .. } = f {
+            absolutize_translate(offset, vp);
+        }
+    }
+    *list = TransformList::new(functions);
 }
 
 /// [`absolutize_sizes`] for a `grid-auto-*` list, made owned only when it

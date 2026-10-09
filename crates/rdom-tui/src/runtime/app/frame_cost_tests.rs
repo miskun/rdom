@@ -62,9 +62,10 @@ fn layout_follows_a_changed_value_not_an_animated_longhand() {
     assert_eq!(s.layouts, 2, "{s:?}");
 }
 
-/// An animation of a property rdom does not render — `transform` until
-/// Phase 15, an unknown name — has an empty effect: it asks for no
-/// frames, and its events still fire on schedule (CSS Animations 2 §4.2).
+/// An animation of a property rdom does not render — an unknown name
+/// (`zoom`) — has an empty effect: it asks for no frames, and its events
+/// still fire on schedule (CSS Animations 2 §4.2). (`transform` was such a
+/// name until C15-TRANSLATE gave it an effect.)
 #[test]
 fn an_animation_of_nothing_rendered_needs_no_frames_but_fires_its_events() {
     let mut dom: TuiDom = TuiDom::new();
@@ -73,7 +74,7 @@ fn an_animation_of_nothing_rendered_needs_no_frames_but_fires_its_events() {
     dom.set_attribute(div, "id", "a").unwrap();
     dom.append_child(root, div).unwrap();
     let sheet = rdom_css::parse(
-        "@keyframes spin { to { transform: rotate(1turn) } } \
+        "@keyframes spin { to { zoom: 2 } } \
          #a { animation: spin 100ms linear 3 }",
     );
     let terminal = Terminal::new(TestBackend::new(20, 4)).unwrap();
@@ -114,6 +115,39 @@ fn an_animation_of_nothing_rendered_needs_no_frames_but_fires_its_events() {
             ("animationend".to_string(), 300),
         ]
     );
+}
+
+/// CSS Transforms 2 §6.1 (C15-TRANSLATE): a `translate` moves the box, so
+/// its animation asks for frames — it is no empty effect — and lays out on
+/// the frames whose whole-cell offset changed: 0 → 4 cells over a second,
+/// four layouts.
+#[test]
+fn a_translate_animation_asks_for_frames_and_lays_out_when_its_cell_moves() {
+    let (mut app, _) = animated(
+        "@keyframes slide { from { translate: 0 } to { translate: 4 } } \
+         #a { animation: slide 1008ms linear forwards }",
+    );
+    assert!(needs_frames(&app), "a translate animation asks for frames");
+    app.take_frame_stats();
+    run(&mut app, 1008);
+    let s = app.take_frame_stats();
+    assert!(s.paints >= 60, "{s:?}");
+    assert_eq!(s.layouts, 4, "{s:?}");
+}
+
+/// A rotation moves no cell (Transforms 1 §5: rdom draws no rotation): a
+/// spinner's `transform: rotate()` frames composite, and its value-aware
+/// layout test finds nothing layout reads changed — no layout at all.
+#[test]
+fn a_rotation_lays_out_nothing() {
+    let (mut app, _) = animated(
+        "@keyframes spin { to { transform: rotate(1turn) } } \
+         #a { transform: rotate(0deg); animation: spin 1008ms linear infinite }",
+    );
+    app.take_frame_stats();
+    run(&mut app, 1008);
+    let s = app.take_frame_stats();
+    assert_eq!(s.layouts, 0, "{s:?}");
 }
 
 /// The transition hook's cost is the cascade's: a class change on one of

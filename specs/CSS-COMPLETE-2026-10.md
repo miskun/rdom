@@ -44,7 +44,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
-| 15 | Transforms, filters, compositing, multi-column, anchor positioning | |
+| 15 | Transforms, filters, compositing, multi-column, anchor positioning | part 1 (transforms, filters, compositing, clipping) in progress 2026-10-09 |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
 
@@ -274,7 +274,7 @@ row comes from.
 
 | Id | Item | Status |
 |---|---|---|
-| C15-TRANSLATE | `translate` and `transform: translate()` (whole-cell offsets; other transforms documented N/A) | |
+| C15-TRANSLATE | `translate` and `transform: translate()` (whole-cell offsets; other transforms documented N/A) | done |
 | C15-FILTER | `filter` color-matrix functions; `backdrop-filter` | |
 | C15-BLEND | `mix-blend-mode`, `isolation` | |
 | C15-CLIP-PATH | `clip-path: inset()` | |
@@ -9711,3 +9711,39 @@ row comes from.
   CONTAINER-FIDELITY, CONTAIN-FIDELITY, CORE-GAPS; batch B — READ-COUNTERS, SHEET-CLONES, COST-PINS,
   API-NAMING, UPGRADE, DOCS). Accepted and recorded: TECH_DEBT `CONTAINER-TRANSITION-1` (two style change
   events in a container-flip frame). Their re-review rides with the Phase 15 gate.
+- 2026-10-09 — C15-TRANSLATE (CSS Transforms 1 §2, §3, §5–§7, §12; Transforms 2 §6, §11–§13, §15). The six
+  properties parse in rdom-style (`parse/values/transform.rs`, `property_dispatch/transform.rs`) into a new
+  `effects` group (`EffectsDeclarations` / `EffectsStyle`): `translate` (x / y `<length-percentage>`s in
+  cells, a pixel length rejected — DESIGN's pixel rule, translation is geometry — and an inert z of any
+  length), `transform` (the five translate functions with their spelling kept; `matrix`, `matrix3d`,
+  `scale*`, `rotate*`, `skew*`, `perspective` checked against their grammars and kept as CSS text, inert),
+  `rotate` and `scale` (typed, inert), `transform-origin` (keywords computed to percentages; pixels taken,
+  inert) and `transform-box`. Decisions: (1) the translation is layout's, not paint's — the box is laid out
+  in flow, then it and its subtree move as a relative offset moves them (`layout_node`, one `shift_box` for
+  both), so paint, hit-testing, `layout_rect()` / `bounding_rect()`, focus and caret geometry and the scroll
+  container's scrollable overflow all see the moved box with no per-reader transform, and the siblings,
+  the parent's `auto` height and a flex line do not (§3); the cost is a layout on each frame whose cell
+  offset changes, which C12G-FRAME-COST's value test already bounds. (2) Rounding: the exact sum of
+  `translate` and the list's translate functions against the reference box (`transform-box`: border box,
+  content box for `content-box` / `fill-box`), rounded once, ties to even (`2.5` → 2, `50% + 50%` of 5 →
+  5), clamped to ±65 535 cells. (3) The other functions and `rotate` / `scale` are identities (a
+  translation after a rotation moves unrotated); `scale()` by integers was weighed as cell scaling and kept
+  inert — a glyph cannot be drawn larger, and scaling a box's cells but not its glyphs would distort
+  layout-free paint. A flip (`rotate(180deg)`, `scale(-1)`) reverses no glyph order. All of them, and
+  `translate: 0`, still make a transformable box (not a non-atomic inline, a column or column group) a
+  stacking context and the containing block of its absolute and fixed descendants (§2;
+  `style::effects`, consulted through `containment::makes_stacking_context` / `contains_positioned`, the
+  one answer stacking, placement and the paint clip of positioned boxes share). (4) Interpolation: per
+  component for `translate` (`none` as zero), the angle about one axis for `rotate`, factors for `scale`,
+  function by function for paired lists (`none` as identities); unpaired lists interpolate their summed
+  translations and switch their inert functions at the midpoint (DIVERGENCES). Addition sums, multiplies,
+  concatenates (§15). (5) Frames: `transform` now has an effect, so its animations ask for frames;
+  `Longhand::moves_boxes` (new) makes the frame's layout decision by what a grid draws of a transform —
+  the translation and whether the box is transformed — so a slide-in 0 → 4 cells over a second lays out 4
+  times and a `rotate()` spinner never (with `differs` the spinner test fails). The cascade's `layout_differs`
+  asks the same (`EffectsStyle::transform_moves`). C12G-FRAME-COST's empty-effect test names `zoom` now.
+  Red → green: `transform_tests` (4), `css_phase15::translate` (9), `css_phase15::translate_motion` (2),
+  `frame_cost_tests` (2) — all red first (unknown property / no frames); combined mutation run (no shift,
+  no stacking context, no containing block, inline transformable, `differs` for the layout test, no
+  content box) fails 11 of 13. Changed tests: the empty-effect fixture's `transform: rotate(1turn)` is
+  `zoom: 2`; `longhand_tests` and `apply_tests` gain the six longhands. Silent change `sc-transforms`.

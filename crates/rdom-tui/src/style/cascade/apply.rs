@@ -299,6 +299,13 @@ pub(super) fn apply_style(
         table.table_layout: TABLE_LAYOUT,
         table.caption_side: CAPTION_SIDE,
         table.empty_cells: EMPTY_CELLS,
+        // CSS Transforms 1 §5–§7, Transforms 2 §6; none inherit.
+        effects.translate: TRANSLATE,
+        effects.rotate: ROTATE,
+        effects.scale: SCALE,
+        effects.transform: TRANSFORM,
+        effects.transform_origin: TRANSFORM_ORIGIN,
+        effects.transform_box: TRANSFORM_BOX,
     );
     // Positioning (M2), transitions (M3; latest list wins), animations
     // (CSS Animations 1 §4) and counters

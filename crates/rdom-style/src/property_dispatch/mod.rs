@@ -102,6 +102,7 @@ mod tables;
 mod text;
 mod text_decoration;
 mod timeline;
+mod transform;
 mod ui;
 mod value_serializers;
 
@@ -159,6 +160,8 @@ mod text_decoration_tests;
 mod text_tests;
 #[cfg(test)]
 mod timeline_tests;
+#[cfg(test)]
+mod transform_tests;
 #[cfg(test)]
 mod ui_tests;
 #[cfg(test)]

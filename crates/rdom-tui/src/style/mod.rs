@@ -31,6 +31,7 @@ pub(crate) mod content_visibility;
 pub(crate) mod dir_auto;
 pub mod dirty_tracker;
 pub(crate) mod doc_flags;
+pub(crate) mod effects;
 pub(crate) mod has_triggers;
 pub(crate) mod pseudo_pointer;
 pub(crate) mod selector_walk;
@@ -71,12 +72,13 @@ pub use rdom_style::{
 };
 pub use rdom_style::{
     Color, ColorContext, ColorFunction, ComputedStyle, Content, ContentContext, CounterOp,
-    CounterStyle, CustomDeclaration, CustomValue, FontDeclarations, ImportantMask, LayerId,
-    Modifier, PropertyRegistration, PropertySyntax, PropertySyntaxError, PseudoElementTarget,
-    QuoteKind, QuotePair, Quotes, RegisterPropertyError, Rule, RuleContext, RuleOrigin,
-    Specificity, StyleError, StyleSelector, Stylesheet, TableDeclarations, TextDeclarations,
-    TextDecorationDeclarations, TimingFunction, TransitionProperty, TransitionRule, TuiColor,
-    TuiStyle, UiDeclarations, UserActionState, Value, VarMap, parse_color, resolve_tui_color,
+    CounterStyle, CustomDeclaration, CustomValue, EffectsDeclarations, FontDeclarations,
+    ImportantMask, LayerId, Modifier, PropertyRegistration, PropertySyntax, PropertySyntaxError,
+    PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError, Rule, RuleContext,
+    RuleOrigin, Specificity, StyleError, StyleSelector, Stylesheet, TableDeclarations,
+    TextDeclarations, TextDecorationDeclarations, TimingFunction, TransitionProperty,
+    TransitionRule, TuiColor, TuiStyle, UiDeclarations, UserActionState, Value, VarMap,
+    parse_color, resolve_tui_color,
 };
 /// The declaration-level CSS parsing primitives (`parse::tokenize`,
 /// `parse::Token`, `parse::values::*`), the property dispatch table

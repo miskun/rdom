@@ -409,8 +409,9 @@ impl AnimationRegistry {
     /// cascaded style, then its CSS animations over them (Web Animations
     /// 1 §5.4.5: CSS animations sort above CSS transitions). `true` when
     /// the value of a longhand layout reads — animated now or before —
-    /// changed: the frame lays out (a stepped `visibility` blink only at
-    /// its flips).
+    /// changed what layout reads of it (`Longhand::moves_boxes`): the
+    /// frame lays out (a stepped `visibility` blink only at its flips, a
+    /// turning `rotate()` never).
     fn composite(
         &mut self,
         dom: &mut Dom<TuiExt>,
@@ -465,7 +466,7 @@ impl AnimationRegistry {
             .collect();
         ext.composite(slot, animated, style);
         let layout = match (old.as_deref(), ext.computed_for(slot)) {
-            (Some(old), Some(new)) => moved.iter().any(|l| l.differs(old, new)),
+            (Some(old), Some(new)) => moved.iter().any(|l| l.moves_boxes(old, new)),
             _ => !moved.is_empty(),
         };
         if calc_size {

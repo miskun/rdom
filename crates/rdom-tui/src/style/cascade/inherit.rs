@@ -174,4 +174,7 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.will_change != b.will_change
         || a.contain_intrinsic_width != b.contain_intrinsic_width
         || a.contain_intrinsic_height != b.contain_intrinsic_height
+        // A transform's translation moves the box; any transform makes it
+        // a stacking context and a containing block (CSS Transforms 1 §2).
+        || a.effects.transform_moves(&b.effects)
 }
