@@ -200,3 +200,47 @@ fn default_colors_filter_as_the_canvas() {
     let buf = paint(&mut dom, "#f { filter: invert(1) }", 4, 1);
     assert_eq!(fg(&buf, 0, 0), BLACK);
 }
+
+/// §5: the filter maps the element's image — its descendants' paint
+/// included, through every nested group. A child at `opacity: .9` paints
+/// black on the black page into its own layer; composited into the
+/// filter's layer it changes no cell's color, but it was painted, so
+/// `invert(1)` draws it white (C15G-FILTER-COVERAGE).
+#[test]
+fn a_filter_maps_what_a_nested_group_painted() {
+    let mut dom = doc(r#"<body><div class="f"><i>ab</i></div></body>"#);
+    let buf = paint(
+        &mut dom,
+        "body { background-color: #000; margin: 0 }
+         .f { filter: invert(1) }
+         .f > i { color: #fff; display: block; width: 2; opacity: .9; background-color: #000 }",
+        6,
+        1,
+    );
+    assert_eq!(bg(&buf, 0, 0), WHITE, "the child's black, inverted");
+    // White text at .9 over the black: 230, then inverted.
+    assert_eq!(
+        fg(&buf, 0, 0),
+        Color::Rgb(25, 25, 25),
+        "the child's text, inverted"
+    );
+    assert_eq!(bg(&buf, 4, 0), BLACK, "the page beside it, unpainted");
+}
+
+/// The same through a translucent paint's scratch layer: a half-black
+/// background on the black page blends to black first (DIVERGENCES: a
+/// translucent paint blends before the filter), and that cell is the
+/// element's paint, so it inverts (C15G-FILTER-COVERAGE).
+#[test]
+fn a_filter_maps_what_a_translucent_paint_painted() {
+    let mut dom = doc(r#"<body><div class="f">ab</div></body>"#);
+    let buf = paint(
+        &mut dom,
+        "body { background-color: #000; margin: 0 }
+         .f { width: 2; filter: invert(1); background-color: rgb(0 0 0 / 50%) }",
+        6,
+        1,
+    );
+    assert_eq!(bg(&buf, 0, 0), WHITE);
+    assert_eq!(bg(&buf, 4, 0), BLACK);
+}

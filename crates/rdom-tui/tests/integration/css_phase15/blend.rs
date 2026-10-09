@@ -150,3 +150,25 @@ fn background_blend_mode_is_inert() {
     );
     assert_eq!(bg(&buf, 0, 0), Color::Rgb(1, 2, 3));
 }
+
+/// §3.2: inside an isolated group the backdrop is what the group painted
+/// — a nested group's paint included, even where it composited to the
+/// color already there. A translucent empty black box paints black on the black
+/// page inside `#g`, so `multiply` over it blends to black; with the
+/// nested paint lost, the backdrop was empty and the red stayed
+/// (C15G-FILTER-COVERAGE).
+#[test]
+fn a_blend_sees_a_nested_groups_paint_in_its_isolated_group() {
+    let mut dom = doc(r#"<body><div id="g"><div id="o"></div><div id="b">x</div></div></body>"#);
+    let buf = paint(
+        &mut dom,
+        "body { background-color: #000; margin: 0 }
+         #g { isolation: isolate; position: relative }
+         #o { width: 2; height: 1; opacity: .9; background-color: #000 }
+         #b { position: absolute; top: 0; left: 0; width: 1;
+              background-color: rgb(255, 0, 0); mix-blend-mode: multiply }",
+        6,
+        2,
+    );
+    assert_eq!(bg(&buf, 0, 0), Color::Rgb(0, 0, 0));
+}

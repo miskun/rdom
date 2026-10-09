@@ -29,7 +29,14 @@
 //! - `Color::Reset` resolves through the canvas model of the buffer's
 //!   color scheme ([`canvas_fg`] / [`canvas_bg`]) before it blends.
 //!   `α = 0` composites nothing.
+//! - **Coverage.** In a buffer that tracks coverage (`coverage.rs`), a
+//!   cell part counts as painted when the layer changed it or when the
+//!   layer's own coverage says it painted it — a black fill on a black
+//!   backdrop changes nothing and is still the layer's paint, so a filter
+//!   or blend around a nested group maps it (C15G-FILTER-COVERAGE). A
+//!   layer copied from a tracking buffer tracks its own.
 
+use super::coverage::{BG, BORDER, GLYPH, SHADOW};
 use super::{BorderCell, Buffer};
 use crate::render::Cell;
 use crate::render::compose::{alpha_blend, canvas_bg, canvas_fg};
@@ -147,16 +154,22 @@ impl Buffer {
             LayerGlyph::New => takes,
             LayerGlyph::Same | LayerGlyph::Spacer => true,
         };
-        let border_wins = adds_border(
+        let adds = adds_border(
             &layer.border_dirs[j],
             &self.border_dirs[i],
             layer.half_block_quads[j],
             self.half_block_quads[i],
-        ) && (alpha >= 0.5 || blank);
+        );
+        let border_wins = adds && (alpha >= 0.5 || blank);
+        // What the layer's own writes painted there (its coverage, when
+        // this buffer tracks one): a paint may leave a cell's colors as
+        // they were — black on black — and is still the layer's.
+        let painted = layer.coverage_of(j);
 
         let scheme = self.scheme;
         let backdrop_bg = canvas_bg(before.bg, scheme);
         let bg_changed = after.bg != before.bg;
+        let bg_painted = bg_changed || painted & BG != 0;
         let layer_bg = canvas_bg(after.bg, scheme);
         let mut out = before.clone();
         if bg_changed {
@@ -189,7 +202,7 @@ impl Buffer {
                 }
             }
             _ => {
-                if bg_changed && shows_glyph(before) {
+                if bg_painted && shows_glyph(before) {
                     out.fg = alpha_blend(layer_bg, alpha, canvas_fg(before.fg, scheme));
                 }
             }
@@ -197,20 +210,24 @@ impl Buffer {
         let glyph_painted = match glyph {
             LayerGlyph::New | LayerGlyph::Spacer => text_wins,
             LayerGlyph::Same => true,
-            LayerGlyph::None => bg_changed && shows_glyph(before),
+            // The layer repainted the glyph already there, or tinted it.
+            LayerGlyph::None => {
+                (painted & GLYPH != 0 && after == before) || (bg_painted && shows_glyph(before))
+            }
         };
         self.content[i] = out;
-        {
-            use super::coverage::{BG, BORDER, GLYPH};
-            let bits = if bg_changed { BG } else { 0 }
+        let border_painted = text_wins
+            || border_wins
+            || bg_painted
+            // A contribution equal to the backdrop's: repainted as it was.
+            || (painted & BORDER != 0 && !adds);
+        self.mark(
+            i,
+            if bg_painted { BG } else { 0 }
                 | if glyph_painted { GLYPH } else { 0 }
-                | if text_wins || border_wins || bg_changed {
-                    BORDER
-                } else {
-                    0
-                };
-            self.mark(i, bits);
-        }
+                | if border_painted { BORDER } else { 0 }
+                | painted & SHADOW,
+        );
 
         if text_wins || border_wins {
             // The layer's glyph takes the cell: its border state (the
@@ -227,7 +244,7 @@ impl Buffer {
             }
             self.border_dirs[i] = state;
             self.half_block_quads[i] = layer.half_block_quads[j];
-        } else if bg_changed {
+        } else if bg_painted {
             // The backdrop's border stays, tinted by the layer's bg.
             for d in &mut self.border_dirs[i] {
                 if let Some(w) = &mut d.winner {

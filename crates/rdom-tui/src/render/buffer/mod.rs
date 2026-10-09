@@ -275,6 +275,9 @@ impl Buffer {
         let region = self.area.intersection(area);
         out.area = region;
         out.scheme = self.scheme;
+        // A layer of a buffer that tracks what was painted tracks its
+        // own, which compositing ORs back (C15G-FILTER-COVERAGE).
+        let tracks = self.tracks_coverage();
         out.coverage = None;
         out.content.clear();
         out.border_dirs.clear();
@@ -290,6 +293,9 @@ impl Buffer {
             out.border_dirs.extend_from_slice(&self.border_dirs[a..=b]);
             out.half_block_quads
                 .extend_from_slice(&self.half_block_quads[a..=b]);
+        }
+        if tracks {
+            out.track_coverage();
         }
     }
 

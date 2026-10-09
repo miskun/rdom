@@ -5,8 +5,10 @@
 //! was painted cannot be read off the cells: every writer marks it.
 //!
 //! Only a layer made for a graphical effect tracks coverage (`Buffer::
-//! track_coverage`); every other buffer — the frame, a translucent
-//! paint's scratch layer — holds none, and a mark is one branch.
+//! track_coverage`), and the layers copied from it — a nested group's, a
+//! translucent paint's scratch — whose coverage compositing ORs back
+//! (C15G-FILTER-COVERAGE); every other buffer — the frame, a layer copied
+//! from it — holds none, and a mark is one branch.
 
 use super::Buffer;
 use crate::render::{Cell, Rect};

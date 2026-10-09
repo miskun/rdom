@@ -10059,3 +10059,22 @@ row comes from.
   (`serialize_math`, `serialize_calc`, the anchor functions), `value_serializers.rs` keeps the other
   value types at 447 and re-exports `serialize_math` for its callers. Red: the new test listed the two
   files under `src/` (the root one is outside its scope, deleted by hand); green after the deletion.
+- 2026-10-09 — C15G-FILTER-COVERAGE (Phase 15 gate architect B1; Filter Effects 1 §5, Compositing 1 §3.2).
+  Found: `Buffer::composite_group` marked a cell part painted only when the layer changed it, and a layer
+  copied for a nested group (`paint_group`) or a translucent paint (`paint_translucent`'s scratch) tracked
+  no coverage of its own, so what such a layer painted in the backdrop's own colour was lost one level
+  down — the black-on-black case C15-FILTER exists for. Decided: (1) a layer copied from a buffer that
+  tracks coverage tracks its own (`copy_region_into`), so both paths are covered at one site; a layer of
+  the frame still holds none, so pages without effects pay nothing new. (2) Compositing ORs the layer's
+  coverage into the cell's: a background the layer painted counts (and tints a backdrop glyph and border
+  as a changed one does), a glyph counts when the layer's glyph took the cell or repainted the same one,
+  a border contribution when it won or equals the backdrop's, and a drop-shadow mark passes through. A
+  glyph that lost the glyph contest is not the layer's, so the filter leaves the backdrop's. (3) The
+  translucent case keeps the documented approximation (DIVERGENCES: a translucent paint blends with the
+  backdrop before the filter maps it): `rgb(0 0 0 / 50%)` on black composites to black, then inverts to
+  white where a browser shows grey. Red (`css_phase15/filter.rs`, `blend.rs`): a block child at
+  `opacity: .9; background: #000` under `filter: invert(1)` on a black page stayed `Rgb(0, 0, 0)` (green:
+  white, its white text `Rgb(25, 25, 25)` — 230 at .9, inverted); the 50 % background the same; `multiply`
+  over an empty `opacity: .9` black box in an `isolation: isolate` group kept its red (green: black).
+  The brief's inline `<i>` form passed before the fix too, so the tests use a block child, which failed. Mutation (restored, touched): a copied layer that tracks no
+  coverage fails all three.

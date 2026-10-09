@@ -49,8 +49,7 @@ pub(super) fn paint_group(
         // the same group painted through a full-frame layer composites
         // to the same frame.
         let mut full = buf.clone();
-        let mut full_layer = buf.clone();
-        full_layer.coverage = None;
+        let mut full_layer = buf.copy_region(buf.area);
         effects.render(buf, &mut full_layer, &paint);
         full.composite_group(&full_layer, alpha);
         full
