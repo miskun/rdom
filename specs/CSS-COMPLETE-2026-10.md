@@ -278,7 +278,7 @@ row comes from.
 | C15-FILTER | `filter` color-matrix functions; `backdrop-filter` | done |
 | C15-BLEND | `mix-blend-mode`, `isolation` | done |
 | C15-CLIP-PATH | `clip-path: inset()` | done |
-| C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | partial — column rules and spanners remain |
+| C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | partial — spanners remain |
 | C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | |
 
 ## Log
@@ -9889,3 +9889,16 @@ row comes from.
   breaks, a `column-width` count of 1, an intrinsic height not shared out — fail the five tests aimed at them,
   the forced one after strengthening its fixture (two of three blocks forced apart: balanced they sat two and
   one either way). Silent change `sc-multicol`.
+- 2026-10-09 — C15-COLUMNS part 3, column rules (CSS Multi-column 1 §4). `paint_pass::column_rule` draws, just
+  above the container's border and below its content (§4: "column rules are drawn just above the border"),
+  one column of cells in the middle of the gap between two adjacent column boxes that both hold content (the
+  multi-column layout keeps its column boxes, `KeptLayout::Columns`, with whether each was filled), as tall as
+  the columns. Decisions: (1) the rule is border contributions, not glyphs — its `column-rule-style` and the
+  weight its `column-rule-width` selects, under the container's border priority — so the joiner welds it into
+  the container's top and bottom border where the content touches them (`┬` / `┴`), and content painted over
+  it (a zero gap) clears it as it clears a border. (2) Every rule cell is a full vertical line (a cell's glyph
+  is its own directions'), so a one-row rule draws. (3) The color resolves at paint as `outline-color` does,
+  `currentcolor` the element's `color` under its used scheme. Red → green:
+  `css_phase15::multicol::column_rules_draw_between_filled_columns`, red with no rule drawn; mutation runs —
+  no junctions, and rules beside empty columns — fail it (the second only after a one-row case was added: a
+  one-row rule had drawn nothing, fixed by (2)).

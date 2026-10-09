@@ -84,6 +84,7 @@ mod border;
 mod border_join;
 mod box_paint;
 mod canvas;
+mod column_rule;
 mod effects;
 mod generated_box;
 mod group;

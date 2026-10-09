@@ -91,6 +91,15 @@ impl TuiExt {
         }
     }
 
+    /// A multi-column container's column sets after its last layout;
+    /// none for any other box.
+    pub(crate) fn column_sets(&self) -> &[ColumnSet] {
+        match self.kept.as_deref() {
+            Some(KeptLayout::Columns(sets)) => sets,
+            _ => &[],
+        }
+    }
+
     /// The fragments of a box its last layout split across fragmentainers
     /// (CSS Fragmentation 3); `None` for a box in one piece.
     pub(crate) fn box_fragments(&self) -> Option<&BoxFragments> {

@@ -638,7 +638,7 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `columns` / `column-count` / `column-width` / `column-rule*` / `column-span` / `column-fill` | Partial | Multi-column layout. The column boxes (§3.4, whole cells), balancing and `column-fill`, the content fragmented into them (C15-COLUMNS parts 1–2); column rules and spanners are to come. | Yes | `V/multicol.rs`, `LP/multicol/`, `LP/fragment/` |
+| `columns` / `column-count` / `column-width` / `column-rule*` / `column-span` / `column-fill` | Partial | Multi-column layout. The column boxes (§3.4, whole cells), balancing and `column-fill`, the content fragmented into them, column rules in border glyphs joining the container's border (C15-COLUMNS parts 1–3); spanners are to come. | Yes | `V/multicol.rs`, `LP/multicol/`, `LP/fragment/` |
 | `object-fit` / `object-position` / `image-rendering` / `image-orientation` / `image-resolution` | N/A | No images. | — | — |
 | Speech (`speak`, `voice-*`, `pause*`, `rest*`, `cue*`, `azimuth`, …) | N/A | Aural rendering. | — | — |
 | Fragmentation (`break-*`, `page-break-*`, `orphans`, `widows`, `box-decoration-break`) | Partial | Multi-column layout fragments in the block axis (Fragmentation 3, `LP/fragment/`): class A and B breaks, monolithic boxes, `break-before` / `-after` / `-inside`, `orphans` / `widows`, the rules relaxed in §4.4's order (C15-COLUMNS part 2; `page-break-*` the legacy shorthands of §3.4). `box-decoration-break: clone` draws as `slice`; page and region breaks break nothing in continuous media (DIVERGENCES). | Yes | `V/multicol.rs`, `LP/fragment/` |

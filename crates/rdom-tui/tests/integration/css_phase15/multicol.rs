@@ -251,3 +251,58 @@ fn a_multicol_flex_item_is_as_tall_as_its_columns() {
     assert_eq!(rect(&dom, "m").3, 2);
     assert_eq!(rows(&buf, 2), ["f1    f3   ", "f2    f4   "]);
 }
+
+/// Multi-column 1 §4: a rule is drawn in the middle of the gap between two
+/// columns that both hold content, as tall as the columns, with the border
+/// glyphs — joining the container's own border where it meets it.
+#[test]
+fn column_rules_draw_between_filled_columns() {
+    let mut dom = doc(r#"<body><div id="m">c1<br>c2<br>c3<br>c4</div></body>"#);
+    let buf = paint(
+        &mut dom,
+        &format!("{PAGE} #m {{ column-count: 2; column-gap: 3; width: 13; column-rule: solid }}"),
+        13,
+        3,
+    );
+    assert_eq!(
+        rows(&buf, 3),
+        ["c1    │ c3   ", "c2    │ c4   ", "             "]
+    );
+    // A border around the columns: the rule meets it in junctions.
+    let mut dom = doc(r#"<body><div id="m">a1<br>a2<br>a3<br>a4</div></body>"#);
+    let buf = paint(
+        &mut dom,
+        &format!(
+            "{PAGE} #m {{ column-count: 2; column-gap: 1; width: 11; border: solid; padding: 0 1; column-rule: solid }}"
+        ),
+        15,
+        4,
+    );
+    assert_eq!(
+        rows(&buf, 4),
+        [
+            "┌──────┬──────┐",
+            "│ a1   │a3    │",
+            "│ a2   │a4    │",
+            "└──────┴──────┘",
+        ]
+    );
+    // A one-row rule between two one-line columns; none beside an empty
+    // column.
+    let mut dom = doc(r#"<body><div id="m">c1<br>c2</div></body>"#);
+    let buf = paint(
+        &mut dom,
+        &format!("{PAGE} #m {{ column-count: 2; column-gap: 3; width: 13; column-rule: solid }}"),
+        13,
+        1,
+    );
+    assert_eq!(row(&buf, 0), "c1    │ c2   ");
+    let mut dom = doc(r#"<body><div id="m">only</div></body>"#);
+    let buf = paint(
+        &mut dom,
+        &format!("{PAGE} #m {{ column-count: 2; column-gap: 3; width: 13; column-rule: solid }}"),
+        13,
+        1,
+    );
+    assert_eq!(row(&buf, 0), "only         ");
+}

@@ -204,9 +204,14 @@ fn paint_own_box(
     // priority encodes "child wins over ancestor" (depth) and
     // "earlier DOM order wins on tie" (`NodeId` proxy for
     // geometric position).
+    let priority = compute_border_priority(dom, id);
     if !computed.border.is_empty() {
-        let priority = compute_border_priority(dom, id);
         paint_border_sides(buf, computed, outer, outer_grid, clip, priority);
+    }
+    // 3. A multi-column container's rules, just above its border (CSS
+    // Multi-column 1 §4).
+    if computed.is_multicol_container() {
+        super::column_rule::paint(dom, id, buf, computed, outer, clip, priority);
     }
 }
 
