@@ -74,10 +74,9 @@ pub(in crate::render::layout_pass) fn content_distribution(
         Align::SpaceAround => Distribution::Around,
         Align::SpaceEvenly => Distribution::Evenly,
         // Not in the content-distribution grammars.
-        Align::Auto | Align::SelfStart | Align::SelfEnd => ends.flex_start,
-        // `Align` is non-exhaustive (DESIGN): a keyword added to it
-        // (`anchor-center`, C15-ANCHOR) must be mapped here — the
-        // workspace's tests catch one that is not.
+        Align::Auto | Align::SelfStart | Align::SelfEnd | Align::AnchorCenter => ends.flex_start,
+        // `Align` is non-exhaustive (DESIGN): a keyword added to it must be
+        // mapped here — the workspace's tests catch one that is not.
         _ => {
             debug_assert!(false, "unmapped `Align` keyword {:?}", value.keyword);
             ends.flex_start

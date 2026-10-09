@@ -248,7 +248,9 @@ fn placed(value: Alignment, item: &ComputedStyle, frame: CrossFrame) -> ItemAlig
         Align::Normal | Align::Stretch | Align::Auto => CrossAlign::Stretch,
         Align::FlexStart => CrossAlign::Start,
         Align::FlexEnd => CrossAlign::End,
-        Align::Center => CrossAlign::Center,
+        // CSS Anchor Positioning 1 §3.4: `center` for a box that is not
+        // absolutely positioned.
+        Align::Center | Align::AnchorCenter => CrossAlign::Center,
         Align::Start => frame.writing_start(true),
         Align::End => frame.writing_start(false),
         Align::SelfStart => frame.self_start(item, true),
@@ -273,9 +275,8 @@ fn placed(value: Alignment, item: &ComputedStyle, frame: CrossFrame) -> ItemAlig
         | Align::SpaceBetween
         | Align::SpaceAround
         | Align::SpaceEvenly => CrossAlign::Start,
-        // `Align` is non-exhaustive (DESIGN): a keyword added to it
-        // (`anchor-center`, C15-ANCHOR) must be mapped here — the
-        // workspace's tests catch one that is not.
+        // `Align` is non-exhaustive (DESIGN): a keyword added to it must be
+        // mapped here — the workspace's tests catch one that is not.
         _ => {
             debug_assert!(false, "unmapped `Align` keyword {:?}", value.keyword);
             CrossAlign::Start

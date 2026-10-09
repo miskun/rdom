@@ -71,7 +71,10 @@ pub(in crate::render::layout_pass) fn justify_offset(
         Align::SelfEnd | Align::LastBaseline => free,
         Align::Left => 0,
         Align::Right => free,
-        Align::Center => free.div_euclid(2),
+        // CSS Anchor Positioning 1 §3.4: an anchor-positioned box's
+        // `anchor-center` is centred in a containing block centred on its
+        // anchor (`positioning::anchor`); any other box's is `center`.
+        Align::Center | Align::AnchorCenter => free.div_euclid(2),
         // `normal` / `stretch` / `auto` do not align (`aligns`); the
         // distributions are not in `justify-self`'s grammar.
         Align::Normal
@@ -80,9 +83,8 @@ pub(in crate::render::layout_pass) fn justify_offset(
         | Align::SpaceBetween
         | Align::SpaceAround
         | Align::SpaceEvenly => start,
-        // `Align` is non-exhaustive (DESIGN): a keyword added to it
-        // (`anchor-center`, C15-ANCHOR) must be mapped here — the
-        // workspace's tests catch one that is not.
+        // `Align` is non-exhaustive (DESIGN): a keyword added to it must be
+        // mapped here — the workspace's tests catch one that is not.
         _ => {
             debug_assert!(false, "unmapped `Align` keyword {:?}", value.keyword);
             start

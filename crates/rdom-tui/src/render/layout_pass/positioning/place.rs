@@ -35,6 +35,8 @@ pub(in crate::render::layout_pass) fn place_positioned(
     viewport: LayoutRect,
 ) -> Vec<BoxItem> {
     let positioned = collect_positioned(dom);
+    // The anchor names, found on the first anchor-positioned box.
+    let anchors = super::anchor::AnchorIndex::default();
     for &item in &positioned {
         match item {
             BoxItem::Node(id) => {
@@ -43,10 +45,23 @@ pub(in crate::render::layout_pass) fn place_positioned(
                     .node(id)
                     .computed_rc()
                     .unwrap_or_else(|| std::rc::Rc::new(ComputedStyle::initial()));
-                let placed = compute_placed_rect(dom, Placed::Element(id), &computed, cb);
+                let querying = super::anchor::Querying {
+                    node: id,
+                    pseudo: false,
+                };
+                let placed = super::anchor::placed_rect(
+                    dom,
+                    &anchors,
+                    Placed::Element(id),
+                    querying,
+                    &computed,
+                    cb,
+                );
                 crate::render::layout_pass::layout_node(dom, id, placed, cb.width);
             }
-            BoxItem::Generated(host, slot) => super::pseudo::place(dom, host, slot, viewport),
+            BoxItem::Generated(host, slot) => {
+                super::pseudo::place(dom, &anchors, host, slot, viewport)
+            }
         }
     }
     positioned

@@ -14,7 +14,7 @@
 use rdom_core::{Dom, NodeId};
 
 use super::absolute_containing_block;
-use super::place::{Placed, compute_placed_rect};
+use super::place::Placed;
 use crate::ext::{PseudoSlot, StaticPosition, TuiExt};
 use crate::layout::{Display, LayoutRect};
 use crate::node::TuiNodeExt;
@@ -43,6 +43,7 @@ pub(in crate::render::layout_pass) fn is_positioned_box(
 /// `host`.
 pub(in crate::render::layout_pass) fn place(
     dom: &mut Dom<TuiExt>,
+    anchors: &super::anchor::AnchorIndex,
     host: NodeId,
     slot: PseudoSlot,
     viewport: LayoutRect,
@@ -54,13 +55,21 @@ pub(in crate::render::layout_pass) fn place(
     // A pseudo-element is its host's child (CSS Pseudo 4 §4): the walk
     // for its containing block starts at the host.
     let cb = absolute_containing_block(dom, Some(host), &style, viewport);
-    let rect = compute_placed_rect(
+    // Placed against its anchors when it has any (CSS Anchor Positioning
+    // 1): its host asks for them.
+    let querying = super::anchor::Querying {
+        node: host,
+        pseudo: true,
+    };
+    let rect = super::anchor::placed_rect(
         dom,
+        anchors,
         Placed::Generated {
             host,
             slot,
             item: &item,
         },
+        querying,
         &style,
         cb,
     );

@@ -38,10 +38,12 @@
 //!   its static position.
 //! - `pseudo_offsets` — the move of a relative / sticky `::before` /
 //!   `::after`.
+//! - `anchor` — anchor positioning: a box placed against its anchors.
 //! - `axis` — one-axis size and offset resolvers.
 //! - `containing` — the containing block of an absolutely positioned
 //!   box, element or pseudo-element.
 
+mod anchor;
 mod axis;
 mod containing;
 mod place;

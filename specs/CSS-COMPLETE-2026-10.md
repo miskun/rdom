@@ -279,7 +279,7 @@ row comes from.
 | C15-BLEND | `mix-blend-mode`, `isolation` | done |
 | C15-CLIP-PATH | `clip-path: inset()` | done |
 | C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | done |
-| C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | partial — properties, `anchor()` / `anchor-size()`, `anchor-center` and `@position-try` parse and cascade; the layout (anchors, `position-area`, fallbacks, `position-visibility`) remains |
+| C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | partial — the fallbacks (`position-try-*`, `@position-try`) and `position-visibility` remain |
 
 ## Log
 
@@ -9951,3 +9951,28 @@ row comes from.
   `anchor_tests` (6), rdom-css `position_try` (2), rdom-tui `css_phase15::anchor` (2); mutation runs — the
   dispatch arm, `parse_inset`'s anchor path, the `@position-try` hook, the cascade's finalization — fail
   them (five of six style tests, both css, both tui; `anchor-center` is red only before `Align::AnchorCenter`).
+- 2026-10-09 — C15-ANCHOR part 2, the anchor layout (CSS Anchor Positioning 1 §2.2–§2.4, §3, §3.1.1, §3.1.3, §3.4,
+  §5.1, §5.2; HTML §6.12's implicit anchor). `positioning::anchor`: phase 2 places an absolutely positioned box
+  through `anchor::placed_rect`, which hands a box without anchor references (`resolve::is_anchored`, one test) to
+  `compute_placed_rect` as before. Decisions: (1) lookup (`lookup`) — an index of the elements with an
+  `anchor-name`, in tree order, built on the first anchored box of the pass (`AnchorIndex`, pinned:
+  `anchor::tests::only_anchored_boxes_build_the_anchor_index`); a name resolves to the last *acceptable* element
+  (rdom's reading of §2.4: a box, not inside the querying box — a pseudo-element's host's subtree allowed — not
+  kept from it by an `anchor-scope`, inside its containing block element or anywhere for the viewport, and before
+  it in tree order when it or an ancestor below that block is absolutely positioned, phase 2 placing in tree
+  order); the default anchor is `position-anchor`'s, under `auto` the popover's invoker
+  (`popover::invoker_of`). (2) Resolution (`resolve`) makes a resolved style and containing block, then places by
+  `compute_placed_rect` unchanged: `position-area` — the area of the grid of the containing block's and the
+  default anchor's edges (the anchor clamped into the block) is the containing block, `auto` insets are 0, `auto`
+  margins 0 (DIVERGENCES: HTML's popover `margin: auto` would centre it in the area), `normal` / `auto`
+  self-alignment by §3.1.3's table, physically (`left` / `right`, `start` / `end`); `anchor()` — the anchor edge's
+  distance from the inset's containing-block edge, the side read by the inset's axis (`inside` / `outside` by its
+  own side, `start` / `end` / percentages by the containing block's direction, `self-*` by the box's), rounded
+  onto the grid; `anchor-size()` — the anchor's width or height, the property's axis when unnamed; an
+  unresolvable one its fallback, else the property's `auto` / `none` / `0`; `anchor-center` — insets making the
+  largest inset-modified containing block centred on the anchor, then `center`. (3) Scrolling: an anchor's box is
+  read as laid out, scrolled — rdom lays out again on a scroll, so the box follows (§3). (4) `anchor-center` on a
+  box that is not anchor-positioned is `center` (flex, grid, block alignment). Red → green:
+  `css_phase15::anchor` (7 new); mutation runs — no anchor layout (six fail), and together: area alignment always
+  `start`, no tree-order check, no implicit anchor, `anchor-center` insets dropped (four fail, one each). Silent
+  change `sc-anchor`.

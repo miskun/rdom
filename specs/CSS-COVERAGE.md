@@ -643,7 +643,7 @@ dropped. The audit's six, with where each stands:
 | Speech (`speak`, `voice-*`, `pause*`, `rest*`, `cue*`, `azimuth`, …) | N/A | Aural rendering. | — | — |
 | Fragmentation (`break-*`, `page-break-*`, `orphans`, `widows`, `box-decoration-break`) | Supported | Multi-column layout fragments in the block axis (Fragmentation 3, `LP/fragment/`, C15-COLUMNS): class A and B breaks, monolithic boxes, `break-before` / `-after` / `-inside`, `orphans` / `widows`, the rules relaxed in §4.4's order, `box-decoration-break: slice | clone`; `page-break-*` the legacy shorthands of §3.4. Page and region breaks break nothing in continuous media (DIVERGENCES). | Yes | `V/multicol.rs`, `LP/fragment/` |
 | `zoom` | N/A | No pixel scaling. | — | — |
-| `anchor-name` / `position-anchor` / `position-area` / `@position-try` (Anchor Positioning 1, WD) | Partial | Tooltips / popovers anchored to another box. Parsed and cascaded — the properties, `anchor()` / `anchor-size()` in insets, sizes and margins, `anchor-center`, `@position-try` (C15-ANCHOR part 1); the layout is to come. | Yes | `V/anchor.rs`, `AT` |
+| `anchor-name` / `position-anchor` / `position-area` / `@position-try` (Anchor Positioning 1, WD) | Partial | Tooltips / popovers anchored to another box. Parsed and cascaded — the properties, `anchor()` / `anchor-size()` in insets, sizes and margins, `anchor-center`, `@position-try` (C15-ANCHOR part 1); laid out — anchor names, scopes and the popover's implicit anchor, `anchor()` / `anchor-size()`, `position-area`, `anchor-center` (part 2); the fallbacks and `position-visibility` are to come. | Yes | `V/anchor.rs`, `AT` |
 
 ---
 
