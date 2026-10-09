@@ -331,3 +331,13 @@ fn tile_33_states() {
 fn tile_34_pointer() {
     assert_tile(&refs::t34_pointer::REF);
 }
+
+#[test]
+fn tile_35_focus() {
+    assert_tile(&refs::t35_focus::REF);
+}
+
+#[test]
+fn tile_36_form_state() {
+    assert_tile(&refs::t36_form_state::REF);
+}

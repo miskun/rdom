@@ -120,14 +120,19 @@ impl Session {
         (t.x + dx, t.y + dy)
     }
 
-    /// The element `selector` matches inside tile `id`'s box.
-    pub fn find(&self, id: &str, selector: &str) -> NodeId {
+    /// Tile `id`'s box.
+    pub fn find_tile(&self, id: &str) -> NodeId {
         let t = tile(id);
         let dom = self.app.dom();
-        let tile_box = dom
-            .query_selector_in(dom.root(), &format!(".{}", t.class))
+        dom.query_selector_in(dom.root(), &format!(".{}", t.class))
             .expect("a valid selector")
-            .unwrap_or_else(|| panic!("tile {id} is on the page"));
+            .unwrap_or_else(|| panic!("tile {id} is on the page"))
+    }
+
+    /// The element `selector` matches inside tile `id`'s box.
+    pub fn find(&self, id: &str, selector: &str) -> NodeId {
+        let tile_box = self.find_tile(id);
+        let dom = self.app.dom();
         dom.query_selector_in(tile_box, selector)
             .expect("a valid selector")
             .unwrap_or_else(|| panic!("tile {id} holds {selector:?}"))

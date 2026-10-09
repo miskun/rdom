@@ -1,6 +1,6 @@
 # ACID — an rdom acid test
 
-**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Part 3 under way: the stage-2 harness (ACID-INTERACTIVE-HARNESS) with steps I1, I2 and I10 on tile 34.
+**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Part 3 under way: the stage-2 harness (ACID-INTERACTIVE-HARNESS) with steps I1–I5 and I10 on tiles 34–36.
 
 ## Why
 
@@ -117,6 +117,8 @@ Each tile: what it combines → what the spec says the cells must show.
 | 32 | **Scrolling at rest** (ACID-COVERAGE) | a `y mandatory` snap container with `scroll-padding` and snap areas, scrolled by its load script between two snap positions; `scroll-behavior`, `overscroll-behavior`; both scrollbars styled by `::scrollbar-thumb:vertical` / `:horizontal` | The snapped offset (CSS Scroll Snap 1 §4–§6), the thumbs' sizes and glyphs. |
 | 33 | **States and the caret** (ACID-COVERAGE) | a field focused by the load script (`:focus`, `:focus-visible`, `:focus-within`) with its caret styled by `caret` and its longhands, a pressed button (`:active`), `:checked`, `:placeholder-shown`, `:open`, `:enabled`, `:valid`, `:required`, `:optional`, an `::after::marker` | Each state's colour on exactly its element; the caret on the field's start. |
 | 34 | **Hover, press, `pointer-events`** (stage 2: I1, I2, I10) | a box whose `:hover` colours its text over a child with its own `:hover`, siblings reading it through `+` / `~` and a descendant combinator; a box filled while `:active` with a `mouseup` / `click` log; two overlays drawing nothing, one `pointer-events: none`, over two counting boxes | At rest: every cell in the default style, the overlays drawing nothing (Appendix E). |
+| 35 | **Focus: Tab vs click** (stage 2: I3) | a button with an author `:focus-visible { outline: auto }` beside an empty text field; a button whose `click` listener unhides a panel and focuses its field, logging whether it got the focus | At rest: the UA's button and field chrome, nothing focused — no ring, no caret; the `hidden` panel takes no box. |
+| 36 | **Form state** (stage 2: I4, I5) | a `required` empty field whose sibling's `::after` and its form's label read `:valid` / `:invalid`; a checkbox and a radio group in a form beside a same-named radio outside it, both radios checked | At rest: the field and its form `:invalid` (`bad`, `form` red); both radios checked — different groups, their form owners differ (HTML §4.10.5.1.15). |
 
 ### Part 2 notes (2026-10-10)
 

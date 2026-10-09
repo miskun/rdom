@@ -155,6 +155,21 @@ fn step_i02_active() {
 }
 
 #[test]
+fn step_i03_focus() {
+    assert_step(&steps::i03_focus::STEP);
+}
+
+#[test]
+fn step_i04_validity() {
+    assert_step(&steps::i04_validity::STEP);
+}
+
+#[test]
+fn step_i05_toggles() {
+    assert_step(&steps::i05_toggles::STEP);
+}
+
+#[test]
 fn step_i10_pointer_events() {
     assert_step(&steps::i10_pointer_events::STEP);
 }

@@ -42,6 +42,8 @@ pub mod t31_motion;
 pub mod t32_scroll;
 pub mod t33_states;
 pub mod t34_pointer;
+pub mod t35_focus;
+pub mod t36_form_state;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -83,4 +85,6 @@ pub const ALL: &[&Reference] = &[
     &t32_scroll::REF,
     &t33_states::REF,
     &t34_pointer::REF,
+    &t35_focus::REF,
+    &t36_form_state::REF,
 ];

@@ -7,11 +7,17 @@ use super::session::Step;
 
 pub mod i01_hover;
 pub mod i02_active;
+pub mod i03_focus;
+pub mod i04_validity;
+pub mod i05_toggles;
 pub mod i10_pointer_events;
 
 /// Every step, in `ACID.md` order.
 pub const ALL: &[&Step] = &[
     &i01_hover::STEP,
     &i02_active::STEP,
+    &i03_focus::STEP,
+    &i04_validity::STEP,
+    &i05_toggles::STEP,
     &i10_pointer_events::STEP,
 ];

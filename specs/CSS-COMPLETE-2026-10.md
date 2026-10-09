@@ -305,7 +305,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
 | ACID-INTERACTIVE-HARNESS | Stage 2's driver: scripted keys, mouse, wheel and resize against a fresh headless `App` per step with a controllable clock, per-checkpoint references in the stage-1 format, failure reports naming the step, checkpoint, tile, cells and spec; steps I1, I2, I10 on tile 34 | done |
-| ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
+| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I5, I10 |
 | ACID-STATIC-REST | The static features part 2 left out: tile 14's wrapped cells beside a row span; tile 15a's range slider, pixel `outline-offset` and script-unchecked default box; tile 18's baseline row group and `aspect-ratio` item; tile 19's overflowing text over a float and cleared first child's margin; tile 25's whole-moving `overflow: hidden` box and `box-decoration-break: clone`; tile 26's `popovertarget` + `flip-block` popover, `position-try-order: most-height` and `anchor-center`; their click and hit checks in stage 2 | |
 
 ## Log
@@ -10933,3 +10933,13 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   34 (page 10): I1 (`:hover` on a nested child and its ancestors, `+` / `~` / descendant combinators reading it), I2
   (`:active` on press, cleared before `mouseup` / `click`) and I10 (a click through a `pointer-events: none` overlay,
   and one taken by a plain overlay) — green at first run. No reference was changed.
+- 2026-10-10 — ACID-INTERACTIVE, steps I3–I5 (page 10, stage-2 tiles 35 and 36). I3 (Selectors 4 §13.2, HTML §6.6,
+  CSS UI 4 §5, DIVERGENCES `FOCUS-VOCAB-1`): Tab focuses tile 35's button — the author `:focus-visible { outline: auto }`
+  ring, rounded and in the accent, around it and the UA tint on it — then the empty field, tinted with its block caret
+  in its yellow text colour; a click on the button focuses it with neither; a click on the field shows both again; a
+  button whose `click` listener unhides a panel and focuses the panel's field gets the field focused at once
+  (C12-FOCUS-FLUSH: the listener's log reads `ok`), evident as a text field's is. I4 (HTML §4.10.21.1, §4.16.3,
+  Selectors 4 §14.4): typing into tile 36's `required` field turns it and its form `:valid` (a sibling's `::after`
+  `bad` → `ok`, the form's label red → green), Backspace back. I5 (HTML §4.10.5.1.15–16): a click checks the checkbox;
+  a click on the form's second radio unchecks its first, while a same-named radio outside the form — another group,
+  its form owner being none — stays checked. All green at first run; no reference was changed.
