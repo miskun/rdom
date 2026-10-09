@@ -30,16 +30,16 @@
 
 use std::fmt;
 
+mod context;
 mod functions;
 mod types;
 mod units;
 
+pub use context::{UnitContext, UnitReads, Viewport};
 use functions::eval_function;
 pub use functions::{MathFunction, RoundingStrategy};
 pub use types::CalcKind;
-pub use units::{
-    CalcUnit, UnitContext, UnitReads, Viewport, ViewportAxis, ViewportSize, ViewportUnit,
-};
+pub use units::{CalcUnit, ViewportAxis, ViewportSize, ViewportUnit};
 
 /// One operator in a calc() expression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -6,8 +6,9 @@
 //! cascade of its descendants needs — so layout and the cascade
 //! interleave (`render::layout_pass::container_pass`): the cascade reads
 //! each container's size as last measured (none before its first layout:
-//! a size query is then unknown, a container-relative unit the small
-//! viewport's) and records, per container, the size it read
+//! a size query is then unknown, a container-relative unit 0 —
+//! `with_unit_sizes`; with no query container at all, a
+//! container-relative unit is the small viewport's) and records, per container, the size it read
 //! (`ContainerState`); after each layout the pass measures the queried
 //! containers and re-cascades the subtree of every one whose size moved.
 //! A document that queries no container records nothing, and the pass

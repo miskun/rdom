@@ -43,7 +43,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 11 | Selectors | done 2026-10-08 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
 | 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
-| 14 | Conditional rules, containment | gates run 2026-10-09; `C14G-*` batch A (correctness and the root model, 9 items) done 2026-10-09, batch B pending |
+| 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
@@ -9686,3 +9686,28 @@ row comes from.
   100% }`), pinned by `css_phase13::root::a_shell_under_body_fills_the_screen_only_with_every_ancestor_full_height`
   (`.app` alone is 1 row, the chain 10 — it passed as written: the claim was true, only unstated); (4) the
   `contain` entry spells out the fixed-descendant change.
+- 2026-10-09 — C14G-DOCS (API N10, architect N20, batch A's open point on container flips; docs and one split).
+  (1) `cascade/container.rs`'s module doc said a container-relative unit is the small viewport's before a
+  container's first layout; it is 0 (`with_unit_sizes`, as DIVERGENCES says) — the small viewport's only
+  with no query container at all. (2) ACID I19 had the `content-visibility: auto` block come on screen "as
+  the taller terminal" does, but the resize is 120 × 50 → 70 × 50: the block now sits just above the fold
+  and the narrower terminal's re-wrapped content pushes it off (`skipped: true`), the width coming back
+  brings it on (`false`). (3) CSS-COVERAGE §2 rows 19 (`@media`), 35 (`@supports`) and 59 (`contain` /
+  `content-visibility` / `contain-intrinsic-size` / `will-change`) say Shipped, with their items, as row 60
+  does. (4) Batch A's open point — an element both dirty-cascaded and re-cascaded by a container flip in
+  one frame goes through two style change events, so a property whose `transition` only the container's
+  rule adds starts from the intermediate, never-painted style, and one the flip returns to its old value
+  runs a reversed transition with events — is recorded, not fixed: the cheap half (a property the main
+  hook already transitioned) is already right, as `register` starts the replacement from the running
+  transition's current value; the rest needs the layout hook to diff against the frame's first
+  before-change style and §3's end-value test for the transitions the main hook started, which touches
+  every frame's transition diff — DIVERGENCES §2's container entry and TECH_DEBT `CONTAINER-TRANSITION-1`.
+  (5) SIZE-1 recounted by the gate's own rule (production lines, inline test modules out — N20 had counted
+  whole files: `registration/mod.rs` is 567 whole, 459 production): no file past 575; `calc/units.rs`,
+  which C14G-READ-COUNTERS took to 572, split into `units.rs` 419 + `calc/context.rs` 160 (`Viewport`,
+  `UnitContext`, `UnitReads`).
+- 2026-10-09 — Phase 14 closed: both gates run, their 15 fixes landed (`C14G-*`: batch A — SKIP-WALKS,
+  CONTAINER-LOOP, ROOT-ELEMENT in three commits, MATCH-MEDIA, PX-BREAKPOINTS, CONDITIONAL-SPEC in two,
+  CONTAINER-FIDELITY, CONTAIN-FIDELITY, CORE-GAPS; batch B — READ-COUNTERS, SHEET-CLONES, COST-PINS,
+  API-NAMING, UPGRADE, DOCS). Accepted and recorded: TECH_DEBT `CONTAINER-TRANSITION-1` (two style change
+  events in a container-flip frame). Their re-review rides with the Phase 15 gate.
