@@ -179,3 +179,8 @@ fn tile_07_flex() {
 fn tile_08_inline() {
     assert_tile(&refs::t08_inline::REF);
 }
+
+#[test]
+fn tile_09a_generated() {
+    assert_tile(&refs::t09a_generated::REF);
+}

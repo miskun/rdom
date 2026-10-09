@@ -10,6 +10,7 @@ mod t05_box_model;
 mod t06_margins;
 mod t07_flex;
 mod t08_inline;
+mod t09a_generated;
 
 /// Every tile, in `ACID.md` order.
 pub const TILES: &[&Tile] = &[
@@ -21,4 +22,5 @@ pub const TILES: &[&Tile] = &[
     &t06_margins::TILE,
     &t07_flex::TILE,
     &t08_inline::TILE,
+    &t09a_generated::TILE,
 ];

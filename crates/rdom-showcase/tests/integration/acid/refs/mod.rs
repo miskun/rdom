@@ -12,6 +12,7 @@ pub mod t05_box_model;
 pub mod t06_margins;
 pub mod t07_flex;
 pub mod t08_inline;
+pub mod t09a_generated;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -23,4 +24,5 @@ pub const ALL: &[&Reference] = &[
     &t06_margins::REF,
     &t07_flex::REF,
     &t08_inline::REF,
+    &t09a_generated::REF,
 ];

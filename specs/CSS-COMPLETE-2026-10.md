@@ -292,7 +292,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-2 | A dashed / dotted side's end cell where no side meets it draws the dash glyph, not the solid line (found by tile 5) | done |
 | ACID-FIX-3 | A glyph painted over another takes its own colour, weight and decorations, not the replaced glyph's (found by tile 9a) | done |
 | ACID-FIX-4 | `<summary>` has no UA weight (HTML §15.5.20; found by tile 9a) | done |
-| ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | partial — tiles 1–8 done; 9a–13 remain |
+| ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | partial — tiles 1–9a done; 9b–13 remain |
 | ACID-TILES-B | Static tiles 14–26 | |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
 | ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
@@ -10664,3 +10664,13 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   HTML has a `list-item` `::marker`, so `summary { list-style: none }` does not hide it: the glyphs and their place are
   the browser's, the selector is not — recorded in DIVERGENCES §2 rather than changed here (a `list-item` summary is a
   larger UA change, left for the Phase 16 gate to weigh). The reference was not touched.
+- 2026-10-09 — ACID-TILES-A, tile 9a (page 2): counters and generated content (Generated Content 3 §1–§2, Lists 3 §4,
+  Counter Styles 3 §3 / §6, Pseudo-Elements 4 §2 / §4, CSS 2.1 Appendix E, HTML §15.5.20) — `content` strings with
+  `attr()`, alt text not drawn, the single-colon `:before`; nested `counters()`; a sibling list's `counter-reset`
+  replacing the previous list's counter, `counter-set` after the increment; 12 in `upper-roman`, `lower-greek`,
+  `hebrew`, `cjk-decimal`, `disc`; an author `@counter-style` (`extends decimal`, `pad` shortened by the negative
+  sign, `range`, a looping `fallback` ending in `decimal`) and `symbols()`; quotes by depth, by language (`de`, `fr`,
+  `ja`) and a `close-quote` at depth 0; a block `::before`; pseudos in a wrapped line; a `z-index: -1` `::after` under
+  its host's text, a `z-index: 5` `::after` held below a sibling `z-index: 2` context, a relative `::before` moved off
+  its cell; a closed and an open `details` with `::details-content`. It found ACID-FIX-3 (the host's text kept the
+  pseudo's red) and ACID-FIX-4 (bold summaries) and matches after both. No reference was changed.
