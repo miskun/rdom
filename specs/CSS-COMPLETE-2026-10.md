@@ -45,7 +45,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | done 2026-10-09 (both gates; 22 gate fixes `C15G-*`; their re-review rides with the Phase 16 gate) |
-| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | part 1 done 2026-10-09 (harness, tiles 1–13, ACID-FIX-1 … 5); part 2 (tiles 14–26, coverage test) and part 3 (interactive script) next |
+| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | part 1 done 2026-10-09 (harness, tiles 1–13, ACID-FIX-1 … 5); part 2 done 2026-10-10 (tiles 14–33, the coverage test, ACID-FIX-6 … 13); part 3 (interactive script) next |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
 
 Phases follow dependencies: values and color before the properties that use them; flex alignment
@@ -303,7 +303,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-13 | A modal dialog's `color`, inherited by its `::backdrop`, no longer recolors the page beneath it (CSS 2.1 §14.1; found by tile 15c) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | done |
-| ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | partial — the dispatch tables are public; the coverage tiles and the test next |
+| ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
 | ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
 
 ## Log
@@ -10904,3 +10904,16 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   fonts, masks, the 3-D-free transform properties, `background-blend-mode`, `box-decoration-break` without a break,
   `interpolate-size`, `cursor`, `pointer-events`, scroll-chaining ones — are declared in their tiles with the
   derivation saying they draw nothing there, so the exemption list stays empty.
+- 2026-10-10 — ACID-COVERAGE, the test (ACID.md ground rule 4); Phase 16 part 2 closed.
+  `tests/integration/acid/coverage.rs::the_acid_page_uses_every_css_feature_rdom_dispatches` reads the tiles' own CSS —
+  each tile's sheet and late sheet, the `<style>` elements and `style` attributes of its markup, the sheets those import;
+  not the page frame — and checks it against the dispatch lists: a property is used when one of its declarations parses
+  on its own without a warning (a small walker splits the sheets into rules and declarations, nested rules, keyframes,
+  `@position-try` and at-rule bodies included); a pseudo-class when a parsed rule's selector holds it, inside `:not()` /
+  `:is()` / `:where()` / `:has()` / `of S` too, or a rule's pseudo-element takes it (`::before:hover`); a pseudo-element
+  when a parsed rule targets it; an at-rule when it opens a rule. The lists: `property_dispatch::property_names()`,
+  `selectors::pseudo_class_names()` (each name parsed to its `PseudoClass`, compared by variant),
+  `PseudoElementTarget::named()`, `rdom_css::at_rule_names()`. Exemptions go through `EXEMPT_PROPERTIES`, each with a
+  reason (`coverage_exemptions_are_dispatched_properties_with_reasons`); it is empty. The walker has its own case
+  (`the_coverage_walker_reads_declarations_and_at_rules`). Red: 238 / 13 / 3 / 4 unused before tiles 27–33; green after.
+  Part 2 found ACID-FIX-6 … 13; references changed with their spec arguments are listed in the tiles' Log entries above.

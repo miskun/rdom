@@ -13,6 +13,7 @@
 //! its derivation. A reference is never edited to match rdom's output.
 
 mod compare;
+mod coverage;
 mod reference;
 mod refs;
 

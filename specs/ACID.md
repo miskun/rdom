@@ -1,6 +1,6 @@
 # ACID — an rdom acid test
 
-**Status:** IN PROGRESS (2026-10-10) — part 1 (the harness and tiles 1–13) and part 2's tiles 14–26 built (15 as 15a / 15b / 15c), all green after ACID-FIX-1 … 11 (`CSS-COMPLETE-2026-10.md` Phase 16). Next: the coverage test (part 2), the interactive script (part 3).
+**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Next: the interactive script (part 3).
 
 ## Why
 
@@ -22,9 +22,12 @@ web Acid tests, adapted to a terminal grid.
 3. **Tiles, not one picture.** The page is a grid of labelled tiles, each one feature
    *interaction*. A failure reports the tile, the cell and expected-vs-actual, so it points at a
    combination, not "the page differs".
-4. **Coverage is enforced mechanically.** A companion test fails when any CSS property name rdom
-   dispatches (`property_dispatch::property_names()`), any `PseudoClass` or any
-   `PseudoElementTarget` is not used somewhere in the acid page. New features cannot skip it.
+4. **Coverage is enforced mechanically.** A companion test (`acid::coverage`) fails when any CSS
+   property name rdom dispatches (`property_dispatch::property_names()`), any `PseudoClass`
+   (`selectors::pseudo_class_names()`), any `PseudoElementTarget` (`PseudoElementTarget::named()`)
+   or any at-rule rdom-css evaluates (`rdom_css::at_rule_names()`) is not used somewhere in the
+   tiles' CSS, read by parsing it. New features cannot skip it; an exemption needs a written reason
+   (there are none).
 5. **Two stages.** *Static* (one frame, no input) first; *interactive* (scripted input against the
    headless `App`, like Acid3's scripted half) second.
 6. **It lives in the showcase** (`Built-ins → Acid`, plus `cargo run -p rdom-showcase --example
