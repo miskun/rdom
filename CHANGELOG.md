@@ -1032,6 +1032,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **A first or last spanner's margin counts once** (CSS Multi-column 1 §6): a `column-span: all` first child with `margin: 1 0` sits one row down, not two, and a last one adds one row below, not two — its margin was also an empty column set, which could draw a column rule. (C15G-SPANNER-MARGIN)
 - **Absolutely positioned boxes shrink to fit** (CSS 2.1 §10.3.7): an `auto` width is `min(max(min-content, available), max-content)`, the available width the containing block's less the other inset and the margins; it was max-content, never clamped, so long text overflowed the screen and anchored tooltips flipped. See [`sc-abspos-shrink`](#sc-abspos-shrink). (C15G-ABSPOS-CLAMP)
 - **Column breaks follow CSS Fragmentation 3 §4.1 / §4.4 more closely**: `break-before` / `-after: avoid` is given up before `break-inside: avoid` (it was the other way), a block with a definite height taller than its content may break between its last child and its content edge (class C), and a float moves whole to the next column instead of being sliced across the break. (C15G-FRAGMENT-GAPS)
+- **When no position option fits, the base style is used** (CSS Anchor Positioning 1 §4.3, "Return current styles"): under `position-try-order: most-height` a box that fits nowhere stays at its own position instead of taking the first option of the sort. (C15G-TRY-ORDER)
 
 ### Changed — `rdom-showcase`
 

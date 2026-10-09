@@ -10154,3 +10154,18 @@ row comes from.
   at row 2 of 4-row columns was sliced (bounding box `(0, 0, 8, 4)`; green: `(6, 0, 2, 3)`, the top of
   column 2). Mutation (restored, touched): the old order fails the order test; no float marks fail the
   float test.
+- 2026-10-09 — C15G-TRY-ORDER (Phase 15 gate architect N3; CSS Anchor Positioning 1 §4.2, §4.3). Checked
+  the spec text (ED): `position-try-order` — "For each entry in the position options list, apply that
+  position option to the box, and find the inset-modified containing block size … Stably sort the position
+  options list according to this size, with the largest coming first"; the list "initially contains a
+  single position option generated from the element's fallback base styles", so the base style is sorted
+  with the fallbacks. "Determine position fallback styles": for each option in order, skip the last
+  successful one, apply it, and return it if the margin box fits the inset-modified containing block;
+  otherwise "Return current styles". Decided: the architect's first reading (the base tried first) is not
+  the spec — a base that fits does lose to a taller fallback under `most-height`, as rdom did and keeps
+  doing (`position_try_order_prefers_room` pins it). His second point holds: with nothing fitting, rdom
+  used `order[0]`, the first of the sort; the spec returns the current styles, which in rdom (no last
+  successful option is remembered, DIVERGENCES) are the base style's — option 0. Red
+  (`css_phase15/anchor.rs`, `when_no_option_fits_the_base_style_is_used`): a 10-row box below an anchor at
+  row 6 of 8, `flip-block` under `most-height`, fitting neither side, took the flipped option (top -4;
+  green: 7, the base).

@@ -88,8 +88,12 @@ pub(in crate::render::layout_pass) fn placed_rect(
             && rect.x + i32::from(rect.width) <= imcb.x + i32::from(imcb.width)
             && rect.y + i32::from(rect.height) <= imcb.y + i32::from(imcb.height)
     };
+    // §4.3 "determine position fallback styles": the first option in
+    // order that avoids overflow — the base style sorted with the others
+    // (§4.2) — else "Return current styles", the base style's (option 0;
+    // no last successful option is remembered).
     let chosen = order.iter().copied().find(|&i| fits(&tried[i]));
-    let rect = tried[chosen.unwrap_or(order[0])].0;
+    let rect = tried[chosen.unwrap_or(0)].0;
     let v = &c.anchor.position_visibility;
     let hidden = (v.no_overflow && chosen.is_none())
         || (v.anchors_valid && !an.references_resolve(c))

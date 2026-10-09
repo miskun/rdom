@@ -326,6 +326,19 @@ fn position_try_rules_and_areas_are_options() {
     );
 }
 
+/// §4.3 "determine position fallback styles": when no option avoids
+/// overflow, "Return current styles" — the base style (rdom remembers no
+/// last successful option), not the first option in `position-try-order`'s
+/// sort. Ten rows fit neither below the anchor (1 row) nor above it (6):
+/// the box stays below, at row 7, where it was put above, at row -4
+/// (C15G-TRY-ORDER).
+#[test]
+fn when_no_option_fits_the_base_style_is_used() {
+    let css = "top: anchor(bottom); left: anchor(left); height: 10; \
+               position-try-fallbacks: flip-block; position-try-order: most-height";
+    assert_eq!(tried(6, css).1, 7);
+}
+
 /// §4.2: `position-try-order` tries the options with the largest
 /// inset-modified containing block on its axis first.
 #[test]
