@@ -99,6 +99,7 @@ pub(crate) use starting::starting_style;
 pub(crate) use viewport::{document_viewport, set_document_viewport};
 mod colors;
 pub(crate) mod conditions;
+pub(crate) mod container;
 mod decoration;
 pub(crate) mod details;
 mod early_pseudos;
@@ -261,6 +262,8 @@ impl CascadeExt for Dom<TuiExt> {
 
     fn cascade_all(&mut self, stylesheets: &[&Stylesheet]) {
         cascade_all_with(self, stylesheets, None);
+        // Layout re-cascades the query containers' subtrees with these.
+        container::remember_inputs(self, stylesheets);
         // No transition runs outside an `App`: an element waiting to leave
         // the top layer leaves at this style update (CSS Position 4 §3.3).
         crate::runtime::top_layer::finish_removals(self);
@@ -272,6 +275,7 @@ impl CascadeExt for Dom<TuiExt> {
 
     fn cascade_subtrees_all(&mut self, stylesheets: &[&Stylesheet], roots: &[NodeId]) {
         cascade_subtrees_all_with(self, stylesheets, None, roots);
+        container::remember_inputs(self, stylesheets);
         crate::runtime::top_layer::finish_removals(self);
     }
 
@@ -311,6 +315,7 @@ pub(crate) fn cascade_all_with(
 ) {
     let registry = registry.unwrap_or_else(|| registered::document_registry(dom, stylesheets));
     let reads = media::begin(dom);
+    container::begin(dom);
     let sheets = walk::Sheets::new(stylesheets, registry.clone(), media::document_media(dom));
     note_first_rules(dom, &sheets);
     details::reclaim_content_boxes(dom);

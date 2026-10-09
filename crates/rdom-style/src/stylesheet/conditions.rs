@@ -1,5 +1,5 @@
 //! The conditional group rules a sheet declares (CSS Conditional 3 §2):
-//! `@media` and `@supports`, and — as it lands — `@container`. Kept as
+//! `@media`, `@supports` and `@container`. Kept as
 //! rule context, as `@layer` and `@scope` are: each [`ConditionRule`] is
 //! declared once with its enclosing one, and every rule inside records
 //! the innermost ([`Rule::condition`](super::Rule::condition),
@@ -49,6 +49,9 @@ pub enum ConditionKind {
     /// `@supports <supports-condition>` (CSS Conditional 3 §6), and an
     /// `@import`'s `supports()`: evaluated when parsed.
     Supports(crate::conditional::SupportsCondition),
+    /// `@container <container-condition>#` (CSS Conditional 5 §6.4):
+    /// evaluated per element, against its query container.
+    Container(crate::conditional::ContainerQuery),
 }
 
 impl Stylesheet {

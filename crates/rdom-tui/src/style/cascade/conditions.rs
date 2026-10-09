@@ -28,7 +28,11 @@ pub(crate) struct ConditionResults {
 struct SheetResults {
     /// The sheet's media list matches (or it has none).
     applies: bool,
+    /// Each rule's static result — an `@container` taken as holding.
     holds: Box<[bool]>,
+    /// Each rule's chain has an `@container`: the rules under it are
+    /// tested per element (`container.rs`).
+    deferred: Box<[bool]>,
 }
 
 impl ConditionResults {
@@ -38,19 +42,36 @@ impl ConditionResults {
         let per_sheet = list
             .iter()
             .map(|sheet| {
-                let mut holds: Vec<bool> = Vec::with_capacity(sheet.conditions().len());
+                let n = sheet.conditions().len();
+                let mut holds: Vec<bool> = Vec::with_capacity(n);
+                let mut deferred: Vec<bool> = Vec::with_capacity(n);
                 for rule in sheet.conditions() {
                     // A rule is declared after the one enclosing it.
                     let parent = rule.parent.is_none_or(|p| holds[p.index()]);
                     holds.push(parent && own(&rule.kind, env));
+                    let container = matches!(rule.kind, ConditionKind::Container(_));
+                    deferred.push(container || rule.parent.is_some_and(|p| deferred[p.index()]));
                 }
                 SheetResults {
                     applies: sheet.media().is_none_or(|m| m.matches(env)),
                     holds: holds.into_boxed_slice(),
+                    deferred: deferred.into_boxed_slice(),
                 }
             })
             .collect();
         ConditionResults { per_sheet }
+    }
+
+    /// Whether a rule of sheet `sheet` under `condition` is also under an
+    /// `@container`, which each element tests (`container::holds`).
+    pub(super) fn deferred(&self, sheet: usize, condition: Option<ConditionId>) -> bool {
+        condition.is_some_and(|c| {
+            self.per_sheet
+                .get(sheet)
+                .and_then(|r| r.deferred.get(c.index()))
+                .copied()
+                .unwrap_or(false)
+        })
     }
 
     /// Whether a rule of sheet `sheet` under `condition` applies: the
@@ -71,6 +92,8 @@ fn own(kind: &ConditionKind, env: &MediaEnvironment) -> bool {
         ConditionKind::Media(queries) => queries.matches(env),
         // Evaluated when parsed: what rdom supports does not change.
         ConditionKind::Supports(condition) => condition.matches(),
+        // Per element (`container.rs`): it holds here.
+        ConditionKind::Container(_) => true,
         // `ConditionKind` is open: a kind this cascade does not know
         // holds nothing, rather than applying rules it cannot test.
         #[allow(unreachable_patterns)]

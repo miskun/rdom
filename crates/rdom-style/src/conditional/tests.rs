@@ -238,3 +238,95 @@ fn css_supports() {
     assert!(!supports_condition("display: frob"));
     assert!(!supports_condition("nonsense"));
 }
+
+// ─── C14-CONTAINER: container queries (CSS Conditional 5 §6.4–§6.5) ───
+
+fn container(text: &str) -> ContainerQuery {
+    ContainerQuery::parse(text).unwrap_or_else(|| panic!("{text} parses"))
+}
+
+fn eval(text: &str, width: Option<f64>, height: Option<f64>) -> Truth {
+    let none = |_: &str| None;
+    container(text).conditions()[0].evaluate(&QueryContainer {
+        width,
+        height,
+        custom: &none,
+    })
+}
+
+/// §6.4: a condition is a name, a query or both; a list of them; the
+/// name is not `not` / `and` / `or` / `none`.
+#[test]
+fn container_preludes_parse() {
+    let q = container("card (width > 3), (height < 2), side");
+    let names: Vec<Option<&str>> = q.conditions().iter().map(|c| c.name()).collect();
+    assert_eq!(names, [Some("card"), None, Some("side")]);
+    assert!(q.conditions()[0].needs_size());
+    assert!(!q.conditions()[2].needs_size());
+    assert!(
+        container("not (width > 3)").conditions()[0]
+            .name()
+            .is_none()
+    );
+    assert!(container("style(--x: 1)").conditions()[0].name().is_none());
+    assert!(!container("style(--x: 1)").conditions()[0].needs_size());
+    assert!(container("scroll-state(stuck: top)").conditions()[0].needs_scroll_state());
+    assert!(ContainerQuery::parse("").is_none());
+    assert!(ContainerQuery::parse("card (width > 3) (height > 1)").is_none());
+    assert!(ContainerQuery::parse("a b").is_none());
+    assert_eq!(
+        container("card (width > 3)").to_string(),
+        "card (width > 3)"
+    );
+}
+
+/// §6.5: the size features read the container's content box; an axis it
+/// does not answer on is unknown.
+#[test]
+fn size_features_read_the_container() {
+    assert_eq!(eval("(width > 3)", Some(4.0), None), Truth::True);
+    assert_eq!(eval("(inline-size <= 3)", Some(4.0), None), Truth::False);
+    assert_eq!(eval("(height > 3)", Some(4.0), None), Truth::Unknown);
+    assert_eq!(eval("(block-size: 2)", Some(4.0), Some(2.0)), Truth::True);
+    assert_eq!(
+        eval("(aspect-ratio > 1)", Some(4.0), Some(2.0)),
+        Truth::True
+    );
+    assert_eq!(
+        eval("(orientation: portrait)", Some(4.0), Some(5.0)),
+        Truth::True
+    );
+    assert_eq!(
+        eval("(orientation: portrait)", Some(4.0), None),
+        Truth::Unknown
+    );
+    assert_eq!(
+        eval("(color)", Some(4.0), Some(5.0)),
+        Truth::Unknown,
+        "not a size feature"
+    );
+}
+
+/// §6.4 style queries: custom properties by computed value (whitespace
+/// collapsed), or that one has a value; standard properties unknown.
+#[test]
+fn style_features_read_custom_properties() {
+    let vars = |name: &str| match name {
+        "--a" => Some("  dark   blue ".to_string()),
+        _ => None,
+    };
+    let eval = |text: &str| {
+        container(text).conditions()[0].evaluate(&QueryContainer {
+            width: None,
+            height: None,
+            custom: &vars,
+        })
+    };
+    assert_eq!(eval("style(--a: dark blue)"), Truth::True);
+    assert_eq!(eval("style(--a)"), Truth::True);
+    assert_eq!(eval("style(--b)"), Truth::False);
+    assert_eq!(eval("style(--a: light)"), Truth::False);
+    assert_eq!(eval("style((--a: dark blue) and (--b: 1))"), Truth::False);
+    assert_eq!(eval("style(color: red)"), Truth::Unknown);
+    assert_eq!(eval("scroll-state(stuck: top)"), Truth::Unknown);
+}

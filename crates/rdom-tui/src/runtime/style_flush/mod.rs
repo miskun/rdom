@@ -71,6 +71,27 @@ pub(crate) fn publish(
     });
 }
 
+/// What a cascade outside the frame runs with: the sheets in cascade
+/// order, their registry, and the dirty tracker of the `App` running the
+/// document, if one does.
+pub(crate) struct CascadeInputs {
+    pub sheets: Rc<[Rc<Stylesheet>]>,
+    pub registry: Rc<PropertyRegistry>,
+    pub tracker: Option<DirtyTracker>,
+}
+
+/// The cascade's inputs an `App` published on `dom`, or `None` on a
+/// document no `App` runs. The layout pass re-cascades a query
+/// container's subtree with them (`render::layout_pass::container_pass`).
+pub(crate) fn published(dom: &TuiDom) -> Option<CascadeInputs> {
+    let inputs = dom.document_data::<StyleInputs>()?;
+    Some(CascadeInputs {
+        sheets: inputs.sheets.clone(),
+        registry: inputs.registry.clone(),
+        tracker: Some(inputs.tracker.clone()),
+    })
+}
+
 /// Bring `id`'s computed style up to date (HTML's "update style" before
 /// the focusing steps): cascade the dirty subtrees that hold it, under
 /// the sheets the `App` running `dom` cascades, and leave the rest of the

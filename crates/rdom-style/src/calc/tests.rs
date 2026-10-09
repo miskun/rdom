@@ -163,3 +163,46 @@ fn a_viewport_unit_with_a_viewport_resolves() {
     };
     assert_eq!(e.resolve(&cx(0).with_viewport(Viewport::new(80, 20))), 8);
 }
+
+/// C14-CONTAINER — CSS Conditional 5 §6.6: `cqw` / `cqh` / `cqi` / `cqb` /
+/// `cqmin` / `cqmax` are 1% of the query container's content box on the
+/// axis, the small viewport's on an axis with no container; they parse
+/// and serialize like the viewport units.
+#[test]
+fn container_units_resolve_against_the_container() {
+    use super::{CalcExpr, CalcUnit, UnitContext, Viewport, ViewportAxis};
+    assert_eq!(
+        CalcUnit::parse("CQW"),
+        Some(CalcUnit::Container(ViewportAxis::Width))
+    );
+    assert_eq!(
+        CalcUnit::parse("cqmax").map(CalcUnit::css_name),
+        Some("cqmax")
+    );
+    let cx = UnitContext::new(Viewport::new(80, 20)).with_container(Some(40.0), None);
+    let cells = |unit: &str, v: f64| {
+        let e = CalcExpr::Dimension {
+            value: v,
+            unit: CalcUnit::parse(unit).unwrap(),
+        };
+        match e.absolutize_in(&cx) {
+            CalcExpr::Number(n) => n,
+            other => panic!("{other:?}"),
+        }
+    };
+    assert_eq!(cells("cqw", 50.0), 20.0);
+    assert_eq!(cells("cqi", 10.0), 4.0);
+    assert_eq!(
+        cells("cqh", 50.0),
+        10.0,
+        "no block container: the viewport's 20 rows"
+    );
+    assert_eq!(cells("cqmin", 50.0), 10.0);
+    assert_eq!(cells("cqmax", 50.0), 20.0);
+    let before = super::container_reads();
+    cells("cqw", 1.0);
+    assert!(
+        super::container_reads() > before,
+        "a container read is counted"
+    );
+}

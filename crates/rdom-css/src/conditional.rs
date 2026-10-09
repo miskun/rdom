@@ -1,6 +1,7 @@
 //! The conditional group rules (CSS Conditional 3 §2): `@media`
-//! (Media Queries 4, Conditional 3 §3) and `@supports` (Conditional 3
-//! §6, evaluated once, here, against what rdom parses).
+//! (Media Queries 4, Conditional 3 §3), `@supports` (Conditional 3 §6,
+//! evaluated once, here, against what rdom parses) and `@container`
+//! (Conditional 5 §6.4, evaluated per element by the backend).
 //!
 //! Each is declared in the sheet as a [`ConditionRule`] nested in the one
 //! it sits in, and its body is parsed with the condition in the rule
@@ -10,13 +11,14 @@
 //! backend's cascade, not here: a media query's answer changes with the
 //! terminal.
 
-use rdom_style::conditional::{MediaList, SupportsCondition};
+use rdom_style::conditional::{ContainerQuery, MediaList, SupportsCondition};
 use rdom_style::parse::SourceCursor;
 use rdom_style::{ConditionKind, ConditionRule, RuleContext, Stylesheet};
 
 use crate::{Warning, WarningKind};
 
-/// After a conditional group rule's name (`@media`, `@supports`): read
+/// After a conditional group rule's name (`@media`, `@supports`,
+/// `@container`): read
 /// the prelude and, at its `{` (consumed), declare the condition inside
 /// `ctx`'s and return the context its body parses in. `None` when the
 /// rule has no block or an invalid prelude (reported; the rule skipped
@@ -58,7 +60,7 @@ pub(crate) fn open_conditional_rule(
 
 /// Whether `name` is a conditional group rule this parser evaluates.
 pub(crate) fn is_conditional(name: &str) -> bool {
-    ["media", "supports"]
+    ["media", "supports", "container"]
         .iter()
         .any(|n| name.eq_ignore_ascii_case(n))
 }
@@ -70,6 +72,8 @@ fn condition_kind(name: &str, prelude: &str) -> Option<ConditionKind> {
         Some(ConditionKind::Media(MediaList::parse(prelude)))
     } else if name.eq_ignore_ascii_case("supports") {
         SupportsCondition::parse(prelude).map(ConditionKind::Supports)
+    } else if name.eq_ignore_ascii_case("container") {
+        ContainerQuery::parse(prelude).map(ConditionKind::Container)
     } else {
         None
     }

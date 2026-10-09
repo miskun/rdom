@@ -119,7 +119,7 @@ pub(super) fn feature(prelude: &Prelude<'_>, cv: &Cv) -> Option<MediaFeature> {
 }
 
 impl MediaFeature {
-    fn parse(prelude: &Prelude<'_>, inner: &[Cv]) -> Option<Self> {
+    pub(super) fn parse(prelude: &Prelude<'_>, inner: &[Cv]) -> Option<Self> {
         // `(name)`.
         if let [only] = inner {
             let name = prelude.ident(only)?.to_ascii_lowercase();
@@ -351,6 +351,36 @@ impl MediaFeature {
                     "none"
                 };
                 self.discrete(v, &["none", "inverted"], Some("none"))
+            }
+            _ => Truth::Unknown,
+        }
+    }
+
+    /// Evaluate as a container size feature (CSS Conditional 5 §6.5)
+    /// against a query container's content box: `width` / `inline-size`
+    /// read `width`, `height` / `block-size` read `height`, `aspect-ratio`
+    /// and `orientation` read both — `None`, an axis the container does
+    /// not answer on, is unknown, as is any other feature.
+    pub(crate) fn evaluate_size(&self, width: Option<f64>, height: Option<f64>) -> Truth {
+        let unknown = |v: Option<f64>| v.is_none();
+        match self.name.as_str() {
+            "width" | "inline-size" => match width {
+                Some(w) => self.range(Kind::Length, w),
+                None => Truth::Unknown,
+            },
+            "height" | "block-size" => match height {
+                Some(h) => self.range(Kind::Length, h),
+                None => Truth::Unknown,
+            },
+            "aspect-ratio" | "orientation" if unknown(width) || unknown(height) => Truth::Unknown,
+            "aspect-ratio" => self.range(Kind::Ratio, width.unwrap_or(0.0) / height.unwrap_or(0.0)),
+            "orientation" => {
+                let v = if height > width {
+                    "portrait"
+                } else {
+                    "landscape"
+                };
+                self.discrete(v, &["portrait", "landscape"], None)
             }
             _ => Truth::Unknown,
         }

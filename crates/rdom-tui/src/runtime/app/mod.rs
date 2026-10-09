@@ -96,6 +96,8 @@ mod calc_size_tests;
 #[cfg(test)]
 mod config_tests;
 #[cfg(test)]
+mod container_query_tests;
+#[cfg(test)]
 mod control_click_tests;
 #[cfg(test)]
 mod control_seeding_tests;

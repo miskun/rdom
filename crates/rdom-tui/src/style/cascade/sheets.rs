@@ -155,6 +155,12 @@ impl<'a> Sheets<'a> {
         (self.starting || !rule.starting_style) && self.conditions.holds(sheet, rule.condition)
     }
 
+    /// Whether `rule`, of sheet `sheet`, also needs its `@container`
+    /// conditions tested for each element (CSS Conditional 5 §6.4).
+    pub(super) fn deferred(&self, sheet: usize, rule: &Rule) -> bool {
+        self.conditions.deferred(sheet, rule.condition)
+    }
+
     /// Whether any of the sheets has a `@starting-style` rule.
     pub(super) fn has_starting_rules(&self) -> bool {
         *self.registry.facts.starting_rules.get_or_init(|| {

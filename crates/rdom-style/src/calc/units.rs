@@ -22,6 +22,12 @@ pub enum CalcUnit {
     /// A viewport-percentage unit (`vw`, `svh`, `dvmax`, …): 1% of the
     /// terminal on an axis (Values 4 §6.1.2).
     Viewport(ViewportUnit),
+    /// A container-relative unit (`cqw`, `cqh`, `cqi`, `cqb`, `cqmin`,
+    /// `cqmax`): 1% of the nearest size query container's content box on
+    /// the axis, the small viewport's where there is none (CSS
+    /// Conditional 5 §6.6). Resolved at computed-value time
+    /// ([`UnitContext::with_container`]).
+    Container(ViewportAxis),
     /// `deg` — 1/360 of a turn (Values 4 §7.1).
     Deg,
     /// `grad` — 1/400 of a turn (Values 4 §7.1).
@@ -56,6 +62,15 @@ impl Viewport {
 
 thread_local! {
     static VIEWPORT_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    static CONTAINER_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many container-relative lengths this thread has resolved against
+/// a query container's size, ever — sampled around one element's style,
+/// as [`viewport_reads`] is around a cascade: a backend learns that the
+/// style depends on the container's size (CSS Conditional 5 §6.6).
+pub fn container_reads() -> u64 {
+    CONTAINER_READS.with(std::cell::Cell::get)
 }
 
 /// How many viewport-percentage lengths this thread has resolved, ever —
@@ -80,6 +95,12 @@ pub struct UnitContext {
     pub lh: f64,
     /// Rows one `rlh` is: the root element's used line height.
     pub rlh: f64,
+    /// The cells of the nearest query container's content box the
+    /// container-relative units of the inline axis resolve against
+    /// (`None`: no such container — the small viewport's).
+    pub container_inline: Option<f64>,
+    /// The same on the block axis.
+    pub container_block: Option<f64>,
 }
 
 impl UnitContext {
@@ -90,6 +111,49 @@ impl UnitContext {
             viewport,
             lh: 1.0,
             rlh: 1.0,
+            container_inline: None,
+            container_block: None,
+        }
+    }
+
+    /// This context with the query container sizes the
+    /// container-relative units resolve against, per axis (CSS
+    /// Conditional 5 §6.6).
+    pub fn with_container(mut self, inline: Option<f64>, block: Option<f64>) -> Self {
+        self.container_inline = inline;
+        self.container_block = block;
+        self
+    }
+
+    /// The cells 1% of the query container is on `axis`, the small
+    /// viewport's on an axis with none. Counted ([`container_reads`])
+    /// when a container size is read.
+    fn container_percent(&self, axis: ViewportAxis) -> f64 {
+        let viewport = |axis| {
+            ViewportUnit {
+                size: ViewportSize::Small,
+                axis,
+            }
+            .percent_of(self.viewport)
+        };
+        let one = |size: Option<f64>, fallback: ViewportAxis| match size {
+            Some(cells) => {
+                CONTAINER_READS.with(|c| c.set(c.get().wrapping_add(1)));
+                cells / 100.0
+            }
+            None => viewport(fallback),
+        };
+        match axis {
+            ViewportAxis::Width | ViewportAxis::Inline => {
+                one(self.container_inline, ViewportAxis::Width)
+            }
+            ViewportAxis::Height | ViewportAxis::Block => {
+                one(self.container_block, ViewportAxis::Height)
+            }
+            ViewportAxis::Min => one(self.container_inline, ViewportAxis::Width)
+                .min(one(self.container_block, ViewportAxis::Height)),
+            ViewportAxis::Max => one(self.container_inline, ViewportAxis::Width)
+                .max(one(self.container_block, ViewportAxis::Height)),
         }
     }
 
@@ -201,6 +265,16 @@ impl ViewportUnit {
     }
 }
 
+/// The container-relative units (CSS Conditional 5 §6.6) and their axes.
+const CONTAINER_UNITS: [(&str, ViewportAxis); 6] = [
+    ("cqw", ViewportAxis::Width),
+    ("cqh", ViewportAxis::Height),
+    ("cqi", ViewportAxis::Inline),
+    ("cqb", ViewportAxis::Block),
+    ("cqmin", ViewportAxis::Min),
+    ("cqmax", ViewportAxis::Max),
+];
+
 impl CalcUnit {
     /// The unit of a dimension token, ASCII case-insensitive (CSS
     /// Values 4 §6: unit identifiers are case-insensitive). `None` for a
@@ -220,6 +294,12 @@ impl CalcUnit {
             .find(|(n, _)| n.eq_ignore_ascii_case(unit))
             .map(|(_, u)| *u)
             .or_else(|| ViewportUnit::parse(unit).map(CalcUnit::Viewport))
+            .or_else(|| {
+                CONTAINER_UNITS
+                    .iter()
+                    .find(|(n, _)| n.eq_ignore_ascii_case(unit))
+                    .map(|(_, a)| CalcUnit::Container(*a))
+            })
     }
 
     /// The unit's CSS spelling.
@@ -229,6 +309,10 @@ impl CalcUnit {
             CalcUnit::Lh => "lh",
             CalcUnit::Rlh => "rlh",
             CalcUnit::Viewport(v) => v.css_name(),
+            CalcUnit::Container(axis) => CONTAINER_UNITS
+                .iter()
+                .find(|(_, a)| *a == axis)
+                .map_or("cqw", |(n, _)| n),
             CalcUnit::Deg => "deg",
             CalcUnit::Grad => "grad",
             CalcUnit::Rad => "rad",
@@ -240,9 +324,12 @@ impl CalcUnit {
     /// The type of a value in this unit.
     pub fn kind(self) -> CalcKind {
         match self {
-            CalcUnit::Ch | CalcUnit::Lh | CalcUnit::Rlh | CalcUnit::Viewport(_) | CalcUnit::Px => {
-                CalcKind::Length
-            }
+            CalcUnit::Ch
+            | CalcUnit::Lh
+            | CalcUnit::Rlh
+            | CalcUnit::Viewport(_)
+            | CalcUnit::Container(_)
+            | CalcUnit::Px => CalcKind::Length,
             CalcUnit::Deg | CalcUnit::Grad | CalcUnit::Rad | CalcUnit::Turn => CalcKind::Angle,
         }
     }
@@ -259,7 +346,7 @@ impl CalcUnit {
             | CalcUnit::Rad
             | CalcUnit::Turn
             | CalcUnit::Px => false,
-            CalcUnit::Viewport(_) | CalcUnit::Lh | CalcUnit::Rlh => true,
+            CalcUnit::Viewport(_) | CalcUnit::Container(_) | CalcUnit::Lh | CalcUnit::Rlh => true,
         }
     }
 
@@ -276,6 +363,21 @@ impl CalcUnit {
                     v.css_name()
                 );
                 value * v.percent_of(cx.viewport.unwrap_or_default())
+            }
+            // As a viewport unit: the cascade makes it absolute. One that
+            // reaches layout resolves against the small viewport.
+            CalcUnit::Container(axis) => {
+                debug_assert!(
+                    cx.viewport.is_some(),
+                    "a container unit reached layout: a computed-style field \
+                     `ComputedStyle::resolve_context_units` does not resolve"
+                );
+                value
+                    * ViewportUnit {
+                        size: ViewportSize::Small,
+                        axis,
+                    }
+                    .percent_of(cx.viewport.unwrap_or_default())
             }
             // One column. A line-height unit the cascade did not make
             // absolute (a registered custom property's, which is computed
@@ -320,6 +422,10 @@ impl CalcExpr {
                 value,
                 unit: CalcUnit::Viewport(v),
             } => CalcExpr::Number(value * v.percent_of(cx.viewport)),
+            CalcExpr::Dimension {
+                value,
+                unit: CalcUnit::Container(axis),
+            } => CalcExpr::Number(value * cx.container_percent(*axis)),
             CalcExpr::Dimension {
                 value,
                 unit: CalcUnit::Lh,

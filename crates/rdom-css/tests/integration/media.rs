@@ -100,3 +100,32 @@ fn append_carries_conditions() {
     assert_eq!(chain.len(), 2);
     assert_eq!(chain[1].parent, None);
 }
+
+/// C14-CONTAINER — `@container` (CSS Conditional 5 §6.4): declared like
+/// the other conditional rules, at the top level and nested; an invalid
+/// prelude drops the rule.
+#[test]
+fn container_rules_record_their_condition() {
+    let r = parse(
+        "@container card (width > 3) { .a { color: red } } .b { @container (height < 2) { color: blue } }",
+    );
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    let sheet = &r.stylesheet;
+    let kinds: Vec<bool> = sheet
+        .rules()
+        .iter()
+        .map(|rule| {
+            matches!(
+                sheet
+                    .condition_chain(rule.condition)
+                    .next()
+                    .map(|c| &c.kind),
+                Some(ConditionKind::Container(_))
+            )
+        })
+        .collect();
+    assert_eq!(kinds, [true, false, true]);
+    let r = parse("@container a b { .a { color: red } } .c { color: red }");
+    assert_eq!(r.warnings.len(), 1);
+    assert_eq!(r.stylesheet.rules().len(), 1);
+}

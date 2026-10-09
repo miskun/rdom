@@ -90,6 +90,7 @@ mod border_collapse;
 pub(crate) mod box_sizing;
 mod calc_size;
 mod clip_edge;
+pub(crate) mod container_pass;
 pub(crate) mod containment;
 mod dispatch;
 mod distribution;
@@ -163,8 +164,12 @@ pub trait LayoutExt: crate::sealed::Sealed {
 
 impl LayoutExt for Dom<TuiExt> {
     fn layout_dom(&mut self, viewport: Rect) {
-        // A `calc-size()`d box takes a second pass (`calc_size`).
-        calc_size::lay_out(self, viewport, layout_once);
+        // A query container's subtree is re-cascaded once its size is
+        // known (`container_pass`); a `calc-size()`d box takes a second
+        // pass (`calc_size`).
+        container_pass::lay_out(self, viewport, |dom, viewport| {
+            calc_size::lay_out(dom, viewport, layout_once);
+        });
     }
 }
 

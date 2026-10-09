@@ -176,7 +176,14 @@ pub(super) fn compute_element_style(
     let root_rows = (!root).then(|| super::text::root_line_height(dom));
     let units =
         super::text::finalize_line_height(&mut working, parent, root_rows, sheets.viewport());
+    // The container-relative units, against the query containers above
+    // (CSS Conditional 5 §6.6).
+    let containers = super::container::unit_containers(dom, id, false);
+    let units = super::container::with_unit_sizes(dom, units, containers);
+    let reads = rdom_style::calc::container_reads();
     working.resolve_context_units(&units);
+    super::container::note_unit_reads(dom, reads, containers);
+    super::container::note_style(dom, &working);
     finalize_used_border(&mut working);
 
     working

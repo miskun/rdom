@@ -18,12 +18,16 @@
 //! every rule inside one records the innermost it sits under; the
 //! backend's cascade evaluates them.
 
+mod container;
 mod media;
 mod media_env;
 mod media_feature;
 mod supports;
 mod syntax;
 
+pub use container::{
+    ContainerCondition, ContainerFeature, ContainerQuery, QueryContainer, StyleFeature,
+};
 pub use media::{MediaList, MediaQuery, MediaType};
 pub use media_env::{Contrast, MediaEnvironment, MediaPreferences, PointerAccuracy};
 pub use media_feature::MediaFeature;

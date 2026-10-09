@@ -265,7 +265,7 @@ row comes from.
 |---|---|---|
 | C14-MEDIA | `@media` (cell-sized viewport, `prefers-color-scheme`, `prefers-reduced-motion`, `hover` / `pointer`, …) and `matchMedia` | done |
 | C14-SUPPORTS | `@supports` (feature queries against the dispatch table; `CSS.supports`) | done |
-| C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | partial — part 2: `@container`, the `cq*` units, the interleaved cascade / layout pass |
+| C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | done |
 | C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | |
 
 ### Phase 15 — Transforms, filters, compositing, multi-column, anchor positioning (audit §3.23, §3.24)
@@ -9125,3 +9125,37 @@ row comes from.
   failed (no dirty flag). Green after. Mutation (each alone, restored, touched): the intrinsic hook out → the
   float and atom tests; the auto-height hook out → the size and atom tests. Changed expectation: the cascade's
   every-property reset test perturbs `container` too. Silent change 27 (the old 27–88 move to 28–89).
+- 2026-10-09 — C14-CONTAINER (part 2 of 2: `@container` and the container-relative units; CSS Conditional 5
+  §6.4–§6.6). rdom-style `conditional/container.rs`: `ContainerQuery` (`<container-condition>#`, any holding),
+  each `ContainerCondition` an optional name (not `not` / `and` / `or` / `none`) and an optional query over
+  `ContainerFeature` leaves — `Size` (the `MediaFeature` grammar, `MediaFeature::evaluate_size` reading
+  `width` / `inline-size`, `height` / `block-size`, `aspect-ratio`, `orientation` against a content box, an axis
+  the container does not answer unknown), `Style` (`style()` over `(--x: y)` / `(--x)` or one bare feature;
+  custom properties compared as whitespace-collapsed text, standard properties unknown) and `ScrollState`
+  (kept, unknown) — evaluated against a `QueryContainer` the backend describes. `CalcUnit::Container(axis)` —
+  `cqw` / `cqh` / `cqi` / `cqb` / `cqmin` / `cqmax` — resolved in `absolutize_in` from
+  `UnitContext::with_container(inline, block)`, the small viewport's on an axis with none, a container read
+  counted (`calc::container_reads`). rdom-css: `@container` joins `open_conditional_rule`. rdom-tui: the
+  condition results gain `deferred` (a chain holding an `@container`), and `matching::collect` tests those rules
+  per element (`cascade/container.rs`: the nearest ancestor — from the originating element for a
+  pseudo-element — of the name and type the condition needs; a style-only query takes any element); element
+  and pseudo styles resolve their units against the nearest size containers (looked up only once the document
+  has computed a size container). Decided — the interleaving: a whole-tree layout cannot pause at a container,
+  so `layout_dom` runs `container_pass::lay_out`: lay out, measure each container the cascade recorded as read
+  (`ContainerState`: per container the size read and the size measured; read sizes as last measured, so before
+  the first layout a query is unknown and a unit 0 — a container read all the same, so the pass sees it),
+  re-cascade the subtree of each whose size moved (`cascade_subtrees_all_with`, the per-pass memo and the
+  match records as for any subtree cascade), lay out again; at most `MAX_PASSES` = 8; nothing recorded, one
+  layout. The sheets come from the `App`'s published style inputs (`style_flush::published`, whose dirty
+  tracker gets the restyled roots as flushed, so the next frame's hook starts their transitions) or, outside an
+  `App`, from clones the `CascadeExt` cascade keeps once a container was queried (keyed by the sheets'
+  versions). Red: `css_phase14/container_query.rs` — all 9 failed on HEAD (the strict sheet rejected
+  `@container` and the `cq*` units); the counting tests (`container_pass::tests`), the App tests and the unit
+  tests were compile-red. Green after (two test fixes while writing: the size test now uses `border-box` so its
+  padding is inside the width it states; the custom-property lookup strips `--`, the var map's key form).
+  Counted: no query → no pass, no evaluation; one container → one re-cascade, then none; two nested → two.
+  Mutation (restored, touched): no re-cascade → 7 integration, 2 counting, 2 App tests; the per-element gate off
+  plus the unit reads unrecorded → 6 integration and the counting and App tests; the tracker note off → the
+  transition test. DESIGN: "Query containers interleave the cascade and layout"; DIVERGENCES §2: the passes,
+  the first-pass unknowns, style queries, `scroll-state()`. CSS-COVERAGE §3.21 3 / 0 / 3 / 1, §3.3 18 / 0 / 0 /
+  4, total 241 / 7 / 14 / 45. Item done.

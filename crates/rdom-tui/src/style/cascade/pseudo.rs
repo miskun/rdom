@@ -188,7 +188,13 @@ pub(super) fn compute_pseudo_style(
         root_rows,
         cx.sheets.viewport(),
     );
+    // A pseudo-element's query containers start at its originating
+    // element (CSS Conditional 5 §6.4).
+    let containers = super::container::unit_containers(dom, id, true);
+    let units = super::container::with_unit_sizes(dom, units, containers);
+    let reads = rdom_style::calc::container_reads();
     working.resolve_context_units(&units);
+    super::container::note_unit_reads(dom, reads, containers);
     finalize_used_border(&mut working);
 
     // Resolve content:
