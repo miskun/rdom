@@ -44,7 +44,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
-| 15 | Transforms, filters, compositing, multi-column, anchor positioning | part 1 (transforms, filters, compositing, clipping) in progress 2026-10-09 |
+| 15 | Transforms, filters, compositing, multi-column, anchor positioning | part 1 done 2026-10-09 (C15-TRANSLATE, C15-FILTER, C15-BLEND, C15-CLIP-PATH); part 2 (C15-COLUMNS, C15-ANCHOR) and both gates pending |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
 
@@ -9821,3 +9821,14 @@ row comes from.
   `frame_cost_tests::a_clip_path_animation_lays_out_nothing`. Combined mutation run (no clip in paint, none
   in hit-testing, no stacking context, `clip-path` a layout longhand) fails six. Silent change
   `sc-clip-path`.
+- 2026-10-09 — Phase 15 part 1 closed (docs). ACID.md gains tile 23 (transforms: a half-off-screen slide-in
+  panel, summed translate functions beside an inert rotation, ties-to-even rounding, a `content-box`
+  reference, a `scale(1)` stacking context, a fixed badge in a transformed card, a scrollbar from a
+  translated child) and tile 24 (filters, blending and clipping: black-on-black `invert()`, the matrix
+  swatches, `opacity()` against `opacity`, a drop shadow, a backdrop filter, blend modes in and out of an
+  isolated group, three clip shapes with a clipped-out click, an inert mask), and interactive step I20
+  (a `translate` transition and a `transform` keyframe slide-in at fixed clock times, laying out only on
+  the frames whose cell moved, hit where the panel is). The rdom-tui README gains "A slide-in panel", a
+  doctest of `translate: -100% 0` → `0` under `transition`, the sibling unmoved (mutation-checked: a wrong
+  mid-way offset fails it). CSS-COVERAGE §3.23's rows and the §1 counts were kept per item (6 / 0 / 0 / 4;
+  250 Supported, 7 Partial, 5 Missing); §3.24 is part 2's.

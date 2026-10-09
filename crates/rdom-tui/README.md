@@ -1137,6 +1137,46 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### A slide-in panel
+
+`translate` and `transform: translate()` move a box by whole cells after layout — its paint, hit-testing and scrollable overflow go with it, the boxes around it stay (CSS Transforms 1 §3) — and they transition like any length. The web's slide-in drawer carries over as written:
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        ".panel { width: 10; height: 3; background-color: rgb(0, 0, 128);
+                  translate: -100% 0; transition: translate 100ms linear }
+         .panel.open { translate: 0 }",
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let body = dom.create_element("body");
+    dom.append_child(dom.root(), body)?;
+    let panel = dom.create_element("div");
+    dom.set_attribute(panel, "class", "panel")?;
+    let after = dom.create_element("p");
+    dom.append_child(body, panel)?;
+    dom.append_child(body, after)?;
+    let terminal = Terminal::new(TestBackend::new(20, 5))?;
+    let mut app = App::with_backend(dom, sheet, terminal)?;
+    app.advance(0)?;
+
+    let x = |app: &App<TestBackend>| app.dom().node(panel).bounding_rect().unwrap().x;
+    assert_eq!(x(&app), -10, "off-screen: -100% of its own width");
+    app.dom_mut().set_attribute(panel, "class", "panel open")?;
+    app.advance(0)?; // the transition starts
+    app.advance(50)?;
+    assert_eq!(x(&app), -5);
+    app.advance(50)?;
+    assert_eq!(x(&app), 0);
+    // The paragraph after it lays out where it did: a translation moves
+    // no other box.
+    assert_eq!(app.dom().node(after).bounding_rect().unwrap().y, 3);
+    Ok(())
+}
+```
+
 ### Porting web patterns that do not carry over
 
 A terminal has no fonts and no pixels, and a `transform` only moves a box by whole cells (it cannot scale or rotate one), so three common browser patterns need a terminal form.
