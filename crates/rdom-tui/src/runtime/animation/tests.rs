@@ -74,10 +74,11 @@ fn pseudo_element_color_transitions_in_its_own_slot() {
     let ext = dom.node(div).ext().unwrap();
     assert!(ext.presentation.is_none(), "host slot untouched");
     let fg = ext.computed_for(StyleSlot::Before).map(|c| c.fg);
-    // Red → blue at the midpoint, in Oklab (CSS Color 4 §12.1).
+    // Red → blue at the midpoint, in gamma-encoded sRGB — the space
+    // CSS Color 4 §12.1 requires for legacy sRGB colors (ACID-FIX-14).
     assert_eq!(
         fg,
-        Some(Color::Rgb(140, 83, 162)),
+        Some(Color::Rgb(128, 0, 128)),
         "the ::before's running value"
     );
     assert_eq!(
@@ -145,12 +146,13 @@ fn transition_color_interpolates_at_midpoint() {
     assert_eq!(reg.len(), 1);
 
     // Advance 50ms — the midpoint of red → blue, interpolated in
-    // Oklab (CSS Color 4 §12.1): a light purple, (140, 83, 162).
+    // gamma-encoded sRGB (CSS Color 4 §12.1, legacy sRGB colors;
+    // ACID-FIX-14): (128, 0, 128).
     let mid = start + Duration::from_millis(50);
     reg.advance(&mut dom, mid);
     // The running value is the computed value.
     let fg = dom.node(div).ext().unwrap().computed.as_ref().unwrap().fg;
-    assert_eq!(fg, Color::Rgb(140, 83, 162));
+    assert_eq!(fg, Color::Rgb(128, 0, 128));
 
     // Advance to end — animation retires, presentation cleared.
     let end = start + Duration::from_millis(120);
@@ -273,11 +275,11 @@ fn color_interpolation_premultiplies_alpha() {
 /// endpoint; it starts from the canvas model of the element's used color
 /// scheme for the property's role — the canvas background for
 /// `background-color`, the canvas text for `color` — and interpolates in
-/// Oklab like any other pair (CSS Color 4 §12.1). It used to start from
-/// a fixed light gray in sRGB in every scheme.
+/// sRGB like any other pair (CSS Color 4 §12.1; ACID-FIX-14). It used to
+/// start from a fixed light gray in every scheme.
 #[test]
 fn reset_endpoint_interpolates_from_the_scheme_canvas_for_its_role() {
-    use rdom_style::color::{ColorScheme, interpolate_oklab};
+    use rdom_style::color::{ColorScheme, interpolate_srgb};
     let blue = Color::Rgb(0, 0, 255);
     for scheme in [ColorScheme::Light, ColorScheme::Dark] {
         let mut dom: TuiDom = TuiDom::new();
@@ -310,12 +312,12 @@ fn reset_endpoint_interpolates_from_the_scheme_canvas_for_its_role() {
         let (canvas_bg, canvas_fg) = scheme.canvas();
         assert_eq!(
             Some(p.bg),
-            interpolate_oklab(canvas_bg, blue, 0.5),
+            interpolate_srgb(canvas_bg, blue, 0.5),
             "{scheme:?} bg"
         );
         assert_eq!(
             Some(p.fg),
-            interpolate_oklab(canvas_fg, blue, 0.5),
+            interpolate_srgb(canvas_fg, blue, 0.5),
             "{scheme:?} fg"
         );
     }

@@ -632,3 +632,29 @@ fn integers_round_half_toward_positive_infinity() {
     assert_eq!(pair(-1, 0), 0);
     assert_eq!(pair(-2, -1), -1);
 }
+
+/// ACID-FIX-14 — CSS Color 4 §12.1: "user agents must handle
+/// interpolation between legacy sRGB color formats (hex colors, named
+/// colors, `rgb()`, `hsl()` or `hwb()` …) in gamma-encoded sRGB space".
+/// rdom computes every color to 8-bit sRGB (DIVERGENCES §2), so a
+/// transition interpolates its colors there, premultiplied (§12.3):
+/// black → `rgb(200, 0, 0)` at 0.375 is `rgb(75, 0, 0)` — Oklab's path
+/// passed through `rgb(49, 0, 0)` (found by acid step I6) — red → blue
+/// meets at sRGB's purple, white → black at its middle gray, and a fade
+/// from `transparent` keeps its hue.
+#[test]
+fn colors_interpolate_in_gamma_encoded_srgb() {
+    use crate::Color;
+    let lerp = |a: Color, b: Color, t: f32| lerp_color(a, b, t, Color::Reset);
+    let (black, dark_red) = (Color::Rgb(0, 0, 0), Color::Rgb(200, 0, 0));
+    assert_eq!(lerp(black, dark_red, 0.375), Color::Rgb(75, 0, 0));
+    assert_eq!(lerp(black, dark_red, 0.75), Color::Rgb(150, 0, 0));
+    let (red, blue) = (Color::Rgb(255, 0, 0), Color::Rgb(0, 0, 255));
+    assert_eq!(lerp(red, blue, 0.5), Color::Rgb(128, 0, 128));
+    let (white, black) = (Color::Rgb(255, 255, 255), Color::Rgb(0, 0, 0));
+    assert_eq!(lerp(white, black, 0.5), Color::Rgb(128, 128, 128));
+    assert_eq!(
+        lerp(Color::TRANSPARENT, red, 0.5),
+        Color::Rgba(255, 0, 0, 128)
+    );
+}

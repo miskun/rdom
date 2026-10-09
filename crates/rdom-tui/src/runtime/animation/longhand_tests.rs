@@ -14,7 +14,7 @@ use crate::{CascadeExt, TuiDom};
 enum Mid {
     /// This value (CSS text), interpolated.
     Is(&'static str),
-    /// A value strictly between the ends (a color, interpolated in Oklab).
+    /// A value strictly between the ends (a color, interpolated in sRGB).
     Between,
     /// The discrete step: the end value from 50 % on, the start below.
     Flips,

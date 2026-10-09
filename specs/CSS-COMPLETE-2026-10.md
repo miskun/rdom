@@ -301,6 +301,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-11 | An inline element anchors by the bounding box of its fragments (CSS Anchor Positioning 1 §2; found by tile 26) | done |
 | ACID-FIX-12 | A heavy border meeting a double one draws the corner in the dominant side's set (DIVERGENCES §1; found by tile 27) | done |
 | ACID-FIX-13 | A modal dialog's `color`, inherited by its `::backdrop`, no longer recolors the page beneath it (CSS 2.1 §14.1; found by tile 15c) | done |
+| ACID-FIX-14 | Transitions and animations interpolate colors in gamma-encoded sRGB, the space CSS Color 4 §12.1 requires for legacy sRGB colors — rdom computes every color to sRGB (found by step I6) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
@@ -10943,3 +10944,16 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `bad` → `ok`, the form's label red → green), Backspace back. I5 (HTML §4.10.5.1.15–16): a click checks the checkbox;
   a click on the form's second radio unchecks its first, while a same-named radio outside the form — another group,
   its form owner being none — stays checked. All green at first run; no reference was changed.
+- 2026-10-10 — ACID-FIX-14 (found by acid step I6; CSS Color 4 §12.1, §12.3). Tile 37's swatches transition from
+  `rgb(0, 0, 0)` to `rgb(200, 0, 0)`; at progress 0.375 they showed `rgb(49, 0, 0)`, not `rgb(75, 0, 0)`:
+  `animation::lerp_color` interpolated every color in Oklab, after §12.1's default, missing its next paragraph — "user
+  agents must handle interpolation between legacy sRGB color formats (hex colors, named colors, `rgb()`, `hsl()` or
+  `hwb()` …) in gamma-encoded sRGB space". rdom computes every color to 8-bit sRGB and keeps no record of the syntax it
+  was written in, so the legacy rule — the colors nearly every sheet writes, and 0.5's behaviour — is taken for all:
+  `lerp_color` interpolates through the new `color::interpolate_srgb` (premultiplied, §12.3); a color written as
+  `lab()` / `oklch()` / `color()` now interpolates in sRGB too (DIVERGENCES "Colors compute to 8-bit sRGB" says so).
+  Red: `animation::tests::colors_interpolate_in_gamma_encoded_srgb` (`Rgb(49, 0, 0)` for `Rgb(75, 0, 0)`); green
+  after. Four rdom-tui tests pinned the Oklab midpoint of red → blue, `(140, 83, 162)`, or computed their expectation
+  with `interpolate_oklab`; they expect sRGB's `(128, 0, 128)` / `interpolate_srgb` now, each comment citing §12.1's
+  legacy rule. Not a silent change from 0.5 (which interpolated in sRGB, unpremultiplied); the `[Unreleased]` bullet
+  that said Oklab is corrected.

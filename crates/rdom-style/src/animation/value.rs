@@ -181,9 +181,11 @@ impl Animate for crate::TuiColor {
     }
 }
 
-/// Interpolate two colors in Oklab with premultiplied alpha (CSS Color
-/// 4 §12.1, §12.3), so a fade from `transparent` does not pass through
-/// black; a palette index counts as its xterm color. An endpoint that is
+/// Interpolate two colors in gamma-encoded sRGB with premultiplied alpha
+/// (CSS Color 4 §12.1, §12.3) — the space legacy sRGB colors interpolate
+/// in, and rdom's colors are all computed to sRGB (DIVERGENCES §2) — so
+/// a fade from `transparent` does not pass through black; a palette index
+/// counts as its xterm color. An endpoint that is
 /// the terminal default (`reset`) has no sRGB value of its own: it
 /// interpolates as `reset` — the canvas model's color for the
 /// property's role in the element's color scheme. Given `Color::Reset`
@@ -198,7 +200,7 @@ pub fn lerp_color(a: Color, b: Color, t: f32, reset: Color) -> Color {
         return b;
     }
     let definite = |c: Color| if c == Color::Reset { reset } else { c };
-    match crate::color::interpolate_oklab(definite(a), definite(b), f64::from(t)) {
+    match crate::color::interpolate_srgb(definite(a), definite(b), f64::from(t)) {
         Some(c) => c,
         None if t < 0.5 => a,
         None => b,

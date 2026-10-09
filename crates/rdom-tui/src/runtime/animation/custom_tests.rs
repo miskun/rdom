@@ -63,8 +63,9 @@ fn registered_color_property_transitions() {
 
     frame(&mut dom, &mut reg, &blue, start + Duration::from_millis(50));
     let mid = computed(&dom, div);
-    // Red → blue at the midpoint, in Oklab (CSS Color 4 §12.1).
-    assert_eq!(mid.fg, Color::Rgb(140, 83, 162));
+    // Red → blue at the midpoint, in gamma-encoded sRGB (CSS Color 4
+    // §12.1, legacy sRGB colors; ACID-FIX-14).
+    assert_eq!(mid.fg, Color::Rgb(128, 0, 128));
     let cascaded = mid.vars.get("c").and_then(|v| crate::style::parse_color(v));
     assert_eq!(
         cascaded,

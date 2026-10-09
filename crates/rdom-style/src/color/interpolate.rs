@@ -241,14 +241,28 @@ fn lerp(a: f64, b: f64, t: f64) -> f64 {
 }
 
 /// Interpolate two sRGB colors in Oklab (CSS Color 4 §12.1: the
-/// default space for interpolating colors, as transitions do), with
-/// premultiplied alpha; the result is gamut-mapped to 8-bit sRGB. A
-/// palette index counts as its xterm color; `None` when either color is
-/// the terminal default (`reset`), which has no one sRGB value.
+/// default space for interpolating colors when a host syntax names none
+/// and the colors are not both legacy sRGB), with premultiplied alpha;
+/// the result is gamut-mapped to 8-bit sRGB. A palette index counts as
+/// its xterm color; `None` when either color is the terminal default
+/// (`reset`), which has no one sRGB value.
 pub fn interpolate_oklab(from: Color, to: Color, t: f64) -> Option<Color> {
     let a = AbsoluteColor::from_color(from)?;
     let b = AbsoluteColor::from_color(to)?;
     Some(mix(a, b, ColorSpace::Oklab, HueMethod::Shorter, t).to_color())
+}
+
+/// Interpolate two sRGB colors in gamma-encoded sRGB, with premultiplied
+/// alpha (CSS Color 4 §12.1, §12.3) — the space a UA must interpolate
+/// legacy sRGB colors in (hex, named, `rgb()`, `hsl()`, `hwb()`), and the
+/// one transitions and animations use: rdom computes every color to 8-bit
+/// sRGB, keeping no record of the syntax it was written in (DIVERGENCES
+/// §2). A palette index counts as its xterm color; `None` when either
+/// color is the terminal default (`reset`), which has no one sRGB value.
+pub fn interpolate_srgb(from: Color, to: Color, t: f64) -> Option<Color> {
+    let a = AbsoluteColor::from_color(from)?;
+    let b = AbsoluteColor::from_color(to)?;
+    Some(mix(a, b, ColorSpace::Srgb, HueMethod::Shorter, t).to_color())
 }
 
 #[cfg(test)]

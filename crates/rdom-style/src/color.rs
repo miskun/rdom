@@ -44,8 +44,8 @@ pub(crate) mod system;
 pub use scheme::{ColorScheme, ColorSchemeList};
 pub use system::SystemColor;
 
-pub use interpolate::interpolate_oklab;
 pub(crate) use interpolate::{HueMethod, mix};
+pub use interpolate::{interpolate_oklab, interpolate_srgb};
 
 pub(crate) use absolute::{AbsoluteColor, ColorSpace};
 pub(crate) use convert::convert;
