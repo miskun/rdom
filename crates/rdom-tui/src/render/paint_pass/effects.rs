@@ -266,7 +266,7 @@ fn blend_cells(parent: &Buffer, layer: &mut Buffer, mode: BlendMode) {
 
 /// `c` (a definite color: the canvas resolved) through `list`'s
 /// color-matrix functions from the `from`-th on; its alpha kept.
-fn filtered(list: &FilterList<Color>, from: usize, c: Color) -> Color {
+pub(super) fn filtered(list: &FilterList<Color>, from: usize, c: Color) -> Color {
     let (r, g, b) = match c {
         Color::Rgb(r, g, b) | Color::Rgba(r, g, b, _) => (r, g, b),
         Color::Indexed(n) => rdom_style::color::palette::xterm_rgb(n),

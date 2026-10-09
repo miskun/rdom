@@ -244,3 +244,38 @@ fn a_filter_maps_what_a_translucent_paint_painted() {
     assert_eq!(bg(&buf, 0, 0), WHITE);
     assert_eq!(bg(&buf, 4, 0), BLACK);
 }
+
+/// Filter Effects 2 §3 on `::backdrop` (CSS Position 4: the backdrop is a
+/// box over the viewport beneath a top-layer element): `backdrop-filter`
+/// maps the page behind it, then its own paint — `filter` mapping that —
+/// goes on top. `dialog::backdrop { backdrop-filter: brightness(.5) }`
+/// dims the page (it did nothing) (C15G-EFFECT-GAPS).
+#[test]
+fn a_backdrop_honours_backdrop_filter_and_filter() {
+    use rdom_tui::runtime::builtins::dialog;
+    let page = "body { margin: 0; background-color: rgb(200, 100, 50) }
+                dialog { border: none; padding: 0; background-color: rgb(0, 0, 255) }";
+    let mut dom = doc(r#"<body><p>page</p><dialog id="d">hi</dialog></body>"#);
+    let d = by_id(&dom, "d");
+    dialog::show_modal(&mut dom, d).unwrap();
+    let buf = paint(
+        &mut dom,
+        &format!("{page} dialog::backdrop {{ backdrop-filter: brightness(.5) }}"),
+        8,
+        3,
+    );
+    assert_eq!(bg(&buf, 0, 2), Color::Rgb(100, 50, 25), "the page, dimmed");
+    let buf = paint(
+        &mut dom,
+        &format!(
+            "{page} dialog::backdrop {{ background-color: rgb(0, 200, 0); filter: invert(1) }}"
+        ),
+        8,
+        3,
+    );
+    assert_eq!(
+        bg(&buf, 0, 2),
+        Color::Rgb(255, 55, 255),
+        "its own green, inverted"
+    );
+}

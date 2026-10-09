@@ -268,6 +268,7 @@ fn build_effect(
         &anim.easing,
         anim.composition,
         style.text_direction,
+        style,
         &mut style_of,
     )
 }

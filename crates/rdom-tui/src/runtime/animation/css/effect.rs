@@ -40,6 +40,9 @@ struct Frame {
 struct PropertyFrames {
     longhand: Longhand,
     frames: Vec<Frame>,
+    /// Its frames differ in nothing rdom draws (`draws_nothing`): it asks
+    /// for no frames.
+    inert: bool,
     /// Some keyframe sits on a timeline range: the offsets are placed,
     /// and the implicit keyframes added, at each sample.
     ranged: bool,
@@ -71,6 +74,7 @@ impl KeyframeEffect {
         easing: &TimingFunction,
         composite: AnimationComposition,
         direction: TextDirection,
+        base: &ComputedStyle,
         style_of: &mut dyn FnMut(&[&TuiStyle]) -> Option<ComputedStyle>,
     ) -> KeyframeEffect {
         let mut properties: Vec<PropertyFrames> = Vec::new();
@@ -101,6 +105,7 @@ impl KeyframeEffect {
                     None => properties.push(PropertyFrames {
                         longhand: l,
                         frames: vec![frame.clone()],
+                        inert: false,
                         ranged: false,
                     }),
                 }
@@ -110,6 +115,7 @@ impl KeyframeEffect {
         // constructs one using the computed values of the properties
         // being animated" — and a 100% one likewise.
         for p in &mut properties {
+            p.inert = draws_nothing(p.longhand, &p.frames, base);
             p.ranged = p.frames.iter().any(|f| f.range.is_some());
             if !p.ranged {
                 add_implicit(&mut p.frames, easing, composite);
@@ -127,10 +133,13 @@ impl KeyframeEffect {
         self.properties.iter().map(|p| p.longhand)
     }
 
-    /// Whether it animates nothing — every keyframe named only what rdom
-    /// does not render (`transform`, an unknown property).
+    /// Whether it animates nothing rdom draws — every keyframe named only
+    /// what rdom does not render (an unknown property), or a transform
+    /// whose keyframes agree on the translation, the one part of it rdom
+    /// draws (a `rotate()` spinner, C15G-EFFECT-GAPS): it asks for no
+    /// frames. Its values still composite when a frame runs.
     pub(crate) fn is_empty(&self) -> bool {
-        self.properties.is_empty()
+        self.properties.iter().all(|p| p.inert)
     }
 
     /// The iteration progresses at which its value can change, sorted,
@@ -301,5 +310,28 @@ fn endpoint<'a>(
         Cow::Owned(sum)
     } else {
         Cow::Borrowed(value)
+    }
+}
+
+/// Whether `longhand`'s `frames` (an implicit one the element's `base`
+/// value) differ in nothing rdom draws (CSS Transforms 1 §5, DIVERGENCES:
+/// rotation, scaling, skews and matrices are identities): `rotate` and
+/// `scale` never draw; `transform` draws only its translate functions, so
+/// keyframes agreeing on those draw nothing new. Whether the box is
+/// transformed at all (a stacking context) changes only where the
+/// animation starts or ends — an interpolated list is never `none` —
+/// which restyles without a frame.
+fn draws_nothing(longhand: Longhand, frames: &[Frame], base: &ComputedStyle) -> bool {
+    match longhand.name() {
+        "rotate" | "scale" => true,
+        "transform" => {
+            let value = |f: &Frame| f.value.as_deref().unwrap_or(base).effects.transform.clone();
+            let mut lists = frames.iter().map(value);
+            let Some(first) = lists.next() else {
+                return true;
+            };
+            lists.all(|l| l.same_translations(&first))
+        }
+        _ => false,
     }
 }

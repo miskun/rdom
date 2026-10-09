@@ -9,7 +9,7 @@ use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
 use crate::render::{Buffer, Rect};
-use crate::style::ComputedStyle;
+use crate::style::{Color, ComputedStyle};
 
 /// Paint every rendered top-layer element, in top-layer order, with its
 /// `::backdrop` beneath it (CSS Pseudo-Elements 4 §4: one per element
@@ -36,9 +36,40 @@ pub(crate) fn is_rendered(dom: &Dom<TuiExt>, id: NodeId) -> bool {
 /// fg). Uses `Buffer::cell_mut` so the pre-existing symbols are
 /// preserved underneath — apps that want a solid wipe set an
 /// explicit `content: " "` override on `::backdrop`.
+///
+/// Its `backdrop-filter` (Filter Effects 2 §3) maps the page behind it
+/// first — every cell of the viewport, the backdrop's border box — and its
+/// `filter` (Filter Effects 1 §5) maps its own colors before they are
+/// painted (C15G-EFFECT-GAPS). The backdrop is no stacking context of the
+/// document's, so this is the whole of its effects.
 fn fill_backdrop(buf: &mut Buffer, clip: Rect, style: &ComputedStyle) {
+    use crate::render::compose::{canvas_bg, canvas_fg};
+    let scheme = buf.color_scheme();
+    let behind = &style.effects.backdrop_filter;
+    if behind.maps_colors() {
+        buf.map_colors(
+            clip,
+            |_, _, _| (true, true, true),
+            |_, c| super::effects::filtered(behind, 0, canvas_bg(c, scheme)),
+            |_, c| super::effects::filtered(behind, 0, canvas_fg(c, scheme)),
+        );
+    }
+    let own = &style.effects.filter;
+    let bg = if own.maps_colors() && style.bg.alpha() > 0 {
+        super::effects::filtered(own, 0, canvas_bg(style.bg, scheme))
+    } else {
+        style.bg
+    };
     // A translucent backdrop (`rgb(0 0 0 / 50%)`, the common web dim)
     // composites over the page (C3-ALPHA).
-    buf.tint(clip, style.bg);
-    buf.tint_glyphs(clip, style.fg);
+    buf.tint(clip, bg);
+    // A default foreground tints nothing, filtered or not.
+    if style.fg != Color::Reset {
+        let fg = if own.maps_colors() {
+            super::effects::filtered(own, 0, style.fg)
+        } else {
+            style.fg
+        };
+        buf.tint_glyphs(clip, fg);
+    }
 }

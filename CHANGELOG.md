@@ -1036,6 +1036,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **Column breaks follow CSS Fragmentation 3 §4.1 / §4.4 more closely**: `break-before` / `-after: avoid` is given up before `break-inside: avoid` (it was the other way), a block with a definite height taller than its content may break between its last child and its content edge (class C), and a float moves whole to the next column instead of being sliced across the break. (C15G-FRAGMENT-GAPS)
 - **When no position option fits, the base style is used** (CSS Anchor Positioning 1 §4.3, "Return current styles"): under `position-try-order: most-height` a box that fits nowhere stays at its own position instead of taking the first option of the sort. (C15G-TRY-ORDER)
 - **Translate gaps closed** (CSS Transforms 1 §3, CSS Position 3 §3.4): `tr { translate }` moves the row and its cells (it did nothing), a stuck `top: 0; translate: 0 2` sticky header shows two rows down (it pinned at row 0), and a percentage `translate` animation lays out only on the frames its cell offset changes (it laid out every frame). (C15G-TRANSLATE-GAPS)
+- **Effects gaps closed**: `dialog::backdrop { backdrop-filter: brightness(.5) }` dims the page and `::backdrop { filter }` maps its own colors (both did nothing); a `transform: rotate()` spinner asks for no frames again (only the drawn translation counts); `:root { cursor }` shows over the canvas. (C15G-EFFECT-GAPS)
 
 ### Changed — `rdom-showcase`
 

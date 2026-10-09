@@ -137,3 +137,25 @@ fn leaving_tui_mode_restores_the_pointer() {
     crate::render::backend_crossterm::restore_terminal(&mut out, || Ok(())).unwrap();
     assert!(String::from_utf8_lossy(&out).contains(&osc("default")));
 }
+
+/// CSS UI 4 §4.1 with the root model (C14G-ROOT-ELEMENT): a point on the
+/// canvas hits the root, whose `cursor` — `:root { cursor: crosshair }` —
+/// is the pointer there and is inherited by the elements that set none
+/// (C15G-EFFECT-GAPS; it read the fragment's raw `ext()`, never styled).
+#[test]
+fn the_root_cursor_shows_over_the_canvas() {
+    use crate::prelude::*;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    let t = dom.create_text_node("x");
+    dom.append_child(div, t).unwrap();
+    dom.append_child(root, div).unwrap();
+    let sheet =
+        rdom_css::from_css_strict(":root { cursor: crosshair } div { width: 1; height: 1 }")
+            .unwrap();
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 10, 4));
+    assert_eq!(super::shape_at(&dom, 5, 3), "crosshair", "over the canvas");
+    assert_eq!(super::shape_at(&dom, 0, 0), "crosshair", "inherited");
+}

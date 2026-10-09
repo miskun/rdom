@@ -10222,3 +10222,28 @@ row comes from.
   1000 one-row lines into one-row fragmentainers scanned 499 500 breaks (green ≤ 3 000);
   (`multicol/tests.rs`, `the_column_count_is_capped_at_one_cell_columns`): `column-count: 65535` in 40
   cells was 65 535 columns (green: 20, one cell each, 20 column boxes kept).
+- 2026-10-09 — C15G-EFFECT-GAPS (Phase 15 gate API N1, N2; architect N6's `:root { cursor }`; Filter
+  Effects 1 §5, 2 §3, CSS Transforms 1 §5, Web Animations 1, CSS UI 4 §4.1). Found: (1) `top_layer::
+  fill_backdrop` only tinted `::backdrop` with its colors — `Effects::of` runs for stacking-context roots,
+  and the backdrop is none of the document's — so `dialog::backdrop { backdrop-filter: brightness(.5) }`,
+  the web's commonest `backdrop-filter`, did nothing; (2) since C15-TRANSLATE made `transform` a known
+  longhand, a `@keyframes spin { to { transform: rotate(1turn) } }` effect was non-empty and its
+  `next_change` returned `now` every frame — 60 paints a second drawing nothing new; the C12G empty-effect
+  pin had been moved to `zoom`, and `effect.rs`'s doc still named `transform` as unrendered; (3)
+  `pointer_shape::shape_at` read `ext().computed`, which the root fragment does not hold, so `:root {
+  cursor: crosshair }` was ignored over the canvas. Decided: (1) `fill_backdrop` maps the cells behind it
+  through `backdrop-filter` (the viewport — the backdrop's box — through `effects::filtered`, now
+  `pub(super)`), then tints with its own background and foreground mapped through its `filter`; a default
+  foreground still tints nothing; `opacity()` / `drop-shadow()` in a backdrop's `filter` draw nothing
+  (DIVERGENCES). (2) A property track draws nothing — asks for no frames — when it is `rotate` or `scale`
+  (never drawn) or a `transform` whose keyframes, an implicit one taking the element's base value, agree on
+  their translate functions (`same_translations`); the effect is empty when every track draws nothing.
+  The tracks stay in the effect, so a frame that runs for something else still composites their values;
+  whether the box is transformed changes only where the animation starts or ends (an interpolated list is
+  never `none`), which the App steps for the events. (3) `shape_at` reads `TuiNodeExt::computed`. Red:
+  `frame_cost_tests.rs` — the empty-effect pin is a helper run for `zoom` and, restored, for `transform:
+  rotate(1turn)` (and `translate(1, 0) rotate()` both ends, and `rotate` / `scale`): "an empty effect asks
+  for no frames" failed; `css_phase15/filter.rs` `a_backdrop_honours_backdrop_filter_and_filter`: the page
+  behind stayed `Rgb(200, 100, 50)` (green `Rgb(100, 50, 25)`; `filter: invert(1)` on a green backdrop
+  `Rgb(255, 55, 255)`); `pointer_shape/tests.rs` `the_root_cursor_shows_over_the_canvas`: `default`
+  (green `crosshair`, and inherited by a child).

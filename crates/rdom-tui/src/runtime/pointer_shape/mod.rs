@@ -18,6 +18,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::TuiDom;
 use crate::layout::CursorKeyword;
+use crate::node::TuiNodeExt;
 use crate::runtime::hit_test::HitTestExt;
 
 #[cfg(test)]
@@ -112,10 +113,11 @@ pub(crate) fn shape_at(dom: &TuiDom, x: u16, y: u16) -> &'static str {
     let Some(hit) = dom.hit_test(x, y) else {
         return "default";
     };
+    // `TuiNodeExt::computed`: the root fragment's style too (the root
+    // element, C14G-ROOT-ELEMENT), which `ext().computed` does not hold.
     let keyword = dom
         .node(hit)
-        .ext()
-        .and_then(|e| e.computed.as_deref())
+        .computed()
         .map_or(CursorKeyword::Auto, |c| c.ui.cursor.keyword);
     match keyword {
         CursorKeyword::Auto if over_text(dom, hit, x, y) => "text",

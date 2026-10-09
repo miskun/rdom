@@ -64,19 +64,38 @@ fn layout_follows_a_changed_value_not_an_animated_longhand() {
 
 /// An animation of a property rdom does not render — an unknown name
 /// (`zoom`) — has an empty effect: it asks for no frames, and its events
-/// still fire on schedule (CSS Animations 2 §4.2). (`transform` was such a
-/// name until C15-TRANSLATE gave it an effect.)
+/// still fire on schedule (CSS Animations 2 §4.2).
 #[test]
 fn an_animation_of_nothing_rendered_needs_no_frames_but_fires_its_events() {
+    nothing_rendered_needs_no_frames("@keyframes spin { to { zoom: 2 } }");
+}
+
+/// The web's loading spinner, `transform: rotate()`: rdom draws no
+/// rotation (CSS Transforms 1 §5, DIVERGENCES), and its keyframes agree on
+/// the translation — the one part of `transform` that is drawn — so it
+/// asks for no frames either (the C12G pin, restored by
+/// C15G-EFFECT-GAPS after C15-TRANSLATE gave `transform` an effect).
+#[test]
+fn a_rotating_spinner_needs_no_frames() {
+    nothing_rendered_needs_no_frames("@keyframes spin { to { transform: rotate(1turn) } }");
+    nothing_rendered_needs_no_frames(
+        "@keyframes spin { from { transform: translate(1, 0) rotate(0deg) } \
+                           to { transform: translate(1, 0) rotate(1turn) } }",
+    );
+    nothing_rendered_needs_no_frames("@keyframes spin { to { rotate: 1turn; scale: 2 } }");
+}
+
+/// [`an_animation_of_nothing_rendered_needs_no_frames_but_fires_its_events`]
+/// for the `@keyframes spin` rule `keyframes`.
+fn nothing_rendered_needs_no_frames(keyframes: &str) {
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let div = dom.create_element("div");
     dom.set_attribute(div, "id", "a").unwrap();
     dom.append_child(root, div).unwrap();
-    let sheet = rdom_css::parse(
-        "@keyframes spin { to { zoom: 2 } } \
-         #a { animation: spin 100ms linear 3 }",
-    );
+    let sheet = rdom_css::parse(&format!(
+        "{keyframes} #a {{ animation: spin 100ms linear 3 }}"
+    ));
     let terminal = Terminal::new(TestBackend::new(20, 4)).unwrap();
     let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
     app.push_stylesheet(sheet.stylesheet);
