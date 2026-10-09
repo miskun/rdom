@@ -250,7 +250,7 @@ pub(crate) fn fire_queued_events(dom: &mut crate::TuiDom) -> bool {
         let mut tui = crate::TuiEvent::new("contentvisibilityautostatechange");
         tui.event.bubbles = false;
         tui.event.cancelable = false;
-        tui.event.detail = rdom_core::EventDetail::ContentVisibilityAutoState { skipped };
+        tui.event.detail = rdom_core::EventDetail::ContentVisibilityAutoStateChange { skipped };
         crate::tui_event::dispatch_to_live(dom, id, &mut tui);
     }
     !events.is_empty()

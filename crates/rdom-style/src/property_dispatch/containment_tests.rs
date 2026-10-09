@@ -26,7 +26,7 @@ fn names(n: &ContainerName) -> Vec<&str> {
 /// §6.1: `normal | [ [ size | inline-size ] || scroll-state ]`.
 #[test]
 fn container_type_parses() {
-    let t = |size, scroll_state| Some(ContainerType { size, scroll_state });
+    let t = |size, scroll_state| Some(ContainerType::new(size).with_scroll_state(scroll_state));
     assert_eq!(container_type("normal"), t(ContainerSize::Normal, false));
     assert_eq!(container_type("size"), t(ContainerSize::Size, false));
     assert_eq!(
@@ -175,9 +175,9 @@ fn will_change_parses() {
     )
     .unwrap();
     let w = spec(&style.will_change).unwrap();
-    assert!(w.names("opacity"));
-    assert!(w.names("scroll-position"));
-    assert!(w.names("--mine"));
+    assert!(w.has("opacity"));
+    assert!(w.has("scroll-position"));
+    assert!(w.has("--mine"));
     assert_eq!(
         serialize("will-change", &style).as_deref(),
         Some("opacity, scroll-position, --mine")

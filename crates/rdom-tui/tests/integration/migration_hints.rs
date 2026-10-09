@@ -1603,3 +1603,23 @@ fn unit_reads_hints() {
     assert_eq!(style.resolve_context_units(&cx), calc::UnitReads::CONTAINER);
     assert_eq!(style.width, Size::Fixed(20));
 }
+
+/// C14G-API-NAMING: `WillChange::has` (was `names`), the web's
+/// `ContentVisibilityAutoStateChange` detail with its `as_<variant>`
+/// accessor, and `ContainerType` built by its constructors (it is
+/// `#[non_exhaustive]`: Anchor Positioning 2 adds `anchored`).
+#[test]
+fn containment_naming_hints() {
+    let will_change = WillChange::new(["transform".into()]);
+    assert!(will_change.has("transform"));
+    assert!(!will_change.has("opacity"));
+    let detail = EventDetail::ContentVisibilityAutoStateChange { skipped: true };
+    assert_eq!(detail.as_content_visibility_auto_state_change(), Some(true));
+    let ty = ContainerType::new(ContainerSize::InlineSize).with_scroll_state(true);
+    assert_eq!(
+        (ty.size, ty.scroll_state),
+        (ContainerSize::InlineSize, true)
+    );
+    assert_eq!(ty.css(), "inline-size scroll-state");
+    let _ = TuiStyle::new().container_type(ContainerType::new(ContainerSize::Size));
+}

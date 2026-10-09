@@ -47,10 +47,18 @@ impl TextAlignment {
             (true, None) if self.all == TextAlign::Justify => TextAlign::Start,
             (true, None) => self.all,
         };
-        // `match-parent` and the UA's `th` centring compute away in the
-        // cascade; `start` otherwise.
+        // The UA's `th` centring computes away in the cascade
+        // (`finalize_text_align`, on every path): meeting it is a cascade
+        // bug. `text-align-last: match-parent` is kept as specified (the
+        // cascade resolves only `text-align-all`'s): `start`.
+        debug_assert_ne!(
+            align,
+            TextAlign::InternalCenter,
+            "`-internal-center` computes away in the cascade"
+        );
         let align = match align {
-            TextAlign::MatchParent | TextAlign::InternalCenter => TextAlign::Start,
+            TextAlign::MatchParent => TextAlign::Start,
+            TextAlign::InternalCenter => TextAlign::Center,
             a => a,
         };
         align.physical(rtl)
@@ -316,4 +324,24 @@ fn expand_fragment(f: &mut InlineFragment, pads: &[usize]) -> i32 {
     f.width = f.width.saturating_add(added as u16);
     f.map = Some(Box::new(SourceMap::new(map)));
     added as i32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// HTML §15.3.8: the UA `th` rule's `-internal-center` computes away in
+    /// the cascade (`finalize_text_align`), on the element and the
+    /// pseudo-element paths alike — a line meeting it is a cascade bug, not
+    /// a value to align by (C14G-API-NAMING).
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "computes away")]
+    fn internal_center_never_reaches_a_line() {
+        let align = TextAlignment {
+            all: TextAlign::InternalCenter,
+            ..TextAlignment::default()
+        };
+        let _ = align.of_line(false, false);
+    }
 }

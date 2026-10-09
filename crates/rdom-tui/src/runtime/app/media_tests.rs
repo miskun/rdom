@@ -312,8 +312,12 @@ fn content_visibility_auto_fires_its_state_change() {
         "contentvisibilityautostatechange",
         rdom_core::ListenerOptions::default(),
         move |ev| {
-            log.borrow_mut()
-                .push(ev.event.detail.as_content_visibility_skipped().unwrap())
+            log.borrow_mut().push(
+                ev.event
+                    .detail
+                    .as_content_visibility_auto_state_change()
+                    .unwrap(),
+            )
         },
     )
     .unwrap();

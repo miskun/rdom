@@ -169,7 +169,7 @@ pub enum EventDetail {
     /// `contentvisibilityautostatechange` payload (CSS Containment 2 §4,
     /// `ContentVisibilityAutoStateChangeEvent`): whether the element now
     /// skips its contents.
-    ContentVisibilityAutoState { skipped: bool },
+    ContentVisibilityAutoStateChange { skipped: bool },
 }
 
 /// Permanent regression guard for [`EventDetail`]'s size budget.
@@ -226,10 +226,11 @@ impl EventDetail {
         }
     }
 
-    /// `skipped` iff this is a `contentvisibilityautostatechange` payload.
-    pub fn as_content_visibility_skipped(&self) -> Option<bool> {
+    /// `skipped` iff this is [`EventDetail::ContentVisibilityAutoStateChange`]
+    /// (the event's `skipped` attribute).
+    pub fn as_content_visibility_auto_state_change(&self) -> Option<bool> {
         match self {
-            EventDetail::ContentVisibilityAutoState { skipped } => Some(*skipped),
+            EventDetail::ContentVisibilityAutoStateChange { skipped } => Some(*skipped),
             _ => None,
         }
     }

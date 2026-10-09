@@ -9649,3 +9649,20 @@ row comes from.
   level's `padding-bottom: mod(100cqw, 2)` flipping under a `step-end` transition (the hook's composite
   moves a value layout reads), and a focus scroll — 36 layouts, against the 18 the old statement allowed
   (no code change: the behaviour was the documented hook's; the statement was wrong).
+- 2026-10-09 — C14G-API-NAMING (API N8, N9; architect N19; CSS Will Change 1 §2, CSS Containment 2 §4, CSS
+  Conditional 5 §6.1, HTML §15.3.8). Found: `WillChange::names(feature)` was a predicate named like
+  `ContainerName::names()`'s list; the `contentvisibilityautostatechange` payload was
+  `EventDetail::ContentVisibilityAutoState` with `as_content_visibility_skipped()`, off the web's
+  `ContentVisibilityAutoStateChangeEvent` and the `as_<variant>` pattern; `ContainerType` was closed though
+  CSS Anchor Positioning 2 adds `container-type: anchored`; `TextAlign::InternalCenter` showed in consumers'
+  match arms, and layout mapped it silently to `start`. Decided: `WillChange::has`;
+  `EventDetail::ContentVisibilityAutoStateChange { skipped }` with `as_content_visibility_auto_state_change()`;
+  `ContainerType` `#[non_exhaustive]` with `new(size)` / `with_scroll_state(on)` (`const`), reclassified
+  as an open vocabulary in DESIGN (`ContainerSize` stays closed: the axes are fixed); `InternalCenter`
+  `#[doc(hidden)]` with a DESIGN line (UA-only, as Blink's `-internal-center`, never computed), and layout's
+  `of_line` `debug_assert!`s it away — in a release build it aligns as `center`, its meaning under a `start`
+  parent, not `start`; `text-align-last: match-parent`, which the cascade keeps as specified, still lines up
+  at `start`. All new since 0.5: rows under "Changes to APIs added after 0.5", hint group
+  `containment_naming_hints`. Red: the hint group did not compile (`has`, the variant, `ContainerType::new`
+  missing); `ContainerType`'s `compile_fail` doctest (a struct literal) compiled; `align::tests::internal_center_never_reaches_a_line`
+  did not panic. Green after.

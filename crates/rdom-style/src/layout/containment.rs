@@ -8,7 +8,17 @@ use std::sync::Arc;
 /// inline-size ] || scroll-state ]`. A `size` or `inline-size` container
 /// answers size queries and applies size containment on those axes (CSS
 /// Containment 3); every element is a style container.
+///
+/// Open (`#[non_exhaustive]`): CSS Anchor Positioning 2 adds `anchored`
+/// beside `scroll-state`, so it is built with [`ContainerType::new`] and
+/// [`with_scroll_state`](Self::with_scroll_state), not a literal:
+///
+/// ```compile_fail
+/// use rdom_style::layout::{ContainerSize, ContainerType};
+/// let _ = ContainerType { size: ContainerSize::Size, scroll_state: false };
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct ContainerType {
     /// The axes it answers size queries on.
     pub size: ContainerSize,
@@ -30,6 +40,21 @@ pub enum ContainerSize {
 }
 
 impl ContainerType {
+    /// A container answering size queries on `size`'s axes (`normal`:
+    /// none), and no `scroll-state()` queries.
+    pub const fn new(size: ContainerSize) -> Self {
+        ContainerType {
+            size,
+            scroll_state: false,
+        }
+    }
+
+    /// This type answering `scroll-state()` queries too, when `on`.
+    pub const fn with_scroll_state(mut self, on: bool) -> Self {
+        self.scroll_state = on;
+        self
+    }
+
     /// Whether it answers size queries on the inline axis (horizontal-tb:
     /// the width).
     pub fn queries_inline(self) -> bool {
@@ -186,7 +211,7 @@ impl WillChange {
     }
 
     /// Whether `feature` is one of them.
-    pub fn names(&self, feature: &str) -> bool {
+    pub fn has(&self, feature: &str) -> bool {
         self.features.iter().any(|f| &**f == feature)
     }
 }

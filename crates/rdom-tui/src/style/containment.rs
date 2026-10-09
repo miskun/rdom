@@ -129,7 +129,7 @@ const CONTAINING: &[&str] = &[
 /// `will-change` naming such a property.
 pub(crate) fn makes_stacking_context(c: &ComputedStyle) -> bool {
     c.display != Display::Contents
-        && (layout(c) || paint(c) || STACKING.iter().any(|p| c.will_change.names(p)))
+        && (layout(c) || paint(c) || STACKING.iter().any(|p| c.will_change.has(p)))
 }
 
 /// Whether the element `c` is the containing block of its absolutely
@@ -141,6 +141,6 @@ pub(crate) fn contains_positioned(c: &ComputedStyle, fixed: bool) -> bool {
     c.display != Display::Contents
         && (layout(c)
             || paint(c)
-            || CONTAINING.iter().any(|p| c.will_change.names(p))
-            || (!fixed && c.will_change.names("position")))
+            || CONTAINING.iter().any(|p| c.will_change.has(p))
+            || (!fixed && c.will_change.has("position")))
 }

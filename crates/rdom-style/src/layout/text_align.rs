@@ -120,6 +120,7 @@ pub enum TextAlign {
     /// `-internal-center` (Blink) and `-moz-center-or-inherit` (Gecko)
     /// parse only in their UA sheets — and it never survives to a
     /// computed value.
+    #[doc(hidden)]
     InternalCenter,
 }
 
