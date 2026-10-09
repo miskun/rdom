@@ -20,7 +20,8 @@
 //! - `aspect_ratio` — `AspectRatio`; `gap` — `GapValue`
 //! - `border` — border styles, widths, `border-collapse`
 //! - `box_model` — padding, margin
-//! - `grid` — the grid track lists (`GridTemplate`, `TrackSize`)
+//! - `grid` — the grid track lists (`GridTemplate`, `TrackList`)
+//! - `track` — one track's sizing function (`TrackSize`, `TrackBreadth`)
 //! - `grid_areas` — named grid areas (`GridTemplateAreas`)
 //! - `grid_placement` — grid item placement (`GridLine`, `GridAutoFlow`)
 //! - `sides` — `Sides`, the per-side shape
@@ -78,6 +79,7 @@ mod table;
 mod text;
 mod text_align;
 mod text_decoration;
+mod track;
 mod transform;
 mod ui;
 mod vertical_align;
@@ -110,8 +112,7 @@ pub use font::{
 };
 pub use gap::GapValue;
 pub use grid::{
-    GridTemplate, LineNameItem, LineNameList, RepeatCount, TrackBreadth, TrackList, TrackListItem,
-    TrackRepeat, TrackSize,
+    GridTemplate, LineNameItem, LineNameList, RepeatCount, TrackList, TrackListItem, TrackRepeat,
 };
 pub use grid_areas::{GridTemplateAreas, NamedArea};
 pub use grid_placement::{GridAutoFlow, GridLine};
@@ -155,6 +156,7 @@ pub use text_decoration::{
     TextDecorationStyle, TextDecorationThickness, TextDecorations, TextUnderlineOffset,
     TextUnderlinePosition,
 };
+pub use track::{TrackBreadth, TrackSize};
 pub use transform::{
     Rotate, Scale, TransformBox, TransformFunction, TransformList, TransformOrigin, Translate,
     TranslateFunction,

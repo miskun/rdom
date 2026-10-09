@@ -8,9 +8,9 @@ use rdom_core::NodeId;
 use crate::layout::TextDirection;
 use crate::style::{ComputedStyle, PseudoElementTarget};
 
-use super::apply::finalize_bfc_formation;
 use super::content::{declared_content, resolve_onto};
 use super::decoration::finalize_used_border;
+use super::finalize::finalize_bfc_formation;
 use super::inherit::inherit_inheritable_from;
 use super::ladder::{Declarations, apply_cascade_ladder, prepare};
 use super::matching::{Rules, Scratch};
@@ -142,7 +142,7 @@ pub(super) fn compute_element_style(
     // `display`, `overflow_*`, `position`. Used by the block-layout
     // margin-collapse pass — landing here in phase 1 so phase 5 has
     // it ready to consume.
-    super::apply::finalize_unusual_contents(&mut working, dom.node(id).tag_name());
+    super::finalize::finalize_unusual_contents(&mut working, dom.node(id).tag_name());
     // The box parent: for a `<details>` element's slotted content, its
     // `::details-content` box, whose style `parent` is.
     let box_parent = super::details::box_parent(dom, id);
@@ -160,7 +160,7 @@ pub(super) fn compute_element_style(
     super::field_sizing::finalize(&mut working, dom, id, sorted, inline);
     super::quotes::finalize_quotes(&mut working, parent, dom, parent_id);
     super::text_decoration::finalize_applied_decorations(&mut working, parent.applied_decorations);
-    super::apply::finalize_justify_items(&mut working, parent);
+    super::finalize::finalize_justify_items(&mut working, parent);
     // The root element: an element root, or the root fragment
     // (`root`).
     let root = id == dom.root();

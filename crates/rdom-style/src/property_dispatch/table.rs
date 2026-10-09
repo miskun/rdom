@@ -1,15 +1,18 @@
 //! The property name ↔ storage-field table: the `TuiStyle` storage
 //! fields (`Field`), and the table-driven operations that fold over the
 //! fields each CSS property owns (`fields::fields_of`) — `property_mask`
-//! (`!important` bits), `remove`, and the inherited-property set
-//! (`inherits`). The names themselves are `names`.
+//! (`!important` bits), the copy and coverage folds. `removeProperty` is
+//! `remove`, the inherited-property set `inherited`; the names themselves
+//! are `names`.
 
 use super::css_wide::{CssWide, keyword_of};
 use crate::TuiStyle;
 
 pub(super) use super::fields::fields_of;
+pub use super::inherited::inherits;
 pub(super) use super::names::all_property_names;
 pub use super::names::{canonical_property_name, property_names};
+pub use super::remove::remove;
 
 macro_rules! define_fields {
     ($($variant:ident => $($field:ident).+ : $mask:ident,)+) => {
@@ -73,7 +76,7 @@ macro_rules! define_fields {
             }
 
             /// Clear the field; `true` if it was set.
-            fn take(self, style: &mut TuiStyle) -> bool {
+            pub(super) fn take(self, style: &mut TuiStyle) -> bool {
                 match self {
                     $(Field::$variant => style.$($field).+.take().is_some(),)+
                 }
@@ -375,156 +378,6 @@ pub(crate) fn copy_fields(from: &TuiStyle, to: &mut TuiStyle, mask: crate::Impor
             f.copy(from, to);
         }
     }
-}
-
-/// Clear the named property from `style` — reset its field(s) to
-/// `None` and drop its `!important` bit. Returns `true` iff the
-/// property was previously set (any of its fields was `Some`).
-/// Returns `false` for unknown names.
-///
-/// A shorthand removes its longhands; a longhand (`padding-top`) its
-/// own side only (CSSOM §6.6 `removeProperty`).
-pub fn remove(name: &str, style: &mut TuiStyle) -> bool {
-    if let Some(custom) = name.strip_prefix("--") {
-        return style.remove_custom_property(custom);
-    }
-    let name = &*canonical_property_name(name);
-    let Some(fields) = fields_of(name) else {
-        return false;
-    };
-    // An inline-axis declaration writes no field of its block: removing
-    // it leaves the physical declarations (and their bits) alone.
-    if super::logical::is_directional(name) {
-        let removed = super::logical::remove_inline_axis(name, style);
-        drop_unneeded_pending(style);
-        return removed;
-    }
-    let removed_kept = remove_kept_longhands(name, style);
-    drop_unneeded_pending(style);
-    // `|` not `||`: every field must be cleared, not just the first.
-    let was_set = fields
-        .iter()
-        .fold(removed_kept, |acc, f| f.take(style) | acc);
-    style.important = style
-        .important
-        .without(property_mask(name).unwrap_or_default());
-    was_set
-}
-
-/// CSSOM §6.6 `removeProperty` of the physical property `name` among
-/// the kept declarations: one that sets only `name`'s longhands (`name`
-/// itself, or a longhand of it) goes; one that sets others too (a
-/// shorthand of `name`) stays, restricted to those others
-/// (`Restriction::Without`), so a substitution it waits for still
-/// reaches them. A flow-relative declaration is a property of its own
-/// (CSS Logical 1 §4: `margin-inline-start` is no longhand of `margin`)
-/// and stays. Returns whether anything was removed.
-fn remove_kept_longhands(name: &str, style: &mut TuiStyle) -> bool {
-    use crate::var::Restriction;
-    let gone = property_mask(name).unwrap_or_default();
-    let mut removed = false;
-    let mut kept = Vec::with_capacity(style.pending.len());
-    for mut d in std::mem::take(&mut style.pending) {
-        let own = property_mask(&d.name).unwrap_or_default();
-        if d.directional || !own.intersects(gone) {
-            kept.push(d);
-            continue;
-        }
-        removed = true;
-        if gone.contains(own) {
-            continue;
-        }
-        match &mut d.restriction {
-            Restriction::Without(names) => names.push(name.to_string()),
-            other => *other = Restriction::Without(vec![name.to_string()]),
-        }
-        kept.push(d);
-    }
-    style.pending = kept;
-    removed
-}
-
-/// Kept declarations are needed while one holds a substitution function
-/// or an inline-axis property (the declarations after it keep their
-/// order against it); without one, the block's fields say it all.
-fn drop_unneeded_pending(style: &mut TuiStyle) {
-    if !style
-        .pending
-        .iter()
-        .any(|d| d.has_substitution || d.directional)
-    {
-        style.pending.clear();
-    }
-}
-
-/// Does rdom inherit this property by default? The one declaration of
-/// the inherited set: `rdom-tui`'s cascade copies exactly these from
-/// parent to child (pinned by a cascade test), and this table decides
-/// what `unset` means (CSS Cascade 4 §7.3: `inherit` for
-/// inherited properties, `initial` otherwise).
-pub fn inherits(name: &str) -> bool {
-    matches!(
-        &*canonical_property_name(name),
-        "color"
-            | "font-weight"
-            | "font-style"
-            | "font"
-            | "font-size"
-            | "font-family"
-            | "font-stretch"
-            | "font-width"
-            | "font-variant"
-            | "white-space"
-            | "white-space-collapse"
-            | "text-wrap-mode"
-            | "word-break"
-            | "overflow-wrap"
-            | "word-wrap"
-            | "line-break"
-            | "hyphens"
-            | "tab-size"
-            | "text-transform"
-            | "text-indent"
-            | "text-align"
-            | "text-align-all"
-            | "text-align-last"
-            | "text-justify"
-            | "text-wrap"
-            | "text-wrap-style"
-            | "letter-spacing"
-            | "word-spacing"
-            | "line-height"
-            | "text-underline-offset"
-            | "text-underline-position"
-            | "text-decoration-skip-ink"
-            | "pointer-events"
-            | "visibility"
-            | "caret-color"
-            | "quotes"
-            | "list-style"
-            | "list-style-type"
-            | "list-style-position"
-            | "list-style-image"
-            | "marker-side"
-            | "interpolate-size"
-            | "caret-text-color"
-            | "color-scheme"
-            | "border-spacing"
-            | "caption-side"
-            | "empty-cells"
-            | "direction"
-            | "writing-mode"
-            | "block-ellipsis"
-            | "scrollbar-color"
-            | "cursor"
-            | "caret-shape"
-            | "caret-animation"
-            | "caret"
-            | "accent-color"
-            // CSS Fragmentation 3 §3.3.
-            | "orphans"
-            | "widows"
-    )
 }
 
 /// Whether the property `outer` owns every storage field of `inner` (and

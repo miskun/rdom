@@ -3,7 +3,7 @@
 //! relative keywords against the parent's weight once the ladder has run —
 //! and the bold and italic modifier bits the font draws.
 
-use super::apply::{Keywords, apply_value};
+use super::keywords::{Keywords, apply_value};
 use crate::style::{ComputedStyle, ImportantMask, Modifier, TuiStyle};
 
 /// Apply `style`'s font declarations to `working`, for one ladder pass.

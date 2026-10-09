@@ -34,7 +34,8 @@
 //!
 //! - `table.rs`: the property name ↔ storage-field
 //!   table (`Field`, `fields_of`), [`property_names`],
-//!   [`property_mask`], [`remove`], [`inherits`].
+//!   [`property_mask`]; `remove.rs`: [`remove`]; `inherited.rs`:
+//!   [`inherits`].
 //! - `css_wide.rs`: the CSS-wide keywords (`inherit` / `initial` /
 //!   `unset`) — detection, storage across every owned field, and
 //!   the all-fields-agree serialization rule.
@@ -93,12 +94,14 @@ mod float;
 mod font;
 mod grid;
 mod importance;
+mod inherited;
 mod inline;
 mod line_clamp;
 mod logical;
 mod math_serializers;
 mod multicol;
 mod names;
+mod remove;
 mod scroll;
 mod scrollbar;
 mod serialize;

@@ -25,6 +25,7 @@ mod keyframes;
 mod layer;
 mod position_try;
 mod property;
+mod scan;
 mod scope;
 mod top_level;
 

@@ -22,7 +22,7 @@
 //! **static position** (CSS 2.1 §10.3.7 / §10.6.4): phase-1 block,
 //! inline and flex layout record it through [`record_static_position`]
 //! at the point in the flow where the element's hypothetical box would
-//! have gone, and `place::compute_placed_rect` reads it back.
+//! have gone, and `rect::compute_placed_rect` reads it back.
 
 //!
 //! A `::before` / `::after` is positioned as an element is (CSS Pseudo 4
@@ -34,6 +34,7 @@
 //! - `static_pos` — the static position, recorded in phase 1.
 //! - `relative` — the relative shift.
 //! - `place` — phase-2 placement of absolute / fixed boxes.
+//! - `rect` — the rect such a box is placed at.
 //! - `pseudo` — an absolute / fixed `::before` / `::after`: its box and
 //!   its static position.
 //! - `pseudo_offsets` — the move of a relative / sticky `::before` /
@@ -50,6 +51,7 @@ mod containing;
 mod place;
 mod pseudo;
 mod pseudo_offsets;
+mod rect;
 mod relative;
 mod static_pos;
 

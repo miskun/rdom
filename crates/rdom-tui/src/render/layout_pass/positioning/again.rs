@@ -10,7 +10,7 @@
 use rdom_core::{Dom, NodeId};
 
 use super::anchor::{AnchorIndex, Querying};
-use super::place::Placed;
+use super::rect::Placed;
 use super::*;
 use crate::ext::{PseudoSlot, TuiExt};
 use crate::node::TuiNodeExt;

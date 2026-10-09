@@ -4,9 +4,9 @@
 
 use rdom_core::{Dom, NodeId};
 
-use super::apply::finalize_bfc_formation;
 use super::content::{declared_content, resolve_onto};
 use super::decoration::finalize_used_border;
+use super::finalize::finalize_bfc_formation;
 use super::inherit::inherit_inheritable_from;
 use super::ladder::{Declarations, apply_cascade_ladder, prepare};
 use super::matching::{Rules, Scratch};
@@ -175,7 +175,7 @@ pub(super) fn compute_pseudo_style(
         &mut working,
         host_computed.applied_decorations,
     );
-    super::apply::finalize_justify_items(&mut working, host_computed);
+    super::finalize::finalize_justify_items(&mut working, host_computed);
     super::text::finalize_text_align(&mut working, host_computed, false);
     // CSS Overflow 3 §3.1's computed value, which the BFC rule reads.
     working.normalize_overflow();

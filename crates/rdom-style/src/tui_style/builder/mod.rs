@@ -14,7 +14,7 @@ use crate::layout::{
     Border, CaretColor, CaretTextColor, Direction, Display, Overflow, Padding, Sides, Size,
     UserSelect,
 };
-use crate::{Content, TuiColor, Value};
+use crate::{TuiColor, Value};
 
 /// A builder setter and its `!important` twin for one `TuiStyle` field:
 /// `setter!("css-name", field, setter, important_setter, MASK, Type)`,
@@ -77,6 +77,8 @@ macro_rules! side_setter {
 }
 
 mod anchor;
+mod containment;
+mod content;
 mod decoration;
 mod effects;
 mod flex;
@@ -258,30 +260,6 @@ impl TuiStyle {
         self
     }
     setter!(
-        "counter-reset",
-        counter_reset,
-        counter_reset,
-        counter_reset_important,
-        COUNTER_RESET,
-        Vec<crate::counters::CounterOp>
-    );
-    setter!(
-        "counter-increment",
-        counter_increment,
-        counter_increment,
-        counter_increment_important,
-        COUNTER_INCREMENT,
-        Vec<crate::counters::CounterOp>
-    );
-    setter!(
-        "counter-set",
-        counter_set,
-        counter_set,
-        counter_set_important,
-        COUNTER_SET,
-        Vec<crate::counters::CounterOp>
-    );
-    setter!(
         "color-scheme",
         color_scheme,
         color_scheme,
@@ -363,62 +341,6 @@ impl TuiStyle {
         crate::layout::MarginTrim
     );
     setter!(
-        "contain",
-        contain,
-        contain,
-        contain_important,
-        CONTAIN,
-        crate::layout::Contain
-    );
-    setter!(
-        "content-visibility",
-        content_visibility,
-        content_visibility,
-        content_visibility_important,
-        CONTENT_VISIBILITY,
-        crate::layout::ContentVisibility
-    );
-    setter!(
-        "will-change",
-        will_change,
-        will_change,
-        will_change_important,
-        WILL_CHANGE,
-        crate::layout::WillChange
-    );
-    setter!(
-        "container-type",
-        container_type,
-        container_type,
-        container_type_important,
-        CONTAINER_TYPE,
-        crate::layout::ContainerType
-    );
-    setter!(
-        "container-name",
-        container_name,
-        container_name,
-        container_name_important,
-        CONTAINER_NAME,
-        crate::layout::ContainerName
-    );
-    setter!(
-        "contain-intrinsic-width",
-        contain_intrinsic_width,
-        contain_intrinsic_width,
-        contain_intrinsic_width_important,
-        CONTAIN_INTRINSIC_WIDTH,
-        crate::layout::ContainIntrinsicSize
-    );
-    setter!(
-        "contain-intrinsic-height",
-        contain_intrinsic_height,
-        contain_intrinsic_height,
-        contain_intrinsic_height_important,
-        CONTAIN_INTRINSIC_HEIGHT,
-        crate::layout::ContainIntrinsicSize
-    );
-    setter!(
         "box-sizing",
         box_sizing,
         box_sizing,
@@ -473,56 +395,6 @@ impl TuiStyle {
         caret_text_color_important,
         CARET_TEXT_COLOR,
         CaretTextColor
-    );
-
-    // Content setter.
-    setter!(
-        "content",
-        content,
-        content,
-        content_important,
-        CONTENT,
-        Content
-    );
-    setter!(
-        "list-style-type",
-        list_style_type,
-        list_style_type,
-        list_style_type_important,
-        LIST_STYLE_TYPE,
-        crate::layout::ListStyleType
-    );
-    setter!(
-        "list-style-position",
-        list_style_position,
-        list_style_position,
-        list_style_position_important,
-        LIST_STYLE_POSITION,
-        crate::layout::ListStylePosition
-    );
-    setter!(
-        "list-style-image",
-        list_style_image,
-        list_style_image,
-        list_style_image_important,
-        LIST_STYLE_IMAGE,
-        crate::layout::ListStyleImage
-    );
-    setter!(
-        "marker-side",
-        marker_side,
-        marker_side,
-        marker_side_important,
-        MARKER_SIDE,
-        crate::layout::MarkerSide
-    );
-    setter!(
-        "quotes",
-        quotes,
-        quotes,
-        quotes_important,
-        QUOTES,
-        crate::Quotes
     );
 
     /// Convenience: set `fg: inherit;` without having to spell `Value::Inherit`.

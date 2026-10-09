@@ -55,7 +55,7 @@ macro_rules! value {
                 out.$($f).+ = blend(&a.$($f).+, &b.$($f).+, p, cx);
                 $($fix(out);)?
             },
-            add: |a, b, cx, out| match super::value::Animate::add(&a.$($f).+, &b.$($f).+, cx) {
+            add: |a, b, cx, out| match crate::animation::value::Animate::add(&a.$($f).+, &b.$($f).+, cx) {
                 Some(v) => {
                     out.$($f).+ = v;
                     $($fix(out);)?
@@ -78,7 +78,7 @@ macro_rules! steps {
                 $(out.$($f).+ = side.$($f).+.clone();)+
                 $($fix(out);)?
             },
-            add: super::entry::no_add,
+            add: crate::animation::entry::no_add,
         })
     };
 }
@@ -92,11 +92,13 @@ macro_rules! size {
     ($f:ident) => {
         Some(Ops {
             differs: |a, b| a.$f != b.$f,
-            interpolable: |a, b| super::size::size_interpolable(&a.$f, &b.$f, b.interpolate_size),
-            blend: |a, b, p, cx, out| {
-                out.$f = super::size::blend_size(&a.$f, &b.$f, p, b.interpolate_size, cx)
+            interpolable: |a, b| {
+                crate::animation::size::size_interpolable(&a.$f, &b.$f, b.interpolate_size)
             },
-            add: |a, b, cx, out| match super::value::Animate::add(&a.$f, &b.$f, cx) {
+            blend: |a, b, p, cx, out| {
+                out.$f = crate::animation::size::blend_size(&a.$f, &b.$f, p, b.interpolate_size, cx)
+            },
+            add: |a, b, cx, out| match crate::animation::value::Animate::add(&a.$f, &b.$f, cx) {
                 Some(v) => {
                     out.$f = v;
                     true

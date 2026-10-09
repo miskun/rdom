@@ -3,7 +3,7 @@
 //! (§3.1.1) with its default alignment (§3.1.3), its `anchor()` and
 //! `anchor-size()` made cells (§5.1, §5.2), and `anchor-center` made a
 //! containing block centred on the anchor (§3.4) — then placed as any
-//! absolutely positioned box is (`place::compute_placed_rect`).
+//! absolutely positioned box is (`rect::compute_placed_rect`).
 
 use rdom_core::{Dom, NodeId};
 

@@ -2,7 +2,7 @@
 //! §2: rendered "as if it were a real element", its `position` included):
 //! a box of its own — `items::AnonymousItem`, the box every other
 //! generated box is — placed by phase 2 as a positioned element is
-//! (`place::compute_placed_rect`): its containing block from its host up
+//! (`rect::compute_placed_rect`): its containing block from its host up
 //! (`containing::absolute_containing_block`; a grid area, a scrolled
 //! scroll container), its size by CSS 2.1 §10.3.7 / §10.6.4 with its
 //! content's intrinsic sizes, an axis with both insets `auto` at its
@@ -14,7 +14,7 @@
 use rdom_core::{Dom, NodeId};
 
 use super::absolute_containing_block;
-use super::place::Placed;
+use super::rect::Placed;
 use crate::ext::{PseudoSlot, StaticPosition, TuiExt};
 use crate::layout::{Display, LayoutRect};
 use crate::node::TuiNodeExt;

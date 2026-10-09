@@ -4,7 +4,7 @@
 //! color; the border styles and widths, which make the used border;
 //! the corner radii.
 
-use super::apply::{Keywords, Resolved, matches_pass};
+use super::keywords::{Keywords, Resolved, matches_pass};
 use crate::style::{ComputedStyle, ImportantMask, TuiStyle, Value};
 use rdom_style::layout::{BorderRadius, BorderStyle, BorderWidth, Corners, Sides, VisualBox};
 

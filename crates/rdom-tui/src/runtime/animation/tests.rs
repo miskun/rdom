@@ -2,8 +2,10 @@
 use super::*;
 use crate::style::Color;
 use crate::style::Stylesheet;
+use crate::style::transition::TimingFunction;
 use crate::style::transition::TransitionProperty;
 use crate::{CascadeExt, TuiDom, TuiStyle};
+use std::time::Duration;
 
 fn epoch() -> Instant {
     Instant::now()

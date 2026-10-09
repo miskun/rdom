@@ -1,132 +1,14 @@
 //! Per-property applicators: one declaration block onto the working
 //! `ComputedStyle`, for one ladder pass (the ladder itself is
-//! `ladder.rs`).
-//!
-//! Applicators handle the `Value<T>` variants: `Specified`, and the
-//! CSS-wide keywords `inherit` / `initial` / `revert` / `revert-layer`,
-//! each of which
-//! takes the field from a whole computed style ([`Keywords::resolve`]):
-//! the parent's, `ComputedStyle::initial()` (via `Initials`, the table
-//! every element's cascade starts from), or the ladder's rollback
-//! state. Most properties share one generic path (`apply_value`). They
-//! also honor the `important_pass` / `important_prop` pairing so normal
-//! and important declarations apply in separate passes.
+//! `ladder.rs`). Every applicator resolves its declarations through the
+//! CSS-wide keywords of the pass (`keywords`); most properties share one
+//! generic path (`keywords::resolved`).
 
 pub(super) use super::colors::ElementColors;
 use super::colors::apply_colors;
 use super::decoration::apply_decoration;
-use crate::layout::Display;
+use super::keywords::{Keywords, Resolved, matches_pass, resolved};
 use crate::style::{ComputedStyle, ImportantMask, TuiStyle, Value};
-
-/// Where the CSS-wide keywords of one ladder pass take their values
-/// from.
-pub(super) struct Keywords<'a> {
-    /// `inherit`: the parent's computed style (CSS Cascade 4 §7.2).
-    pub parent: &'a ComputedStyle,
-    /// The document's preferred color scheme (CSS Color Adjust 1
-    /// §2.1), which the colors cascaded so far resolve under.
-    pub preferred_scheme: rdom_style::color::ColorScheme,
-    /// `initial`: the initial values (§7.1).
-    pub initial: &'a Initials,
-    /// `revert`: the cascade rolled back to the previous origin
-    /// (§7.3), computed on first use.
-    pub revert: &'a dyn Fn() -> &'a ComputedStyle,
-    /// `revert-layer`: the cascade rolled back to the previous cascade
-    /// layer (Cascade 5 §7.4), computed on first use.
-    pub revert_layer: &'a dyn Fn() -> &'a ComputedStyle,
-}
-
-/// A declared value, resolved for one pass: the specified value, or
-/// the computed style a CSS-wide keyword copies the field from.
-pub(super) enum Resolved<'v, 'a, T> {
-    Specified(&'v T),
-    From(&'a ComputedStyle),
-}
-
-impl<'a> Keywords<'a> {
-    pub(super) fn resolve<'v, T>(&self, value: &'v Value<T>) -> Resolved<'v, 'a, T> {
-        match value {
-            Value::Specified(x) => Resolved::Specified(x),
-            Value::Inherit => Resolved::From(self.parent),
-            Value::Initial => Resolved::From(self.initial.get()),
-            Value::Revert => Resolved::From((self.revert)()),
-            Value::RevertLayer => Resolved::From((self.revert_layer)()),
-        }
-    }
-}
-
-/// Compute `establishes_new_bfc` from the working style + parent
-/// context. Runs after the cascade ladder so all source properties
-/// are at their final values. Per CSS 2.1 §9.4.1 + Flexbox §3:
-///
-/// An element establishes a new block formatting context when:
-/// - It's a flex or grid container (`flow: Flex` / `Grid`) — they form
-///   independent formatting contexts for their items (CSS Flexbox §3,
-///   CSS Grid 2 §5.1).
-/// - It's an inline-block — establishes a new BFC for its content
-///   (which then lays out as block).
-/// - It is a scroll container (`overflow` `hidden` / `scroll` / `auto`
-///   on an axis). `overflow: clip` is not one and forms no BFC (CSS
-///   Overflow 3 §3.1).
-/// - It's absolutely or fixed positioned — out-of-flow boxes form
-///   their own BFCs.
-/// - (Root element is also a BFC — handled implicitly because
-///   layout starts at root regardless.)
-///
-/// Margin collapsing checks this predicate: parent-child margin
-/// collapse happens only when the parent does NOT establish a new
-/// BFC.
-pub(super) fn finalize_bfc_formation(working: &mut ComputedStyle) {
-    use crate::layout::{Flow, Position};
-    working.establishes_new_bfc = matches!(working.flow, Flow::Flex | Flow::Grid | Flow::FlowRoot | Flow::Table)
-        || matches!(working.display, Display::InlineBlock)
-        || working.is_scroll_container()
-        || matches!(working.position, Position::Absolute | Position::Fixed)
-        // CSS 2.1 §9.4.1: floats establish a new block formatting context.
-        || working.float != crate::layout::Float::None
-        // CSS Box Alignment 3 §5.1: a block container whose
-        // `align-content` is not `normal` is an independent formatting
-        // context.
-        || (working.flow.is_block_flow()
-            && working.align_content.keyword != crate::layout::Align::Normal)
-        // CSS Containment 2 §3.2, §3.4: layout and paint containment make
-        // an independent formatting context.
-        || crate::style::containment::layout(working)
-        || crate::style::containment::paint(working)
-        // CSS Multi-column 1 §2: a multi-column container establishes a new
-        // block formatting context.
-        || working.is_multicol_container();
-}
-
-/// CSS Box Alignment 3 §6.2: `justify-items: legacy` (its initial value)
-/// computes to the parent's value when that is `legacy` with a side
-/// (`legacy center`, …), and to `normal` otherwise — so a `legacy` value
-/// reaches the descendants that do not set `justify-items`.
-pub(super) fn finalize_justify_items(working: &mut ComputedStyle, parent: &ComputedStyle) {
-    use crate::layout::{Align, Alignment};
-    if working.justify_items == Alignment::LEGACY {
-        working.justify_items =
-            if parent.justify_items.legacy && parent.justify_items.keyword != Align::Normal {
-                parent.justify_items
-            } else {
-                Alignment::NORMAL
-            };
-    }
-}
-
-/// CSS Display 3 Appendix B: `display: contents` on a replaced element
-/// or a form control — whose children are not its rendering — behaves
-/// as `display: none`. rdom computes it so, so layout, paint, hit
-/// testing and focus all see no box.
-pub(super) fn finalize_unusual_contents(working: &mut ComputedStyle, tag: Option<&str>) {
-    const NO_CONTENTS: &[&str] = &[
-        "br", "wbr", "meter", "progress", "canvas", "embed", "object", "audio", "iframe", "img",
-        "video", "frame", "frameset", "input", "textarea", "select",
-    ];
-    if working.display == Display::Contents && tag.is_some_and(|t| NO_CONTENTS.contains(&t)) {
-        working.display = Display::None;
-    }
-}
 
 /// Apply one `TuiStyle` to `working`, for one ladder pass. Paints +
 /// layout + display + text all in one pass.
@@ -394,32 +276,6 @@ pub(super) fn apply_style(
 
 // ─── Applicators ────────────────────────────────────────────────────
 
-/// Should this declaration actually apply during the current pass?
-/// Normal pass applies normal declarations; important pass applies
-/// important ones.
-#[inline]
-pub(super) fn matches_pass(important_prop: bool, important_pass: bool) -> bool {
-    important_prop == important_pass
-}
-
-/// The initial values `initial` resolves to: `ComputedStyle::initial()`,
-/// the same table every element's cascade starts from, so the two
-/// cannot drift (`P6G-APPLY-INITIALS-1`). Built on the first `initial`
-/// keyword an element's cascade meets; most elements never build it.
-#[derive(Default)]
-pub(super) struct Initials(std::cell::OnceCell<ComputedStyle>);
-
-impl Initials {
-    pub(super) fn get(&self) -> &ComputedStyle {
-        self.0.get_or_init(ComputedStyle::initial)
-    }
-}
-
-/// The CSS-wide keyword resolution every property shares: specified
-/// as written, a keyword the `field` of its source style
-/// ([`Keywords::resolve`]) — `inherit` the parent's computed value
-/// (inherited property or not — CSS Cascade 4 §7.2), `initial` the
-/// property's initial value, `revert` the rolled-back cascade's.
 /// The grid longhands whose `TuiStyle` value a consumer can write
 /// outside the grammar (the fields are public; the builders check):
 /// such a declaration is ignored, as a CSS parser drops an invalid one
@@ -466,62 +322,6 @@ fn apply_grid(
         grid_column_start: GRID_COLUMN_START => line,
         grid_column_end: GRID_COLUMN_END => line,
     );
-}
-
-pub(super) fn apply_value<T: Clone>(
-    target: &mut T,
-    value: &Option<Value<T>>,
-    important_prop: bool,
-    important_pass: bool,
-    kw: &Keywords<'_>,
-    field: fn(&ComputedStyle) -> &T,
-) {
-    apply_converted(
-        target,
-        value,
-        important_prop,
-        important_pass,
-        kw,
-        field,
-        |v| Some(v.clone()),
-    );
-}
-
-/// [`apply_value`] for a property whose declared form `S` differs from
-/// its computed one `T`, or may lie outside its grammar: `to` computes a
-/// declared value, `None` ignoring the declaration (the value stays).
-fn apply_converted<S, T: Clone>(
-    target: &mut T,
-    value: &Option<Value<S>>,
-    important_prop: bool,
-    important_pass: bool,
-    kw: &Keywords<'_>,
-    field: fn(&ComputedStyle) -> &T,
-    to: impl Fn(&S) -> Option<T>,
-) {
-    if let Some(x) = resolved(value, important_prop, important_pass, kw, field, to) {
-        *target = x;
-    }
-}
-
-/// The value one declaration gives its field in this pass — `None` when it
-/// does not apply (absent, the other pass) or `to` ignores it.
-fn resolved<S, T: Clone>(
-    value: &Option<Value<S>>,
-    important_prop: bool,
-    important_pass: bool,
-    kw: &Keywords<'_>,
-    field: fn(&ComputedStyle) -> &T,
-    to: impl Fn(&S) -> Option<T>,
-) -> Option<T> {
-    let v = value.as_ref()?;
-    if !matches_pass(important_prop, important_pass) {
-        return None;
-    }
-    match kw.resolve(v) {
-        Resolved::Specified(x) => to(x),
-        Resolved::From(source) => Some(field(source).clone()),
-    }
 }
 
 fn apply_border_collapse(

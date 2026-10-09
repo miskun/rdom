@@ -68,6 +68,8 @@
 mod anchor;
 mod apply;
 mod blockify;
+mod finalize;
+mod keywords;
 pub(crate) use blockify::children_are_items;
 pub(crate) use early_pseudos::is_block_container;
 mod content;

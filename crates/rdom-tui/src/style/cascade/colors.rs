@@ -12,7 +12,7 @@
 //! [`ElementColors::finalize`]; until then the value resolved against
 //! what has cascaded so far stands in.
 
-use super::apply::{Keywords, Resolved, matches_pass};
+use super::keywords::{Keywords, Resolved, matches_pass};
 use crate::style::{Color, ColorContext, ComputedStyle, ImportantMask, TuiColor, TuiStyle, Value};
 use rdom_style::color::ColorScheme;
 use rdom_style::layout::{BoxShadow, FilterList, Sides};

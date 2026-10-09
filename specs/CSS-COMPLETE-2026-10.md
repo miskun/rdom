@@ -10435,3 +10435,29 @@ row comes from.
   `apply_tests`' exhaustive `ComputedStyle` pattern binds `grid` / `motion` whole (each still moved by the
   perturbation and reset by `initial`), three grid hint tests destructure `GridStyle`, and two cascade tests
   build their `TuiStyle` literal's `motion`.
+- 2026-10-09 — C15G-SPLITS (Phase 15 gate architect N12, program health "largest modules"). Recounted SIZE-1 by
+  the gate's own rule: Phase 15 and this batch had left `style/cascade/apply.rs` at 595, `rdom-style/src/animation/
+  table.rs` 570, `rdom-css/src/block.rs` 563, `rdom-style/src/absolute.rs` 558 (C15G-STYLE-SIZE's lazy writes),
+  `style/cascade/ladder.rs` 553 / 663, `rdom-style/src/parse/values/calc.rs` 553, `runtime/animation/mod.rs` 550,
+  `render/layout_pass/mod.rs` 548, `rdom-style/src/layout/grid.rs` 546, `property_dispatch/table.rs` 545,
+  `positioning/place.rs` 544 and `tui_style/builder/mod.rs` 539 (`tui_style/mod.rs` was 516 before C15G-STYLE-SIZE
+  moved its motion and grid fields out: 452). Pure moves, by concern: `cascade/apply.rs` 395 + `keywords.rs` 128
+  (the CSS-wide keywords of a ladder pass and the resolution every applicator shares) + `finalize.rs` 80 (the BFC,
+  `justify-items: legacy` and `display: contents` values derived after the declarations); `cascade/ladder/mod.rs`
+  316 / 426 + `ladder/declarations.rs` 257 (`Declarations`, `Substituted`, `prepare`); `layout_pass/mod.rs` 255 +
+  `layout_pass/node.rs` 311 (`layout_node`, `layout_children_aligned`); `positioning/place.rs` 128 +
+  `positioning/rect.rs` 432 (`Placed` and the placed rect, §10.3.7 / §10.6.4); `runtime/animation/mod.rs` 452 +
+  `animation/active.rs` 111 (`ActiveAnimation`); `rdom-style`'s `absolute/mod.rs` 347 + `absolute/expr.rs` 229
+  (`Reading`, `HasExpr`, the list walks, the cell conversions); `animation/table/mod.rs` 38 + `table/paint.rs` 343 +
+  `table/flow.rs` 236 — the longhand table in two halves joined at compile time by a `const fn` (`Entry` is
+  `Copy`), its order the dispatch table's as before, and `entry.rs`'s macros naming `crate::animation::…` paths so
+  they expand anywhere; `parse/values/calc/mod.rs` 453 + `calc/anchor.rs` 113 (the anchor functions, which the
+  architect named) with `calc_tests.rs` moved to `calc/tests.rs`; `property_dispatch/table.rs` 398 + `remove.rs` 87
+  (CSSOM `removeProperty`) + `inherited.rs` 74 (`inherits`); `layout/grid.rs` 315 + `layout/track.rs` 236
+  (`TrackBreadth`, `TrackSize`); `tui_style/builder/mod.rs` 411 + `builder/content.rs` 82 + `builder/containment.rs`
+  66; `rdom-css/src/block.rs` 381 + `scan.rs` 190 (telling a declaration from a nested rule, reading a declaration,
+  a prelude, skipping a block). Public paths are unchanged (every item keeps its re-export). TECH_DEBT: `SIZE-1`'s
+  history paragraph is replaced by the current table (16 files between 500 and 534, none past 575); Phase 15's
+  entries are new — `PARTIAL-RELAYOUT-1` (the post-0.6 pay-down the architect asked to name), `SCROLL-UPDATE-1` and
+  `STYLE-SHARED-1` (what this batch's scroll update and shared groups still cost, and when), and `PHASE15-APPROX-1`
+  (the approximations, which are DIVERGENCES entries). No test expectation moved.

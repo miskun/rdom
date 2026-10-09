@@ -6,7 +6,7 @@
 use rdom_core::Dom;
 use rdom_style::calc::{UnitContext, UnitReads, Viewport};
 
-use super::apply::{Keywords, apply_value};
+use super::keywords::{Keywords, apply_value};
 use crate::ext::TuiExt;
 use crate::layout::{TextAlign, TextAlignLast, TextDirection};
 use crate::node::TuiNodeExt;

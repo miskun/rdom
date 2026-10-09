@@ -2,9 +2,11 @@
 use super::*;
 use crate::layout::Visibility::{Collapse, Hidden, Visible};
 use crate::style::Stylesheet;
+use crate::style::transition::TimingFunction;
 use crate::style::transition::TransitionProperty;
 use crate::{CascadeExt, TuiDom, TuiStyle};
 use rdom_style::animation::lerp_visibility;
+use std::time::Duration;
 
 /// CSS Display 3 §4: with a `visible` end, every progress strictly
 /// between 0 and 1 is `visible`; between two non-visible values a

@@ -3,7 +3,7 @@
 //! (`colors.rs`) — and the decorations an element's text is drawn with,
 //! propagated from its ancestors (§2.1).
 
-use super::apply::{Keywords, apply_value};
+use super::keywords::{Keywords, apply_value};
 use crate::layout::{AppliedDecorations, Float, Position};
 use crate::style::{ComputedStyle, ImportantMask, TuiStyle};
 
