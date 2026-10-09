@@ -339,6 +339,64 @@ fn a_spanner_splits_the_columns_into_sets() {
     assert_eq!(rect(&dom, "m"), (0, 0, 13, 4));
 }
 
+/// §6: a spanner's own margins are kept once — a first spanner's top
+/// margin is not also an empty column set above it, a last one's bottom
+/// margin not also one below it — and a set holding no content draws no
+/// rule (§4: rules go between columns with content) (C15G-SPANNER-MARGIN).
+#[test]
+fn a_first_and_last_spanner_count_their_margins_once() {
+    let mut dom = doc(
+        r#"<body><div id="m"><h2 id="s">T</h2><div>a1</div><div>a2</div><h2 id="e">E</h2></div><p id="n">n</p></body>"#,
+    );
+    let buf = paint(
+        &mut dom,
+        &format!(
+            "{PAGE} #m {{ column-count: 2; column-gap: 3; width: 13; column-rule: solid }}
+             h2 {{ margin: 1 0; column-span: all }} p {{ margin: 0 }}"
+        ),
+        13,
+        8,
+    );
+    assert_eq!(
+        rows(&buf, 8),
+        [
+            "             ",
+            "T            ",
+            "             ",
+            "a1    │ a2   ",
+            "             ",
+            "E            ",
+            "             ",
+            "n            ",
+        ]
+    );
+    assert_eq!(rect(&dom, "s"), (0, 1, 13, 1));
+    assert_eq!(rect(&dom, "e"), (0, 5, 13, 1));
+    assert_eq!(rect(&dom, "m"), (0, 0, 13, 7));
+    // Two rows of margin would balance into two "filled" columns, ruled.
+    let mut dom = doc(r#"<body><div id="m"><h2 id="s">T</h2><div>a1</div></div></body>"#);
+    let buf = paint(
+        &mut dom,
+        &format!(
+            "{PAGE} #m {{ column-count: 2; column-gap: 3; width: 13; column-rule: solid }}
+             h2 {{ margin: 2 0; column-span: all }}"
+        ),
+        13,
+        6,
+    );
+    assert_eq!(
+        rows(&buf, 6),
+        [
+            "             ",
+            "             ",
+            "T            ",
+            "             ",
+            "             ",
+            "a1           ",
+        ]
+    );
+}
+
 /// §8.2: columns past the count overflow the container in the inline
 /// direction — into its scrollable overflow, so a scroll container
 /// scrolls to them; and a point in a column hits its text.

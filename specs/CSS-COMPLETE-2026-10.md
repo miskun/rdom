@@ -10078,3 +10078,19 @@ row comes from.
   over an empty `opacity: .9` black box in an `isolation: isolate` group kept its red (green: black).
   The brief's inline `<i>` form passed before the fix too, so the tests use a block child, which failed. Mutation (restored, touched): a copied layer that tracks no
   coverage fails all three.
+- 2026-10-09 — C15G-SPANNER-MARGIN (Phase 15 gate architect B2; CSS Multi-column 1 §6, §4). Found:
+  `spanners::pieces` cut the flow at the break before and after each spanner, and a first child has no
+  break before it (nor a last child one after), so the run before a first spanner reached its border box —
+  its top margin became an empty column set `margin-top` rows tall, then `block::place_alone` placed the
+  spanner below its margin again; the same below a last spanner, and such a margin-only set could
+  draw a rule (the architect's report). Decided: a spanner keeps its own margins (it is placed with
+  them, not collapsed with the sets, as in the engines), and where no break separates it from the content
+  the run stops at its margin edge (top) or starts past it (bottom, capped at the flow's end) — the margin
+  resolved against the column width, as the one-column layout resolved it. The content's margins next to
+  a spanner stay truncated, as at a break. A set holding no content is now empty (height 0, no column
+  filled), so it draws no rule. DIVERGENCES' "the margins between a spanner and the sets are truncated" was
+  half wrong (`place_alone` kept them) and now says which margins. Red (`css_phase15/multicol.rs`,
+  `a_first_and_last_spanner_count_their_margins_once`, `margin: 1 0`): T on row 2 and the container 8
+  rows (green: T on row 1, E on row 5, the container 7 rows, `n` on row 7); a second case with `margin: 2 0`
+  pins no rule over the margin rows. Mutation (restored, touched): the top margin edge back to the border
+  box fails it.

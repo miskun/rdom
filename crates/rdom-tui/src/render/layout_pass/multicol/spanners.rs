@@ -49,13 +49,18 @@ pub(super) struct Piece {
 /// The runs of the flow `start .. end` the `spanners` split it into, cut at
 /// the breaks before and after each (`breaks`): a run ends where the
 /// content before its spanner does, and the next starts where the content
-/// after it does — the margins around a spanner truncated, as at a break.
+/// after it does — the content's margins next to a spanner truncated, as at
+/// a break. The spanner keeps its own margins (it is placed with them,
+/// [`lay_out`]), so where no break separates it from the content — a first
+/// or last child — the run stops at its margin edge and the margin is not
+/// counted twice (`column_width` resolves a percentage margin, as the
+/// one-column layout did).
 pub(super) fn pieces(
     dom: &Dom<TuiExt>,
     spanners: &[NodeId],
     breaks: &[Break],
-    start: i32,
-    end: i32,
+    (start, end): (i32, i32),
+    column_width: u16,
 ) -> Vec<Piece> {
     let mut out = Vec::with_capacity(spanners.len() + 1);
     let mut s = start;
@@ -63,10 +68,20 @@ pub(super) fn pieces(
         let Some(r) = dom.node(spanner).tui_ext().map(|e| e.layout) else {
             continue;
         };
+        let (top, bottom_margin) = dom
+            .node(spanner)
+            .tui_ext()
+            .and_then(|e| e.computed.as_deref())
+            .map_or((0, 0), |c| {
+                (
+                    i32::from(c.margin.top.resolve(column_width)),
+                    i32::from(c.margin.bottom.resolve(column_width)),
+                )
+            });
         let before = breaks
             .iter()
             .find(|b| b.resume == r.y)
-            .map_or(r.y, |b| b.end)
+            .map_or(r.y - top, |b| b.end)
             .max(s);
         out.push(Piece {
             rows: (s, before),
@@ -76,7 +91,7 @@ pub(super) fn pieces(
         s = breaks
             .iter()
             .find(|b| b.end == bottom)
-            .map_or(bottom, |b| b.resume);
+            .map_or((bottom + bottom_margin).min(end.max(bottom)), |b| b.resume);
     }
     out.push(Piece {
         rows: (s, end.max(s)),

@@ -80,7 +80,13 @@ pub(super) fn lay_out(
     let origin = (first_x - scroll.0, inner.y - scroll.1);
     let breaks = fragment::collect(dom, id);
     let spanners = spanners::of(dom, id);
-    let pieces = spanners::pieces(dom, &spanners, &breaks, origin.1, origin.1 + tall);
+    let pieces = spanners::pieces(
+        dom,
+        &spanners,
+        &breaks,
+        (origin.1, origin.1 + tall),
+        cols.width,
+    );
     let content_sized = super::auto_height::is_content_sized(dom, id, computed);
     let fill = fill(dom, id, computed, containing_block_width, inner, cols.count);
     let step = if rtl { -cols.pitch() } else { cols.pitch() };
