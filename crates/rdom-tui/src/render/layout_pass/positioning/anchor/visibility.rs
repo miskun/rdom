@@ -7,21 +7,44 @@
 //! it hides each placement pass (document data); paint, hit-testing and
 //! focus ask [`hidden`] through `render::visibility::shows`.
 
+use std::collections::HashSet;
+
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::{PseudoSlot, TuiExt};
 use crate::layout::LayoutRect;
 use crate::node::TuiNodeExt;
 
+#[cfg(test)]
+thread_local! {
+    /// Hidden-box comparisons `hidden` made (cost tests).
+    pub(in crate::render::layout_pass) static HIDDEN_WORK: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+}
+
 /// The boxes the last placement pass hid: an element (`None`) with its
-/// subtree, or a host's positioned pseudo-element.
+/// subtree, or a host's positioned pseudo-element — and, built on the first
+/// query after the pass, every node they hide, so a query is one lookup,
+/// not an ancestor walk against each hidden box (C15G-ANCHOR-COST).
 #[derive(Debug, Default)]
-struct AnchorHidden(Vec<(NodeId, Option<PseudoSlot>)>);
+struct AnchorHidden {
+    roots: Vec<(NodeId, Option<PseudoSlot>)>,
+    expanded: std::cell::OnceCell<Expanded>,
+}
+
+/// The nodes a hidden element hides (it and its box-tree descendants), and
+/// the hidden pseudo-elements.
+#[derive(Debug, Default)]
+struct Expanded {
+    nodes: HashSet<NodeId>,
+    pseudos: HashSet<(NodeId, PseudoSlot)>,
+}
 
 /// Forget the last pass's hidden boxes.
 pub(in crate::render::layout_pass) fn begin(dom: &mut Dom<TuiExt>) {
     if let Some(h) = dom.document_data_mut::<AnchorHidden>() {
-        h.0.clear();
+        h.roots.clear();
+        h.expanded.take();
     }
 }
 
@@ -35,31 +58,54 @@ pub(in crate::render::layout_pass) fn hide(
         dom.set_document_data(AnchorHidden::default());
     }
     if let Some(h) = dom.document_data_mut::<AnchorHidden>() {
-        h.0.push((id, slot));
+        h.roots.push((id, slot));
+        h.expanded.take();
     }
 }
 
 /// Whether `position-visibility` hides `id`'s `slot` box: `id` or an
 /// ancestor is hidden, or that pseudo-element is. Free with nothing
-/// hidden.
+/// hidden; one lookup otherwise.
 pub(crate) fn hidden(dom: &Dom<TuiExt>, id: NodeId, slot: Option<PseudoSlot>) -> bool {
     let Some(h) = dom
         .document_data::<AnchorHidden>()
-        .filter(|h| !h.0.is_empty())
+        .filter(|h| !h.roots.is_empty())
     else {
         return false;
     };
-    if slot.is_some() && h.0.contains(&(id, slot)) {
-        return true;
-    }
-    let mut cur = Some(id);
-    while let Some(n) = cur {
-        if h.0.contains(&(n, None)) {
-            return true;
+    let e = h.expanded.get_or_init(|| expand(dom, &h.roots));
+    #[cfg(test)]
+    HIDDEN_WORK.with(|c| c.set(c.get() + 1));
+    e.nodes.contains(&id) || slot.is_some_and(|s| e.pseudos.contains(&(id, s)))
+}
+
+/// Every node `roots` hide: `O(hidden subtrees)`, once per pass.
+fn expand(dom: &Dom<TuiExt>, roots: &[(NodeId, Option<PseudoSlot>)]) -> Expanded {
+    let mut out = Expanded::default();
+    let mut stack: Vec<NodeId> = Vec::new();
+    for &(id, slot) in roots {
+        match slot {
+            Some(s) => {
+                out.pseudos.insert((id, s));
+            }
+            None => stack.push(id),
         }
-        cur = crate::render::box_tree::slot::parent(dom, n);
     }
-    false
+    // The DOM subtree, and a `<details>`'s `::details-content` box (whose
+    // children are the details' own: `slot::parent`'s view).
+    for root in stack {
+        for n in std::iter::once(root).chain(dom.descendants(root)) {
+            #[cfg(test)]
+            HIDDEN_WORK.with(|c| c.set(c.get() + 1));
+            out.nodes.insert(n);
+            if let Some(crate::ext::ContentBoxLink::Box(b)) =
+                dom.node(n).ext().map(|e| e.content_box_link())
+            {
+                out.nodes.insert(b);
+            }
+        }
+    }
+    out
 }
 
 /// Whether the anchor `anchor`, its box `rect`, is clipped out of view by

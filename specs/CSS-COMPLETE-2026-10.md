@@ -10188,3 +10188,22 @@ row comes from.
   sticking` (scrolled 6, row 0; green row 2); `frame_cost_tests.rs`
   `a_percentage_translate_lays_out_when_its_cell_moves` (`translate: -100% 0 → 0` on a 4-wide box: 63
   layouts in 1008 ms; green: 4).
+- 2026-10-09 — C15G-ANCHOR-COST (Phase 15 gate architect N7, N8; CSS Anchor Positioning 1 §2.2, §5). Found:
+  `AnchorIndex::find` scanned every element with an `anchor-name` in reverse, running `acceptable`'s
+  ancestor walk on each until one passed — n rows with `anchor-name: --row; anchor-scope: --row` and a
+  tooltip each cost O(n² · depth) per layout, and layout runs on every wheel tick; and
+  `visibility::hidden` — asked per painted box, hit step and Tab candidate — walked every ancestor with a
+  `Vec::contains` over the hidden boxes. Decided: (1) the index groups each name's anchors by their
+  innermost `anchor-scope` for that name. An anchor whose innermost scope does not contain the querying
+  element is never acceptable — that scope lies below the querying box's containing block (which contains
+  the querying element), so `acceptable`'s walk meets it — so a lookup tests only the unscoped group and
+  the groups of the querying element's scoping ancestors-or-self (a DOM-parent walk, O(depth)), takes the
+  last acceptable of each and the latest of those in tree order. Results are memoized per (querying box,
+  pseudo, containing block, name) for the pass — the index is rebuilt each `place_positioned`, so neither
+  goes stale. (2) The hidden boxes expand, on the first query after a pass, into a set of every node they
+  hide (the DOM subtree plus a `<details>`'s `::details-content` box, `slot::parent`'s view) and a set of
+  hidden pseudo-elements: a query is one lookup, `O(hidden subtrees)` once per pass, and still free when
+  nothing is hidden. `clipped_out` (the `anchors-visible` test) already ran once per anchored box, at
+  placement. Red (`positioning/anchor/tests.rs`, `row_tooltips_cost_linear_work`, 20 vs 80 rows in a
+  10-row scroller): 210 vs 3 240 candidates tested; with the old `hidden`, 2 460 vs 46 620 comparisons
+  (re-run against it as the mutation check). Green: both within 5× for 4× the rows.

@@ -880,6 +880,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - `SetPropertyError::source()` returns the `DispatchError` / `DomError` it wraps, and its `Display` uses theirs. (C8-PARSE-ERROR)
 - **Zellij is a multiplexer to SGR detection**: under `ZELLIJ`, `SgrCapabilities::from_env` gives the common subset (`BASIC`) instead of the outer terminal's extensions, as for GNU screen and tmux before 3.2; the `Backend` doc says a wrapping backend must forward `set_sgr_capabilities` / `sgr_capabilities`. (C10G-API-SMALL)
 - **A resize restyles only what it must**: the tree cascades again when a computed style read a viewport unit or a media query flipped; otherwise the frame lays out only (it re-cascaded the whole tree on every resize). A preference change likewise. (C14-MEDIA)
+- **Anchor positioning costs linear work per layout**: anchor lookups are memoized per placement pass and narrowed by `anchor-scope` (a list of n scoped rows with a tooltip each tested O(n²) candidates on every scroll), and `position-visibility` answers paint, hit-testing and focus with one lookup instead of an ancestor walk per box. (C15G-ANCHOR-COST)
 
 ### Fixed — `rdom-tui`
 

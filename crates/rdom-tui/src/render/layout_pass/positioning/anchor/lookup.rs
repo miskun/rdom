@@ -12,6 +12,9 @@
 //! positioned, before the querying element in tree order (positioned boxes
 //! are placed in tree order).
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use rdom_core::{DocumentPosition, Dom, NodeId, NodeType};
 
 use crate::ext::TuiExt;
@@ -23,31 +26,60 @@ thread_local! {
     /// Anchor indexes built (cost tests).
     pub(in crate::render::layout_pass) static INDEX_BUILDS: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
+    /// Candidate anchors tested for acceptability (cost tests).
+    pub(in crate::render::layout_pass) static ACCEPTABLE_CALLS: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
 }
 
-/// The elements with an `anchor-name`, in tree order — built once per
-/// placement pass, on the first anchored box (a page without anchor
-/// positioning builds none).
+/// The elements with an `anchor-name`, by name, in tree order — built once
+/// per placement pass, on the first anchored box (a page without anchor
+/// positioning builds none) — and the anchors already found this pass.
+///
+/// Each name's anchors are grouped by their innermost `anchor-scope` for
+/// that name (§2.2): an anchor whose innermost scope does not contain the
+/// querying element is never acceptable (its scope lies between it and the
+/// querying box's containing block, which contains the querying element),
+/// so a lookup tests only the groups of the querying element's scoping
+/// ancestors and the unscoped one — `O(depth + group)`, and memoized per
+/// (querying box, containing block, name) — not every anchor of the name
+/// (C15G-ANCHOR-COST).
 #[derive(Default)]
 pub(in crate::render::layout_pass) struct AnchorIndex {
-    built: std::cell::OnceCell<Vec<NodeId>>,
+    built: std::cell::OnceCell<Named>,
+    found: std::cell::RefCell<HashMap<FoundKey, Option<NodeId>>>,
 }
 
+/// A lookup: the querying box (an element, or its host's pseudo-element),
+/// its containing block, the name.
+type FoundKey = (NodeId, bool, Option<NodeId>, Arc<str>);
+
+/// A name's anchors by their innermost scope for it (`None`: unscoped),
+/// each group in tree order.
+type Named = HashMap<Arc<str>, HashMap<Option<NodeId>, Vec<NodeId>>>;
+
 impl AnchorIndex {
-    fn named(&self, dom: &Dom<TuiExt>) -> &[NodeId] {
+    fn named(&self, dom: &Dom<TuiExt>) -> &Named {
         self.built.get_or_init(|| {
             #[cfg(test)]
             INDEX_BUILDS.with(|c| c.set(c.get() + 1));
-            dom.descendants(dom.root())
-                .filter(|&n| {
-                    dom.node(n).node_type() == NodeType::Element
-                        && dom
-                            .node(n)
-                            .tui_ext()
-                            .and_then(|e| e.computed.as_deref())
-                            .is_some_and(|c| !c.anchor.anchor_name.names().is_empty())
-                })
-                .collect()
+            let mut out: Named = HashMap::new();
+            for n in dom.descendants(dom.root()) {
+                if dom.node(n).node_type() != NodeType::Element {
+                    continue;
+                }
+                let Some(c) = computed(dom, n) else {
+                    continue;
+                };
+                for name in c.anchor.anchor_name.names() {
+                    let scope = innermost_scope(dom, n, name);
+                    out.entry(Arc::clone(name))
+                        .or_default()
+                        .entry(scope)
+                        .or_default()
+                        .push(n);
+                }
+            }
+            out
         })
     }
 
@@ -61,14 +93,58 @@ impl AnchorIndex {
         cb: Option<NodeId>,
         name: &str,
     ) -> Option<NodeId> {
-        self.named(dom).iter().rev().copied().find(|&a| {
-            dom.node(a)
-                .tui_ext()
-                .and_then(|e| e.computed.as_deref())
-                .is_some_and(|c| c.anchor.anchor_name.has(name))
-                && acceptable(dom, querying, cb, a, Some(name))
-        })
+        let (key_name, groups) = self.named(dom).get_key_value(name)?;
+        let key = (querying.node, querying.pseudo, cb, Arc::clone(key_name));
+        if let Some(&hit) = self.found.borrow().get(&key) {
+            return hit;
+        }
+        // The unscoped group, and each scoping ancestor-or-self's.
+        let mut scopes: Vec<Option<NodeId>> = vec![None];
+        let mut up = Some(querying.node);
+        while let Some(n) = up {
+            if groups.contains_key(&Some(n)) {
+                scopes.push(Some(n));
+            }
+            up = dom.node(n).parent_node().map(|p| p.id());
+        }
+        let mut best: Option<NodeId> = None;
+        for scope in scopes {
+            let Some(group) = groups.get(&scope) else {
+                continue;
+            };
+            let last = group
+                .iter()
+                .rev()
+                .copied()
+                .find(|&a| acceptable(dom, querying, cb, a, Some(name)));
+            best = match (best, last) {
+                (Some(b), Some(l))
+                    if dom
+                        .compare_document_position(b, l)
+                        .contains(DocumentPosition::FOLLOWING) =>
+                {
+                    Some(l)
+                }
+                (None, l) => l,
+                (b, _) => b,
+            };
+        }
+        self.found.borrow_mut().insert(key, best);
+        best
     }
+}
+
+/// The innermost ancestor-or-self of `anchor` whose `anchor-scope` scopes
+/// `name` (§2.2), in the box tree `acceptable` walks.
+fn innermost_scope(dom: &Dom<TuiExt>, anchor: NodeId, name: &str) -> Option<NodeId> {
+    let mut cur = Some(anchor);
+    while let Some(n) = cur {
+        if computed(dom, n).is_some_and(|c| c.anchor.anchor_scope.scopes(name)) {
+            return Some(n);
+        }
+        cur = crate::render::box_tree::box_parent(dom, n);
+    }
+    None
 }
 
 fn computed(dom: &Dom<TuiExt>, id: NodeId) -> Option<&crate::style::ComputedStyle> {
@@ -85,6 +161,8 @@ fn acceptable(
     anchor: NodeId,
     name: Option<&str>,
 ) -> bool {
+    #[cfg(test)]
+    ACCEPTABLE_CALLS.with(|c| c.set(c.get() + 1));
     let Querying {
         node: querying,
         pseudo,
