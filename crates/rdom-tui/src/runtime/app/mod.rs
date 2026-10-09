@@ -104,6 +104,8 @@ mod control_seeding_tests;
 #[cfg(test)]
 mod frame_cost_tests;
 #[cfg(test)]
+mod frame_event_order_tests;
+#[cfg(test)]
 mod frame_work_tests;
 #[cfg(test)]
 mod geometry_transition_tests;

@@ -32,7 +32,7 @@ impl CssAnimation {
     /// paused, past its active interval, on a progress timeline (which
     /// scrolling steps), or with an empty effect.
     pub(in crate::runtime::animation) fn next_change(&self, now: Instant) -> Option<Instant> {
-        if !self.on_clock() || !self.has_effect() {
+        if !self.on_document_timeline() || !self.has_effect() {
             return None;
         }
         let Some(last) = self.local else {
@@ -53,7 +53,7 @@ impl CssAnimation {
     /// iteration boundary or its end; `None` for any other animation
     /// (its frames step it) or once it is past its end.
     pub(in crate::runtime::animation) fn next_event(&self, now: Instant) -> Option<Instant> {
-        if !self.on_clock() || self.has_effect() {
+        if !self.on_document_timeline() || self.has_effect() {
             return None;
         }
         let Some(last) = self.local else {
@@ -67,7 +67,7 @@ impl CssAnimation {
     }
 
     /// Playing on the document timeline.
-    fn on_clock(&self) -> bool {
+    pub(in crate::runtime::animation) fn on_document_timeline(&self) -> bool {
         self.hold.is_none() && self.timeline == AnimationTimeline::Auto
     }
 

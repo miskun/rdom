@@ -302,6 +302,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-12 | A heavy border meeting a double one draws the corner in the dominant side's set (DIVERGENCES §1; found by tile 27) | done |
 | ACID-FIX-13 | A modal dialog's `color`, inherited by its `::backdrop`, no longer recolors the page beneath it (CSS 2.1 §14.1; found by tile 15c) | done |
 | ACID-FIX-14 | Transitions and animations interpolate colors in gamma-encoded sRGB, the space CSS Color 4 §12.1 requires for legacy sRGB colors — rdom computes every color to sRGB (found by step I6) | done |
+| ACID-FIX-15 | A frame dispatches its transition and animation events before its style and layout, so their listeners' changes are drawn in that frame (HTML §8.1.7.3; found by step I6) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
@@ -10957,3 +10958,17 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   with `interpolate_oklab`; they expect sRGB's `(128, 0, 128)` / `interpolate_srgb` now, each comment citing §12.1's
   legacy rule. Not a silent change from 0.5 (which interpolated in sRGB, unpremultiplied); the `[Unreleased]` bullet
   that said Oklab is corrected.
+- 2026-10-10 — ACID-FIX-15 (found by acid step I6; HTML §8.1.7.3 "update the rendering", Web Animations 1 §4.4,
+  CSS Transitions 1 §6, CSS Animations 2 §4.2). Tile 37's delayed swatch logs its `transitionstart`; at 50 ms, the end
+  of its delay, the log still read `log:r`, and `log:rs` only a frame later: the `App` queued a frame's events while
+  its style pass composited the running values and dispatched them after the paint, so a listener's change waited for
+  the next frame. HTML updates the animations and dispatches their events before it styles, lays out and paints. Root
+  cause in the frame order: `App::service_animation_clock`, at the start of `draw_if_dirty`, now asks the registry for
+  every event it has reached (`AnimationRegistry::queue_due_events`, replacing `step_events`, which did this only for
+  animations with an empty effect) and dispatches them before the prelude takes the frame's dirty roots. The events
+  are queued once — a transition records `ended_dispatched` beside `started_dispatched`, a registered property's
+  transition the same, a CSS animation its phase (`CssAnimation::queue_events`, the event half of `step`, which no
+  longer records the local time frames are scheduled from) — and the style pass still composites and retires them.
+  Red: `frame_event_order_tests::a_transitionstart_listeners_change_is_drawn_in_its_frame` and
+  `an_animationstart_listeners_change_is_drawn_in_its_frame` (`x` for `s` at the frame the delay ends); green after,
+  the rest of rdom-tui unchanged. Silent change `sc-animation-events-first`.

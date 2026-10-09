@@ -41,8 +41,13 @@ pub(crate) struct ActiveAnimation {
     /// The element's used color scheme when the transition started: what
     /// a `reset` endpoint interpolates as (CSS Color Adjust 1 §2.1).
     pub scheme: ColorScheme,
-    /// Whether `transitionstart` fired (on the first tick past the delay).
+    /// Whether `transitionstart` was queued (on the first tick past the
+    /// delay).
     pub started_dispatched: bool,
+    /// Whether `transitionend` was queued — at the start of the frame it
+    /// ended in (`AnimationRegistry::queue_due_events`), before the
+    /// frame's style pass retires it.
+    pub ended_dispatched: bool,
     /// When a frame last composited it (`None` before its first): a
     /// stepped transition's next change counts from there
     /// ([`next_change`](Self::next_change)).

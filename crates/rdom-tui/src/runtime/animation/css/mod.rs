@@ -284,6 +284,28 @@ impl CssAnimation {
         now: Instant,
         events: &mut Vec<PendingAnimationEvent>,
     ) -> bool {
+        let sample = self.queue_events(dom, now, events);
+        self.local = sample.map(|(t, _)| t);
+        let progress = sample.and_then(|(_, p)| p);
+        let moved = self.dirty || progress != self.composited;
+        self.composited = progress;
+        self.dirty = false;
+        moved
+    }
+
+    /// Sample it at `now` and queue the events its phase change calls for
+    /// (CSS Animations 2 §4.2) — the first half of [`step`](Self::step),
+    /// which a frame runs on its own before its style pass
+    /// (`AnimationRegistry::queue_due_events`). The local time and the
+    /// progress sampled; the local time it was last composited at is
+    /// [`step`](Self::step)'s to record, as the frames are scheduled from
+    /// it.
+    pub(in crate::runtime::animation) fn queue_events(
+        &mut self,
+        dom: &Dom<TuiExt>,
+        now: Instant,
+        events: &mut Vec<PendingAnimationEvent>,
+    ) -> Option<(f64, Option<f64>)> {
         let sample = self
             .time(dom, now)
             .map(|(t, timing, progress_based)| (t, timing, timing.sample(t, progress_based)));
@@ -293,12 +315,7 @@ impl CssAnimation {
             events.push(self.event(kind, elapsed, now));
         }
         self.seen = state;
-        self.local = sample.map(|(t, ..)| t);
-        let progress = sample.and_then(|(_, _, s)| s.progress);
-        let moved = self.dirty || progress != self.composited;
-        self.composited = progress;
-        self.dirty = false;
-        moved
+        sample.map(|(t, _, s)| (t, s.progress))
     }
 
     /// An event of this animation with `elapsed` ms, scheduled at the

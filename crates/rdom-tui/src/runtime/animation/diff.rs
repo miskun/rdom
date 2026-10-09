@@ -257,6 +257,7 @@ fn diff_style(
                 timing: rule.timing,
                 scheme,
                 started_dispatched: false,
+                ended_dispatched: false,
                 stepped_at: None,
             },
             now,

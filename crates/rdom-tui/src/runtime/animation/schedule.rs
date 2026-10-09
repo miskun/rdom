@@ -3,8 +3,8 @@
 //! continuously; a frame at a stepped transition's or animation's next
 //! step (C12G-CARRYOVER: CSS Easing 1 §2.3, a `steps()` value holds); no
 //! frame for an animation with an empty effect, only a wake-up at its
-//! next event, which [`AnimationRegistry::step_events`] services without
-//! drawing. A paused or finished animation, or one on a scroll timeline,
+//! next event, whose events [`AnimationRegistry::queue_due_events`]
+//! queues without drawing. A paused or finished animation, or one on a scroll timeline,
 //! holds its value without either.
 
 use std::time::Instant;
@@ -118,17 +118,35 @@ impl AnimationRegistry {
         }
     }
 
-    /// Step the animations with an empty effect whose next event is due,
-    /// queueing their events (CSS Animations 2 §4.2) — no composite, no
-    /// frame. `true` when one was stepped.
-    pub(crate) fn step_events(&mut self, dom: &Dom<TuiExt>, now: Instant) -> bool {
-        let mut stepped = false;
+    /// HTML §8.1.7.3 "update the rendering", Web Animations 1 §4.4
+    /// "update animations and send events": queue the events every
+    /// transition and every CSS animation on the document timeline has
+    /// reached at `now` — a delay's end, an iteration, an end — before the
+    /// frame styles anything, so the App dispatches them first and the
+    /// frame draws what their listeners change (ACID-FIX-15; they went out
+    /// after its paint, a frame late). The values are composited by the
+    /// frame's style pass (`advance_frame`), which finds these events
+    /// queued already; an animation with an empty effect needs no frame
+    /// at all. `true` when an event was queued.
+    pub(crate) fn queue_due_events(&mut self, dom: &Dom<TuiExt>, now: Instant) -> bool {
+        let queued = |r: &Self| r.pending_events.len() + r.custom_events.len() + r.css_events.len();
+        let before = queued(self);
+        for anim in &mut self.active {
+            super::queue_transition_events(anim, now, &mut self.pending_events);
+        }
+        self.queue_custom_due_events(now);
         for anim in &mut self.css {
-            if anim.next_event(now).is_some_and(|t| t <= now) {
+            if !anim.on_document_timeline() {
+                continue;
+            }
+            if anim.has_effect() {
+                anim.queue_events(dom, now, &mut self.css_events);
+            } else {
+                // No frame steps it: stepped here, its next wake-up counts
+                // from now.
                 anim.step(dom, now, &mut self.css_events);
-                stepped = true;
             }
         }
-        stepped
+        queued(self) > before
     }
 }

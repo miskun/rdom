@@ -168,14 +168,17 @@ impl<B: Backend> App<B> {
         dirty_roots
     }
 
-    /// What the animations' clock calls for at the start of a frame
-    /// (C12G-FRAME-COST): an animation with an empty effect whose event is
-    /// due is stepped and its events dispatched, with no frame; a frame is
-    /// noted when a transition or animation is due to move — every frame
-    /// for a continuous one, a stepped one only at its steps.
+    /// What the animations' clock calls for at the start of a frame — HTML
+    /// §8.1.7.3's "update animations and send events", before the frame's
+    /// style: the events every transition and animation has reached are
+    /// dispatched now, so the frame draws what their listeners change
+    /// (ACID-FIX-15); an animation with an empty effect needs no frame for
+    /// them (C12G-FRAME-COST). A frame is noted when a transition or
+    /// animation is due to move — every frame for a continuous one, a
+    /// stepped one only at its steps.
     fn service_animation_clock(&mut self) {
         let now = self.scheduler.borrow().now();
-        if self.animations.step_events(&self.dom, now) {
+        if self.animations.queue_due_events(&self.dom, now) {
             self.dispatch_animation_events();
         }
         self.redraw

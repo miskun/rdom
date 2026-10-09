@@ -255,36 +255,10 @@ impl AnimationRegistry {
             if !targets.contains(&target) {
                 targets.push(target);
             }
-            if !anim.started_dispatched && !anim.in_delay(now) {
-                anim.started_dispatched = true;
-                let at = (anim.started_at + anim.delay).min(now);
-                push_at(
-                    &mut self.pending_events,
-                    at,
-                    PendingEvent {
-                        node: anim.node,
-                        slot: anim.slot,
-                        kind: TransitionEventKind::Start,
-                        property: anim.property,
-                        elapsed_seconds: anim.skipped.as_secs_f32(),
-                    },
-                );
-            }
+            queue_transition_events(anim, now, &mut self.pending_events);
             if anim.is_done(now) {
                 // The cascade's style holds the end value from now on.
                 let done = self.active.swap_remove(i);
-                let at = (done.started_at + done.delay + done.duration).min(now);
-                push_at(
-                    &mut self.pending_events,
-                    at,
-                    PendingEvent {
-                        node: done.node,
-                        slot: done.slot,
-                        kind: TransitionEventKind::End,
-                        property: done.property,
-                        elapsed_seconds: done.duration.as_secs_f32(),
-                    },
-                );
                 if done.property.reaches_descendants() && done.slot == StyleSlot::Host {
                     self.restyle_children(dom, done.node);
                 }
@@ -403,6 +377,46 @@ impl AnimationRegistry {
 /// Queue `event`, which happened at `at`.
 fn push_at<E>(queue: &mut Vec<(Instant, E)>, at: Instant, event: E) {
     queue.push((at, event));
+}
+
+/// Queue the events `anim` has reached at `now` and not yet queued (CSS
+/// Transitions 1 §6): `transitionstart` past its delay, `transitionend`
+/// once done, each at the time on the app's clock it happened.
+fn queue_transition_events(
+    anim: &mut ActiveAnimation,
+    now: Instant,
+    events: &mut Vec<(Instant, PendingEvent)>,
+) {
+    if !anim.started_dispatched && !anim.in_delay(now) {
+        anim.started_dispatched = true;
+        let at = (anim.started_at + anim.delay).min(now);
+        push_at(
+            events,
+            at,
+            PendingEvent {
+                node: anim.node,
+                slot: anim.slot,
+                kind: TransitionEventKind::Start,
+                property: anim.property,
+                elapsed_seconds: anim.skipped.as_secs_f32(),
+            },
+        );
+    }
+    if !anim.ended_dispatched && anim.is_done(now) {
+        anim.ended_dispatched = true;
+        let at = (anim.started_at + anim.delay + anim.duration).min(now);
+        push_at(
+            events,
+            at,
+            PendingEvent {
+                node: anim.node,
+                slot: anim.slot,
+                kind: TransitionEventKind::End,
+                property: anim.property,
+                elapsed_seconds: anim.duration.as_secs_f32(),
+            },
+        );
+    }
 }
 
 /// Whether `style`'s transitions take the longhand `name` when its values

@@ -621,6 +621,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Fixed — `rdom-tui`
 
+- **A frame's transition and animation events go out before its style** (HTML §8.1.7.3, Web Animations 1 §4.4): `transitionstart` / `transitionend` / `animationstart` / `animationiteration` / `animationend` were dispatched after the frame's paint, so what their listeners changed showed a frame late; it is now drawn in the frame the event happened in. (ACID-FIX-15)
 - **An inline element can be an anchor** (CSS Anchor Positioning 1 §2): its anchor box is the bounding box of its line fragments; it read the inline box's missing rect — 0 × 0 at the origin — so `anchor()` resolved against nothing and `position-visibility: anchors-visible`, the initial value, hid the box. (ACID-FIX-11)
 - **An inline block's horizontal margins take their cells** (CSS 2.1 §10.3.9, §10.8.1): `margin-left` / `margin-right` on an `inline-block` (or an inline-block `::before` / `::after`) were dropped — the atom sat flush against its neighbours; the line now takes its margin box, and shrink-to-fit widths count it. (ACID-FIX-10)
 - **A layer at full opacity keeps the terminal's default colours** (Compositing 1 §5.1): a clip path, a filter, a blend mode or an isolated group paints through a layer, and its composite turned every default-coloured cell it painted into explicit white text on black — white on white in a light terminal. Nothing blends at opacity 1; the cells keep their colours. (ACID-FIX-9)

@@ -172,6 +172,8 @@ pub(super) struct CustomAnimation {
     skipped: Duration,
     timing: TimingFunction,
     started_dispatched: bool,
+    /// Whether `transitionend` was queued (`queue_custom_events`).
+    ended_dispatched: bool,
 }
 
 impl CustomAnimation {
@@ -334,6 +336,7 @@ impl AnimationRegistry {
                 skipped: clock.skipped,
                 timing: rule.timing,
                 started_dispatched: false,
+                ended_dispatched: false,
             });
         }
     }
@@ -345,42 +348,15 @@ impl AnimationRegistry {
         let mut i = 0;
         while i < self.custom.len() {
             let anim = &mut self.custom[i];
-            let property = format!("--{}", anim.name);
-            if !anim.started_dispatched
-                && now.saturating_duration_since(anim.started_at) >= anim.delay
-            {
-                anim.started_dispatched = true;
-                let at = (anim.started_at + anim.delay).min(now);
-                super::push_at(
-                    &mut self.custom_events,
-                    at,
-                    PendingCustomEvent {
-                        node: anim.node,
-                        kind: TransitionEventKind::Start,
-                        property: property.clone(),
-                        elapsed_seconds: anim.skipped.as_secs_f32(),
-                    },
-                );
-            }
+            queue_custom_events(anim, now, &mut self.custom_events);
             let (node, name) = (anim.node, anim.name.clone());
             // Restyle only when the animated value moved: inside the
             // delay it holds the start value (`C1G-PROPERTY-RESTYLE`).
             if anim.is_done(now) {
-                let done = self.custom.swap_remove(i);
+                self.custom.swap_remove(i);
                 if write(dom, node, &name, None) {
                     self.restyle.push(node);
                 }
-                let at = (done.started_at + done.delay + done.duration).min(now);
-                super::push_at(
-                    &mut self.custom_events,
-                    at,
-                    PendingCustomEvent {
-                        node,
-                        kind: TransitionEventKind::End,
-                        property,
-                        elapsed_seconds: done.duration.as_secs_f32(),
-                    },
-                );
             } else {
                 let value = anim.kind.format(anim.current(now));
                 if write(dom, node, &name, Some(value)) {
@@ -388,6 +364,14 @@ impl AnimationRegistry {
                 }
                 i += 1;
             }
+        }
+    }
+
+    /// Queue the events the custom-property transitions have reached at
+    /// `now` (`AnimationRegistry::queue_due_events`).
+    pub(super) fn queue_custom_due_events(&mut self, now: Instant) {
+        for anim in &mut self.custom {
+            queue_custom_events(anim, now, &mut self.custom_events);
         }
     }
 
@@ -462,5 +446,37 @@ impl AnimationRegistry {
     /// Queue a custom-property event directly (App event tests).
     pub(crate) fn queue_custom_event_for_test(&mut self, e: PendingCustomEvent) {
         self.custom_events.push((Instant::now(), e));
+    }
+}
+
+/// Queue the events `anim` has reached at `now` and not yet queued (CSS
+/// Transitions 1 §6): `transitionstart` past its delay, `transitionend`
+/// once done, each at the time on the app's clock it happened.
+fn queue_custom_events(
+    anim: &mut CustomAnimation,
+    now: Instant,
+    events: &mut Vec<(Instant, PendingCustomEvent)>,
+) {
+    let property = || format!("--{}", anim.name);
+    if !anim.started_dispatched && now.saturating_duration_since(anim.started_at) >= anim.delay {
+        let event = PendingCustomEvent {
+            node: anim.node,
+            kind: TransitionEventKind::Start,
+            property: property(),
+            elapsed_seconds: anim.skipped.as_secs_f32(),
+        };
+        super::push_at(events, (anim.started_at + anim.delay).min(now), event);
+        anim.started_dispatched = true;
+    }
+    if !anim.ended_dispatched && anim.is_done(now) {
+        let event = PendingCustomEvent {
+            node: anim.node,
+            kind: TransitionEventKind::End,
+            property: property(),
+            elapsed_seconds: anim.duration.as_secs_f32(),
+        };
+        let end = anim.started_at + anim.delay + anim.duration;
+        super::push_at(events, end.min(now), event);
+        anim.ended_dispatched = true;
     }
 }
