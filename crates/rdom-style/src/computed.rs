@@ -297,21 +297,21 @@ pub struct ComputedStyle {
     /// which all inherit (CSS Text 3 / 4).
     pub text: crate::layout::TextStyle,
     /// The CSS UI 4 properties (`outline-*`, …); none inherit.
-    pub ui: crate::layout::UiStyle,
+    pub ui: crate::Shared<crate::layout::UiStyle>,
     /// The transform, filter and compositing properties (`translate`,
     /// `transform`, …); none inherit.
-    pub effects: crate::layout::EffectsStyle,
+    pub effects: crate::Shared<crate::layout::EffectsStyle>,
     /// The table properties (CSS 2.1 §17): `table-layout`, `caption-side`.
     pub table: crate::layout::TableStyle,
     /// The CSS Multi-column 1 properties (`column-count`, `column-width`,
     /// `column-rule-*`, `column-span`, `column-fill`); none inherit.
-    pub multicol: crate::layout::MulticolStyle,
+    pub multicol: crate::Shared<crate::layout::MulticolStyle>,
     /// The CSS Fragmentation 3 properties (`break-*`, `orphans`, `widows`,
     /// `box-decoration-break`); `orphans` and `widows` inherit.
     pub fragmentation: crate::layout::FragmentationStyle,
     /// The CSS Anchor Positioning 1 properties (`anchor-name`,
     /// `position-anchor`, `position-area`, the fallbacks, …); none inherit.
-    pub anchor: crate::layout::AnchorStyle,
+    pub anchor: crate::Shared<crate::layout::AnchorStyle>,
     /// The font properties (CSS Fonts 4), the weight computed to a
     /// number. All inherit; `modifiers` carries the bold and italic they
     /// draw.

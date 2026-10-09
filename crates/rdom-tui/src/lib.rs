@@ -165,9 +165,9 @@ pub use style::{
     EffectsDeclarations, FontDeclarations, FragmentationDeclarations, ImportantMask, LayerId,
     MaskDeclarations, Modifier, MulticolDeclarations, PropertyRegistration, PropertySyntax,
     PropertySyntaxError, PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError,
-    Rule, RuleContext, RuleOrigin, Specificity, StyleError, StyleSelector, Stylesheet, SystemColor,
-    TableDeclarations, TextDeclarations, TextDecorationDeclarations, TuiColor, TuiStyle,
-    UiDeclarations, UserActionState, Value, VarMap, parse_color, resolve_tui_color,
+    Rule, RuleContext, RuleOrigin, Shared, Specificity, StyleError, StyleSelector, Stylesheet,
+    SystemColor, TableDeclarations, TextDeclarations, TextDecorationDeclarations, TuiColor,
+    TuiStyle, UiDeclarations, UserActionState, Value, VarMap, parse_color, resolve_tui_color,
 };
 
 /// `Dom<TuiExt>` — the full TUI document.

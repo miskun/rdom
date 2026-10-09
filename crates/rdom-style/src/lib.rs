@@ -70,6 +70,7 @@ mod custom_value;
 mod modifier;
 mod pixels;
 mod quotes;
+mod shared;
 mod specificity;
 mod stylesheet;
 mod tui_color;
@@ -95,6 +96,7 @@ pub use registration::{
     Multiplier, PropertyRegistration, PropertySyntax, PropertySyntaxError, RegisterPropertyError,
     SyntaxComponent,
 };
+pub use shared::Shared;
 pub use specificity::Specificity;
 pub use stylesheet::{
     ConditionId, ConditionKind, ConditionRule, Import, Layer, LayerId, LayerOrder, PositionTryRule,

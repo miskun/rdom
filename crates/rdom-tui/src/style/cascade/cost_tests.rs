@@ -650,3 +650,30 @@ fn no_conditional_rules_cost_nothing() {
     );
     assert_eq!(container_pass::probe::take(), 0, "no container pass");
 }
+
+/// C15G-STYLE-SIZE. The rare groups of a computed style (effects,
+/// multi-column, anchor positioning, the UI properties) are shared: a
+/// plain element's cascade allocates none of them, whatever its parent
+/// set of either the inherited UI properties (`cursor`, `accent-color`:
+/// the parent's group is shared) or the rest — and an element that writes
+/// one copies it once. (A parent that sets both an inherited UI property
+/// and a non-inherited one has its children copy the group.)
+#[test]
+fn the_rare_style_groups_are_shared_until_written() {
+    let per_element = |css: &str| cascade_allocations(css, 40) - cascade_allocations(css, 20);
+    let plain = per_element(".p { color: red }");
+    assert_eq!(plain, PLAIN_ELEMENT_ALLOCATIONS, "per 20 plain elements");
+    for parent in [
+        ".p { color: red; cursor: pointer; accent-color: red }",
+        ".p { color: red; outline: solid; translate: 1; column-count: 2; anchor-name: --a }",
+    ] {
+        assert_eq!(per_element(parent), plain, "under `{parent}`");
+    }
+    // Each child writes its effects group once (copy on write).
+    let written = per_element(".p { color: red } .p > div { translate: 1 }");
+    assert_eq!(written - plain, 20, "one group per writing element");
+}
+
+/// What cascading 20 plain children costs, pinned so a shared group that
+/// starts copying per element shows (C15G-STYLE-SIZE).
+const PLAIN_ELEMENT_ALLOCATIONS: u64 = 160;

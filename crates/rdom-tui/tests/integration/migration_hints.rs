@@ -1686,3 +1686,24 @@ fn stretch_hints() {
         Some(Value::Specified(Size::Intrinsic(IntrinsicSize::Stretch)))
     );
 }
+
+/// C15G-STYLE-SIZE: `ComputedStyle::{effects, multicol, anchor, ui}` and
+/// `TuiStyle::{effects, masks, multicol, anchor, ui}` are `Shared` groups —
+/// a field reads as before, a write copies the group first when another
+/// style holds it, `*` names the group's own type, and `.into()` builds one.
+#[test]
+fn shared_group_hints() {
+    let mut c = ComputedStyle::initial();
+    assert_eq!(c.effects.isolation, Isolation::Auto);
+    c.effects.isolation = Isolation::Isolate;
+    let effects: &EffectsStyle = &c.effects;
+    assert_eq!(effects.isolation, Isolation::Isolate);
+    assert_ne!(*c.effects, EffectsStyle::default());
+    let mut s = TuiStyle::new();
+    s.effects = EffectsDeclarations::default().into();
+    assert_eq!(s, TuiStyle::new());
+    assert!(Shared::ptr_eq(
+        &TuiStyle::new().masks,
+        &TuiStyle::new().masks
+    ));
+}

@@ -276,19 +276,19 @@ pub struct TuiStyle {
     /// them.
     pub text: TextDeclarations,
     /// The CSS UI 4 properties (`outline-*`, …).
-    pub ui: UiDeclarations,
+    pub ui: crate::Shared<UiDeclarations>,
     /// The transform, filter and compositing properties (`translate`,
     /// `transform`, …).
-    pub effects: EffectsDeclarations,
+    pub effects: crate::Shared<EffectsDeclarations>,
     /// The mask properties (`mask-image`, …), kept as text, inert.
-    pub masks: MaskDeclarations,
+    pub masks: crate::Shared<MaskDeclarations>,
     /// The table properties (`table-layout`, `caption-side`).
     pub table: TableDeclarations,
     /// The multi-column properties (`column-count`, `column-rule-*`, …).
-    pub multicol: MulticolDeclarations,
+    pub multicol: crate::Shared<MulticolDeclarations>,
     /// The anchor positioning properties (`anchor-name`, `position-area`,
     /// …).
-    pub anchor: AnchorDeclarations,
+    pub anchor: crate::Shared<AnchorDeclarations>,
     /// The fragmentation properties (`break-*`, `orphans`, `widows`, …).
     pub fragmentation: FragmentationDeclarations,
     /// `vertical-align` (CSS 2.1 §10.8.1).

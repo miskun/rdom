@@ -47,13 +47,10 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     // mirrors it.
     working.caret_color = parent.caret_color.clone();
     working.caret_text_color = parent.caret_text_color.clone();
-    // CSS UI 4 §4.1: `cursor` inherits.
-    working.ui.cursor = parent.ui.cursor.clone();
-    // §6.2: the caret's shape and animation inherit.
-    working.ui.caret_shape = parent.ui.caret_shape;
-    working.ui.caret_animation = parent.ui.caret_animation;
-    // §6.3: `accent-color` inherits.
-    working.ui.accent_color = parent.ui.accent_color.clone();
+    // CSS UI 4 §4.1, §6.2, §6.3: `cursor`, the caret's shape and
+    // animation, and `accent-color` inherit — the rest of the group does
+    // not.
+    inherit_ui(working, parent);
     // CSS Color Adjust 1 §2: `color-scheme` inherits.
     working.color_scheme = parent.color_scheme.clone();
     // CSS 2.1 §17.6.1: `border-spacing` inherits; §17.4.1:
@@ -82,6 +79,54 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     // Inherit custom-property map by Rc::clone (cheap).
     working.vars = parent.vars.clone();
     working.animated_vars = parent.animated_vars.clone();
+}
+
+/// The inherited UI properties (CSS UI 4 §4.1 `cursor`, §6.2
+/// `caret-shape` / `caret-animation`, §6.3 `accent-color`) from `parent`.
+/// The group is shared (C15G-STYLE-SIZE): when the parent's inherited
+/// ones are their initial values — `working`'s, which has not been
+/// cascaded yet — there is nothing to inherit; when its non-inherited
+/// ones are, `working` shares the parent's group whole; only a parent
+/// that set both kinds has its inherited ones copied into `working`'s own
+/// group. The pattern names every field, so a new
+/// one must be sorted here.
+fn inherit_ui(working: &mut ComputedStyle, parent: &ComputedStyle) {
+    let rdom_style::layout::UiStyle {
+        outline_style,
+        outline_width,
+        outline_color,
+        outline_offset,
+        cursor,
+        caret_shape,
+        caret_animation,
+        accent_color,
+        appearance,
+        field_sizing,
+        resize,
+    } = &*parent.ui;
+    let initial = &*working.ui;
+    let non_inherited_initial = *outline_style == initial.outline_style
+        && *outline_width == initial.outline_width
+        && *outline_color == initial.outline_color
+        && *outline_offset == initial.outline_offset
+        && *appearance == initial.appearance
+        && *field_sizing == initial.field_sizing
+        && *resize == initial.resize;
+    let inherited_initial = *cursor == initial.cursor
+        && *caret_shape == initial.caret_shape
+        && *caret_animation == initial.caret_animation
+        && *accent_color == initial.accent_color;
+    if inherited_initial {
+        // Nothing to inherit: `working` keeps the shared initial group.
+    } else if non_inherited_initial {
+        working.ui = parent.ui.clone();
+    } else {
+        let ui = &mut *working.ui;
+        ui.cursor = cursor.clone();
+        ui.caret_shape = *caret_shape;
+        ui.caret_animation = *caret_animation;
+        ui.accent_color = accent_color.clone();
+    }
 }
 
 /// The computed style of an anonymous box whose parent box is styled

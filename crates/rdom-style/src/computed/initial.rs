@@ -121,12 +121,12 @@ impl ComputedStyle {
             webkit_box: false,
             establishes_new_bfc: false,
             text: crate::layout::TextStyle::default(),
-            ui: crate::layout::UiStyle::default(),
-            effects: crate::layout::EffectsStyle::default(),
+            ui: crate::Shared::default(),
+            effects: crate::Shared::default(),
             table: crate::layout::TableStyle::default(),
-            multicol: crate::layout::MulticolStyle::default(),
+            multicol: crate::Shared::default(),
             fragmentation: crate::layout::FragmentationStyle::default(),
-            anchor: crate::layout::AnchorStyle::default(),
+            anchor: crate::Shared::default(),
             font: crate::layout::Font {
                 weight: crate::layout::FontWeight::Number(400.0),
                 ..crate::layout::Font::default()

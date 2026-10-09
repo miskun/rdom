@@ -167,29 +167,35 @@ impl ComputedStyle {
             );
         }
         // CSS Multi-column 1 §3.1, §4.3: the column width and the rule's
-        // width.
-        absolutize(
-            &mut self.multicol.column_width,
-            vp,
-            crate::layout::ColumnWidth::Calc,
-            |v| crate::layout::ColumnWidth::Cells(cells_u16(v)),
-        );
-        absolutize(
-            &mut self.multicol.column_rule_width,
-            vp,
-            |e| BorderWidth::Length(PaintLength::Calc(e)),
-            |v| BorderWidth::Length(PaintLength::Cells(v as f32)),
-        );
+        // width — the shared group copied only when one needs it.
+        if needs(&self.multicol.column_width) || needs(&self.multicol.column_rule_width) {
+            let m = &mut *self.multicol;
+            absolutize(
+                &mut m.column_width,
+                vp,
+                crate::layout::ColumnWidth::Calc,
+                |v| crate::layout::ColumnWidth::Cells(cells_u16(v)),
+            );
+            absolutize(
+                &mut m.column_rule_width,
+                vp,
+                |e| BorderWidth::Length(PaintLength::Calc(e)),
+                |v| BorderWidth::Length(PaintLength::Cells(v as f32)),
+            );
+        }
         // CSS UI 4 §5.3–§5.4: the outline's width and offset.
-        absolutize(
-            &mut self.ui.outline_width,
-            vp,
-            |e| BorderWidth::Length(PaintLength::Calc(e)),
-            |v| BorderWidth::Length(PaintLength::Cells(v as f32)),
-        );
-        absolutize(&mut self.ui.outline_offset, vp, PaintLength::Calc, |v| {
-            PaintLength::Cells(v as f32)
-        });
+        if needs(&self.ui.outline_width) || needs(&self.ui.outline_offset) {
+            let ui = &mut *self.ui;
+            absolutize(
+                &mut ui.outline_width,
+                vp,
+                |e| BorderWidth::Length(PaintLength::Calc(e)),
+                |v| BorderWidth::Length(PaintLength::Cells(v as f32)),
+            );
+            absolutize(&mut ui.outline_offset, vp, PaintLength::Calc, |v| {
+                PaintLength::Cells(v as f32)
+            });
+        }
         for shadow in &mut self.box_shadow {
             for length in [
                 &mut shadow.offset_x,
@@ -220,10 +226,18 @@ impl ComputedStyle {
         }
         // CSS Transforms 2 §6.1: the translations' offsets (a percentage of
         // the reference box stays for layout).
-        if let Some(t) = &mut self.effects.translate {
+        if self
+            .effects
+            .translate
+            .as_ref()
+            .is_some_and(|t| needs(&t.x) || needs(&t.y))
+            && let Some(t) = &mut self.effects.translate
+        {
             absolutize_translate(t, vp);
         }
-        absolutize_transform(&mut self.effects.transform, vp);
+        if transform_has_calc(&self.effects.transform) {
+            absolutize_transform(&mut self.effects.transform, vp);
+        }
         // Transforms 1 §6: the origin's lengths (inert, kept absolute).
         let origin = &self.effects.transform_origin;
         if origin.needs_context() {
@@ -343,13 +357,19 @@ fn absolutize_translate(t: &mut crate::layout::Translate, vp: &Reading<'_>) {
 
 /// The translate functions of a `transform` list, the list rebuilt only
 /// when one holds a math expression.
+/// Whether a `transform` list has a `calc()` translation offset — what
+/// [`absolutize_transform`] rewrites.
+fn transform_has_calc(list: &crate::layout::TransformList) -> bool {
+    use crate::layout::TransformFunction;
+    let calc = |l: &Length| matches!(l, Length::Calc(_));
+    list.functions().iter().any(|f| {
+        matches!(f, TransformFunction::Translate { offset, .. } if calc(&offset.x) || calc(&offset.y))
+    })
+}
+
 fn absolutize_transform(list: &mut crate::layout::TransformList, vp: &Reading<'_>) {
     use crate::layout::{TransformFunction, TransformList};
-    let calc = |l: &Length| matches!(l, Length::Calc(_));
-    let has_calc = list.functions().iter().any(|f| {
-        matches!(f, TransformFunction::Translate { offset, .. } if calc(&offset.x) || calc(&offset.y))
-    });
-    if !has_calc {
+    if !transform_has_calc(list) {
         return;
     }
     let mut functions = list.functions().to_vec();
@@ -473,6 +493,11 @@ impl HasExpr for BorderWidth {
 /// Replace `value`'s expression, when it has a context unit, by the
 /// absolute one: `calc` keeps a percent-bearing expression, `fixed`
 /// takes the cells of one left without a percentage.
+/// Whether `value` holds an expression [`absolutize`] would rewrite.
+fn needs<T: HasExpr>(value: &T) -> bool {
+    value.expr().is_some_and(|e| e.needs_context())
+}
+
 fn absolutize<T: HasExpr>(
     value: &mut T,
     cx: &Reading<'_>,

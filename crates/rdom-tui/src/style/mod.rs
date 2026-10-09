@@ -76,7 +76,7 @@ pub use rdom_style::{
     FragmentationDeclarations, ImportantMask, LayerId, MaskDeclarations, Modifier,
     MulticolDeclarations, PropertyRegistration, PropertySyntax, PropertySyntaxError,
     PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError, Rule, RuleContext,
-    RuleOrigin, Specificity, StyleError, StyleSelector, Stylesheet, TableDeclarations,
+    RuleOrigin, Shared, Specificity, StyleError, StyleSelector, Stylesheet, TableDeclarations,
     TextDeclarations, TextDecorationDeclarations, TimingFunction, TransitionProperty,
     TransitionRule, TuiColor, TuiStyle, UiDeclarations, UserActionState, Value, VarMap,
     parse_color, resolve_tui_color,

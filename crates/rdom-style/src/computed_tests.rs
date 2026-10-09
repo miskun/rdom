@@ -103,3 +103,49 @@ fn flex_direction_reads_axis_and_reverse_as_one() {
     s.flex_reverse = true;
     assert_eq!(s.flex_direction(), FlexDirection::ColumnReverse);
 }
+
+// ── C15G-STYLE-SIZE ─────────────────────────────────────────────────
+
+/// Every element carries a `ComputedStyle` (and its `::before` / `::after`
+/// one); the rarely set groups — effects, multi-column, anchor positioning,
+/// the UI properties — are `Shared`, one pointer each, so their size is
+/// paid once by the elements that set one. Tripwire: a new inline field
+/// lands in a group, or raises this bound in review.
+#[test]
+fn computed_style_size_tripwire() {
+    const MAX: usize = 2560;
+    let size = std::mem::size_of::<ComputedStyle>();
+    assert!(
+        size <= MAX,
+        "size_of::<ComputedStyle>() = {size}, bound {MAX}"
+    );
+}
+
+/// A declaration block (`TuiStyle`) is held per rule and per inline style:
+/// its rare groups are `Shared` as the computed ones are.
+#[test]
+fn tui_style_size_tripwire() {
+    const MAX: usize = 3000;
+    let size = std::mem::size_of::<crate::TuiStyle>();
+    assert!(size <= MAX, "size_of::<TuiStyle>() = {size}, bound {MAX}");
+}
+
+/// An element that sets none of a rare group shares one default of it:
+/// the initial styles hold the same group, and a write copies it first.
+#[test]
+fn the_initial_styles_share_their_rare_groups_until_written() {
+    let a = ComputedStyle::initial();
+    let mut b = ComputedStyle::initial();
+    assert!(crate::Shared::ptr_eq(&a.effects, &b.effects));
+    assert!(crate::Shared::ptr_eq(&a.multicol, &b.multicol));
+    assert!(crate::Shared::ptr_eq(&a.anchor, &b.anchor));
+    assert!(crate::Shared::ptr_eq(&a.ui, &b.ui));
+    b.effects.isolation = crate::layout::Isolation::Isolate;
+    assert!(!crate::Shared::ptr_eq(&a.effects, &b.effects));
+    assert_eq!(a.effects.isolation, crate::layout::Isolation::Auto);
+    assert_ne!(a, b);
+    let d = crate::TuiStyle::new();
+    let e = crate::TuiStyle::new();
+    assert!(crate::Shared::ptr_eq(&d.effects, &e.effects));
+    assert!(crate::Shared::ptr_eq(&d.masks, &e.masks));
+}

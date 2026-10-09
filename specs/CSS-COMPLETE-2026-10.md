@@ -10386,3 +10386,30 @@ row comes from.
   stuck on row 0 and the tooltip beside its anchor on the row the anchor moved to; a Down-arrow scroll key the
   same. Expectation changed: `route_redraw_tests::a_wheel_scroll_performs_no_cascade` (1 layout → 0 layouts +
   1 scroll update).
+- 2026-10-09 — C15G-STYLE-SIZE 1/2 (Phase 15 gate architect N13, program health "struct growth"). Found:
+  `ComputedStyle` 3 072 bytes and `TuiStyle` 3 912 per element / rule / inline style, about 147 flat fields
+  each plus inline groups — Phase 15 added four (effects 264 B, multicol 80, fragmentation 12, anchor 96) to
+  every element, which almost none sets; the size was printed (`ext/tests.rs`), not pinned. Decided: (1) a
+  rdom-style `Shared<T>` — an `Arc` group copied on write: `Deref` reads as before, `DerefMut` is
+  `Arc::make_mut`, `PartialEq` pointer-then-value, `Debug` the group's own (so no snapshot moves), and one
+  `Default` per group type (a `OnceLock` static), so a style that sets none of a group shares one default.
+  `Arc`, not `Rc`, keeps `TuiStyle` `Send + Sync` (stylesheets may be built off-thread); `ComputedStyle` holds
+  an `Rc` `VarMap` already. (2) Shared groups: `ComputedStyle::{effects, multicol, anchor, ui}`, `TuiStyle::
+  {effects, masks, multicol, anchor, ui}`; `fragmentation` (12 B) and `table` (3 B) stay inline — a pointer
+  would save nothing. (3) No write may copy a group by accident: the cascade's `value!` applicator now resolves
+  a declaration first and writes the field only when one applies (`apply::resolved`); `filter` /
+  `backdrop-filter` likewise (`colors::apply_filters`); `resolve_context_units` copies the multicol, UI or
+  effects group only when one of its lengths needs a context (`absolute::needs`, `transform_has_calc`); and
+  inheriting the UI group (`inherit::inherit_ui`, a pattern naming every field) keeps the default when the
+  parent's inherited UI values are initial, shares the parent's group when its non-inherited ones are, and
+  copies only when the parent set both kinds. Sizes: `ComputedStyle` 3 072 → 2 536, `TuiStyle` 3 912 → 2 984
+  (tripwires at 2 560 / 3 000, `computed_tests.rs`); `TuiExt` unchanged (376). `Shared` is classified in
+  DESIGN (sealed by private fields), re-exported at the root, with an API-table row under "Changes to APIs
+  added after 0.5" and `migration_hints.rs::shared_group_hints`. Red: the size tripwires (3 072 > 2 560,
+  3 912 > 3 000) and `the_initial_styles_share_their_rare_groups_until_written` (no `Shared`: compile error);
+  `cost_tests::the_rare_style_groups_are_shared_until_written` pins 160 allocations per 20 plain children —
+  what they cost before — under a plain parent, under one setting `cursor` / `accent-color` and under one
+  setting outline / `translate` / `column-count` / `anchor-name`, and one copy per child that writes
+  `translate` (0 before: the cost of copy on write, now counted). Mutation (restored): inheriting the UI
+  fields one by one, as before, costs 200 per 20 plain children and fails the pin (the C10G-INHERIT-COST
+  table, comparing with and without a value, cannot see a cost both pay).

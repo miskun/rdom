@@ -140,16 +140,21 @@ pub(super) fn apply_style(
     // One declared value → one `ComputedStyle` field of the same type:
     // specified as written, `inherit` the parent's field, `initial` the
     // field of `ComputedStyle::initial()`.
+    // The field is written only when a declaration applies: a shared
+    // group (`rdom_style::Shared`) is copied on write, not on every
+    // element (C15G-STYLE-SIZE).
     macro_rules! value {
         ($($($field:ident).+: $mask:ident),* $(,)?) => {$(
-            apply_value(
-                &mut working.$($field).+,
+            if let Some(x) = resolved(
                 &style.$($field).+,
                 style.important.contains(ImportantMask::$mask),
                 important_pass,
                 kw,
                 |c| &c.$($field).+,
-            );
+                |v| Some(v.clone()),
+            ) {
+                working.$($field).+ = x;
+            }
         )*};
     }
 
@@ -491,17 +496,28 @@ fn apply_converted<S, T: Clone>(
     field: fn(&ComputedStyle) -> &T,
     to: impl Fn(&S) -> Option<T>,
 ) {
-    if let Some(v) = value
-        && matches_pass(important_prop, important_pass)
-    {
-        match kw.resolve(v) {
-            Resolved::Specified(x) => {
-                if let Some(x) = to(x) {
-                    *target = x;
-                }
-            }
-            Resolved::From(source) => *target = field(source).clone(),
-        }
+    if let Some(x) = resolved(value, important_prop, important_pass, kw, field, to) {
+        *target = x;
+    }
+}
+
+/// The value one declaration gives its field in this pass — `None` when it
+/// does not apply (absent, the other pass) or `to` ignores it.
+fn resolved<S, T: Clone>(
+    value: &Option<Value<S>>,
+    important_prop: bool,
+    important_pass: bool,
+    kw: &Keywords<'_>,
+    field: fn(&ComputedStyle) -> &T,
+    to: impl Fn(&S) -> Option<T>,
+) -> Option<T> {
+    let v = value.as_ref()?;
+    if !matches_pass(important_prop, important_pass) {
+        return None;
+    }
+    match kw.resolve(v) {
+        Resolved::Specified(x) => to(x),
+        Resolved::From(source) => Some(field(source).clone()),
     }
 }
 

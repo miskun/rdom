@@ -320,37 +320,31 @@ fn apply_filters(
     cx: &ColorContext,
 ) {
     let vars = working.vars.clone();
-    let slots = [
-        (
-            &style.effects.filter,
-            ImportantMask::FILTER,
-            &mut working.effects.filter,
-            &mut colors.filter,
-            (|c: &ComputedStyle| c.effects.filter.clone())
-                as fn(&ComputedStyle) -> FilterList<Color>,
-        ),
-        (
-            &style.effects.backdrop_filter,
-            ImportantMask::BACKDROP_FILTER,
-            &mut working.effects.backdrop_filter,
-            &mut colors.backdrop_filter,
-            |c: &ComputedStyle| c.effects.backdrop_filter.clone(),
-        ),
-    ];
-    for (declared, mask, target, waiting, field) in slots {
+    for backdrop in [false, true] {
+        let (declared, mask) = if backdrop {
+            (
+                &style.effects.backdrop_filter,
+                ImportantMask::BACKDROP_FILTER,
+            )
+        } else {
+            (&style.effects.filter, ImportantMask::FILTER)
+        };
         let Some(v) = declared else { continue };
         if !matches_pass(style.important.contains(mask), important_pass) {
             continue;
         }
-        match kw.resolve(v) {
-            Resolved::Specified(list) => {
-                *target = compute_filter(list, &vars, cx);
-                *waiting = Some(list.clone());
-            }
-            Resolved::From(source) => {
-                *target = field(source);
-                *waiting = None;
-            }
+        let (value, waiting) = match kw.resolve(v) {
+            Resolved::Specified(list) => (compute_filter(list, &vars, cx), Some(list.clone())),
+            Resolved::From(source) if backdrop => (source.effects.backdrop_filter.clone(), None),
+            Resolved::From(source) => (source.effects.filter.clone(), None),
+        };
+        // The effects group is copied (it is shared) only when written.
+        if backdrop {
+            working.effects.backdrop_filter = value;
+            colors.backdrop_filter = waiting;
+        } else {
+            working.effects.filter = value;
+            colors.filter = waiting;
         }
     }
 }
