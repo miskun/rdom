@@ -10839,3 +10839,9 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `css_phase15::anchor::an_inline_element_anchors_by_its_fragments` (the anchored box at (0, 0) where (6, 1)); green
   after, the rest of rdom-tui unchanged. DIVERGENCES' anchor entry names the inline anchor box; silent change
   `sc-inline-anchor`.
+- 2026-10-10 — ACID-TILES-B, the hit-test loose end of part 1 (docs). Text overflowing its block's box is not hittable
+  where it paints: the hit test prunes at each box's border box (`descend_plain`), so overflow from an `overflow: visible`
+  box — text or a child box — is hit through to what lies beneath; browsers hit it where it is drawn. A fix needs the
+  inline hit to tell a block's own text from empty space (both are `false` today) and a replacement for the prune (an
+  ink-overflow rect per box): not feasible inside this item. Recorded as DIVERGENCES §4 "Content that overflows a box
+  which does not clip it is hit only inside that box" and TECH_DEBT `HIT-OVERFLOW-1`.
