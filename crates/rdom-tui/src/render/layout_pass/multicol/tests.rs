@@ -42,3 +42,29 @@ fn only_a_multicol_container_pays_for_columns() {
     assert_eq!(layouts, 1);
     assert!(runs <= 8, "{runs} breaker runs");
 }
+
+/// Architect N10 (C15G-MULTICOL-COST): a column narrower than a cell holds
+/// nothing, so `column-count` is capped at the columns of one cell that fit
+/// (CSS Multi-column 1 §3.4's `W` is never below a cell) — `column-count:
+/// 65535` in 40 cells with a one-cell gap is 20 columns, not 65 535 column
+/// boxes per layout.
+#[test]
+fn the_column_count_is_capped_at_one_cell_columns() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let div = dom.create_element("div");
+    dom.append_child(root, div).unwrap();
+    let t = dom.create_text_node("x");
+    dom.append_child(div, t).unwrap();
+    let sheet = rdom_css::from_css_strict("div { column-count: 65535; column-gap: 1 }").unwrap();
+    dom.cascade(&sheet);
+    dom.layout_dom(Rect::new(0, 0, 40, 10));
+    let computed = dom.node(div).computed().cloned().unwrap();
+    let cols = super::geometry::columns(&computed, 40);
+    assert_eq!((cols.count, cols.width), (20, 1));
+    let boxes = match dom.node(div).ext().and_then(|e| e.kept.as_deref()) {
+        Some(crate::ext::KeptLayout::Columns(sets)) => sets.iter().map(|s| s.columns.len()).sum(),
+        _ => 0,
+    };
+    assert_eq!(boxes, 20, "column boxes kept");
+}

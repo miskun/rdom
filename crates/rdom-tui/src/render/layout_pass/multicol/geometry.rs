@@ -33,7 +33,7 @@ pub(crate) fn gap(computed: &ComputedStyle, available: u16) -> u16 {
 /// §3.4: the count `N` and width `W` of the columns in a content box `U`
 /// (`available`) cells wide. Whole cells: `W` is floored, so the columns
 /// may leave a few cells at the inline end (DIVERGENCES); never less than
-/// one column of one cell.
+/// one column of one cell, and never more columns than one cell wide fit.
 pub(crate) fn columns(computed: &ComputedStyle, available: u16) -> Columns {
     use crate::layout::ColumnCount;
     let gap = gap(computed, available);
@@ -52,7 +52,11 @@ pub(crate) fn columns(computed: &ComputedStyle, available: u16) -> Columns {
         (Some(w), Some(n)) => n.min(fit(i64::from(w))),
         (None, None) => 1,
     }
-    .max(1);
+    .max(1)
+    // A column is at least a cell: no more columns than one-cell columns
+    // fit (`column-count: 65535` in 40 cells is 20 with a one-cell gap —
+    // C15G-MULTICOL-COST).
+    .min(fit(1));
     let w = match width {
         // (02): the count shares the width out.
         None => (u - (n - 1) * g) / n,

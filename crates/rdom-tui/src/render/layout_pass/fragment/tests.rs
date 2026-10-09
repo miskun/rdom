@@ -2,7 +2,7 @@
 //! hand-made breaks: which break ends a fragmentainer, the rules relaxed
 //! in order, forced breaks, overflow, and balancing's bounded cost.
 
-use super::breaker::{BREAKER_RUNS, slices};
+use super::breaker::{BREAKER_RUNS, FORCED_SCANS, slices};
 use super::{Break, FLOAT, Fill, Frag, RULE_1, RULE_2, RULE_3, RULE_4, fragmentainers};
 
 /// Each fragment's rows.
@@ -205,4 +205,17 @@ fn cloned_edges_take_rows_at_a_break() {
             .collect::<Vec<_>>(),
         [(0, 3, 0, 1), (3, 6, 1, 0)]
     );
+}
+
+/// Architect N10 (C15G-MULTICOL-COST): a run of the breaker looks for a
+/// forced break only among the breaks its fragmentainer can end at — 1000
+/// one-row lines into one-row fragmentainers (`column-fill: auto` at
+/// height 1) look at about 1000 breaks, not 1000² / 2.
+#[test]
+fn the_forced_break_scan_is_linear() {
+    FORCED_SCANS.with(|c| c.set(0));
+    let frags = slices(&lines(1000), 0, 1000, 1);
+    assert_eq!(frags.len(), 1000);
+    let scans = FORCED_SCANS.with(|c| c.get());
+    assert!(scans <= 3000, "{scans} breaks scanned");
 }

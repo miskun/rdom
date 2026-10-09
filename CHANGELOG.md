@@ -881,6 +881,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **Zellij is a multiplexer to SGR detection**: under `ZELLIJ`, `SgrCapabilities::from_env` gives the common subset (`BASIC`) instead of the outer terminal's extensions, as for GNU screen and tmux before 3.2; the `Backend` doc says a wrapping backend must forward `set_sgr_capabilities` / `sgr_capabilities`. (C10G-API-SMALL)
 - **A resize restyles only what it must**: the tree cascades again when a computed style read a viewport unit or a media query flipped; otherwise the frame lays out only (it re-cascaded the whole tree on every resize). A preference change likewise. (C14-MEDIA)
 - **Anchor positioning costs linear work per layout**: anchor lookups are memoized per placement pass and narrowed by `anchor-scope` (a list of n scoped rows with a tooltip each tested O(n²) candidates on every scroll), and `position-visibility` answers paint, hit-testing and focus with one lookup instead of an ancestor walk per box. (C15G-ANCHOR-COST)
+- **Multi-column layout stays bounded**: `column-count` is capped at the one-cell columns that fit the container (`column-count: 65535` in 40 cells is 20 columns, it built 65 535 column boxes per layout), and the breaker scans for a forced break only among the breaks a column can end at (`column-fill: auto` over 1000 lines scanned ~500 000 breaks). (C15G-MULTICOL-COST)
 
 ### Fixed — `rdom-tui`
 

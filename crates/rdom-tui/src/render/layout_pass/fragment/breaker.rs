@@ -23,6 +23,8 @@ use super::{Break, FLOAT, RULE_1, RULE_2, RULE_3, RULE_4};
 thread_local! {
     /// Runs of [`slices`] (cost tests).
     pub(in crate::render::layout_pass) static BREAKER_RUNS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Breaks the forced-break scan looked at (cost tests).
+    pub(in crate::render::layout_pass) static FORCED_SCANS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// How a flow fills its fragmentainers.
@@ -172,8 +174,18 @@ pub(super) fn slices(breaks: &[Break], start: i32, end: i32, h: u16) -> Vec<Frag
 /// `end`, fits — or has no break left.
 fn pick(breaks: &[Break], s: i32, limit: i32, end: i32) -> Option<Break> {
     let fits = |b: &Break| b.end + i32::from(b.tail) <= limit;
+    // The breaks this fragmentainer can end at: the forced-break scan and
+    // the relaxation look at these only, so a run is linear in the breaks
+    // (C15G-MULTICOL-COST).
+    let fitting = &breaks[..breaks.partition_point(|b| b.end <= limit)];
     // A forced break that fits ends it (§3.1).
-    if let Some(b) = breaks.iter().find(|b| b.forced)
+    if let Some(b) = fitting
+        .iter()
+        .inspect(|_| {
+            #[cfg(test)]
+            FORCED_SCANS.with(|c| c.set(c.get() + 1));
+        })
+        .find(|b| b.forced)
         && b.end <= end
         && fits(b)
     {
@@ -182,7 +194,6 @@ fn pick(breaks: &[Break], s: i32, limit: i32, end: i32) -> Option<Break> {
     if end <= limit {
         return None;
     }
-    let fitting = &breaks[..breaks.partition_point(|b| b.end <= limit)];
     // Rules dropped in §4.4's order: 3, then 1, 2 and 4; a float last.
     const RELAXED: [u8; 6] = [
         0,

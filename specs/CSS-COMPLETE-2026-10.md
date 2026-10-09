@@ -10207,3 +10207,18 @@ row comes from.
   placement. Red (`positioning/anchor/tests.rs`, `row_tooltips_cost_linear_work`, 20 vs 80 rows in a
   10-row scroller): 210 vs 3 240 candidates tested; with the old `hidden`, 2 460 vs 46 620 comparisons
   (re-run against it as the mutation check). Green: both within 5× for 4× the rows.
+- 2026-10-09 — C15G-MULTICOL-COST (Phase 15 gate architect N10; CSS Multi-column 1 §3.4, CSS Fragmentation 3
+  §3.1). Found: `geometry::columns` took `column-count` up to 65 535 — each a `ColumnBox` per set per
+  layout, though §3.4's `W` floors to 0 cells past the width; and `breaker::pick` scanned every remaining
+  break for a forced one per fragmentainer, O(fragments × breaks). Decided: (1) the count is capped at the
+  columns one cell wide that fit, `⌊(U + g) / (1 + g)⌋` — a narrower column holds nothing — rather than
+  Chrome's flat 1000, which would still build hundreds of zero-cell boxes in a terminal; DIVERGENCES' multicol
+  entry says so. (2) The forced-break scan, like the relaxation, looks only at the breaks the
+  fragmentainer can end at (`end <= limit`, the same `partition_point` slice): a forced break past the
+  limit could not end this fragmentainer anyway, so the choice is unchanged and each break is looked at by
+  the one or two runs whose window holds it. Spanners' wasted column-width layout (N10's third point) is
+  left as is: a spanner is laid out at the column width in the one-column pass and again across the
+  container, a bounded 2× on spanners only. Red (`fragment/tests.rs`, `the_forced_break_scan_is_linear`):
+  1000 one-row lines into one-row fragmentainers scanned 499 500 breaks (green ≤ 3 000);
+  (`multicol/tests.rs`, `the_column_count_is_capped_at_one_cell_columns`): `column-count: 65535` in 40
+  cells was 65 535 columns (green: 20, one cell each, 20 column boxes kept).
