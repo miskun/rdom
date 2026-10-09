@@ -136,3 +136,30 @@ fn mask_properties_parse_and_are_kept() {
         Some("round")
     );
 }
+
+/// CSS 2.1 §11.1.2 (CSS Masking 1 §6.1, deprecated but the web's
+/// visually-hidden idiom): `clip: auto | rect(<top>, <right>, <bottom>,
+/// <left>)`, each edge a cell length or `auto`, comma-separated or, the
+/// legacy form, space-separated; serialized with commas. A pixel length is
+/// geometry and rejected (DESIGN) (C15G-LEGACY-CLIP).
+#[test]
+fn legacy_clip_parses() {
+    for (css, out) in [
+        ("auto", "auto"),
+        ("rect(0, 0, 0, 0)", "rect(0, 0, 0, 0)"),
+        ("rect(0 0 0 0)", "rect(0, 0, 0, 0)"),
+        ("rect(1, 5, 3, auto)", "rect(1, 5, 3, auto)"),
+        ("RECT(auto auto auto auto)", "rect(auto, auto, auto, auto)"),
+    ] {
+        assert_eq!(round("clip", css).as_deref(), Some(out), "{css}");
+    }
+    for bad in [
+        "rect(0, 0, 0)",
+        "rect(1px, 1px, 1px, 1px)",
+        "rect(10%, 0, 0, 0)",
+        "none",
+        "",
+    ] {
+        assert_eq!(round("clip", bad), None, "{bad}");
+    }
+}

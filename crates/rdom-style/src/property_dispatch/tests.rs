@@ -131,6 +131,7 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("isolation", "isolate"),
         ("background-blend-mode", "screen, difference"),
         ("clip-path", "inset(1 2 round 1) padding-box"),
+        ("clip", "rect(0, 3, 1, auto)"),
         (
             "mask",
             "url(\"m.svg\") center / contain no-repeat border-box border-box add alpha",

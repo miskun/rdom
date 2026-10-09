@@ -215,6 +215,7 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "isolation" => &[Isolation],
         "background-blend-mode" => &[BackgroundBlendMode],
         "clip-path" => &[ClipPath],
+        "clip" => &[Clip],
         // CSS Multi-column 1.
         "column-count" => &[ColumnCount],
         "column-width" => &[ColumnWidth],

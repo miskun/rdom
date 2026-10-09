@@ -81,7 +81,7 @@ pub use layout::{
     BackgroundRepeat, BasicShape, BlendMode, BlockEllipsis, Border, BorderRadius, BorderSpacing,
     BorderStyle, BorderWeight, BorderWidth, BoxDecorationBreak, BoxOrient, BoxShadow, BoxSizing,
     BreakBetween, BreakInside, CalcSize, CalcSizeBasis, CaptionSide, CaretAnimation, CaretShape,
-    Clear, ClipPath, ColumnCount, ColumnFill, ColumnSpan, ColumnWidth, Contain,
+    Clear, ClipPath, ClipRect, ColumnCount, ColumnFill, ColumnSpan, ColumnWidth, Contain,
     ContainIntrinsicSize, ContainerName, ContainerSize, ContainerType, ContentVisibility, Continue,
     CornerStyle, Corners, Cursor, CursorImage, CursorKeyword, Direction, Display, EffectsStyle,
     EmptyCells, FieldSizing, FilterFunction, FilterList, FlexBasis, FlexDirection, FlexWrap, Float,

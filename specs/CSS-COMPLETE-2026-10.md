@@ -10279,3 +10279,24 @@ row comes from.
   `30ch`; `200px 3` → `25ch 3`; `-10px`, `3ex`, `50%` still invalid); the layout test
   `css_phase15/multicol.rs` `pixel_and_em_column_widths_select_the_count` pins three columns for `200px`
   and two for `15em` in 80 cells.
+- 2026-10-09 — C15G-LEGACY-CLIP (Phase 15 gate decision 2; API finding on CSS-COVERAGE's `clip` N/A row;
+  CSS 2.1 §11.1.2, CSS Masking 1 §6.1). Found: `clip` was classed N/A ("no new content uses it") and
+  dropped with a warning, but Tailwind v3's `sr-only` and Bootstrap's `.visually-hidden` are `position:
+  absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0)` — with `1px` dropped as
+  geometry the screen-reader text showed on the page. Decided (the gate's decision 2): (1) rdom-style parses
+  `clip: auto | rect(<top>, <right>, <bottom>, <left>)`, each edge a cell length or `auto`, comma-separated
+  or the legacy space form §11.1.2 allows; pixels and percentages are geometry and rejected (DESIGN), so
+  the zero form hides and `rect(1px, …)` is invalid. The value is `ClipRect` (`#[non_exhaustive]`, open:
+  Masking may grow the edges; `edges(w, h)` gives the kept rectangle, an `auto` edge the border box's),
+  in `EffectsStyle` / the declared effects group, a builder setter, animated by computed value as a
+  rectangle (edge by edge where the `auto` edges match, else discrete). (2) rdom-tui applies it to
+  absolutely and fixed positioned boxes only (`style::effects::legacy_clipped`), through the clip-path
+  machinery: `render::clip::clip_of` now returns a `Clip` of the `clip-path` shape and the legacy rectangle
+  (a cell kept inside both), the one answer paint (`clip_cells`) and hit-testing share. Such a box is a
+  stacking context — rdom paints every clip as a layer — which CSS's `clip` is not (DIVERGENCES).
+  CSS-COVERAGE's row is Supported (§3.10 7 / 0 / 0 / 0; totals 254 / 7 / 3 / 43); a silent behaviour
+  change (`sc-legacy-clip`). Red (`css_phase15/clip_path.rs`): the visually-hidden pattern painted
+  "secret" on row 1 (green: absent, and not hit); `rect(0, 3, 1, 1)` and `rect(auto auto 1 2)` keep
+  exactly their cells on an absolute box and nothing changes on a relative one (the strict sheet refused
+  `clip` before); `property_dispatch/clip_tests.rs` `legacy_clip_parses`. The property-set contracts
+  (canonical values, important setters, the animation-type table) list `clip`.

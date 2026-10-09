@@ -181,6 +181,7 @@ const SPEC: &[(&str, Spec)] = &[
     ("background-blend-mode", L(N)),
     // CSS Masking 1 §5.1, §6–§7
     ("clip-path", L(V)),
+    ("clip", L(V)),
     ("mask", S),
     ("mask-image", L(D)),
     ("mask-mode", L(D)),

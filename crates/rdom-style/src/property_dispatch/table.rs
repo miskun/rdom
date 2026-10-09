@@ -228,6 +228,7 @@ define_fields! {
     Isolation => effects.isolation : ISOLATION,
     BackgroundBlendMode => effects.background_blend_mode : BACKGROUND_BLEND_MODE,
     ClipPath => effects.clip_path : CLIP_PATH,
+    Clip => effects.clip : CLIP,
     ColumnCount => multicol.column_count : COLUMN_COUNT,
     ColumnWidth => multicol.column_width : COLUMN_WIDTH,
     ColumnRuleStyle => multicol.column_rule_style : COLUMN_RULE_STYLE,

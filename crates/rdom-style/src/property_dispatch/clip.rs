@@ -2,10 +2,11 @@
 //! `set` and `serialize` arms.
 
 use super::value_serializers::{serialize_css_string, serialize_length, specified};
-use crate::layout::{BasicShape, ClipPath, GeometryBox, Length, ShapeRadius};
+use crate::layout::{BasicShape, ClipPath, ClipRect, GeometryBox, Length, ShapeRadius};
 use crate::parse::token::Token;
 use crate::parse::values::{
-    parse_clip_path, parse_mask_border_shorthand, parse_mask_longhand, parse_mask_shorthand,
+    parse_clip_path, parse_clip_rect, parse_mask_border_shorthand, parse_mask_longhand,
+    parse_mask_shorthand,
 };
 use crate::{TuiStyle, Value};
 
@@ -41,6 +42,11 @@ pub(super) fn set(name: &str, value: &[Token], style: &mut TuiStyle) -> Option<O
             parse_clip_path(value).map(|v| style.effects.clip_path = Some(Value::Specified(v))),
         );
     }
+    if name == "clip" {
+        return Some(
+            parse_clip_rect(value).map(|v| style.effects.clip = Some(Value::Specified(v))),
+        );
+    }
     let shorthand = match name {
         "mask" => Some(parse_mask_shorthand(value)),
         "mask-border" => Some(parse_mask_border_shorthand(value)),
@@ -71,6 +77,16 @@ pub(super) fn serialize(name: &str, style: &TuiStyle) -> Option<Option<String>> 
                 .as_ref()
                 .and_then(specified)
                 .map(serialize_clip_path),
+        );
+    }
+    if name == "clip" {
+        return Some(
+            style
+                .effects
+                .clip
+                .as_ref()
+                .and_then(specified)
+                .map(serialize_clip_rect),
         );
     }
     let mut copy = style.clone();
@@ -222,5 +238,27 @@ fn serialize_shape(s: &BasicShape) -> String {
                 format!("path({})", serialize_css_string(data))
             }
         }
+    }
+}
+
+/// `clip` in canonical form: `auto`, or `rect()` with commas.
+fn serialize_clip_rect(c: &ClipRect) -> String {
+    match *c {
+        ClipRect::Rect {
+            top,
+            right,
+            bottom,
+            left,
+        } => {
+            let edge = |e: Option<i32>| e.map_or("auto".to_string(), |n| n.to_string());
+            format!(
+                "rect({}, {}, {}, {})",
+                edge(top),
+                edge(right),
+                edge(bottom),
+                edge(left)
+            )
+        }
+        _ => "auto".to_string(),
     }
 }

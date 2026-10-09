@@ -128,7 +128,7 @@ pub use border::{
 pub(crate) use calc::parse_pixel_calc;
 pub use calc::{MAX_CALC_DEPTH, MAX_CALC_NESTING, looks_like_calc, parse_calc};
 pub use calc_size::{parse_calc_size, parse_interpolate_size};
-pub use clip::parse_clip_path;
+pub use clip::{parse_clip_path, parse_clip_rect};
 pub(crate) use color::{ColorExpr, compute_function as compute_color_function};
 pub use color::{MAX_COLOR_NESTING, parse_color, parse_color_at, parse_rgb_args, parse_rgba_args};
 pub use containment::{

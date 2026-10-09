@@ -239,6 +239,8 @@ pub(super) static LONGHANDS: &[Entry] = &[
     e("background-blend-mode", NotAnimatable, None),
     // CSS Masking 1 §5.1: by computed value (basic shapes of one kind).
     e("clip-path", ByComputedValue, value!(effects.clip_path)),
+    // CSS 2.1 §11.1.2, Masking 1 §6.1: by computed value, as a rectangle.
+    e("clip", ByComputedValue, value!(effects.clip)),
     // §6–§7: kept as text, no computed value (a cell has no alpha).
     e("mask-image", Discrete, None),
     e("mask-mode", Discrete, None),

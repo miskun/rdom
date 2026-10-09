@@ -37,7 +37,7 @@ use rdom_core::{Dom, NodeId};
 
 use super::layout_rect_to_grid;
 use crate::ext::TuiExt;
-use crate::layout::{BasicShape, BlendMode, FilterList};
+use crate::layout::{BlendMode, FilterList};
 use crate::node::TuiNodeExt;
 use crate::render::buffer::coverage::{ALL, BG, BORDER, GLYPH, SHADOW};
 use crate::render::compose::{canvas_bg, canvas_fg};
@@ -58,8 +58,8 @@ pub(super) struct Effects<'a> {
     /// The context is an isolated group a member blends within: its layer
     /// tracks coverage, the members' backdrop.
     pub isolate: bool,
-    /// A `clip-path` that clips (`style::effects::clip_of`).
-    pub clip: Option<(Option<&'a BasicShape>, [f64; 4])>,
+    /// A `clip-path` or a legacy `clip` that clips (`render::clip::clip_of`).
+    pub clip: Option<crate::render::clip::Clip<'a>>,
 }
 
 #[cfg(test)]
@@ -175,7 +175,7 @@ impl<'a> Effects<'a> {
 /// CSS Masking 1 §5: a cell whose centre is outside the clip shows the
 /// backdrop — `parent`'s cell — as if the context painted nothing there
 /// (after its filter: a drop shadow is clipped too, §5's order).
-fn clip_cells(parent: &Buffer, layer: &mut Buffer, clip: (Option<&BasicShape>, [f64; 4])) {
+fn clip_cells(parent: &Buffer, layer: &mut Buffer, clip: crate::render::clip::Clip<'_>) {
     let area = layer.area;
     for y in area.y..area.bottom() {
         for x in area.x..area.right() {

@@ -292,6 +292,12 @@ const SAMPLES: &[(&str, &str, &str, Mid)] = &[
     ),
     ("backdrop-filter", "none", "invert(1)", Is("invert(0.5)")),
     ("clip-path", "inset(2)", "inset(4)", Is("inset(3)")),
+    (
+        "clip",
+        "rect(0, 4, 2, auto)",
+        "rect(2, 8, 4, auto)",
+        Is("rect(1, 6, 3, auto)"),
+    ),
 ];
 
 /// `#t`'s computed style under `name: value`.

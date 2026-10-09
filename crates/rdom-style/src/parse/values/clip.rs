@@ -9,7 +9,7 @@ use super::numeric::{
     LengthPercentage, Range, cells_i32, components, length_percentage, split_commas,
 };
 use crate::calc::CalcExpr;
-use crate::layout::{BasicShape, ClipPath, GeometryBox, Length, ShapeRadius};
+use crate::layout::{BasicShape, ClipPath, ClipRect, GeometryBox, Length, ShapeRadius};
 use crate::parse::token::Token;
 
 fn keyword(c: &[Token]) -> Option<String> {
@@ -230,4 +230,45 @@ fn position(parts: &[&[Token]]) -> Option<[Length; 2]> {
         }
         _ => None,
     }
+}
+
+/// `clip` (CSS 2.1 §11.1.2): `auto | rect(<top>, <right>, <bottom>,
+/// <left>)`, each edge a cell length or `auto`; the legacy space-separated
+/// form too (§11.1.2: "user agents may support separation of offsets with
+/// whitespace"). A clip is geometry, so a pixel length or a percentage is
+/// rejected (DESIGN) (C15G-LEGACY-CLIP).
+pub fn parse_clip_rect(value: &[Token]) -> Option<ClipRect> {
+    if keyword(value).as_deref() == Some("auto") {
+        return Some(ClipRect::Auto);
+    }
+    let [Token::Function(name), inner @ .., Token::RParen] = value else {
+        return None;
+    };
+    if !name.eq_ignore_ascii_case("rect") {
+        return None;
+    }
+    let commas = split_commas(inner)?;
+    let parts: Vec<&[Token]> = if commas.len() == 4 {
+        commas
+    } else {
+        components(inner)?
+    };
+    let [top, right, bottom, left] = parts.as_slice() else {
+        return None;
+    };
+    let edge = |c: &[Token]| -> Option<Option<i32>> {
+        if keyword(c).as_deref() == Some("auto") {
+            return Some(None);
+        }
+        match lp(c, Range::Any)? {
+            Length::Cells(n) => Some(Some(n)),
+            _ => None,
+        }
+    };
+    Some(ClipRect::Rect {
+        top: edge(top)?,
+        right: edge(right)?,
+        bottom: edge(bottom)?,
+        left: edge(left)?,
+    })
 }

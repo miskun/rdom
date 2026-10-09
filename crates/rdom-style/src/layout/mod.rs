@@ -95,7 +95,7 @@ pub use border::{
 };
 pub use box_model::{Margin, MarginTrim, MarginValue, Padding, PaddingValue};
 pub use calc_size::{CalcSize, CalcSizeBasis, InterpolateSize};
-pub use clip::{BasicShape, ClipPath, GeometryBox, ShapeRadius};
+pub use clip::{BasicShape, ClipPath, ClipRect, GeometryBox, ShapeRadius};
 pub use containment::{
     Contain, ContainerName, ContainerSize, ContainerType, ContentVisibility, WillChange,
 };

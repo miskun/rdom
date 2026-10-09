@@ -132,6 +132,7 @@ const PROPERTY_NAMES: &[&str] = &[
     "background-blend-mode",
     // CSS Masking 1
     "clip-path",
+    "clip",
     "mask",
     "mask-image",
     "mask-mode",

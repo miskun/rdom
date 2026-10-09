@@ -71,6 +71,18 @@ pub(crate) fn clip_pathed(c: &ComputedStyle) -> bool {
     c.effects.clip_path != rdom_style::layout::ClipPath::None && layerable(c)
 }
 
+/// Whether the box styled `c` has a legacy `clip` that applies (CSS 2.1
+/// §11.1.2: an absolutely positioned box's — `fixed` included — not
+/// `auto`). rdom paints it as a clip path, so it is a stacking context too
+/// (DIVERGENCES; C15G-LEGACY-CLIP).
+pub(crate) fn legacy_clipped(c: &ComputedStyle) -> bool {
+    c.effects.clip != rdom_style::layout::ClipRect::Auto
+        && matches!(
+            c.position,
+            crate::layout::Position::Absolute | crate::layout::Position::Fixed
+        )
+}
+
 /// Whether the element styled `c` establishes a stacking context through
 /// its graphical effects: a transform (Transforms 1 §2), a filter or a
 /// backdrop filter (Filter Effects 1 §5, 2 §3), blending or isolation
@@ -82,6 +94,7 @@ pub(crate) fn makes_stacking_context(c: &ComputedStyle) -> bool {
         || blends(c)
         || isolates(c)
         || clip_pathed(c)
+        || legacy_clipped(c)
 }
 
 /// Whether the element styled `c` is the containing block of its

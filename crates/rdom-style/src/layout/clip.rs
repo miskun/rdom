@@ -240,3 +240,48 @@ fn polygon_contains(pts: &[(f64, f64)], evenodd: bool, x: f64, y: f64) -> bool {
         winding != 0
     }
 }
+
+/// `clip` (CSS 2.1 §11.1.2; CSS Masking 1 §6.1, deprecated in favour of
+/// `clip-path`, and still the web's visually-hidden idiom): `auto`, or
+/// `rect(<top>, <right>, <bottom>, <left>)` — offsets in cells from the
+/// border box's top-left corner, `None` an `auto` edge (the border box's
+/// own). It applies to absolutely positioned boxes only.
+///
+/// Open (DESIGN): CSS Masking 1 §6.1 lets the edges grow other forms.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ClipRect {
+    /// The initial value: no clipping.
+    #[default]
+    Auto,
+    /// `rect()`, its edges' offsets (`None`: `auto`).
+    Rect {
+        top: Option<i32>,
+        right: Option<i32>,
+        bottom: Option<i32>,
+        left: Option<i32>,
+    },
+}
+
+impl ClipRect {
+    /// The rectangle kept of a border box `width` × `height`, as `[left,
+    /// top, right, bottom]` offsets from its top-left corner — an `auto`
+    /// edge the box's own (§11.1.2: "`auto` means that the shape coincides
+    /// with the edge of the element's border box"); `None` for `auto`.
+    pub fn edges(&self, width: i32, height: i32) -> Option<[i32; 4]> {
+        match *self {
+            ClipRect::Auto => None,
+            ClipRect::Rect {
+                top,
+                right,
+                bottom,
+                left,
+            } => Some([
+                left.unwrap_or(0),
+                top.unwrap_or(0),
+                right.unwrap_or(width),
+                bottom.unwrap_or(height),
+            ]),
+        }
+    }
+}

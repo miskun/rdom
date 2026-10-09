@@ -2,8 +2,8 @@
 //! compositing properties.
 
 use super::{
-    BlendMode, ClipPath, FilterList, Isolation, Rotate, Scale, TransformBox, TransformList,
-    TransformOrigin, Translate,
+    BlendMode, ClipPath, ClipRect, FilterList, Isolation, Rotate, Scale, TransformBox,
+    TransformList, TransformOrigin, Translate,
 };
 use crate::Color;
 
@@ -40,6 +40,9 @@ pub struct EffectsStyle {
     pub background_blend_mode: std::borrow::Cow<'static, [BlendMode]>,
     /// `clip-path` (CSS Masking 1 §5.1).
     pub clip_path: ClipPath,
+    /// `clip` (CSS 2.1 §11.1.2), the legacy clip of an absolutely
+    /// positioned box.
+    pub clip: ClipRect,
 }
 
 impl Default for EffectsStyle {
@@ -58,6 +61,7 @@ impl Default for EffectsStyle {
             isolation: Isolation::Auto,
             background_blend_mode: std::borrow::Cow::Borrowed(&[BlendMode::Normal]),
             clip_path: ClipPath::None,
+            clip: ClipRect::Auto,
         }
     }
 }

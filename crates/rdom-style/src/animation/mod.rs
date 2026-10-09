@@ -212,6 +212,7 @@ impl Longhand {
                 | "transform-origin"
                 // CSS Masking 1 §5: a clip hides cells, it moves no box.
                 | "clip-path"
+                | "clip"
         )
     }
 

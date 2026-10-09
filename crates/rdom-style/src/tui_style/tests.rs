@@ -346,6 +346,7 @@ fn every_property_has_important_setter() {
         .isolation_important(crate::layout::Isolation::Isolate)
         .background_blend_mode_important(std::borrow::Cow::Borrowed(&[]))
         .clip_path_important(crate::layout::ClipPath::None)
+        .clip_important(crate::layout::ClipRect::Auto)
         .mask_image_important("x")
         .mask_mode_important("x")
         .mask_repeat_important("x")

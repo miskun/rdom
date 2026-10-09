@@ -315,6 +315,8 @@ pub(super) fn apply_style(
         effects.background_blend_mode: BACKGROUND_BLEND_MODE,
         // CSS Masking 1 §5.1; not inherited.
         effects.clip_path: CLIP_PATH,
+        // CSS 2.1 §11.1.2; not inherited.
+        effects.clip: CLIP,
         // CSS Multi-column 1 §3–§7; none inherit.
         multicol.column_count: COLUMN_COUNT,
         multicol.column_width: COLUMN_WIDTH,

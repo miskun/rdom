@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use super::value::{Animate, Cx};
-use crate::layout::{BasicShape, ClipPath, Length, ShapeRadius};
+use crate::layout::{BasicShape, ClipPath, ClipRect, Length, ShapeRadius};
 
 fn lengths<const N: usize>(
     a: &[Length; N],
@@ -102,6 +102,44 @@ impl Animate for ClipPath {
                 reference: *r,
             }),
             (x, y) if x == y => Some(x.clone()),
+            _ => None,
+        }
+    }
+}
+
+/// CSS 2.1 §11.1.2 / CSS Masking 1 §6.1 `clip`: by computed value, as a
+/// rectangle — edge by edge between two `rect()`s whose `auto` edges
+/// match; anything else is discrete (C15G-LEGACY-CLIP).
+impl Animate for ClipRect {
+    fn animate(&self, to: &Self, p: f64, cx: &Cx) -> Option<Self> {
+        let edge = |a: Option<i32>, b: Option<i32>| -> Option<Option<i32>> {
+            match (a, b) {
+                (Some(a), Some(b)) => Some(Some(a.animate(&b, p, cx)?)),
+                (None, None) => Some(None),
+                _ => None,
+            }
+        };
+        match (*self, *to) {
+            (
+                ClipRect::Rect {
+                    top: t0,
+                    right: r0,
+                    bottom: b0,
+                    left: l0,
+                },
+                ClipRect::Rect {
+                    top: t1,
+                    right: r1,
+                    bottom: b1,
+                    left: l1,
+                },
+            ) => Some(ClipRect::Rect {
+                top: edge(t0, t1)?,
+                right: edge(r0, r1)?,
+                bottom: edge(b0, b1)?,
+                left: edge(l0, l1)?,
+            }),
+            (x, y) if x == y => Some(x),
             _ => None,
         }
     }
