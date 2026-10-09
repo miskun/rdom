@@ -30,6 +30,8 @@ mod t21_supports;
 mod t22_container;
 mod t23_transforms;
 mod t24_effects;
+mod t25_multicol;
+mod t26_anchor;
 
 /// Every tile, in `ACID.md` order.
 pub const TILES: &[&Tile] = &[
@@ -61,6 +63,8 @@ pub const TILES: &[&Tile] = &[
     &t22_container::TILE,
     &t23_transforms::TILE,
     &t24_effects::TILE,
+    &t25_multicol::TILE,
+    &t26_anchor::TILE,
 ];
 
 /// The sheets the tiles' `<style>` elements `@import`, by URL — what the

@@ -279,3 +279,13 @@ fn tile_23_transforms() {
 fn tile_24_effects() {
     assert_tile(&refs::t24_effects::REF);
 }
+
+#[test]
+fn tile_25_multicol() {
+    assert_tile(&refs::t25_multicol::REF);
+}
+
+#[test]
+fn tile_26_anchor() {
+    assert_tile(&refs::t26_anchor::REF);
+}

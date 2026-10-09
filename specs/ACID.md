@@ -1,6 +1,6 @@
 # ACID — an rdom acid test
 
-**Status:** IN PROGRESS (2026-10-09) — part 1 built: the harness (pages, reference format, colour-aware comparator) and static tiles 1–13 (9a / 9b / 9c), all green after ACID-FIX-1 … 5 (`CSS-COMPLETE-2026-10.md` Phase 16). Next: tiles 14–26 and the coverage test (part 2), the interactive script (part 3).
+**Status:** IN PROGRESS (2026-10-10) — part 1 (the harness and tiles 1–13) and part 2's tiles 14–26 built (15 as 15a / 15b / 15c), all green after ACID-FIX-1 … 11 (`CSS-COMPLETE-2026-10.md` Phase 16). Next: the coverage test (part 2), the interactive script (part 3).
 
 ## Why
 

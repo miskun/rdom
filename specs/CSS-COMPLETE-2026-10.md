@@ -300,7 +300,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-10 | An inline block's horizontal margins take their cells in its line (CSS 2.1 §10.3.9; found by tile 25) | done |
 | ACID-FIX-11 | An inline element anchors by the bounding box of its fragments (CSS Anchor Positioning 1 §2; found by tile 26) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
-| ACID-TILES-B | Static tiles 14–26 | partial — tiles 14–24 done; 25–26 next |
+| ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
 | ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
 
@@ -10845,3 +10845,17 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   inline hit to tell a block's own text from empty space (both are `false` today) and a replacement for the prune (an
   ink-overflow rect per box): not feasible inside this item. Recorded as DIVERGENCES §4 "Content that overflows a box
   which does not clip it is hit only inside that box" and TECH_DEBT `HIT-OVERFLOW-1`.
+- 2026-10-10 — ACID-TILES-B, tiles 25–26 (page 7); ACID-TILES-B closed. Tile 25, multi-column layout (Multi-column 1
+  §3.4–§7, Fragmentation 3 §3–§5): a bordered three-column article whose rules meet its border in `┬` / `┴` with a red
+  paragraph split across two columns, the same flow under `widows: 3` (its break moved before the paragraph, the
+  balanced height one row more), a `column-span: all` element between two balanced sets with a `break-before: column`,
+  a `column-width` box under `column-fill: auto` and a fixed height spilling into an overflow column. Its articles sit
+  side by side as inline blocks with `margin-right: 2`, which found ACID-FIX-10 (they sat flush). Tile 26, anchor
+  positioning (Anchor Positioning 1 §2–§5): `anchor()` / `anchor-size()`, a `position-area: top` tooltip centred over
+  its anchor, an `@position-try` fallback taken when the base overflows, `anchor-scope` on two list items, and
+  `position-visibility` `anchors-visible` / `always` with the anchor scrolled out of view; its inline anchors found
+  ACID-FIX-11. References changed with their arguments: tile 25's articles were first flex items — whose intrinsic block
+  size is DIVERGENCES §2's multicol simplification (4), the one-column height over the count, under which `widows: 3`
+  spills into an overflow column — and are inline blocks now, sized by their own balancing (the markup changed, not the
+  derived cells). Part 2's tiles found ACID-FIX-7 … 11; ACID-FIX-6 and the scrollbar module doc and the overflow
+  hit-test limitation were part 1's loose ends.

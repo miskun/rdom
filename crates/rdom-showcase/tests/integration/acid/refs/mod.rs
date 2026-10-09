@@ -32,6 +32,8 @@ pub mod t21_supports;
 pub mod t22_container;
 pub mod t23_transforms;
 pub mod t24_effects;
+pub mod t25_multicol;
+pub mod t26_anchor;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -63,4 +65,6 @@ pub const ALL: &[&Reference] = &[
     &t22_container::REF,
     &t23_transforms::REF,
     &t24_effects::REF,
+    &t25_multicol::REF,
+    &t26_anchor::REF,
 ];
