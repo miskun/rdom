@@ -163,6 +163,9 @@ pub struct AnimationRegistry {
     css_stamp: usize,
     /// The transitions a reversal started (`reversing`).
     reversing: Vec<reversing::Reversing>,
+    /// The targets in skipped contents at the last layout (`schedule`):
+    /// their animations run but ask for no frames.
+    throttled: std::collections::HashSet<(NodeId, StyleSlot)>,
 }
 
 /// What one frame's [`AnimationRegistry::advance`] did.

@@ -417,6 +417,9 @@ fn style_and_layout(
         if resnapped || focused || revealed || restepped {
             dom.layout_dom(area);
         }
+        // The animations in skipped contents, as this layout left them,
+        // ask for no frames (CSS Containment 2 §4).
+        animations.note_skipped(dom);
     }
     Pass {
         cascade,

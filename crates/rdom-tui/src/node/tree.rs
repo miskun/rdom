@@ -4,6 +4,7 @@
 use rdom_core::NodeType;
 
 use crate::ext::TuiExt;
+use crate::style::content_visibility::{SkippedFor, skips_contents_for};
 
 use super::TuiNodeExt;
 
@@ -34,7 +35,22 @@ pub(crate) fn is_text_input<Ext>(dom: &rdom_core::Dom<Ext>, id: rdom_core::NodeI
 /// inherit, so the ancestors must be walked; the cascade still computes
 /// styles inside such a subtree and layout leaves their rects zeroed.
 /// O(depth). Elements never cascaded do not count as `none`.
+///
+/// The one skip-aware "in the box tree" answer for a single node; a walk
+/// down the DOM prunes with [`in_skipped_contents`] instead.
 pub(crate) fn is_rendered(dom: &crate::TuiDom, id: rdom_core::NodeId) -> bool {
+    rendered_for(dom, id, SkippedFor::Rendering)
+}
+
+/// [`is_rendered`] as the user-agent features read it
+/// ([`SkippedFor::Features`]): an off-screen `content-visibility: auto`
+/// element's skipped contents count — they stay focusable and selectable
+/// (CSS Containment 2 §4).
+pub(crate) fn is_available(dom: &crate::TuiDom, id: rdom_core::NodeId) -> bool {
+    rendered_for(dom, id, SkippedFor::Features)
+}
+
+fn rendered_for(dom: &crate::TuiDom, id: rdom_core::NodeId, who: SkippedFor) -> bool {
     let none = |n: rdom_core::NodeId| {
         dom.node(n)
             .computed()
@@ -48,12 +64,38 @@ pub(crate) fn is_rendered(dom: &crate::TuiDom, id: rdom_core::NodeId) -> bool {
     // `<details>`'s slot among them.
     let mut cur = crate::render::box_tree::box_parent(dom, id);
     while let Some(n) = cur {
-        if none(n) || crate::style::content_visibility::skips_contents(dom, n) {
+        if none(n) || skips_contents_for(dom, n, who) {
             return false;
         }
         cur = crate::render::box_tree::box_parent(dom, n);
     }
     true
+}
+
+/// Whether `child`, a child node of `parent`, is in skipped contents for
+/// `who` (CSS Containment 2 §4): `parent` skips its contents, or a box
+/// between them does — the `::details-content` slot of a closed
+/// `<details>` (HTML §15.5.20), which holds every child but the summary.
+/// The prune of a walk down `child_nodes()` that must leave out what the
+/// box tree leaves out — Tab order, copy, tree guides — while keeping
+/// tree order. O(1): at most the slot lies between.
+pub(crate) fn in_skipped_contents(
+    dom: &crate::TuiDom,
+    parent: rdom_core::NodeId,
+    child: rdom_core::NodeId,
+    who: SkippedFor,
+) -> bool {
+    let mut cur = child;
+    while let Some(p) = crate::render::box_tree::slot::parent(dom, cur) {
+        if skips_contents_for(dom, p, who) {
+            return true;
+        }
+        if p == parent {
+            return false;
+        }
+        cur = p;
+    }
+    false
 }
 
 /// The DOM Standard's "child text content" (§4.2): the concatenated

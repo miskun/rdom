@@ -9310,3 +9310,32 @@ row comes from.
   into the top 10; item 2 must say every ancestor needs `height: 100%`); zero-cost-without-conditions
   not pinned; SIZE-1 drift. Full reports: `target/claude-logs/c14_gate_{architect,api}.md`. Fix as
   `C14G-*`, two batches (A correctness and the root model, B API / docs / cost pins).
+- 2026-10-09 — C14G-SKIP-WALKS (architect B1; CSS Containment 2 §4, §4.4, HTML §15.5.20, §6.6.2, §4.11.4).
+  Found: since C14-CONTAIN 3/3 a closed `<details>`'s content keeps real computed styles, and the walks
+  down `child_nodes()` that pruned on `display: none` alone entered it — Tab focused a button there and the
+  frame's fixup blurred it (the content after the `<details>` unreachable), copy took its text, the tree
+  guides walked it, and a spinner running there kept the App drawing. The animation diff already walks the
+  box tree (so skipped contents are neither restyled nor diffed, as in the engines); the frame requests were
+  the leak. Decided: (1) one skip-aware answer in `node::tree` with `content_visibility::SkippedFor`:
+  `Rendering` (every skip — layout, paint, hit, the animation clock) and `Features` (only `hidden`, the
+  closed slot included: §4 keeps an off-screen `auto` element's skipped contents "available as normal to
+  user-agent features such as … tab order navigation" and "focusable and selectable as normal");
+  `is_rendered` / `is_available` for one node, `in_skipped_contents(parent, child)` as the prune of a
+  `child_nodes()` walk that keeps tree order (it sees the `::details-content` box between a `<details>` and
+  its content). (2) Tab order (`collect`), `focus()` and the fixup (`is_rendered_and_visible` reads
+  `is_available`), the dialog focusing steps (`renders_in_opened`) and copy (`serialize`) prune for
+  `Features`; tree guides prune for `Rendering` and read `is_rendered` per item. (3) An animation in
+  skipped contents is throttled, not cancelled: `AnimationRegistry::note_skipped` after each layout lists
+  the targets not rendered (and the `::before` / `::after` of an element skipping its contents), and
+  `next_frame` ignores them — the engines neither restyle nor cancel what runs in skipped contents; its
+  timeline runs on, and frames resume when it renders again. (4) Focus moving into `auto` content makes it
+  relevant at the next layout (relevance already counted the focus); `tab_index` no longer refuses it. The
+  remaining `child_nodes()` walks in rdom-tui are DOM-structure reads (options, tree roles, editing, the
+  cascade, counters, `display: contents` text) or already box-tree walks (scroll extent, hit test). Red
+  (`runtime/app/skipped_contents_tests.rs`, all six against the old code): Tab from the summary landed on
+  nothing (`None` for `#out`); Tab past `content-visibility: hidden` the same; copy held the closed content's
+  `secret` (green: `"a\nS\nkept"`); both spinners asked for frames after their content was skipped; `tab_index` of a
+  button in off-screen `auto` content was `None` for `Some(0)`. Green after, with
+  `show_modal_does_not_autofocus_into_a_closed_details` (the summary, not the button). Mutation (restored,
+  touched): no `note_skipped` fails both spinner tests; `is_rendered` for `is_available` fails the `auto`
+  focus test; dropping the dialog-steps prune focuses the hidden button.

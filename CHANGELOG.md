@@ -972,6 +972,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **No inherited value is copied per element**: a `font-size` percentage, `text-underline-offset`, `color-scheme`, a `list-style-type` string, `list-style-image` and `block-ellipsis` set on an ancestor are shared by the descendants that inherit them (each copied a box, a string or a list per element). (C10G-INHERIT-COST)
 - **A closed `<details>`'s content keeps its computed style, and closing animates**: the closed slot is the UA's `content-visibility: hidden` (HTML §15.5.20, CSS Containment 2 §4), so the content is skipped rather than computing `display: none`, and a `content-visibility` transition under `allow-discrete` keeps it shown while the slot's height animates back. (C14-CONTAIN)
 - **`aspect-ratio` takes effect in block flow** (CSS Sizing 4 §5.1): a block-level box with an `auto` width and a definite height takes its width from the ratio (`height: 9; aspect-ratio: 16/9` is 16 wide, it stretched), and one with an `auto` height takes it from its width, floored at its content unless it is a scroll container (it was content-high). (C14-ASPECT-BLOCK)
+- **Skipped contents leave the tab order, copy, tree guides and the animation clock** (CSS Containment 2 §4): Tab passes over a closed `<details>`'s and `content-visibility: hidden` content (it focused, then blurred, a button there), copy leaves their text out, and a spinner there asks for no frames; an off-screen `auto` element's content stays focusable and copied. (C14G-SKIP-WALKS)
 
 ### Changed — `rdom-showcase`
 

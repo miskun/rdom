@@ -78,10 +78,34 @@ pub(crate) fn skips(dom: &Dom<TuiExt>, id: NodeId, c: &ComputedStyle) -> bool {
 
 /// [`skips`] for `id` as last cascaded.
 pub(crate) fn skips_contents(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    dom.node(id)
-        .ext()
-        .and_then(|e| e.computed.as_deref())
-        .is_some_and(|c| skips(dom, id, c))
+    skips_contents_for(dom, id, SkippedFor::Rendering)
+}
+
+/// Who asks whether an element's contents are skipped (CSS Containment 2
+/// §4): the two answers differ for `content-visibility: auto`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SkippedFor {
+    /// Layout, paint, hit testing and the animation clock: every skipped
+    /// content is absent.
+    Rendering,
+    /// The user-agent features — the tab order, focus, selection and
+    /// copy: `hidden`'s skipped contents are absent, while `auto`'s "must
+    /// still be available as normal to user-agent features such as
+    /// find-in-page, tab order navigation, etc., and must be focusable and
+    /// selectable as normal" (§4). Focusing into them makes the element
+    /// relevant to the user (§4.4), and so rendered at the next layout.
+    Features,
+}
+
+/// Whether `id`, as last cascaded, skips its contents for `who`.
+pub(crate) fn skips_contents_for(dom: &Dom<TuiExt>, id: NodeId, who: SkippedFor) -> bool {
+    let Some(c) = dom.node(id).ext().and_then(|e| e.computed.as_deref()) else {
+        return false;
+    };
+    match who {
+        SkippedFor::Rendering => skips(dom, id, c),
+        SkippedFor::Features => c.content_visibility == ContentVisibility::Hidden,
+    }
 }
 
 /// The size `contain-intrinsic-size: auto` gives `id` while it skips its

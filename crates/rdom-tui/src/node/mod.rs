@@ -34,7 +34,9 @@ mod tree;
 mod write;
 
 pub use read::TuiNodeExt;
-pub(crate) use tree::{child_text, install_text_content, is_rendered, is_text_input};
+pub(crate) use tree::{
+    child_text, in_skipped_contents, install_text_content, is_available, is_rendered, is_text_input,
+};
 pub use tree::{
     first_text_descendant, is_descendant_or_self, last_text_descendant, nearest_editable_ancestor,
     text_len,

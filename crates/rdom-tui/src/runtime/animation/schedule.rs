@@ -9,10 +9,10 @@
 
 use std::time::Instant;
 
-use rdom_core::Dom;
+use rdom_core::{Dom, NodeId};
 
 use super::{ActiveAnimation, AnimationRegistry};
-use crate::ext::TuiExt;
+use crate::ext::{StyleSlot, TuiExt};
 use crate::style::transition::TimingFunction;
 
 /// A boundary closer than this (in steps) after the last frame is that
@@ -48,13 +48,57 @@ impl AnimationRegistry {
     /// When the next frame must step something with the clock: `now` while
     /// a transition or an animation moves continuously, a stepped one's
     /// next step; `None` while nothing visible will change.
+    ///
+    /// An animation whose target is in skipped contents
+    /// ([`Self::note_skipped`]) asks for none: it moves nothing on screen.
     pub(crate) fn next_frame(&self, now: Instant) -> Option<Instant> {
-        if !self.custom.is_empty() {
+        let shown = |node: NodeId, slot: StyleSlot| !self.throttled.contains(&(node, slot));
+        if self.custom.iter().any(|c| shown(c.node(), StyleSlot::Host)) {
             return Some(now);
         }
-        let transitions = self.active.iter().map(|a| a.next_change(now));
-        let css = self.css.iter().filter_map(|a| a.next_change(now));
+        let transitions = self
+            .active
+            .iter()
+            .filter(|a| shown(a.node, a.slot))
+            .map(|a| a.next_change(now));
+        let css = self
+            .css
+            .iter()
+            .filter(|a| shown(a.node, a.slot))
+            .filter_map(|a| a.next_change(now));
         transitions.chain(css).min()
+    }
+
+    /// After a layout: note the running animations whose target is not
+    /// rendered because it is in skipped contents (CSS Containment 2 §4 —
+    /// `content-visibility`, a closed `<details>`), or is the `::before` /
+    /// `::after` of an element skipping its contents. Their timelines run
+    /// on — the engines neither restyle skipped contents nor cancel what
+    /// runs there, they throttle it — but they ask for no frames
+    /// ([`Self::next_frame`]) until their target renders again.
+    /// O(animations × depth).
+    pub(crate) fn note_skipped(&mut self, dom: &Dom<TuiExt>) {
+        self.throttled.clear();
+        if self.is_empty() {
+            return;
+        }
+        let targets: Vec<(NodeId, StyleSlot)> = self
+            .active
+            .iter()
+            .map(|a| (a.node, a.slot))
+            .chain(self.css.iter().map(|a| (a.node, a.slot)))
+            .chain(self.custom.iter().map(|c| (c.node(), StyleSlot::Host)))
+            .collect();
+        for (node, slot) in targets {
+            if !dom.contains(node) || self.throttled.contains(&(node, slot)) {
+                continue;
+            }
+            let contents = !matches!(slot, StyleSlot::Host)
+                && crate::style::content_visibility::skips_contents(dom, node);
+            if contents || !crate::node::is_rendered(dom, node) {
+                self.throttled.insert((node, slot));
+            }
+        }
     }
 
     /// Whether a frame is due at `now`: a transition or a CSS animation

@@ -25,6 +25,7 @@ use rdom_core::NodeId;
 use crate::TuiDom;
 use crate::layout::Overflow;
 use crate::node::TuiNodeExt;
+use crate::style::content_visibility::SkippedFor;
 
 /// Effective tabindex for focus ordering. Reflects the full HTML
 /// "focusable area" rules — not just the literal `tabindex`
@@ -65,12 +66,15 @@ pub fn tab_index(dom: &TuiDom, id: NodeId) -> Option<i32> {
 /// focusable area (HTML §6.6.2 "being rendered", with the engines'
 /// `visibility` rule: Chromium and Gecko refuse focus to an element
 /// whose used `visibility` is not `visible`). Neither it nor an ancestor
-/// is `display: none`, and its used `visibility`
+/// is `display: none`, it is in no skipped contents but an off-screen
+/// `content-visibility: auto` element's (CSS Containment 2 §4: those stay
+/// focusable, and the focus makes the element relevant), and its used
+/// `visibility`
 /// (`render::visibility::visibility_of`: a running transition's value,
 /// else the computed one) is `visible`. The one answer Tab, the
 /// predicates here, `focus()` and the frame's focus fixup share.
 pub fn is_rendered_and_visible(dom: &TuiDom, id: NodeId) -> bool {
-    crate::node::is_rendered(dom, id) && renders_visibly(dom, id)
+    crate::node::is_available(dom, id) && renders_visibly(dom, id)
 }
 
 /// [`is_focusable`] for `id` — `opened` or a descendant of it — when the
@@ -95,6 +99,12 @@ pub(crate) fn renders_in_opened(dom: &TuiDom, id: NodeId, opened: NodeId) -> boo
             return false;
         }
         cur = dom.node(n).parent_node().map(|p| p.id());
+        // Skipped contents on the way (CSS Containment 2 §4).
+        if let Some(p) = cur
+            && crate::node::in_skipped_contents(dom, p, n, SkippedFor::Features)
+        {
+            return false;
+        }
     }
     crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host) && !dom.is_inert(id)
 }
@@ -339,8 +349,14 @@ fn collect(
         }
         // t < 0: skip — not tab-reachable.
     }
+    // CSS Containment 2 §4: skipped contents (`content-visibility:
+    // hidden`, a closed `<details>`'s slot) hold no focusable area; an
+    // off-screen `auto` element's stay in the tab order.
     for child in dom.node(id).child_nodes() {
-        collect(dom, child.id(), positive, zero, order);
+        let child = child.id();
+        if !crate::node::in_skipped_contents(dom, id, child, SkippedFor::Features) {
+            collect(dom, child, positive, zero, order);
+        }
     }
 }
 

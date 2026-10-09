@@ -38,11 +38,12 @@
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
-use crate::layout::{CornerStyle, Display};
+use crate::layout::CornerStyle;
 use crate::node::TuiNodeExt;
 use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S};
 use crate::render::{Buffer, Rect, Style};
 use crate::style::Color;
+use crate::style::content_visibility::SkippedFor;
 use rdom_style::layout::{BorderStyle, BorderWeight};
 
 /// Cells of indent per nesting level. MUST match the
@@ -140,8 +141,13 @@ fn collect_trees(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
     if role(dom, id) == Some("tree") {
         out.push(id);
     }
+    // Skipped contents (CSS Containment 2 §4) paint nothing, guides
+    // included.
     for child in dom.node(id).child_nodes() {
-        collect_trees(dom, child.id(), out);
+        let child = child.id();
+        if !crate::node::in_skipped_contents(dom, id, child, SkippedFor::Rendering) {
+            collect_trees(dom, child, out);
+        }
     }
 }
 
@@ -348,11 +354,10 @@ fn role(dom: &Dom<TuiExt>, id: NodeId) -> Option<&str> {
     dom.node(id).get_attribute("role")
 }
 
+/// Whether `id` has no box: it or a box above it is `display: none`, or it
+/// is in skipped contents (`node::is_rendered`).
 fn is_hidden(dom: &Dom<TuiExt>, id: NodeId) -> bool {
-    dom.node(id)
-        .computed()
-        .map(|c| c.display == Display::None)
-        .unwrap_or(false)
+    !crate::node::is_rendered(dom, id)
 }
 
 fn guide_color(dom: &Dom<TuiExt>, id: NodeId) -> Color {

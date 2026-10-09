@@ -21,7 +21,10 @@
 //! - `<br>` is a line break.
 //! - Table cells (`<td>` / `<th>`) are separated by a tab and rows by a
 //!   line break.
-//! - `display: none` subtrees contribute nothing. Generated content
+//! - `display: none` subtrees and skipped contents (CSS Containment 2 §4:
+//!   `content-visibility: hidden`, a closed `<details>`) contribute
+//!   nothing; an off-screen `content-visibility: auto` element's skipped
+//!   contents are copied, as they stay selectable. Generated content
 //!   (`::before` / `::after`, list markers) is not in the DOM and is never
 //!   copied, as in browsers.
 //! - Text whose used `user-select` is `none` is not copied, though it
@@ -40,6 +43,7 @@ use rdom_core::{Dom, NodeId, NodeType, Range};
 use crate::ext::TuiExt;
 use crate::layout::{Display, MarginValue, TablePart, UserSelect, WhiteSpaceCollapse};
 use crate::runtime::selection::user_select;
+use crate::style::content_visibility::SkippedFor;
 
 /// The rendered text of `range`. Empty when the range is collapsed or
 /// selects no rendered, selectable text.
@@ -146,6 +150,15 @@ impl Walk<'_> {
         let dom = self.dom;
         let mut child = dom.node(id).first_child().map(|c| c.id());
         while let Some(c) = child {
+            // CSS Containment 2 §4: skipped contents are not rendered text
+            // — but an off-screen `auto` element's stay "selectable as
+            // normal". A range boundary inside still opens or closes the
+            // selection.
+            if crate::node::in_skipped_contents(dom, id, c, SkippedFor::Features) {
+                self.skip_subtree(c);
+                child = dom.node(c).next_sibling().map(|n| n.id());
+                continue;
+            }
             let child_used = if dom.node(c).node_type() == NodeType::Element {
                 user_select::resolve_child(dom, c, used)
             } else {

@@ -175,6 +175,11 @@ pub(super) struct CustomAnimation {
 }
 
 impl CustomAnimation {
+    /// The element it runs on.
+    pub(super) fn node(&self) -> NodeId {
+        self.node
+    }
+
     fn current(&self, now: Instant) -> Value {
         let elapsed = now.saturating_duration_since(self.started_at);
         let eased = if elapsed < self.delay {

@@ -136,6 +136,8 @@ mod setter_mutation_tests;
 #[cfg(test)]
 mod sibling_mark_tests;
 #[cfg(test)]
+mod skipped_contents_tests;
+#[cfg(test)]
 mod starting_style_tests;
 #[cfg(test)]
 mod teardown_tests;
