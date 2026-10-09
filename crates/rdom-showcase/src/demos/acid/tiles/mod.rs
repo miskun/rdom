@@ -17,6 +17,11 @@ mod t10_positioning;
 mod t11_stacking;
 mod t12_opacity;
 mod t13_overflow;
+mod t14_tables;
+mod t15a_forms;
+mod t15b_top_layer;
+mod t15c_modal;
+mod t16_display;
 
 /// Every tile, in `ACID.md` order.
 pub const TILES: &[&Tile] = &[
@@ -35,4 +40,9 @@ pub const TILES: &[&Tile] = &[
     &t11_stacking::TILE,
     &t12_opacity::TILE,
     &t13_overflow::TILE,
+    &t14_tables::TILE,
+    &t15a_forms::TILE,
+    &t15b_top_layer::TILE,
+    &t15c_modal::TILE,
+    &t16_display::TILE,
 ];

@@ -19,6 +19,11 @@ pub mod t10_positioning;
 pub mod t11_stacking;
 pub mod t12_opacity;
 pub mod t13_overflow;
+pub mod t14_tables;
+pub mod t15a_forms;
+pub mod t15b_top_layer;
+pub mod t15c_modal;
+pub mod t16_display;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -37,4 +42,9 @@ pub const ALL: &[&Reference] = &[
     &t11_stacking::REF,
     &t12_opacity::REF,
     &t13_overflow::REF,
+    &t14_tables::REF,
+    &t15a_forms::REF,
+    &t15b_top_layer::REF,
+    &t15c_modal::REF,
+    &t16_display::REF,
 ];

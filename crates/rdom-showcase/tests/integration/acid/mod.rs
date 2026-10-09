@@ -214,3 +214,28 @@ fn tile_12_opacity() {
 fn tile_13_overflow() {
     assert_tile(&refs::t13_overflow::REF);
 }
+
+#[test]
+fn tile_14_tables() {
+    assert_tile(&refs::t14_tables::REF);
+}
+
+#[test]
+fn tile_15a_forms() {
+    assert_tile(&refs::t15a_forms::REF);
+}
+
+#[test]
+fn tile_15b_top_layer() {
+    assert_tile(&refs::t15b_top_layer::REF);
+}
+
+#[test]
+fn tile_15c_modal() {
+    assert_tile(&refs::t15c_modal::REF);
+}
+
+#[test]
+fn tile_16_display() {
+    assert_tile(&refs::t16_display::REF);
+}

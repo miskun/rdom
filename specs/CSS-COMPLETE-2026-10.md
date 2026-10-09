@@ -297,7 +297,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-7 | A border junction joins the line that won beside it, where the winning box stops short of the junction (CSS Tables 3 §11.5; found by tile 14) | done |
 | ACID-FIX-8 | A disabled `<fieldset>` does not grey its legend and text; the UA's muted look is the disabled controls' (found by tile 15a) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
-| ACID-TILES-B | Static tiles 14–26 | |
+| ACID-TILES-B | Static tiles 14–26 | partial — tiles 14–16 done; 17–26 next |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
 | ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
 
@@ -10746,3 +10746,26 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   Red: `cascade::tests::ua_disabled_rule_leaves_a_disabled_fieldsets_text_alone`; green after. One expectation changed:
   `ua_disabled_rule_covers_controls_in_a_disabled_fieldset` pinned the fieldset muted too (it pins its controls).
   The DIVERGENCES entry is removed; silent change `sc-fieldset-disabled-text`.
+- 2026-10-10 — ACID-TILES-B, tiles 14–16 (pages 3–5). Tile 14, tables (CSS 2.1 §17, CSS Tables 3 §11.5, Selectors 4
+  §16, HTML §15.3.8): a collapsed 2 × 2 table whose borders contest (`hidden`, `double` over `solid`, `thick` over
+  medium, a cell over the table, `none` losing to the table), a separated table with `border-spacing`, `rowspan`,
+  `colspan` and `empty-cells: hide`, `col.x || td` and `:nth-col()` on a spanning cell with right-aligned `th`s and a
+  bottom caption, an anonymous table, `vertical-align` top / middle / bottom / baseline in a three-row row under a
+  centred caption and `th` row with a zebra stripe, a bordered `width: 100%` table and a `table-layout: fixed` one
+  clipping its long cell. Tile 15 is three: 15a form controls (UA field chrome, `::placeholder`, `field-sizing`, the
+  textarea grip, a closed select, toggles and a progress bar under `accent-color` beside a meter it does not tint,
+  buttons and `appearance: none`, five outlines, a disabled fieldset, `:invalid`, `:read-only` / `:read-write`,
+  `:in-range` / `:out-of-range` on number, date and a reversed time range, `:default`, `:indeterminate` radios and
+  unmatched `:user-*` rules); 15b, the top layer without a modal (an open select's picker escaping an `overflow:
+  hidden` box over page text, a centred popover whose `Canvas` blanks its padding, a hidden `[popover]` sibling — the
+  load script opens both); 15c, a whole page under a modal dialog's translucent `::backdrop` (the page text, a
+  `z-index: 5` box and the empty cells tinted by exact 60 % arithmetic; the dialog centred out of a 1 × 1 clip). Tile 16,
+  display and visibility (`none`, `[hidden]`, `visibility: hidden`, the multi-keyword values, `contents`, blockified
+  flex items, `collapse` on a flex item and a table row, `flow-root` against a collapsing margin, `details`, `:empty`).
+  Found ACID-FIX-7 (tile 14) and ACID-FIX-8 (tile 15a). References changed, each with its argument in its derivation:
+  tile 14's `.va` (the `1`/`2`/`3` column is 1 wide, not 3 — its max-content; positions after it follow) and `c` under
+  its `hidden` left border (CSS 2.1 §17.6.2 puts the padding edge half the collapsed border — none — from the grid
+  line, which rdom's whole-cell line covers: DIVERGENCES §2's table entry now says so); tile 15a's field widths (text
+  fields are content-box, as in the engines' sheets), the select's `▾` on the field background (it is inside the
+  select's padding box) and the date / time fields' text (DIVERGENCES §2: those types are not rendered as fields);
+  tile 16's collapsed flex item (Flexbox 1 §9.8 ignores it, gaps included, after line collection).
