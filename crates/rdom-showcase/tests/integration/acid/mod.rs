@@ -144,3 +144,18 @@ fn comparator_reports_each_wrong_cell() {
     let text = report.failure();
     assert!(text.contains("tile 1 \"Cascade order\"") && text.contains("test spec §0"));
 }
+
+#[test]
+fn tile_02_specificity() {
+    assert_tile(&refs::t02_specificity::REF);
+}
+
+#[test]
+fn tile_03_inheritance() {
+    assert_tile(&refs::t03_inheritance::REF);
+}
+
+#[test]
+fn tile_04_selectors() {
+    assert_tile(&refs::t04_selectors::REF);
+}

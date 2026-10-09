@@ -289,7 +289,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 |---|---|---|
 | ACID-HARNESS | The acid page in the showcase (pages of 120 × 50, `Built-ins → Acid`, `--example acid`), the reference format and the colour-aware comparator with per-tile reports; tile 1 | done |
 | ACID-FIX-1 | `VirtualScreen` (rdom-tui `test-util`) consumes OSC strings — an OSC 8 hyperlink printed as text (found by tile 4) | done |
-| ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | |
+| ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | partial — tiles 1–4 done; 5–13 remain |
 | ACID-TILES-B | Static tiles 14–26 | |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
 | ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
@@ -10599,3 +10599,17 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   string to ST or BEL, and OSC 8 sets the link (`Cell::link`) of the cells written until an empty URI closes it. Red:
   `virtual_screen::tests::parser::osc8_hyperlinks_are_not_text_and_mark_their_cells` (row `a8;;https:`); green after.
   The acid reference was not touched.
+- 2026-10-09 — ACID-TILES-A, tiles 2–4 (page 1). Tile 2, specificity (Selectors 4 §17): eight contests, each a green
+  rule written before a red one, so only specificity can let green win — type < class < id, `:where()` zero, `:is()` /
+  `:not()` their most specific argument, a selector list its matching selector's, attribute = class (decided by order),
+  `:nth-child(1 of #id)`. Tile 3, inheritance and keywords (Cascade 4 §3.1, §7.3; Variables 1 §2–§3.1): inherited
+  `color` and font, `initial` / `inherit` / `unset` on `color` and on the non-inherited `background-color` — shown on
+  a child that overflows its one-row parent, where only an inherited background paints — and `var()` with fallbacks and
+  a missing variable (invalid at computed-value time: `unset`, so the parent's colour). Tile 4, selectors (Selectors 4
+  §4–§16, HTML §4.16.2): combinators including a backtracking `.d8 > data a`, the six attribute operators with the `i`
+  / `s` flags and HTML's case-insensitive `type`, structural pseudo-classes (`:empty` through a comment, `:root`,
+  top-level `:scope`), the `:nth-*` family with `of S`, `:is` / `:where` / `:not` with a complex argument, link states
+  (`:visited` never), `:lang()` with an extended range, `:dir()` by `dir=auto` Hebrew and not by CSS `direction`,
+  `:has()` in four relative forms. Tiles 1–3 matched their references at first run; tile 4 showed its `<a href>` row as
+  `8;;#a…`, which was the test terminal model, not rdom's paint (ACID-FIX-1); after the fix it matches. No reference
+  was changed.

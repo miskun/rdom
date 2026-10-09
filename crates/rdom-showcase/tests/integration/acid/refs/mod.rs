@@ -5,6 +5,14 @@
 use super::reference::Reference;
 
 pub mod t01_cascade;
+pub mod t02_specificity;
+pub mod t03_inheritance;
+pub mod t04_selectors;
 
 /// Every reference.
-pub const ALL: &[&Reference] = &[&t01_cascade::REF];
+pub const ALL: &[&Reference] = &[
+    &t01_cascade::REF,
+    &t02_specificity::REF,
+    &t03_inheritance::REF,
+    &t04_selectors::REF,
+];
