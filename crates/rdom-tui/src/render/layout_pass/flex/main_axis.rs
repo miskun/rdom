@@ -246,14 +246,36 @@ pub(super) fn collect_main_axis_items(
         // main size, the item's content size. `width: <n>fr` (rdom) is
         // a basis of 0 growing by `n`. The result is a fixed cell value — percentages resolve here, not in the
         // distribution.
+        // CSS Sizing 4 §3.1: `stretch` is the container's inner main size
+        // less the item's main-axis margins (`auto` 0), when that is
+        // definite (C15G-STRETCH).
+        let main_margins = {
+            let m = |v: &crate::layout::MarginValue| match v {
+                crate::layout::MarginValue::Auto => 0,
+                v => i32::from(v.resolve(main_cb_w)),
+            };
+            match direction {
+                Direction::Row => m(&c.margin.left) + m(&c.margin.right),
+                Direction::Column => m(&c.margin.top) + m(&c.margin.bottom),
+            }
+        };
+        let stretch = |basis: Option<u16>| {
+            basis.map(|b| (i32::from(b) - main_margins).clamp(0, i32::from(u16::MAX)) as u16)
+        };
         let used_size = |size: &Size, basis: Option<u16>| match (direction, size) {
+            (_, Size::Intrinsic(crate::layout::IntrinsicSize::Stretch)) => stretch(basis),
             // A keyword height is the content height, as `auto` is (CSS
             // Sizing 3 §3.1).
             (Direction::Column, Size::Intrinsic(_)) => None,
             _ => kw.size(size, basis, main_budget),
         };
         let content = || item.intrinsic_size(dom, direction, cross_budget, main_cb_w);
-        let main_auto = matches!(main_size, Size::Auto | Size::Intrinsic(_));
+        let main_auto = match main_size {
+            Size::Auto => true,
+            Size::Intrinsic(crate::layout::IntrinsicSize::Stretch) => stretch(main_basis).is_none(),
+            Size::Intrinsic(_) => true,
+            _ => false,
+        };
         let mut grow = c.flex_grow;
         let mut specified_base = false;
         // The base a `flex-basis` gives (§9.2 step 3); a `calc-size()` one

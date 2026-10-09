@@ -127,6 +127,7 @@ fn serialize_intrinsic(k: &crate::layout::IntrinsicSize) -> String {
         IntrinsicSize::MinContent => "min-content".to_string(),
         IntrinsicSize::MaxContent => "max-content".to_string(),
         IntrinsicSize::FitContent => "fit-content".to_string(),
+        IntrinsicSize::Stretch => "stretch".to_string(),
         IntrinsicSize::FitContentLimit(limit) => match &**limit {
             crate::calc::CalcExpr::Length(n) => format!("fit-content({n})"),
             expr => format!("fit-content({})", serialize_math(expr)),

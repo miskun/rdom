@@ -58,13 +58,22 @@ pub(super) fn resolve_block_height(
     );
     let sizer = kw.sizer();
     let definite = match &computed.height {
-        Size::Fixed(n) => Some(*n),
-        Size::Percent(_) | Size::Calc(_) if parent_height_definite => {
-            computed.height.cells(Some(container_height))
+        Size::Fixed(n) => Some(sizer.outer(*n)),
+        Size::Percent(_) | Size::Calc(_) if parent_height_definite => computed
+            .height
+            .cells(Some(container_height))
+            .map(|h| sizer.outer(h)),
+        // CSS Sizing 4 §3.1: the definite containing block height less the
+        // margins, a border box already (C15G-STRETCH).
+        Size::Intrinsic(crate::layout::IntrinsicSize::Stretch) if parent_height_definite => {
+            Some(kw.keyword(
+                &crate::layout::IntrinsicSize::Stretch,
+                Some(container_height),
+                0,
+            ))
         }
         _ => None,
-    }
-    .map(|h| sizer.outer(h));
+    };
     // Otherwise the intrinsic content height — a walk of the child's
     // subtree. The cross budget passed to `intrinsic_size` is the WIDTH
     // descendants are laid out into (`Direction::Column` queries height;

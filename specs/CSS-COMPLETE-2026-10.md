@@ -10300,3 +10300,26 @@ row comes from.
   exactly their cells on an absolute box and nothing changes on a relative one (the strict sheet refused
   `clip` before); `property_dispatch/clip_tests.rs` `legacy_clip_parses`. The property-set contracts
   (canonical values, important setters, the animation-type table) list `clip`.
+- 2026-10-09 — C15G-STRETCH (Phase 15 gate decision 3; architect's `width` / `height` row; CSS Sizing 4
+  §3.1). Found: `stretch` (and the web's `-webkit-fill-available` / `-moz-available`) was unparsed —
+  DIVERGENCES said "not yet scheduled" — so a float, inline-block, absolutely positioned box or flex item
+  meant to fill its container shrank to its content. Decided (the gate's decision 3): (1) `stretch` is an
+  `IntrinsicSize` variant (`Stretch`) — a sizing keyword valid wherever the intrinsic ones are (`width` /
+  `height`, `min-*` / `max-*`, `flex-basis`), parsed with both aliases and serialized `stretch`;
+  `IntrinsicSize` is new since 0.5, so the reshape is an API-table row under "Changes to APIs added after
+  0.5" with `migration_hints.rs::stretch_hints`. (2) The stretch-fit size is the containing block's
+  extent less the box's margins (`auto` 0), a border box: `Keywords::keyword` answers it on the inline
+  axis as the `available` space every caller already computes for `fit-content` (block width, floats,
+  inline-blocks, grid items), and on the block axis as a definite basis less the block margins, the
+  content height (as `auto`) against an indefinite one; `resolve_block_height` and
+  `auto_height::is_content_sized` treat a definite-basis `stretch` height as a size, not content; flex
+  main sizes take the container's inner main size less the item's main margins; an absolutely positioned
+  box's is its inset-modified containing block (an `auto` inset 0) less its margins (`stretch_fit` in
+  `positioning/place.rs`). An intrinsic contribution with `stretch` is the content's, as `auto`'s. Table
+  cells: a cell's size keyword is its tracks' already, so nothing changes there (DIVERGENCES). CSS-COVERAGE
+  `width` / `height` Supported (§3.6 8 / 1; totals 255 / 6 / 3 / 43). Red: `sizing_tests.rs` (no
+  `Stretch` variant: compile error), `css_phase5/stretch.rs` — four tests, every `stretch` sheet refused
+  by the strict parser (green: a float / inline-block / content-box float at 15 in 20 less margins 2 + 3;
+  a height of 7 in a definite 10 less margins 1 + 2 and 1 row against an indefinite parent; an absolute
+  box at `(3, 1, 16, 8)`; a flex item at `(2, 0, 16, 1)` in 20; a grid item at `(1, 0, 10, 1)` in a 12-wide
+  area under `justify-items: start`).

@@ -220,6 +220,33 @@ fn shrink_available(
     available.clamp(0, i32::from(u16::MAX)) as u16
 }
 
+/// CSS Sizing 4 §3.1 `stretch` on an absolutely positioned box: its
+/// inset-modified containing block (an `auto` inset 0) less its margins
+/// (`auto` 0) on `axis`, as a border box (C15G-STRETCH).
+fn stretch_fit(c: &ComputedStyle, cb: LayoutRect, axis: crate::layout::Direction) -> u16 {
+    let basis = i32::from(cb.width);
+    let margin = |m: &crate::layout::MarginValue| match m {
+        crate::layout::MarginValue::Auto => 0,
+        m => i32::from(m.resolve(cb.width)),
+    };
+    let (extent, insets, margins) = match axis {
+        crate::layout::Direction::Row => (
+            i32::from(cb.width),
+            c.left.cells(basis).unwrap_or(0) + c.right.cells(basis).unwrap_or(0),
+            margin(&c.margin.left) + margin(&c.margin.right),
+        ),
+        crate::layout::Direction::Column => {
+            let basis = i32::from(cb.height);
+            (
+                basis,
+                c.top.cells(basis).unwrap_or(0) + c.bottom.cells(basis).unwrap_or(0),
+                margin(&c.margin.top) + margin(&c.margin.bottom),
+            )
+        }
+    };
+    (extent - insets - margins).clamp(0, i32::from(u16::MAX)) as u16
+}
+
 /// Compute the placed rect for an absolute/fixed box given its
 /// computed style and resolved containing block.
 ///
@@ -285,6 +312,7 @@ pub(super) fn compute_placed_rect(
         &c.right,
         cb.width,
         |keyword, available| match keyword {
+            Some(IntrinsicSize::Stretch) => stretch_fit(c, cb, Direction::Row),
             Some(k) => placed
                 .keywords(dom, c, Direction::Row, cb.height, cb.width)
                 .keyword(k, Some(cb.width), available),
@@ -315,7 +343,10 @@ pub(super) fn compute_placed_rect(
         &c.top,
         &c.bottom,
         cb.height,
-        |_, _| placed.shrink_to_fit(dom, Direction::Column, width, cb.width),
+        |keyword, _| match keyword {
+            Some(IntrinsicSize::Stretch) => stretch_fit(c, cb, Direction::Column),
+            _ => placed.shrink_to_fit(dom, Direction::Column, width, cb.width),
+        },
     );
     // CSS 2.1 §10.7, the same for the height.
     let kw = placed.keywords(dom, c, Direction::Column, width, cb.width);

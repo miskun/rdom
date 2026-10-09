@@ -103,11 +103,18 @@ pub(crate) fn is_content_sized(dom: &Dom<TuiExt>, id: NodeId, computed: &Compute
         crate::layout::Position::Absolute | crate::layout::Position::Fixed
     );
     // An intrinsic keyword is the automatic size on the block axis (CSS
-    // Sizing 3 §3.1): resolved here like `auto`.
-    matches!(
-        computed.height,
-        crate::layout::Size::Auto | crate::layout::Size::Intrinsic(_)
-    ) && computed.flow.is_block_flow()
+    // Sizing 3 §3.1): resolved here like `auto` — and `stretch` against an
+    // indefinite containing block height (CSS Sizing 4 §3.1; against a
+    // definite one it is a size, C15G-STRETCH).
+    let content_keyword = match &computed.height {
+        crate::layout::Size::Auto => true,
+        crate::layout::Size::Intrinsic(crate::layout::IntrinsicSize::Stretch) => {
+            !super::block::nearest_block_ancestor_height_is_definite(dom, id)
+        }
+        crate::layout::Size::Intrinsic(_) => true,
+        _ => false,
+    };
+    content_keyword && computed.flow.is_block_flow()
         && parent_is_block_flow
         && !is_out_of_flow_positioned
         // A cell is as tall as its rows (CSS 2.1 §17.5.3).

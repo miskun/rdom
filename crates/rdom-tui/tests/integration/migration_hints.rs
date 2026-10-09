@@ -1667,3 +1667,22 @@ fn multicol_and_anchor_hints() {
         Some(calc::CalcExpr::Length(5))
     );
 }
+
+/// C15G-STRETCH: `IntrinsicSize` (new since 0.5) gained `Stretch` (CSS
+/// Sizing 4 §3.1 `stretch`, `-webkit-fill-available`): an exhaustive
+/// `match` adds its arm; it serializes as `stretch`.
+#[test]
+fn stretch_hints() {
+    let describe = |k: &IntrinsicSize| match k {
+        IntrinsicSize::MinContent => "min",
+        IntrinsicSize::MaxContent => "max",
+        IntrinsicSize::FitContent | IntrinsicSize::FitContentLimit(_) => "fit",
+        IntrinsicSize::Stretch => "stretch",
+    };
+    assert_eq!(describe(&IntrinsicSize::Stretch), "stretch");
+    let s = TuiStyle::new().width(Size::Intrinsic(IntrinsicSize::Stretch));
+    assert_eq!(
+        s.width,
+        Some(Value::Specified(Size::Intrinsic(IntrinsicSize::Stretch)))
+    );
+}

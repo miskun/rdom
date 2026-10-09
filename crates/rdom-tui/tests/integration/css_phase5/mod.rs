@@ -16,6 +16,7 @@ mod logical;
 mod margin_trim;
 mod pseudo_only;
 mod sizing_sites;
+mod stretch;
 mod writing;
 
 /// A `tag` element with `class`, appended to `parent`.

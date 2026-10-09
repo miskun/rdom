@@ -86,6 +86,11 @@ fn sizes_take_the_intrinsic_keywords() {
             IntrinsicSize::FitContentLimit(std::sync::Arc::new(CalcExpr::Percent(50.0))),
             "fit-content(50%)",
         ),
+        // CSS Sizing 4 §3.1 `stretch`, and its prefixed aliases
+        // (C15G-STRETCH).
+        ("stretch", IntrinsicSize::Stretch, "stretch"),
+        ("-webkit-fill-available", IntrinsicSize::Stretch, "stretch"),
+        ("-moz-available", IntrinsicSize::Stretch, "stretch"),
     ];
     for (css, kw, text) in cases {
         let mut style = TuiStyle::new();

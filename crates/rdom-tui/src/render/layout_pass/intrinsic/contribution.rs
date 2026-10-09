@@ -54,7 +54,8 @@ pub(super) fn box_contribution(
             (IntrinsicSize::MinContent, _) | (_, Measure::MinContent) => {
                 content(Measure::MinContent)
             }
-            (IntrinsicSize::MaxContent | IntrinsicSize::FitContent, _) => {
+            // `stretch` contributes as `auto` does (CSS Sizing 4 §3.1).
+            (IntrinsicSize::MaxContent | IntrinsicSize::FitContent | IntrinsicSize::Stretch, _) => {
                 content(Measure::MaxContent)
             }
             (IntrinsicSize::FitContentLimit(_), Measure::MaxContent) => kw.keyword(k, None, 0),

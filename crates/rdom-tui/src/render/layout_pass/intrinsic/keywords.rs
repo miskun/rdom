@@ -40,6 +40,18 @@ pub(crate) struct Keywords<'a> {
     /// The containing block's width, the basis of padding percentages.
     cb_width: u16,
     sizer: Sizer,
+    /// The box's block-axis margins (`auto` 0), which `stretch` leaves out
+    /// of a definite block-axis basis.
+    block_margins: i32,
+}
+
+/// `computed`'s block-axis margins against `cb_width`, `auto` 0.
+fn block_margins(computed: &ComputedStyle, cb_width: u16) -> i32 {
+    let m = |v: &crate::layout::MarginValue| match v {
+        crate::layout::MarginValue::Auto => 0,
+        v => i32::from(v.resolve(cb_width)),
+    };
+    m(&computed.margin.top) + m(&computed.margin.bottom)
 }
 
 impl<'a> Keywords<'a> {
@@ -58,6 +70,7 @@ impl<'a> Keywords<'a> {
             cross_budget,
             cb_width,
             sizer: Sizer::along(computed, direction, cb_width),
+            block_margins: block_margins(computed, cb_width),
         }
     }
 
@@ -77,6 +90,7 @@ impl<'a> Keywords<'a> {
             cross_budget,
             cb_width,
             sizer: Sizer::along(run.style(), direction, cb_width),
+            block_margins: block_margins(run.style(), cb_width),
         }
     }
 
@@ -138,8 +152,23 @@ impl<'a> Keywords<'a> {
         self.sizer.outer(size)
     }
 
-    /// The border box keyword `k` sizes (CSS Sizing 3 §3.1).
+    /// The border box keyword `k` sizes (CSS Sizing 3 §3.1). `stretch`
+    /// (CSS Sizing 4 §3.1) is the stretch-fit size: on the inline axis
+    /// `available` (the space the margins leave), on the block axis a
+    /// definite `basis` less the margins — and the content height, as
+    /// `auto`, against an indefinite one (C15G-STRETCH).
     pub(crate) fn keyword(&self, k: &IntrinsicSize, basis: Option<u16>, available: u16) -> u16 {
+        if *k == IntrinsicSize::Stretch {
+            match self.direction {
+                Direction::Row => return available,
+                Direction::Column => {
+                    if let Some(b) = basis {
+                        return (i32::from(b) - self.block_margins).clamp(0, i32::from(u16::MAX))
+                            as u16;
+                    }
+                }
+            }
+        }
         let (cross, cb) = (self.cross_budget, self.cb_width);
         let dom = self.dom;
         let id = match self.subject {
@@ -151,7 +180,7 @@ impl<'a> Keywords<'a> {
                 }
                 return match k {
                     IntrinsicSize::MinContent => measure(false),
-                    IntrinsicSize::MaxContent => measure(true),
+                    IntrinsicSize::MaxContent | IntrinsicSize::Stretch => measure(true),
                     IntrinsicSize::FitContent => measure(true).min(measure(false).max(available)),
                     IntrinsicSize::FitContentLimit(_) => match k.limit_cells(basis) {
                         Some(limit) => {
@@ -177,7 +206,8 @@ impl<'a> Keywords<'a> {
         let max = || content_max_size(dom, id, Direction::Row, cross, cb);
         match k {
             IntrinsicSize::MinContent => min(),
-            IntrinsicSize::MaxContent => max(),
+            // Answered above; unreachable on the inline axis.
+            IntrinsicSize::MaxContent | IntrinsicSize::Stretch => max(),
             IntrinsicSize::FitContent => max().min(min().max(available)),
             IntrinsicSize::FitContentLimit(_) => match k.limit_cells(basis) {
                 // The limit is a size like `width`'s, so `box-sizing`

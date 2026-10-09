@@ -76,6 +76,12 @@ pub enum IntrinsicSize {
     /// ([`CalcExpr::Length`](crate::calc::CalcExpr::Length)), a
     /// percentage of the containing block, or a math function.
     FitContentLimit(std::sync::Arc<crate::calc::CalcExpr>),
+    /// `stretch` (CSS Sizing 4 §3.1; `-webkit-fill-available` and
+    /// `-moz-available` its aliases): the stretch-fit size — the box's
+    /// margin box fills the available space on that axis (on the block
+    /// axis only a definite one; otherwise it behaves as `auto`). Not an
+    /// intrinsic size, but a sizing keyword valid where they are.
+    Stretch,
 }
 
 impl IntrinsicSize {

@@ -218,9 +218,9 @@ pub fn parse_contain_intrinsic(value: &[Token], max: usize) -> Option<Vec<Contai
     (!out.is_empty() && out.len() <= max).then_some(out)
 }
 
-/// An intrinsic size keyword (CSS Sizing 3 §3.1): `min-content |
-/// max-content | fit-content | fit-content(<length-percentage [0,∞]>)`,
-/// ASCII case-insensitive.
+/// A sizing keyword (CSS Sizing 3 §3.1, Sizing 4 §3.1): `min-content |
+/// max-content | fit-content | fit-content(<length-percentage [0,∞]>) |
+/// stretch`, ASCII case-insensitive.
 fn parse_intrinsic(value: &[Token]) -> Option<IntrinsicSize> {
     match value {
         [Token::Ident(s)] if s.eq_ignore_ascii_case("min-content") => {
@@ -231,6 +231,15 @@ fn parse_intrinsic(value: &[Token]) -> Option<IntrinsicSize> {
         }
         [Token::Ident(s)] if s.eq_ignore_ascii_case("fit-content") => {
             Some(IntrinsicSize::FitContent)
+        }
+        // CSS Sizing 4 §3.1, and the prefixed spellings the web still uses
+        // (Compat: `-webkit-fill-available`, `-moz-available`).
+        [Token::Ident(s)]
+            if s.eq_ignore_ascii_case("stretch")
+                || s.eq_ignore_ascii_case("-webkit-fill-available")
+                || s.eq_ignore_ascii_case("-moz-available") =>
+        {
+            Some(IntrinsicSize::Stretch)
         }
         [Token::Function(f), arg @ .., Token::RParen] if f.eq_ignore_ascii_case("fit-content") => {
             let limit = match length_percentage(arg, Range::NonNegative)? {
