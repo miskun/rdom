@@ -296,6 +296,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-6 | `<dt>` and `<legend>` have no UA weight (HTML §15.3.3, §15.3.12; left open by part 1) | done |
 | ACID-FIX-7 | A border junction joins the line that won beside it, where the winning box stops short of the junction (CSS Tables 3 §11.5; found by tile 14) | done |
 | ACID-FIX-8 | A disabled `<fieldset>` does not grey its legend and text; the UA's muted look is the disabled controls' (found by tile 15a) | done |
+| ACID-FIX-9 | A layer composited at full opacity keeps its cells' colours, the terminal's default ones included (found by tile 24) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | partial — tiles 14–19 done; 20–26 next |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
@@ -10783,3 +10784,13 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   references at first run but for tile 17's underline colour, first chosen equal to the text colour — rdom then
   emits no SGR 58, which draws the same; the tile now gives the underline its own colour, so the comparison sees it.
   No rdom bug found; no reference changed.
+- 2026-10-10 — ACID-FIX-9 (found by acid tile 24; Compositing 1 §5.1, CSS Color 4 §6.2). Tile 24's masked box and its
+  `abcdef` drew their text in explicit white `#ffffff` where the default colour belongs: the tile is an isolated group
+  (one of its members blends), so it paints through a layer, and `Buffer::composite_cell` blended every colour the
+  layer painted — `alpha_blend(canvas_fg(fg), alpha, …)` — turning `Color::Reset` into the dark canvas's white text
+  (and a `Reset` background into black) even at `alpha` 1, where nothing blends. Every full-opacity layer did it: a
+  clip path's, a filter's, a blend mode's and an isolated group's — in a light-themed terminal, white on white. Root
+  cause in the composite: at full opacity the layer's colours are the cell's as painted; only below it are both sides
+  resolved to definite colours for the blend. Red: `css_phase15::clip_path::a_full_opacity_layer_keeps_the_terminals_
+  default_colours` (a clipped and an isolated group's text read `Rgb(255, 255, 255)`); green after, the rest of rdom-tui
+  unchanged. Silent change `sc-layer-default-colours`.

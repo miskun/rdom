@@ -223,3 +223,31 @@ fn legacy_clip_keeps_the_rectangle_on_absolute_boxes_only() {
     );
     assert_eq!(red_map(&buf, 8, 2), vec!["..##....", "........"]);
 }
+
+/// ACID-FIX-9 (found by acid tile 24). A clip path, a filter, a blend
+/// mode or an isolated group paints its context through a layer at full
+/// opacity; nothing blends there, so a cell the layer painted keeps its
+/// own colours — the terminal's default foreground and background
+/// (`Color::Reset`, `CanvasText` / `Canvas`) included. The composite made
+/// them their canvas stand-ins (explicit white text on explicit black),
+/// which a light-themed terminal shows as white on white.
+#[test]
+fn a_full_opacity_layer_keeps_the_terminals_default_colours() {
+    let mut dom = doc(r#"<div id="c">abc</div><div id="g"><b id="m">x</b>yz</div>"#);
+    let buf = paint(
+        &mut dom,
+        "#c { clip-path: inset(0) } \
+         #g { isolation: isolate } #m { mix-blend-mode: multiply }",
+        8,
+        3,
+    );
+    for (x, y) in [(0, 0), (1, 0), (2, 0), (1, 1), (2, 1)] {
+        let cell = buf.cell(x, y).unwrap();
+        assert_eq!(
+            (cell.fg, cell.bg),
+            (Color::Reset, Color::Reset),
+            "({x}, {y}) {:?}",
+            cell.symbol()
+        );
+    }
+}
