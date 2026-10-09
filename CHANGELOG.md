@@ -690,6 +690,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-tui`
 
+- **Position fallback and visibility** (CSS Anchor Positioning 1 §4–§5): `position-try-fallbacks` (`@position-try` rules, `flip-block` / `-inline` / `-start`, areas) tried in `position-try-order` until one fits; `position-visibility` hides an anchored box whose anchor is clipped away, missing, or that overflows. (C15-ANCHOR)
 - **Anchor positioning** (CSS Anchor Positioning 1 §2–§3, §5): an absolutely positioned box finds its anchors (`anchor-name`, `anchor-scope`, `position-anchor`, a popover's invoker as its implicit anchor) and places against them — `anchor()` insets, `anchor-size()` sizes and margins, `position-area`'s 3 × 3 grid, `anchor-center`; a scrolled anchor is followed. (C15-ANCHOR)
 - **`box-decoration-break: clone`** (CSS Fragmentation 3 §5.4): a box split across columns draws each fragment as a whole box, its padding and border repeated at the breaks, where they take rows. (C15-COLUMNS)
 - **Spanners** (CSS Multi-column 1 §6): a `column-span: all` child spans the columns, splitting the content into a balanced column set before it and one after, each with its own rules. (C15-COLUMNS)

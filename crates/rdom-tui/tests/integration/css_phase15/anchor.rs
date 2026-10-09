@@ -235,3 +235,123 @@ fn an_anchored_box_follows_its_scrolled_anchor() {
     dom.layout_dom(Rect::new(0, 0, 20, 8));
     assert_eq!(rect(&dom, "p").1, 1);
 }
+
+/// An anchor at column 5, row `row` (six wide) in a 20 × 8 viewport and
+/// the box `#p` (three wide, `extra` styles) styled `css` — its rect.
+fn tried(row: u16, css: &str) -> (i32, i32, u16, u16) {
+    let mut dom = doc(r#"<body><div id="t">anchor</div><div id="p">tip</div></body>"#);
+    styled(
+        &mut dom,
+        &format!(
+            "{PAGE} #t {{ anchor-name: --t; margin: {row} 0 0 5; width: 6 }}
+             #p {{ position: absolute; position-anchor: --t; {css} }}"
+        ),
+        20,
+        8,
+    );
+    rect(&dom, "p")
+}
+
+/// §4.1, §4.3: when the base position overflows, the first fallback that
+/// fits is used — `flip-block` swaps the block-axis insets and the anchor
+/// sides they name; a fitting base is kept.
+#[test]
+fn flip_block_tries_the_other_side() {
+    let css =
+        "top: anchor(bottom); left: anchor(left); height: 3; position-try-fallbacks: flip-block";
+    assert_eq!(tried(1, css), (5, 2, 3, 3), "the base fits below");
+    assert_eq!(tried(6, css), (5, 3, 3, 3), "flipped above");
+    // `flip-inline` on the inline axis; `flip-start` swaps the axes (and
+    // the sizes): an anchor at column 12, row 2.
+    let at12 = |css: &str| {
+        let mut dom = doc(r#"<body><div id="t">anchor</div><div id="p">tip</div></body>"#);
+        styled(
+            &mut dom,
+            &format!(
+                "{PAGE} #t {{ anchor-name: --t; margin: 2 0 0 12; width: 6 }}
+                 #p {{ position: absolute; position-anchor: --t; {css} }}"
+            ),
+            20,
+            20,
+        );
+        rect(&dom, "p")
+    };
+    let css =
+        "left: anchor(right); top: anchor(top); width: 4; position-try-fallbacks: flip-inline";
+    assert_eq!(at12(css), (8, 2, 4, 1));
+    // `flip-start`: `top: anchor(bottom)`, `left: anchor(left)`, `height:
+    // 10`.
+    let css =
+        "left: anchor(right); top: anchor(top); width: 10; position-try-fallbacks: flip-start";
+    assert_eq!(at12(css), (12, 3, 3, 10));
+}
+
+/// §4.1: a `@position-try` rule's declarations replace the box's, and a
+/// `position-area` entry tries that area; one naming no rule is skipped.
+#[test]
+fn position_try_rules_and_areas_are_options() {
+    let rule = "@position-try --above { top: auto; bottom: anchor(top) } ";
+    let css = format!(
+        "top: anchor(bottom); left: 0; height: 3; position-try-fallbacks: --missing, --above }} {rule} #q {{ color: red"
+    );
+    assert_eq!(tried(6, &css).1, 3);
+    assert_eq!(
+        tried(
+            6,
+            "position-area: bottom; height: 3; position-try-fallbacks: top"
+        )
+        .1,
+        3
+    );
+}
+
+/// §4.2: `position-try-order` tries the options with the largest
+/// inset-modified containing block on its axis first.
+#[test]
+fn position_try_order_prefers_room() {
+    let css = "top: anchor(bottom); left: 0; position-try-fallbacks: flip-block; position-try-order: most-height";
+    // The anchor at row 2: below it 5 rows, above it 2 — below fits and is
+    // larger.
+    assert_eq!(tried(2, css).1, 3);
+    // At row 5: above (5 rows) is larger than below (2): above, though
+    // the base fits too.
+    assert_eq!(tried(5, css).1, 4);
+}
+
+/// §5: `position-visibility` hides an anchored box — its default anchor
+/// scrolled out of view (`anchors-visible`, the initial value), a
+/// referenced anchor missing (`anchors-valid`), or every option
+/// overflowing (`no-overflow`); `always` never does. A hidden box paints
+/// nothing and is not hit.
+#[test]
+fn position_visibility_hides_anchored_boxes() {
+    use rdom_tui::HitTestExt;
+    let html = r#"<body><div id="sc"><p id="t">t</p><p>2</p><p>3</p><p>4</p></div><div id="p">TIP</div></body>"#;
+    let css = |extra: &str| {
+        format!(
+            "{PAGE} #sc {{ height: 2; width: 5; overflow: auto }} p {{ margin: 0 }} #t {{ anchor-name: --t }}
+             #p {{ position: fixed; position-anchor: --t; top: 5; left: anchor(right); {extra} }}"
+        )
+    };
+    let shows = |extra: &str, scroll: i32| {
+        let mut dom = doc(html);
+        styled(&mut dom, &css(extra), 20, 8);
+        let sc = by_id(&dom, "sc");
+        dom.node_mut(sc).ext_mut().unwrap().scroll_y = scroll;
+        let buf = paint(&mut dom, &css(extra), 20, 8);
+        let tip = row(&buf, 5).contains("TIP");
+        let (x, y, _, _) = rect(&dom, "p");
+        let hit = dom.hit_test(x as u16, y as u16) == Some(by_id(&dom, "p"));
+        assert_eq!(tip, hit, "{extra} {scroll}: painted and hit agree");
+        tip
+    };
+    assert!(shows("", 0));
+    assert!(!shows("", 3), "the anchor scrolled out of view");
+    assert!(shows("position-visibility: always", 3));
+    assert!(!shows(
+        "position-visibility: anchors-valid; top: anchor(--none bottom)",
+        0
+    ));
+    assert!(!shows("position-visibility: no-overflow; width: 30", 0));
+    assert!(shows("position-visibility: always; width: 30", 0));
+}

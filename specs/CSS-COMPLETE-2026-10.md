@@ -279,7 +279,7 @@ row comes from.
 | C15-BLEND | `mix-blend-mode`, `isolation` | done |
 | C15-CLIP-PATH | `clip-path: inset()` | done |
 | C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | done |
-| C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | partial — the fallbacks (`position-try-*`, `@position-try`) and `position-visibility` remain |
+| C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | partial — the README's anchored popover, `<select>` picker and tooltip examples remain |
 
 ## Log
 
@@ -9976,3 +9976,25 @@ row comes from.
   `css_phase15::anchor` (7 new); mutation runs — no anchor layout (six fail), and together: area alignment always
   `start`, no tree-order check, no implicit anchor, `anchor-center` insets dropped (four fail, one each). Silent
   change `sc-anchor`.
+- 2026-10-09 — C15-ANCHOR part 3, position fallback and `position-visibility` (CSS Anchor Positioning 1 §4.1–§4.3,
+  §4.1.1, §5; Anchor Positioning 2's `flip-x` / `flip-y`). `anchor::fallback`: a box's position options are its
+  base style and each valid `position-try-fallbacks` entry — a `@position-try` rule's declarations taking the
+  place of the box's (`apply_rule`: the insets, sizes, margins, self-alignment, `position-anchor`,
+  `position-area`; `initial` the initial value), or a `position-area`, each with its tactics applied
+  (`flip`): `flip-block` / `flip-y` swap the block-axis insets and margins, mirror `align-self` and the anchor
+  sides the values name (`top` ↔ `bottom`, `start` ↔ `end`, a percentage from the other end), `flip-inline` /
+  `flip-x` the inline axis, `flip-start` swaps the axes — insets, sizes, margins, the two self-alignments, the
+  anchor sides and sizes; an option's `position-area` tracks flip with it (`resolve::flipped`). An entry
+  naming a rule no sheet defines is no option. Each option is resolved and placed, its inset-modified
+  containing block measured (`resolve::inset_modified`); `position-try-order` sorts them by that block's size
+  on its axis, stably (§4.2); the first whose border box fits its block is used, else the first in order
+  (§4.3). `anchor::visibility`: the boxes hidden this placement pass are document data (`AnchorHidden`, cleared
+  at each pass) and `render::visibility::shows` — paint, hit-testing and focus — asks it, walking the box's
+  ancestors only when something is hidden: `anchors-visible` (initial) when the default anchor's box is
+  outside a clipping ancestor's scrollport, `anchors-valid` when an anchor function finds no anchor,
+  `no-overflow` when no option fits. Root-cause fix found here: a positioned box's shrink-to-fit size read the
+  element's own `width` through `intrinsic_size` — an option's `auto` width (a `flip-start` from a `height`)
+  came out the declared one; it now measures the content (`intrinsic::content_max_size`), what CSS 2.1
+  §10.3.7's shrink-to-fit is and what an `auto` width always gave. Red → green: `css_phase15::anchor` (4 new);
+  mutation runs together — no ordering, rules not applied, block flips not mapping the anchor sides, nothing
+  hidden — fail the four, one each.

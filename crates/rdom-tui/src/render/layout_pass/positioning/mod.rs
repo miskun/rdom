@@ -57,6 +57,7 @@ use rdom_core::{Dom, NodeId};
 use crate::ext::TuiExt;
 use crate::layout::{LayoutRect, Position};
 
+pub(crate) use anchor::visibility::hidden as position_hidden;
 pub(super) use axis::axis_position_anchored;
 pub(super) use containing::{
     absolute_containing_block, containing_ancestor, fixed_containing_ancestor,

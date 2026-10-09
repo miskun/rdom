@@ -13,7 +13,7 @@ use super::lookup::{AnchorIndex, Querying, anchor_box};
 use crate::ext::TuiExt;
 use crate::layout::{
     Align, Alignment, AreaTracks, LayoutRect, Length, MarginValue, MaxSize, MinSize, PositionArea,
-    Size,
+    Size, TryTactic,
 };
 use crate::style::ComputedStyle;
 
@@ -30,6 +30,8 @@ pub(in crate::render::layout_pass) struct Anchoring<'a> {
     pub(in crate::render::layout_pass) cb: LayoutRect,
     /// The default anchor's box (§2.3), when it has one.
     pub(in crate::render::layout_pass) default: Option<LayoutRect>,
+    /// The default anchor.
+    pub(in crate::render::layout_pass) default_node: Option<NodeId>,
     /// The containing block's `direction` is `rtl`.
     pub(in crate::render::layout_pass) cb_rtl: bool,
     /// The box's own is.
@@ -141,10 +143,10 @@ impl Anchoring<'_> {
     /// the 3 × 3 grid of the containing block's and the default anchor's
     /// edges it spans. `None` without a default anchor (the property then
     /// has no effect).
-    fn area(&self, area: &PositionArea) -> Option<(LayoutRect, AreaTracks)> {
+    fn area(&self, area: &PositionArea, tactics: &[TryTactic]) -> Option<(LayoutRect, AreaTracks)> {
         let a = self.default?;
         let cb = self.cb;
-        let t = area.tracks(self.cb_rtl, self.self_rtl);
+        let t = flipped(area.tracks(self.cb_rtl, self.self_rtl), tactics);
         let clamp_x = |x: i32| x.clamp(cb.x, right(cb));
         let clamp_y = |y: i32| y.clamp(cb.y, bottom(cb));
         let xs = [
@@ -172,6 +174,24 @@ impl Anchoring<'_> {
         );
         Some((rect, t))
     }
+}
+
+/// `tracks` under a position option's try tactics, in order (§4.1.1):
+/// `flip-block` mirrors the rows, `flip-inline` the columns, `flip-start`
+/// swaps them (`flip-y` / `flip-x` are the block / inline flips in
+/// `horizontal-tb`).
+fn flipped(mut tracks: AreaTracks, tactics: &[TryTactic]) -> AreaTracks {
+    let mirror = |(a, b): (u8, u8)| (2 - b, 2 - a);
+    for t in tactics {
+        match t {
+            TryTactic::FlipBlock | TryTactic::FlipY => tracks.rows = mirror(tracks.rows),
+            TryTactic::FlipInline | TryTactic::FlipX => tracks.columns = mirror(tracks.columns),
+            TryTactic::FlipStart => {
+                (tracks.rows, tracks.columns) = (tracks.columns, tracks.rows);
+            }
+        }
+    }
+    tracks
 }
 
 /// §3.1.3: the `normal` self-alignment in an axis whose tracks the area
@@ -249,6 +269,7 @@ pub(in crate::render::layout_pass) fn is_anchored(c: &ComputedStyle) -> bool {
 /// style to place by and the containing block to place in.
 pub(in crate::render::layout_pass) fn resolve_style(
     style: &ComputedStyle,
+    tactics: &[TryTactic],
     an: &Anchoring<'_>,
 ) -> (ComputedStyle, LayoutRect) {
     let mut s = style.clone();
@@ -256,7 +277,7 @@ pub(in crate::render::layout_pass) fn resolve_style(
     // §3.1: the area is the containing block; an `auto` inset is 0 in it,
     // and `normal` self-alignment hugs the anchor (§3.1.3).
     if let Some(area) = style.anchor.position_area
-        && let Some((rect, AreaTracks { columns, rows })) = an.area(&area)
+        && let Some((rect, AreaTracks { columns, rows })) = an.area(&area, tactics)
     {
         cb = rect;
         for inset in [&mut s.top, &mut s.right, &mut s.bottom, &mut s.left] {
@@ -381,5 +402,60 @@ fn centred(
     (
         Length::Cells(from - cb_start),
         Length::Cells(cb_start + basis - to),
+    )
+}
+
+impl Anchoring<'_> {
+    /// Whether every anchor function of `c` finds its anchor (§5:
+    /// `position-visibility: anchors-valid`), fallbacks aside.
+    pub(in crate::render::layout_pass) fn references_resolve(&self, c: &ComputedStyle) -> bool {
+        let mut ok = true;
+        let mut check = |e: &CalcExpr| {
+            e.substitute_anchors(&mut |f| {
+                ok &= self.anchor(f.name()).is_some();
+                Some(0)
+            });
+        };
+        for l in [&c.top, &c.right, &c.bottom, &c.left] {
+            if let Length::Calc(e) = l {
+                check(e);
+            }
+        }
+        for s in [&c.width, &c.height] {
+            if let Size::Calc(e) = s {
+                check(e);
+            }
+        }
+        for m in [
+            &c.margin.top,
+            &c.margin.right,
+            &c.margin.bottom,
+            &c.margin.left,
+        ] {
+            if let MarginValue::Calc(e) = m {
+                check(e);
+            }
+        }
+        ok
+    }
+}
+
+/// The inset-modified containing block of a box styled `c` (resolved) in
+/// `cb` (CSS Position 3 §4.1): the containing block less the insets, an
+/// `auto` one as 0.
+pub(in crate::render::layout_pass) fn inset_modified(
+    c: &ComputedStyle,
+    cb: LayoutRect,
+) -> LayoutRect {
+    let (w, h) = (i32::from(cb.width), i32::from(cb.height));
+    let left = c.left.cells(w).unwrap_or(0);
+    let right = c.right.cells(w).unwrap_or(0);
+    let top = c.top.cells(h).unwrap_or(0);
+    let bottom = c.bottom.cells(h).unwrap_or(0);
+    LayoutRect::new(
+        cb.x + left,
+        cb.y + top,
+        (w - left - right).clamp(0, i32::from(u16::MAX)) as u16,
+        (h - top - bottom).clamp(0, i32::from(u16::MAX)) as u16,
     )
 }

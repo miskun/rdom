@@ -145,6 +145,7 @@ pub(crate) use clip_edge::ClipEdges;
 pub(crate) use grid::GridLines;
 pub(super) use gutter::{gutters, reserve_scrollbar_gutter, reserve_scrollbar_gutter_forced};
 pub(crate) use ifc::is_ifc_block;
+pub(crate) use positioning::position_hidden;
 pub(crate) use scroll_extent::origin_at_end;
 use scroll_extent::{clamp_scroll_offset, record_scroll_content_size};
 pub(crate) use scrollport::{

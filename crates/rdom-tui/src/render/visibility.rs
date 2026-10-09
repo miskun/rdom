@@ -19,7 +19,18 @@ pub(crate) fn visibility_of(dom: &Dom<TuiExt>, id: NodeId, slot: StyleSlot) -> V
     computed.map_or(Visibility::Visible, |c| c.visibility)
 }
 
-/// `id`'s `slot` box is drawn.
+/// `id`'s `slot` box is drawn: visible, and not hidden by an
+/// anchor-positioned ancestor's `position-visibility` (CSS Anchor
+/// Positioning 1 §5) — which a descendant's `visibility` cannot undo.
 pub(crate) fn shows(dom: &Dom<TuiExt>, id: NodeId, slot: StyleSlot) -> bool {
     visibility_of(dom, id, slot).is_visible()
+        && !crate::render::layout_pass::position_hidden(
+            dom,
+            id,
+            match slot {
+                StyleSlot::Before => Some(crate::ext::PseudoSlot::Before),
+                StyleSlot::After => Some(crate::ext::PseudoSlot::After),
+                _ => None,
+            },
+        )
 }

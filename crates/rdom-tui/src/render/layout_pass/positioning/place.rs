@@ -14,7 +14,7 @@ use crate::style::ComputedStyle;
 use super::axis::axis_size_from_edges;
 use super::*;
 use crate::render::layout_pass::box_sizing::Sizer;
-use crate::render::layout_pass::intrinsic::{Keywords, intrinsic_size};
+use crate::render::layout_pass::intrinsic::Keywords;
 use crate::render::layout_pass::items::AnonymousItem;
 
 /// After phase-1 flex layout completes, walk the tree in document
@@ -35,8 +35,10 @@ pub(in crate::render::layout_pass) fn place_positioned(
     viewport: LayoutRect,
 ) -> Vec<BoxItem> {
     let positioned = collect_positioned(dom);
-    // The anchor names, found on the first anchor-positioned box.
+    // The anchor names, found on the first anchor-positioned box; the boxes
+    // `position-visibility` hides, found again.
     let anchors = super::anchor::AnchorIndex::default();
+    super::anchor::visibility::begin(dom);
     for &item in &positioned {
         match item {
             BoxItem::Node(id) => {
@@ -57,7 +59,10 @@ pub(in crate::render::layout_pass) fn place_positioned(
                     &computed,
                     cb,
                 );
-                crate::render::layout_pass::layout_node(dom, id, placed, cb.width);
+                if placed.hidden {
+                    super::anchor::visibility::hide(dom, id, None);
+                }
+                crate::render::layout_pass::layout_node(dom, id, placed.rect, cb.width);
             }
             BoxItem::Generated(host, slot) => {
                 super::pseudo::place(dom, &anchors, host, slot, viewport)
@@ -144,7 +149,10 @@ impl Placed<'_> {
 
     /// Its shrink-to-fit size on one axis (CSS 2.1 §10.3.7 / §10.6.4):
     /// on the inline axis its max-content width, on the block axis its
-    /// content's height at the border-box width `cross`.
+    /// content's height at the border-box width `cross` — its content's,
+    /// whatever its own `width` / `height` say: asked only where the size
+    /// placed by is `auto`, which a position option's style may make it
+    /// where the box's own is not (CSS Anchor Positioning 1 §4.1).
     fn shrink_to_fit(
         &self,
         dom: &Dom<TuiExt>,
@@ -153,7 +161,9 @@ impl Placed<'_> {
         cb_width: u16,
     ) -> u16 {
         match *self {
-            Placed::Element(id) => intrinsic_size(dom, id, direction, cross, cb_width),
+            Placed::Element(id) => crate::render::layout_pass::intrinsic::content_max_size(
+                dom, id, direction, cross, cb_width,
+            ),
             Placed::Generated { item, .. } => {
                 item.content_size(dom, direction, cross, true, cb_width)
             }

@@ -73,6 +73,10 @@ pub(in crate::render::layout_pass) fn place(
         &style,
         cb,
     );
+    if rect.hidden {
+        super::anchor::visibility::hide(dom, host, Some(slot));
+    }
+    let rect = rect.rect;
     let laid_out = item.lay_out(dom, rect, cb.width);
     if let Some(ext) = dom.node_mut(host).ext_mut() {
         ext.positioned_pseudos

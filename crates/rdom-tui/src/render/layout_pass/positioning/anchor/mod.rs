@@ -11,14 +11,18 @@
 //!   is.
 //! - `resolve` — a style's anchor references made cells and containing
 //!   blocks.
+//! - `fallback` — the position options, their order and the one used.
+//! - `visibility` — `position-visibility`: the anchored boxes hidden.
 //!
 //! A page without anchor positioning pays one `is_anchored` test per
 //! positioned box; the anchor index is built on the first anchored one.
 
+mod fallback;
 mod lookup;
 mod resolve;
 #[cfg(test)]
 mod tests;
+pub(crate) mod visibility;
 
 use rdom_core::{Dom, NodeId};
 
@@ -33,9 +37,17 @@ use crate::layout::{LayoutRect, Position, TextDirection};
 use crate::node::TuiNodeExt;
 use crate::style::ComputedStyle;
 
+/// Where a positioned box goes: its border box, and whether
+/// `position-visibility` hides it (`visibility`).
+pub(in crate::render::layout_pass) struct Placement {
+    pub(in crate::render::layout_pass) rect: LayoutRect,
+    pub(in crate::render::layout_pass) hidden: bool,
+}
+
 /// Place the positioned box `placed` (asked for by `querying`), styled
-/// `c`, in its containing block `cb`: through its anchors when it has any
-/// anchor reference (`resolve`), else as CSS 2.1 places it.
+/// `c`, in its containing block `cb`: through its anchors and position
+/// options when it has any anchor reference (`resolve`, `fallback`), else
+/// as CSS 2.1 places it.
 pub(in crate::render::layout_pass) fn placed_rect(
     dom: &Dom<TuiExt>,
     index: &AnchorIndex,
@@ -43,13 +55,50 @@ pub(in crate::render::layout_pass) fn placed_rect(
     querying: Querying,
     c: &ComputedStyle,
     cb: LayoutRect,
-) -> LayoutRect {
+) -> Placement {
     if !resolve::is_anchored(c) {
-        return compute_placed_rect(dom, placed, c, cb);
+        return Placement {
+            rect: compute_placed_rect(dom, placed, c, cb),
+            hidden: false,
+        };
     }
     let an = anchoring(dom, index, querying, c, cb);
-    let (style, cb) = resolve::resolve_style(c, &an);
-    compute_placed_rect(dom, placed, &style, cb)
+    let options = fallback::options(c);
+    // Each option resolved, placed, and its inset-modified containing
+    // block (§4.3).
+    let tried: Vec<(LayoutRect, LayoutRect)> = options
+        .iter()
+        .map(|o| {
+            // An option may name another default anchor.
+            let own = (o.style.anchor.position_anchor != c.anchor.position_anchor)
+                .then(|| anchoring(dom, index, querying, &o.style, cb));
+            let an = own.as_ref().unwrap_or(&an);
+            let (style, area) = resolve::resolve_style(&o.style, &o.tactics, an);
+            (
+                compute_placed_rect(dom, placed, &style, area),
+                resolve::inset_modified(&style, area),
+            )
+        })
+        .collect();
+    let sizes: Vec<(u16, u16)> = tried.iter().map(|(_, m)| (m.width, m.height)).collect();
+    let order = fallback::order(c.anchor.position_try_order, &sizes);
+    let fits = |(rect, imcb): &(LayoutRect, LayoutRect)| {
+        rect.x >= imcb.x
+            && rect.y >= imcb.y
+            && rect.x + i32::from(rect.width) <= imcb.x + i32::from(imcb.width)
+            && rect.y + i32::from(rect.height) <= imcb.y + i32::from(imcb.height)
+    };
+    let chosen = order.iter().copied().find(|&i| fits(&tried[i]));
+    let rect = tried[chosen.unwrap_or(order[0])].0;
+    let v = &c.anchor.position_visibility;
+    let hidden = (v.no_overflow && chosen.is_none())
+        || (v.anchors_valid && !an.references_resolve(c))
+        || (v.anchors_visible
+            && an
+                .default_node
+                .zip(an.default)
+                .is_some_and(|(a, r)| visibility::clipped_out(dom, a, r)));
+    Placement { rect, hidden }
 }
 
 /// What resolving `c`'s anchor references needs (`resolve::Anchoring`).
@@ -74,9 +123,9 @@ fn anchoring<'a>(
     } else {
         super::containing_ancestor(dom, parent)
     };
-    let default =
-        lookup::default_anchor(dom, index, querying, cb_element, &c.anchor.position_anchor)
-            .and_then(|a| lookup::anchor_box(dom, a));
+    let default_node =
+        lookup::default_anchor(dom, index, querying, cb_element, &c.anchor.position_anchor);
+    let default = default_node.and_then(|a| lookup::anchor_box(dom, a));
     let rtl = |id: Option<NodeId>| {
         id.and_then(|p| dom.node(p).computed().map(|pc| pc.text_direction))
             .unwrap_or(c.text_direction)
@@ -89,6 +138,7 @@ fn anchoring<'a>(
         cb_element,
         cb,
         default,
+        default_node,
         cb_rtl: rtl(parent),
         self_rtl: c.text_direction == TextDirection::Rtl,
     }
