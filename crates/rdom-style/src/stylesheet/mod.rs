@@ -161,6 +161,16 @@ pub enum PseudoElementTarget {
 }
 
 impl PseudoElementTarget {
+    /// Every target a rule's selector can name — read from the tables the
+    /// selector text is split by, so a pseudo-element the parser accepts
+    /// is here — with `::highlight()` once, its name empty, and never
+    /// [`None`](Self::None). In no particular order, a target possibly
+    /// more than once (`::before` and the legacy `:before`). The acid
+    /// page's coverage test asks for each.
+    pub fn named() -> impl Iterator<Item = PseudoElementTarget> {
+        selector_text::named_targets()
+    }
+
     /// The targets whose rules style a given scrollbar-thumb axis, in
     /// layering order: the axis-neutral rules first, the axis rules
     /// on top.

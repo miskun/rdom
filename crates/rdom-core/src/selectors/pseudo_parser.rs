@@ -10,6 +10,49 @@ use super::{
 use crate::Directionality;
 use crate::css_syntax;
 
+/// The pseudo-classes that are a keyword alone (Selectors 4), by their
+/// ASCII-lowercase name: the table the parser reads them from, so it lists
+/// every [`PseudoClass`] the parser makes but `:dir()`'s
+/// ([`super::pseudo_class_names`]).
+pub(super) const KEYWORD_PSEUDO_CLASSES: &[(&str, PseudoClass)] = &[
+    ("first-of-type", PseudoClass::FirstOfType),
+    ("last-of-type", PseudoClass::LastOfType),
+    ("only-of-type", PseudoClass::OnlyOfType),
+    ("any-link", PseudoClass::AnyLink),
+    ("link", PseudoClass::Link),
+    ("visited", PseudoClass::Visited),
+    ("first-child", PseudoClass::FirstChild),
+    ("last-child", PseudoClass::LastChild),
+    ("only-child", PseudoClass::OnlyChild),
+    ("empty", PseudoClass::Empty),
+    ("root", PseudoClass::Root),
+    ("hover", PseudoClass::Hover),
+    ("active", PseudoClass::Active),
+    ("focus", PseudoClass::Focus),
+    ("focus-within", PseudoClass::FocusWithin),
+    ("focus-visible", PseudoClass::FocusVisible),
+    ("checked", PseudoClass::Checked),
+    ("placeholder-shown", PseudoClass::PlaceholderShown),
+    ("indeterminate", PseudoClass::Indeterminate),
+    ("open", PseudoClass::Open),
+    ("disabled", PseudoClass::Disabled),
+    ("enabled", PseudoClass::Enabled),
+    ("valid", PseudoClass::Valid),
+    ("invalid", PseudoClass::Invalid),
+    ("required", PseudoClass::Required),
+    ("optional", PseudoClass::Optional),
+    ("read-write", PseudoClass::ReadWrite),
+    ("read-only", PseudoClass::ReadOnly),
+    ("default", PseudoClass::Default),
+    ("in-range", PseudoClass::InRange),
+    ("out-of-range", PseudoClass::OutOfRange),
+    ("user-valid", PseudoClass::UserValid),
+    ("user-invalid", PseudoClass::UserInvalid),
+    ("modal", PseudoClass::Modal),
+    ("popover-open", PseudoClass::PopoverOpen),
+    ("scope", PseudoClass::Scope),
+];
+
 impl Parser<'_> {
     pub(super) fn parse_pseudo(&mut self) -> Result<SimpleSelector, ParseError> {
         self.expect(b':', "pseudo-class")?;
@@ -52,49 +95,17 @@ impl Parser<'_> {
             "nth-last-of-type" => self.parse_nth(NthKind::LastOfType),
             "nth-col" => self.parse_nth_column(false),
             "nth-last-col" => self.parse_nth_column(true),
-            "first-of-type" => Ok(SimpleSelector::Pseudo(PseudoClass::FirstOfType)),
-            "last-of-type" => Ok(SimpleSelector::Pseudo(PseudoClass::LastOfType)),
-            "only-of-type" => Ok(SimpleSelector::Pseudo(PseudoClass::OnlyOfType)),
-            "any-link" => Ok(SimpleSelector::Pseudo(PseudoClass::AnyLink)),
-            "link" => Ok(SimpleSelector::Pseudo(PseudoClass::Link)),
-            "visited" => Ok(SimpleSelector::Pseudo(PseudoClass::Visited)),
             "has" => self.parse_has(),
             "lang" => self.parse_lang(),
             "dir" => self.parse_dir(),
-            "first-child" => Ok(SimpleSelector::Pseudo(PseudoClass::FirstChild)),
-            "last-child" => Ok(SimpleSelector::Pseudo(PseudoClass::LastChild)),
-            "only-child" => Ok(SimpleSelector::Pseudo(PseudoClass::OnlyChild)),
-            "empty" => Ok(SimpleSelector::Pseudo(PseudoClass::Empty)),
-            "root" => Ok(SimpleSelector::Pseudo(PseudoClass::Root)),
-            "scope" => {
-                self.scope_seen = true;
-                Ok(SimpleSelector::Pseudo(PseudoClass::Scope))
-            }
-            "hover" => Ok(SimpleSelector::Pseudo(PseudoClass::Hover)),
-            "active" => Ok(SimpleSelector::Pseudo(PseudoClass::Active)),
-            "focus" => Ok(SimpleSelector::Pseudo(PseudoClass::Focus)),
-            "focus-within" => Ok(SimpleSelector::Pseudo(PseudoClass::FocusWithin)),
-            "focus-visible" => Ok(SimpleSelector::Pseudo(PseudoClass::FocusVisible)),
-            "checked" => Ok(SimpleSelector::Pseudo(PseudoClass::Checked)),
-            "placeholder-shown" => Ok(SimpleSelector::Pseudo(PseudoClass::PlaceholderShown)),
-            "indeterminate" => Ok(SimpleSelector::Pseudo(PseudoClass::Indeterminate)),
-            "open" => Ok(SimpleSelector::Pseudo(PseudoClass::Open)),
-            "disabled" => Ok(SimpleSelector::Pseudo(PseudoClass::Disabled)),
-            "enabled" => Ok(SimpleSelector::Pseudo(PseudoClass::Enabled)),
-            "valid" => Ok(SimpleSelector::Pseudo(PseudoClass::Valid)),
-            "invalid" => Ok(SimpleSelector::Pseudo(PseudoClass::Invalid)),
-            "required" => Ok(SimpleSelector::Pseudo(PseudoClass::Required)),
-            "optional" => Ok(SimpleSelector::Pseudo(PseudoClass::Optional)),
-            "read-write" => Ok(SimpleSelector::Pseudo(PseudoClass::ReadWrite)),
-            "read-only" => Ok(SimpleSelector::Pseudo(PseudoClass::ReadOnly)),
-            "default" => Ok(SimpleSelector::Pseudo(PseudoClass::Default)),
-            "in-range" => Ok(SimpleSelector::Pseudo(PseudoClass::InRange)),
-            "out-of-range" => Ok(SimpleSelector::Pseudo(PseudoClass::OutOfRange)),
-            "user-valid" => Ok(SimpleSelector::Pseudo(PseudoClass::UserValid)),
-            "user-invalid" => Ok(SimpleSelector::Pseudo(PseudoClass::UserInvalid)),
-            "modal" => Ok(SimpleSelector::Pseudo(PseudoClass::Modal)),
-            "popover-open" => Ok(SimpleSelector::Pseudo(PseudoClass::PopoverOpen)),
-            other => Err(self.err(format!("unsupported pseudo-class `:{other}`"))),
+            other => match KEYWORD_PSEUDO_CLASSES.iter().find(|(n, _)| *n == other) {
+                Some((_, class)) => {
+                    // `:scope` makes a sheet's rule scope-relative.
+                    self.scope_seen |= *class == PseudoClass::Scope;
+                    Ok(SimpleSelector::Pseudo(*class))
+                }
+                None => Err(self.err(format!("unsupported pseudo-class `:{other}`"))),
+            },
         }
     }
 

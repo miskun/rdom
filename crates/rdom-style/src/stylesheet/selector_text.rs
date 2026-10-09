@@ -53,6 +53,20 @@ const LEGACY_SUFFIXES: [(&str, PseudoElementTarget); 4] = [
     (":first-letter", PseudoElementTarget::FirstLetter),
 ];
 
+/// Every target a selector's pseudo-element suffix can name (the tables
+/// above, and `::highlight()`, here with an empty name): what
+/// [`PseudoElementTarget::named`] lists.
+pub(super) fn named_targets() -> impl Iterator<Item = PseudoElementTarget> {
+    SUFFIXES
+        .iter()
+        .chain(NESTED_SUFFIXES.iter())
+        .chain(LEGACY_SUFFIXES.iter())
+        .map(|(_, target)| target.clone())
+        .chain(std::iter::once(PseudoElementTarget::Highlight(
+            std::sync::Arc::from(""),
+        )))
+}
+
 /// Strip a trailing pseudo-element (`::before`, `::scrollbar-thumb:vertical`,
 /// the legacy `:before`, …) if present. Returns the core selector + pseudo
 /// target. Errors if more than one pseudo-element is present — save the

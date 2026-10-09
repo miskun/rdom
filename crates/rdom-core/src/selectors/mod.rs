@@ -503,3 +503,15 @@ mod tests;
 
 pub use nesting::{parse_nested, parse_scoped};
 pub use parser::parse;
+
+/// The name of every pseudo-class the selector parser makes a
+/// [`PseudoClass`] of, as written after the colon — `dir` for the
+/// functional `:dir()` — in no particular order. The parser reads its
+/// keyword pseudo-classes from the same table, so a pseudo-class it
+/// accepts is listed here (the acid page's coverage test asks for each).
+pub fn pseudo_class_names() -> impl Iterator<Item = &'static str> {
+    pseudo_parser::KEYWORD_PSEUDO_CLASSES
+        .iter()
+        .map(|(name, _)| *name)
+        .chain(std::iter::once("dir"))
+}

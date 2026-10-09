@@ -417,3 +417,35 @@ fn attribute_case_flag_parses_into_the_selector() {
     assert_eq!(flag("[a=b s]"), AttrCase::Sensitive);
     assert_eq!(parse("[a=b i]").unwrap().0[0].specificity(), (0, 1, 0));
 }
+
+// ── The pseudo-class name table (ACID-COVERAGE) ──────────────────────
+
+/// Every name `pseudo_class_names` lists parses, alone (`dir` with an
+/// argument), to a `SimpleSelector::Pseudo`, and the names are distinct:
+/// the list is what the parser accepts as a `PseudoClass`, so the acid
+/// coverage test can ask for each variant by name.
+#[test]
+fn every_listed_pseudo_class_name_parses_to_a_pseudo_class() {
+    let names: Vec<&str> = pseudo_class_names().collect();
+    let mut seen = std::collections::HashSet::new();
+    for name in &names {
+        assert!(seen.insert(*name), "`{name}` listed twice");
+        let text = if *name == "dir" {
+            ":dir(ltr)".to_string()
+        } else {
+            format!(":{name}")
+        };
+        let list = parse(&text).unwrap_or_else(|e| panic!("{text}: {e}"));
+        assert!(
+            matches!(
+                list.0[0].subject.simples.as_slice(),
+                [SimpleSelector::Pseudo(_)]
+            ),
+            "{text} is a pseudo-class"
+        );
+    }
+    // The functional and logical pseudo-classes are other selectors.
+    for other in ["not", "is", "where", "has", "lang", "nth-child"] {
+        assert!(!names.contains(&other), "{other}");
+    }
+}

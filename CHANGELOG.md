@@ -17,6 +17,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-core`
 
+- **`selectors::pseudo_class_names()`**: the name of every pseudo-class the selector parser makes a `PseudoClass` of (`dir` for `:dir()`), read from the one table the parser now uses for its keyword pseudo-classes. (ACID-COVERAGE)
 - **The column combinator `||` and `:nth-col()` / `:nth-last-col()`** (Selectors 4 §16): `Combinator::Column`, `SimpleSelector::NthColumn(NthColumnSelector)`, matched from HTML's table model (`<col>` / `<colgroup>` spans, `colspan` / `rowspan`), formed once per table per pass (`CacheWork::table_models`). (C13-COLUMN)
 - **The table grid** (HTML §4.9.12.1, CSS Tables 3 §3.3): `rdom_core::table::assign_slots` places each cell of a table's row groups in its slots — `colspan` / `rowspan`, rowspans ending at their row group, `rowspan="0"` to its end — and `CellSpan::from_attributes` / `column_span` read the HTML attributes — `cell_span_of` / `column_span_of` off an element, HTML's table elements ASCII case-insensitively; a `CellSpan`'s spans (`columns()` / `rows()`) are always within HTML's ranges. Shared by rdom-tui's tables and the column combinator. (C13-TFC, C13G-COLUMN-MATCH)
 - **`TopLayerKind::Picker`**: an open drop-down `<select>`'s picker in the top layer — neither `:modal` nor `:popover-open`. (C12-SELECT-TOP-LAYER)
@@ -160,6 +161,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-style`
 
+- **`PseudoElementTarget::named()`**: every pseudo-element target a selector can end in, from the selector-text splitter's own tables (`::highlight()` once, unnamed). (ACID-COVERAGE)
 - **`MotionStyle` / `MotionDeclarations` and `GridStyle` / `GridDeclarations`**: the transition, animation and timeline lists and the grid properties as two shared groups of `ComputedStyle` / `TuiStyle` (`motion`, `grid`); re-exported at the `rdom_tui` root. (C15G-STYLE-SIZE)
 - **`Shared<T>`**: a style group behind a shared pointer, copied on write (`Deref` / `DerefMut`, `Shared::new`, `From`, `ptr_eq`, one `Default` per group type); re-exported at the `rdom_tui` root. (C15G-STYLE-SIZE)
 - **The anchor positioning properties** (CSS Anchor Positioning 1 §2–§5): `anchor-name`, `anchor-scope`, `position-anchor`, `position-area`, `position-try` / `-fallbacks` / `-order`, `position-visibility`; `anchor()` / `anchor-size()` in insets, sizes and margins (`AnchorFunction`); `anchor-center`; `PositionTryRule`. (C15-ANCHOR)
@@ -351,6 +353,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-css`
 
+- **`rdom_css::at_rule_names()`**: the at-rules rdom-css evaluates (`import` and the table its top-level dispatch now reads); any other is consumed with `UnsupportedAtRule`. (ACID-COVERAGE)
 - **`@position-try`** (CSS Anchor Positioning 1 §4.1): named position options, their descriptors checked (`WarningKind::PositionTryDescriptorDropped { name, descriptor, reason }`, the reason `NotADescriptor` or `Important`), kept per layer and condition (`Stylesheet::position_try_rules`). (C15-ANCHOR, C15G-API)
 - **Keyframe selectors on a timeline range** (Scroll-driven Animations 1 §4.4): `entry 20%`, `exit -10%` (`KeyframeSelector::in_range`, `range()`), placed on a view timeline's range each frame, ignored on any other timeline. (C12-SCROLL-DRIVEN)
 - **`@keyframes`** (CSS Animations 1 §3): parsed into `Stylesheet::keyframes` with its layer; a block with an invalid selector is dropped (`WarningKind::InvalidKeyframeSelector`), an `!important` declaration in a keyframe ignored (`ImportantInKeyframe`). (C12-KEYFRAMES)

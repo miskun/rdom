@@ -16,6 +16,7 @@
 
 use rdom_style::{Stylesheet, TuiStyle};
 
+mod at_rules;
 mod block;
 mod conditional;
 mod counter_style;
@@ -34,6 +35,7 @@ mod top_level;
 /// Re-exported from `rdom-style` so the public path
 /// `rdom_css::property_dispatch::*` keeps working from
 /// pre-restructure consumer code.
+pub use at_rules::at_rule_names;
 pub use rdom_style::property_dispatch;
 
 /// Convenience: parse `source` and merge the rules + vars into a

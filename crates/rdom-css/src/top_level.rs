@@ -128,81 +128,91 @@ fn consume_at_rule(
     cursor.bump(); // '@'
     let (name, used) = rdom_core::css_syntax::consume_ident(cursor.rest());
     cursor.advance(used);
-    if name.eq_ignore_ascii_case("layer") {
-        let mut body = |cursor: &mut SourceCursor,
-                        sheet: &mut Stylesheet,
-                        warnings: &mut Vec<Warning>,
-                        layer: Option<LayerId>| {
-            parse_rule_list(cursor, sheet, warnings, ctx.in_layer(layer), None);
-        };
-        let place = (layer, ctx.condition);
-        crate::layer::consume_layer_rule(cursor, sheet, warnings, place, (line, column), &mut body);
-        return;
-    }
-    if name.eq_ignore_ascii_case("property") {
-        crate::property::consume_property_rule(
-            cursor,
-            sheet,
-            warnings,
-            ctx.condition,
-            (line, column),
-        );
-        return;
-    }
-    if name.eq_ignore_ascii_case("keyframes") {
-        crate::keyframes::consume_keyframes_rule(cursor, sheet, warnings, ctx, (line, column));
-        return;
-    }
-    if name.eq_ignore_ascii_case("position-try") {
-        crate::position_try::consume_position_try_rule(
-            cursor,
-            sheet,
-            warnings,
-            ctx,
-            (line, column),
-        );
-        return;
-    }
-    if name.eq_ignore_ascii_case("counter-style") {
-        crate::counter_style::consume_counter_style_rule(
-            cursor,
-            sheet,
-            warnings,
-            ctx,
-            (line, column),
-        );
-        return;
-    }
-    if name.eq_ignore_ascii_case("scope") {
-        let ctx = Context {
-            rule: ctx,
-            parent: Parent::Top,
-        };
-        crate::scope::consume_scope_rule(cursor, sheet, warnings, ctx, (line, column));
-        return;
-    }
-    if crate::conditional::is_conditional(&name) {
-        // CSS Conditional 3 §3, §6: `@media <media-query-list> {
-        // <rule-list> }`, `@supports <supports-condition> { … }`.
-        if let Some(inner) = crate::conditional::open_conditional_rule(
-            &name,
-            cursor,
-            sheet,
-            warnings,
-            ctx,
-            (line, column),
-        ) {
-            parse_rule_list(cursor, sheet, warnings, inner, None);
+    match crate::at_rules::AtRule::of(&name) {
+        Some(crate::at_rules::AtRule::Layer) => {
+            let mut body = |cursor: &mut SourceCursor,
+                            sheet: &mut Stylesheet,
+                            warnings: &mut Vec<Warning>,
+                            layer: Option<LayerId>| {
+                parse_rule_list(cursor, sheet, warnings, ctx.in_layer(layer), None);
+            };
+            let place = (layer, ctx.condition);
+            crate::layer::consume_layer_rule(
+                cursor,
+                sheet,
+                warnings,
+                place,
+                (line, column),
+                &mut body,
+            );
+            return;
         }
-        return;
-    }
-    if name.eq_ignore_ascii_case("starting-style") {
-        // CSS Transitions 2 §3: `@starting-style { <rule-list> }`, no
-        // prelude.
-        if crate::block::starting_style_block(cursor, warnings, (line, column)) {
-            parse_rule_list(cursor, sheet, warnings, ctx.in_starting_style(), None);
+        Some(crate::at_rules::AtRule::Property) => {
+            crate::property::consume_property_rule(
+                cursor,
+                sheet,
+                warnings,
+                ctx.condition,
+                (line, column),
+            );
+            return;
         }
-        return;
+        Some(crate::at_rules::AtRule::Keyframes) => {
+            crate::keyframes::consume_keyframes_rule(cursor, sheet, warnings, ctx, (line, column));
+            return;
+        }
+        Some(crate::at_rules::AtRule::PositionTry) => {
+            crate::position_try::consume_position_try_rule(
+                cursor,
+                sheet,
+                warnings,
+                ctx,
+                (line, column),
+            );
+            return;
+        }
+        Some(crate::at_rules::AtRule::CounterStyle) => {
+            crate::counter_style::consume_counter_style_rule(
+                cursor,
+                sheet,
+                warnings,
+                ctx,
+                (line, column),
+            );
+            return;
+        }
+        Some(crate::at_rules::AtRule::Scope) => {
+            let ctx = Context {
+                rule: ctx,
+                parent: Parent::Top,
+            };
+            crate::scope::consume_scope_rule(cursor, sheet, warnings, ctx, (line, column));
+            return;
+        }
+        Some(crate::at_rules::AtRule::Conditional) => {
+            // CSS Conditional 3 §3, §6: `@media <media-query-list> {
+            // <rule-list> }`, `@supports <supports-condition> { … }`.
+            if let Some(inner) = crate::conditional::open_conditional_rule(
+                &name,
+                cursor,
+                sheet,
+                warnings,
+                ctx,
+                (line, column),
+            ) {
+                parse_rule_list(cursor, sheet, warnings, inner, None);
+            }
+            return;
+        }
+        Some(crate::at_rules::AtRule::StartingStyle) => {
+            // CSS Transitions 2 §3: `@starting-style { <rule-list> }`, no
+            // prelude.
+            if crate::block::starting_style_block(cursor, warnings, (line, column)) {
+                parse_rule_list(cursor, sheet, warnings, ctx.in_starting_style(), None);
+            }
+            return;
+        }
+        None => {}
     }
     warnings.push(Warning {
         kind: WarningKind::UnsupportedAtRule(name),

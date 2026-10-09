@@ -930,3 +930,19 @@ fn no_other_pseudo_element_nests() {
         assert!(extract(selector).is_err(), "{selector}");
     }
 }
+
+// ── The named pseudo-elements (ACID-COVERAGE) ───────────────────────
+
+/// `PseudoElementTarget::named` lists every target but `None`: the
+/// sixteen pseudo-elements a selector can end in, each once by kind.
+#[test]
+fn named_pseudo_element_targets_cover_every_kind_but_none() {
+    let kinds: std::collections::HashSet<_> = PseudoElementTarget::named()
+        .map(|t| std::mem::discriminant(&t))
+        .collect();
+    assert!(!kinds.contains(&std::mem::discriminant(&PseudoElementTarget::None)));
+    // Before, After, Backdrop, Selection, Scrollbar, ScrollbarThumb and its
+    // two axes, Placeholder, FirstLine, FirstLetter, Marker, Highlight,
+    // DetailsContent, BeforeMarker, AfterMarker.
+    assert_eq!(kinds.len(), 16);
+}

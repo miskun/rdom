@@ -301,7 +301,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-11 | An inline element anchors by the bounding box of its fragments (CSS Anchor Positioning 1 §2; found by tile 26) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | done |
-| ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
+| ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | partial — the dispatch tables are public; the coverage tiles and the test next |
 | ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
 
 ## Log
@@ -10859,3 +10859,15 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   spills into an overflow column — and are inline blocks now, sized by their own balancing (the markup changed, not the
   derived cells). Part 2's tiles found ACID-FIX-7 … 11; ACID-FIX-6 and the scrollbar module doc and the overflow
   hit-test limitation were part 1's loose ends.
+- 2026-10-10 — ACID-COVERAGE, the dispatch tables (Phase 16 part 2). The coverage test must read what rdom dispatches
+  from the crates that dispatch it, so a new feature fails it without anyone listing it by hand: properties already had
+  `property_dispatch::property_names()`; the rest had no list. rdom-core's selector parser now reads its keyword
+  pseudo-classes from one table (`pseudo_parser::KEYWORD_PSEUDO_CLASSES`, 36 entries; `:scope` sets its flag from
+  there) and `selectors::pseudo_class_names()` lists it with `dir`; rdom-style's `PseudoElementTarget::named()` lists the
+  targets of the selector-text splitter's suffix tables and `::highlight()`; rdom-css's top-level at-rule dispatch is now
+  a `match` on `at_rules::AtRule::of(name)`, a table `rdom_css::at_rule_names()` lists with `import`. Tests:
+  `selectors::tests::every_listed_pseudo_class_name_parses_to_a_pseudo_class`,
+  `stylesheet::tests::named_pseudo_element_targets_cover_every_kind_but_none`,
+  `at_rules::tests::every_listed_at_rule_is_evaluated` (each failed to compile before its function existed). No
+  behaviour change: rdom-core, rdom-style and rdom-css pass unchanged. A first run of the coverage test (kept back until
+  the tiles it asks for land) finds 238 properties, 13 pseudo-classes, 3 pseudo-elements and 4 at-rules unused.
