@@ -2348,6 +2348,10 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
     parent.border_spacing.vertical = rdom_style::layout::GapValue::Cells(2);
     parent.table.caption_side = rdom_style::layout::CaptionSide::Bottom;
     parent.table.empty_cells = rdom_style::layout::EmptyCells::Hide;
+    parent.fragmentation.orphans = 5;
+    parent.fragmentation.widows = 6;
+    parent.fragmentation.break_inside = rdom_style::layout::BreakInside::Avoid;
+    parent.multicol.column_count = rdom_style::layout::ColumnCount::Count(3);
     parent.width = Size::Fixed(7);
     parent.height = Size::Fixed(8);
     parent.min_width = MinSize::Cells(1);
@@ -2742,6 +2746,22 @@ fn cascade_inherits_exactly_the_style_crates_inherited_set() {
         ),
         ("direction", child.text_direction == parent.text_direction),
         ("writing-mode", child.writing_mode == parent.writing_mode),
+        (
+            "orphans",
+            child.fragmentation.orphans == parent.fragmentation.orphans,
+        ),
+        (
+            "widows",
+            child.fragmentation.widows == parent.fragmentation.widows,
+        ),
+        (
+            "break-inside",
+            child.fragmentation.break_inside == parent.fragmentation.break_inside,
+        ),
+        (
+            "column-count",
+            child.multicol.column_count == parent.multicol.column_count,
+        ),
         ("box-sizing", child.box_sizing == parent.box_sizing),
         (
             "interpolate-size",

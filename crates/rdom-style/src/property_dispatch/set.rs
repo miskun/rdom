@@ -86,6 +86,7 @@ fn set_physical(name: &str, value: &[Token], style: &mut TuiStyle) -> Result<(),
         .or_else(|| super::transform::set(name, value, style))
         .or_else(|| super::filter::set(name, value, style))
         .or_else(|| super::blend::set(name, value, style))
+        .or_else(|| super::multicol::set(name, value, style))
         .or_else(|| super::clip::set(name, value, style))
         .or_else(|| super::line_clamp::set(name, value, style))
         .or_else(|| super::float::set(name, value, style))

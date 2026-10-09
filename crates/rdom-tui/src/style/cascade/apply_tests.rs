@@ -198,6 +198,16 @@ const PERTURB: &[(&str, &str)] = &[
     ("isolation", "isolate"),
     ("background-blend-mode", "multiply"),
     ("clip-path", "circle(2) content-box"),
+    ("columns", "20ch 3"),
+    ("column-rule", "thick dotted red"),
+    ("column-span", "all"),
+    ("column-fill", "auto"),
+    ("break-before", "column"),
+    ("break-after", "avoid"),
+    ("break-inside", "avoid"),
+    ("orphans", "4"),
+    ("widows", "5"),
+    ("box-decoration-break", "clone"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly
@@ -320,6 +330,8 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         ui,
         effects,
         table,
+        multicol,
+        fragmentation,
         vertical_align,
         text_decoration,
         // Derived from `text_decoration` and the parent's (§2.1).
@@ -473,6 +485,8 @@ fn initial_keyword_yields_the_initial_computed_value_for_every_property() {
         ui,
         effects,
         table,
+        multicol,
+        fragmentation,
         vertical_align,
         text_decoration,
         user_select,

@@ -83,6 +83,7 @@ mod font;
 mod grid;
 mod mask;
 mod motion;
+mod multicol;
 mod position;
 mod scroll;
 mod sizing;

@@ -312,6 +312,21 @@ pub(super) fn apply_style(
         effects.background_blend_mode: BACKGROUND_BLEND_MODE,
         // CSS Masking 1 §5.1; not inherited.
         effects.clip_path: CLIP_PATH,
+        // CSS Multi-column 1 §3–§7; none inherit.
+        multicol.column_count: COLUMN_COUNT,
+        multicol.column_width: COLUMN_WIDTH,
+        multicol.column_rule_style: COLUMN_RULE_STYLE,
+        multicol.column_rule_width: COLUMN_RULE_WIDTH,
+        multicol.column_rule_color: COLUMN_RULE_COLOR,
+        multicol.column_span: COLUMN_SPAN,
+        multicol.column_fill: COLUMN_FILL,
+        // CSS Fragmentation 3 §3, §5.4; `orphans` / `widows` inherit.
+        fragmentation.break_before: BREAK_BEFORE,
+        fragmentation.break_after: BREAK_AFTER,
+        fragmentation.break_inside: BREAK_INSIDE,
+        fragmentation.orphans: ORPHANS,
+        fragmentation.widows: WIDOWS,
+        fragmentation.box_decoration_break: BOX_DECORATION_BREAK,
     );
     // Positioning (M2), transitions (M3; latest list wins), animations
     // (CSS Animations 1 §4) and counters

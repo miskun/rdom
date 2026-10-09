@@ -69,6 +69,9 @@ pub(super) fn inherit_inheritable_from(working: &mut ComputedStyle, parent: &Com
     working.block_ellipsis = parent.block_ellipsis.clone();
     // CSS Scrollbars 1 §2: `scrollbar-color` inherits.
     working.scrollbar_color = parent.scrollbar_color.clone();
+    // CSS Fragmentation 3 §3.3: `orphans` and `widows` inherit.
+    working.fragmentation.orphans = parent.fragmentation.orphans;
+    working.fragmentation.widows = parent.fragmentation.widows;
     // `border-collapse` does NOT inherit in rdom — documented
     // divergence (BORDER-MODEL-1). Containers that want their direct
     // children to participate in collapse declare it themselves;
@@ -178,4 +181,8 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         // makes it a containing block (CSS Transforms 1 §2, Filter Effects
         // 1 §5).
         || a.effects.layout_differs(&b.effects)
+        // The column boxes, their rules and the breaks between them (CSS
+        // Multi-column 1, CSS Fragmentation 3).
+        || a.multicol != b.multicol
+        || a.fragmentation != b.fragmentation
 }

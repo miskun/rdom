@@ -21,6 +21,7 @@ mod composite_tests;
 mod entry;
 mod filter;
 mod length;
+mod multicol;
 mod size;
 mod table;
 #[cfg(test)]

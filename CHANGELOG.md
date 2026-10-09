@@ -438,6 +438,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Added — `rdom-style`
 
+- **The multi-column and fragmentation properties** (CSS Multi-column 1 §3–§7, Fragmentation 3 §3, §5.4): `columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`, `break-before` / `-after` / `-inside`, the legacy `page-break-*`, `orphans` / `widows` (inherited), `box-decoration-break` — parsed, serialized, interpolated (`MulticolStyle`, `FragmentationStyle`, `ColumnCount`, …). (C15-COLUMNS)
 - **`clip-path` and the `mask*` properties** (CSS Masking 1 §5–§7, CSS Shapes 1 §3.1): `ClipPath`, `BasicShape` (`inset()`, `circle()`, `ellipse()`, `polygon()`, `path()`), `GeometryBox`, `ShapeRadius`, with cell-centre geometry (`BasicShape::contains`) and interpolation; the mask longhands and shorthands kept as text (`MaskDeclarations`). (C15-CLIP-PATH)
 - **`mix-blend-mode`, `isolation` and `background-blend-mode`** (Compositing and Blending 1 §3.2, §3.4, §5.2; Compositing 2's `plus-darker` / `plus-lighter`): `BlendMode` with §10's separable and non-separable formulas (`BlendMode::blend`), `Isolation`; not animatable. (C15-BLEND)
 - **`filter` and `backdrop-filter`** (Filter Effects 1 §5–§6, 2 §3): the color-matrix functions, `opacity()`, `drop-shadow()`, `blur()` and `url()`, parsed, serialized and interpolated (`FilterList`, `FilterFunction`) with the sRGB color math (`FilterList::filter_rgb`). (C15-FILTER)

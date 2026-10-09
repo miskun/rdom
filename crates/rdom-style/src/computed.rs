@@ -303,6 +303,12 @@ pub struct ComputedStyle {
     pub effects: crate::layout::EffectsStyle,
     /// The table properties (CSS 2.1 §17): `table-layout`, `caption-side`.
     pub table: crate::layout::TableStyle,
+    /// The CSS Multi-column 1 properties (`column-count`, `column-width`,
+    /// `column-rule-*`, `column-span`, `column-fill`); none inherit.
+    pub multicol: crate::layout::MulticolStyle,
+    /// The CSS Fragmentation 3 properties (`break-*`, `orphans`, `widows`,
+    /// `box-decoration-break`); `orphans` and `widows` inherit.
+    pub fragmentation: crate::layout::FragmentationStyle,
     /// The font properties (CSS Fonts 4), the weight computed to a
     /// number. All inherit; `modifiers` carries the bold and italic they
     /// draw.

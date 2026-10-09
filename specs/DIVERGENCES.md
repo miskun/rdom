@@ -384,7 +384,7 @@ Every CSS gap the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit found, grouped by C
 
 ### Multi-column layout
 
-- `columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill` — C15-COLUMNS
+- `columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`, and the fragmentation properties (`break-*`, `page-break-*`, `orphans`, `widows`, `box-decoration-break`): parsed and cascaded, not laid out yet — C15-COLUMNS
 
 ## 4. Known limitations within shipped features
 

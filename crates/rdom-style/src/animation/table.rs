@@ -273,6 +273,45 @@ pub(super) static LONGHANDS: &[Entry] = &[
     // CSS Box Alignment 3 §8, Flexbox §7, §5.4
     e("row-gap", ByComputedValue, value!(row_gap)),
     e("column-gap", ByComputedValue, value!(column_gap)),
+    // CSS Multi-column 1 §3–§7.
+    e(
+        "column-count",
+        ByComputedValue,
+        value!(multicol.column_count),
+    ),
+    e(
+        "column-width",
+        ByComputedValue,
+        value!(multicol.column_width),
+    ),
+    e(
+        "column-rule-style",
+        Discrete,
+        steps!(multicol.column_rule_style),
+    ),
+    e(
+        "column-rule-width",
+        ByComputedValue,
+        value!(multicol.column_rule_width),
+    ),
+    e(
+        "column-rule-color",
+        ByComputedValue,
+        value!(multicol.column_rule_color),
+    ),
+    e("column-span", Discrete, steps!(multicol.column_span)),
+    e("column-fill", Discrete, steps!(multicol.column_fill)),
+    // CSS Fragmentation 3 §3, §5.4.
+    e("break-before", Discrete, steps!(fragmentation.break_before)),
+    e("break-after", Discrete, steps!(fragmentation.break_after)),
+    e("break-inside", Discrete, steps!(fragmentation.break_inside)),
+    e("orphans", ByComputedValue, value!(fragmentation.orphans)),
+    e("widows", ByComputedValue, value!(fragmentation.widows)),
+    e(
+        "box-decoration-break",
+        Discrete,
+        steps!(fragmentation.box_decoration_break),
+    ),
     e("flex-grow", ByComputedValue, value!(flex_grow => fix_flex)),
     e(
         "flex-shrink",

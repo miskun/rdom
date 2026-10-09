@@ -278,7 +278,7 @@ row comes from.
 | C15-FILTER | `filter` color-matrix functions; `backdrop-filter` | done |
 | C15-BLEND | `mix-blend-mode`, `isolation` | done |
 | C15-CLIP-PATH | `clip-path: inset()` | done |
-| C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | |
+| C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | partial — properties parse and cascade; the column layout, fragmentation, balancing, rules and spanners remain |
 | C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | |
 
 ## Log
@@ -9832,3 +9832,22 @@ row comes from.
   doctest of `translate: -100% 0` → `0` under `transition`, the sibling unmoved (mutation-checked: a wrong
   mid-way offset fails it). CSS-COVERAGE §3.23's rows and the §1 counts were kept per item (6 / 0 / 0 / 4;
   250 Supported, 7 Partial, 5 Missing); §3.24 is part 2's.
+- 2026-10-09 — C15-COLUMNS part 1, the properties (CSS Multi-column 1 §3.1–§3.3, §4, §6.1, §7.1; CSS
+  Fragmentation 3 §3.1–§3.4, §5.4; Fragmentation 4 §3.1). Two new style groups, `multicol` (`MulticolStyle` /
+  `MulticolDeclarations`: `column-count`, `column-width`, `column-rule-style` / `-width` / `-color`,
+  `column-span`, `column-fill`; none inherit) and `fragmentation` (`FragmentationStyle` /
+  `FragmentationDeclarations`: `break-before` / `-after` / `-inside`, `orphans` / `widows` — inherited, initial
+  2 — and `box-decoration-break`); `column-gap` stays the shared top-level field. Decisions: (1) `column-width`
+  is geometry, so cells, `ch`, viewport units and math functions of them — pixels and `em` are invalid (DESIGN
+  "Pixel lengths select, cells measure"), and a percentage is not in its grammar; `column-rule-width` is a
+  `<line-width>`, a weight, so pixels select as a border's do. (2) In `columns`, a bare number is CSS's
+  `<integer>` — the count — never rdom's unitless cell, so `columns: 3 4` stays invalid as in a browser (a bare
+  `0` is CSS's `<length>`); the shorthand serializes its width in `ch` to read back as a width. (3) The
+  `page-break-*` properties are §3.4's legacy shorthands of the `break-*` longhands (`always` is `page`), and
+  read back empty where the longhand has a value they cannot spell (`column`). (4) Animation types per the
+  property definitions: the counts, widths, rule width and color and `orphans` / `widows` by computed value
+  (`auto` discrete), the rest discrete. (5) `ColumnSpan` is open (Multi-column 2's `<integer>`); the other
+  values and the groups closed. Nothing lays out yet: a `columns` declaration that was dropped is now kept
+  and does nothing until the layout lands (no silent change in this commit). Red → green: `multicol_tests` (5)
+  red on the unknown properties — mutation run with the dispatch arm removed fails all five; the cascade's
+  inherit probes and `PERTURB` table cover the two groups.

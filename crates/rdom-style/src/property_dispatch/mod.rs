@@ -94,6 +94,7 @@ mod importance;
 mod inline;
 mod line_clamp;
 mod logical;
+mod multicol;
 mod names;
 mod scroll;
 mod scrollbar;
@@ -149,6 +150,8 @@ mod line_clamp_tests;
 mod list_tests;
 #[cfg(test)]
 mod logical_tests;
+#[cfg(test)]
+mod multicol_tests;
 #[cfg(test)]
 mod overflow_tests;
 #[cfg(test)]

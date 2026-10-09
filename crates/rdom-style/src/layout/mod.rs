@@ -35,6 +35,8 @@
 //! - `transform` — the CSS Transforms values
 //! - `effects` — `EffectsStyle`, the computed transform, filter and
 //!   compositing group
+//! - `multicol` — the Multi-column and Fragmentation values, with
+//!   `MulticolStyle` and `FragmentationStyle`
 
 pub(crate) mod alignment;
 mod aspect_ratio;
@@ -57,6 +59,7 @@ mod keywords;
 mod line_clamp;
 mod line_height;
 mod list;
+mod multicol;
 mod overflow;
 mod rect;
 mod scroll;
@@ -111,6 +114,10 @@ pub use keywords::{
 pub use line_clamp::{BlockEllipsis, BoxOrient, Continue};
 pub use line_height::LineHeight;
 pub use list::{ListStyleImage, ListStylePosition, ListStyleType, MarkerSide};
+pub use multicol::{
+    BoxDecorationBreak, BreakBetween, BreakInside, ColumnCount, ColumnFill, ColumnSpan,
+    ColumnWidth, FragmentationStyle, MulticolStyle,
+};
 pub use overflow::{Overflow, OverflowClipMargin, TextOverflow, TextOverflowSide};
 pub use rect::LayoutRect;
 pub use scroll::{

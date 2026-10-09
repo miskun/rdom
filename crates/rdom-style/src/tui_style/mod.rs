@@ -27,6 +27,7 @@ use crate::{Content, TuiColor, Value};
 pub use effects::EffectsDeclarations;
 pub use important::ImportantMask;
 pub use mask::MaskDeclarations;
+pub use multicol::{FragmentationDeclarations, MulticolDeclarations};
 pub use table::TableDeclarations;
 pub use text::{FontDeclarations, TextDeclarations, TextDecorationDeclarations};
 pub use ui::UiDeclarations;
@@ -282,6 +283,10 @@ pub struct TuiStyle {
     pub masks: MaskDeclarations,
     /// The table properties (`table-layout`, `caption-side`).
     pub table: TableDeclarations,
+    /// The multi-column properties (`column-count`, `column-rule-*`, …).
+    pub multicol: MulticolDeclarations,
+    /// The fragmentation properties (`break-*`, `orphans`, `widows`, …).
+    pub fragmentation: FragmentationDeclarations,
     /// `vertical-align` (CSS 2.1 §10.8.1).
     pub vertical_align: Option<Value<crate::layout::VerticalAlign>>,
     pub user_select: Option<Value<UserSelect>>,
@@ -497,6 +502,7 @@ mod builder;
 mod effects;
 mod important;
 mod mask;
+mod multicol;
 mod subsets;
 mod table;
 #[cfg(test)]

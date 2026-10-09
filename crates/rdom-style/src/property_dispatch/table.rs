@@ -228,6 +228,19 @@ define_fields! {
     Isolation => effects.isolation : ISOLATION,
     BackgroundBlendMode => effects.background_blend_mode : BACKGROUND_BLEND_MODE,
     ClipPath => effects.clip_path : CLIP_PATH,
+    ColumnCount => multicol.column_count : COLUMN_COUNT,
+    ColumnWidth => multicol.column_width : COLUMN_WIDTH,
+    ColumnRuleStyle => multicol.column_rule_style : COLUMN_RULE_STYLE,
+    ColumnRuleWidth => multicol.column_rule_width : COLUMN_RULE_WIDTH,
+    ColumnRuleColor => multicol.column_rule_color : COLUMN_RULE_COLOR,
+    ColumnSpan => multicol.column_span : COLUMN_SPAN,
+    ColumnFill => multicol.column_fill : COLUMN_FILL,
+    BreakBefore => fragmentation.break_before : BREAK_BEFORE,
+    BreakAfter => fragmentation.break_after : BREAK_AFTER,
+    BreakInside => fragmentation.break_inside : BREAK_INSIDE,
+    Orphans => fragmentation.orphans : ORPHANS,
+    Widows => fragmentation.widows : WIDOWS,
+    BoxDecorationBreak => fragmentation.box_decoration_break : BOX_DECORATION_BREAK,
     MaskImage => masks.mask_image : MASK_IMAGE,
     MaskMode => masks.mask_mode : MASK_MODE,
     MaskRepeat => masks.mask_repeat : MASK_REPEAT,
@@ -500,6 +513,9 @@ pub fn inherits(name: &str) -> bool {
             | "caret-animation"
             | "caret"
             | "accent-color"
+            // CSS Fragmentation 3 §3.3.
+            | "orphans"
+            | "widows"
     )
 }
 

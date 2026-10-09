@@ -166,6 +166,20 @@ impl ComputedStyle {
                 |v| BorderWidth::Length(PaintLength::Cells(v as f32)),
             );
         }
+        // CSS Multi-column 1 §3.1, §4.3: the column width and the rule's
+        // width.
+        absolutize(
+            &mut self.multicol.column_width,
+            vp,
+            crate::layout::ColumnWidth::Calc,
+            |v| crate::layout::ColumnWidth::Cells(cells_u16(v)),
+        );
+        absolutize(
+            &mut self.multicol.column_rule_width,
+            vp,
+            |e| BorderWidth::Length(PaintLength::Calc(e)),
+            |v| BorderWidth::Length(PaintLength::Cells(v as f32)),
+        );
         // CSS UI 4 §5.3–§5.4: the outline's width and offset.
         absolutize(
             &mut self.ui.outline_width,
@@ -415,6 +429,15 @@ impl HasExpr for crate::layout::TrackBreadth {
     fn expr(&self) -> Option<&CalcExpr> {
         match self {
             crate::layout::TrackBreadth::Calc(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl HasExpr for crate::layout::ColumnWidth {
+    fn expr(&self) -> Option<&CalcExpr> {
+        match self {
+            crate::layout::ColumnWidth::Calc(e) => Some(e),
             _ => None,
         }
     }

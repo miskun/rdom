@@ -74,6 +74,7 @@ mod length;
 mod line_clamp;
 mod list;
 mod mask;
+mod multicol;
 mod number;
 mod numeric;
 mod outline;
@@ -183,6 +184,13 @@ pub use list::{
     parse_marker_side,
 };
 pub use mask::{parse_mask_border_shorthand, parse_mask_longhand, parse_mask_shorthand};
+pub use multicol::{
+    page_break_between_keyword, parse_box_decoration_break, parse_break_between,
+    parse_break_inside, parse_column_count, parse_column_fill, parse_column_rule,
+    parse_column_rule_color, parse_column_rule_style, parse_column_rule_width, parse_column_span,
+    parse_column_width, parse_columns, parse_orphans_widows, parse_page_break_between,
+    parse_page_break_inside,
+};
 pub use number::{parse_aspect_ratio, parse_opacity, parse_order, parse_z_index};
 pub use outline::{parse_outline, parse_outline_color, parse_outline_offset, parse_outline_style};
 pub use scroll::{
