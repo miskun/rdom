@@ -30,6 +30,7 @@
 //! - `inline.rs` — CSS Inline 3: `line-height`, `vertical-align`.
 //! - `text_decoration.rs` — `text-decoration` and its longhands, the
 //!   underline placement properties.
+//! - `filter.rs` — Filter Effects 1 / 2: `filter`, `backdrop-filter`.
 //! - `transform.rs` — CSS Transforms 1 / 2: `translate`, `transform`,
 //!   `rotate`, `scale`, `transform-origin`, `transform-box`.
 //! - `transition.rs` — easing, `<time>`, transition lists and shorthand.
@@ -53,6 +54,7 @@ mod content;
 mod cursor;
 mod display;
 mod easing;
+mod filter;
 mod flex;
 mod float;
 mod font;
@@ -125,6 +127,7 @@ pub use display::{is_legacy_box, parse_display, serialize_display};
 pub use easing::{
     parse_timing_function_at, parse_timing_function_keyword, parse_timing_function_list,
 };
+pub use filter::parse_filter;
 pub use flex::{
     parse_flex_direction, parse_flex_flow, parse_flex_wrap, serialize_flex_direction,
     serialize_flex_flow, serialize_flex_wrap,

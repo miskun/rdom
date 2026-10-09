@@ -53,6 +53,7 @@ pub fn serialize(name: &str, style: &TuiStyle) -> Option<String> {
         .or_else(|| super::shadow::serialize(name, style))
         .or_else(|| super::contain::serialize(name, style))
         .or_else(|| super::transform::serialize(name, style))
+        .or_else(|| super::filter::serialize(name, style))
         .or_else(|| super::line_clamp::serialize(name, style))
         .or_else(|| super::float::serialize(name, style))
         .or_else(|| super::scrollbar::serialize(name, style))

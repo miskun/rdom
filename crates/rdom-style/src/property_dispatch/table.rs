@@ -222,6 +222,8 @@ define_fields! {
     Transform => effects.transform : TRANSFORM,
     TransformOrigin => effects.transform_origin : TRANSFORM_ORIGIN,
     TransformBox => effects.transform_box : TRANSFORM_BOX,
+    Filter => effects.filter : FILTER,
+    BackdropFilter => effects.backdrop_filter : BACKDROP_FILTER,
     ContainerType => container_type : CONTAINER_TYPE,
     ContainerName => container_name : CONTAINER_NAME,
     ContainIntrinsicWidth => contain_intrinsic_width : CONTAIN_INTRINSIC_WIDTH,

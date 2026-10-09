@@ -172,6 +172,9 @@ const SPEC: &[(&str, Spec)] = &[
     ("transform", L(V)),
     ("transform-origin", L(V)),
     ("transform-box", L(D)),
+    // Filter Effects 1 §5 / 2 §3 ("see prose": §14, by computed value)
+    ("filter", L(V)),
+    ("backdrop-filter", L(V)),
     ("content-visibility", L(D)),
     // CSS Conditional 5 §6.1–§6.3
     ("container", S),

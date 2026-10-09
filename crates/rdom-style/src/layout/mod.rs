@@ -29,8 +29,10 @@
 //! - `text_align` — the CSS Text values of transform, indent and alignment
 //! - `spacing` — `letter-spacing` / `word-spacing` (`Spacing`)
 //! - `text` — `TextStyle`, the computed CSS Text group
-//! - `transform` — the CSS Transforms values and `EffectsStyle`, the computed
-//!   transform, filter and compositing group
+//! - `filter` — the Filter Effects values and their color math
+//! - `transform` — the CSS Transforms values
+//! - `effects` — `EffectsStyle`, the computed transform, filter and
+//!   compositing group
 
 pub(crate) mod alignment;
 mod aspect_ratio;
@@ -39,6 +41,8 @@ mod border;
 mod box_model;
 mod calc_size;
 mod containment;
+mod effects;
+mod filter;
 mod float;
 mod font;
 mod gap;
@@ -79,6 +83,8 @@ pub use calc_size::{CalcSize, CalcSizeBasis, InterpolateSize};
 pub use containment::{
     Contain, ContainerName, ContainerSize, ContainerType, ContentVisibility, WillChange,
 };
+pub use effects::EffectsStyle;
+pub use filter::{FilterFunction, FilterList};
 pub use float::{Clear, Float, FloatSide};
 pub use font::{
     Font, FontFamily, FontSize, FontSizeKeyword, FontStretch, FontStretchKeyword, FontStyle,
@@ -125,8 +131,8 @@ pub use text_decoration::{
     TextUnderlinePosition,
 };
 pub use transform::{
-    EffectsStyle, Rotate, Scale, TransformBox, TransformFunction, TransformList, TransformOrigin,
-    Translate, TranslateFunction,
+    Rotate, Scale, TransformBox, TransformFunction, TransformList, TransformOrigin, Translate,
+    TranslateFunction,
 };
 pub use ui::{
     AccentColor, Appearance, CaretAnimation, CaretShape, Cursor, CursorImage, CursorKeyword,

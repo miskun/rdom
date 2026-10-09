@@ -3,7 +3,9 @@
 
 use super::super::{ImportantMask, TuiStyle};
 use crate::Value;
-use crate::layout::{Rotate, Scale, TransformBox, TransformList, TransformOrigin, Translate};
+use crate::layout::{
+    FilterList, Rotate, Scale, TransformBox, TransformList, TransformOrigin, Translate,
+};
 
 /// A setter for one [`EffectsDeclarations`](crate::EffectsDeclarations)
 /// field and its `!important` twin, as `setter!` is for a `TuiStyle` field.
@@ -53,5 +55,13 @@ impl TuiStyle {
         transform_box_important,
         TRANSFORM_BOX,
         TransformBox
+    );
+    effects_setter!("filter", filter, filter_important, FILTER, FilterList);
+    effects_setter!(
+        "backdrop-filter",
+        backdrop_filter,
+        backdrop_filter_important,
+        BACKDROP_FILTER,
+        FilterList
     );
 }

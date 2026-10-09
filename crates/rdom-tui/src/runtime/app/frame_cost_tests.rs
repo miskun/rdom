@@ -150,6 +150,22 @@ fn a_rotation_lays_out_nothing() {
     assert_eq!(s.layouts, 0, "{s:?}");
 }
 
+/// Filter Effects 1 §5 (C15-FILTER): a pulsing `brightness()` maps colors
+/// and moves nothing — its frames lay out none; only whether a filter is
+/// there (a containing block) is layout's.
+#[test]
+fn a_filter_animation_lays_out_nothing() {
+    let (mut app, _) = animated(
+        "@keyframes pulse { to { filter: brightness(2) } } \
+         #a { filter: brightness(1); animation: pulse 1008ms linear infinite }",
+    );
+    app.take_frame_stats();
+    run(&mut app, 1008);
+    let s = app.take_frame_stats();
+    assert!(s.paints >= 60, "{s:?}");
+    assert_eq!(s.layouts, 0, "{s:?}");
+}
+
 /// The transition hook's cost is the cascade's: a class change on one of
 /// 300 rows, on a page without a transition, visits that row — not two
 /// 300-entry maps.

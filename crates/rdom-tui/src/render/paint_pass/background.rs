@@ -110,6 +110,7 @@ pub(super) fn fill_bg(buf: &mut Buffer, area: Rect, bg: Color) {
             if let Some(cell) = buf.cell_mut(x, y) {
                 cell.bg = bg;
             }
+            buf.mark_at(x, y, crate::render::buffer::coverage::ALL);
         }
     }
 }
@@ -147,6 +148,7 @@ fn clear_cell_for_opaque_fill(buf: &mut Buffer, x: u16, y: u16) {
         partner.fg = Color::Reset;
         partner.modifier = Modifier::empty();
         partner.underline_color = Color::Reset;
+        buf.mark_at(partner_x, y, crate::render::buffer::coverage::GLYPH);
     }
     if let Some(cell) = buf.cell_mut(x, y) {
         cell.set_symbol(" ");

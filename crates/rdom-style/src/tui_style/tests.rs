@@ -320,6 +320,8 @@ fn every_property_has_important_setter() {
         .transform_important(crate::layout::TransformList::none())
         .transform_origin_important(crate::layout::TransformOrigin::default())
         .transform_box_important(crate::layout::TransformBox::BorderBox)
+        .filter_important(crate::layout::FilterList::none())
+        .backdrop_filter_important(crate::layout::FilterList::none())
         .cursor_important(crate::layout::Cursor::default())
         .caret_shape_important(crate::layout::CaretShape::Bar)
         .caret_animation_important(crate::layout::CaretAnimation::Manual)

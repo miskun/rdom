@@ -1,7 +1,8 @@
-//! `opacity` group rendering (OPACITY-1): an element with
-//! `opacity < 1` paints its stacking context into a layer at full
-//! opacity, and the layer composites back onto the frame at the
-//! element's alpha (`Buffer::composite_group`).
+//! Group rendering: an element with `opacity < 1` (OPACITY-1), a
+//! `filter` or a `backdrop-filter` (C15-FILTER) paints its stacking
+//! context into a layer at full opacity, through its effects
+//! (`effects`), and the layer composites back onto the frame at the
+//! group's alpha (`Buffer::composite_group`).
 //!
 //! The layer covers only the rows the subtree can paint
 //! ([`layer_region`]), across the full frame width, so a translucent
@@ -24,18 +25,24 @@ use crate::ext::TuiExt;
 use crate::layout::{Display, LayoutRect};
 use crate::render::{Buffer, Rect};
 
-/// Paint `root`'s stacking context at `alpha` through a bounded layer.
-/// `paint` paints the context into the buffer it is given.
+use super::effects::Effects;
+
+/// Paint `root`'s stacking context through `effects` and a bounded
+/// layer, at the group's alpha. `paint` paints the context into the
+/// buffer it is given.
 pub(super) fn paint_group(
     dom: &Dom<TuiExt>,
     root: NodeId,
     buf: &mut Buffer,
-    alpha: f32,
+    effects: &Effects<'_>,
     paint: impl Fn(&mut Buffer),
 ) {
-    let region = layer_region(dom, root, buf.area);
+    #[cfg(test)]
+    super::effects::EFFECT_LAYERS.with(|c| c.set(c.get() + 1));
+    let alpha = effects.alpha;
+    let region = layer_region(dom, root, buf.area, effects.reach());
     let mut layer = buf.copy_region(region);
-    paint(&mut layer);
+    effects.render(buf, &mut layer, &paint);
     #[cfg(test)]
     let unbounded = {
         // Every paint test doubles as a check that the bound is exact:
@@ -43,7 +50,8 @@ pub(super) fn paint_group(
         // to the same frame.
         let mut full = buf.clone();
         let mut full_layer = buf.clone();
-        paint(&mut full_layer);
+        full_layer.coverage = None;
+        effects.render(buf, &mut full_layer, &paint);
         full.composite_group(&full_layer, alpha);
         full
     };
@@ -56,19 +64,19 @@ pub(super) fn paint_group(
     }
 }
 
-/// The frame region an `opacity` group rooted at `root` can paint:
-/// the full width of `area`, over the rows spanned by every box in the
-/// subtree (element boxes, anonymous block boxes, pseudo-element
-/// boxes, and each inline layout's lines), widened by one row above
-/// and below and clamped to `area`.
-pub(super) fn layer_region(dom: &Dom<TuiExt>, root: NodeId, area: Rect) -> Rect {
+/// The frame region a group rooted at `root` can paint: the full width
+/// of `area`, over the rows spanned by every box in the subtree (element
+/// boxes, anonymous block boxes, pseudo-element boxes, and each inline
+/// layout's lines), widened by one row above and below — and by `reach`
+/// rows more, a drop shadow's — and clamped to `area`.
+pub(super) fn layer_region(dom: &Dom<TuiExt>, root: NodeId, area: Rect, reach: i64) -> Rect {
     let mut rows: Option<(i64, i64)> = None;
     collect_rows(dom, root, &mut rows);
     let Some((top, bottom)) = rows else {
         return Rect::new(area.x, area.y, area.width, 0);
     };
-    let top = (top - 1).max(i64::from(area.y));
-    let bottom = (bottom + 1).min(i64::from(area.bottom()));
+    let top = (top - 1 - reach).max(i64::from(area.y));
+    let bottom = (bottom + 1 + reach).min(i64::from(area.bottom()));
     if bottom <= top {
         return Rect::new(area.x, area.y, area.width, 0);
     }

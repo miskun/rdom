@@ -84,6 +84,7 @@ mod contain;
 mod css_wide;
 mod declare;
 mod fields;
+mod filter;
 mod float;
 mod font;
 mod grid;
@@ -120,6 +121,8 @@ mod containment_tests;
 mod content_tests;
 #[cfg(test)]
 mod display_tests;
+#[cfg(test)]
+mod filter_tests;
 #[cfg(test)]
 mod flex_tests;
 #[cfg(test)]

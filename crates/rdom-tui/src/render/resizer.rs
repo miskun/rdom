@@ -65,4 +65,5 @@ pub(crate) fn paint(
         c.set_symbol(GRIP);
         c.set_fg(computed.fg);
     }
+    buf.mark_at(x, y, crate::render::buffer::coverage::GLYPH);
 }

@@ -18,6 +18,7 @@
 #[cfg(test)]
 mod composite_tests;
 mod entry;
+mod filter;
 mod length;
 mod size;
 mod table;
@@ -214,14 +215,18 @@ impl Longhand {
     /// [affects layout](Self::affects_layout) and its values differ — a
     /// transform's only in what a cell grid draws of it (CSS Transforms 1
     /// §2, Transforms 2 §6): its translation, and whether the box is
-    /// transformed at all (a stacking context and a containing block). A
-    /// spinner's turning `rotate()` moves nothing.
+    /// transformed at all (a stacking context and a containing block); a
+    /// filter's only in whether there is one (Filter Effects 1 §5). A
+    /// spinner's turning `rotate()` and a pulsing `brightness()` move
+    /// nothing.
     pub fn moves_boxes(self, a: &ComputedStyle, b: &ComputedStyle) -> bool {
         if !self.affects_layout() {
             return false;
         }
         match self.name() {
-            "translate" | "rotate" | "scale" | "transform" => a.effects.transform_moves(&b.effects),
+            "translate" | "rotate" | "scale" | "transform" | "filter" | "backdrop-filter" => {
+                a.effects.layout_differs(&b.effects)
+            }
             _ => self.differs(a, b),
         }
     }

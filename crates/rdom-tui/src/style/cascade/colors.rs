@@ -1,6 +1,6 @@
 //! The color properties' applicators: `color`, `background-color`,
-//! the four `border-*-color`s, `text-decoration-color` and
-//! `box-shadow`'s colors, resolved at
+//! the four `border-*-color`s, `text-decoration-color`, `box-shadow`'s
+//! colors and the drop shadows' of `filter` / `backdrop-filter`, resolved at
 //! computed-value time (CSS Color 4 §14).
 //!
 //! A color resolves against a [`ColorContext`]: the element's color
@@ -15,7 +15,7 @@
 use super::apply::{Keywords, Resolved, matches_pass};
 use crate::style::{Color, ColorContext, ComputedStyle, ImportantMask, TuiColor, TuiStyle, Value};
 use rdom_style::color::ColorScheme;
-use rdom_style::layout::{BoxShadow, Sides};
+use rdom_style::layout::{BoxShadow, FilterList, Sides};
 
 /// The winning color declarations whose value depends on the element
 /// (`currentcolor`, `light-dark()`, a color function holding either),
@@ -32,6 +32,10 @@ pub(in crate::style::cascade) struct ElementColors {
     /// The winning `box-shadow` list as declared, when its colors wait
     /// for the element's final `color`.
     box_shadow: Option<Vec<BoxShadow>>,
+    /// The winning `filter` / `backdrop-filter` as declared (Filter
+    /// Effects 1 §5), likewise: a drop shadow's color waits.
+    filter: Option<FilterList>,
+    backdrop_filter: Option<FilterList>,
     /// `text-decoration-color`, as `border_color`'s sides.
     decoration_color: Option<TuiColor>,
     decoration_declared: bool,
@@ -103,11 +107,29 @@ impl ElementColors {
             Some(DECORATION_COLOR_INITIAL)
         };
         resolve(decoration, current, &mut working.text_decoration.color);
+        let cx = ColorContext::new(current).with_scheme(scheme);
         if let Some(shadows) = self.box_shadow {
-            let cx = ColorContext::new(current).with_scheme(scheme);
             working.box_shadow = compute_shadows(shadows, &vars, &cx);
         }
+        if let Some(list) = self.filter {
+            working.effects.filter = compute_filter(&list, &vars, &cx);
+        }
+        if let Some(list) = self.backdrop_filter {
+            working.effects.backdrop_filter = compute_filter(&list, &vars, &cx);
+        }
     }
+}
+
+/// A `filter` list's computed value: its drop shadows' colors resolved
+/// against `cx` (Filter Effects 1 §5: "as specified, with colors
+/// computed"); an unresolved one makes the declaration invalid at
+/// computed-value time — `none`, the initial value.
+fn compute_filter(
+    list: &FilterList,
+    vars: &std::collections::HashMap<String, rdom_style::CustomValue>,
+    cx: &ColorContext,
+) -> FilterList<Color> {
+    list.map_colors(|c| c.resolve(vars, cx)).unwrap_or_default()
 }
 
 /// `box-shadow`'s computed value: each color resolved against `cx`
@@ -186,6 +208,7 @@ pub(in crate::style::cascade) fn apply_colors(
             }
         }
     }
+    apply_filters(working, colors, style, important_pass, kw, &cx);
     colors.decoration_declared |= style.text_decoration.color.is_some();
     apply_color(
         ColorSlot {
@@ -284,4 +307,50 @@ fn apply_color(
             None
         }
     };
+}
+
+/// `filter` and `backdrop-filter` (Filter Effects 1 §5, 2 §3), whose drop
+/// shadows' colors resolve as `box-shadow`'s do.
+fn apply_filters(
+    working: &mut ComputedStyle,
+    colors: &mut ElementColors,
+    style: &TuiStyle,
+    important_pass: bool,
+    kw: &Keywords<'_>,
+    cx: &ColorContext,
+) {
+    let vars = working.vars.clone();
+    let slots = [
+        (
+            &style.effects.filter,
+            ImportantMask::FILTER,
+            &mut working.effects.filter,
+            &mut colors.filter,
+            (|c: &ComputedStyle| c.effects.filter.clone())
+                as fn(&ComputedStyle) -> FilterList<Color>,
+        ),
+        (
+            &style.effects.backdrop_filter,
+            ImportantMask::BACKDROP_FILTER,
+            &mut working.effects.backdrop_filter,
+            &mut colors.backdrop_filter,
+            |c: &ComputedStyle| c.effects.backdrop_filter.clone(),
+        ),
+    ];
+    for (declared, mask, target, waiting, field) in slots {
+        let Some(v) = declared else { continue };
+        if !matches_pass(style.important.contains(mask), important_pass) {
+            continue;
+        }
+        match kw.resolve(v) {
+            Resolved::Specified(list) => {
+                *target = compute_filter(list, &vars, cx);
+                *waiting = Some(list.clone());
+            }
+            Resolved::From(source) => {
+                *target = field(source);
+                *waiting = None;
+            }
+        }
+    }
 }

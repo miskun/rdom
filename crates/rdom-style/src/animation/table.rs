@@ -226,6 +226,13 @@ pub(super) static LONGHANDS: &[Entry] = &[
         value!(effects.transform_origin),
     ),
     e("transform-box", Discrete, steps!(effects.transform_box)),
+    // Filter Effects 1 §5, §14; Filter Effects 2 §3
+    e("filter", ByComputedValue, value!(effects.filter)),
+    e(
+        "backdrop-filter",
+        ByComputedValue,
+        value!(effects.backdrop_filter),
+    ),
     // §4: discrete, `hidden` shown only at its end.
     e("content-visibility", Discrete, CONTENT_VISIBILITY),
     // CSS Conditional 5 §6.1–§6.2: not animatable.

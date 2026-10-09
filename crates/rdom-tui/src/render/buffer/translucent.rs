@@ -119,6 +119,7 @@ impl Buffer {
                 if let Some(cell) = self.cell_mut(x, y) {
                     cell.set_bg(bg);
                 }
+                self.mark_at(x, y, super::coverage::BG);
             }
         }
     }
@@ -136,6 +137,7 @@ impl Buffer {
                     if let Some(cell) = buf.cell_mut(x, y) {
                         cell.set_fg(fg);
                     }
+                    buf.mark_at(x, y, super::coverage::GLYPH);
                 }
             }
         };

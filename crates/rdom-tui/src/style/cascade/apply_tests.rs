@@ -192,6 +192,8 @@ const PERTURB: &[(&str, &str)] = &[
     ("transform", "translateX(1) rotate(5deg)"),
     ("transform-origin", "left top"),
     ("transform-box", "content-box"),
+    ("filter", "invert(1) drop-shadow(1 1 red)"),
+    ("backdrop-filter", "blur(2px)"),
 ];
 
 /// `P6G-APPLY-INITIALS-1`: `<property>: initial` computes to exactly

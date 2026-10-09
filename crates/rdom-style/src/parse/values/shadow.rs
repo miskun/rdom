@@ -22,7 +22,7 @@ pub fn parse_box_shadow(value: &[Token]) -> Option<Vec<BoxShadow>> {
 /// <length>? ] && inset?` — offset-x, offset-y, blur radius, spread
 /// distance; an omitted color is `currentcolor`, an omitted blur or
 /// spread 0.
-fn parse_shadow(tokens: &[Token]) -> Option<BoxShadow> {
+pub(crate) fn parse_shadow(tokens: &[Token]) -> Option<BoxShadow> {
     let parts = components(tokens)?;
     let mut lengths: Option<Vec<PaintLength>> = None;
     let mut color = None;

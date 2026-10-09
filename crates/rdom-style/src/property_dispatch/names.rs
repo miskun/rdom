@@ -123,6 +123,9 @@ const PROPERTY_NAMES: &[&str] = &[
     "transform",
     "transform-origin",
     "transform-box",
+    // Filter Effects 1 / 2
+    "filter",
+    "backdrop-filter",
     "container",
     "container-name",
     "container-type",

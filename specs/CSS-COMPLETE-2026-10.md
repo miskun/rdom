@@ -275,7 +275,7 @@ row comes from.
 | Id | Item | Status |
 |---|---|---|
 | C15-TRANSLATE | `translate` and `transform: translate()` (whole-cell offsets; other transforms documented N/A) | done |
-| C15-FILTER | `filter` color-matrix functions; `backdrop-filter` | |
+| C15-FILTER | `filter` color-matrix functions; `backdrop-filter` | done |
 | C15-BLEND | `mix-blend-mode`, `isolation` | |
 | C15-CLIP-PATH | `clip-path: inset()` | |
 | C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | |
@@ -9747,3 +9747,31 @@ row comes from.
   no stacking context, no containing block, inline transformable, `differs` for the layout test, no
   content box) fails 11 of 13. Changed tests: the empty-effect fixture's `transform: rotate(1turn)` is
   `zoom: 2`; `longhand_tests` and `apply_tests` gain the six longhands. Silent change `sc-transforms`.
+- 2026-10-09 — C15-FILTER (Filter Effects 1 §5–§6, §14; Filter Effects 2 §3). `filter` and `backdrop-filter`
+  parse into `FilterList` / `FilterFunction` (`parse/values/filter.rs`, `property_dispatch/filter.rs`): the
+  eight color functions with `<number> | <percentage>` amounts (computed to numbers; `grayscale`, `sepia`,
+  `invert`, `opacity` clamped to 1; negative invalid; omitted = 1, `hue-rotate` 0deg), `blur(<length>)`
+  (pixels kept, inert), `drop-shadow()` (`box-shadow`'s grammar less `inset` and spread), `url()`. The drop
+  shadows' colors compute in the cascade as `box-shadow`'s do (`cascade/colors.rs`, `compute_filter`).
+  Interpolation (§14): function by function, a shorter list padded with the longer's identities, `none`
+  as identities, a mismatch discrete; addition appends. Paint (`paint_pass/effects.rs`): a group's layer now
+  carries `Effects` — the alpha (`opacity` × the `opacity()`s), a filter with something to draw, a backdrop
+  filter. Decisions: (1) coverage, not differences — a filter maps what its element painted, which a layer
+  diff cannot see when the paint equals the backdrop (black on black); every buffer writer marks the parts
+  it wrote (`buffer/coverage.rs`: fills, glyph and style writes, border contributions, composites, tints,
+  the outline and resizer glyphs), only in a layer that asked (`track_coverage`), so the frame and a page
+  without effects mark nothing. (2) sRGB throughout (§5: filter functions operate in sRGB), the matrices of
+  §6's SVG equivalents, each primitive clamped, one rounding to 8 bits; `Color::Reset` as the scheme's
+  canvas color, palette indices as the xterm palette. (3) `drop-shadow()` shades, by `box-shadow`'s
+  one-cell fill, the cells at its offset from the painted ones (and earlier shadows) the element does not
+  paint, in its color through the functions after it; the layer's rows widen by the offset. (4)
+  `backdrop-filter` maps the layer's copy of the cells behind the border box before the element paints, so
+  `opacity` fades it; inside a coverage layer only the painted cells (the backdrop root's image). (5) Both
+  make a stacking context and a containing block (`style::effects`), on boxes with a layer — not a non-
+  atomic inline box (DIVERGENCES). (6) Frames: `Longhand::moves_boxes` and the cascade's
+  `EffectsStyle::layout_differs` (renamed from `transform_moves`) read only whether a filter is there, so a
+  pulsing `brightness()` lays out none. Red → green: `filter_tests` (1), `css_phase15::filter` (7), red on
+  the unknown property; `effect_cost_tests` and `frame_cost_tests::a_filter_animation_lays_out_nothing` pin
+  the costs. Combined mutation run (no fill mark, no shadows, no backdrop, a layer for every context, the
+  layout test reading `differs`, a sepia coefficient, no containing block) fails all nine. Also: CSS-COVERAGE
+  §2 row 69 (`translate`) marked shipped — missed by C15-TRANSLATE. Silent change `sc-filters`.

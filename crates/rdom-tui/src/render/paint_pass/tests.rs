@@ -4751,7 +4751,7 @@ fn group_layer_region_is_bounded_to_the_translucent_subtree() {
         );
     let viewport = Rect::new(0, 0, 40, 20);
     let _ = pipeline(&mut dom, &sheet, viewport);
-    let region = super::group::layer_region(&dom, item, viewport);
+    let region = super::group::layer_region(&dom, item, viewport, 0);
     assert_eq!(
         region,
         Rect::new(0, 9, 40, 3),

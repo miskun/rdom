@@ -22,6 +22,7 @@ impl Buffer {
             if let Some(c) = buf.cell_mut(x, y) {
                 put_glyph(c, symbol, style);
             }
+            buf.mark_at(x, y, painted(style));
         });
     }
 
@@ -40,6 +41,7 @@ impl Buffer {
             if let Some(c) = buf.cell_mut(x, y) {
                 c.apply_style(style);
             }
+            buf.mark_at(x, y, painted(style));
         });
     }
 
@@ -166,6 +168,7 @@ impl Buffer {
                     if let Some(c) = self.cell_mut(cursor_x, y) {
                         put_glyph(c, WIDE_CLIP_PLACEHOLDER, style);
                     }
+                    self.mark_at(cursor_x, y, painted(style));
                     if occlude {
                         self.clear_border_at(cursor_x, y);
                     }
@@ -178,6 +181,7 @@ impl Buffer {
             if let Some(c) = self.cell_mut(cursor_x, y) {
                 put_glyph(c, grapheme, style);
             }
+            self.mark_at(cursor_x, y, painted(style));
 
             // For width-2 glyphs, write the trailing spacer.
             if w == 2 {
@@ -185,6 +189,7 @@ impl Buffer {
                 if let Some(c) = self.cell_mut(spacer_x, y) {
                     put_glyph(c, "", style);
                 }
+                self.mark_at(spacer_x, y, painted(style));
             }
             if occlude {
                 for dx in 0..w {
@@ -211,4 +216,15 @@ fn put_glyph(cell: &mut crate::render::Cell, symbol: &str, style: Style) {
     }
     cell.set_symbol(symbol);
     cell.apply_style(style);
+}
+
+/// What a write in `style` paints of a cell (`coverage`): its glyph, and
+/// its background when the style sets one.
+fn painted(style: Style) -> u8 {
+    use super::coverage::{BG, GLYPH};
+    if style.bg.is_some() {
+        GLYPH | BG
+    } else {
+        GLYPH
+    }
 }

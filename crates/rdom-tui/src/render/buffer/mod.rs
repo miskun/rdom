@@ -37,6 +37,7 @@
 //! - `border` — the border-direction + half-block side tables.
 //! - `write` — single-cell and string writes (wide-glyph handling).
 //! - `composite` — group-opacity compositing.
+//! - `coverage` — which cells an effect layer's paints wrote.
 //! - `diff` — the frame diff iterator.
 
 use super::{Cell, Rect};
@@ -44,6 +45,7 @@ use rdom_style::color::ColorScheme;
 
 mod border;
 mod composite;
+pub(crate) mod coverage;
 mod diff;
 mod translucent;
 mod write;
@@ -93,6 +95,9 @@ pub struct Buffer {
     /// being walked, drawn when each context ends (CSS 2.1 Appendix E
     /// step 10; `paint_pass::outline`).
     pub(crate) outlines: Vec<crate::render::paint_pass::outline::DeferredOutline>,
+    /// Per cell, what the paints into this buffer wrote (`coverage`):
+    /// tracked by the layers of graphical effects only.
+    pub(crate) coverage: Option<Vec<u8>>,
 }
 
 /// A kept scratch layer. Not content: a clone starts without one, and
@@ -138,6 +143,7 @@ impl Buffer {
             scheme: ColorScheme::default(),
             scratch: Scratch::default(),
             outlines: Vec::new(),
+            coverage: None,
         }
     }
 
@@ -160,6 +166,7 @@ impl Buffer {
             scheme: ColorScheme::default(),
             scratch: Scratch::default(),
             outlines: Vec::new(),
+            coverage: None,
         }
     }
 
@@ -207,6 +214,9 @@ impl Buffer {
             *dir = BorderCell::default();
         }
         self.half_block_quads.fill(0);
+        if let Some(c) = &mut self.coverage {
+            c.fill(0);
+        }
     }
 
     /// Fill `area` (intersected with the buffer's own area) with `cell`.
@@ -265,6 +275,7 @@ impl Buffer {
         let region = self.area.intersection(area);
         out.area = region;
         out.scheme = self.scheme;
+        out.coverage = None;
         out.content.clear();
         out.border_dirs.clear();
         out.half_block_quads.clear();

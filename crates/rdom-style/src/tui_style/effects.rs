@@ -3,7 +3,9 @@
 //! [`EffectsStyle`](crate::layout::EffectsStyle).
 
 use crate::Value;
-use crate::layout::{Rotate, Scale, TransformBox, TransformList, TransformOrigin, Translate};
+use crate::layout::{
+    FilterList, Rotate, Scale, TransformBox, TransformList, TransformOrigin, Translate,
+};
 
 /// The transform, filter and compositing properties a
 /// [`TuiStyle`](crate::TuiStyle) declares
@@ -25,4 +27,8 @@ pub struct EffectsDeclarations {
     pub transform_origin: Option<Value<TransformOrigin>>,
     /// `transform-box` (§7).
     pub transform_box: Option<Value<TransformBox>>,
+    /// `filter` (Filter Effects 1 §5).
+    pub filter: Option<Value<FilterList>>,
+    /// `backdrop-filter` (Filter Effects 2 §3).
+    pub backdrop_filter: Option<Value<FilterList>>,
 }

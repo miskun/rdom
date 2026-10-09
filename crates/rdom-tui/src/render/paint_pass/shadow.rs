@@ -149,6 +149,19 @@ impl Edges {
     }
 }
 
+/// Shade the one cell `(x, y)` in `color` as a shadow shades a cell: a
+/// `drop-shadow()`'s (Filter Effects 1 §6, `effects`).
+pub(super) fn shade_cell(buf: &mut Buffer, x: u16, y: u16, color: Color) {
+    let part = Edges {
+        left: i32::from(x),
+        top: i32::from(y),
+        right: i32::from(x) + 1,
+        bottom: i32::from(y) + 1,
+    };
+    let area = buf.area;
+    fill(buf, part, color, area);
+}
+
 /// Fill `part` with `color`: an opaque shade over what is beneath, or a
 /// translucent one composited over it (C3-ALPHA).
 fn fill(buf: &mut Buffer, part: Edges, color: Color, clip: Rect) {

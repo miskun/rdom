@@ -194,7 +194,23 @@ impl Buffer {
                 }
             }
         }
+        let glyph_painted = match glyph {
+            LayerGlyph::New | LayerGlyph::Spacer => text_wins,
+            LayerGlyph::Same => true,
+            LayerGlyph::None => bg_changed && shows_glyph(before),
+        };
         self.content[i] = out;
+        {
+            use super::coverage::{BG, BORDER, GLYPH};
+            let bits = if bg_changed { BG } else { 0 }
+                | if glyph_painted { GLYPH } else { 0 }
+                | if text_wins || border_wins || bg_changed {
+                    BORDER
+                } else {
+                    0
+                };
+            self.mark(i, bits);
+        }
 
         if text_wins || border_wins {
             // The layer's glyph takes the cell: its border state (the

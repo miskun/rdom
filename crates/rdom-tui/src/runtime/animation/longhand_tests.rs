@@ -259,6 +259,13 @@ const SAMPLES: &[(&str, &str, &str, Mid)] = &[
         Is("50% 50%"),
     ),
     ("transform-box", "border-box", "content-box", Flips),
+    (
+        "filter",
+        "grayscale(0)",
+        "grayscale(1)",
+        Is("grayscale(0.5)"),
+    ),
+    ("backdrop-filter", "none", "invert(1)", Is("invert(0.5)")),
 ];
 
 /// `#t`'s computed style under `name: value`.

@@ -65,7 +65,9 @@
 //!   ones above it.
 //! - `border` — border drawing: per-direction contributions for the
 //!   joiner (`border_join`), and half-block quadrants (`half_block`).
-//! - `group` — `opacity` group rendering through a bounded layer.
+//! - `group` — group rendering through a bounded layer.
+//! - `effects` — what a group's layer applies: `opacity`, `filter`,
+//!   `backdrop-filter`.
 //! - `top_layer` — the top layer (modal dialogs, popovers) and each
 //!   element's `::backdrop`, painted after the document.
 //! - `inline_paint` — `::before` + own text + `::after` for
@@ -82,6 +84,7 @@ mod border;
 mod border_join;
 mod box_paint;
 mod canvas;
+mod effects;
 mod generated_box;
 mod group;
 mod inline_paint;
@@ -95,6 +98,8 @@ mod tree_guides;
 
 #[cfg(test)]
 mod color_tests;
+#[cfg(test)]
+mod effect_cost_tests;
 #[cfg(test)]
 mod phase_cost_tests;
 #[cfg(test)]

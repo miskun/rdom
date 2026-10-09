@@ -209,6 +209,8 @@ pub(super) fn fields_of(name: &str) -> Option<&'static [Field]> {
         "transform" => &[Transform],
         "transform-origin" => &[TransformOrigin],
         "transform-box" => &[TransformBox],
+        "filter" => &[Filter],
+        "backdrop-filter" => &[BackdropFilter],
         "container-type" => &[ContainerType],
         "container-name" => &[ContainerName],
         "container" => &[ContainerName, ContainerType],

@@ -37,10 +37,12 @@ pub(super) fn paint_stacking_context(
     // at full opacity and the layer composites back at the element's
     // alpha, so nested opacities multiply and every paint inside —
     // backgrounds, glyphs, borders — blends once against the backdrop
-    // (OPACITY-1; see `group`).
-    let alpha = dom.node(root).computed().map_or(1.0, |c| c.opacity);
-    if alpha < 1.0 && dom.node(root).node_type() == NodeType::Element {
-        group::paint_group(dom, root, buf, alpha, |layer| {
+    // (OPACITY-1; see `group`). A filter and a backdrop filter map the
+    // layer's colors (`effects`).
+    if dom.node(root).node_type() == NodeType::Element
+        && let Some(effects) = super::effects::Effects::of(dom, root, clip)
+    {
+        group::paint_group(dom, root, buf, &effects, |layer| {
             paint_stacking_context_body(dom, root, layer, clip, viewport);
         });
         return;

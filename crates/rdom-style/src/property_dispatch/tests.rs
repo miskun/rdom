@@ -125,6 +125,8 @@ fn canonical_values() -> &'static [(&'static str, &'static str)] {
         ("transform", "translateX(2) rotate(10deg)"),
         ("transform-origin", "0% 2"),
         ("transform-box", "content-box"),
+        ("filter", "grayscale(0.5) drop-shadow(1 2 rgb(1, 2, 3))"),
+        ("backdrop-filter", "invert(1) url(\"#f\")"),
         ("container", "card / size"),
         ("container-name", "a b"),
         ("container-type", "inline-size"),

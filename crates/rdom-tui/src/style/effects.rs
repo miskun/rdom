@@ -34,17 +34,39 @@ pub(crate) fn transformed(c: &ComputedStyle) -> bool {
     c.effects.is_transformed() && transformable(c)
 }
 
+/// Whether a box styled `c` can take a graphical effect rdom draws by
+/// layering its paint — a filter, a blend: a box that is not a non-atomic
+/// inline box, whose paint is its block's lines (DIVERGENCES §2).
+pub(crate) fn layerable(c: &ComputedStyle) -> bool {
+    let boxless = matches!(c.display, Display::None | Display::Contents);
+    let inline_box = c.display == Display::Inline && c.flow.is_block_flow();
+    !boxless && !inline_box
+}
+
+/// Whether the box styled `c` is filtered: its `filter` is not `none`
+/// (Filter Effects 1 §5) — `blur()` and `url()` too, which draw nothing.
+pub(crate) fn filtered(c: &ComputedStyle) -> bool {
+    !c.effects.filter.is_none() && layerable(c)
+}
+
+/// Whether the box styled `c` filters its backdrop (Filter Effects 2 §3).
+pub(crate) fn backdrop_filtered(c: &ComputedStyle) -> bool {
+    !c.effects.backdrop_filter.is_none() && layerable(c)
+}
+
 /// Whether the element styled `c` establishes a stacking context through
-/// its graphical effects: a transform (Transforms 1 §2).
+/// its graphical effects: a transform (Transforms 1 §2), a filter or a
+/// backdrop filter (Filter Effects 1 §5, 2 §3).
 pub(crate) fn makes_stacking_context(c: &ComputedStyle) -> bool {
-    transformed(c)
+    transformed(c) || filtered(c) || backdrop_filtered(c)
 }
 
 /// Whether the element styled `c` is the containing block of its
 /// absolutely and fixed positioned descendants through its graphical
-/// effects: a transform (Transforms 1 §2).
+/// effects: a transform (Transforms 1 §2), a filter or a backdrop filter
+/// (Filter Effects 1 §5, 2 §3).
 pub(crate) fn contains_positioned(c: &ComputedStyle) -> bool {
-    transformed(c)
+    transformed(c) || filtered(c) || backdrop_filtered(c)
 }
 
 /// The whole-cell offset the transforms of a box styled `c` move it by,

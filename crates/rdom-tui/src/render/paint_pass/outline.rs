@@ -147,6 +147,7 @@ fn paint_ring(buf: &mut Buffer, o: &DeferredOutline) {
             cell.set_symbol(glyph);
             cell.set_fg(o.color);
         }
+        buf.mark_at(xu, yu, crate::render::buffer::coverage::GLYPH);
     };
     for x in left..=right {
         put(buf, x, top);

@@ -140,6 +140,7 @@ impl Buffer {
     pub fn add_half_block_quads(&mut self, x: u16, y: u16, quads: u8) {
         if let Some(i) = self.index_of(x, y) {
             self.half_block_quads[i] |= quads;
+            self.mark(i, super::coverage::BORDER);
         }
     }
 
@@ -157,6 +158,7 @@ impl Buffer {
     pub fn clear_half_block_quads(&mut self, x: u16, y: u16) {
         if let Some(i) = self.index_of(x, y) {
             self.half_block_quads[i] = 0;
+            self.mark(i, super::coverage::BORDER);
         }
     }
 
@@ -169,6 +171,7 @@ impl Buffer {
         if let Some(i) = self.index_of(x, y) {
             self.border_dirs[i] = BorderCell::default();
             self.half_block_quads[i] = 0;
+            self.mark(i, super::coverage::BORDER);
         }
     }
 
@@ -181,6 +184,7 @@ impl Buffer {
         debug_assert!(dir < 4, "BorderCell index out of range");
         if let Some(i) = self.index_of(x, y) {
             self.border_dirs[i][dir].merge(contribution);
+            self.mark(i, super::coverage::BORDER);
         }
     }
 
@@ -201,6 +205,7 @@ impl Buffer {
         debug_assert!(dir < 4, "BorderCell index out of range");
         if let Some(i) = self.index_of(x, y) {
             self.border_dirs[i][dir] = state;
+            self.mark(i, super::coverage::BORDER);
         }
     }
 
