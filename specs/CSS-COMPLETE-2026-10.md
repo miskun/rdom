@@ -10371,3 +10371,18 @@ row comes from.
   `a_frame_with_a_focus_scroll_runs_three_layouts_of_the_container_cap`). Mutations (restored, backups in
   `target/claude-logs/`): no undo of the journal fails the sticky test; positioned boxes never staying fails the
   containing-block test.
+- 2026-10-09 — C15G-SCROLL-NO-RELAYOUT 2/2 (Phase 15 gate decision 4). The user's scrolls: the wheel route
+  returned `RouteOutcome::redraw`, which the `App` folds into `Redraw::Layout`, and the scroll keys shared the
+  editing keys' `Layout` — so the commonest scroll still laid the page out. Decided: `RouteOutcome` carries a
+  crate-private `scroll_only` (the type is `#[non_exhaustive]`, so no API change; `merge` keeps it only while
+  neither side needs a layout, a listener's `request_redraw` clears it), set by the wheel route
+  (`RouteOutcome::scrolled`), and `note_route` notes `Redraw::Scroll` for it; a scroll key notes `Scroll`; the
+  drag autoscroll's own scroll notes `Scroll` and its off-frame pass takes at least `Scroll` (its synthetic
+  drag's route still lays out, as a selection move does). TECH_DEBT `ANIM-RELAYOUT-1` now records the scroll
+  numbers (the geometry-animation debt stays: a partial relayout is the post-0.6 pay-down). Red
+  (`runtime/app/scroll_cost_tests.rs`, built with the frame treating `Scroll` as `Layout`): a wheel tick in a
+  2000-row scroller laid out 4 003 boxes in 1 run of phases 1–2 (4 004 with an anchored tooltip and a sticky
+  header); green: 0 and 0, one scroll update and one paint per tick, the screen scrolled one row, the header
+  stuck on row 0 and the tooltip beside its anchor on the row the anchor moved to; a Down-arrow scroll key the
+  same. Expectation changed: `route_redraw_tests::a_wheel_scroll_performs_no_cascade` (1 layout → 0 layouts +
+  1 scroll update).

@@ -158,6 +158,7 @@ impl Router {
                 // for a whole-tree cascade.
                 outcome.redraw_requested |= self.pending_redraw;
                 outcome.cascade_requested |= self.pending_redraw;
+                outcome.scroll_only &= !self.pending_redraw;
                 outcome
             }
             _ => RouteOutcome::default(),
@@ -241,6 +242,10 @@ pub struct RouteOutcome {
     pub cascade_requested: bool,
     /// A handler or default action asked the app to exit the loop.
     pub quit_requested: bool,
+    /// The router's own work only moved scroll offsets (a wheel tick):
+    /// `redraw_requested` then asks the `App` for a scroll update, not a
+    /// layout (`Redraw::Scroll`, C15G-SCROLL-NO-RELAYOUT).
+    pub(crate) scroll_only: bool,
 }
 
 impl RouteOutcome {
@@ -253,12 +258,30 @@ impl RouteOutcome {
         }
     }
 
+    /// The router's own outcome when its work only scrolled: a redraw that
+    /// moves the scrolled boxes, no layout.
+    pub(crate) fn scrolled() -> Self {
+        Self {
+            redraw_requested: true,
+            scroll_only: true,
+            ..Self::default()
+        }
+    }
+
+    /// Whether the redraw asked for needs a layout, not only a scroll
+    /// update.
+    pub(crate) fn needs_layout(&self) -> bool {
+        self.redraw_requested && !self.scroll_only
+    }
+
     /// Merge another outcome into `self` — OR the flags. Used when
     /// a single crossterm event fans out to multiple dispatches
     /// (e.g., `mouseup` + synthesized `click`, each of which may
     /// request redraw).
     pub fn merge(&mut self, other: RouteOutcome) {
+        let layout = self.needs_layout() || other.needs_layout();
         self.redraw_requested |= other.redraw_requested;
+        self.scroll_only = self.redraw_requested && !layout;
         self.cascade_requested |= other.cascade_requested;
         self.quit_requested |= other.quit_requested;
     }

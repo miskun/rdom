@@ -82,11 +82,14 @@ impl<B: Backend> App<B> {
         if !tui.event.default_prevented() {
             if crate::runtime::selection::keyboard::try_handle_key(&mut self.dom, key)
                 || try_handle_editable_key(&mut self.dom, key)
-                || crate::runtime::scrollbar::handle_scroll_key(&mut self.dom, key)
             {
                 // Their restyles (focus, text, attributes) are tracker
-                // roots; the selection and scroll offsets feed layout.
+                // roots; the selection and the text feed layout.
                 self.redraw.note(Redraw::Layout);
+            } else if crate::runtime::scrollbar::handle_scroll_key(&mut self.dom, key) {
+                // A scroll key moves scroll offsets only: the scrolled
+                // boxes move, nothing is laid out.
+                self.redraw.note(Redraw::Scroll);
             } else {
                 match key.code {
                     KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => {

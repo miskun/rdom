@@ -1,7 +1,8 @@
 //! `P7G-ROUTE-REDRAW-1`: a mouse route's frame reruns only what the
 //! router's own work needs. A hover change re-cascades the elements
 //! whose `:hover` state flipped (the dirty tracker's subtree roots), a
-//! wheel scroll or a scrollbar press lays out and repaints, and a
+//! wheel scroll moves the scrolled boxes and repaints, a scrollbar press
+//! lays out and repaints, and a
 //! listener's `request_redraw` still cascades the whole tree (it may
 //! follow a direct `TuiExt` style write no mutation reports).
 
@@ -125,7 +126,8 @@ fn a_wheel_scroll_performs_no_cascade() {
     assert!(scroll_y(&app, pane) > 0, "the wheel scrolled the pane");
     let stats = app.take_frame_stats();
     assert_eq!(stats.full_cascades + stats.subtree_cascades, 0, "{stats:?}");
-    assert_eq!(stats.layouts, 1, "{stats:?}");
+    // The scrolled boxes are moved, not laid out (C15G-SCROLL-NO-RELAYOUT).
+    assert_eq!((stats.layouts, stats.scroll_updates), (0, 1), "{stats:?}");
     assert_eq!(stats.paints, 1, "{stats:?}");
 }
 

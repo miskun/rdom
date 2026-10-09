@@ -128,7 +128,7 @@ pub(super) fn handle_wheel(
                     new_y,
                     crate::runtime::scrollbar::WriteKind::Snap,
                 );
-                return RouteOutcome::redraw(true);
+                return RouteOutcome::scrolled();
             }
             // Not at its boundary, a mandatory snap held it where it is:
             // the box took the tick, and nothing chains (CSS Overscroll

@@ -173,6 +173,6 @@ impl<B: Backend> App<B> {
         };
         let outcome = self.router.route(&mut self.dom, CtEvent::Mouse(synthetic));
         self.note_route(outcome);
-        self.redraw.note(Redraw::Layout); // the scroll itself changed the view
+        self.redraw.note(Redraw::Scroll); // the scroll itself changed the view
     }
 }

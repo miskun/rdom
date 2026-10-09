@@ -130,6 +130,8 @@ mod route_redraw_tests;
 #[cfg(test)]
 mod scope_invalidation_tests;
 #[cfg(test)]
+mod scroll_cost_tests;
+#[cfg(test)]
 mod scroll_repaint_tests;
 #[cfg(test)]
 mod scroll_timeline_tests;

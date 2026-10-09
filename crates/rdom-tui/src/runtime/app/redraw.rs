@@ -20,8 +20,8 @@ pub(crate) enum Redraw {
     /// caret move made by code (the dirty tracker's selection flag).
     Paint,
     /// Bring the layout up to the scroll offsets and repaint: only scroll
-    /// offsets moved — a smooth-scroll step, the scroll API, any offset
-    /// written since the last frame. The scrolled boxes are moved, not laid out
+    /// offsets moved — a wheel tick, a scroll key, a smooth-scroll step,
+    /// the scroll API, any offset written since the last frame. The scrolled boxes are moved, not laid out
     /// (`layout_pass::scroll_update`, C15G-SCROLL-NO-RELAYOUT), and what
     /// depends on scroll position updated; the frame's services (re-snap,
     /// scroll-driven timelines) run after it as after a layout.
@@ -31,7 +31,8 @@ pub(crate) enum Redraw {
     /// tracker queues the elements whose selector state text feeds),
     /// hover and focus moves (their restyles are tracker roots), a
     /// mouse route's own work (`RouteOutcome::redraw_requested`
-    /// without `cascade_requested`: wheel, scrollbar press, drag).
+    /// without `cascade_requested`: a scrollbar press, a drag; a wheel
+    /// tick that only scrolled is `Scroll`).
     /// (Running transitions and animations ask for `Paint`: their frame
     /// composites them and lays out only when they moved geometry.)
     Layout,

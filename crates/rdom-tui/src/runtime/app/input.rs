@@ -17,13 +17,15 @@ use crate::{TuiDispatchExt, TuiEvent};
 impl<B: Backend> App<B> {
     /// Fold a mouse route's outcome into the next frame's work
     /// (`P7G-ROUTE-REDRAW-1`): the router's own work — a hover change,
-    /// a wheel scroll, a scrollbar press, a selection drag — lays out
-    /// and repaints, cascading only the dirty tracker's roots (the
+    /// a scrollbar press, a selection drag — lays out and repaints (a
+    /// wheel tick that only scrolled moves the scrolled boxes,
+    /// `Redraw::Scroll`), cascading only the dirty tracker's roots (the
     /// elements whose `:hover` / `:focus` flipped); a listener's
     /// `request_redraw` cascades the whole tree.
     pub(super) fn note_route(&mut self, outcome: RouteOutcome) {
         self.redraw
-            .note_if(outcome.redraw_requested, Redraw::Layout);
+            .note_if(outcome.redraw_requested, Redraw::Scroll);
+        self.redraw.note_if(outcome.needs_layout(), Redraw::Layout);
         self.redraw
             .note_if(outcome.cascade_requested, Redraw::Cascade);
         self.should_quit |= outcome.quit_requested;
