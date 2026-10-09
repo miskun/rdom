@@ -10331,3 +10331,43 @@ row comes from.
   stays Partial is `opacity` (per-cell group opacity), `writing-mode` and `direction` / `unicode-bidi`, and
   Missing the decided exclusions (`masonry` / `grid-lanes`, `:blank`, `nav-*`), each with its reason in
   DIVERGENCES. Batch A (C15G-HYGIENE … C15G-STRETCH, 15 items) done; batches B and C pending.
+- 2026-10-09 — C15G-SCROLL-NO-RELAYOUT 1/2 (Phase 15 gate decision 4; TECH_DEBT `ANIM-RELAYOUT-1`; CSS
+  Overflow 3 §2, CSSOM View §4, CSS Position 3 §3.4, CSS Anchor Positioning 1 §3). Found: a scroll offset
+  change set `Redraw::Layout`, so every scroll — the scroll API, a smooth-scroll step, the frame's re-snap,
+  focus scroll and caret reveal (and the wheel, 2/2) — ran a whole-tree `layout_dom`, multicol balancing and
+  anchor fallbacks included. Decided the model: one place a scroll offset applies — layout keeps every box
+  where it is on screen (a scroll container lays its content out moved by its offset), so paint, hit-testing,
+  `bounding_rect` / `client_rects`, the caret, the selection, `scrollIntoView`, the focus scroll, anchor
+  resolution, `position-visibility`, sticky, fixed, the top layer, outlines and scrollbars keep reading one
+  set of rects and need no change; a scroll moves those rects instead of laying out (the "scroll-only update
+  pass" option, chosen over scroll-origin-relative layout, which would have moved the offset into every one of
+  those consumers). `layout_pass::scroll_update` (DESIGN "A scroll moves boxes"): the last layout keeps a
+  journal (where phase 2 placed each positioned box, the sticky elements, and every post-placement move —
+  sticky sticks, the picker flip, relative / sticky pseudo-elements); an update takes those moves back,
+  clamps each moved scroller's offset as layout does and moves its content by the change (`shift.rs`: in-flow
+  boxes and the positioned boxes it contains; a positioned box whose containing block is outside it stays,
+  its static position moving; a `display: contents` box or an inline box of a line, which layout puts at its
+  parent's unscrolled content origin, moves only with that origin; a nested inline box and a `display: none`
+  subtree, which layout never writes, stay), places again every anchor-positioned box and every box whose
+  static position moved under a containing block that did not (`positioning::place_again`, moving it with its
+  content; `position-visibility` decided again), and runs the post-placement passes again. It lays out
+  instead where it could differ: a box placed again at another size, positioned boxes reaching further into
+  their scrollers (`positioned_overflow::settle`), a `content-visibility: auto` element changing relevance
+  (`content_visibility::would_change`), an offset on a box that is not a scroll container, a stale journal. The
+  `App` notes `Redraw::Scroll` (new, between `Paint` and `Layout`) for the prelude's offset stages; the frame
+  runs the update for it, and the services' shared relayout is an update too unless a scroll-driven timeline's
+  re-step moved geometry. DIVERGENCES' anchor (4) now says rdom places anchored boxes again on every scroll.
+  Evidence: 18 oracle tests (`scroll_update/tests.rs`) build each fixture twice, scroll both, update one and
+  lay out the other, and compare every element's rects, lines, anonymous boxes, kept layout, pseudo boxes,
+  static position, offsets, extents and hidden flags after each step — block flow, clamping, nested
+  scrollers, sticky (elements, pseudo-elements, a sticky containing block), positioned boxes in and out of the
+  scroller, `fixed`, anchored with `flip-block` and `anchors-visible`, inline atoms, flex / grid / table /
+  floats / multicol, `column-reverse` and `rtl`, translate, `line-clamp`, `display: contents`, horizontal
+  scrolls; `a_scroll_lays_nothing_out` pins 0 `layout_node` calls and 0 phase runs per tick with a sticky
+  header and an anchored tooltip. Red: with the update forced to lay out, 13 of the 15 first tests failed
+  (`Update::LaidOut`); the expectation changes: `frame_work_tests` (an instant scroll and a smooth step: 1
+  layout → 0 layouts + 1 scroll update), `layout_runs_tests` (4 → 3 phase runs: the services' scrolls run
+  none), `frame_cost_tests`' container cap (36 → 27 layouts, renamed
+  `a_frame_with_a_focus_scroll_runs_three_layouts_of_the_container_cap`). Mutations (restored, backups in
+  `target/claude-logs/`): no undo of the journal fails the sticky test; positioned boxes never staying fails the
+  containing-block test.

@@ -47,6 +47,14 @@ pub(super) fn place_pickers(dom: &mut Dom<TuiExt>, viewport: LayoutRect) {
         }
         for option in super::element_children_of(dom, select) {
             super::tree::shift_box(dom, option, 0, dy);
+            super::scroll_update::record(
+                dom,
+                super::scroll_update::PostMove::Box {
+                    id: option,
+                    dx: 0,
+                    dy,
+                },
+            );
         }
     }
 }

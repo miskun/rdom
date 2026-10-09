@@ -43,6 +43,7 @@
 //! - `containing` — the containing block of an absolutely positioned
 //!   box, element or pseudo-element.
 
+mod again;
 mod anchor;
 mod axis;
 mod containing;
@@ -57,13 +58,16 @@ use rdom_core::{Dom, NodeId};
 use crate::ext::TuiExt;
 use crate::layout::{LayoutRect, Position};
 
+pub(super) use again::{is_anchored, place_again};
+pub(super) use anchor::AnchorIndex;
+pub(super) use anchor::visibility::begin as begin_hidden;
 pub(crate) use anchor::visibility::hidden as position_hidden;
 pub(super) use axis::axis_position_anchored;
 pub(super) use containing::{
     absolute_containing_block, containing_ancestor, fixed_containing_ancestor,
 };
 pub(super) use place::place_positioned;
-pub(super) use pseudo_offsets::offset_in_flow_pseudos;
+pub(super) use pseudo_offsets::{PseudoMove, offset_in_flow_pseudos};
 pub(super) use relative::{apply_relative_shift, relative_offset};
 pub(super) use static_pos::{
     out_of_flow_positioned_children, record_static_position, record_static_positions_in_ifc,

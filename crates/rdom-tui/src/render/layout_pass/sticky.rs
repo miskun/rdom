@@ -31,7 +31,14 @@ use crate::node::TuiNodeExt;
 /// position requires it.
 pub(super) fn place_sticky(dom: &mut Dom<TuiExt>) {
     let sticky_ids = collect_sticky(dom, dom.root());
-    for id in sticky_ids {
+    super::scroll_update::set_sticky(dom, &sticky_ids);
+    place_sticky_in(dom, &sticky_ids);
+}
+
+/// Place the sticky elements `ids`, in document order — the ones the last
+/// layout found, when a scroll update places them again.
+pub(super) fn place_sticky_in(dom: &mut Dom<TuiExt>, ids: &[NodeId]) {
+    for &id in ids {
         place_one(dom, id);
     }
 }
@@ -108,6 +115,7 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
     // behavior), and so do the absolutely positioned boxes it contains
     // (CSS Position 3 §2.1); a `fixed` descendant stays on the viewport.
     super::tree::shift_subtree(dom, id, dx, dy);
+    super::scroll_update::record(dom, super::scroll_update::PostMove::Subtree { id, dx, dy });
 }
 
 /// The `(dx, dy)` a sticky box styled `computed`, laid out in flow at

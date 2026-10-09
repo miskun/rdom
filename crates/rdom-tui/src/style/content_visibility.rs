@@ -141,6 +141,24 @@ pub(crate) fn any_auto(dom: &Dom<TuiExt>) -> bool {
     state(dom).is_some_and(|s| !s.auto.borrow().is_empty())
 }
 
+/// Whether deciding relevance in `viewport` now would change anything —
+/// an `auto` element starting or stopping skipping its contents, or one
+/// not determined yet. A scroll update, which moves boxes without laying
+/// out, asks it: such a change re-cascades and lays out
+/// (`layout_pass::scroll_update`).
+pub(crate) fn would_change(dom: &Dom<TuiExt>, viewport: crate::layout::LayoutRect) -> bool {
+    let Some(state) = state(dom) else {
+        return false;
+    };
+    let skipped = state.skipped.borrow();
+    let undetermined = state.undetermined.borrow();
+    state.auto.borrow().iter().any(|&id| {
+        dom.contains(id)
+            && dom.node(id).is_connected()
+            && (undetermined.contains(&id) || relevant(dom, id, viewport) == skipped.contains(&id))
+    })
+}
+
 /// After a layout in `viewport`: remember the sizes of the elements that
 /// rendered their contents, decide each `auto` element's relevance, and
 /// return those that started or stopped skipping (their events queued).

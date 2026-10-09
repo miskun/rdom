@@ -60,7 +60,7 @@ fn collect(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
 }
 
 /// Where a moved pseudo-element lies in its owner's layout.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum At {
     /// The `g`-th generated run or atom of line `line` of the owner's own
     /// lines (`flow: None`) or of its `k`-th anonymous box's.
@@ -76,50 +76,104 @@ enum At {
     Floated(usize),
 }
 
+/// One move of a relatively positioned or sticky pseudo-element, as the
+/// layout's journal keeps it (`scroll_update`): where it lies in its
+/// owner's layout, the move, and — for a run or atom of a line, whose
+/// move is recorded rather than applied — the offset it replaced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::render::layout_pass) struct PseudoMove {
+    owner: NodeId,
+    at: At,
+    by: (i32, i32),
+    from: (i32, i32),
+}
+
+impl PseudoMove {
+    /// The element whose flow holds the pseudo-element.
+    pub(in crate::render::layout_pass) fn owner(self) -> NodeId {
+        self.owner
+    }
+
+    /// Take the move back.
+    pub(in crate::render::layout_pass) fn undo(self, dom: &mut Dom<TuiExt>) {
+        let mut node = dom.node_mut(self.owner);
+        let Some(ext) = node.ext_mut() else {
+            return;
+        };
+        match self.at {
+            At::Line { .. } => {
+                apply(ext, self.at, self.from);
+            }
+            _ => {
+                apply(ext, self.at, (-self.by.0, -self.by.1));
+            }
+        }
+    }
+}
+
 /// Move the relatively positioned and sticky pseudo-elements laid out in
-/// the flows of `owner`.
+/// the flows of `owner`, recording each move in the layout's journal.
 fn offset_owner(dom: &mut Dom<TuiExt>, owner: NodeId) {
     let moves = moves_of(dom, owner);
     if moves.is_empty() {
         return;
     }
-    let mut node = dom.node_mut(owner);
-    let Some(ext) = node.ext_mut() else {
-        return;
-    };
-    for (at, (dx, dy)) in moves {
-        match at {
-            At::Line { flow, line, g } => {
-                let il = match flow {
-                    None => ext.inline_layout.as_mut(),
-                    Some(k) => ext
-                        .anonymous_blocks
-                        .get_mut(k)
-                        .map(|a| &mut a.inline_layout),
-                };
-                if let Some(g) = il
-                    .and_then(|il| il.lines.get_mut(line))
-                    .and_then(|l| l.generated.get_mut(g))
-                {
-                    g.offset = (dx, dy);
-                }
+    let mut done = Vec::with_capacity(moves.len());
+    if let Some(ext) = dom.node_mut(owner).ext_mut() {
+        for (at, by) in moves {
+            let from = apply(ext, at, by);
+            done.push(PseudoMove {
+                owner,
+                at,
+                by,
+                from,
+            });
+        }
+    }
+    for m in done {
+        crate::render::layout_pass::scroll_update::record(
+            dom,
+            crate::render::layout_pass::scroll_update::PostMove::Pseudo(m),
+        );
+    }
+}
+
+/// Apply a move at `at` of `owner`'s layout `ext`: a run or atom of a line
+/// records it as its offset (returning the offset it replaced), a box of
+/// its own moves by it.
+fn apply(ext: &mut TuiExt, at: At, (dx, dy): (i32, i32)) -> (i32, i32) {
+    match at {
+        At::Line { flow, line, g } => {
+            let il = match flow {
+                None => ext.inline_layout.as_mut(),
+                Some(k) => ext
+                    .anonymous_blocks
+                    .get_mut(k)
+                    .map(|a| &mut a.inline_layout),
+            };
+            if let Some(g) = il
+                .and_then(|il| il.lines.get_mut(line))
+                .and_then(|l| l.generated.get_mut(g))
+            {
+                return std::mem::replace(&mut g.offset, (dx, dy));
             }
-            At::Anonymous(k) => {
-                if let Some(a) = ext.anonymous_blocks.get_mut(k) {
-                    shift(a, dx, dy);
-                }
+        }
+        At::Anonymous(k) => {
+            if let Some(a) = ext.anonymous_blocks.get_mut(k) {
+                shift(a, dx, dy);
             }
-            At::Floated(k) => {
-                if let Some(a) = ext
-                    .floated_pseudos
-                    .as_deref_mut()
-                    .and_then(|f| f.get_mut(k))
-                {
-                    shift(a, dx, dy);
-                }
+        }
+        At::Floated(k) => {
+            if let Some(a) = ext
+                .floated_pseudos
+                .as_deref_mut()
+                .and_then(|f| f.get_mut(k))
+            {
+                shift(a, dx, dy);
             }
         }
     }
+    (0, 0)
 }
 
 fn shift(a: &mut crate::ext::AnonymousIfc, dx: i32, dy: i32) {

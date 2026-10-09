@@ -19,9 +19,15 @@ pub(crate) enum Redraw {
     /// paint-time state changed — a caret-blink flip, a selection or
     /// caret move made by code (the dirty tracker's selection flag).
     Paint,
+    /// Bring the layout up to the scroll offsets and repaint: only scroll
+    /// offsets moved — a smooth-scroll step, the scroll API, any offset
+    /// written since the last frame. The scrolled boxes are moved, not laid out
+    /// (`layout_pass::scroll_update`, C15G-SCROLL-NO-RELAYOUT), and what
+    /// depends on scroll position updated; the frame's services (re-snap,
+    /// scroll-driven timelines) run after it as after a layout.
+    Scroll,
     /// Lay out and repaint: state layout reads changed without
-    /// changing any selector match or declaration — scroll offsets
-    /// (layout places children after scroll), text content (the dirty
+    /// changing any selector match or declaration — text content (the dirty
     /// tracker queues the elements whose selector state text feeds),
     /// hover and focus moves (their restyles are tracker roots), a
     /// mouse route's own work (`RouteOutcome::redraw_requested`
@@ -67,6 +73,9 @@ pub(crate) struct FrameStats {
     pub(crate) subtree_cascades: u32,
     /// Frames (or off-frame passes) that ran layout.
     pub(crate) layouts: u32,
+    /// Frames (or off-frame passes) that moved the scrolled boxes without
+    /// a layout (`Redraw::Scroll`).
+    pub(crate) scroll_updates: u32,
     /// Frames painted.
     pub(crate) paints: u32,
     /// Element styles the transition engine composited.

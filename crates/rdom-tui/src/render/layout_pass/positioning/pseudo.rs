@@ -78,6 +78,14 @@ pub(in crate::render::layout_pass) fn place(
     }
     let rect = rect.rect;
     let laid_out = item.lay_out(dom, rect, cb.width);
+    crate::render::layout_pass::scroll_update::note_placed(
+        dom,
+        crate::render::layout_pass::scroll_update::PlacedRecord {
+            item: crate::render::box_tree::BoxItem::Generated(host, slot),
+            rect,
+            at: (rect.x, rect.y),
+        },
+    );
     if let Some(ext) = dom.node_mut(host).ext_mut() {
         ext.positioned_pseudos
             .get_or_insert_with(Default::default)

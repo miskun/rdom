@@ -394,7 +394,11 @@ fn a_stepped_transition_paints_only_at_its_steps() {
 /// `ANIM-RELAYOUT-1` states for the layouts of one frame, constructed. A
 /// frame runs at most four `layout_dom`s — its layout, the in-frame
 /// transition hook's relayout after it (C14G-CONTAINER-FIDELITY), the
-/// services' shared relayout, and the hook's relayout after that — and
+/// services' shared relayout — a layout only when a re-stepped
+/// scroll-driven timeline moved a value layout reads or the scroll update
+/// must fall back; a re-snap, focus scroll or caret reveal alone moves the
+/// scrolled boxes (C15G-SCROLL-NO-RELAYOUT) — and the hook's relayout
+/// after that — and
 /// each runs at most `1 + MAX_PASSES` layouts while query containers'
 /// sizes move (CSS Conditional 5 §6.4). Here: 40 nested containers, each
 /// as wide as its container less one (`100cqw - 1`), so each pass settles
@@ -402,10 +406,12 @@ fn a_stepped_transition_paints_only_at_its_steps() {
 /// moves; each re-cascaded level's `padding-bottom` (the parity of its
 /// container's width) flips under a `step-end` transition, so the hook's
 /// composite moves a value layout reads; and a row focused in a scroller
-/// needs a focus scroll. No positioned box and no `calc-size()`, so each
-/// layout is one run of phases 1–2: 4 × 9 = 36.
+/// needs a focus scroll — a scroll update, so the services' relayout and
+/// the hook's after it do not run. No positioned box and no `calc-size()`,
+/// so each layout is one run of phases 1–2: 3 × 9 = 27 (36 before
+/// C15G-SCROLL-NO-RELAYOUT).
 #[test]
-fn a_frame_runs_at_most_four_layouts_of_the_container_cap() {
+fn a_frame_with_a_focus_scroll_runs_three_layouts_of_the_container_cap() {
     use crate::render::layout_pass::ROUNDS;
     use crate::render::layout_pass::container_pass::MAX_PASSES;
     let mut markup = String::from(r#"<div class="list">"#);
@@ -447,5 +453,9 @@ fn a_frame_runs_at_most_four_layouts_of_the_container_cap() {
         app.dom().node(list).scroll_top().unwrap_or(0) > 0,
         "focus scrolled"
     );
-    assert_eq!(layouts, 4 * (1 + MAX_PASSES), "four layout_doms at the cap");
+    assert_eq!(
+        layouts,
+        3 * (1 + MAX_PASSES),
+        "three layout_doms at the cap"
+    );
 }

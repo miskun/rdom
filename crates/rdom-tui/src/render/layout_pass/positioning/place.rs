@@ -39,6 +39,7 @@ pub(in crate::render::layout_pass) fn place_positioned(
     // `position-visibility` hides, found again.
     let anchors = super::anchor::AnchorIndex::default();
     super::anchor::visibility::begin(dom);
+    crate::render::layout_pass::scroll_update::begin_placement(dom);
     for &item in &positioned {
         match item {
             BoxItem::Node(id) => {
@@ -63,6 +64,18 @@ pub(in crate::render::layout_pass) fn place_positioned(
                     super::anchor::visibility::hide(dom, id, None);
                 }
                 crate::render::layout_pass::layout_node(dom, id, placed.rect, cb.width);
+                let at = dom
+                    .node(id)
+                    .ext()
+                    .map_or((0, 0), |e| (e.layout.x, e.layout.y));
+                crate::render::layout_pass::scroll_update::note_placed(
+                    dom,
+                    crate::render::layout_pass::scroll_update::PlacedRecord {
+                        item,
+                        rect: placed.rect,
+                        at,
+                    },
+                );
             }
             BoxItem::Generated(host, slot) => {
                 super::pseudo::place(dom, &anchors, host, slot, viewport)

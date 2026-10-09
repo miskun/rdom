@@ -194,9 +194,9 @@ impl FramePrelude {
         if touched || self.smooth_scroll_next.is_some() {
             let step = crate::runtime::smooth_scroll::step_all(cx.dom, cx.now);
             walks += 1;
-            // Scroll offsets feed layout (children are placed after
-            // scroll).
-            cx.redraw.note_if(step.moved, Redraw::Layout);
+            // Scroll offsets move the scrolled boxes (a scroll update,
+            // not a layout: `layout_pass::scroll_update`).
+            cx.redraw.note_if(step.moved, Redraw::Scroll);
             self.smooth_scroll_next = step.active.then(|| cx.now + cx.animation_frame);
             if step.moved {
                 // The steps fired `scroll`: listeners ran.
@@ -205,12 +205,12 @@ impl FramePrelude {
             }
         }
         // 8. Any scroll offset change repaints, whoever wrote it
-        // (`P7-SCROLL-REPAINT-1`), and lays out again. Only code writes
-        // offsets between frames.
+        // (`P7-SCROLL-REPAINT-1`), and moves the scrolled boxes. Only code
+        // writes offsets between frames.
         if touched {
             let moved = crate::runtime::scrollbar::moved_since_paint(cx.dom);
             walks += 1;
-            cx.redraw.note_if(moved, Redraw::Layout);
+            cx.redraw.note_if(moved, Redraw::Scroll);
         }
         // 9. What the dirty tracker recorded beyond its cascade roots
         // (which the frame drains itself), whoever made the change —

@@ -119,6 +119,7 @@ pub(crate) use positioned_overflow::MAX_ROUNDS;
 mod picker;
 mod positioning;
 mod scroll_extent;
+pub(crate) mod scroll_update;
 pub(crate) mod scrollport;
 mod shares;
 mod sticky;
@@ -198,6 +199,9 @@ fn layout_once(dom: &mut Dom<TuiExt>, viewport: Rect) {
         viewport.width,
         viewport.height,
     );
+    // What this layout does after placing the positioned boxes, kept for a
+    // scroll update to take back (`scroll_update`).
+    scroll_update::begin(dom, root_rect);
     // Passes 1–2 run again while the absolutely positioned boxes'
     // reach into their scroll containers changes
     // (`positioned_overflow`): pass 1 records scroll extents with
@@ -253,7 +257,7 @@ thread_local! {
 #[cfg(test)]
 thread_local! {
     /// Elements [`layout_node`] laid out (cost tests).
-    pub(super) static LAYOUTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    pub(crate) static LAYOUTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// Lay out `id` as occupying `outer_rect`, then recurse into

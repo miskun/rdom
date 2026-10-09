@@ -1,9 +1,10 @@
 //! C8G-ABSPOS-EXTENT (architect N1), C9G-MISC-CORRECTNESS: how many times
-//! one frame runs layout's phases 1–2. A frame lays out once, then once
-//! more when a re-snap (CSS Scroll Snap 1 §5.4), a focused element's scroll
-//! into view (HTML's focusing steps) or a caret reveal moved an offset —
-//! all three against the first layout (each corrects for the offsets moved
-//! since: `scrollbar::state::laid_out`), so one relayout; each `layout_dom`
+//! one frame runs layout's phases 1–2. A frame lays out once; a re-snap
+//! (CSS Scroll Snap 1 §5.4), a focused element's scroll into view (HTML's
+//! focusing steps) or a caret reveal moving an offset — all three against
+//! the first layout (each corrects for the offsets moved since:
+//! `scrollbar::state::laid_out`) — moves the scrolled boxes without a
+//! layout (C15G-SCROLL-NO-RELAYOUT; one relayout before it); each `layout_dom`
 //! runs the phases at most `positioned_overflow::MAX_ROUNDS` times, while
 //! absolutely positioned boxes change their scroll containers' reach. The
 //! pin is a frame that needs all of it.
@@ -29,8 +30,8 @@ fn el(dom: &mut TuiDom, parent: rdom_core::NodeId, class: &str) -> rdom_core::No
 /// One frame with a new positioned box whose scrollbar narrows it, a
 /// snap target moved by an insertion, a typed line to reveal and an
 /// element focused in a scroller: three runs (the stale reach, the new
-/// one, the narrowed one), then one after the re-snap, the focus scroll
-/// and the caret reveal together.
+/// one, the narrowed one); the re-snap, the focus scroll and the caret
+/// reveal then share one scroll update, which runs none.
 #[test]
 fn a_frame_runs_layout_at_most_twice_the_round_cap() {
     let mut dom = TuiDom::new();
@@ -93,6 +94,9 @@ fn a_frame_runs_layout_at_most_twice_the_round_cap() {
     assert_eq!(app.dom().node(snap).scroll_top(), Some(5), "re-snapped");
     assert_eq!(app.dom().node(ta).scroll_top(), Some(1), "caret revealed");
     assert_eq!(app.dom().node(list).scroll_top(), Some(4), "focus revealed");
-    assert_eq!(runs, 4, "3 rounds, then one for the three services");
+    assert_eq!(
+        runs, 3,
+        "3 rounds; the three services' scrolls lay nothing out"
+    );
     assert!(runs <= 2 * crate::render::layout_pass::MAX_ROUNDS);
 }

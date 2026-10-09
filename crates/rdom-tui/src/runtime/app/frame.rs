@@ -6,7 +6,8 @@
 //!
 //! Each frame reruns only the stages its causes need (`redraw::Redraw`,
 //! `P7G-PAINT-ONLY-FRAME-1`): a caret-blink flip only paints, a scroll
-//! offset change lays out and paints, the dirty tracker's roots are
+//! offset change moves the scrolled boxes and paints (no layout,
+//! C15G-SCROLL-NO-RELAYOUT), the dirty tracker's roots are
 //! cascaded as subtrees, and only what the tracker cannot see
 //! (stylesheet changes, resizes, `request_redraw`) cascades the whole
 //! tree.
@@ -21,6 +22,7 @@ use super::prelude::{PreludeCx, PreludeRun};
 use super::redraw::Redraw;
 use crate::TuiDom;
 use crate::render::backend::Backend;
+use crate::render::layout_pass::scroll_update;
 use crate::render::{LayoutExt, PaintExt, Rect};
 use crate::runtime::animation::AnimationRegistry;
 use crate::style::CascadeExt;
@@ -116,7 +118,9 @@ impl<B: Backend> App<B> {
         // The element under a still pointer, or its style, may have
         // changed (CSS UI 4 §4.1).
         self.update_pointer_shape();
-        let walks = self.prelude.after_paint(&mut self.dom, pass.laid_out);
+        let walks = self
+            .prelude
+            .after_paint(&mut self.dom, pass.laid_out || pass.scrolled);
         self.note_walks(walks);
         // HTML "update the rendering": the focus fixup, against this
         // frame's used styles — after any frame that could change them: a
@@ -226,7 +230,7 @@ impl<B: Backend> App<B> {
         let dirty_roots = self.take_dirty_roots();
         let flushed = self.take_flushed();
         self.detach_removed();
-        let redraw = self.redraw.max(Redraw::Layout);
+        let redraw = self.redraw.max(Redraw::Scroll);
         let now = self.frame_now();
         let sheets = self.prelude.cascade_order(&self.stylesheets);
         let pass = style_and_layout(
@@ -256,6 +260,7 @@ impl<B: Backend> App<B> {
                 None => {}
             }
             stats.layouts += u32::from(pass.laid_out);
+            stats.scroll_updates += u32::from(pass.scrolled);
             stats.composites += pass.composites;
             stats.paints += u32::from(painted);
         }
@@ -278,6 +283,9 @@ enum CascadeScope {
 struct Pass {
     cascade: Option<CascadeScope>,
     laid_out: bool,
+    /// The scrolled boxes were moved without a layout
+    /// (`layout_pass::scroll_update`).
+    scrolled: bool,
     /// Element styles the transition engine composited.
     composites: u32,
 }
@@ -339,10 +347,12 @@ fn start_layout_transitions(
 /// property changes start — or a style flush's since the last frame
 /// (`flushed`, `runtime::style_flush`) → when anything was cascaded or `redraw` is
 /// at least `Layout`: advance the running transitions (compositing their
-/// values onto the animated styles), lay out, and
-/// service a caret reveal requested this frame against the fresh
-/// extent, re-laying out when it moved a scroll offset. A
-/// `Redraw::Paint` frame with no dirty roots runs none of it.
+/// values onto the animated styles), lay out — or, when only scroll
+/// offsets moved (`Redraw::Scroll`), move the scrolled boxes
+/// (`layout_pass::scroll_update`) — and service the re-snaps, the focus
+/// scroll and a caret reveal requested this frame against the fresh
+/// extent, bringing the layout up to the offsets they moved the same way.
+/// A `Redraw::Paint` frame with no dirty roots runs none of it.
 ///
 /// A free function over split borrows because `draw_if_dirty` runs it
 /// inside `Terminal::draw` while the terminal is borrowed.
@@ -426,8 +436,19 @@ fn style_and_layout(
         crate::runtime::top_layer::finish_removals(dom);
         restyle_animated(dom, (sheets, registry), animations);
     }
+    // Only scroll offsets moved since the last layout (`Redraw::Scroll`):
+    // the scrolled boxes are moved, not laid out (C15G-SCROLL-NO-RELAYOUT)
+    // — unless the update finds it must lay out.
+    let mut scrolled = false;
     if laid_out {
         dom.layout_dom(area);
+    } else if redraw == Redraw::Scroll {
+        match scroll_update::update(dom, area) {
+            scroll_update::Update::LaidOut => laid_out = true,
+            scroll_update::Update::Scrolled | scroll_update::Update::Unmoved => scrolled = true,
+        }
+    }
+    if laid_out || scrolled {
         composites += start_layout_transitions(dom, (sheets, registry), animations, now, area);
         // Against this layout, each correcting for the offsets moved since
         // it (`scrollbar::state::laid_out`), then one relayout for all:
@@ -450,8 +471,19 @@ fn style_and_layout(
             // frame, not the next (C12G-MISC).
             restepped = again.layout || restyle_animated(dom, (sheets, registry), animations);
         }
-        if resnapped || focused || revealed || restepped {
+        if restepped {
             dom.layout_dom(area);
+            laid_out = true;
+        } else if resnapped || focused || revealed {
+            // Only scroll offsets moved since that layout.
+            match scroll_update::update(dom, area) {
+                scroll_update::Update::LaidOut => laid_out = true,
+                scroll_update::Update::Scrolled | scroll_update::Update::Unmoved => {
+                    scrolled = true;
+                }
+            }
+        }
+        if restepped || resnapped || focused || revealed {
             composites += start_layout_transitions(dom, (sheets, registry), animations, now, area);
         }
         // The animations in skipped contents, as this layout left them,
@@ -461,6 +493,7 @@ fn style_and_layout(
     Pass {
         cascade,
         laid_out,
+        scrolled,
         composites,
     }
 }

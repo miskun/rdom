@@ -30,6 +30,7 @@ pub(in crate::render::layout_pass) use lookup::AnchorIndex;
 #[cfg(test)]
 pub(in crate::render::layout_pass) use lookup::INDEX_BUILDS;
 pub(in crate::render::layout_pass) use lookup::Querying;
+pub(in crate::render::layout_pass) use resolve::is_anchored;
 
 use super::place::{Placed, compute_placed_rect};
 use crate::ext::TuiExt;

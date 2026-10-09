@@ -1,7 +1,7 @@
 //! `P7G-PAINT-ONLY-FRAME-1`: a frame reruns only the stages its cause
 //! needs. A caret-blink flip only repaints; a scroll offset change (a
-//! smooth-scroll step included) lays out and repaints; neither
-//! re-cascades. Text edits re-cascade the elements whose selector
+//! smooth-scroll step included) moves the scrolled boxes and repaints,
+//! with no layout (C15G-SCROLL-NO-RELAYOUT); neither re-cascades. Text edits re-cascade the elements whose selector
 //! state their text feeds (`:placeholder-shown`, `::placeholder`,
 //! `:empty`) through the dirty tracker, not through a full cascade;
 //! `invalidate_cascade` (stylesheet changes) still cascades everything.
@@ -98,7 +98,7 @@ fn pane_app(behavior: ScrollBehavior) -> (App<TestBackend>, NodeId) {
 }
 
 #[test]
-fn a_smooth_scroll_step_lays_out_without_cascading() {
+fn a_smooth_scroll_step_moves_the_boxes_without_cascading() {
     let (mut app, pane) = pane_app(ScrollBehavior::Smooth);
     app.dom_mut().node_mut(pane).scroll_to(0, 20).unwrap();
     app.advance(0).unwrap();
@@ -106,12 +106,12 @@ fn a_smooth_scroll_step_lays_out_without_cascading() {
     app.advance(50).unwrap();
     let stats = app.take_frame_stats();
     assert_eq!(stats.paints, 1, "{stats:?}");
-    assert_eq!(stats.layouts, 1, "{stats:?}");
+    assert_eq!((stats.layouts, stats.scroll_updates), (0, 1), "{stats:?}");
     assert_eq!(stats.full_cascades + stats.subtree_cascades, 0, "{stats:?}");
 }
 
 #[test]
-fn an_instant_scroll_lays_out_without_cascading() {
+fn an_instant_scroll_moves_the_boxes_without_cascading() {
     let (mut app, pane) = pane_app(ScrollBehavior::Auto);
     app.take_frame_stats();
     // `scroll-behavior: auto`: an instant scroll.
@@ -119,7 +119,7 @@ fn an_instant_scroll_lays_out_without_cascading() {
     app.advance(0).unwrap();
     let stats = app.take_frame_stats();
     assert_eq!(stats.paints, 1, "{stats:?}");
-    assert_eq!(stats.layouts, 1, "{stats:?}");
+    assert_eq!((stats.layouts, stats.scroll_updates), (0, 1), "{stats:?}");
     assert_eq!(stats.full_cascades + stats.subtree_cascades, 0, "{stats:?}");
 }
 
