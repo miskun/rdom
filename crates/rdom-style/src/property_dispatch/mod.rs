@@ -56,8 +56,9 @@
 //!   block-axis ones mapped onto their physical twins when declared, the
 //!   inline-axis ones kept for the cascade to map by `direction`.
 //! - `value_serializers.rs`: the per-value-type serializers
-//!   (`serialize_color`, `serialize_calc`, …) `serialize.rs` folds
-//!   over.
+//!   (`serialize_color`, `serialize_size`, …) `serialize.rs` folds
+//!   over; `math_serializers.rs`: a stored `CalcExpr` (`calc()`, the
+//!   math and anchor functions) as CSS text.
 //! - `tests.rs`: the round-trip contract and per-property tests.
 //!
 //! ## Round-trip contract
@@ -95,6 +96,7 @@ mod importance;
 mod inline;
 mod line_clamp;
 mod logical;
+mod math_serializers;
 mod multicol;
 mod names;
 mod scroll;

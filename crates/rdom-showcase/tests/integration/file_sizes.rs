@@ -113,3 +113,54 @@ fn no_production_file_passes_the_limit() {
         "production files past {LIMIT} lines — split them by concern (TECH_DEBT SIZE-1): {over:#?}"
     );
 }
+
+/// Extensions a file under `crates/*/src/` may carry: Rust sources and
+/// the Markdown pulled in by `include_str!` doctests. Anything else —
+/// a mutation-run backup like `content.rs.m7`, an editor swap file —
+/// would ship in the crate tarball (C15G-HYGIENE).
+const SOURCE_EXTENSIONS: &[&str] = &["rs", "md"];
+
+/// Every file under `dir` whose extension is not in [`SOURCE_EXTENSIONS`].
+fn stray_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(dir).expect("readable source dir") {
+        let path = entry.expect("dir entry").path();
+        if path.is_dir() {
+            stray_files(&path, out);
+        } else if !path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| SOURCE_EXTENSIONS.contains(&e))
+        {
+            out.push(path);
+        }
+    }
+}
+
+#[test]
+fn no_stray_files_under_src() {
+    let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let mut stray = Vec::new();
+    for krate in std::fs::read_dir(&crates).expect("the crates directory") {
+        let src = krate.expect("dir entry").path().join("src");
+        if src.is_dir() {
+            stray_files(&src, &mut stray);
+        }
+    }
+    let mut stray: Vec<String> = stray
+        .iter()
+        .filter_map(|p| {
+            Some(
+                p.strip_prefix(&crates)
+                    .ok()?
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            )
+        })
+        .collect();
+    stray.sort();
+    assert!(
+        stray.is_empty(),
+        "files under crates/*/src that are neither Rust nor doctest Markdown would ship in the \
+         crate tarball — delete them: {stray:#?}"
+    );
+}

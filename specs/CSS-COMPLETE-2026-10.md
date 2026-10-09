@@ -10047,3 +10047,15 @@ row comes from.
   breaks with hint tests) replaces the CHANGELOG's long section, and the rdom-tui README is restructured
   into an overview plus a "CSS at a glance" table with the recipes moved to their own document. Fix as
   `C15G-*`, three batches (A correctness, B performance and structure, C docs and API).
+- 2026-10-09 — C15G-HYGIENE (Phase 15 gate architect B4). The three empty mutation-run leftovers fab057f8
+  committed are deleted: `rsometry.rs.m6` at the root, and under `rdom-tui/src/render/layout_pass/`
+  `fragment/candidates.rsandidates.rs.m45` and `intrinsic/content.rsontent.rs.m7`, the two a crate tarball
+  would ship. Decided: the gate rejects them mechanically, beside the size rule it already runs —
+  `rdom-showcase/tests/integration/file_sizes.rs::no_stray_files_under_src` fails on any file under
+  `crates/*/src` that is neither `.rs` nor `.md` (the `include_str!` doctests, `sealed/doctests.md` the one
+  today); a test rather than a `cargo package --list` check, because the gate runs no packaging and the
+  test reads every crate's `src/` the same way the size check does. `value_serializers.rs` (577, past the
+  575 split-on-touch bar) splits by concern: `math_serializers.rs` 136 takes the `CalcExpr` serializers
+  (`serialize_math`, `serialize_calc`, the anchor functions), `value_serializers.rs` keeps the other
+  value types at 447 and re-exports `serialize_math` for its callers. Red: the new test listed the two
+  files under `src/` (the root one is outside its scope, deleted by hand); green after the deletion.
