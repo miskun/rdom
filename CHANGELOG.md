@@ -1037,6 +1037,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - **When no position option fits, the base style is used** (CSS Anchor Positioning 1 §4.3, "Return current styles"): under `position-try-order: most-height` a box that fits nowhere stays at its own position instead of taking the first option of the sort. (C15G-TRY-ORDER)
 - **Translate gaps closed** (CSS Transforms 1 §3, CSS Position 3 §3.4): `tr { translate }` moves the row and its cells (it did nothing), a stuck `top: 0; translate: 0 2` sticky header shows two rows down (it pinned at row 0), and a percentage `translate` animation lays out only on the frames its cell offset changes (it laid out every frame). (C15G-TRANSLATE-GAPS)
 - **Effects gaps closed**: `dialog::backdrop { backdrop-filter: brightness(.5) }` dims the page and `::backdrop { filter }` maps its own colors (both did nothing); a `transform: rotate()` spinner asks for no frames again (only the drawn translation counts); `:root { cursor }` shows over the canvas. (C15G-EFFECT-GAPS)
+- **A native `<select>` near the screen bottom opens upward** (HTML `::picker(select)`, CSS Anchor Positioning 1 §4 `flip-block`): its option list, which ran off the screen where the mouse could not reach it, is mirrored above the field (its last option on the field's row) when it fits there. (C15G-SELECT-FLIP)
 
 ### Changed — `rdom-showcase`
 

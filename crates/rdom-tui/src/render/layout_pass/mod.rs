@@ -116,6 +116,7 @@ pub(crate) mod multicol;
 mod positioned_overflow;
 #[cfg(test)]
 pub(crate) use positioned_overflow::MAX_ROUNDS;
+mod picker;
 mod positioning;
 mod scroll_extent;
 pub(crate) mod scrollport;
@@ -226,6 +227,9 @@ fn layout_once(dom: &mut Dom<TuiExt>, viewport: Rect) {
     // in flow during pass 1; this pass adjusts their rect based
     // on the nearest scrollable ancestor's scroll position.
     sticky::place_sticky(dom);
+    // Pass 2.6 — an open `<select>` picker flips above its field where
+    // the screen ends.
+    picker::place_pickers(dom, root_rect);
     #[cfg(debug_assertions)]
     block::debug_assert_no_margin_chain_memo(dom, root);
     // Pass 3 — move relatively positioned and sticky `::before` /

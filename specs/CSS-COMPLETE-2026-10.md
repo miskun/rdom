@@ -10247,3 +10247,18 @@ row comes from.
   behind stayed `Rgb(200, 100, 50)` (green `Rgb(100, 50, 25)`; `filter: invert(1)` on a green backdrop
   `Rgb(255, 55, 255)`); `pointer_shape/tests.rs` `the_root_cursor_shows_over_the_canvas`: `default`
   (green `crosshair`, and inherited by a child).
+- 2026-10-09 — C15G-SELECT-FLIP (Phase 15 gate API N3; HTML `::picker(select)`, CSS Anchor Positioning 1
+  §4.1, §4.3). Found: an open drop-down `<select>`'s option list overflows its one in-flow row downward in
+  the top layer (C12-SELECT-TOP-LAYER); past the last row its options were neither painted nor hit — a
+  select in a footer form was unusable with the mouse — while the README showed a custom picker flipping
+  with `flip-block`. Decided: the engines' picker is anchored to its select with `position-try-fallbacks:
+  flip-block`; rdom's is the select's own overflowing children, not an absolutely positioned box, so the
+  same decision runs as its own layout step (`layout_pass/picker.rs`, after sticky): the base list is
+  tried, and when it overflows the viewport's bottom the flipped one — mirrored about the field's row,
+  its last option there, as the base has its first — is used if it fits above; neither fitting keeps the
+  base (§4.3 "Return current styles"). The options move with their subtrees (`tree::shift_box`), so
+  paint and hit-testing follow. The README's aside that the native select "drops its own option list
+  below its row" now says it flips too; DIVERGENCES' select entry says how. Red
+  (`select/top_layer_tests.rs`, `a_picker_near_the_screen_bottom_opens_upward`: a select on row 6 of 8
+  with three options): the options at rows 6, 7, 8 (green: 4, 5, 6, the field kept at row 6, and the
+  first option hit at row 4).

@@ -180,3 +180,42 @@ fn disabling_an_open_select_closes_its_picker() {
     assert!(!select::is_open(p.app.dom(), p.select));
     assert!(!p.app.dom().is_in_top_layer(p.select));
 }
+
+/// HTML's `::picker(select)` is anchored to its select with a
+/// `position-try-fallbacks: flip-block` behaviour (CSS Anchor Positioning
+/// 1 §4): near the bottom of the screen the option list opens upward —
+/// its last option on the field's row — rather than running off the
+/// screen, unreachable by the mouse (C15G-SELECT-FLIP).
+#[test]
+fn a_picker_near_the_screen_bottom_opens_upward() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let spacer = dom.create_element("div");
+    dom.set_attribute(spacer, "class", "spacer").unwrap();
+    dom.append_child(root, spacer).unwrap();
+    let sel = dom.create_element("select");
+    let mut options = Vec::new();
+    for label in ["one", "two", "three"] {
+        let o = dom.create_element("option");
+        let t = dom.create_text_node(label);
+        dom.append_child(o, t).unwrap();
+        dom.append_child(sel, o).unwrap();
+        options.push(o);
+    }
+    dom.append_child(root, sel).unwrap();
+    let sheet = rdom_css::parse("* { margin: 0 } .spacer { height: 6 }");
+    let terminal = Terminal::new(TestBackend::new(30, 8)).unwrap();
+    let mut app = App::with_backend(dom, crate::style::Stylesheet::new(), terminal).unwrap();
+    app.push_stylesheet(sheet.stylesheet);
+    app.advance(0).unwrap();
+    super::dropdown::open(app.dom_mut(), sel);
+    app.advance(0).unwrap();
+    let y = |id: NodeId| app.dom().node(id).layout_rect().unwrap().y;
+    assert_eq!(y(sel), 6, "the field stays in flow");
+    assert_eq!(
+        [y(options[0]), y(options[1]), y(options[2])],
+        [4, 5, 6],
+        "the list above, its last option on the field's row"
+    );
+    assert_eq!(app.dom().hit_test(1, 4), Some(options[0]), "and hit there");
+}

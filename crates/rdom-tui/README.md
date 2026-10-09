@@ -1051,7 +1051,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-A picker — a custom drop-down list — opens below its button and, where the screen ends, above it: `position-try-fallbacks: flip-block` is tried when the box would overflow below (§4). (rdom's native `<select>` drops its own option list below its row.)
+A picker — a custom drop-down list — opens below its button and, where the screen ends, above it: `position-try-fallbacks: flip-block` is tried when the box would overflow below (§4). (rdom's native `<select>` does the same with its own option list.)
 
 ```rust
 use rdom_tui::prelude::*;
