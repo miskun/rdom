@@ -9616,3 +9616,15 @@ row comes from.
   marked (`false` for `true`). Green after, with the resolvers' own reads pinned in rdom-style
   (`container_units_resolve_against_the_container`, `a_context_length_computes_to_rows`,
   `length_is_absolute_cells`) and `migration_hints::unit_reads_hints`.
+- 2026-10-09 — C14G-SHEET-CLONES (architect N9; CSS Conditional 5 §6.4). Found: outside an `App`, the sheets a
+  cascade ran with are kept for `layout_dom`'s container re-cascade (`container::remember_inputs`), keyed by
+  the whole list's versions — when any one sheet's version moved, every sheet was deep-cloned again, so a
+  `CascadeExt` user calling `insert_rule` on a small sheet each frame copied the large ones beside it each
+  cascade. Decided: each kept copy is keyed by the version of the sheet it copies (a version is
+  process-unique and renewed by every mutation, so an equal version is the same content), and a sheet kept
+  at the same version reuses its `Rc` — only a changed sheet is copied, once, as the `App` path shares its
+  published `Rc`s. A zero-copy `Rc` entry point to `CascadeExt` was considered and not added: the `App`
+  is the path for sheets that change every frame, and one copy per change is documented on
+  `cascade_all`. Red (`cascade/cost_tests.rs` `a_headless_cascade_copies_only_the_sheet_that_changed`,
+  a 300-rule sheet beside a two-rule one that gains a rule): the large sheet's kept `Rc` was a new copy
+  (`ptr_eq` false); green after, the large sheet shared and the keep under 100 allocations.

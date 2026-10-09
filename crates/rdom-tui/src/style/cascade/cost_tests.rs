@@ -562,3 +562,49 @@ fn a_flipped_query_invalidates_recorded_matches() {
         crate::Color::Rgb(0, 0, 255)
     );
 }
+
+// ─── C14G-SHEET-CLONES: a headless cascade keeps its sheets shared ─────
+
+/// Outside an `App`, the layout pass re-cascades a query container's
+/// subtree with the sheets the last cascade ran with (CSS Conditional 5
+/// §6.4), which the document keeps. A sheet whose version moved is copied
+/// once; an unchanged one stays shared (the same `Rc`), so editing a small
+/// sheet each frame does not copy a large one beside it.
+#[test]
+fn a_headless_cascade_copies_only_the_sheet_that_changed() {
+    use crate::test_alloc::allocations_in;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let card = dom.create_element("div");
+    dom.append_child(root, card).unwrap();
+    let p = dom.create_element("p");
+    dom.append_child(card, p).unwrap();
+    let mut css = String::from(
+        "div { container-type: inline-size } @container (width > 5) { p { color: red } }",
+    );
+    for i in 0..300 {
+        css.push_str(&format!(" .c{i} {{ color: blue; padding: 1 }}"));
+    }
+    let large = rdom_css::parse(&css).stylesheet;
+    let mut small = rdom_css::parse("p { margin: 0 }").stylesheet;
+    dom.set_viewport(Viewport::new(40, 10));
+    dom.cascade_all(&[&large, &small]);
+    let kept = |dom: &TuiDom| super::container::inputs(dom).expect("kept").sheets;
+    let before = kept(&dom);
+    small.add_rule("p", crate::style::TuiStyle::new()).unwrap();
+    let allocations =
+        allocations_in(|| super::container::remember_inputs(&mut dom, &[&large, &small]));
+    let after = kept(&dom);
+    assert!(
+        Rc::ptr_eq(&before[0], &after[0]),
+        "the unchanged large sheet is shared, not copied"
+    );
+    assert!(
+        !Rc::ptr_eq(&before[1], &after[1]),
+        "the edited sheet is new"
+    );
+    assert!(
+        allocations < 100,
+        "{allocations} allocations to keep a two-rule sheet beside a 300-rule one"
+    );
+}

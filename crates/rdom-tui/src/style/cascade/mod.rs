@@ -202,6 +202,12 @@ pub trait CascadeExt: crate::sealed::Sealed {
     /// across all sheets; later sheets win same-specificity contests.
     /// Custom-property (`var()`) definitions are merged with
     /// later-wins semantics per var name.
+    ///
+    /// When the sheets query a container (`@container`) or style
+    /// `content-visibility: auto`, the document keeps a copy of each sheet
+    /// for [`LayoutExt::layout_dom`](crate::LayoutExt::layout_dom) to
+    /// re-cascade with; a sheet is copied again only when it changed since
+    /// the last cascade, the others stay shared.
     fn cascade_all(&mut self, stylesheets: &[&Stylesheet]);
 
     /// Cascade only the subtrees rooted at `roots`. Each root's

@@ -330,8 +330,11 @@ pub(super) fn note_unit_reads(
 }
 
 /// The sheets a cascade without an `App` ran with, kept for the layout
-/// pass to re-cascade query containers with (clones, made only when a
-/// container was queried, and again only when a sheet changes).
+/// pass to re-cascade query containers with: copies, made only when a
+/// container was queried, each keyed by the version of the sheet it
+/// copies — a sheet is copied again only when its own version moves, and
+/// an unchanged one stays shared (the same `Rc`) across cascades, as the
+/// `App`'s published sheets are.
 struct HeadlessInputs {
     key: Vec<u64>,
     sheets: std::rc::Rc<[std::rc::Rc<Stylesheet>]>,
@@ -347,17 +350,21 @@ pub(crate) fn remember_inputs(dom: &mut Dom<TuiExt>, stylesheets: &[&Stylesheet]
         return;
     }
     let key: Vec<u64> = stylesheets.iter().map(|s| s.version()).collect();
-    if dom
-        .document_data::<HeadlessInputs>()
-        .is_some_and(|i| i.key == key)
-    {
+    let kept = dom.document_data::<HeadlessInputs>();
+    if kept.is_some_and(|i| i.key == key) {
         return;
     }
-    let registry = super::registered::document_registry(dom, stylesheets);
+    // A sheet kept at the same version is the same content: share it.
+    let previous = |version: u64| {
+        let i = kept?;
+        let at = i.key.iter().position(|v| *v == version)?;
+        Some(i.sheets[at].clone())
+    };
     let sheets = stylesheets
         .iter()
-        .map(|s| std::rc::Rc::new((*s).clone()))
+        .map(|s| previous(s.version()).unwrap_or_else(|| std::rc::Rc::new((*s).clone())))
         .collect();
+    let registry = super::registered::document_registry(dom, stylesheets);
     dom.set_document_data(HeadlessInputs {
         key,
         sheets,

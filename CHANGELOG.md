@@ -847,6 +847,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 
 ### Fixed — `rdom-tui`
 
+- **A headless cascade copies only the sheets that changed**: outside an `App`, a cascade whose sheets query a container kept a copy of every sheet whenever any one's version moved; an unchanged sheet now stays shared, so editing one small sheet a frame no longer copies a large one beside it. (C14G-SHEET-CLONES)
 - **An inline in an anonymous block box's line is a hit target** (CSS 2.1 §9.2.1.1): a point on a `<b>` or `<a>` beside block siblings (`<div><p>…</p>text <b>x</b></div>`) hit the block; the hit test now searches the anonymous boxes' lines as an IFC block's, the document root's included. (C13-ROOT-BLOCK)
 - **A root-level `overflow: auto` box has no spurious vertical scrollbar**: the viewport column shrank a box taller than the viewport to fit it, and its content overflowed; block flow keeps its `auto` height. (C13-ROOT-BLOCK)
 - **An `rtl` table's columns run right to left** (CSS 2.1 §17.5, §17.6.2): `direction: rtl` on a table laid its first column on the left; it is now the rightmost, and a cell's right border is on the collapsed line before its column. (C13G-TABLE-TRACKS)
