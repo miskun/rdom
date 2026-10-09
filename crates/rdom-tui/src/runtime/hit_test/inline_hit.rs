@@ -177,11 +177,10 @@ fn hit_fragment(dom: &Dom<TuiExt>, lines: &Lines<'_>, x: u16, y: u16) -> Option<
     // The line box spanning the row (CSS 2.1 §10.8: a line is as tall
     // as its tallest atom).
     let row = u16::try_from(y as i32 - content.y).ok()?;
-    let line = &layout.lines[layout.line_at_row(row)?];
-
     // Local x within content — negative left of it, where an overflowing
     // `rtl` line's start sits.
     let x_local = x as i32 - content.x;
+    let line = &layout.lines[layout.line_at(x_local, row)?];
 
     for fragment in &line.fragments {
         if x_local >= fragment.x

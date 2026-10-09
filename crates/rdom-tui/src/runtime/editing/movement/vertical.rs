@@ -103,10 +103,10 @@ pub(crate) fn vertical_motion(dom: &mut TuiDom, from: Position, delta_y: i32) ->
 /// extending selection focus to the same target.
 pub(crate) fn line_edge_position(dom: &TuiDom, from: Position, forward: bool) -> Option<Position> {
     let flow = crate::render::inline::inline_flow_for_text(dom, from.node)?;
-    let (_, y) = caret_cell(dom, from)?;
+    let (x, y) = caret_cell(dom, from)?;
     let (layout, content) = crate::render::inline::inline_flow_layout(dom, flow)?;
     let row = u16::try_from(y - content.y).ok()?;
-    let target_line = &layout.lines[layout.line_at_row(row)?];
+    let target_line = &layout.lines[layout.line_at(x - content.x, row)?];
     if forward {
         target_line
             .fragments
@@ -141,7 +141,11 @@ fn compute_vertical_target(
     // after a trailing newline) counts one row per line there.
     let row = from_y - content.y;
     let height = i32::from(layout.height());
-    let from_line = match u16::try_from(row).ok().and_then(|r| layout.line_at_row(r)) {
+    let from_x = i32::from(target_x) - content.x;
+    let from_line = match u16::try_from(row)
+        .ok()
+        .and_then(|r| layout.line_at(from_x, r))
+    {
         Some(i) => i as i64,
         None if row >= height => layout.lines.len() as i64 + i64::from(row - height),
         None => i64::from(row),
@@ -186,6 +190,21 @@ fn compute_vertical_target(
     };
 
     let target_y = target_y_i32 as u16;
+    // A line in another column (CSS Multi-column 1): the goal column is
+    // kept within the column, moved into the target line's.
+    let target_x = match (
+        usize::try_from(from_line)
+            .ok()
+            .and_then(|i| layout.lines.get(i)),
+        layout.lines[target_line_idx].column,
+    ) {
+        (Some(from), Some((to_left, _))) => {
+            let from_left = from.column.map_or(0, |c| c.0);
+            let x = i32::from(target_x) - from_left + to_left;
+            x.clamp(0, i32::from(u16::MAX)) as u16
+        }
+        _ => target_x,
+    };
 
     // In-bounds: try hit-test at target_x first.
     if let Some(pos) = dom.position_at(target_x, target_y)

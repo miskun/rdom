@@ -10,8 +10,8 @@
 pub enum GapValue {
     Cells(u16),
     Calc(std::sync::Arc<crate::calc::CalcExpr>),
-    /// `normal`: 0 in flex layout (§8.1; a multi-column `1em`, which
-    /// rdom has no layout for yet).
+    /// `normal`: 0 in flex and grid layout (§8.1); a multi-column
+    /// container's `1em`, one cell.
     Normal,
 }
 

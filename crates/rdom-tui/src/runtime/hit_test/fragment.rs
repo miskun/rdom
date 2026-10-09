@@ -73,7 +73,9 @@ fn clamp_to_line_layout(
         (layout.lines.len() - 1, false, true)
     } else {
         let row = (y as i32 - content.y) as u16;
-        let line = layout.line_at_row(row).unwrap_or(layout.lines.len() - 1);
+        let line = layout
+            .line_at(x as i32 - content.x, row)
+            .unwrap_or(layout.lines.len() - 1);
         (line, false, false)
     };
 
@@ -142,10 +144,9 @@ fn fragment_at_layout(
     y: u16,
 ) -> Option<&InlineFragment> {
     let row = u16::try_from(y as i32 - content.y).ok()?;
-    let line = &layout.lines[layout.line_at_row(row)?];
-
     // Negative left of the content box (an overflowing `rtl` line).
     let x_local = x as i32 - content.x;
+    let line = &layout.lines[layout.line_at(x_local, row)?];
 
     // A text fragment's inline box spans its line's rows — the leading
     // above and below its glyph row (CSS 2.1 §10.8.1) — so a cell on any

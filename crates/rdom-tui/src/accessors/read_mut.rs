@@ -58,6 +58,10 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeMut<'a, TuiExt> {
         self.as_ref().bounding_rect()
     }
 
+    fn client_rects(&self) -> Vec<DomRect> {
+        self.as_ref().client_rects()
+    }
+
     fn scroll_top(&self) -> Option<i32> {
         self.as_ref().scroll_top()
     }

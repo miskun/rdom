@@ -1,15 +1,19 @@
 //! What a formatting context keeps of its last layout for the readers
 //! after it: a grid container's lines (CSS Grid 2 §9.1), a table's table
 //! box inside its wrapper (CSS 2.1 §17.4, C13G-TABLE-GEOMETRY) and its
-//! tracks (`TuiAccessors::table_tracks`, C13G-TABLE-TRACKS). One boxed
-//! record on [`TuiExt`] — a box is a grid or a table, never both — so the
-//! common box pays one pointer for either and nothing more.
+//! tracks (`TuiAccessors::table_tracks`, C13G-TABLE-TRACKS), a
+//! multi-column container's column boxes and a fragmented box's fragments
+//! (C15-COLUMNS). One boxed record on [`TuiExt`] — a box is one of them
+//! at most (a grid, a table and a multi-column container are monolithic,
+//! never fragmented) — so the common box pays one pointer and nothing
+//! more.
 
 use std::ops::Range;
 
 use super::TuiExt;
 use crate::layout::LayoutRect;
 use crate::render::layout_pass::GridLines;
+pub(crate) use crate::render::layout_pass::fragment::BoxFragments;
 
 /// A box's kept layout.
 #[derive(Debug, Clone, PartialEq)]
@@ -18,6 +22,32 @@ pub(crate) enum KeptLayout {
     Grid(GridLines),
     /// A table's table box in its wrapper box, and its tracks.
     Table(TableKept),
+    /// A multi-column container's column boxes (CSS Multi-column 1 §2),
+    /// one set per run of columns between spanners.
+    Columns(Vec<ColumnSet>),
+    /// A box split across fragmentainers (CSS Fragmentation 3 §5.4): its
+    /// fragments.
+    Fragments(BoxFragments),
+}
+
+/// A row of a multi-column container's column boxes: its rows, from the
+/// content box's top edge, and its columns. Relative, so a subtree shift
+/// keeps it true.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ColumnSet {
+    pub(crate) top: i32,
+    pub(crate) height: u16,
+    pub(crate) columns: Vec<ColumnBox>,
+}
+
+/// One column box: its left edge from the content box's left edge, its
+/// width, and whether content fell in it (a rule is drawn only between two
+/// that hold some, CSS Multi-column 1 §4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ColumnBox {
+    pub(crate) x: i32,
+    pub(crate) width: u16,
+    pub(crate) filled: bool,
 }
 
 /// What a laid-out table keeps: where its table box sits in its wrapper,
@@ -48,7 +78,7 @@ impl TuiExt {
     pub(crate) fn grid_lines(&self) -> Option<&GridLines> {
         match self.kept.as_deref()? {
             KeptLayout::Grid(lines) => Some(lines),
-            KeptLayout::Table(_) => None,
+            _ => None,
         }
     }
 
@@ -57,7 +87,16 @@ impl TuiExt {
     pub(crate) fn table_kept(&self) -> Option<&TableKept> {
         match self.kept.as_deref()? {
             KeptLayout::Table(t) => Some(t),
-            KeptLayout::Grid(_) => None,
+            _ => None,
+        }
+    }
+
+    /// The fragments of a box its last layout split across fragmentainers
+    /// (CSS Fragmentation 3); `None` for a box in one piece.
+    pub(crate) fn box_fragments(&self) -> Option<&BoxFragments> {
+        match self.kept.as_deref()? {
+            KeptLayout::Fragments(f) => Some(f),
+            _ => None,
         }
     }
 

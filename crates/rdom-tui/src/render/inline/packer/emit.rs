@@ -407,6 +407,7 @@ impl LinePacker<'_> {
             indent,
             ends_clamp: false,
             first_line: None,
+            column: None,
         });
         self.line_groups.push(self.cur_group);
         // The first line settled: its style ends here (`first`).

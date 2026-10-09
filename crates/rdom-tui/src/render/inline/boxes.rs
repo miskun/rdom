@@ -351,6 +351,11 @@ pub struct LineBox {
     /// `::first-line` paint reads (`first_line::effective`). `None` for
     /// any other line.
     pub(crate) first_line: Option<Box<[NodeId]>>,
+    /// The fragmentainer a fragmented flow moved the line into (CSS
+    /// Fragmentation 3; a multi-column container's column box): its left
+    /// edge from the content box's left edge, and its width. `None` in an
+    /// unfragmented layout, whose lines stack in one column.
+    pub(crate) column: Option<(i32, u16)>,
 }
 
 impl Default for LineBox {
@@ -368,6 +373,7 @@ impl Default for LineBox {
             indent: 0,
             ends_clamp: false,
             first_line: None,
+            column: None,
         }
     }
 }
@@ -415,9 +421,45 @@ pub struct InlineLayout {
 }
 
 impl InlineLayout {
-    /// Height in rows: the line boxes' heights stacked.
+    /// Height in rows: the line boxes' heights stacked — the lowest line's
+    /// bottom when a fragmented flow moved them into columns.
     pub fn height(&self) -> u16 {
-        self.lines.last().map_or(0, LineBox::bottom)
+        match self.lines.last() {
+            Some(l) if l.column.is_some() => {
+                self.lines.iter().map(LineBox::bottom).max().unwrap_or(0)
+            }
+            l => l.map_or(0, LineBox::bottom),
+        }
+    }
+
+    /// The index of the line box at `row` (counted from the top of the
+    /// layout) nearest the column `x` (counted from its content edge): the
+    /// line at `row` ([`line_at_row`](Self::line_at_row)) — or, once a
+    /// fragmented flow moved the lines into columns (CSS Multi-column 1),
+    /// the line at `row` of the column holding `x`, or the nearest column
+    /// with one. `None` with no line at `row`.
+    pub fn line_at(&self, x: i32, row: u16) -> Option<usize> {
+        if self.lines.first().is_none_or(|l| l.column.is_none()) {
+            return self.line_at_row(row);
+        }
+        let distance = |(left, width): (i32, u16)| {
+            let right = left + i32::from(width);
+            if x < left {
+                left - x
+            } else if x >= right {
+                x - right + 1
+            } else {
+                0
+            }
+        };
+        let column = self
+            .lines
+            .iter()
+            .filter_map(|l| l.column)
+            .min_by_key(|&c| distance(c))?;
+        self.lines
+            .iter()
+            .position(|l| l.column == Some(column) && l.top <= row && row < l.bottom())
     }
 
     /// The index of the line box spanning `row` (counted from the top
@@ -447,6 +489,7 @@ mod tests {
             indent: 0,
             ends_clamp: false,
             first_line: None,
+            column: None,
         }
     }
 

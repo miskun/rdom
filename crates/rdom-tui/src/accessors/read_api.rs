@@ -114,6 +114,16 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// a type alias for spec-name parity.
     fn bounding_rect(&self) -> Option<DomRect>;
 
+    /// `Element.getClientRects()` (CSSOM View §6) for a box: its border
+    /// box's fragments, in flow order — one rect for a box in one piece,
+    /// one per fragmentainer for a box a fragmented flow split (CSS
+    /// Fragmentation 3: a block across the column boxes of a multi-column
+    /// container, each fragment the rows of the box that column holds),
+    /// whose [`bounding_rect`](Self::bounding_rect) is their bounding box.
+    /// An inline box's line fragments are not listed: it reports its own
+    /// rect. Empty for non-element nodes.
+    fn client_rects(&self) -> Vec<DomRect>;
+
     /// `Element.scrollTop` — vertical scroll offset in cells, measured
     /// from the scrolling area origin (CSSOM View §4): 0 at the top edge,
     /// or at the bottom edge where that is the origin — a

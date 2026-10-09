@@ -31,6 +31,100 @@ pub(super) fn measure_content(
     containing_block_width: u16,
     measure: Measure,
 ) -> u16 {
+    if crate::render::layout_pass::multicol::is_multicol(computed) {
+        return multicol_content(
+            dom,
+            id,
+            computed,
+            direction,
+            cross_budget,
+            containing_block_width,
+            measure,
+        );
+    }
+    measure_one_column(
+        dom,
+        id,
+        computed,
+        direction,
+        cross_budget,
+        containing_block_width,
+        measure,
+    )
+}
+
+/// A multi-column container's content size (CSS Multi-column 1): on its
+/// inline axis, its max-content size the columns' — `column-count` of them
+/// (one with `auto`), each as wide as its content or `column-width` — with
+/// their gaps, its min-content size one column's; on its block axis, at a
+/// width, its content laid out in one column box shared out over the
+/// columns, rounded up — balancing's lower bound, which layout raises
+/// where a break falls short (DIVERGENCES).
+fn multicol_content(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    direction: Direction,
+    cross_budget: u16,
+    containing_block_width: u16,
+    measure: Measure,
+) -> u16 {
+    use crate::render::layout_pass::box_sizing::Sizer;
+    use crate::render::layout_pass::multicol::geometry;
+    let g = super::super::gutters(computed, false, false);
+    let chrome_x = Sizer::horizontal(computed, containing_block_width)
+        .chrome()
+        .saturating_add(g.columns());
+    let one = |direction, cross_budget| {
+        measure_one_column(
+            dom,
+            id,
+            computed,
+            direction,
+            cross_budget,
+            containing_block_width,
+            measure,
+        )
+    };
+    match direction {
+        Direction::Row => {
+            let content = one(Direction::Row, cross_budget).saturating_sub(chrome_x);
+            if measure == Measure::MinContent {
+                return content.saturating_add(chrome_x);
+            }
+            let count = match computed.multicol.column_count {
+                crate::layout::ColumnCount::Count(n) => n.min(u32::from(u16::MAX)) as u16,
+                crate::layout::ColumnCount::Auto => 1,
+            };
+            let width = content.max(computed.multicol.column_width.cells().unwrap_or(0));
+            let gap = geometry::gap(computed, 0);
+            width
+                .saturating_mul(count)
+                .saturating_add(gap.saturating_mul(count.saturating_sub(1)))
+                .saturating_add(chrome_x)
+        }
+        Direction::Column => {
+            let cols = geometry::columns(computed, cross_budget.saturating_sub(chrome_x));
+            let chrome_y = Sizer::vertical(computed, containing_block_width)
+                .chrome()
+                .saturating_add(g.bottom);
+            let tall = one(Direction::Column, cols.width.saturating_add(chrome_x))
+                .saturating_sub(chrome_y);
+            tall.div_ceil(cols.count.max(1)).saturating_add(chrome_y)
+        }
+    }
+}
+
+/// [`measure_content`] of a box laid out in one column.
+fn measure_one_column(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    computed: &ComputedStyle,
+    direction: Direction,
+    cross_budget: u16,
+    containing_block_width: u16,
+    measure: Measure,
+) -> u16 {
     // A table's size is its grid's and its captions', its chrome its own
     // (CSS 2.1 §17.5.2.2, §17.6.2 — none in the collapsing model).
     if computed.flow == crate::layout::Flow::Table {

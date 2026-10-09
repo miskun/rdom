@@ -65,6 +65,10 @@
 //! - `gutter` — scroll offsets and scrollbar gutters.
 //! - `float` — floats: the exclusion area of a block formatting
 //!   context, float placement, clearance, the bands line boxes use.
+//! - `fragment` — block fragmentation (CSS Fragmentation 3): a laid-out
+//!   flow's breaks, cut into fragmentainers and moved into them.
+//! - `multicol` — multi-column containers (CSS Multi-column 1): their
+//!   column boxes, the fragmentainers of their content.
 //!
 //! ## Scroll
 //!
@@ -97,6 +101,7 @@ mod distribution;
 mod flex;
 pub(crate) mod float;
 mod flow;
+pub(crate) mod fragment;
 pub(crate) mod generated_atoms;
 pub(crate) mod geometry;
 mod grid;
@@ -107,6 +112,7 @@ pub(crate) mod intrinsic;
 mod items;
 pub(crate) mod line_clamp;
 mod margin_trim;
+pub(crate) mod multicol;
 mod positioned_overflow;
 #[cfg(test)]
 pub(crate) use positioned_overflow::MAX_ROUNDS;
@@ -495,6 +501,11 @@ fn layout_children_aligned(
     computed: &ComputedStyle,
     containing_block_width: u16,
 ) -> Option<block::BlockMeasurement> {
+    // A multi-column container flows its content through column boxes
+    // (CSS Multi-column 1), its block-axis alignment the columns' own.
+    if multicol::is_multicol(computed) {
+        return multicol::lay_out(dom, id, inner, computed, containing_block_width);
+    }
     let measurement = layout_children(dom, id, inner, computed);
     // The content's height: the measured block-level content, else the
     // lines of an inline formatting context or a text leaf.

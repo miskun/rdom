@@ -11,6 +11,7 @@ use rdom_tui::{CascadeExt, Color, LayoutExt, NodeId, PaintExt, TuiDom, TuiNodeEx
 mod blend;
 mod clip_path;
 mod filter;
+mod multicol;
 mod translate;
 mod translate_motion;
 

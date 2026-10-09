@@ -91,7 +91,7 @@ pub(super) fn hit_stacking_context(
             )
             || hit_layers(dom, root, &layers.negative, x, y, viewport, path);
     };
-    let contains = rect_contains(outer, x, y);
+    let contains = box_contains(dom, root, outer, x, y);
     // A `<select>` picker (in the top layer) is its option list, which
     // overflows the select's own row: its content is hit outside its box.
     let picker = dom.top_layer_kind(root) == Some(rdom_core::TopLayerKind::Picker);
@@ -255,7 +255,7 @@ fn descend_plain(
     let Some((computed, outer)) = element_box(dom, id) else {
         return false;
     };
-    if !rect_contains(outer, x, y) {
+    if !box_contains(dom, id, outer, x, y) {
         return false;
     }
     let content_clip = children_clip(dom, id, &computed, clip);
@@ -435,6 +435,16 @@ fn insert_box_less_ancestors(
 /// `id` carries the `inert` attribute (HTML §6.3.1).
 pub(super) fn has_inert_attribute(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     dom.node(id).has_attribute("inert")
+}
+
+/// Whether `id`'s border box `outer` holds `(x, y)` — for a box a
+/// fragmented flow split (CSS Fragmentation 3), one of its fragments: a
+/// point in their bounding box but on none of them is not on the box.
+fn box_contains(dom: &Dom<TuiExt>, id: NodeId, outer: LayoutRect, x: u16, y: u16) -> bool {
+    match dom.node(id).ext().and_then(|e| e.box_fragments()) {
+        Some(f) => f.contains(outer, i32::from(x), i32::from(y)),
+        None => rect_contains(outer, x, y),
+    }
 }
 
 #[inline]

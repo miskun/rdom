@@ -1,6 +1,6 @@
 //! `ComputedStyle`'s derived queries: one answer read from several
 //! computed fields (the flex direction, scroll-container-ness, atomic
-//! inline-ness, clipping) and the overflow normalization of CSS
+//! inline-ness, multi-column-container-ness, clipping) and the overflow normalization of CSS
 //! Overflow 3 §3.1.
 
 use super::ComputedStyle;
@@ -27,6 +27,15 @@ impl ComputedStyle {
         use crate::layout::{Display, Flow};
         self.display == Display::InlineBlock
             || (self.display == Display::Inline && self.flow != Flow::Block)
+    }
+
+    /// Whether the box is a multi-column container (CSS Multi-column 1
+    /// §2): a block container — `flow` or `flow-root` inside, not an
+    /// inline box — whose `column-count` or `column-width` is not `auto`.
+    pub fn is_multicol_container(&self) -> bool {
+        self.multicol.is_multicol()
+            && self.flow.is_block_flow()
+            && (self.display != crate::layout::Display::Inline || self.is_atomic_inline())
     }
 
     /// Whether the box clips its content on either axis — a scroll

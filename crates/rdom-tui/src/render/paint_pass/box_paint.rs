@@ -101,7 +101,71 @@ pub(super) fn paint_box(
     if !frame.visible || crate::render::layout_pass::hides_empty_cell(dom, id) {
         return Some(frame);
     }
-    let (computed, outer, inner) = (&frame.computed, frame.outer, frame.inner);
+    // A box a fragmented flow split (CSS Fragmentation 3 §5.4, `slice`):
+    // each fragment draws the unfragmented box at its place, cut at its
+    // breaks — rows outside a fragment's are another fragment's, while
+    // what reaches past the box's own first and last edges (a shadow, an
+    // outline) stays.
+    if let Some(ext) = dom.node(id).ext()
+        && let Some(fragments) = ext.box_fragments()
+    {
+        let n = fragments.list.len();
+        for (i, f) in fragments.drawn(ext.layout).enumerate() {
+            let band = rows_band(clip, f.rows, i == 0, i + 1 == n);
+            paint_own_box(
+                dom,
+                id,
+                buf,
+                &frame.computed,
+                f.border_box,
+                f.content_box,
+                band,
+            );
+        }
+        return Some(frame);
+    }
+    paint_own_box(
+        dom,
+        id,
+        buf,
+        &frame.computed,
+        frame.outer,
+        frame.inner,
+        clip,
+    );
+    Some(frame)
+}
+
+/// `clip` cut to the rows of `rows` — open above the first fragment and
+/// below the last.
+fn rows_band(clip: Rect, rows: LayoutRect, first: bool, last: bool) -> Rect {
+    let top = if first {
+        i32::from(clip.y)
+    } else {
+        rows.y.max(i32::from(clip.y))
+    };
+    let bottom = if last {
+        i32::from(clip.bottom())
+    } else {
+        (rows.y + i32::from(rows.height)).min(i32::from(clip.bottom()))
+    };
+    if bottom <= top {
+        return Rect::new(clip.x, clip.y, clip.width, 0);
+    }
+    Rect::new(clip.x, top as u16, clip.width, (bottom - top) as u16)
+}
+
+/// [`paint_box`]'s drawing of the box `outer` (content box `inner`)
+/// styled `computed` into `clip`.
+fn paint_own_box(
+    dom: &Dom<TuiExt>,
+    id: NodeId,
+    buf: &mut Buffer,
+    computed: &ComputedStyle,
+    outer: LayoutRect,
+    inner: LayoutRect,
+    clip: Rect,
+) {
     // 0. Outer shadows, under the background (CSS Backgrounds 3 §6.1);
     // they may show while the box itself is outside the clip.
     shadow::paint_outer_shadows(buf, computed, outer, clip);
@@ -112,7 +176,7 @@ pub(super) fn paint_box(
     let Some(outer_grid) = layout_rect_to_grid(outer, clip) else {
         // Its box is off-screen; its content may still show (a scrolled-
         // off parent's visible children, `overflow: visible`).
-        return Some(frame);
+        return;
     };
     // 1. Background fill over the `background-clip` box: an opaque
     // fill that clears glyphs from earlier paints (full CSS
@@ -144,7 +208,6 @@ pub(super) fn paint_box(
         let priority = compute_border_priority(dom, id);
         paint_border_sides(buf, computed, outer, outer_grid, clip, priority);
     }
-    Some(frame)
 }
 
 /// Paint an element's content: its canvas callback, or its inline

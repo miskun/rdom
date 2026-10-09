@@ -278,7 +278,7 @@ row comes from.
 | C15-FILTER | `filter` color-matrix functions; `backdrop-filter` | done |
 | C15-BLEND | `mix-blend-mode`, `isolation` | done |
 | C15-CLIP-PATH | `clip-path: inset()` | done |
-| C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | partial — properties parse and cascade; the column layout, fragmentation, balancing, rules and spanners remain |
+| C15-COLUMNS | Multi-column layout (`columns`, `column-count` / `-width` / `-rule*` / `-span` / `-fill`) | partial — column rules and spanners remain |
 | C15-ANCHOR | Anchor positioning (`anchor-name`, `position-anchor`, `position-area`, `@position-try`) | |
 
 ## Log
@@ -9851,3 +9851,41 @@ row comes from.
   and does nothing until the layout lands (no silent change in this commit). Red → green: `multicol_tests` (5)
   red on the unknown properties — mutation run with the dispatch arm removed fails all five; the cascade's
   inherit probes and `PERTURB` table cover the two groups.
+- 2026-10-09 — C15-COLUMNS part 2, the column layout and the fragmentation engine (CSS Multi-column 1 §2,
+  §3.4, §7.1, §8.2; CSS Fragmentation 3 §3.1–§3.3, §4.1–§4.4, §5.2, §5.4). New modules: `layout_pass::multicol`
+  (the §3.4 pseudo-algorithm in whole cells, `geometry`, and the driver) and `layout_pass::fragment` (its own
+  module tree, for paged media to reuse: `candidates`, `breaker`, `apply`). Decisions: (1) lay out once, then
+  move — a multi-column container lays its content out in one column box's width (its content box narrowed to
+  the column while the children lay out, so percentages and positions resolve against the column, §2) as one
+  tall column; the engine reads the class A breaks (between in-flow block-level siblings, anonymous boxes
+  included) and class B breaks (between line boxes) off the laid-out boxes, with the §4.4 rules each breaks as
+  bits — `break-before` / `-after: avoid` (propagated from a first / last child), `break-inside: avoid` around
+  it, `orphans` / `widows` — and whether a `column` / `always` / `all` value forces it; a page or region break
+  breaks nothing in continuous media. (2) The breaker takes the last break that fits, a forced one first,
+  relaxing rule 3, then 2, then 1, and overflows to the next break when none fits (§4.2: a monolithic box
+  taller than the column); an unforced break truncates the margins (§5.2: the next column starts at the next
+  box's border edge). (3) Balancing (`column-fill: balance`, and always where the height is unconstrained, per
+  the brief) is a binary search for the least height with no more fragments than the count — or than the
+  forced breaks make — and none overflowing, so a monolithic box sets the columns' height: `⌈log₂ h⌉ + 2`
+  breaker runs over `b` breaks, pinned (`fragment::tests::balancing_is_a_bounded_search`,
+  `multicol::tests::only_a_multicol_container_pays_for_columns`); a constrained height caps it, and
+  `column-fill: auto` under one fills each column in turn; columns past the count overflow inline (§8.2).
+  (4) The fragment model (DESIGN "A fragmented box keeps its fragments beside one rect"): a box in one column
+  moves whole (`tree::shift_subtree`); a box across columns keeps `KeptLayout::Fragments` — its `layout` the
+  fragments' bounding box, `client_rects()` the fragments, paint drawing each as the unfragmented box cut to
+  its rows (open above the first and below the last, so shadows and outlines keep their outer edges),
+  hit-testing it only on a fragment; its lines rebased on its content fragments' bounding box, each with its
+  column (`LineBox::column`), which `InlineLayout::line_at` (new, public), the hit tests and the caret's
+  line motions read — vertical motion keeps the goal column within the column, moved into the target line's.
+  (5) Monolithic in rdom (DIVERGENCES): atomic inlines, flex / grid / table boxes, scroll containers,
+  size-contained boxes, nested multi-column containers, line-clamp containers, generated block boxes;
+  absolutely positioned boxes keep only their static positions moved (placed after, from them). (6) Intrinsic
+  sizes: a multi-column box sized by its content outside block flow gets its one-column height divided by the
+  count, rounded up; max-content `column-count` columns. (7) A multi-column container establishes a BFC (§2,
+  `finalize_bfc_formation`); `column-gap: normal` is one cell; `rtl` columns run from the right. Not yet:
+  rules, spanners (`column-span: all` lays out in its column). Red → green: `css_phase15::multicol` (9),
+  `fragment::tests` (6), `multicol::tests` (1). Mutation runs: no multi-column layout fails all nine
+  integration tests; then together — paint ignoring fragments, hit-testing ignoring them, no rule 3, no forced
+  breaks, a `column-width` count of 1, an intrinsic height not shared out — fail the five tests aimed at them,
+  the forced one after strengthening its fixture (two of three blocks forced apart: balanced they sat two and
+  one either way). Silent change `sc-multicol`.

@@ -92,7 +92,10 @@ pub(super) fn finalize_bfc_formation(working: &mut ComputedStyle) {
         // CSS Containment 2 §3.2, §3.4: layout and paint containment make
         // an independent formatting context.
         || crate::style::containment::layout(working)
-        || crate::style::containment::paint(working);
+        || crate::style::containment::paint(working)
+        // CSS Multi-column 1 §2: a multi-column container establishes a new
+        // block formatting context.
+        || working.is_multicol_container();
 }
 
 /// CSS Box Alignment 3 §6.2: `justify-items: legacy` (its initial value)

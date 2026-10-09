@@ -92,6 +92,17 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
         Some(self.tui_ext()?.layout)
     }
 
+    fn client_rects(&self) -> Vec<DomRect> {
+        use crate::node::TuiNodeExt;
+        let Some(ext) = self.tui_ext() else {
+            return Vec::new();
+        };
+        match ext.box_fragments() {
+            Some(f) => f.drawn(ext.layout).map(|d| d.rows).collect(),
+            None => vec![ext.layout],
+        }
+    }
+
     fn scroll_top(&self) -> Option<i32> {
         use crate::node::TuiNodeExt;
         Some(self.tui_ext()?.scroll_y)

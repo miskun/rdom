@@ -13,7 +13,7 @@ mod pseudo_styles;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use kept_layout::{KeptLayout, TableInsets, TableKept};
+pub(crate) use kept_layout::{ColumnBox, ColumnSet, KeptLayout, TableInsets, TableKept};
 pub(crate) use layout_cache::MarginChainMemo;
 pub use layout_cache::{AnonymousIfc, GeneratedBox, PositionedPseudo, StaticPosition};
 pub use presentation::{PresentationStyle, PseudoSlot, StyleSlot};
@@ -277,9 +277,11 @@ pub struct TuiExt {
     /// What its formatting context keeps of its last layout: a grid
     /// container's lines (CSS Grid 2 §9.1: the grid areas of the
     /// absolutely positioned boxes it is the containing block of), a
-    /// table's table box in its wrapper (CSS 2.1 §17.4). `None` for any
-    /// other box. Read through [`grid_lines`](Self::grid_lines) and
-    /// [`border_box`](Self::border_box).
+    /// table's table box in its wrapper (CSS 2.1 §17.4), a multi-column
+    /// container's column boxes, a box a fragmented flow split — its
+    /// fragments (CSS Fragmentation 3). `None` for any other box. Read
+    /// through [`grid_lines`](Self::grid_lines),
+    /// [`border_box`](Self::border_box) and the column / fragment reads.
     pub(crate) kept: Option<Box<KeptLayout>>,
     /// The floated `::before` / `::after` boxes laid out in this box's
     /// formatting context run (CSS Pseudo 4 §2, CSS 2.1 §9.5; its own,
