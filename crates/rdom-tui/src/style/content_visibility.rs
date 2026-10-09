@@ -128,20 +128,7 @@ pub(crate) fn after_layout(dom: &Dom<TuiExt>, viewport: crate::layout::LayoutRec
         return Vec::new();
     };
     let live = |id: NodeId| dom.contains(id) && dom.node(id).is_connected();
-    {
-        let mut remembering = state.remembering.borrow_mut();
-        remembering.retain(|&id| live(id));
-        let mut remembered = state.remembered.borrow_mut();
-        remembered.retain(|id, _| remembering.contains(id));
-        for &id in remembering.iter() {
-            if !skips_contents(dom, id)
-                && let Some(ext) = dom.node(id).ext()
-            {
-                let r = ext.content_layout;
-                remembered.insert(id, (r.width, r.height));
-            }
-        }
-    }
+    remember_sizes(dom);
     let mut changed = Vec::new();
     let mut auto = state.auto.borrow_mut();
     auto.retain(|&id| {
@@ -168,6 +155,29 @@ pub(crate) fn after_layout(dom: &Dom<TuiExt>, viewport: crate::layout::LayoutRec
     }
     changed.sort_unstable();
     changed
+}
+
+/// After a layout: remember the content-box size of each element with
+/// `contain-intrinsic-size: auto` that rendered its contents (CSS Sizing 4
+/// §6.1) — the part of [`after_layout`] a layout that is not followed by
+/// another (the container pass's cap) still owes.
+pub(crate) fn remember_sizes(dom: &Dom<TuiExt>) {
+    let Some(state) = state(dom) else {
+        return;
+    };
+    let live = |id: NodeId| dom.contains(id) && dom.node(id).is_connected();
+    let mut remembering = state.remembering.borrow_mut();
+    remembering.retain(|&id| live(id));
+    let mut remembered = state.remembered.borrow_mut();
+    remembered.retain(|id, _| remembering.contains(id));
+    for &id in remembering.iter() {
+        if !skips_contents(dom, id)
+            && let Some(ext) = dom.node(id).ext()
+        {
+            let r = ext.content_layout;
+            remembered.insert(id, (r.width, r.height));
+        }
+    }
 }
 
 /// §4.4 "relevant to the user": on screen, holding the focus, or holding

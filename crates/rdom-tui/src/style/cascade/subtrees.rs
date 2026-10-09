@@ -70,6 +70,7 @@ fn walk_subtrees(
     let roots = outermost(dom, &roots);
     let reads = super::media::begin(dom);
     super::container::begin(dom);
+    super::container::begin_subtrees(dom, &roots);
     crate::style::content_visibility::begin(dom);
     let sheets = Sheets::new(stylesheets, registry, super::media::document_media(dom));
     super::note_first_rules(dom, &sheets);

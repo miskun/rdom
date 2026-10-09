@@ -392,19 +392,6 @@ impl<'a> Scratch<'a> {
                 if !sheets.applies(sheet_idx, rule) {
                     continue;
                 }
-                // CSS Conditional 5 §6.4: an `@container` rule holds per
-                // element, against its query container.
-                if sheets.deferred(sheet_idx, rule)
-                    && !super::container::holds(
-                        dom,
-                        id,
-                        rule.pseudo != PseudoElementTarget::None,
-                        sheet,
-                        rule.condition,
-                    )
-                {
-                    continue;
-                }
                 if let Some(target) = targets.iter().position(|t| *t == rule.pseudo)
                     && let Some(proximity) = match_rule(
                         dom,
@@ -417,6 +404,18 @@ impl<'a> Scratch<'a> {
                         &mut self.scopes,
                         &mut self.selectors,
                     )
+                    // CSS Conditional 5 §6.4: an `@container` rule holds
+                    // per element, against its query container — asked
+                    // only of an element its selector matches, which alone
+                    // reads the container (C14G-CONTAINER-LOOP).
+                    && (!sheets.deferred(sheet_idx, rule)
+                        || super::container::holds(
+                            dom,
+                            id,
+                            rule.pseudo != PseudoElementTarget::None,
+                            sheet,
+                            rule.condition,
+                        ))
                 {
                     self.matching.push(Matched {
                         target,

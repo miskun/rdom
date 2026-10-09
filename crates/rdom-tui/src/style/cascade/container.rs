@@ -29,8 +29,9 @@ pub(crate) type AxisSizes = (Option<u16>, Option<u16>);
 /// What the cascades read of the document's query containers.
 #[derive(Debug, Default)]
 struct ContainerState {
-    /// An element has computed as a size container (sticky): only then
-    /// does an element look for one for its container-relative units.
+    /// An element has computed as a size container: only then does an
+    /// element look for one for its container-relative units. Cleared by
+    /// a whole-tree cascade, which sets it again if one still is.
     size_containers: Cell<bool>,
     /// Each queried container: the size the cascade read, and the size
     /// the last layout measured.
@@ -43,6 +44,10 @@ struct Queried {
     read: Option<AxisSizes>,
     /// The size the last layout gave it.
     measured: Option<AxisSizes>,
+    /// A cascade read it since every element that could read it was last
+    /// cascaded ([`begin_tree`], [`begin_subtrees`]): only a live entry
+    /// is measured, and a dead one is forgotten after the cascade.
+    live: bool,
 }
 
 /// Before a cascade: make sure the state exists (a `&Dom` cascade records
@@ -50,6 +55,34 @@ struct Queried {
 pub(crate) fn begin(dom: &mut Dom<TuiExt>) {
     if dom.document_data::<ContainerState>().is_none() {
         dom.set_document_data(ContainerState::default());
+    }
+}
+
+/// Before a whole-tree cascade: every element is about to say again
+/// whether it is a size container and which containers it reads, so the
+/// flag is cleared and every queried container is dead until read.
+pub(crate) fn begin_tree(dom: &Dom<TuiExt>) {
+    let Some(state) = state(dom) else {
+        return;
+    };
+    state.size_containers.set(false);
+    for entry in state.queried.borrow_mut().values_mut() {
+        entry.live = false;
+    }
+}
+
+/// Before a cascade of the subtrees at `roots`: a queried container in one
+/// of them (or one of them) has all its readers — its descendants and its
+/// pseudo-elements — re-cascaded, so it is dead until one reads it again.
+/// A container above a root keeps its readers outside the root alive.
+pub(crate) fn begin_subtrees(dom: &Dom<TuiExt>, roots: &[NodeId]) {
+    let Some(state) = state(dom) else {
+        return;
+    };
+    for (&id, entry) in state.queried.borrow_mut().iter_mut() {
+        if dom.contains(id) && roots.iter().any(|&r| dom.node(r).contains(id)) {
+            entry.live = false;
+        }
     }
 }
 
@@ -67,6 +100,12 @@ pub(super) fn note_style(dom: &Dom<TuiExt>, computed: &ComputedStyle) {
     }
 }
 
+/// Whether an element computed as a size container (tests).
+#[cfg(test)]
+pub(crate) fn has_size_containers(dom: &Dom<TuiExt>) -> bool {
+    state(dom).is_some_and(|s| s.size_containers.get())
+}
+
 /// Whether any container's size was read by a cascade (the layout pass's
 /// gate).
 pub(crate) fn any_queried(dom: &Dom<TuiExt>) -> bool {
@@ -79,6 +118,7 @@ fn read_size(dom: &Dom<TuiExt>, container: NodeId) -> Option<AxisSizes> {
     let mut queried = state.queried.borrow_mut();
     let entry = queried.entry(container).or_default();
     entry.read = entry.measured;
+    entry.live = true;
     entry.measured
 }
 
@@ -101,13 +141,14 @@ fn measure(dom: &Dom<TuiExt>, container: NodeId) -> Option<AxisSizes> {
 
 /// After a layout: measure every queried container and return those whose
 /// size moved from the one the cascade read — the roots to re-cascade.
-/// A container no longer in the document is forgotten.
+/// A container no longer in the document, or that no cascade reads any
+/// more (dead), is forgotten.
 pub(crate) fn stale(dom: &Dom<TuiExt>) -> Vec<NodeId> {
     let Some(state) = state(dom) else {
         return Vec::new();
     };
     let mut queried = state.queried.borrow_mut();
-    queried.retain(|&id, _| dom.contains(id) && dom.node(id).is_connected());
+    queried.retain(|&id, e| e.live && dom.contains(id) && dom.node(id).is_connected());
     let mut out = Vec::new();
     for (&id, entry) in queried.iter_mut() {
         entry.measured = measure(dom, id);
@@ -117,6 +158,27 @@ pub(crate) fn stale(dom: &Dom<TuiExt>) -> Vec<NodeId> {
     }
     out.sort_unstable();
     out
+}
+
+/// The size `container`'s readers were last cascaded at, and the size the
+/// last layout measured ([`stale`]); `None` for a container not queried.
+pub(crate) fn sizes(
+    dom: &Dom<TuiExt>,
+    container: NodeId,
+) -> Option<(Option<AxisSizes>, Option<AxisSizes>)> {
+    let queried = state(dom)?.queried.borrow();
+    queried.get(&container).map(|e| (e.read, e.measured))
+}
+
+/// Keep `container`'s readers as they were last cascaded, though its size
+/// moved: the layout pass found it cycling (`container_pass`), so its
+/// measured size counts as read.
+pub(crate) fn freeze(dom: &Dom<TuiExt>, container: NodeId) {
+    if let Some(state) = state(dom)
+        && let Some(e) = state.queried.borrow_mut().get_mut(&container)
+    {
+        e.read = e.measured;
+    }
 }
 
 /// The element ancestors of `id`, nearest first — from `id` itself for a

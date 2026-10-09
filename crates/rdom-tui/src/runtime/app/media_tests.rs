@@ -121,6 +121,20 @@ fn a_resize_restyles_a_document_using_viewport_units() {
     assert_eq!(width, Some(10));
 }
 
+/// C14G-CONTAINER-LOOP (architect N6): the viewport-read flag describes
+/// the styles in use — once the last viewport unit is gone (its sheet
+/// replaced), a resize no longer restyles the tree.
+#[test]
+fn a_resize_stops_restyling_once_the_viewport_units_are_gone() {
+    let (mut app, _) = app("#a { width: 50vw }", 30, 2);
+    app.set_stylesheet(rdom_css::parse("#a { width: 5 }").stylesheet);
+    app.draw_if_dirty().unwrap();
+    app.take_frame_stats();
+    resize(&mut app, 20, 2);
+    let stats = app.take_frame_stats();
+    assert_eq!(stats.full_cascades, 0, "{stats:?}");
+}
+
 // ─── matchMedia ────────────────────────────────────────────────────────
 
 /// CSSOM View §4.2: `matchMedia` returns a live list — its serialized

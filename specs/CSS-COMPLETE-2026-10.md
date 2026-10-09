@@ -9339,3 +9339,36 @@ row comes from.
   `show_modal_does_not_autofocus_into_a_closed_details` (the summary, not the button). Mutation (restored,
   touched): no `note_skipped` fails both spinner tests; `is_rendered` for `is_available` fails the `auto`
   focus test; dropping the dialog-steps prune focuses the hidden button.
+- 2026-10-09 — C14G-CONTAINER-LOOP (architect B2, N1, N4, N5, N6; CSS Conditional 5 §6.4–§6.6, CSS Overflow 3
+  §3.4, CSS Values 4 §6.1.2). Found: (a) `ContainerState.queried` lost an entry only on disconnect and
+  refreshed `read` only when a cascade read it, so once a container's readers were gone (a class removed) its
+  size moving left `measured != read` for good — every layout re-cascaded and re-laid out to the cap, and
+  `note_flushed` asked for the next frame's layout: the App never idled; (b) the pass's premise, size
+  containment, leaves out the scrollbar gutter — a query that shows a bar narrows the box it reads and takes
+  itself back, a 2-cycle to the cap every frame; (c) a container condition was evaluated before the selector,
+  so every rule-index candidate became a reader; (d) `after_layout` (the remembered sizes) skipped the
+  capped run's last layout; (e) the size-container and viewport-read flags were sticky. Decided: (1) each
+  queried container is `live` while a cascade reads it: a whole-tree cascade kills every entry, a subtree
+  cascade those its roots contain (all their readers re-cascade); `read_size` revives; `stale` forgets the
+  dead — a reader removed by a restyle of itself alone costs one look at the next size change, then
+  nothing; (2) the pass records the sizes each container's readers were cascaded at in this `layout_dom`
+  (seeded with the size read before it); a container returning to one is a cycle and is frozen
+  (`container::freeze`: its measured size counts as read, its readers keep their last styles). Conditional
+  5 has no cycle rule (size containment is meant to rule cycles out; the gutter escapes it); Blink keeps the
+  scrollbar, rdom drops it once nothing overflows — DIVERGENCES §2's container entry says so; (3) the
+  condition is asked after `match_rule`; (4) a run that reaches the cap notes nothing on the tracker (no
+  frame asked for) and still remembers sizes (`content_visibility::remember_sizes`, split from
+  `after_layout`); a nesting deeper than 8 waits for the next layout run for another reason (DIVERGENCES);
+  (5) a whole-tree cascade clears `size_containers` and the cascade's viewport read; keyframe and starting-
+  style reads keep a sticky flag of their own (`ReadsGuard`), as they are resolved when an animation starts,
+  not per cascade. TECH_DEBT `ANIM-RELAYOUT-1` restated with the container factor: 108 phase runs a frame
+  with a moving `calc-size()` box (54 without), 2 × 9 × (d + 2) × 3 nested, plus up to 16 subtree cascades,
+  doubled under drag autoscroll. Red: `container_pass` `a_container_nobody_reads_takes_no_pass` (8 passes
+  for 0), `an_oscillating_container_is_frozen` (8 passes, the cap, for < 8),
+  `a_condition_is_evaluated_only_for_matching_elements` (10 evaluations for 0),
+  `the_size_container_flag_follows_the_styles`; App `a_container_nobody_reads_stops_costing` (8 passes on a
+  resize), `an_oscillating_container_settles_and_idles` (2 layouts in two idle frames),
+  `media_tests::a_resize_stops_restyling_once_the_viewport_units_are_gone` (a full cascade for none). Green
+  after: the first unread resize takes ≤ 1 pass, the next 0, idle frames 0 layouts; the oscillation takes 2
+  passes then 0. Mutation (restored, touched): the cycle check off fails the frozen test; dead entries kept
+  fails both reader tests.

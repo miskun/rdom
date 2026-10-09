@@ -315,7 +315,9 @@ pub(crate) fn cascade_all_with(
 ) {
     let registry = registry.unwrap_or_else(|| registered::document_registry(dom, stylesheets));
     let reads = media::begin(dom);
+    media::begin_tree(dom);
     container::begin(dom);
+    container::begin_tree(dom);
     crate::style::content_visibility::begin(dom);
     let sheets = walk::Sheets::new(stylesheets, registry.clone(), media::document_media(dom));
     note_first_rules(dom, &sheets);

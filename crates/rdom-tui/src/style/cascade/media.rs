@@ -55,9 +55,14 @@ pub(crate) fn document_media(dom: &Dom<TuiExt>) -> MediaEnvironment {
 /// What the cascades left behind for a change of the media environment.
 #[derive(Debug, Default)]
 struct MediaState {
-    /// A computed style read a viewport-percentage length — conservative:
-    /// set by any cascade that read one, never cleared.
+    /// A computed style read a viewport-percentage length: set by any
+    /// cascade that read one, cleared by a whole-tree cascade
+    /// ([`begin_tree`]), which sets it again if one still does.
     reads_viewport: Cell<bool>,
+    /// A keyframe or a starting style read one (sticky: those are
+    /// resolved when an animation or a transition starts, not by every
+    /// whole-tree cascade).
+    animations_read_viewport: Cell<bool>,
     /// The condition results the last cascade ran under.
     conditions: RefCell<Option<Rc<ConditionResults>>>,
 }
@@ -71,6 +76,14 @@ pub(crate) fn begin(dom: &mut Dom<TuiExt>) -> u64 {
     rdom_style::calc::viewport_reads()
 }
 
+/// Before a whole-tree cascade: every element is about to say again
+/// whether its style reads the viewport.
+pub(crate) fn begin_tree(dom: &Dom<TuiExt>) {
+    if let Some(state) = dom.document_data::<MediaState>() {
+        state.reads_viewport.set(false);
+    }
+}
+
 /// After a whole-tree cascade under `sheets` that began at `before`: note
 /// a viewport read and the condition results it ran under. (A subtree
 /// cascade notes only the read: the rest of the tree is still under the
@@ -82,8 +95,7 @@ pub(super) fn finish(dom: &Dom<TuiExt>, before: u64, sheets: &Sheets<'_>) {
     }
 }
 
-/// After a style computation that began at `before` (a keyframe or a
-/// starting style): note a viewport read.
+/// After a subtree cascade that began at `before`: note a viewport read.
 pub(super) fn note_reads(dom: &Dom<TuiExt>, before: u64) {
     if rdom_style::calc::viewport_reads() != before
         && let Some(state) = dom.document_data::<MediaState>()
@@ -106,7 +118,7 @@ pub(crate) fn must_restyle(
     let Some(state) = dom.document_data::<MediaState>() else {
         return true;
     };
-    if viewport_moved && state.reads_viewport.get() {
+    if viewport_moved && (state.reads_viewport.get() || state.animations_read_viewport.get()) {
         return true;
     }
     let now = registry
@@ -139,6 +151,10 @@ impl<'d> ReadsGuard<'d> {
 
 impl Drop for ReadsGuard<'_> {
     fn drop(&mut self) {
-        note_reads(self.dom, self.before);
+        if rdom_style::calc::viewport_reads() != self.before
+            && let Some(state) = self.dom.document_data::<MediaState>()
+        {
+            state.animations_read_viewport.set(true);
+        }
     }
 }
