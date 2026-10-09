@@ -14,6 +14,7 @@
 
 mod compare;
 mod coverage;
+mod interactive;
 mod reference;
 mod refs;
 
@@ -324,4 +325,9 @@ fn tile_32_scroll() {
 #[test]
 fn tile_33_states() {
     assert_tile(&refs::t33_states::REF);
+}
+
+#[test]
+fn tile_34_pointer() {
+    assert_tile(&refs::t34_pointer::REF);
 }

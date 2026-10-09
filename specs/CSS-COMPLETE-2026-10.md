@@ -45,7 +45,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | done 2026-10-09 (both gates; 22 gate fixes `C15G-*`; their re-review rides with the Phase 16 gate) |
-| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | part 1 done 2026-10-09 (harness, tiles 1–13, ACID-FIX-1 … 5); part 2 done 2026-10-10 (tiles 14–33, the coverage test, ACID-FIX-6 … 13); part 3 (interactive script) next |
+| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | part 1 done 2026-10-09 (harness, tiles 1–13, ACID-FIX-1 … 5); part 2 done 2026-10-10 (tiles 14–33, the coverage test, ACID-FIX-6 … 13); part 3 (interactive script) in progress |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
 
 Phases follow dependencies: values and color before the properties that use them; flex alignment
@@ -304,7 +304,9 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
+| ACID-INTERACTIVE-HARNESS | Stage 2's driver: scripted keys, mouse, wheel and resize against a fresh headless `App` per step with a controllable clock, per-checkpoint references in the stage-1 format, failure reports naming the step, checkpoint, tile, cells and spec; steps I1, I2, I10 on tile 34 | done |
 | ACID-INTERACTIVE | Stage 2, steps I1–I21 | |
+| ACID-STATIC-REST | The static features part 2 left out: tile 14's wrapped cells beside a row span; tile 15a's range slider, pixel `outline-offset` and script-unchecked default box; tile 18's baseline row group and `aspect-ratio` item; tile 19's overflowing text over a float and cleared first child's margin; tile 25's whole-moving `overflow: hidden` box and `box-decoration-break: clone`; tile 26's `popovertarget` + `flip-block` popover, `position-try-order: most-height` and `anchor-center`; their click and hit checks in stage 2 | |
 
 ## Log
 
@@ -10917,3 +10919,17 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   reason (`coverage_exemptions_are_dispatched_properties_with_reasons`); it is empty. The walker has its own case
   (`the_coverage_walker_reads_declarations_and_at_rules`). Red: 238 / 13 / 3 / 4 unused before tiles 27–33; green after.
   Part 2 found ACID-FIX-6 … 13; references changed with their spec arguments are listed in the tiles' Log entries above.
+- 2026-10-10 — ACID-INTERACTIVE-HARNESS (Phase 16 part 3; `ACID.md` "How stage 2 is built"). Stage 2's driver,
+  `tests/integration/acid/interactive/session.rs`: a `Session` opens one acid page in a 120 × 50 headless `App` exactly
+  as stage 1 paints it, then moves, presses, releases and clicks the pointer, turns the wheel, presses keys, types,
+  resizes the terminal (backend size, then the resize event) and moves the clock (`App::advance`), replaying every
+  frame's bytes into a `VirtualScreen`. Decided: every step opens its page fresh — no step inherits another's hover,
+  focus, scroll or clock, so a failure never moves the next step's start (Acid3 chains; isolation wins here) — while
+  a step's own checkpoints chain, a step being one user story. Checkpoints compare tiles against per-checkpoint
+  references in the stage-1 format (a step file each, `interactive/steps/`, with derivations) or check a fact with its
+  spec section; failures are collected and each names the step, checkpoint, tile, cells and spec. One test per step
+  plus `acid::interactive::report`. Proved by `harness_reports_step_checkpoint_tile_and_cells` (a wrong cell and a
+  false fact each reported, the session going on to its third checkpoint) and by the first steps on a new stage-2 tile
+  34 (page 10): I1 (`:hover` on a nested child and its ancestors, `+` / `~` / descendant combinators reading it), I2
+  (`:active` on press, cleared before `mouseup` / `click`) and I10 (a click through a `pointer-events: none` overlay,
+  and one taken by a plain overlay) — green at first run. No reference was changed.

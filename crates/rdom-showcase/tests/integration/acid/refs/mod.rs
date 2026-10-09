@@ -41,6 +41,7 @@ pub mod t30_layout;
 pub mod t31_motion;
 pub mod t32_scroll;
 pub mod t33_states;
+pub mod t34_pointer;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -81,4 +82,5 @@ pub const ALL: &[&Reference] = &[
     &t31_motion::REF,
     &t32_scroll::REF,
     &t33_states::REF,
+    &t34_pointer::REF,
 ];

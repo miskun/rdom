@@ -1,6 +1,6 @@
 # ACID — an rdom acid test
 
-**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Next: the interactive script (part 3).
+**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Part 3 under way: the stage-2 harness (ACID-INTERACTIVE-HARNESS) with steps I1, I2 and I10 on tile 34.
 
 ## Why
 
@@ -116,6 +116,7 @@ Each tile: what it combines → what the spec says the cells must show.
 | 31 | **Animations and transitions at time 0** (ACID-COVERAGE) | `@keyframes` and every `animation-*` property, a scroll-driven animation with the scroll / view timeline properties and `timeline-scope`, a transition started by the load script with a negative delay, `@starting-style`, `@property`, `@scope … to` | The widths a negative delay, an alternate iteration, `add` composition, a timeline at 0 and a starting style give at the clock's 0; the registered initial value; the scope's lower bound. |
 | 32 | **Scrolling at rest** (ACID-COVERAGE) | a `y mandatory` snap container with `scroll-padding` and snap areas, scrolled by its load script between two snap positions; `scroll-behavior`, `overscroll-behavior`; both scrollbars styled by `::scrollbar-thumb:vertical` / `:horizontal` | The snapped offset (CSS Scroll Snap 1 §4–§6), the thumbs' sizes and glyphs. |
 | 33 | **States and the caret** (ACID-COVERAGE) | a field focused by the load script (`:focus`, `:focus-visible`, `:focus-within`) with its caret styled by `caret` and its longhands, a pressed button (`:active`), `:checked`, `:placeholder-shown`, `:open`, `:enabled`, `:valid`, `:required`, `:optional`, an `::after::marker` | Each state's colour on exactly its element; the caret on the field's start. |
+| 34 | **Hover, press, `pointer-events`** (stage 2: I1, I2, I10) | a box whose `:hover` colours its text over a child with its own `:hover`, siblings reading it through `+` / `~` and a descendant combinator; a box filled while `:active` with a `mouseup` / `click` log; two overlays drawing nothing, one `pointer-events: none`, over two counting boxes | At rest: every cell in the default style, the overlays drawing nothing (Appendix E). |
 
 ### Part 2 notes (2026-10-10)
 
@@ -134,6 +135,37 @@ most-height` and `justify-self: anchor-center`.
 
 Driven against the headless `App` with a controllable clock; each step compares the affected
 tiles to a per-step reference.
+
+### How stage 2 is built
+
+Decided while building its harness (ACID-INTERACTIVE-HARNESS, 2026-10-10):
+
+- **Driver** (`tests/integration/acid/interactive/session.rs`). A `Session` is one acid page in
+  a 120 × 50 headless `App` built exactly as stage 1 paints it (both sheets, the first frame at
+  the clock's 0, the tiles' load scripts, a second frame). Its script moves, presses, releases and
+  clicks the pointer, turns the wheel, presses keys and types — in tile coordinates — resizes the
+  terminal (the backend's size, then the resize event) and moves the clock (`App::advance`); every
+  action ends its loop iteration and replays the bytes drawn into a `VirtualScreen`, so the
+  screen is always what a terminal would show.
+- **Fresh pages, chained checkpoints.** Every step opens its page anew, so it starts from the state
+  the static references pin, and no step inherits another's hover, focus, scroll offset or clock —
+  Acid3 chains its tests through one document, but here a failing step must not move the next
+  one's starting point. Inside a step the checkpoints chain: a step is one user story (press, then
+  release; type, then Tab away), each checkpoint reading the state the actions before it left.
+- **Per-checkpoint references** in the stage-1 format, derived by hand, each step's in its own file
+  (`interactive/steps/iNN_….rs`) with its spec citations and derivation; a checkpoint that matches a
+  tile's rest state reuses the static reference. Facts no cell shows (an event order, a hit target,
+  a `matchMedia` log) are `Session::check`s with their spec section.
+- **Reports.** Failures are collected, not panicked, so one wrong checkpoint never hides the next;
+  each names the step, the checkpoint (number and words), the tile, every differing cell with both
+  sides and the spec, with the painted crop for diagnosis. One test per step
+  (`acid::interactive::step_i01_…`), plus `acid::interactive::report`, which runs every step and
+  lists each one's result. `harness_reports_step_checkpoint_tile_and_cells` is the harness's own
+  case.
+- **Stage-2 tiles.** A step that needs markup no static tile has gets a tile of its own on the pages
+  after the static ones (from page 10), with a static reference for its rest state — the state its
+  steps start from. Tile 34 (hover chains, `:active` timing, `pointer-events: none`) serves I1, I2
+  and I10.
 
 | # | Step | Checks |
 |---|---|---|

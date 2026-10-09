@@ -39,6 +39,7 @@ mod t30_layout;
 mod t31_motion;
 mod t32_scroll;
 mod t33_states;
+mod t34_pointer;
 
 /// Every tile, in `ACID.md` order.
 pub const TILES: &[&Tile] = &[
@@ -79,6 +80,7 @@ pub const TILES: &[&Tile] = &[
     &t31_motion::TILE,
     &t32_scroll::TILE,
     &t33_states::TILE,
+    &t34_pointer::TILE,
 ];
 
 /// The sheets the tiles' `<style>` elements `@import`, by URL — what the
