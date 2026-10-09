@@ -279,6 +279,32 @@ fn translucent_backdrop_dims_the_page() {
     assert_eq!(buf.cell(0, 0).unwrap().fg, over((0, 0, 0), (255, 255, 255)));
 }
 
+/// ACID-FIX-13 (found by acid tile 15c). CSS 2.1 §14.1: `color` is the
+/// foreground of an element's own text; `::backdrop` has none, and it
+/// inherits its originating dialog's (CSS Position 4 §4). A dialog's
+/// `color` must not recolor the page under its backdrop: the backdrop's
+/// translucent background tints the page's glyphs (C3-ALPHA) and nothing
+/// else does. The backdrop's `color` set every glyph beneath it.
+#[test]
+fn a_dialogs_color_does_not_recolor_the_page_under_its_backdrop() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    element(&mut dom, root, "div", "page", "abc");
+    let dialog = element(&mut dom, root, "dialog", "", "");
+    dom.set_attribute(dialog, "open", "").unwrap();
+    dom.add_to_top_layer(dialog, rdom_core::TopLayerKind::ModalDialog)
+        .unwrap();
+    let buf = paint(
+        &mut dom,
+        ".page { color: white; background-color: blue } \
+         dialog { color: red; border: none; padding: 0; width: 1; height: 1; inset: auto 0 0 auto } \
+         dialog::backdrop { background-color: rgb(0 0 0 / 50%) }",
+        5,
+        2,
+    );
+    assert_eq!(buf.cell(0, 0).unwrap().fg, over((0, 0, 0), (255, 255, 255)));
+}
+
 // ── One composite per background (C3G-PSEUDO-TINT) ──────────────
 
 /// The red-at-half-alpha background over black: what every cell of the

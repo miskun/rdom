@@ -123,28 +123,4 @@ impl Buffer {
             }
         }
     }
-
-    /// Set the foreground of every glyph in `area` (a modal
-    /// `::backdrop`'s `color`); a translucent one blends through a layer.
-    pub(crate) fn tint_glyphs(&mut self, area: Rect, fg: Color) {
-        if fg.alpha() == 0 || fg == Color::Reset {
-            return;
-        }
-        let set = |buf: &mut Buffer, fg: Color| {
-            let region = buf.area.intersection(area);
-            for y in region.y..region.bottom() {
-                for x in region.x..region.right() {
-                    if let Some(cell) = buf.cell_mut(x, y) {
-                        cell.set_fg(fg);
-                    }
-                    buf.mark_at(x, y, super::coverage::GLYPH);
-                }
-            }
-        };
-        if translucent(fg) {
-            self.paint_translucent(area, fraction(fg), |layer| set(layer, fg.opaque()));
-        } else {
-            set(self, fg);
-        }
-    }
 }

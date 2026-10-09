@@ -300,6 +300,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-10 | An inline block's horizontal margins take their cells in its line (CSS 2.1 §10.3.9; found by tile 25) | done |
 | ACID-FIX-11 | An inline element anchors by the bounding box of its fragments (CSS Anchor Positioning 1 §2; found by tile 26) | done |
 | ACID-FIX-12 | A heavy border meeting a double one draws the corner in the dominant side's set (DIVERGENCES §1; found by tile 27) | done |
+| ACID-FIX-13 | A modal dialog's `color`, inherited by its `::backdrop`, no longer recolors the page beneath it (CSS 2.1 §14.1; found by tile 15c) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | partial — the dispatch tables are public; the coverage tiles and the test next |
@@ -10880,3 +10881,12 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   contribution's weight (`line_weights`, its only caller gone, is removed). Red:
   `css_phase4_gates::a_heavy_side_meeting_a_double_one_draws_the_corner_in_its_set` (`╘═══┚` for `╘═══┛`); green after,
   the rest of rdom-tui unchanged. Silent change `sc-heavy-double-corner`.
+- 2026-10-10 — ACID-FIX-13 (found by acid tile 15c with ACID-COVERAGE's `:modal` rule; CSS 2.1 §14.1, CSS Position 4
+  §4). Giving tile 15c's dialog `:modal { color: green }` turned every letter of the page under its translucent
+  backdrop green: `top_layer::fill_backdrop` painted every glyph beneath the backdrop in the backdrop's `color` — an
+  rdom extension (DIVERGENCES mentioned it only in passing, "its `filter` maps its own background and foreground before
+  they tint the page") — and `::backdrop` inherits its originating dialog's `color`, so styling a dialog's text
+  recolored the whole page. `color` is the foreground of an element's own text, and a backdrop has none: the glyph
+  recolor (`Buffer::tint_glyphs`, its only caller) is removed; the translucent background still tints the page's
+  glyphs. Red: `color_tests::a_dialogs_color_does_not_recolor_the_page_under_its_backdrop` (`Rgb(255, 0, 0)` for the
+  tinted white); green after. DIVERGENCES' filter entry corrected; silent change `sc-backdrop-color`.
