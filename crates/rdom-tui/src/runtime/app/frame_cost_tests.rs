@@ -135,6 +135,23 @@ fn a_translate_animation_asks_for_frames_and_lays_out_when_its_cell_moves() {
     assert_eq!(s.layouts, 4, "{s:?}");
 }
 
+/// The same for a percentage: `translate: -100% 0 → 0` on a 4-wide box
+/// moves it -4 → 0 cells — four layouts, on the frames its cell offset
+/// changes, not one per frame as the raw percentage changes
+/// (C15G-TRANSLATE-GAPS, architect N9).
+#[test]
+fn a_percentage_translate_lays_out_when_its_cell_moves() {
+    let (mut app, _) = animated(
+        "@keyframes slide { from { translate: -100% 0 } to { translate: 0 0 } } \
+         #a { width: 4; animation: slide 1008ms linear forwards }",
+    );
+    app.take_frame_stats();
+    run(&mut app, 1008);
+    let s = app.take_frame_stats();
+    assert!(s.paints >= 4, "{s:?}");
+    assert_eq!(s.layouts, 4, "{s:?}");
+}
+
 /// A rotation moves no cell (Transforms 1 §5: rdom draws no rotation): a
 /// spinner's `transform: rotate()` frames composite, and its value-aware
 /// layout test finds nothing layout reads changed — no layout at all.

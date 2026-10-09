@@ -230,3 +230,42 @@ fn flex_items_atomic_inlines_and_positioned_boxes_move_alone() {
     );
     assert_eq!(rect(&dom, "t"), (5, 2, 1, 1));
 }
+
+/// Transforms 1 §1 ("transformable element": table rows and row groups
+/// are block-level boxes here) — `tr { translate }` moves the row and its
+/// cells, as it moves any box; the rows around it stay
+/// (C15G-TRANSLATE-GAPS, architect N4a).
+#[test]
+fn a_translated_table_row_moves_with_its_cells() {
+    let mut dom =
+        doc(r#"<table><tr id="a"><td id="x">x</td></tr><tr id="b"><td id="y">y</td></tr></table>"#);
+    styled(&mut dom, "td { padding: 0 } #a { translate: 3 2 }", 20, 6);
+    let (b, x, y) = (rect(&dom, "b"), rect(&dom, "x"), rect(&dom, "y"));
+    let a = rect(&dom, "a");
+    assert_eq!((a.0, a.1), (b.0 + 3, b.1 - 1 + 2), "the row moved");
+    assert_eq!((x.0, x.1), (y.0 + 3, y.1 - 1 + 2), "its cell with it");
+}
+
+/// CSS Position 3 §3.4 with Transforms 1 §3: stickiness is computed on the
+/// box as laid out — untransformed — and the translation applies after, so
+/// a stuck `top: 0; translate: 0 2` header shows at row 2 of its scrollport
+/// (it was pinned at row 0: the translated rect read as the natural one)
+/// (C15G-TRANSLATE-GAPS, architect N4b).
+#[test]
+fn a_stuck_sticky_header_is_translated_after_sticking() {
+    let lines: String = (0..20).map(|k| format!("<p>l{k}</p>")).collect();
+    let mut dom = doc(&format!(r#"<div id="s"><h1 id="h">H</h1>{lines}</div>"#));
+    styled(
+        &mut dom,
+        "p, h1 { margin: 0 } #s { height: 5; overflow: auto }
+         #h { position: sticky; top: 0; translate: 0 2 }",
+        20,
+        5,
+    );
+    let s = by_id(&dom, "s");
+    if let Some(ext) = dom.node_mut(s).ext_mut() {
+        ext.scroll_y = 6;
+    }
+    dom.layout_dom(rdom_tui::render::Rect::new(0, 0, 20, 5));
+    assert_eq!(rect(&dom, "h").1, 2);
+}

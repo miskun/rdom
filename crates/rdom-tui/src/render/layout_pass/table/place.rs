@@ -395,6 +395,19 @@ pub(super) fn place(
             ext.anonymous_blocks = boxes;
         }
     }
+    // CSS Transforms 1 §3: a translated row group or row moves with its
+    // cells, after they are laid out, as `layout_node` moves any other box
+    // (C15G-TRANSLATE-GAPS).
+    let parts = grid.groups.iter().map(|g| g.element);
+    for e in parts.chain(grid.rows.iter().filter_map(|r| r.element)) {
+        let node = dom.node(e);
+        let shift = node.ext().zip(node.computed()).map_or((0, 0), |(x, c)| {
+            crate::style::effects::translation(c, x.layout, x.content_layout)
+        });
+        if shift != (0, 0) {
+            tree::shift_box(dom, e, shift.0, shift.1);
+        }
+    }
     let Some(id) = element else {
         return own;
     };

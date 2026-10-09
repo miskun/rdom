@@ -10169,3 +10169,22 @@ row comes from.
   (`css_phase15/anchor.rs`, `when_no_option_fits_the_base_style_is_used`): a 10-row box below an anchor at
   row 6 of 8, `flip-block` under `most-height`, fitting neither side, took the flipped option (top -4;
   green: 7, the base).
+- 2026-10-09 — C15G-TRANSLATE-GAPS (Phase 15 gate architect N4, N9; CSS Transforms 1 §3, CSS Position 3
+  §3.4). Found: (a) table rows and row groups are transformable (a stacking context), but `table::place`
+  gives them their rects by `set_rect` and never ran the translation `layout_node` applies to every other
+  box; (b) `sticky::place_one` read the translated `layout` as the natural position, so a stuck header's
+  translation was absorbed into the stick; (c) the animation engine's layout test
+  (`Longhand::moves_boxes` → `EffectsStyle::layout_differs`) compared raw `translate` values, which a
+  percentage interpolates continuously — a layout every frame. Decided: (a) after the cells are laid out,
+  each translated row group and row is moved with its subtree (`tree::shift_box`), groups before rows, so
+  the offsets add; (b) stickiness is computed on the untranslated box (the translation subtracted from
+  `layout`), then applied on top; (c) for an element, a transform longhand's change lays out only when
+  whether the box is transformed, its `transform-box` or its whole-cell translation against its laid-out
+  boxes changes (`runtime/animation/moves.rs`, split out to keep `animation/mod.rs` at 550); a
+  pseudo-element's still compares values (its box is not the host's). Architect N4c — the fragmentation
+  candidates and anchor lookups read translated rects — is documented in DIVERGENCES, not changed. Red:
+  `css_phase15/translate.rs` `a_translated_table_row_moves_with_its_cells` (`tr { translate: 3 2 }` left
+  the row at `(0, 0)`; green `(3, 2)`, its cell with it) and `a_stuck_sticky_header_is_translated_after_
+  sticking` (scrolled 6, row 0; green row 2); `frame_cost_tests.rs`
+  `a_percentage_translate_lays_out_when_its_cell_moves` (`translate: -100% 0 → 0` on a 4-wide box: 63
+  layouts in 1008 ms; green: 4).

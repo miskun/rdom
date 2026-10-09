@@ -87,6 +87,17 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
         .and_then(|p| dom.node(p).ext().map(|e| e.content_layout))
         .unwrap_or(scrollport);
 
+    // Stickiness is the laid-out box's, untransformed (CSS Position 3
+    // §3.4, Transforms 1 §3): its translation, already applied to
+    // `layout`, stays on top of the stick (C15G-TRANSLATE-GAPS).
+    let (tx, ty) = dom.node(id).ext().map_or((0, 0), |e| {
+        crate::style::effects::translation(&computed, e.layout, e.content_layout)
+    });
+    let natural = LayoutRect {
+        x: natural.x - tx,
+        y: natural.y - ty,
+        ..natural
+    };
     let (dx, dy) = sticky_offset(&computed, natural, scrollport, cb_rect);
     if (dx, dy) == (0, 0) {
         // No-op — element is in its pre-stick phase.

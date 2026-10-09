@@ -434,6 +434,7 @@ impl AnimationRegistry {
             .map(|p| p.animated().to_vec())
             .unwrap_or_default();
         let old = ext.computed_for(slot).cloned();
+        let boxes = (slot == StyleSlot::Host).then_some((ext.layout, ext.content_layout));
         let mut animated: Vec<Longhand> = running.iter().map(|a| a.property).collect();
         let style = if running.is_empty() && css.is_empty() {
             None
@@ -466,7 +467,7 @@ impl AnimationRegistry {
             .collect();
         ext.composite(slot, animated, style);
         let layout = match (old.as_deref(), ext.computed_for(slot)) {
-            (Some(old), Some(new)) => moved.iter().any(|l| l.moves_boxes(old, new)),
+            (Some(old), Some(new)) => moved.iter().any(|l| moves::moves(*l, old, new, boxes)),
             _ => !moved.is_empty(),
         };
         if calc_size {
@@ -521,6 +522,7 @@ mod custom;
 mod diff;
 #[cfg(test)]
 mod longhand_tests;
+mod moves;
 mod reversing;
 mod rule;
 mod schedule;
