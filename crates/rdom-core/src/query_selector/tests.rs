@@ -324,18 +324,17 @@ fn root_pseudo() {
     let (dom, _) = build();
     let root = dom.root();
     // `:root` matches only the document root. query_selector scans
-    // descendants, so it won't find root itself — use matches / closest.
-    // But our root is a Fragment, not an Element. Build a new dom with
-    // an element root to exercise :root.
+    // descendants, so it won't find root itself — use matches. An
+    // element root first:
     let mut dom2: Dom = Dom::with_root_tag("html");
     let root2 = dom2.root();
     let body = dom2.create_element("body");
     dom2.append_child(root2, body).unwrap();
     assert!(dom2.matches(root2, ":root").unwrap());
     assert!(!dom2.matches(body, ":root").unwrap());
-    // In the original fragment-rooted tree, the root is a fragment so
-    // matches_compound returns false regardless.
-    assert!(!dom.matches(root, ":root").unwrap());
+    // In the fragment-rooted tree the fragment stands for the root
+    // element (C14G-ROOT-ELEMENT; it matched nothing before).
+    assert!(dom.matches(root, ":root").unwrap());
 }
 
 #[test]
@@ -1241,4 +1240,38 @@ fn sibling_combinators_skip_text_and_comments() {
     dom.append_child(root, p).unwrap();
     assert_eq!(dom.matches(p, "h1 + p"), Ok(true));
     assert_eq!(dom.matches(p, "h1 ~ p"), Ok(true));
+}
+
+// ── C14G-ROOT-ELEMENT: the root fragment is the root element ─────────
+
+/// Selectors 4 §14.1 (`:root`, "the root of the document") with
+/// DIVERGENCES §2: a fragment root stands for the document's root element,
+/// so it matches as an element with no name, attributes or classes —
+/// `:root`, `*`, `:root > div`, `:root:has(p)`, the user-action
+/// pseudo-classes of everything below it — and no type, class, id or
+/// attribute selector.
+#[test]
+fn a_fragment_root_matches_as_the_root_element() {
+    let (dom, [div, .., p, _]) = build();
+    let root = dom.root();
+    assert_eq!(dom.matches(root, ":root"), Ok(true));
+    assert_eq!(dom.matches(root, "*"), Ok(true));
+    assert_eq!(dom.matches(root, ":root:has(p.last)"), Ok(true));
+    assert_eq!(dom.matches(root, ":not(div)"), Ok(true));
+    assert_eq!(dom.matches(root, "div"), Ok(false));
+    assert_eq!(dom.matches(root, ".outer"), Ok(false));
+    assert_eq!(dom.matches(root, "[id]"), Ok(false));
+    assert_eq!(dom.matches(div, ":root > div"), Ok(true));
+    assert_eq!(dom.matches(p, ":root p"), Ok(true));
+    assert_eq!(dom.matches(p, ":root > p"), Ok(false));
+}
+
+/// A fragment that is not the tree's root (a detached
+/// `DocumentFragment`) still matches nothing but as a scoping root.
+#[test]
+fn a_detached_fragment_matches_nothing() {
+    let mut dom: Dom = Dom::new();
+    let frag = dom.create_document_fragment();
+    assert_eq!(dom.matches(frag, "*"), Ok(false));
+    assert_eq!(dom.matches(frag, ":root"), Ok(false));
 }

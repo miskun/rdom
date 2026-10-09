@@ -9372,3 +9372,16 @@ row comes from.
   after: the first unread resize takes ≤ 1 pass, the next 0, idle frames 0 layouts; the oscillation takes 2
   passes then 0. Mutation (restored, touched): the cycle check off fails the frozen test; dead entries kept
   fails both reader tests.
+- 2026-10-09 — C14G-ROOT-ELEMENT (1/3: selectors; decision 1, architect B3, API B1; Selectors 4 §14.1, §3.1).
+  Found: `match_pseudo` answered `:root` for the root fragment, but `matches_compound` returned before it for
+  any non-element but a scoping root, so on a fragment-rooted document (the default) `:root` matched nothing
+  — `:root { … }` reached elements only through the parse-time vars mirror, and `:root > .app`, `:root .x`
+  and `:root:has(…)` never matched. Decided (the root model, decision 1): the root fragment is the CSS root
+  element; in rdom-core it matches compound selectors as an element with no name, attributes or classes —
+  `:root`, `*`, `:not(div)`, `:root:has(p)`, the user-action pseudo-classes (`:hover` holds while anything
+  is hovered, as an `<html>`'s does) — and no type, id, class or attribute selector; a fragment that is not
+  the tree's root still matches only as a scoping root. `query_selector*` and `closest` still return
+  elements only. The cascade styling it is part 2. Red: `query_selector::tests::a_fragment_root_matches_as_the_root_element`
+  (`matches(root, ":root")` false); `root_pseudo` pinned the old answer and now asserts the new one.
+  Green after, with `a_detached_fragment_matches_nothing`. Silent change 4 (ranked under the root
+  entries: it turns on rules a sheet already holds).

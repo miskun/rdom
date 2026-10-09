@@ -193,23 +193,29 @@ impl<Ext> Dom<Ext> {
         let Some(node) = self.get_node(id) else {
             return false;
         };
-        let NodeData::Element {
-            tag,
-            attrs,
-            classes,
-            ..
-        } = &node.data
-        else {
-            // A non-element is matched only as the scoping root — the
-            // document, for a prelude-less `@scope` in a sheet with no
+        let (tag, attrs, classes) = match &node.data {
+            NodeData::Element {
+                tag,
+                attrs,
+                classes,
+                ..
+            } => (tag.as_str(), attrs, classes),
+            // The tree's root fragment stands for the document's root
+            // element (DIVERGENCES §2, C14G-ROOT-ELEMENT): an element with
+            // no name, attributes or classes — `:root`, `*`, `:root >
+            // .app` and `:root:has(…)` match it, no type, id, class or
+            // attribute selector does.
+            NodeData::Fragment if id == self.root() => ("", &NO_ATTRS, &NO_CLASSES),
+            // Any other non-element is matched only as the scoping root —
+            // the document, for a prelude-less `@scope` in a sheet with no
             // owner node (CSS Cascade 6 §2.5.1).
-            return cx.scope == Some(id) && compound.simples.iter().all(names_only_scope);
+            _ => return cx.scope == Some(id) && compound.simples.iter().all(names_only_scope),
         };
         for s in &compound.simples {
             match s {
                 SimpleSelector::Universal => {}
                 SimpleSelector::Type(t) => {
-                    if tag != t {
+                    if tag != t.as_str() {
                         return false;
                     }
                 }
@@ -301,6 +307,10 @@ impl<Ext> Dom<Ext> {
         None
     }
 }
+
+/// The root fragment's attributes and classes: none.
+static NO_ATTRS: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+static NO_CLASSES: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
 
 /// A simple selector that only ever matches the scoping root: `:scope`,
 /// or `:is()` / `:where()` over `:scope` alone.
