@@ -136,6 +136,18 @@ pub(super) fn cascade_subtree<'a>(
     // the layout/paint check at dom.root() picks it up.
     let is_element = dom.node(id).node_type() == NodeType::Element;
     if !is_element {
+        // The root fragment is the root element (`root`): styled first, its
+        // children inheriting from it.
+        let root_style;
+        let parent_computed = if super::root::is_root_fragment(dom, id) {
+            let (style, moved) =
+                super::root::cascade(dom, sheets, parent_computed, counters, scratch);
+            scratch.root_line_height_moved |= moved && mode == Mode::Restyle;
+            root_style = style;
+            &*root_style
+        } else {
+            parent_computed
+        };
         let mut flags = SubtreeFlags::default();
         let mut child = first_child(dom, id);
         while let Some(c) = child {
@@ -298,10 +310,10 @@ fn style_element<'a>(
         scratch.items_changed.push(id);
     }
     // CSS Values 4 §6.1.1: every `rlh` reads the root element's line
-    // height, absolute at computed-value time — a restyle that moves it
+    // height (an element root's here; the root fragment's in `root`), absolute at computed-value time — a restyle that moves it
     // reaches them under elements whose own style stays.
     if mode == Mode::Restyle
-        && dom.document_element().id() == id
+        && dom.root() == id
         && previous.as_deref().is_some_and(|p| {
             p.text.line_height.rows()
                 != overlaid

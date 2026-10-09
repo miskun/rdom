@@ -218,25 +218,28 @@ fn theme_tokens_substitute_as_literal_values() {
 
 // ── `:root` and `attr()` (C2G-ATTR-PARSE) ────────────────────────────
 
-/// The sheet-level `:root` custom properties (the mirror every subtree
-/// root inherits from) read `attr()` on the root element, which `:root`
-/// matches (Selectors 4 §14.1), when the root is an element; a fragment
-/// root has no attributes.
+/// `:root` custom properties read `attr()` on the root element, which
+/// `:root` matches (Selectors 4 §14.1): an element root's attributes; the
+/// root fragment, the root element too (C14G-ROOT-ELEMENT), has none.
 #[test]
 fn root_vars_attr_reads_the_root_element() {
     let css = sheet(":root { --w: attr(data-w type(<length>), 3) }");
-    let sheets = [&css];
+    let w = |dom: &TuiDom| {
+        super::computed_of(dom, dom.root())
+            .vars
+            .get("w")
+            .map(|v| v.as_str().to_string())
+    };
     let mut dom = TuiDom::with_root_tag("html");
     let root = dom.root();
     dom.set_attribute(root, "data-w", "7").unwrap();
-    let registry = Rc::new(PropertyRegistry::new(&sheets));
-    let s = walk::Sheets::new(&sheets, registry, Default::default());
-    let merged = walk::merge_root_vars(&dom, &s);
-    assert_eq!(merged.get("w").map(|v| v.as_str()), Some("7"));
+    dom.cascade(&css);
+    assert_eq!(w(&dom).as_deref(), Some("7"));
 
-    let fragment = TuiDom::new();
-    let merged = walk::merge_root_vars(&fragment, &s);
-    assert_eq!(merged.get("w").map(|v| v.as_str()), Some("3"));
+    // The root fragment is the root element, with no attributes.
+    let mut fragment = TuiDom::new();
+    fragment.cascade(&css);
+    assert_eq!(w(&fragment).as_deref(), Some("3"));
 }
 
 /// `C2G-REGISTERED-ABSOLUTE` — CSS Properties and Values 1 §2.4: a

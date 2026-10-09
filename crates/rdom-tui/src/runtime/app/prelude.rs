@@ -319,6 +319,11 @@ impl FramePrelude {
                 .into_iter()
                 .any(crate::style::dirty_tracker::uses_column_selectors),
         );
+        tracker.set_root_state(
+            self.cascade_order(app_sheets)
+                .into_iter()
+                .any(crate::style::dirty_tracker::uses_root_state),
+        );
     }
 
     /// Every sheet the cascade reads, in cascade order: the document's

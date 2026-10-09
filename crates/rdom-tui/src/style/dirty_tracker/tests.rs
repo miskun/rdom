@@ -238,6 +238,7 @@ fn hover_changes_mark_both_prev_and_next() {
     dom.append_child(root, b).unwrap();
 
     let tracker = DirtyTracker::install(&mut dom);
+    tracker.set_root_state(false);
     dom.set_hovered(Some(a));
     let roots1 = tracker.take_roots();
     assert!(roots1.contains(&a));
@@ -275,6 +276,8 @@ fn hover_chain() -> (TuiDom, DirtyTracker, [NodeId; 4]) {
     dom.append_child(li, s2).unwrap();
     let tracker = DirtyTracker::install(&mut dom);
     tracker.set_sibling_combinators(false);
+    // Sheets with no `:root:hover`-like selector (C14G-ROOT-ELEMENT).
+    tracker.set_root_state(false);
     (dom, tracker, [ul, li, s1, s2])
 }
 
@@ -387,6 +390,7 @@ fn focus_changes_mark_prev_and_next() {
     dom.append_child(root, b).unwrap();
 
     let tracker = DirtyTracker::install(&mut dom);
+    tracker.set_root_state(false);
     dom.set_focused(Some(a));
     dom.set_focused(Some(b));
     let roots = tracker.take_roots();
@@ -416,6 +420,7 @@ fn focus_changes_dirty_ancestor_chain_for_focus_within() {
     dom.append_child(root, outer).unwrap();
 
     let tracker = DirtyTracker::install(&mut dom);
+    tracker.set_root_state(false);
     dom.set_focused(Some(inner));
     let roots = tracker.take_roots();
     // The exact root pushed is an implementation detail (could
@@ -613,6 +618,7 @@ fn has_invalidation_costs_nothing_without_a_has_rule() {
     };
     let plain = rdom_css::parse("div .x { color: red } p:hover { color: red }").stylesheet;
     tracker.set_has_triggers(HasTriggers::of_sheets([&plain]));
+    tracker.set_root_state(crate::style::dirty_tracker::uses_root_state(&plain));
     probe::take();
     mutate(&mut dom);
     assert_eq!(probe::take(), 0, "no :has() rule, no anchor walk");
@@ -926,4 +932,22 @@ fn only_structure_changes_restyle_the_table_for_columns() {
     assert!(tracker.take_roots().contains(&table), "a column");
     dom.set_attribute(td, "colspan", "2").unwrap();
     assert!(tracker.take_roots().contains(&table), "a colspan");
+}
+
+/// C14G-ROOT-ELEMENT: with sheets that may match the root fragment by a
+/// user-action pseudo-class (unknown sheets, the tracker's default), a
+/// hover arriving from nothing restyles the root — the root element, whose
+/// `:hover` flips with it — and so the whole tree.
+#[test]
+fn a_chain_from_nothing_restyles_the_root_when_a_sheet_can_read_it() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let a = dom.create_element("a");
+    dom.append_child(root, a).unwrap();
+    let tracker = DirtyTracker::install(&mut dom);
+    dom.set_hovered(Some(a));
+    assert_eq!(tracker.take_roots(), vec![root]);
+    tracker.set_root_state(false);
+    dom.set_hovered(None);
+    assert_eq!(tracker.take_roots(), vec![a]);
 }

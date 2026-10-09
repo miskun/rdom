@@ -77,11 +77,24 @@ fn padding_shorthand_round_trip() {
     );
 }
 
+/// `define_var` and a parsed `:root` rule give the root the same value
+/// (the cascade's: the parser no longer mirrors `:root` into the sheet's
+/// map, C14G-ROOT-ELEMENT).
 #[test]
 fn var_definition_round_trip() {
+    use rdom_tui::CascadeExt;
+    let root_var = |sheet: &Stylesheet| {
+        let mut dom: rdom_tui::TuiDom = rdom_tui::TuiDom::new();
+        dom.cascade(sheet);
+        rdom_tui::style::cascade::computed_of(&dom, dom.root())
+            .vars
+            .get("accent")
+            .map(|v| v.as_str().to_string())
+    };
     let from_builder = Stylesheet::new().define_var("accent", "#3d90ce");
     let from_parser = from_css(":root { --accent: #3d90ce; }");
-    assert_eq!(from_builder.var("accent"), from_parser.var("accent"));
+    assert_eq!(root_var(&from_builder).as_deref(), Some("#3d90ce"));
+    assert_eq!(root_var(&from_builder), root_var(&from_parser));
 }
 
 #[test]

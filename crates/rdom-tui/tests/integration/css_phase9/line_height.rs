@@ -204,7 +204,8 @@ fn a_flex_items_baseline_is_its_first_lines_glyph_row() {
 
 /// CSS Values 4 §6.1.1: `lh` is "equal to the computed value of the
 /// line-height property of the element on which it is used" — in
-/// `line-height` itself, of its parent — and `rlh` the root element's.
+/// `line-height` itself, of its parent — and `rlh` the root element's
+/// (the root fragment's, C14G-ROOT-ELEMENT).
 #[test]
 fn lh_and_rlh_follow_the_line_height() {
     let mut dom = TuiDom::new();
@@ -213,7 +214,7 @@ fn lh_and_rlh_follow_the_line_height() {
     let a = el(&mut dom, r, "div", "a");
     let b = el(&mut dom, r, "div", "b");
     let c = el(&mut dom, b, "div", "c");
-    let css = ".r { line-height: 2 } \
+    let css = ":root { line-height: 2 } \
                .a { line-height: 3; height: 2lh } \
                .b { line-height: 2lh; height: 1lh } \
                .c { line-height: 5; height: 1rlh }";

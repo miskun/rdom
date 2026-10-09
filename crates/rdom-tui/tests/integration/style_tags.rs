@@ -6,7 +6,7 @@
 //! before `App::new`.
 
 use rdom_style::Value;
-use rdom_tui::{Color, Stylesheet, TuiColor, TuiDom, extend_from_style_tags};
+use rdom_tui::{CascadeExt, Color, Stylesheet, TuiColor, TuiDom, extend_from_style_tags};
 
 fn build_dom_with_style(css: &str) -> TuiDom {
     let mut dom: TuiDom = TuiDom::new();
@@ -32,13 +32,23 @@ fn extracts_single_style_tag_rules() {
     );
 }
 
+/// A `<style>`'s `:root` custom properties reach the root by the cascade
+/// (C14G-ROOT-ELEMENT; the sheet-level map, `define_var`'s, no longer
+/// mirrors them).
 #[test]
-fn extracts_root_custom_properties_into_var_map() {
-    let dom = build_dom_with_style(":root { --accent: #3d90ce; }");
+fn extracts_root_custom_properties_as_root_rules() {
+    let mut dom = build_dom_with_style(":root { --accent: #3d90ce; }");
     let mut sheet = Stylesheet::bare();
     let warnings = extend_from_style_tags(&dom, &mut sheet);
     assert!(warnings.is_empty());
-    assert_eq!(sheet.var("accent"), Some("#3d90ce"));
+    assert_eq!(sheet.var("accent"), None);
+    dom.cascade(&sheet);
+    let root = dom.root();
+    let accent = rdom_tui::style::cascade::computed_of(&dom, root)
+        .vars
+        .get("accent")
+        .map(|v| v.as_str().to_string());
+    assert_eq!(accent.as_deref(), Some("#3d90ce"));
 }
 
 #[test]

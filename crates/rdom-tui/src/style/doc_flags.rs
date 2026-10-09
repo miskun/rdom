@@ -24,6 +24,10 @@ struct DocumentFlags {
     /// §4.5): the dirty tracker looks for anchors above a change only
     /// then.
     has_anchors: bool,
+    /// A cascade evaluated a `:has()` for the root fragment — the root
+    /// element, which has no `TuiExt` to hold `has_anchor`
+    /// (C14G-ROOT-ELEMENT).
+    root_has_anchor: bool,
     /// The sheets of the last cascade style `::first-line` or
     /// `::first-letter` (CSS Pseudo-Elements 4 §2.2, §2.3).
     first_rules: bool,
@@ -109,6 +113,21 @@ pub(crate) fn note_has_anchor(dom: &mut Dom<TuiExt>) {
         next.has_anchors = true;
         dom.set_document_data(next);
     }
+}
+
+/// Record that the root fragment is a `:has()` anchor.
+pub(crate) fn note_root_has_anchor(dom: &mut Dom<TuiExt>) {
+    if !flags(dom).root_has_anchor {
+        let mut next = flags(dom);
+        next.root_has_anchor = true;
+        dom.set_document_data(next);
+    }
+}
+
+/// Whether the root fragment may be a `:has()` anchor
+/// ([`note_root_has_anchor`] since the document was first cascaded).
+pub(crate) fn root_has_anchor(dom: &Dom<TuiExt>) -> bool {
+    flags(dom).root_has_anchor
 }
 
 /// Whether an element of the document may be a `:has()` anchor

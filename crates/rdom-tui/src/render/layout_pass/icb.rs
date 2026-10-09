@@ -33,7 +33,7 @@ pub(super) fn lay_out(dom: &mut Dom<TuiExt>, root: NodeId, icb: LayoutRect) {
             let _ = super::float::leave(dom);
         }
         NodeType::Fragment => {
-            let style = crate::render::box_tree::icb::style();
+            let style = crate::render::box_tree::icb::style(dom);
             super::float::enter(dom);
             let _ = super::block::layout_block_children(dom, root, icb, &style);
             let _ = super::float::leave(dom);

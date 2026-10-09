@@ -128,7 +128,7 @@ pub(super) fn paint_box(
     // The element whose background the canvas took paints none of its
     // own (CSS Backgrounds 3 §2.11.2, `canvas`).
     let is_tree_row = dom.node(id).get_attribute("role") == Some("treeitem");
-    if !is_tree_row && super::canvas::source(dom) != Some(id) {
+    if !is_tree_row && !super::canvas::takes_background(dom, id) {
         paint_background(buf, computed, outer, inner, clip);
     }
     // Inset shadows, above the background and below the border.

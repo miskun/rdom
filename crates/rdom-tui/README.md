@@ -129,6 +129,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
 Give a padded or bordered shell `box-sizing: border-box`, so its `100%` includes them: block flow does not shrink a box to fit the viewport.
 
+The root is also the root element: `:root { color: …; background-color: … }` styles it, every top-level element inherits from it, and its background fills the whole screen (CSS Backgrounds 3 §2.11.2). Under a transparent root, a parsed `<html>` / `<body>` tree's background propagates as in a browser; any other top-level element paints only its own box. `:root` custom properties are ordinary declarations of the root, so one inside `@media (prefers-color-scheme: dark)` follows the query.
+
 ## Grid layout
 
 `display: grid` lays its children out on rows and columns (CSS Grid Layout 2): track lists with cells, `%`, `fr`, `minmax()`, `fit-content()` and `repeat()` (including `auto-fill` / `auto-fit`), named lines and areas, line, span and area placement with `dense` auto-placement, `subgrid`, and Box Alignment in both axes. Lengths are whole cells, so tracks are too. A page laid out with named areas, its `main` a grid of cards that fits as many 4-cell columns as it can:
@@ -1096,8 +1098,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                   animation: pulse 100ms linear 2 alternate }",
     )?;
     let mut dom: TuiDom = TuiDom::new();
-    // The bars in a `<body>`: the document element's background is the
-    // canvas's, painted over the whole screen.
+    // The bars in a `<body>`: under a transparent root, a `<body>`'s
+    // background is the canvas's, painted over the whole screen.
     let body = dom.create_element("body");
     dom.append_child(dom.root(), body)?;
     let (bar, pulse) = (dom.create_element("div"), dom.create_element("div"));
@@ -1139,7 +1141,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
 A terminal has no fonts, no pixels and no `transform` yet (Phase 15), so three common browser patterns need a terminal form.
 
-**A scroll-progress bar.** The web's `.progress { position: fixed; animation: grow linear; animation-timeline: scroll(root) }` scales the bar with `transform: scaleX()` and follows the viewport's scroller; rdom has no viewport scrolling (`scroll(root)` follows the document element only when it is a scroll container) and no `transform`. Name the scroller's timeline, hoist it with `timeline-scope` to an ancestor the bar shares, and animate `width`:
+**A scroll-progress bar.** The web's `.progress { position: fixed; animation: grow linear; animation-timeline: scroll(root) }` scales the bar with `transform: scaleX()` and follows the viewport's scroller; rdom has no viewport scrolling (`scroll(root)` follows the root element, an element root only when it is a scroll container, and the root fragment never scrolls) and no `transform`. Name the scroller's timeline, hoist it with `timeline-scope` to an ancestor the bar shares, and animate `width`:
 
 ```rust
 use rdom_tui::prelude::*;

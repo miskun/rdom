@@ -107,6 +107,7 @@ mod element;
 mod field_sizing;
 mod finish;
 mod font;
+pub(crate) mod root;
 mod root_vars;
 mod scheme;
 mod scope;
@@ -324,9 +325,10 @@ pub(crate) fn cascade_all_with(
     details::reclaim_content_boxes(dom);
     let merged_vars = walk::merge_root_vars(dom, &sheets);
     let root = dom.root();
-    // The root's parent carries the sheet-level (`define_var` /
-    // `:root`) variables; every element then inherits its parent's
-    // map and layers its own declarations on top.
+    // The root's parent carries the sheet-level (`define_var`)
+    // variables; the root (the root fragment, `root`, or an element root)
+    // layers its `:root` declarations on top, and every element inherits
+    // its parent's map.
     let mut parent = ComputedStyle::initial();
     parent.vars = merged_vars.clone();
     // Full-tree cascade: `tree_has_positioned_pseudo` flags get
@@ -401,8 +403,7 @@ pub(crate) fn restyle_vars(
 /// Quick probe: the computed style of `id`, or `initial()` if none
 /// (pre-cascade, or non-element). Useful for tests.
 pub fn computed_of(dom: &Dom<TuiExt>, id: NodeId) -> ComputedStyle {
-    dom.node(id)
-        .ext()
-        .and_then(|e| e.computed.as_deref().cloned())
+    crate::node::TuiNodeExt::computed(&dom.node(id))
+        .cloned()
         .unwrap_or_else(ComputedStyle::initial)
 }

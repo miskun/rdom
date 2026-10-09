@@ -1,37 +1,68 @@
 //! §11.6 — Custom properties at :root.
 //!
-//! `:root { --name: value; }` adds `name` to the stylesheet's
-//! VarMap (the same one `Stylesheet::define_var(name, value)`
-//! populates). Other rules can then reference it via
-//! `var(--name)` and the cascade resolves through the same chain.
-//!
-//! Only `:root` registers vars; under any other selector the
-//! declaration rides on its rule and the cascade scopes it per element.
-//! Per-element (cascade-scoped) custom properties are a documented
-//! divergence, see `DIVERGENCES.md`.
+//! `:root { --name: value; }` is an ordinary rule: the cascade gives the
+//! root its custom properties and every element inherits them (the root
+//! fragment is the root element, C14G-ROOT-ELEMENT). The sheet-level map
+//! (`Stylesheet::vars`) holds only what `define_var` puts there — the
+//! parse-time `:root` mirror is gone.
 
 use rdom_css::parse;
+
+/// The value of `--name` on the root of a document cascaded with `css`,
+/// as its element child inherits it.
+fn root_var(css: &str, name: &str) -> Option<String> {
+    let r = parse(css);
+    root_var_of(&r.stylesheet, name)
+}
+
+fn root_var_of(sheet: &rdom_tui::Stylesheet, name: &str) -> Option<String> {
+    use rdom_tui::CascadeExt;
+    let mut dom: rdom_tui::TuiDom = rdom_tui::TuiDom::new();
+    let root = dom.root();
+    let html = dom.create_element("html");
+    dom.append_child(root, html).unwrap();
+    dom.cascade(sheet);
+    let of = |id| {
+        rdom_tui::style::cascade::computed_of(&dom, id)
+            .vars
+            .get(name)
+            .map(|v| v.as_str().to_string())
+    };
+    let (on_root, inherited) = (of(root), of(html));
+    assert_eq!(on_root, inherited, "the element inherits the root's");
+    on_root
+}
 
 #[test]
 fn root_defines_single_var() {
     let r = parse(":root { --accent: #3d90ce; }");
     assert!(r.warnings.is_empty(), "warnings: {:?}", r.warnings);
-    assert_eq!(r.stylesheet.var("accent"), Some("#3d90ce"));
+    assert_eq!(
+        r.stylesheet.var("accent"),
+        None,
+        "no mirror: the sheet-level map is define_var's"
+    );
+    assert_eq!(
+        root_var(":root { --accent: #3d90ce; }", "accent").as_deref(),
+        Some("#3d90ce")
+    );
 }
 
 #[test]
 fn root_defines_multiple_vars() {
-    let r = parse(":root { --accent: #3d90ce; --dim: #707070; }");
-    assert!(r.warnings.is_empty());
-    assert_eq!(r.stylesheet.var("accent"), Some("#3d90ce"));
-    assert_eq!(r.stylesheet.var("dim"), Some("#707070"));
+    let css = ":root { --accent: #3d90ce; --dim: #707070; }";
+    assert!(parse(css).warnings.is_empty());
+    assert_eq!(root_var(css, "accent").as_deref(), Some("#3d90ce"));
+    assert_eq!(root_var(css, "dim").as_deref(), Some("#707070"));
 }
 
 #[test]
 fn root_var_with_named_color() {
-    let r = parse(":root { --bg: red; }");
-    assert!(r.warnings.is_empty());
-    assert_eq!(r.stylesheet.var("bg"), Some("red"));
+    assert!(parse(":root { --bg: red; }").warnings.is_empty());
+    assert_eq!(
+        root_var(":root { --bg: red; }", "bg").as_deref(),
+        Some("red")
+    );
 }
 
 #[test]
@@ -40,7 +71,10 @@ fn var_reference_after_root_definition() {
     // cascade substitutes it per element.
     let r = parse(":root { --accent: #3d90ce; } button { color: var(--accent); }");
     assert!(r.warnings.is_empty(), "warnings: {:?}", r.warnings);
-    assert_eq!(r.stylesheet.var("accent"), Some("#3d90ce"));
+    assert_eq!(
+        root_var_of(&r.stylesheet, "accent").as_deref(),
+        Some("#3d90ce")
+    );
     let button_rule = r
         .stylesheet
         .rules()
@@ -55,9 +89,9 @@ fn var_reference_after_root_definition() {
 fn later_root_rule_overrides_earlier_var() {
     // Last-wins (matches CSS cascade for declarations on the
     // same selector).
-    let r = parse(":root { --accent: #aaa; } :root { --accent: #bbb; }");
-    assert!(r.warnings.is_empty());
-    assert_eq!(r.stylesheet.var("accent"), Some("#bbb"));
+    let css = ":root { --accent: #aaa; } :root { --accent: #bbb; }";
+    assert!(parse(css).warnings.is_empty());
+    assert_eq!(root_var(css, "accent").as_deref(), Some("#bbb"));
 }
 
 #[test]
@@ -65,8 +99,10 @@ fn root_ignores_unknown_property() {
     // `:root { background: red; }` — `background` (without -color)
     // is not in the M1 property table; emits UnknownProperty.
     // Custom property still registers.
-    let r = parse(":root { background: red; --accent: blue; }");
-    assert_eq!(r.stylesheet.var("accent"), Some("blue"));
+    assert_eq!(
+        root_var(":root { background: red; --accent: blue; }", "accent").as_deref(),
+        Some("blue")
+    );
 }
 
 #[test]
@@ -80,7 +116,7 @@ fn var_with_fallback_color_is_pending() {
 
 /// `CSS-VARS-SCOPE-1`: a custom property under any selector stays on
 /// the rule (the cascade scopes it per element); nothing warns, and
-/// only `:root` publishes through the sheet-level map.
+/// nothing publishes through the sheet-level map.
 #[test]
 fn custom_property_under_any_selector_stays_on_the_rule() {
     let r = parse(".dark { --accent: red; color: blue }");
@@ -101,14 +137,13 @@ fn custom_property_under_any_selector_stays_on_the_rule() {
     assert_eq!(
         r.stylesheet.var("accent"),
         None,
-        "sheet-level map is :root only"
+        "the sheet-level map is define_var's"
     );
 }
 
 /// `:root` inside a selector list is one rule for every selector; the
-/// declaration rides on each rule, and the `:root` one is mirrored into
-/// the sheet-level map like a lone `:root` rule (`C1G-ROOT-SEED`: the
-/// mirror is the `:root` rules in cascade order, list items included).
+/// declaration rides on each rule, and the root takes it like a lone
+/// `:root` rule's.
 #[test]
 fn root_in_a_selector_list_keeps_the_declaration_on_the_rule() {
     let r = parse(":root, body { --accent: red }");
@@ -119,7 +154,7 @@ fn root_in_a_selector_list_keeps_the_declaration_on_the_rule() {
             .iter()
             .all(|rule| rule.style.custom_property_value("accent") == Some("red"))
     );
-    assert_eq!(r.stylesheet.var("accent"), Some("red"));
+    assert_eq!(root_var_of(&r.stylesheet, "accent").as_deref(), Some("red"));
 }
 
 /// A `style="--x: …"` attribute declares the property on that element.
@@ -135,13 +170,13 @@ fn inline_custom_property_is_kept() {
     );
 }
 
-// ── `:root` mirror in cascade order (C1G-ROOT-SEED) ─────────────────
+// ── `:root` in cascade order (C1G-ROOT-SEED, C14G-ROOT-ELEMENT) ─────
 //
-// The mirror into `Stylesheet::vars()` is what every element inherits
-// as the `:root` values, so it must follow the cascade: CSS Cascade 5 §6.4 (unlayered beats layered for
-// normal declarations, later layers beat earlier ones, reversed for
-// `!important`) and Cascade 4 §6.4 (important beats normal, then order
-// of appearance — imported rules come at the import's position).
+// The root's custom properties are the cascade's answer for the root:
+// CSS Cascade 5 §6.4 (unlayered beats layered for normal declarations,
+// later layers beat earlier ones, reversed for `!important`) and Cascade
+// 4 §6.4 (important beats normal, then order of appearance — imported
+// rules come at the import's position).
 
 fn mirrored(css: &str) -> Option<String> {
     let loader = |url: &str| match url {
@@ -150,22 +185,7 @@ fn mirrored(css: &str) -> Option<String> {
     };
     let r = rdom_css::parse_with_loader(css, &loader);
     assert!(r.warnings.is_empty(), "{:?}", r.warnings);
-    let mirrored = r.stylesheet.var("c").map(str::to_string);
-    // The document's elements see the same value: `:root` matches the
-    // tree's root node, whose custom properties every element inherits
-    // through the sheet-level map.
-    use rdom_tui::CascadeExt;
-    let mut dom: rdom_tui::TuiDom = rdom_tui::TuiDom::new();
-    let root = dom.root();
-    let html = dom.create_element("html");
-    dom.append_child(root, html).unwrap();
-    dom.cascade(&r.stylesheet);
-    let cascaded = rdom_tui::style::cascade::computed_of(&dom, html)
-        .vars
-        .get("c")
-        .map(|v| v.as_str().to_string());
-    assert_eq!(mirrored, cascaded, "mirror vs elements for {css}");
-    mirrored
+    root_var_of(&r.stylesheet, "c")
 }
 
 #[test]

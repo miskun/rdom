@@ -111,8 +111,9 @@ value       := token+
   `transition` lists.
 - **Custom properties** — `--name: value;` under any selector (and in a
   `style` attribute) rides on the rule as `TuiStyle::custom_properties`;
-  the cascade scopes it per element and inherits it. `:root` declarations
-  additionally populate the `Stylesheet::vars` map. `var()` works in every
+  the cascade scopes it per element and inherits it — `:root`'s from the
+  document root, the root element (`Stylesheet::vars` holds only what
+  `define_var` puts there, beneath every rule). `var()` works in every
   property (CSS Variables 1 §3): a declaration holding it is kept as
   tokens (`TuiStyle::pending`) and the cascade substitutes and parses it
   per element, fallbacks with arbitrary tokens included.

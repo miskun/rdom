@@ -184,11 +184,13 @@ fn flex_on_a_root_child_does_not_grow_it_but_a_full_height_shell_does() {
 }
 
 /// CSS Backgrounds 3 §2.11.2: the root element's background paints the
-/// whole canvas — the viewport below a content-high root element too.
+/// whole canvas — the viewport below a content-high page too. The root
+/// element is the root fragment (C14G-ROOT-ELEMENT; a first top-level
+/// element's background was the canvas's before it).
 #[test]
 fn the_root_elements_background_paints_the_canvas() {
     let mut dom = doc(r#"<div id="app">hi</div>"#);
-    let buf = paint(&mut dom, "#app { background: rgb(1, 2, 3) }", 10, 4);
+    let buf = paint(&mut dom, ":root { background: rgb(1, 2, 3) }", 10, 4);
     assert_eq!(rect(&dom, "app").height, 1);
     for (x, y) in [(0, 0), (9, 0), (0, 3), (9, 3)] {
         assert_eq!(bg(&buf, x, y), Color::Rgb(1, 2, 3), "({x}, {y})");
@@ -196,12 +198,18 @@ fn the_root_elements_background_paints_the_canvas() {
 }
 
 /// CSS Backgrounds 3 §2.11.2: "the used value of `background` [on the
-/// root element] is transparent" once it is the canvas's — so a
-/// translucent one composites once, its box no darker than the canvas.
+/// propagating element] is transparent" once it is the canvas's — so a
+/// translucent `<body>` one composites once, its box no darker than the
+/// canvas.
 #[test]
 fn the_propagated_background_paints_once() {
-    let mut dom = doc(r#"<div id="app">hi</div>"#);
-    let buf = paint(&mut dom, "#app { background: rgb(200 0 0 / 50%) }", 10, 4);
+    let mut dom = doc(r#"<body id="app">hi</body>"#);
+    let buf = paint(
+        &mut dom,
+        "body { margin: 0; background: rgb(200 0 0 / 50%) }",
+        10,
+        4,
+    );
     assert_eq!(bg(&buf, 5, 0), bg(&buf, 5, 3), "the box as the canvas");
     assert_ne!(bg(&buf, 5, 3), Color::Reset);
 }

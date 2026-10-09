@@ -15,6 +15,7 @@ mod container_type;
 mod content_visibility;
 mod hit_html;
 mod media;
+mod root_element;
 mod supports;
 
 /// A document holding `markup` under its root.

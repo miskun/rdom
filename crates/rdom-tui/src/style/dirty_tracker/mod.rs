@@ -169,6 +169,12 @@ pub(super) struct DirtyState {
     /// table (`marks::mark_column_change`). True until the App says
     /// otherwise.
     pub(super) columns: bool,
+    /// Whether a selector can match the root fragment by a user-action
+    /// pseudo-class (`:root:hover`, a bare `:focus-within`;
+    /// [`uses_root_state`]): a hover, focus or active change from or to
+    /// nothing then restyles the root (C14G-ROOT-ELEMENT). True until the
+    /// App says otherwise.
+    pub(super) root_state: bool,
 }
 
 impl Default for DirtyState {
@@ -186,6 +192,7 @@ impl Default for DirtyState {
             siblings: SiblingTriggers::all(),
             has: HasTriggers::all(),
             columns: true,
+            root_state: true,
         }
     }
 }
@@ -378,6 +385,12 @@ impl DirtyTracker {
         self.inner.borrow_mut().columns = used;
     }
 
+    /// Say whether the sheets now cascaded can match the root fragment by
+    /// a user-action pseudo-class ([`uses_root_state`]).
+    pub(crate) fn set_root_state(&self, used: bool) {
+        self.inner.borrow_mut().root_state = used;
+    }
+
     /// Manually mark a subtree dirty. Escape hatch for cases the
     /// `MutationObserver` doesn't cover — a direct write to a `TuiExt`
     /// field the cascade reads, such as `TuiExt::set_inline_style`
@@ -437,5 +450,51 @@ pub(crate) fn uses_column_selectors(sheet: &crate::style::Stylesheet) -> bool {
                 .iter()
                 .any(|(comb, _)| *comb == Combinator::Column)
         }) || any_simple(c, &|s| matches!(s, SimpleSelector::NthColumn(_)))
+    })
+}
+
+/// Whether `sheet` can match the root fragment by a user-action
+/// pseudo-class (Selectors 4 §9.2, §9.4, §13.3): a compound with no type,
+/// id, class or attribute selector — the root fragment has none
+/// (C14G-ROOT-ELEMENT) — that reads `:hover`, `:active`, `:focus`,
+/// `:focus-visible` or `:focus-within`, itself or in an argument
+/// (`:root:hover`, `:not(:focus-within)`, a bare `:hover`).
+pub(crate) fn uses_root_state(sheet: &crate::style::Stylesheet) -> bool {
+    use crate::style::selector_walk::{
+        any_complex, any_simple, arguments, compounds, sheet_selectors,
+    };
+    use rdom_core::selectors::{PseudoClass, SimpleSelector};
+    let state = |s: &SimpleSelector| {
+        matches!(
+            s,
+            SimpleSelector::Pseudo(
+                PseudoClass::Hover
+                    | PseudoClass::Active
+                    | PseudoClass::Focus
+                    | PseudoClass::FocusVisible
+                    | PseudoClass::FocusWithin
+            )
+        )
+    };
+    sheet_selectors(sheet).any(|complex| {
+        any_complex(complex, &mut |c| {
+            compounds(c).any(|compound| {
+                let nameless = !compound.simples.iter().any(|s| {
+                    matches!(
+                        s,
+                        SimpleSelector::Type(_)
+                            | SimpleSelector::Id(_)
+                            | SimpleSelector::Class(_)
+                            | SimpleSelector::Attribute { .. }
+                    )
+                });
+                nameless
+                    && compound.simples.iter().any(|s| {
+                        state(s)
+                            || arguments(s)
+                                .map_or(true, |args| args.iter().any(|a| any_simple(a, &state)))
+                    })
+            })
+        })
     })
 }

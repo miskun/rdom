@@ -262,13 +262,19 @@ impl<'a> Scratch<'a> {
     /// (`TuiExt::has_anchor`, `style::has_triggers`).
     pub(super) fn flag_has_anchors(&self, dom: &mut Dom<TuiExt>) {
         let mut any = false;
+        let mut root = false;
         for id in self.selectors.has_anchors() {
             if let Some(ext) = dom.node_mut(id).ext_mut() {
                 ext.has_anchor = true;
                 any = true;
+            } else if super::root::is_root_fragment(dom, id) {
+                root = true;
             }
         }
-        if any {
+        if root {
+            crate::style::doc_flags::note_root_has_anchor(dom);
+        }
+        if any || root {
             crate::style::doc_flags::note_has_anchor(dom);
         }
     }

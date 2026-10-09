@@ -321,6 +321,13 @@ pub(super) fn parent_computed_for(
     if let Some(slot) = parent.and_then(|p| super::details::inherited_style(dom, p, root)) {
         return slot;
     }
+    // A top-level element inherits from the root fragment, the root
+    // element (`root`).
+    if parent.is_some_and(|p| super::root::is_root_fragment(dom, p))
+        && let Some(style) = super::root::style(dom)
+    {
+        return style.clone();
+    }
     dom.node(root)
         .parent_node()
         .and_then(|p| p.ext().and_then(|e| e.computed.clone()))

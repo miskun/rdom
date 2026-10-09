@@ -39,12 +39,17 @@ pub(super) fn mark_chain_change(
     prev: Option<NodeId>,
     next: Option<NodeId>,
 ) {
+    // The root fragment, the root element, matches these too
+    // (C14G-ROOT-ELEMENT) — in the chain when a selector can read it so.
+    let root_state = state.root_state;
     let chain = |dom: &Dom<TuiExt>, from: Option<NodeId>| {
         let mut chain: Vec<NodeId> = Vec::new();
         let mut cur = from;
         while let Some(id) = cur {
             let node = dom.node(id);
-            if node.ext().is_some() {
+            if node.ext().is_some()
+                || (root_state && crate::style::cascade::root::is_root_fragment(dom, id))
+            {
                 chain.push(id);
             }
             cur = node.parent_node().map(|p| p.id());
@@ -99,10 +104,11 @@ pub(super) fn mark_state_dirty(
 /// itself and pushes it to the roots worklist — unless an ancestor is
 /// already a queued root (the ancestor's cascade will re-cascade us).
 pub(super) fn mark_style_dirty(dom: &mut Dom<TuiExt>, state: &mut DirtyState, id: NodeId) {
-    // Non-element nodes (text/comment/fragment root) don't have a TuiExt
-    // and don't participate in the cascade directly. But their parent
-    // might — we just skip them here.
-    if dom.node(id).ext().is_none() {
+    // Non-element nodes (text/comment) don't have a TuiExt and don't
+    // participate in the cascade directly. But their parent might — we
+    // just skip them here. The root fragment is the root element
+    // (C14G-ROOT-ELEMENT): its cascade is the whole tree's.
+    if dom.node(id).ext().is_none() && !crate::style::cascade::root::is_root_fragment(dom, id) {
         return;
     }
 
@@ -203,8 +209,15 @@ pub(super) fn mark_has_anchors(
         return;
     }
     let reach = state.has.sibling_reach();
-    let is_anchor =
-        |dom: &Dom<TuiExt>, id: NodeId| dom.node(id).ext().is_some_and(|e| e.has_anchor);
+    // The root fragment, the root element, keeps its flag on the
+    // document (C14G-ROOT-ELEMENT).
+    let root_anchor = crate::style::doc_flags::root_has_anchor(dom);
+    let is_anchor = |dom: &Dom<TuiExt>, id: NodeId| {
+        dom.node(id).ext().map_or_else(
+            || root_anchor && crate::style::cascade::root::is_root_fragment(dom, id),
+            |e| e.has_anchor,
+        )
+    };
     let mut cur = Some(from);
     let mut first = true;
     while let Some(id) = cur {

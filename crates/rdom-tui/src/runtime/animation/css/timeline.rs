@@ -157,7 +157,9 @@ pub(crate) fn resolve_timeline(
         AnimationTimeline::Scroll { scroller, axis } => {
             let sc = match scroller {
                 TimelineScroller::Nearest => nearest_scroller(dom, id),
-                TimelineScroller::Root => Some(dom.document_element().id()),
+                // The root element: an element root, or the root
+                // fragment, which never scrolls (C14G-ROOT-ELEMENT).
+                TimelineScroller::Root => Some(dom.root()),
                 TimelineScroller::SelfElement => Some(id),
             };
             sc.map_or(Resolved::Inactive, |sc| scroll(dom, sc, *axis))

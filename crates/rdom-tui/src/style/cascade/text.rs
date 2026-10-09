@@ -91,10 +91,11 @@ pub(super) fn finalize_line_height(
     units
 }
 
-/// The used line height of the document's root element, the basis of
-/// `rlh` for every other element.
+/// The used line height of the document's root element — an element root,
+/// or the root fragment (`root`) — the basis of `rlh` for every other
+/// element.
 pub(super) fn root_line_height(dom: &Dom<TuiExt>) -> u16 {
-    dom.document_element()
+    dom.node(dom.root())
         .computed()
         .map_or(1, |c| c.text.line_height.rows())
 }

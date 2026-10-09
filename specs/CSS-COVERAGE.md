@@ -305,7 +305,7 @@ dropped. The audit's six, with where each stands:
 
 | Item | Class | Detail | Doc'd | Where |
 |---|---|---|---|---|
-| `background-color` | Supported | Any parsed color; the initial value is `transparent`, which paints nothing, while `Canvas` / `reset` paint the terminal's default background (C11G-CANVAS-FILL). The root element's (an `<html>`'s `<body>`'s when it has none) paints the whole canvas (CSS Backgrounds 3 §2.11.2, C13-ROOT-CANVAS). | — | `DISP/set.rs` |
+| `background-color` | Supported | Any parsed color; the initial value is `transparent`, which paints nothing, while `Canvas` / `reset` paint the terminal's default background (C11G-CANVAS-FILL). The root element's — the root fragment's (`:root`), or under a transparent one an `<html>` child's, else its `<body>`'s — paints the whole canvas (CSS Backgrounds 3 §2.11.2, C13-ROOT-CANVAS, C14G-ROOT-ELEMENT). | — | `DISP/set.rs` |
 | `background` | Supported | The full Backgrounds 3 §3.10 grammar: layers, the color on the final one; image layers parse and are stored but draw nothing (documented, C4-BACKGROUND). | — | `DISP/background.rs`, `V/background.rs` |
 | `background-image` / `-position` / `-size` / `-repeat` / `-attachment` / `-origin` | N/A | No images (documented); they parse and are stored, inert (C4-BACKGROUND). | — | `DISP/background.rs` |
 | `background-clip` | Supported | `border-box` (initial: under the border) / `padding-box` / `content-box`, the final layer's clipping the color; a half-block border keeps its cells clear (documented); `text` is N/A (documented) (C4-BG-CLIP). | — | `PAINT/background.rs::clip_box`, `CASC/decoration.rs` |
@@ -525,7 +525,7 @@ dropped. The audit's six, with where each stands:
 | `:nth-of-type()` / `:nth-last-of-type()` | Supported | Through the same cache (C11-NTH). | — | `SEL` |
 | `:first-of-type` / `:last-of-type` / `:only-of-type` | Supported | C11-NTH. | — | `SEL` |
 | `:empty` | Supported | — | — | `SEL` |
-| `:root` | Supported | — | — | `SEL` |
+| `:root` | Supported | The root: an element root, or the root fragment, which stands for the root element — matched as an element with no name, attributes or classes, cascaded and inherited from (C14G-ROOT-ELEMENT). | — | `SEL`, `CASC/root.rs` |
 | `:scope` | Supported | The `@scope` root (`Dom::matches_list_in_scope` / `matches_list_with`, inside `:is()` / `:not()` too), `:root` at a sheet's top level, and the node a query method was called on — `query_selector_in` / `query_selector_all_in` / `matches` / `closest` (DOM §4.2.6; C11-SCOPE). | — | `SEL`, `rdom-core/src/query_selector/mod.rs` |
 | `:hover` / `:active` / `:focus` / `:focus-within` / `:focus-visible` | Supported | Primary-button `:active` (documented). | Yes | `SEL` |
 | `:checked` | Supported | Attribute-reflected (documented). | Yes | `SEL` |

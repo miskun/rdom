@@ -9385,3 +9385,44 @@ row comes from.
   (`matches(root, ":root")` false); `root_pseudo` pinned the old answer and now asserts the new one.
   Green after, with `a_detached_fragment_matches_nothing`. Silent change 4 (ranked under the root
   entries: it turns on rules a sheet already holds).
+- 2026-10-09 — C14G-ROOT-ELEMENT (2/3: the cascade; decision 1, architect B3, API B1; CSS Cascade 4 §7, CSS
+  Backgrounds 3 §2.11.2, CSS Values 4 §6.1.1, CSS Conditional 3 §2, Scroll-driven Animations 1 §2.1.1). Found:
+  the root fragment carried no style — `:root { color }` did nothing, `:root` custom properties reached the
+  elements only through `rdom-css`'s parse-time mirror into `Stylesheet::vars()`, which ignored the
+  conditions around the rules (the dark-mode pattern was always dark); the canvas, `rlh` and `scroll(root)`
+  read `Dom::document_element()`, the first element child (a leading `<style>` killed the canvas, a toast
+  inserted first took it). Decided: (1) `style::cascade::root` cascades the root fragment as an element
+  (`compute_element_style` with no parent element, `Rules::Match`) before its children, from the seed of the
+  sheets' `define_var` variables, and keeps as document data the ICB's box style (`icb_style`: `flow-root`,
+  BFC) with the root's inherited and custom properties and its background — its own box properties do not
+  apply (its box is the ICB) and it runs no transitions; `TuiNodeExt::computed` / `base_computed` /
+  `computed_rc` and `computed_of` read it on the root (a sealed `#[doc(hidden)]` trait method); the top-level
+  elements inherit from it (`walk`, `subtrees::parent_computed_for`, so keyframes and starting styles too);
+  the ICB lays its inline content out with it; the element ladder's `root` is `id == dom.root()`; (2) the
+  mirror is retired (`rdom-css/src/root_vars.rs` deleted): `Stylesheet::vars()` is `define_var`'s only,
+  `cascade/root_vars.rs` merges it as the root's parent seed — so a `:root` variable inside `@media` follows
+  the condition; (3) `rlh` reads the root's line height (a Restyle that moves it flags every `rlh`);
+  `scroll(root)` reads `dom.root()` — inactive under the fragment, which never scrolls (DIVERGENCES' entry
+  rewritten); (4) the canvas source is the root's background, else (decided) an `<html>` child's, else that
+  `<html>`'s `<body>`'s, else a `<body>` child's — a parsed HTML document propagates as in a browser, any
+  other top-level element paints its own box (`canvas::takes_background` checks the tag before looking);
+  an element root keeps `html` → `body`; (5) restyling the root: a `:has()` evaluated for it is flagged on
+  the document (`doc_flags::root_has_anchor`) and the tracker may queue the root fragment as a dirty root
+  (its cascade is the whole tree's); a hover / focus / active chain change from or to nothing includes the
+  root only when a sheet can match it by a user-action pseudo-class (`dirty_tracker::uses_root_state`,
+  nameless compounds; the UA sheet has none), so focusing from nothing costs no whole-tree cascade
+  otherwise. `Dom::document_element()` keeps its DOM meaning; no rendering reads it. Red
+  (`css_phase14/root_element.rs`, all against 1/3): the dark-mode pattern under a light terminal gave
+  `#111` for `#fff`; `:root { color }` gave `Reset` on a `<p>`; `:root { background }` and a `<body>` after
+  a `<style>` painted no canvas; a toast inserted first lost its own box (`Reset` for red, it was the
+  canvas); `rlh` under `:root { line-height: 2 }` was 1 for 2. `an_html_tree_under_the_root_propagates`
+  pins the propagation that held before. App (`runtime/app/root_element_tests.rs`): `:root:has(.on)` and
+  `:root:hover` follow their changes (mutation: without the document anchor flag / the root in the chain,
+  both fail). Expectations changed by the decision: `css_phase13/root.rs`'s canvas tests use `:root` and a
+  `<body>` (a first `div`'s background was the canvas), `css_phase9::lh_and_rlh_follow_the_line_height`
+  sets `:root { line-height }` (it set the first element's), rdom-css's mirror tests and `style_tags.rs`
+  read the cascaded root (the map is empty), `var_tests::root_vars_attr_reads_the_root_element` cascades
+  rather than merging, rdom-css's `round_trip::var_definition_round_trip` compares the cascaded roots, and the
+  dirty tracker's element-chain tests say `set_root_state(false)` (a tracker with unknown sheets now queues
+  the root on a chain from nothing, pinned by `a_chain_from_nothing_restyles_the_root_when_a_sheet_can_read_it`).
+  No showcase snapshot changed. Silent changes 3 and 4 rewritten.

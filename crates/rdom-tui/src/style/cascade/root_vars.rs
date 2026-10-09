@@ -1,7 +1,10 @@
-//! The `:root` custom properties a cascade pass seeds the document root
-//! with: every sheet's `vars()` merged, registered properties at their
-//! initial values, and their `var()` / `attr()` substituted against each
-//! other (CSS Variables 1 §3). Split out of `walk.rs` (C7G-SIZES).
+//! The custom properties a cascade pass seeds the root's parent with:
+//! every sheet's `vars()` — the programmatic `define_var` variables,
+//! beneath every rule (a `:root` rule is an ordinary rule matching the
+//! root, `root`; the parse-time mirror of them is gone,
+//! C14G-ROOT-ELEMENT) — merged, registered properties at their initial
+//! values, and their `var()` / `attr()` substituted against each other
+//! (CSS Variables 1 §3). Split out of `walk.rs` (C7G-SIZES).
 
 use rdom_core::{Dom, NodeType};
 
@@ -15,8 +18,8 @@ use crate::style::VarMap;
 /// callers compute this once per cascade pass (in `cascade_all` /
 /// `cascade_subtrees_all`) and `Rc::clone` from there per element.
 ///
-/// These are the `:root` custom properties, so their `attr()`s read the
-/// element `:root` matches (CSS Values 5 §8.7, Selectors 4 §14.1): the
+/// They are the root's inherited custom properties, so their `attr()`s
+/// read the element `:root` matches (CSS Values 5 §8.7, Selectors 4 §14.1): the
 /// tree's root when it is an element; a fragment root has no
 /// attributes (DIVERGENCES).
 pub(super) fn merge_root_vars(dom: &Dom<TuiExt>, sheets: &Sheets<'_>) -> VarMap {

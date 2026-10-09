@@ -124,6 +124,8 @@ mod pseudo_chain_tests;
 #[cfg(test)]
 mod registered_transition_tests;
 #[cfg(test)]
+mod root_element_tests;
+#[cfg(test)]
 mod route_redraw_tests;
 #[cfg(test)]
 mod scope_invalidation_tests;

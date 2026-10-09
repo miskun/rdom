@@ -17,6 +17,12 @@ use super::tree::is_text_input;
 pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
     fn tui_ext(&self) -> Option<&'a TuiExt>;
 
+    /// The root element's style when this node is the root fragment
+    /// (`style::cascade::root`, C14G-ROOT-ELEMENT); `None` for every
+    /// other node.
+    #[doc(hidden)]
+    fn root_fragment_style(&self) -> Option<&'a std::rc::Rc<ComputedStyle>>;
+
     // These read the *specified* inline-style value (`None` when the
     // property wasn't set via a node setter or inline style). Layout
     // reads the post-cascade `ComputedStyle`; these are the author-input
@@ -137,11 +143,17 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
     /// The computed style for this element, with its running
     /// transitions' and CSS animations' values at the last frame (what
     /// `getComputedStyle` reads mid-flight; Web Animations 1 §5.4.5).
-    /// `None` until the cascade has run at least once. Prefer
+    /// `None` until the cascade has run at least once. On the root
+    /// fragment, the root element's style (C14G-ROOT-ELEMENT): its
+    /// inherited and custom properties and its background over the
+    /// initial containing block's box properties. Prefer
     /// `computed_or_initial` for code paths that need a concrete value
     /// unconditionally, and [`base_computed`](Self::base_computed) for
     /// the style without the running values.
     fn computed(&self) -> Option<&'a ComputedStyle> {
+        if let Some(root) = self.root_fragment_style() {
+            return Some(root);
+        }
         self.tui_ext().and_then(|e| e.computed.as_deref())
     }
 
@@ -152,6 +164,9 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
     /// [`computed`](Self::computed) while nothing runs; `None` exactly
     /// when it is (`TuiExt::base_computed_for`).
     fn base_computed(&self) -> Option<&'a ComputedStyle> {
+        if let Some(root) = self.root_fragment_style() {
+            return Some(root);
+        }
         self.tui_ext()
             .and_then(|e| e.base_computed_for(crate::ext::StyleSlot::Host))
             .map(|rc| &**rc)
@@ -161,6 +176,9 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
     /// shared handle — an `Rc` clone instead of a deep copy, for the layout and paint paths that need an owned
     /// value while they mutate the arena. `None` until the cascade ran.
     fn computed_rc(&self) -> Option<std::rc::Rc<ComputedStyle>> {
+        if let Some(root) = self.root_fragment_style() {
+            return Some(root.clone());
+        }
         self.tui_ext().and_then(|e| e.computed.clone())
     }
 
@@ -234,6 +252,14 @@ pub trait TuiNodeExt<'a>: crate::sealed::Sealed {
 impl<'a> TuiNodeExt<'a> for NodeRef<'a, TuiExt> {
     fn tui_ext(&self) -> Option<&'a TuiExt> {
         self.ext()
+    }
+
+    fn root_fragment_style(&self) -> Option<&'a std::rc::Rc<ComputedStyle>> {
+        let dom = self.dom();
+        if !crate::style::cascade::root::is_root_fragment(dom, self.id()) {
+            return None;
+        }
+        crate::style::cascade::root::style(dom)
     }
 
     fn is_editable(&self) -> bool {

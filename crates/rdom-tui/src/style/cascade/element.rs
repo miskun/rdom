@@ -159,7 +159,9 @@ pub(super) fn compute_element_style(
     super::quotes::finalize_quotes(&mut working, parent, dom, parent_id);
     super::text_decoration::finalize_applied_decorations(&mut working, parent.applied_decorations);
     super::apply::finalize_justify_items(&mut working, parent);
-    let root = parent_id.is_none_or(|p| dom.node(p).node_type() != rdom_core::NodeType::Element);
+    // The root element: an element root, or the root fragment
+    // (`root`).
+    let root = id == dom.root();
     super::text::finalize_text_align(&mut working, parent, root);
     // CSS Overflow 3 §3.1's computed value, which the BFC rule reads.
     working.normalize_overflow();

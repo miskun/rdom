@@ -3,7 +3,8 @@
 //! container holding a block formatting context (§9.4.1).
 //!
 //! rdom's default root is a document fragment, which has no `TuiExt`:
-//! it stands for the document, and its box is the ICB. Its children lay
+//! it stands for the document and its root element (styled by the
+//! cascade, `style::cascade::root`), and its box is the ICB. Its children lay
 //! out in block flow in it as a browser's `<body>` children do — block
 //! boxes stacked with their margins collapsing, floats, inline-level
 //! children and text in line boxes of anonymous block boxes (§9.2.1.1).
@@ -30,15 +31,15 @@ pub(crate) fn is_icb(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     id == dom.root() && dom.node(id).node_type() == NodeType::Fragment
 }
 
-/// The style the initial containing block lays its children out with: a
+/// The style the initial containing block lays its children out with: the
+/// root fragment's, the root element's (`style::cascade::root`) — a
 /// `flow-root` block container (CSS Display 3 §2: it establishes a block
-/// formatting context), every other property initial — the document's
-/// children inherit nothing from it either.
-pub(crate) fn style() -> ComputedStyle {
-    let mut icb = ComputedStyle::initial();
-    icb.flow = crate::layout::Flow::FlowRoot;
-    icb.establishes_new_bfc = true;
-    icb
+/// formatting context) with the root's inherited properties — or, before
+/// the first cascade, that box with every other property initial.
+pub(crate) fn style(dom: &Dom<TuiExt>) -> std::rc::Rc<ComputedStyle> {
+    crate::style::cascade::root::style(dom)
+        .cloned()
+        .unwrap_or_else(|| std::rc::Rc::new(crate::style::cascade::root::icb_style()))
 }
 
 /// The anonymous block boxes `id`'s inline runs are laid out in: an
