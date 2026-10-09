@@ -9445,3 +9445,17 @@ row comes from.
   one; the press used to leave the selection alone); `interaction_chain_tests` leaving hovers the root.
   DIVERGENCES' `Dom::root()` entry and the C14-HIT-HTML row updated; silent change 5; ACID tile 20 gains
   the dark-mode pattern (API B1).
+- 2026-10-09 — C14G-MATCH-MEDIA (API B2, N8; CSSOM View §4.2, DOM §2.7). Found: `MediaWatches` held its lists
+  weakly and pruned them by strong count, so `app.match_media(q).add_listener(f)` — the natural Rust chain
+  and the web's `matchMedia(q).addEventListener("change", f)` — dropped the list at the semicolon and the
+  listener never fired; `match_media` had no `#[must_use]`; the only listener method was named after the
+  deprecated `addListener`. Decided: (1) the App holds every list strongly and forgets, at each
+  evaluation, one with no listener that only it holds — a list with a listener lives while it has one, as
+  a browser keeps a `MediaQueryList` with event listeners (one whose handle is gone cannot remove them, as
+  in a browser); (2) `#[must_use]` on `match_media`; (3) the list is an `EventTarget`:
+  `add_event_listener(type, f)` / `remove_event_listener(id)`, only `"change"` ever firing (a listener for
+  another type is kept and never called, as in a browser), with `add_listener` / `remove_listener` the
+  legacy aliases (CSSOM View §4.2 defines `addListener` as `addEventListener("change")`). New since 0.5:
+  no break. Red: `media_tests::a_chained_listener_fires` (`[]` for `[true]`),
+  `an_unheld_list_without_listeners_is_forgotten` (0 lists kept for 1); green after, with
+  `add_event_listener_change_fires`.

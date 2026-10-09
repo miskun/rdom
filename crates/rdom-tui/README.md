@@ -263,7 +263,7 @@ A node can carry the same declarations inline: `set_grid()`, `set_grid_template_
 
 ## Responsive layout: `@media` and container queries
 
-`@media` (Media Queries 4 / 5) reads the terminal: `width` / `height` are its columns and rows — a unitless number or `ch` is cells, as in every rdom length (a `600px` breakpoint has no cell measure and matches nothing, nor does its `not`) — and the preferences an `App` reports (`App::with_media_preferences`: `prefers-reduced-motion`, …), `prefers-color-scheme` from the terminal's background. A resize restyles only when a query flips or a viewport unit is in use; `App::match_media` is `matchMedia()`, its listeners called on each flip. Columns that stack on a narrow terminal:
+`@media` (Media Queries 4 / 5) reads the terminal: `width` / `height` are its columns and rows — a unitless number or `ch` is cells, as in every rdom length (a `600px` breakpoint has no cell measure and matches nothing, nor does its `not`) — and the preferences an `App` reports (`App::with_media_preferences`: `prefers-reduced-motion`, …), `prefers-color-scheme` from the terminal's background. A resize restyles only when a query flips or a viewport unit is in use; `App::match_media` is `matchMedia()`, its `change` listeners (`add_event_listener("change", …)`, or the legacy `add_listener`) called on each flip — a list with a listener is kept while it has one, so `app.match_media(q).add_listener(f)` works chained. Columns that stack on a narrow terminal:
 
 ```rust
 use rdom_tui::prelude::*;

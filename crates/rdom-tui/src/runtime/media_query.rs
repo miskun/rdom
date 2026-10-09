@@ -7,13 +7,16 @@
 //! report changes", one of HTML's update-the-rendering steps, before the
 //! frame's style and layout), in the order they were created.
 //!
-//! A list is a cheap handle (clone it freely); the App keeps only a weak
-//! reference, so a list nobody holds stops being evaluated. A listener
-//! gets the document through a [`TimerCtx`], as timer callbacks do — what
-//! a script's `change` handler would reach through `document`.
+//! A list is a cheap handle (clone it freely). The App keeps every list
+//! that has a listener, as a browser keeps a `MediaQueryList` with event
+//! listeners alive — so `app.match_media(q).add_listener(f)` hears its
+//! flips though the handle is dropped at once — and forgets one with no
+//! listener that nobody holds. A listener gets the document through a
+//! [`TimerCtx`], as timer callbacks do — what a script's `change` handler
+//! would reach through `document`.
 
 use std::cell::{Cell, RefCell};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 use rdom_style::conditional::{MediaEnvironment, MediaList};
 
@@ -55,7 +58,7 @@ pub(crate) struct Watch {
     list: MediaList,
     media: String,
     matches: Cell<bool>,
-    listeners: RefCell<Vec<(MediaListenerId, Listener)>>,
+    listeners: RefCell<Vec<Registered>>,
     next_listener: Cell<u32>,
 }
 
@@ -72,40 +75,73 @@ impl MediaQueryList {
         self.watch.matches.get()
     }
 
-    /// Call `listener` each time the result flips (`addEventListener(
-    /// "change", …)`), with the document and the event.
-    pub fn add_listener(
+    /// `addEventListener(event_type, listener)` (DOM §2.7, the list is an
+    /// `EventTarget`): `listener` is called with the document and the
+    /// event each time the result flips when `event_type` is `"change"`,
+    /// the only event a list fires; a listener for any other type is kept
+    /// and never called, as in a browser.
+    pub fn add_event_listener(
         &self,
+        event_type: &str,
         listener: impl FnMut(&mut TimerCtx<'_>, &MediaQueryListEvent) + 'static,
     ) -> MediaListenerId {
         let id = MediaListenerId(self.watch.next_listener.get());
         self.watch.next_listener.set(id.0 + 1);
-        self.watch
-            .listeners
-            .borrow_mut()
-            .push((id, Rc::new(RefCell::new(listener))));
+        self.watch.listeners.borrow_mut().push(Registered {
+            id,
+            change: event_type == "change",
+            listener: Rc::new(RefCell::new(listener)),
+        });
         id
     }
 
-    /// Stop calling the listener `id`; `false` when it is not one of this
-    /// list's.
-    pub fn remove_listener(&self, id: MediaListenerId) -> bool {
+    /// `removeEventListener`: stop calling the listener `id`; `false` when
+    /// it is not one of this list's.
+    pub fn remove_event_listener(&self, id: MediaListenerId) -> bool {
         let mut listeners = self.watch.listeners.borrow_mut();
         let before = listeners.len();
-        listeners.retain(|(l, _)| *l != id);
+        listeners.retain(|l| l.id != id);
         listeners.len() != before
+    }
+
+    /// The legacy `addListener(listener)` (CSSOM View §4.2): the same as
+    /// [`add_event_listener("change", listener)`](Self::add_event_listener).
+    pub fn add_listener(
+        &self,
+        listener: impl FnMut(&mut TimerCtx<'_>, &MediaQueryListEvent) + 'static,
+    ) -> MediaListenerId {
+        self.add_event_listener("change", listener)
+    }
+
+    /// The legacy `removeListener`: [`remove_event_listener`](Self::remove_event_listener).
+    pub fn remove_listener(&self, id: MediaListenerId) -> bool {
+        self.remove_event_listener(id)
     }
 }
 
-/// The App's lists, weakly held, and the environment they were last
-/// evaluated in.
+/// A listener as registered: its id, whether it listens for `change`, and
+/// the callback.
+struct Registered {
+    id: MediaListenerId,
+    change: bool,
+    listener: Listener,
+}
+
+/// The App's lists and the environment they were last evaluated in. A
+/// list is held while it has a listener or a handle holds it (module doc).
 #[derive(Default)]
 pub(crate) struct MediaWatches {
-    watches: Vec<Weak<Watch>>,
+    watches: Vec<Rc<Watch>>,
     last: Option<MediaEnvironment>,
 }
 
 impl MediaWatches {
+    /// How many lists are watched (tests).
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.watches.len()
+    }
+
     /// A new list for `query`, evaluated in `env`.
     pub(crate) fn watch(&mut self, query: &str, env: &MediaEnvironment) -> MediaQueryList {
         let list = MediaList::parse(query);
@@ -116,7 +152,7 @@ impl MediaWatches {
             listeners: RefCell::new(Vec::new()),
             next_listener: Cell::new(0),
         });
-        self.watches.push(Rc::downgrade(&watch));
+        self.watches.push(watch.clone());
         MediaQueryList { watch }
     }
 
@@ -131,9 +167,12 @@ impl MediaWatches {
             return Vec::new();
         }
         self.last = Some(*env);
-        self.watches.retain(|w| w.strong_count() > 0);
+        // Forget a list nobody holds that has no listener: only the App's
+        // reference is left, and nothing can hear it.
+        self.watches
+            .retain(|w| Rc::strong_count(w) > 1 || !w.listeners.borrow().is_empty());
         let mut out = Vec::new();
-        for watch in self.watches.iter().filter_map(Weak::upgrade) {
+        for watch in &self.watches {
             let matches = watch.list.matches(env);
             if matches == watch.matches.replace(matches) {
                 continue;
@@ -144,7 +183,8 @@ impl MediaWatches {
                 .listeners
                 .borrow()
                 .iter()
-                .map(|(_, l)| l.clone())
+                .filter(|l| l.change)
+                .map(|l| l.listener.clone())
                 .collect();
             let event = MediaQueryListEvent {
                 media: watch.media.clone(),

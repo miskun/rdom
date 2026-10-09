@@ -46,7 +46,11 @@ impl<B: Backend> App<B> {
     /// `window.matchMedia(query)` (CSSOM View §4.2): a live list for the
     /// media query list `query`, evaluated now against the terminal's size,
     /// the preferred color scheme and the preferences, then at every
-    /// frame — its listeners called when the result flips.
+    /// frame — its listeners called when the result flips. A list with a
+    /// listener is kept by the App while it has one, so the chained
+    /// `app.match_media(q).add_listener(f)` hears its flips; one without is
+    /// forgotten once its handle is dropped.
+    #[must_use = "a list is read through its handle, or heard through a listener added to it"]
     pub fn match_media(&mut self, query: &str) -> MediaQueryList {
         let env = self.media_environment();
         self.media_watches.watch(query, &env)

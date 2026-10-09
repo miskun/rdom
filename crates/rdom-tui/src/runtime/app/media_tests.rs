@@ -179,6 +179,49 @@ fn match_media_reports_changes() {
     resize(&mut app, 10, 2);
 }
 
+/// CSSOM View §4.2 (API B2): a list with a listener stays alive while it
+/// has one, as a browser keeps it — the chained form, whose handle is
+/// dropped at once, still hears its flips (it was dropped with the handle).
+#[test]
+fn a_chained_listener_fires() {
+    let (mut app, _) = app("", 30, 2);
+    let seen: Rc<RefCell<Vec<bool>>> = Rc::default();
+    let log = seen.clone();
+    app.match_media("(width < 20)")
+        .add_listener(move |_, event| log.borrow_mut().push(event.matches));
+    resize(&mut app, 10, 2);
+    assert_eq!(*seen.borrow(), [true]);
+}
+
+/// The `EventTarget` form (API N8): `add_event_listener("change", …)`
+/// hears the flips; a listener for another type never fires; either is
+/// removed by its id.
+#[test]
+fn add_event_listener_change_fires() {
+    let (mut app, _) = app("", 30, 2);
+    let list = app.match_media("(width < 20)");
+    let seen: Rc<RefCell<Vec<bool>>> = Rc::default();
+    let log = seen.clone();
+    list.add_event_listener("change", move |_, event| {
+        log.borrow_mut().push(event.matches)
+    });
+    let other = list.add_event_listener("click", |_, _| panic!("no click on a list"));
+    resize(&mut app, 10, 2);
+    assert_eq!(*seen.borrow(), [true]);
+    assert!(list.remove_event_listener(other));
+}
+
+/// A list with no listener that nobody holds is forgotten (it is not
+/// evaluated again); one with a listener is kept.
+#[test]
+fn an_unheld_list_without_listeners_is_forgotten() {
+    let (mut app, _) = app("", 30, 2);
+    drop(app.match_media("(width < 20)"));
+    app.match_media("(width < 10)").add_listener(|_, _| {});
+    resize(&mut app, 25, 2);
+    assert_eq!(app.media_watches.len(), 1);
+}
+
 /// A preference change reports too (Media Queries 5 §12).
 #[test]
 fn match_media_reports_a_preference_change() {
