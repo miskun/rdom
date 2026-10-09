@@ -288,6 +288,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | Id | Item | Status |
 |---|---|---|
 | ACID-HARNESS | The acid page in the showcase (pages of 120 × 50, `Built-ins → Acid`, `--example acid`), the reference format and the colour-aware comparator with per-tile reports; tile 1 | done |
+| ACID-FIX-1 | `VirtualScreen` (rdom-tui `test-util`) consumes OSC strings — an OSC 8 hyperlink printed as text (found by tile 4) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | |
 | ACID-TILES-B | Static tiles 14–26 | |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
@@ -10591,3 +10592,10 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   every tile's result. The pipeline is proved by tile 1 (cascade order: UA, sheet order, `<style>` before the App's
   sheets, style attribute, `!important` both ways, layers) — green at first run — and by
   `acid::comparator_reports_each_wrong_cell`, a deliberately wrong reference failing at exactly its three wrong cells.
+- 2026-10-09 — ACID-FIX-1 (found by acid tile 4, ECMA-48 §8.3.89). The tile's `<a href>` row read `8;;#a` where the
+  words `link`, `!visited`, `any` and `list` should be: the backend wraps a link's cells in OSC 8 (`ESC ] 8 ;; URI ST`)
+  and `VirtualScreen`, the test-util terminal model, handled `ESC [` only — any other escape skipped one byte, so an OSC
+  string's body printed as text. Root cause in the model, not the paint: `VirtualScreen::apply` now consumes an OSC
+  string to ST or BEL, and OSC 8 sets the link (`Cell::link`) of the cells written until an empty URI closes it. Red:
+  `virtual_screen::tests::parser::osc8_hyperlinks_are_not_text_and_mark_their_cells` (row `a8;;https:`); green after.
+  The acid reference was not touched.

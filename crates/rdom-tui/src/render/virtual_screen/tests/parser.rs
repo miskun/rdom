@@ -154,6 +154,24 @@ fn bsu_esu_are_silent() {
     assert_eq!(s.row(0).trim_end(), "X");
 }
 
+// ── Operating system commands ─────────────────────────────────────
+
+/// ACID-FIX-1. An OSC string (ECMA-48 §8.3.89: `ESC ]` … ST, or BEL as
+/// xterm also accepts) is a control string, not text: the OSC 8
+/// hyperlink a backend wraps a link's cells in (`ESC ] 8 ; params ; URI
+/// ST`, an empty URI closing it) must not print. Its URI becomes the link
+/// of the cells written while it is open, as `Cell::link` records it.
+#[test]
+fn osc8_hyperlinks_are_not_text_and_mark_their_cells() {
+    let mut s = VirtualScreen::new(10, 1);
+    s.apply(b"a\x1b]8;;https://x.test\x1b\\bc\x1b]8;;\x1b\\d\x1b]2;title\x07e");
+    assert_eq!(s.row(0).trim_end(), "abcde");
+    assert_eq!(s.cell(0, 0).unwrap().link(), None);
+    assert_eq!(s.cell(1, 0).unwrap().link(), Some("https://x.test"));
+    assert_eq!(s.cell(2, 0).unwrap().link(), Some("https://x.test"));
+    assert_eq!(s.cell(3, 0).unwrap().link(), None);
+}
+
 // ── Resize ───────────────────────────────────────────────────────
 
 #[test]

@@ -26,6 +26,9 @@
 //!     overline, `58:2::R:G:B` / `58:5:N` (and their `;` forms) / `59`
 //!     underline color
 //! - **Cursor hide/show** `\x1b[?25l` / `\x1b[?25h` — tracked as a bool
+//! - **OSC** `\x1b]…` to ST (`\x1b\\`) or BEL — consumed, never
+//!   printed; OSC 8 (`\x1b]8;;URI`) sets the link (`Cell::link`) of the
+//!   cells written until an empty URI closes it
 //! - **Synchronized output** `\x1b[?2026h/l` — silently ignored
 //!   (no visible effect in the grid)
 //! - **Plain chars** — written at cursor, advances by
@@ -60,6 +63,9 @@ pub struct VirtualScreen {
     cursor: (u16, u16),
     sgr: SgrState,
     cursor_visible: bool,
+    /// The OSC 8 hyperlink open at the cursor, which the cells written
+    /// next carry.
+    link: Option<Box<str>>,
 }
 
 impl VirtualScreen {
@@ -73,6 +79,7 @@ impl VirtualScreen {
             cursor: (0, 0),
             sgr: SgrState::default(),
             cursor_visible: true,
+            link: None,
         }
     }
 
@@ -184,6 +191,7 @@ impl VirtualScreen {
         cell.bg = self.sgr.bg;
         cell.modifier = self.sgr.modifier;
         cell.underline_color = self.sgr.underline_color;
+        cell.link = self.link.clone();
         let i = y as usize * self.width as usize + x as usize;
         self.cells[i] = cell;
 
@@ -194,6 +202,7 @@ impl VirtualScreen {
             spacer.bg = self.sgr.bg;
             spacer.modifier = self.sgr.modifier;
             spacer.underline_color = self.sgr.underline_color;
+            spacer.link = self.link.clone();
             spacer.set_spacer();
             self.cells[spacer_i] = spacer;
         }

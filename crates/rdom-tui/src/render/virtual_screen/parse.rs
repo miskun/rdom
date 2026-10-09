@@ -26,6 +26,10 @@ impl VirtualScreen {
                         i += 1;
                         i += self.parse_csi(&bytes[i..]);
                     }
+                    b']' => {
+                        i += 1;
+                        i += self.parse_osc(&bytes[i..]);
+                    }
                     _ => {
                         // Unknown / single-char escape — skip this byte.
                         i += 1;
@@ -39,6 +43,27 @@ impl VirtualScreen {
                 i += consumed;
             }
         }
+    }
+
+    /// Parse and apply an OSC string (after `\x1b]`): a control string
+    /// (ECMA-48 §8.3.89) ending at ST (`\x1b\\`) or BEL, as xterm also
+    /// accepts — never text. OSC 8 (`8 ; params ; URI`) opens the hyperlink
+    /// the next cells written belong to, an empty URI closes it; the other
+    /// commands (the window title, …) change nothing on the grid. Returns
+    /// the number of bytes consumed from the `after` slice.
+    fn parse_osc(&mut self, after: &[u8]) -> usize {
+        let (end, consumed) = match after.iter().position(|&b| b == 0x07 || b == 0x1b) {
+            Some(p) if after[p] == 0x07 => (p, p + 1),
+            Some(p) if after.get(p + 1) == Some(&b'\\') => (p, p + 2),
+            Some(p) => (p, p),
+            None => (after.len(), after.len()),
+        };
+        let body = String::from_utf8_lossy(&after[..end]);
+        if let Some(rest) = body.strip_prefix("8;") {
+            let uri = rest.split_once(';').map_or("", |(_, uri)| uri);
+            self.link = (!uri.is_empty()).then(|| uri.into());
+        }
+        consumed
     }
 
     /// Parse and apply a CSI sequence (after `\x1b[`). Returns the
