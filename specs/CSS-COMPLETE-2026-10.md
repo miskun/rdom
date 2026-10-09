@@ -295,6 +295,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-5 | `position: relative` moves a non-atomic inline box (CSS 2.1 §9.4.3; found by tile 10) | done |
 | ACID-FIX-6 | `<dt>` and `<legend>` have no UA weight (HTML §15.3.3, §15.3.12; left open by part 1) | done |
 | ACID-FIX-7 | A border junction joins the line that won beside it, where the winning box stops short of the junction (CSS Tables 3 §11.5; found by tile 14) | done |
+| ACID-FIX-8 | A disabled `<fieldset>` does not grey its legend and text; the UA's muted look is the disabled controls' (found by tile 15a) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | |
@@ -10734,3 +10735,14 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   toward it, so the junction draws the winning line (`╥`, `╖`) in its colour; a straight run is left alone, so stacked
   boxes keep their own sides. Red: `css_phase13::tfc::a_junction_joins_the_line_that_won_below_it`; green after, the
   rest of rdom-tui unchanged. Silent change `sc-junction-arms`; DIVERGENCES' corner entry says it.
+- 2026-10-10 — ACID-FIX-8 (found by acid tile 15a; HTML §4.16.3). The `<legend>` of a `<fieldset disabled>` drew in
+  the UA's muted grey: the UA rule `:disabled { color: GrayText; user-select: none }` matched the fieldset itself (it is
+  actually disabled) and the colour inherited into everything inside, the legend — whose controls HTML keeps enabled —
+  included. HTML's rendering section gives `:disabled` no colour; the engines' sheets grey the disabled controls
+  (`input`, `button`, `select`, `textarea`, `option`, `optgroup`) and leave a fieldset's text alone. DIVERGENCES §2
+  listed the difference ("The UA `:disabled` rule also mutes the text color, and a `<fieldset disabled>` matches it")
+  with no terminal reason for it, so it is fixed rather than referenced: the UA rule is now a list of those six
+  `:disabled` controls (the UA count 188 → 193; `ua_rule_specificity_is_tiny` now reads `button:disabled`, (0, 1, 1)).
+  Red: `cascade::tests::ua_disabled_rule_leaves_a_disabled_fieldsets_text_alone`; green after. One expectation changed:
+  `ua_disabled_rule_covers_controls_in_a_disabled_fieldset` pinned the fieldset muted too (it pins its controls).
+  The DIVERGENCES entry is removed; silent change `sc-fieldset-disabled-text`.

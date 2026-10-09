@@ -515,7 +515,8 @@ fn ua_disabled_rule_ignores_a_disabled_attribute_on_a_non_control() {
 
 /// P7-FIELDSET-DISABLED-1: controls inside a `<fieldset disabled>` match
 /// `:disabled`, so the UA rule mutes them — a button's own accent color
-/// included — and makes them unselectable.
+/// included — and makes them unselectable. The fieldset itself is not
+/// muted (ACID-FIX-8, below).
 #[test]
 fn ua_disabled_rule_covers_controls_in_a_disabled_fieldset() {
     use crate::layout::UserSelect;
@@ -529,10 +530,33 @@ fn ua_disabled_rule_covers_controls_in_a_disabled_fieldset() {
     let button = dom.create_element("button");
     dom.append_child(fs, button).unwrap();
     dom.cascade(&Stylesheet::new());
-    for c in [fs, input, button] {
+    for c in [input, button] {
         assert_eq!(computed_of(&dom, c).fg, Color::Rgb(127, 134, 139));
         assert_eq!(computed_of(&dom, c).user_select, UserSelect::None);
     }
+}
+
+/// ACID-FIX-8 (found by acid tile 15a). The UA's muted `:disabled` look is
+/// a control's: HTML's rendering section gives `:disabled` no colour, and
+/// the engines grey the disabled controls (`input`, `button`, `select`,
+/// `textarea`, `option`, `optgroup`) — not a disabled `<fieldset>`, whose
+/// legend and other text keep the page's colour. rdom's UA `:disabled`
+/// rule matched the fieldset too, and its subtree inherited the grey.
+#[test]
+fn ua_disabled_rule_leaves_a_disabled_fieldsets_text_alone() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let fs = dom.create_element("fieldset");
+    dom.set_attribute(fs, "disabled", "").unwrap();
+    dom.append_child(root, fs).unwrap();
+    let legend = dom.create_element("legend");
+    dom.append_child(fs, legend).unwrap();
+    let input = dom.create_element("input");
+    dom.append_child(fs, input).unwrap();
+    dom.cascade(&Stylesheet::new());
+    assert_eq!(computed_of(&dom, fs).fg, Color::Reset);
+    assert_eq!(computed_of(&dom, legend).fg, Color::Reset);
+    assert_eq!(computed_of(&dom, input).fg, Color::Rgb(127, 134, 139));
 }
 
 #[test]

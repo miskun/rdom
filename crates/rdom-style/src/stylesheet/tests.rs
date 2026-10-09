@@ -601,10 +601,11 @@ fn source_idx_continues_across_multiple_rule_calls_with_lists() {
 fn ua_rule_specificity_is_tiny() {
     let s = Stylesheet::new();
     let ua = &s.rules()[0];
-    // [disabled] is 1 class-level, 0 ids, 0 types.
+    // `button:disabled` (ACID-FIX-8: the disabled look is a control's) is
+    // 1 class-level, 0 ids, 1 type.
     assert_eq!(ua.specificity.id, 0);
     assert_eq!(ua.specificity.class_attr_pseudo, 1);
-    assert_eq!(ua.specificity.type_pseudo_el, 0);
+    assert_eq!(ua.specificity.type_pseudo_el, 1);
 }
 
 #[test]

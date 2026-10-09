@@ -68,10 +68,13 @@ fn ua_total_rule_count() {
     // inheriting it (C13G-TABLE-UA, +1).
     // 188: HTML §15.5.20's open slot, `details:open::details-content {
     // content-visibility: visible }` (C14-CONTAIN, +1).
-    assert_eq!(ua.len(), 188);
+    // 193: the muted `:disabled` look is a control's — `button`,
+    // `input`, `select`, `textarea`, `optgroup`, `option` — not a
+    // disabled `<fieldset>`'s (ACID-FIX-8, one rule became six).
+    assert_eq!(ua.len(), 193);
     let disabled = ua
         .iter()
-        .find(|r| r.source_text == ":disabled")
+        .find(|r| r.source_text == "input:disabled")
         .expect(":disabled rule must exist");
     assert_eq!(
         disabled.style.fg,
@@ -344,7 +347,12 @@ fn system_colors_match_the_ua_chrome() {
     assert_eq!(fg("*::selection"), lit(SystemColor::HighlightText));
     assert_eq!(bg("option[selected]"), lit(SystemColor::SelectedItem));
     assert_eq!(fg("option[selected]"), lit(SystemColor::SelectedItemText));
-    assert_eq!(fg(":disabled"), lit(SystemColor::GrayText));
+    assert_eq!(
+        fg(
+            "button:disabled, input:disabled, select:disabled, textarea:disabled, optgroup:disabled, option:disabled"
+        ),
+        lit(SystemColor::GrayText)
+    );
 }
 
 /// HTML §15.3.4: `abbr[title], acronym[title] { text-decoration: dotted

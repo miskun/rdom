@@ -29,9 +29,13 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
         // `:disabled`, not `[disabled]` (P7-FIELDSET-DISABLED-1): it
         // matches only actually disabled controls (HTML §4.16.3) —
         // controls inside a `<fieldset disabled>` included, a
-        // `<div disabled>` excluded.
+        // `<div disabled>` excluded. The look is a control's, as in the
+        // engines' sheets: a disabled `<fieldset>` matches `:disabled`
+        // but is not greyed, so its legend and text keep their colour
+        // (ACID-FIX-8).
         (
-            ":disabled",
+            "button:disabled, input:disabled, select:disabled, textarea:disabled, \
+             optgroup:disabled, option:disabled",
             TuiStyle::new().fg(TEXT_MUTED).user_select(UserSelect::None),
         ),
         // Global `hidden` attribute — HTML treats it as a boolean,
