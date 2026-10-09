@@ -234,46 +234,59 @@ impl LayerOrder {
         // A tree of every distinct layer; node 0 is the unlayered root.
         let mut names: Vec<Option<String>> = vec![None];
         let mut children: Vec<Vec<usize>> = vec![Vec::new()];
-        let mut nodes: Vec<Vec<usize>> = Vec::with_capacity(sheets.len());
-        for (index, sheet) in sheets.iter().enumerate() {
-            let mut local: Vec<Option<usize>> = vec![None; sheet.layers.len()];
-            // The layers in the order their counting declarations name
-            // them (a layer's ancestors before it), then every other.
-            let counting = sheet
-                .layer_uses
-                .iter()
-                .filter(|(_, c)| holds(index, *c))
-                .map(|(l, _)| *l);
-            let all = (0..sheet.layers.len()).map(|i| LayerId(i as u32));
-            for layer in counting.chain(all) {
-                let mut chain = vec![layer];
-                while let Some(p) = sheet.layers[chain[chain.len() - 1].index()].parent {
-                    chain.push(p);
+        let mut local: Vec<Vec<Option<usize>>> =
+            sheets.iter().map(|s| vec![None; s.layers.len()]).collect();
+        // Place `layer` of sheet `index` (its ancestors first) in the tree.
+        let mut place = |index: usize, layer: LayerId| {
+            let sheet = sheets[index];
+            let local = &mut local[index];
+            let mut chain = vec![layer];
+            while let Some(p) = sheet.layers[chain[chain.len() - 1].index()].parent {
+                chain.push(p);
+            }
+            for id in chain.into_iter().rev() {
+                if local[id.index()].is_some() {
+                    continue;
                 }
-                for id in chain.into_iter().rev() {
-                    if local[id.index()].is_some() {
-                        continue;
-                    }
-                    let layer = &sheet.layers[id.index()];
-                    let parent = layer.parent.map_or(0, |p| local[p.index()].unwrap_or(0));
-                    let existing = layer.name.as_ref().and_then(|name| {
-                        children[parent]
-                            .iter()
-                            .copied()
-                            .find(|&c| names[c].as_ref() == Some(name))
-                    });
-                    let node = existing.unwrap_or_else(|| {
-                        names.push(layer.name.clone());
-                        children.push(Vec::new());
-                        let node = names.len() - 1;
-                        children[parent].push(node);
-                        node
-                    });
-                    local[id.index()] = Some(node);
+                let layer = &sheet.layers[id.index()];
+                let parent = layer.parent.map_or(0, |p| local[p.index()].unwrap_or(0));
+                let existing = layer.name.as_ref().and_then(|name| {
+                    children[parent]
+                        .iter()
+                        .copied()
+                        .find(|&c| names[c].as_ref() == Some(name))
+                });
+                let node = existing.unwrap_or_else(|| {
+                    names.push(layer.name.clone());
+                    children.push(Vec::new());
+                    let node = names.len() - 1;
+                    children[parent].push(node);
+                    node
+                });
+                local[id.index()] = Some(node);
+            }
+        };
+        // The layers in the order the counting declarations of every sheet
+        // name them, sheet by sheet (a layer's ancestors before it) — then
+        // every other, so a layer an earlier sheet names only under a
+        // false condition takes no place ahead of a later sheet's counting
+        // one (§6.4.3).
+        for (index, sheet) in sheets.iter().enumerate() {
+            for &(layer, condition) in &sheet.layer_uses {
+                if holds(index, condition) {
+                    place(index, layer);
                 }
             }
-            nodes.push(local.into_iter().map(|n| n.unwrap_or(0)).collect());
         }
+        for (index, sheet) in sheets.iter().enumerate() {
+            for i in 0..sheet.layers.len() {
+                place(index, LayerId(i as u32));
+            }
+        }
+        let nodes: Vec<Vec<usize>> = local
+            .into_iter()
+            .map(|l| l.into_iter().map(|n| n.unwrap_or(0)).collect())
+            .collect();
         // Post-order: a layer's sublayers rank below its own rules.
         let mut rank = vec![Self::UNLAYERED; names.len()];
         let mut next = 0u32;

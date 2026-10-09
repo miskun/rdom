@@ -10094,3 +10094,15 @@ row comes from.
   rows (green: T on row 1, E on row 5, the container 7 rows, `n` on row 7); a second case with `margin: 2 0`
   pins no rule over the margin rows. Mutation (restored, touched): the top margin edge back to the border
   box fails it.
+- 2026-10-09 — C15G-LAYER-ORDER (Phase 15 gate architect B3; CSS Cascade 5 §6.4.3). Found: C14G-CONDITIONAL-
+  SPEC's `LayerOrder::new_where` built `counting.chain(all)` per sheet, so sheet *i*'s layers named only
+  under a false condition joined the shared name tree before sheet *i + 1*'s counting declarations — a
+  `<style media="print">` (or an earlier `@media (width > 999)`) naming `@layer a` put `a` ahead of a later
+  sheet's `@layer b, a`. Decided: two passes over the sheets — first every sheet's counting declarations,
+  in sheet order (the order §6.4.3 defines: the layers "in the order they are first declared", counting
+  only the declarations whose condition holds), then every layer, so the inert ones still get a rank after
+  all the others. One `place` closure serves both passes; the per-sheet node maps live across them. Red
+  (`css_phase14/conditional_rules.rs`, `a_layer_named_only_in_an_inert_earlier_sheet_takes_no_order`, the
+  architect's two-sheet scenario through `cascade_all`): blue, `a < b` (green: green, `b < a`), and the
+  same with the inert layer under an unmatched `@media` in the earlier sheet. The one-sheet tests stay
+  green.

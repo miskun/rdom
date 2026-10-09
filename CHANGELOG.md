@@ -620,6 +620,7 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 - A side longhand replayed from `pending` after its shorthand in the same block keeps the shorthand's other sides: `margin: 1; margin-left: var(--x)` is 1 on top, right and bottom (they were 0). (C5-LOGICAL)
 - **A pseudo-element with no compound before it attaches to the implicit `*`** (Selectors 4 §5.2): `*, ::before, ::after { … }` applies (the rule was dropped), and `div ::before` is `div *::before` (it styled the `div`'s own). (C5G-BARE-PSEUDO)
 - **The 60-code-point cap of a counter representation holds for every system** (CSS Counter Styles 3 §3.1): a `numeric` or `alphabetic` style counts its digits before building, so a huge value in long symbols falls back without first building hundreds of code points. (C10G-MINOR)
+- **The layer order across sheets follows §6.4.3** (CSS Cascade 5 §6.4.3): `LayerOrder::new_where` places every sheet's counting layer declarations before any layer named only under a false condition, so a `<style media="print">` naming `@layer a` no longer ranks `a` ahead of a later sheet's `@layer b, a`. (C15G-LAYER-ORDER)
 
 ### Added — `rdom-css`
 

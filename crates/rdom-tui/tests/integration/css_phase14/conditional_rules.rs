@@ -72,3 +72,26 @@ fn a_layer_in_a_container_rule_always_counts() {
     styled(&mut dom, &css, 30, 3);
     assert_eq!(fg(&dom, "a"), RED, "theme, base");
 }
+
+/// §6.4.3 across sheets: the layer order is fixed by the counting
+/// declarations of every sheet, in order, before any layer named only
+/// under a false condition. Sheet 0 (`<style media="print">`) names `a`;
+/// sheet 1 says `@layer b, a`, so `b` < `a` and `a`'s green wins — the
+/// inert `a` of sheet 0 took its place ahead of sheet 1's `b`
+/// (C15G-LAYER-ORDER).
+#[test]
+fn a_layer_named_only_in_an_inert_earlier_sheet_takes_no_order() {
+    let mut print = sheet("@layer a { #a { color: rgb(255, 0, 0) } }");
+    print.set_media(Some(rdom_tui::MediaList::parse("print")));
+    let screen = sheet(
+        "@layer b, a; @layer a { #a { color: rgb(0, 128, 0) } } @layer b { #a { color: rgb(0, 0, 255) } }",
+    );
+    let mut dom = doc(r#"<div id="a">a</div>"#);
+    dom.set_viewport(Viewport::new(30, 3));
+    dom.cascade_all(&[&print, &screen]);
+    assert_eq!(fg(&dom, "a"), GREEN, "b < a");
+    // The same with the inert layer under `@media (false)`-like condition.
+    let earlier = sheet("@media (width > 999) { @layer a { #a { color: rgb(255, 0, 0) } } }");
+    dom.cascade_all(&[&earlier, &screen]);
+    assert_eq!(fg(&dom, "a"), GREEN, "b < a under an unmatched @media");
+}
