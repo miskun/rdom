@@ -154,9 +154,6 @@ fn find_framed(
     }
     let mut each = |child: NodeId| {
         visit();
-        if is_hidden_text(dom, child) {
-            return None;
-        }
         // A box-less child holding a block-level box is its items in its
         // place, between its inline-level `::before` / `::after`
         // ([`push_sequence`]); any other child is one item.
@@ -185,9 +182,6 @@ fn push_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) -> bool 
     let mut holds = false;
     for child in children(dom, id) {
         visit();
-        if is_hidden_text(dom, child) {
-            continue;
-        }
         if is_contents(dom, child) {
             let mark = out.len();
             let pseudos = crate::render::inline::generated::inline_level_pseudos(dom, child);
@@ -244,9 +238,6 @@ fn generates_static_pseudo(dom: &Dom<TuiExt>, host: NodeId, slot: PseudoSlot) ->
 fn push_item_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) {
     for child in children(dom, id) {
         visit();
-        if is_hidden_text(dom, child) {
-            continue;
-        }
         match dom.node(child).node_type() {
             NodeType::Element if is_contents(dom, child) => {
                 if generates_static_pseudo(dom, child, PseudoSlot::Before) {
@@ -261,17 +252,6 @@ fn push_item_sequence(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<BoxItem>) {
             _ => out.push(BoxItem::Node(child)),
         }
     }
-}
-
-/// `child` is text a `<details>` element's closed content slot hides
-/// (`style::cascade::details`): it generates no box. (Hidden element
-/// content is `display: none`.)
-pub(crate) fn is_hidden_text(dom: &Dom<TuiExt>, child: NodeId) -> bool {
-    let node = dom.node(child);
-    node.node_type() == NodeType::Text
-        && node
-            .parent_node()
-            .is_some_and(|p| crate::style::cascade::details::hidden(dom, p.id(), child))
 }
 
 /// `id` is an in-flow `display: block` element.
@@ -310,7 +290,7 @@ pub(crate) fn holds_loose_text(
     text: &impl Fn(&str) -> bool,
 ) -> bool {
     children(dom, id).any(|c| match dom.node(c).node_type() {
-        NodeType::Text => !is_hidden_text(dom, c) && dom.node(c).node_value().is_some_and(text),
+        NodeType::Text => dom.node(c).node_value().is_some_and(text),
         NodeType::Element if is_contents(dom, c) => {
             let p = crate::render::inline::generated::visible_inline_pseudos(dom, c);
             p.before || p.after || holds_loose_text(dom, c, text)

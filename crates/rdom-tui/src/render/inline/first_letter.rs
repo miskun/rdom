@@ -147,8 +147,7 @@ impl Scan {
             let child = dom.node(child);
             match child.node_type() {
                 NodeType::Text => {
-                    let hidden = crate::render::box_tree::is_hidden_text(dom, child.id());
-                    if !hidden && let Some(data) = child.node_value() {
+                    if let Some(data) = child.node_value() {
                         self.text(LetterSource::Text(child.id()), data)?;
                     }
                 }

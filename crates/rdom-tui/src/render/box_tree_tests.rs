@@ -236,6 +236,8 @@ fn a_details_box_tree_is_its_summary_and_its_slots_box() {
     let mut dom = TuiDom::new();
     let root = dom.root();
     let d = dom.create_element("details");
+    // Open: a closed slot skips its content (C14-CONTAIN, below).
+    dom.set_attribute(d, "open", "").unwrap();
     dom.append_child(root, d).unwrap();
     let loose = dom.create_text_node("loose");
     dom.append_child(d, loose).unwrap();
@@ -263,6 +265,12 @@ fn a_details_box_tree_is_its_summary_and_its_slots_box() {
     );
     assert_eq!(super::box_parent(&dom, p), Some(slot));
     assert_eq!(super::box_parent(&dom, slot), Some(d));
+    // CSS Containment 2 §4: closed, the slot is `content-visibility:
+    // hidden` and has no box children; the climb is unchanged.
+    dom.remove_attribute(d, "open").unwrap();
+    dom.cascade(&rdom_style::Stylesheet::new());
+    assert_eq!(super::children(&dom, slot).count(), 0);
+    assert_eq!(super::box_parent(&dom, p), Some(slot));
     assert_eq!(super::box_parent(&dom, summary), Some(d));
     assert_eq!(super::slot::host_of(&dom, slot), Some(d));
     assert_eq!(

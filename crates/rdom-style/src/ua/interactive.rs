@@ -35,15 +35,19 @@ pub(super) fn rules() -> Vec<(&'static str, TuiStyle)> {
             TuiStyle::new().content(Content::Str("▾ ".into())),
         ),
         // The content slot (HTML §15.5.20): everything but the first
-        // `<summary>` child is `::details-content`'s, which hides it
-        // while `<details>` lacks `open` — the UA's `content-visibility:
-        // hidden` there, which rdom's backend applies to the slot (rdom
-        // has no `content-visibility` yet: C14-CONTAIN). The runtime
-        // (`runtime::builtins::details`) toggles `open` on click /
-        // Enter / Space.
+        // `<summary>` child is `::details-content`'s, which skips it
+        // while `<details>` lacks `open` (`content-visibility: hidden`,
+        // CSS Containment 2 §4). The runtime (`runtime::builtins::details`)
+        // toggles `open` on click / Enter / Space.
         (
             "details::details-content",
-            TuiStyle::new().display(Display::Block),
+            TuiStyle::new()
+                .display(Display::Block)
+                .content_visibility(crate::layout::ContentVisibility::Hidden),
+        ),
+        (
+            "details:open::details-content",
+            TuiStyle::new().content_visibility(crate::layout::ContentVisibility::Visible),
         ),
         // ── Tree (ARIA tree pattern) ──
         // rdom has no `<tree>` element — trees are built the

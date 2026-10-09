@@ -66,7 +66,9 @@ fn ua_total_rule_count() {
     // +1).
     // 187: HTML §15.3.8's `table > tr { vertical-align: middle }`, `tr`
     // inheriting it (C13G-TABLE-UA, +1).
-    assert_eq!(ua.len(), 187);
+    // 188: HTML §15.5.20's open slot, `details:open::details-content {
+    // content-visibility: visible }` (C14-CONTAIN, +1).
+    assert_eq!(ua.len(), 188);
     let disabled = ua
         .iter()
         .find(|r| r.source_text == ":disabled")

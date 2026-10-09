@@ -1,9 +1,10 @@
 //! `::details-content` (HTML §4.11.1, §15.5.20; CSS Pseudo-Elements 4):
 //! the slot of a `<details>` element holding its content — every child
 //! but its first `<summary>` element child. It is the content's parent
-//! for inheritance; it hides the content while the element is closed (the
-//! UA's `content-visibility: hidden`: its box stays, empty) or while the
-//! slot is `display: none`; and its box is a node outside the document
+//! for inheritance; it skips the content while the element is closed (the
+//! UA's `content-visibility: hidden`, CSS Containment 2 §4: its box stays,
+//! empty, and the content keeps its computed styles); and its box is a
+//! node outside the document
 //! that this module keeps in step with the style
 //! ([`sync_content_box`]; the box tree's view of it is
 //! `render::box_tree::slot`).
@@ -178,22 +179,4 @@ pub(super) fn inherited_style(
         .computed_details_content()
         .cloned()?;
     slotted(dom, parent, child).then_some(slot)
-}
-
-/// Whether the `<details>` `parent`'s slot hides its content: the element
-/// is closed, or the slot is `display: none`.
-pub(crate) fn hides(dom: &Dom<TuiExt>, parent: NodeId) -> bool {
-    let node = dom.node(parent);
-    let Some(slot) = node
-        .ext()
-        .and_then(|e| e.computed_details_content().map(|s| &**s))
-    else {
-        return false;
-    };
-    !node.has_attribute("open") || slot.display == crate::layout::Display::None
-}
-
-/// Whether `child` of `parent` is content the slot hides.
-pub(crate) fn hidden(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool {
-    slotted(dom, parent, child) && hides(dom, parent)
 }

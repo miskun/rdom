@@ -266,7 +266,7 @@ row comes from.
 | C14-MEDIA | `@media` (cell-sized viewport, `prefers-color-scheme`, `prefers-reduced-motion`, `hover` / `pointer`, …) and `matchMedia` | done |
 | C14-SUPPORTS | `@supports` (feature queries against the dispatch table; `CSS.supports`) | done |
 | C14-CONTAINER | `@container`, `container-type` / `-name` / `container`, `cq*` units | done |
-| C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | partial — part 3: `<details>` through `content-visibility` |
+| C14-CONTAIN | `contain`, `content-visibility`, `will-change` (stacking-context hint) | done |
 
 ### Phase 15 — Transforms, filters, compositing, multi-column, anchor positioning (audit §3.23, §3.24)
 
@@ -9215,3 +9215,21 @@ row comes from.
   Gate fixes before commit: the relevance check took a render `Rect` into `style/` (the layering test) — now a
   `LayoutRect`; the longhand interpolation table gains `content-visibility` (`visible` at 50 %). CSS-COVERAGE
   §3.21 6 / 0 / 0 / 1, total 244 / 7 / 11 / 45.
+- 2026-10-09 — C14-CONTAIN (part 3 of 3: `<details>` through `content-visibility`; HTML §15.5.20, CSS Containment 2
+  §4, CSS Transitions 2 §3.1). The UA sheet's slot rule is HTML's: `details::details-content { display: block;
+  content-visibility: hidden }` and `details:open::details-content { content-visibility: visible }`. The closed
+  slot box now skips its content through part 2's machinery (no box children, not rendered for focus), so the
+  C10 mechanism goes: `cascade::details::hides` / `hidden` (closed content computed `display: none`) and
+  `box_tree::is_hidden_text` with its five call sites (the sequences, `holds_loose_text`, the packer's feed, the
+  first-letter scan — they walk the box tree, where the skipped slot has no children). Closing animates: a
+  `content-visibility` transition under `allow-discrete` holds `visible` until its end (part 2's interpolation
+  rule), so the content stays laid out while `height` goes back to 0. Red: `closed_content_keeps_its_computed_
+  style` (the `<p>` computed `None`) and `closing_details_animates_with_content_visibility` (the height was 0 at
+  50 ms, the content hidden at once) failed on HEAD; green after. Mutation (restored, touched): the UA rule
+  without `content-visibility: hidden` → four `details_content` tests, the paint test, the box-tree test and the
+  animation test; the interpolation rule's hold off → the animation test. Changed expectations:
+  `box_tree_tests::a_details_box_tree_is_its_summary_and_its_slots_box` built a closed `<details>` and listed
+  the slot's children — now opened for that, and closed it asserts the slot has none; the UA rule count 187 →
+  188; the closing-animation note in `geometry_transition_tests` became its own test. DIVERGENCES §2's "A
+  closed `<details>`'s content computes `display: none`" rewritten as "A `<details>`'s content slot is a box";
+  silent change 55 (the old 55–90 move to 56–91). Item done.

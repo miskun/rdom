@@ -36,6 +36,36 @@ fn a_closed_details_hides_its_whole_content() {
     assert_eq!(rows, ["▾ S     ", "loose   ", "para    "]);
 }
 
+/// C14-CONTAIN — HTML §15.5.20: the closed slot is `content-visibility:
+/// hidden` (CSS Containment 2 §4), which skips the content while it keeps
+/// its own computed style: a closed `<details>`'s `<p>` is still `display:
+/// block` (it computed `none` before rdom had `content-visibility`).
+#[test]
+fn closed_content_keeps_its_computed_style() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let d = details(&mut dom, root, false);
+    super::paint(&mut dom, "", 8, 3);
+    let p = dom
+        .node(d)
+        .children()
+        .find(|c| c.tag_name() == Some("p"))
+        .map(|c| c.id())
+        .unwrap();
+    assert_eq!(
+        dom.node(p).computed().unwrap().display,
+        rdom_tui::Display::Block
+    );
+    let slot = dom
+        .node(d)
+        .ext()
+        .unwrap()
+        .computed_details_content()
+        .cloned()
+        .unwrap();
+    assert_eq!(slot.content_visibility, rdom_tui::ContentVisibility::Hidden);
+}
+
 /// The content slot is the content's parent for inheritance: a color set
 /// on `::details-content` reaches the content, not the summary.
 #[test]

@@ -272,10 +272,60 @@ fn interpolate_size_animates_details_content_to_auto() {
     );
     app.advance(60).unwrap();
     assert_eq!(rect(&app, content).height, 6, "auto");
-    // Closing hides the content at once (the closed slot's content
-    // computes `display: none`, DIVERGENCES §2 — a browser keeps it with
-    // `content-visibility` under `allow-discrete`, C14-CONTAIN), so the
-    // `auto` basis is 0 and the height goes with it.
+}
+
+/// C14-CONTAIN — HTML §15.5.20 with CSS Containment 2 §4 and CSS
+/// Transitions 2 §3.1: a closed `<details>`'s slot is `content-visibility:
+/// hidden`, and a `content-visibility` transition under `allow-discrete`
+/// keeps it `visible` until the end — so closing animates the height back
+/// to 0 with the content shown, as in a browser.
+#[test]
+fn closing_details_animates_with_content_visibility() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let d = dom.create_element("details");
+    dom.set_attribute(d, "open", "").unwrap();
+    let s = dom.create_element("summary");
+    let st = dom.create_text_node("S");
+    dom.append_child(s, st).unwrap();
+    dom.append_child(d, s).unwrap();
+    let mut first = None;
+    for _ in 0..6 {
+        let p = dom.create_element("p");
+        let t = dom.create_text_node("line");
+        dom.append_child(p, t).unwrap();
+        dom.append_child(d, p).unwrap();
+        first.get_or_insert(p);
+    }
+    dom.append_child(root, d).unwrap();
+    let sheet = rdom_css::parse(
+        "details { interpolate-size: allow-keywords } \
+         details::details-content { display: block; height: 0; overflow: hidden; \
+         transition: height 100ms linear, content-visibility 100ms allow-discrete } \
+         details[open]::details-content { height: auto }",
+    );
+    assert!(sheet.warnings.is_empty(), "{:?}", sheet.warnings);
+    let terminal = Terminal::new(TestBackend::new(20, 12)).unwrap();
+    let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
+    app.push_stylesheet(sheet.stylesheet);
+    app.advance(0).unwrap();
+    let content = crate::render::box_tree::slot::content_box(app.dom(), d).expect("a slot box");
+    assert_eq!(rect(&app, content).height, 6, "open");
+    app.dom_mut().remove_attribute(d, "open").unwrap();
+    app.advance(0).unwrap();
+    app.advance(50).unwrap();
+    assert_eq!(rect(&app, content).height, 3, "half-way back to 0");
+    let p = first.unwrap();
+    assert!(
+        crate::node::is_rendered(app.dom(), p),
+        "the content still shows while the transition runs"
+    );
+    app.advance(60).unwrap();
+    assert_eq!(rect(&app, content).height, 0, "closed");
+    assert!(
+        !crate::node::is_rendered(app.dom(), p),
+        "and skipped once it ends"
+    );
 }
 
 /// `interpolate-size: numeric-only` (the initial value): a keyword and a
