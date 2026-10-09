@@ -43,7 +43,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 11 | Selectors | done 2026-10-08 (both gates; 15 gate fixes `C11G-*`; their re-review rides with the Phase 12 gate) |
 | 12 | Transitions, animations, user interface | done 2026-10-08 (both gates; 18 gate fixes `C12G-*`; their re-review rides with the Phase 13 gate) |
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
-| 14 | Conditional rules, containment | items done 2026-10-09, gates pending |
+| 14 | Conditional rules, containment | gates run 2026-10-09; `C14G-*` fixes in progress |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
@@ -9274,3 +9274,39 @@ row comes from.
   conditional rules and containment. CSS-COVERAGE §3.21 is 6 / 0 / 0 / 1 (`@page` N/A), the total 244 Supported,
   7 Partial, 11 Missing, 45 N/A. Status: items done, gates pending; the Phase 13 gate fixes' re-review rides with
   this phase's gate.
+- 2026-10-09 — Phase 14 gates (with the C13G re-review: all at the root; ROOT-BLOCK leaves no unjustified
+  root special case). Architect: 3 blocking — `content-visibility` skipping leaks into the
+  `child_nodes()` walks (Tab focuses into a closed `<details>` then blurs, copy includes hidden
+  content, tree guides, animations keep redrawing); the container pass can loop forever
+  (`ContainerState.queried` never cleared; a scrollbar flipping a container's size against its query
+  oscillates); the canvas takes its background from rdom-core's first element child (a leading
+  `<style>` kills the canvas, a toast inserted first takes the screen; `rlh` / `scroll(root)` read the
+  same; `:root{background}` does nothing). API: 3 blocking — `:root` custom properties inside a
+  condition apply unconditionally (the parse-time root-vars mirror ignores conditions, so the standard
+  dark-mode pattern is always dark); `app.match_media(q).add_listener(f)` never fires (lists held
+  weakly, no `#[must_use]`); px / em breakpoints fail silently with no warning. Decisions: (1) the
+  root fragment is the CSS root element — cascaded, inherited from, the canvas source, what `:root`
+  / `rlh` / `scroll(root)` / the canvas hit target read; no implicit `<html>` / `<body>` wrappers;
+  `document_element()` stays a DOM API; this also retires the root-vars mirror and makes C14-HIT-HTML
+  implementable; (2) px and em in `@media` / `@container` features map at 16px = 1em = one row,
+  8px per column (a breakpoint selects, it never sizes — DESIGN's pixel rule), so 640 / 768 / 1024px
+  become 80 / 96 / 128 columns; (3) conditional rules follow Conditional 3 §2 for every at-rule
+  inside them: `@property` registers and a layer joins the order only while its condition holds
+  (Cascade 5 §6.4.3); (4) `@supports` `<general-enclosed>` is false (Conditional 3 §6.1).
+  Non-blocking: worst case 108 phase runs per frame (container factor missing from ANIM-RELAYOUT-1); a
+  container flip paints its after-change value one frame before the transition; Restyle replay does
+  not re-test `style()` queries; container conditions evaluated before selector matching (spurious
+  readers); `after_layout` skipped at the cap; size-container / viewport-read flags never reset;
+  thread-local read counters public (want returned `UnitReads` flags or a drop guard); `CascadeExt`
+  deep-clones every sheet on any version move; skipped descendants keep stale geometry; containment not
+  gated by box type; a fixed box in a contained element is placed in the container but clipped as if
+  in the viewport; `content-visibility: auto` costs and focus blocking, oscillation inside one
+  `layout_dom`; a remembered size outlives `contain-intrinsic-size: auto`; ASPECT-BLOCK transfers the
+  unclamped height; a headless cascade without `set_viewport` evaluates `@media` at 0×0; `:nth-col` /
+  `||` see an uncapped column model; `assign_slots` quadratic under hostile spans; `validate_insert`
+  lets a Text node take children; `TextAlign::InternalCenter` wants `#[doc(hidden)]` + a
+  `debug_assert!`; naming (`WillChange::names`, `ContentVisibilityAutoState`, `add_listener`);
+  `ContainerType` should be `#[non_exhaustive]`; doc fixes; silent-change ranking (26 → ~11; 12 and 50
+  into the top 10; item 2 must say every ancestor needs `height: 100%`); zero-cost-without-conditions
+  not pinned; SIZE-1 drift. Full reports: `target/claude-logs/c14_gate_{architect,api}.md`. Fix as
+  `C14G-*`, two batches (A correctness and the root model, B API / docs / cost pins).
