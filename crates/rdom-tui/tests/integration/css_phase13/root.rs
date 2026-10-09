@@ -161,6 +161,26 @@ fn height_100_percent_on_a_root_child_fills_the_viewport() {
     assert_eq!(rect(&dom, "main").height, 5);
 }
 
+/// CSS 2.1 §10.5 (the CHANGELOG's upgrade item `sc-root-block`): a
+/// percentage height resolves only against a definite one, so a shell
+/// below a top-level `<body>` fills the screen only when every ancestor
+/// down to it has `height: 100%` — `.app { height: 100% }` alone is its
+/// content's height, `<body>`'s being `auto`.
+#[test]
+fn a_shell_under_body_fills_the_screen_only_with_every_ancestor_full_height() {
+    let markup = r#"<body><div class="app" id="app">a</div></body>"#;
+    let mut dom = doc(markup);
+    paint(&mut dom, ".app { height: 100% }", 20, 10);
+    assert_eq!(
+        rect(&dom, "app").height,
+        1,
+        "body is auto: the shell's 100% is auto"
+    );
+    let mut dom = doc(markup);
+    paint(&mut dom, "body, .app { height: 100% }", 20, 10);
+    assert_eq!(rect(&dom, "app"), LayoutRect::new(0, 0, 20, 10));
+}
+
 /// The ICB is no flex container: `flex: 1` on a root child grows nothing
 /// (CSS Flexbox §7: `flex` applies to flex items) — the app shell fills
 /// the screen with `height: 100%` and lays out its own column.

@@ -7913,7 +7913,7 @@ row comes from.
   `none` drawing nothing); green after. Mutation-checked: drawing at box paint instead of the context's end
   fails the over-the-next-box, after-positioned and negative-offset tests. Changed tables: the property and
   important-setter contracts, the `initial` perturbation and the longhand interpolation samples gain the four
-  longhands. CHANGELOG silent change 20 (outline declarations now draw).
+  longhands. CHANGELOG silent change `sc-outline` (outline declarations now draw).
 - 2026-10-08 — C12-CURSOR (CSS UI 4 §4.1; HTML §15.3.4). rdom-style: `cursor` — `[<url> [<x> <y>]?,]*
   <cursor-predefined>`, the keyword required last — as `Cursor { images, keyword }` (`CursorImage`, the 36
   keywords and `auto` / `default` / `none` in `CursorKeyword`) in the `ui` group; inherited, discrete,
@@ -8026,7 +8026,7 @@ row comes from.
   missed — the overflowing options were clipped); green after. Mutation-checked: no light dismiss fails
   the dismiss test. Changed test: `open_dropdown_renders_options_inline_without_chrome` opens its select
   after inserting it (its comment said no top layer); its expectations stand. No snapshot changed.
-  CHANGELOG silent change 21.
+  CHANGELOG silent change `sc-select-overlay`.
 - 2026-10-08 — Phase 12 part 3 docs and close: every Phase 12 row is done (C12-FOCUS-FLUSH, -OUTLINE, -CURSOR,
   -CARET, -CONTROLS in four commits, -SELECT-TOP-LAYER added as a row); the Phases table reads "items done,
   gates pending". CSS-COVERAGE: §3.19 is 9 Supported / 1 Partial (`pointer-events`) / 1 Missing (`nav-*`, the
@@ -8082,7 +8082,7 @@ row comes from.
   Mutation-checked: the removal hook off fails the two re-insertion tests; the backstop off fails the
   registry test. Found and recorded (TECH_DEBT `MOVE-RECORD-1`): moving an attached node with
   `append_child` fires no removal record, so a moved element keeps its animations. CHANGELOG silent
-  change 77.
+  change `sc-detached-animations`.
 - 2026-10-08 — C12G-PSEUDO-GONE (architect B2; CSS Pseudo-Elements 4 §2, CSS Transitions 1 §3, CSS
   Animations 1 §4.1, CSS Lists 3 §4.5). Found: a slot whose cascade gave `None` cleared only
   `computed_before` / `computed_after`; `presentation_*.base` stayed, `cascaded_for` preferred it, so the
@@ -8107,7 +8107,7 @@ row comes from.
   overrides (no presentation slot), so it cannot keep a base; a `::details-content` box always has the
   UA's style, and its `<details>` leaving the document is C12G-DETACHED's (the box is matched by its
   host); a box dropped by `sync_content_box` (a sheet set without the UA's rule) drops its effects
-  silently with the node. CHANGELOG silent change 78.
+  silently with the node. CHANGELOG silent change `sc-pseudo-no-content`.
 - 2026-10-08 — C12G-BEFORE-CHANGE (architect N2a; CSS Transitions 1 §3, the before-change style "with any
   styles derived from declarative animations ... updated to the current time"). Found: `was_rendered`
   read the previous *cascaded* `display`, so a popover reopened halfway through its fade-out — its
@@ -8159,7 +8159,7 @@ row comes from.
   expected a layout on every frame of a whole-cell `height` animation; it now expects one on the frames
   whose height moved (2 of 4), the contract changed; `teardown_tests::a_detached_spinner…` asserted
   `needs_frames` for a `steps(4)` spinner between steps — it now asserts the spinner wakes the app
-  (`next_wake`), and no longer does once removed. CHANGELOG silent change 79. Not done here: transitions
+  (`next_wake`), and no longer does once removed. CHANGELOG silent change `sc-removed-style`. Not done here: transitions
   with `steps()` still run every frame (their cost is bounded by their duration); `keep_cascaded`'s
   per-restyle `Rc` (architect N3's last line) and nested `calc-size()` (N4) are left for batch B.
 - 2026-10-08 — C12G-RESIZE-PICKER (architect N5, N6; CSS UI 4 §4.2, HTML's select picker and removing
@@ -8189,7 +8189,7 @@ row comes from.
   `rdom-showcase/tests/snapshots/tab_form.snap` — the Notes textarea's bottom-right cell shows `◢`
   (the text layer only; the background section is unchanged: the grip takes the cell's background).
   DIVERGENCES §2's resize entry rewritten (grip drawn; the corner inside the border); CHANGELOG silent
-  change 76 updated.
+  change `sc-textarea-grip` updated.
 - 2026-10-08 — C12G-OUTLINE-INLINE (architect N7; CSS UI 4 §5, §5.1). Found: `outline::defer` was called
   from the block and generated-box paints only, so an inline element's outline — the
   `a:focus-visible { outline: auto }` DIVERGENCES `FOCUS-VOCAB-1` recommends — drew nothing. Decided:
@@ -8203,7 +8203,7 @@ row comes from.
   stacking context's end with the flow's clip, as a block's are. Red: `css_phase12/outline.rs`
   `an_inline_element_draws_its_outline` and `a_wrapped_inline_element_rings_each_line_fragment` (no
   ring); green after. DIVERGENCES §1's outline entry gains the per-fragment sentence; CHANGELOG silent
-  change 20 names inline elements. No snapshot changed.
+  change `sc-outline` names inline elements. No snapshot changed.
 - 2026-10-08 — C12G-MISC (the C11G re-review's `is_inert`; architect N8, N9's restyle lag and recursion;
   the stale comment; SIZE-1). (1) Inertness: `Dom::is_inert` climbs DOM parents, and a positioned
   `::details-content` box is a parentless layer entry; rdom-core cannot know the box, so the one caller
@@ -8229,7 +8229,7 @@ row comes from.
   timeline still takes its host as the subject (N9's third bullet). (4) `tree_guides.rs`'s comment no
   longer says `Reset`. (5) SIZE-1 recounted (2026-10-08; the old date was one not yet reached):
   `animation/mod.rs` 558 joins the list, `rdom-css/src/block.rs` 543 is listed, `cascade/ladder.rs` is
-  553 by the rule (untouched, so not split), `walk.rs` left it. CHANGELOG silent change 80.
+  553 by the rule (untouched, so not split), `walk.rs` left it. CHANGELOG silent change `sc-reversed-transition`.
 - 2026-10-08 — C12G-MOVE-RECORD (TECH_DEBT `MOVE-RECORD-1`; DOM §4.2.3 "insert" steps 4 and 7.1, "adopt"
   step 2, "replace", "pre-insert" step 3). Found: `append_child` / `insert_before` of an attached node
   unlinked it (`detach_from_parent`, which already ran focus / hover / selection purging, the top
@@ -8250,7 +8250,7 @@ row comes from.
   "DOM API shape" says so. Red: `rdom-core/src/tree_move_tests.rs` — 4 of 6 failed (no removal record,
   no fragment record, `replace_child` without the replaced child), the next-sibling replace looped
   forever in `children()` (the before-itself case was added with the fix); rdom-tui `teardown_tests::a_spinner_moved_with_one_append_restarts` width 6
-  for 2 (mutation-checked with the removal record turned off); green after. CHANGELOG silent change 78.
+  for 2 (mutation-checked with the removal record turned off); green after. CHANGELOG silent change `sc-move-record`.
 - 2026-10-08 — C12G-UPGRADE (API B1, N7; docs only). The upgrade guide's silent-change list re-ranked
   by impact, now 83 items: `appearance: none` / `-webkit-appearance` (dropped in 0.5, now stripping the
   UA's `::before` / `::after` chrome) is item 4 — a reset's `button, select { appearance: none }`
@@ -8525,7 +8525,7 @@ row comes from.
   is nested blocks, and only the deleted builtin's stamped widths made it overflow; the stale-glyph app
   test gives its flex cells inline widths instead of stamping `table_used_width`; the C6 visibility test
   and `table_column_sync_makes_cells_align_across_rows` drop the builtin call — same assertions. CHANGELOG:
-  the Breaking bullet and API row (`table_layout_hints`), and silent change 8 (HTML tables lay out as CSS
+  the Breaking bullet and API row (`table_layout_hints`), and silent change `sc-tables` (HTML tables lay out as CSS
   tables: a shrink-to-fit width, rows as tall as their cells, rowspan / col / tfoot / caption placement).
   No showcase demo has a table; no snapshot changed. Mutation (each alone, restored, touched): a root-level
   table stretched → the C6 collapsed-row test fails (its cell 20 wide); rows without line breaks in copy → 2.
@@ -8560,7 +8560,7 @@ row comes from.
   anonymous cell's lines with it; the table's baselines (an `inline-table`'s, a table flex item's) are its
   rows' (a row with no `baseline` cell: its last row). HTML §15.3.8's UA rules: `thead`, `tbody`, `tfoot`,
   `tr { vertical-align: middle }`, `td, th { vertical-align: inherit }` — an HTML cell is centred in a taller
-  row (CHANGELOG silent change 8 gains it). (2) `empty-cells: show | hide`, inherited (`EmptyCells`, the
+  row (CHANGELOG silent change `sc-tables` gains it). (2) `empty-cells: show | hide`, inherited (`EmptyCells`, the
   table group's third field, dispatched, discrete, builders, `!important` bit, inherited-set probes):
   `table::hides_empty_cell` — a cell with no in-flow box, no text but white space and no `::before` /
   `::after` in a separated table (its table's `border-collapse`; an anonymous table's always) — and
@@ -8798,7 +8798,7 @@ row comes from.
   first child, `replace_with` with itself, alone and with another); the other five pin cases that already
   held (a fragment appended, a sibling in `before` / `after`, `replace_with([])`, a current child in
   `replace_children`); the existing `accessor/tests.rs` helpers' tests unchanged and green. CHANGELOG
-  silent change 85.
+  silent change `sc-dom-convenience`.
 - 2026-10-08 — C13G-MISC (architect N9, N10, N11). (1) `Stylesheet::append` destructures `other` with every
   field named and none behind `..` (the index, the source counter, the owner node and the version ignored
   with their reason; the scopes mapped by `append_scopes`) — a new collection fails to compile until
@@ -8838,7 +8838,7 @@ row comes from.
   `text-align-all` is read and set: browsers' `text-align` and `text-align-last` are separate properties,
   and the rule's reach is theirs. `TextAlign` is new since 0.5, so the variant is no break. (2) `caption`
   takes `text-align: center` and drops the italic and muted colour (HTML gives it neither). CHANGELOG
-  silent change 8 says both, with `th { text-align: start }` to restore 0.5. Red (`css_phase13/html.rs`):
+  silent change `sc-tables` says both, with `th { text-align: start }` to restore 0.5. Red (`css_phase13/html.rs`):
   `th_is_centred_unless_its_parent_aligns_text` (`Start` for `Center`),
   `header_cells_paint_centred_over_their_columns` (`" Name      Size"` for `"   Name    Size"`),
   `a_caption_is_centred_and_plain` (`"Cap"` at column 0 for column 4); green after. One existing test
@@ -8883,7 +8883,7 @@ row comes from.
   box's right border marks the line before its first column (`mark` swaps the sides) — and `place::Axis`
   lays the column lines and tracks right to left (`Axis::columns`, `span` mapping column order to physical
   order); one source, so cells, rows, column boxes, junctions and the kept tracks agree. CHANGELOG: Added
-  bullet, the Fixed `rtl` bullet, silent change 8 gains it, and the `table_used_width` Breaking bullet and
+  bullet, the Fixed `rtl` bullet, silent change `sc-tables` gains it, and the `table_used_width` Breaking bullet and
   API-table row name `table_tracks()` as the migration (`table_layout_hints` asserts it). Red:
   `css_phase13/tracks.rs` (new) failed to compile without the accessor; with it,
   `an_rtl_tables_first_column_is_on_the_right` failed (`[(0, 3), (3, 8)]` for `[(5, 8), (0, 5)]`); green after,
@@ -8892,7 +8892,7 @@ row comes from.
   `mark` without the swap → the `td { border-right: solid }` rtl case gives `[(7, 10), (1, 6)]` for
   `[(6, 9), (0, 5)]`.
 - 2026-10-09 — C13G-UPGRADE (API N2 and the rdom-virtualtable notes; docs and pins). Found: the tables entry was
-  silent change 8, below four changes that only touch sheets declaring a property, though it re-renders every
+  silent change `sc-tables`, below four changes that only touch sheets declaring a property, though it re-renders every
   `<table>` with no author CSS; its `width: 100%` migration missed the border (fixed by C13G-TABLE-UA), the
   spread of extra width, wrapping, a cell `width` being a minimum, and the CSS that stops applying. Decided:
   (1) ranked 4th (after `display: flex` rows, `content-box` and flex base sizes, which reach more boxes; above
@@ -8962,7 +8962,7 @@ row comes from.
   containing block for positioned children is the viewport — unchanged (it is the ICB). Docs that said otherwise:
   DIVERGENCES §2's margin entry (top-level margins add), percentage-height entry (definite only when growing),
   floats entry (fourth simplification) and `Dom::root()` entry; CSS-COVERAGE's float row; the rdom-tui README's
-  floats paragraph; CHANGELOG silent change 41's "the document root's children stack in a column". Found: (a) the
+  floats paragraph; CHANGELOG silent change `sc-relative-in-flow`'s "the document root's children stack in a column". Found: (a) the
   "spurious scrollbar" C13G-DOCS reported is the column flex-shrinking a root-level `overflow: auto` box taller
   than the viewport to fit it (its automatic minimum is 0), its content then overflowing — block flow keeps the
   `auto` height; (b) a hit on an inline in an anonymous block box's line (`<div><p>…</p>text <b>x</b></div>`)
@@ -8992,7 +8992,7 @@ row comes from.
   fixed height and a column flex container; `css_phase3_colors`' bordered box shrank into an 8×3 viewport — now
   `border-box`; `css_values`' percentage margin now collapses through its block parent — `.cb` is `flow-root`;
   `css_phase8`'s floated-pseudo hit needs `<body>` to fill the screen — `body { height: 100% }`. CHANGELOG: silent
-  change 2 (the old 2–85 move to 3–86, "Porting a column-synced table" cites 5), a Breaking bullet, two Fixed
+  change `sc-root-block` (the old 2–85 move to 3–86, "Porting a column-synced table" cites 5), a Breaking bullet, two Fixed
   bullets, a showcase bullet; README "The document root and a full-screen app" with a doctested shell. DESIGN: the
   ICB paragraph in "Layout passes" and a decision-archive entry. TECH_DEBT `SIZE-1` recounted.
 - 2026-10-09 — C13-ROOT-CANVAS (C13-ROOT-BLOCK's second half; CSS Backgrounds 3 §2.11.2). Found: paint had no
@@ -9015,7 +9015,7 @@ row comes from.
   `higher_z_paints…`, `modal_dialog_repaints…`, `positioned_paints_above…`, `pseudo_background_under_opacity…`,
   `translucent_card…`, `css_phase4`'s background and `background-clip` tests, `css_phase6`'s `visibility: hidden`
   test, `css_phase7`'s negative-`z-index` test (a root element's negative layer paints over its canvas, as in a
-  browser) and the README's transitions example put their boxes in a `<body>`. CHANGELOG silent change 3 (the old
+  browser) and the README's transitions example put their boxes in a `<body>`. CHANGELOG silent change `sc-root-canvas` (the old
   3–86 move to 4–87; the table port cites 6) and an Added bullet; CSS-COVERAGE's `background-color` row.
 - 2026-10-09 — Phase 13 closed: both gates run, their findings fixed in three batches — A (correctness and cost:
   C13G-COLUMN-MATCH, -SPAN-COST, -TABLE-COST, -TABLE-GEOMETRY, -COLUMN-INVALIDATION, -SPEC-GAPS,
@@ -9056,7 +9056,7 @@ row comes from.
   re-evaluating every run → `media_conditions_evaluate_once_per_environment`. Changed expectation: rdom-css
   `at_rules`' skipped-block test used `@media` as its unsupported at-rule — now `@page` with a nested margin rule.
   `media.rs` came out at 757 lines formatted: the feature (`media_feature.rs`: parse, values, evaluation) split
-  from the list and query (`media.rs`). Silent change 26 (the old 26–87 move to 27–88). Part 2: the `App`'s preferences, `matchMedia`, resize restyle
+  from the list and query (`media.rs`). Silent change `sc-conditional-rules` (the old 26–87 move to 27–88). Part 2: the `App`'s preferences, `matchMedia`, resize restyle
   by flipped queries, `<style media>`.
 - 2026-10-09 — C14-MEDIA (part 2 of 2: the `App`'s media environment; Media Queries 5 §12, CSSOM View §4.2, HTML
   §4.2.6, CSS Values 4 §6.1.2). `App::with_media_preferences` / `set_media_preferences` / `media_preferences`
@@ -9085,7 +9085,7 @@ row comes from.
   `must_restyle` ignoring the viewport reads and the flipped results, and the lists reporting without a flip →
   six tests (the viewport-unit, flip, preference, `<style media>`, sheet-media and change-report ones). The
   reduced-motion test pins that an animation stops through CSS alone. CSS-COVERAGE: `@media` Supported (§3.21
-  1 / 0 / 5 / 1, total 238 / 7 / 17 / 45). Silent change 26 gains `<style media>`. Item done.
+  1 / 0 / 5 / 1, total 238 / 7 / 17 / 45). Silent change `sc-conditional-rules` gains `<style media>`. Item done.
 - 2026-10-09 — C14-SUPPORTS (CSS Conditional 3 §6–§7.1, Conditional 4 §6.1, Conditional 5 §5, CSS Cascade 5 §3).
   rdom-style `conditional/supports.rs`: `SupportsCondition` over the shared `Condition<L>` grammar with
   `SupportsFeature` leaves — `(<property>: <value>)` (the value cut out as written by the component-value
@@ -9104,7 +9104,7 @@ row comes from.
   rdom-css `supports.rs` 4 of 4 and rdom-tui `css_phase14/supports.rs` 3 of 3 failed on HEAD (`@supports`
   unsupported, the strict sheet rejected it); rdom-style's four supports unit tests were compile-red. Green
   after. Mutation (restored, touched): the cascade ignoring the result → 2 integration tests; the declaration
-  test skipping the value parser → 3 unit tests, 1 integration and the import test. Silent change 26 now
+  test skipping the value parser → 3 unit tests, 1 integration and the import test. Silent change `sc-conditional-rules` now
   "`@media` and `@supports` rules apply". CSS-COVERAGE §3.21 2 / 0 / 4 / 1, total 239 / 7 / 16 / 45.
 - 2026-10-09 — C14-CONTAINER (part 1 of 2: the query-container properties and their size containment; CSS
   Conditional 5 §6.1–§6.3, CSS Containment 2 §3.1, CSS Containment 3's inline-size containment, CSS Sizing 4
@@ -9126,7 +9126,7 @@ row comes from.
   container applies nothing) held; the dispatch tests were compile-red; `layout_dirty_flag_reacts_to_containment`
   failed (no dirty flag). Green after. Mutation (each alone, restored, touched): the intrinsic hook out → the
   float and atom tests; the auto-height hook out → the size and atom tests. Changed expectation: the cascade's
-  every-property reset test perturbs `container` too. Silent change 27 (the old 27–88 move to 28–89).
+  every-property reset test perturbs `container` too. Silent change `sc-container-type` (the old 27–88 move to 28–89).
 - 2026-10-09 — C14-CONTAINER (part 2 of 2: `@container` and the container-relative units; CSS Conditional 5
   §6.4–§6.6). rdom-style `conditional/container.rs`: `ContainerQuery` (`<container-condition>#`, any holding),
   each `ContainerCondition` an optional name (not `not` / `and` / `or` / `none`) and an optional query over
@@ -9189,7 +9189,7 @@ row comes from.
   outside `p` to continue a counter only the contained subtree had created — now a counter created before it.
   Green after. Mutation (restored, touched): no containment stacking → the two stacking tests; no paint clip →
   the clip test; no counter barrier → the counter test; no containment containing block → the layout and
-  `will-change` tests; no containment formatting context → the layout test. Silent change 28 (the old 28–89
+  `will-change` tests; no containment formatting context → the layout test. Silent change `sc-containment` (the old 28–89
   move to 29–90). CSS-COVERAGE §3.21 5 / 0 / 1 / 1, total 243 / 7 / 12 / 45.
 - 2026-10-09 — C14-CONTAIN (part 2 of 3: `content-visibility`; CSS Containment 2 §4, CSS Sizing 4 §6.1's last
   remembered size). rdom-style: `content-visibility: visible | auto | hidden` (`ContentVisibility`), not inherited,
@@ -9213,7 +9213,7 @@ row comes from.
   `css_phase14/content_visibility.rs` — all 4 failed on HEAD (the strict sheet rejected the property); the App
   event test was compile-red. Green after. Mutation (restored, touched): no box-tree skip → the hidden and the
   off-screen tests; relevance always kept → the off-screen and event tests; no remembered size → the off-screen
-  and remembered tests; `::before` generated → the hidden test. Silent change 28 gains `content-visibility`.
+  and remembered tests; `::before` generated → the hidden test. Silent change `sc-containment` gains `content-visibility`.
   Gate fixes before commit: the relevance check took a render `Rect` into `style/` (the layering test) — now a
   `LayoutRect`; the longhand interpolation table gains `content-visibility` (`visible` at 50 %). CSS-COVERAGE
   §3.21 6 / 0 / 0 / 1, total 244 / 7 / 11 / 45.
@@ -9234,7 +9234,7 @@ row comes from.
   the slot's children — now opened for that, and closed it asserts the slot has none; the UA rule count 187 →
   188; the closing-animation note in `geometry_transition_tests` became its own test. DIVERGENCES §2's "A
   closed `<details>`'s content computes `display: none`" rewritten as "A `<details>`'s content slot is a box";
-  silent change 55 (the old 55–90 move to 56–91). Item done.
+  silent change `sc-details-display` (the old 55–90 move to 56–91). Item done.
 - 2026-10-09 — C14-ASPECT-BLOCK (carry-over from C13-ROOT-BLOCK; CSS Sizing 4 §5.1, CSS 2.1 §10.3.3, §10.5,
   §10.6.3). Found: `aspect-ratio` had no effect on a block-level box in block flow at all — the flex and grid
   paths (C6G-FLEX-SPEC, C7-GRID-RERESOLVE) were its only users — so not only did `height: 9; aspect-ratio: 16/9`
@@ -9251,7 +9251,7 @@ row comes from.
   `css_phase14/aspect_block.rs` — both failed on HEAD (`(40, 9)` for `(16, 9)`, `(40, 0)` for `(40, 20)`); the
   percentage case failed once more after the first fix (the ICB has no Ext to read a height from — the viewport
   now). Green after; the workspace suite unchanged. Mutation (restored, touched): no transferred width → the
-  width test; no ratio in `auto_height` → the height test. Silent change 29 (the old 29–91 move to 30–92).
+  width test; no ratio in `auto_height` → the height test. Silent change `sc-aspect-ratio-block` (the old 29–91 move to 30–92).
 - 2026-10-09 — C14-HIT-HTML (carry-over from C13-ROOT-BLOCK; CSSOM View §5, CSS Backgrounds 3 §2.11.2). Decided:
   keep the documented divergence — a point on the canvas outside every box hits nothing. Tried first: the hit
   test's empty path falling back to `Dom::document_element` when the point is in the viewport (`canvas_hit`); 12
@@ -9383,7 +9383,7 @@ row comes from.
   the tree's root still matches only as a scoping root. `query_selector*` and `closest` still return
   elements only. The cascade styling it is part 2. Red: `query_selector::tests::a_fragment_root_matches_as_the_root_element`
   (`matches(root, ":root")` false); `root_pseudo` pinned the old answer and now asserts the new one.
-  Green after, with `a_detached_fragment_matches_nothing`. Silent change 4 (ranked under the root
+  Green after, with `a_detached_fragment_matches_nothing`. Silent change `sc-root-element` (ranked under the root
   entries: it turns on rules a sheet already holds).
 - 2026-10-09 — C14G-ROOT-ELEMENT (2/3: the cascade; decision 1, architect B3, API B1; CSS Cascade 4 §7, CSS
   Backgrounds 3 §2.11.2, CSS Values 4 §6.1.1, CSS Conditional 3 §2, Scroll-driven Animations 1 §2.1.1). Found:
@@ -9425,7 +9425,7 @@ row comes from.
   rather than merging, rdom-css's `round_trip::var_definition_round_trip` compares the cascaded roots, and the
   dirty tracker's element-chain tests say `set_root_state(false)` (a tracker with unknown sheets now queues
   the root on a chain from nothing, pinned by `a_chain_from_nothing_restyles_the_root_when_a_sheet_can_read_it`).
-  No showcase snapshot changed. Silent changes 3 and 4 rewritten.
+  No showcase snapshot changed. Silent changes `sc-root-canvas` and `sc-root-element` rewritten.
 - 2026-10-09 — C14G-ROOT-ELEMENT (3/3: the canvas hit; C14-HIT-HTML; CSSOM View §5, UI Events §5). Found: a
   point outside every box hit nothing; C14-HIT-HTML could not target "the document element", which need not
   hold the other top-level elements. Decided: with the root fragment the root element (an ancestor of every
@@ -9443,7 +9443,7 @@ row comes from.
   (was `…_miss_records_no_target`), `mousemove_off_all_elements_fires_mouseout` hovers the root,
   `press_on_the_canvas_after_lost_mouseup_does_not_extend_the_old_selection` (a new drag, not the old
   one; the press used to leave the selection alone); `interaction_chain_tests` leaving hovers the root.
-  DIVERGENCES' `Dom::root()` entry and the C14-HIT-HTML row updated; silent change 5; ACID tile 20 gains
+  DIVERGENCES' `Dom::root()` entry and the C14-HIT-HTML row updated; silent change `sc-canvas-hit`; ACID tile 20 gains
   the dark-mode pattern (API B1).
 - 2026-10-09 — C14G-MATCH-MEDIA (API B2, N8; CSSOM View §4.2, DOM §2.7). Found: `MediaWatches` held its lists
   weakly and pruned them by strong count, so `app.match_media(q).add_listener(f)` — the natural Rust chain
@@ -9477,7 +9477,7 @@ row comes from.
   `the_specs_narrow_console_example_matches` (blue for red), `container_query::a_pixel_container_query_maps_eight_pixels_a_column`,
   rdom-css `media::an_unmeasured_query_value_warns` (no warning for `30ex`); green after. Expectation changed
   by the decision: `a_pixel_length_is_unknown` became the breakpoint test. DIVERGENCES §2's media entry,
-  silent change 28, the rdom-tui README, ACID tile 20 and CSS-COVERAGE's `@media` row follow. Split (the
+  silent change `sc-conditional-rules`, the rdom-tui README, ACID tile 20 and CSS-COVERAGE's `@media` row follow. Split (the
   file reached 593 lines; architect N20 asked for it): `rdom-style/src/conditional/media_feature.rs` →
   `media_feature/mod.rs` (parse, values, serialization) + `media_feature/eval.rs` (evaluation, `Kind`).
 - 2026-10-09 — C14G-CONDITIONAL-SPEC (1/2: `@supports` and the unknown viewport; decision 4, API N3; CSS
@@ -9666,3 +9666,23 @@ row comes from.
   `containment_naming_hints`. Red: the hint group did not compile (`has`, the variant, `ContainerType::new`
   missing); `ContainerType`'s `compile_fail` doctest (a struct literal) compiled; `align::tests::internal_center_never_reaches_a_line`
   did not panic. Green after.
+- 2026-10-09 — C14G-UPGRADE (API N7, N11; docs and one pin). Found: the silent-change list was not ranked by
+  impact after Phase 14 — `@media` / `@supports` / `@container` applying sat at 28, though the scheme is
+  dark when the terminal does not answer, so a shared web sheet's `prefers-color-scheme: dark` blocks (and
+  every `@media screen` block) now apply on most terminals; the panel title drawn on a border (the
+  absolutely positioned box's padding-box change) and overflowing pane text painting over its neighbours
+  sat at 14 and 52 though a typical TUI hits both; `container-type`, `contain` and block `aspect-ratio`
+  sat above the far more common `outline`; the `contain` / `will-change` entry did not say that a
+  `position: fixed` descendant is now placed in a `will-change: transform` ancestor; the root-block entry
+  did not say that every ancestor down to the shell needs `height: 100%`; and citations by number had gone
+  stale with each insertion (the table port cited 6 and `css_phase13/upgrade.rs` 4 for what is the tables
+  entry). Decided: (1) re-ranked — the abspos padding box and overflowing text join the top 10 (9 and 10),
+  the conditional rules are 11 with the dark-default sentence, `container-type` / `contain` / block
+  `aspect-ratio` move below `outline`, the `<select>` overlay and the textarea grip (34–36); (2) every item
+  carries a stable anchor (`<a id="sc-…">`, 94 of them) and the list's preamble says citations use it;
+  every citation — the CHANGELOG's table port and root Breaking bullet, DESIGN's root section,
+  `css_phase13/upgrade.rs` and the Log's 30 — now names the anchor, so a re-rank no longer breaks one; (3)
+  the root-block migration names the chain with the `<body><div class=app>` example (`body, .app { height:
+  100% }`), pinned by `css_phase13::root::a_shell_under_body_fills_the_screen_only_with_every_ancestor_full_height`
+  (`.app` alone is 1 row, the chain 10 — it passed as written: the claim was true, only unstated); (4) the
+  `contain` entry spells out the fixed-descendant change.
