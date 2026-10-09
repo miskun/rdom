@@ -286,6 +286,27 @@ fn flip_block_tries_the_other_side() {
     assert_eq!(at12(css), (12, 3, 3, 10));
 }
 
+/// §4.1 with CSS 2.1 §10.3.7: an `auto`-width tooltip at `left:
+/// anchor(right)` shrinks to fit the room right of its anchor — it wraps
+/// there, so its base position fits and no fallback is tried, as in the
+/// engines (it was its max-content width, overflowed, and flipped)
+/// (C15G-ABSPOS-CLAMP).
+#[test]
+fn an_anchored_tooltip_wraps_rather_than_falls_back() {
+    let mut dom = doc(r#"<body><div id="t">anchor</div><div id="p">one two three</div></body>"#);
+    styled(
+        &mut dom,
+        &format!(
+            "{PAGE} #t {{ anchor-name: --t; margin: 1 0 0 5; width: 6 }}
+             #p {{ position: absolute; position-anchor: --t; left: anchor(right); top: anchor(top);
+                   position-try-fallbacks: flip-inline }}"
+        ),
+        20,
+        8,
+    );
+    assert_eq!(rect(&dom, "p"), (11, 1, 9, 2), "the 9 cells there, wrapped");
+}
+
 /// §4.1: a `@position-try` rule's declarations replace the box's, and a
 /// `position-area` entry tries that area; one naming no rule is skipped.
 #[test]

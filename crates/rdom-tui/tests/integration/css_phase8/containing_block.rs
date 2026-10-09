@@ -221,3 +221,33 @@ fn a_grid_gives_an_absolute_pseudo_its_grid_area() {
     );
     assert_eq!(after(&dom, item), (2, 1, 7, 2));
 }
+
+/// CSS 2.1 §10.3.7: an `auto` width with one inset `auto` is
+/// shrink-to-fit — `min(max(preferred minimum, available), preferred)`,
+/// the available width the containing block's less the other inset and
+/// the margins. Twenty words (99 cells) at `left: 30` in 80 columns wrap
+/// at 50; at `right: 30` too, ending at column 50; a margin takes its
+/// cells from the available width (C15G-ABSPOS-CLAMP).
+#[test]
+fn an_auto_width_absolute_box_shrinks_to_fit_the_available_width() {
+    let words = vec!["word"; 20].join(" ");
+    for (css, want) in [
+        ("left: 30", (30, 0, 50, 2)),
+        ("right: 30", (0, 0, 50, 2)),
+        ("left: 30; margin-left: 2", (32, 0, 48, 3)),
+        ("left: 30; top: 0; width: max-content", (30, 0, 99, 1)),
+    ] {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let abs = el(&mut dom, root, "div", "abs");
+        let text = dom.create_text_node(&words);
+        dom.append_child(abs, text).unwrap();
+        lay_out(
+            &mut dom,
+            &format!(".abs {{ position: absolute; top: 0; {css} }}"),
+            80,
+            5,
+        );
+        assert_eq!(xywh(rect(&dom, abs)), want, "{css}");
+    }
+}

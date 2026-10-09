@@ -147,12 +147,12 @@ impl Placed<'_> {
         }
     }
 
-    /// Its shrink-to-fit size on one axis (CSS 2.1 §10.3.7 / §10.6.4):
-    /// on the inline axis its max-content width, on the block axis its
-    /// content's height at the border-box width `cross` — its content's,
-    /// whatever its own `width` / `height` say: asked only where the size
-    /// placed by is `auto`, which a position option's style may make it
-    /// where the box's own is not (CSS Anchor Positioning 1 §4.1).
+    /// Its content height at the border-box width `cross` (CSS 2.1
+    /// §10.6.4) — its content's, whatever its own `height` says: asked only
+    /// where the height placed by is `auto`, which a position option's
+    /// style may make it where the box's own is not (CSS Anchor
+    /// Positioning 1 §4.1). The inline axis is shrink-to-fit
+    /// ([`shrink_available`]).
     fn shrink_to_fit(
         &self,
         dom: &Dom<TuiExt>,
@@ -191,6 +191,35 @@ impl Placed<'_> {
     }
 }
 
+/// CSS 2.1 §10.3.7: the available width an `auto` width shrinks to fit —
+/// the containing block's, "found by solving for 'width' after setting
+/// 'left' (in case 1) or 'right' (in case 3) to 0": less the other inset
+/// (the static position's offset when both are `auto`) and the margins
+/// (`auto` ones 0). Shrink-to-fit is then `min(max(min-content,
+/// available), max-content)`, the `fit-content` keyword (C15G-ABSPOS-CLAMP).
+fn shrink_available(
+    dom: &Dom<TuiExt>,
+    placed: &Placed<'_>,
+    c: &ComputedStyle,
+    cb: LayoutRect,
+) -> u16 {
+    let basis = i32::from(cb.width);
+    let inset = match (c.left.cells(basis), c.right.cells(basis)) {
+        (Some(left), _) => left,
+        (None, Some(right)) => right,
+        (None, None) => match placed.static_position(dom) {
+            Some(sp) if c.text_direction != crate::layout::TextDirection::Rtl => sp.x - cb.x,
+            _ => 0,
+        },
+    };
+    let margin = |m: &crate::layout::MarginValue| match m {
+        crate::layout::MarginValue::Auto => 0,
+        m => i32::from(m.resolve(cb.width)),
+    };
+    let available = basis - inset - margin(&c.margin.left) - margin(&c.margin.right);
+    available.clamp(0, i32::from(u16::MAX)) as u16
+}
+
 /// Compute the placed rect for an absolute/fixed box given its
 /// computed style and resolved containing block.
 ///
@@ -204,9 +233,11 @@ impl Placed<'_> {
 ///   - When both edges of the axis are `Cells`, derive from
 ///     `cb_axis - left - right` (or `cb_axis - top - bottom`).
 ///   - Otherwise shrink-to-fit the content (CSS 2.1 §10.3.7 /
-///     §10.6.4): the element's intrinsic size on that axis, height
-///     measured at the resolved width. A tooltip positioned with
-///     only `top` / `left` is therefore as wide as its text, not 0.
+///     §10.6.4): the width `min(max(min-content, available),
+///     max-content)` ([`shrink_available`]), the height the content's
+///     at that width. A tooltip positioned with only `top` / `left` is
+///     therefore as wide as its text, not 0, and wraps where the
+///     containing block ends.
 ///
 /// X / Y resolve from the offsets via [`axis_position_anchored`];
 /// an axis with both insets `auto` takes the box's static position.
@@ -257,7 +288,13 @@ pub(super) fn compute_placed_rect(
             Some(k) => placed
                 .keywords(dom, c, Direction::Row, cb.height, cb.width)
                 .keyword(k, Some(cb.width), available),
-            None => placed.shrink_to_fit(dom, Direction::Row, cb.width, cb.width),
+            None => placed
+                .keywords(dom, c, Direction::Row, cb.height, cb.width)
+                .keyword(
+                    &IntrinsicSize::FitContent,
+                    Some(cb.width),
+                    shrink_available(dom, &placed, c, cb),
+                ),
         },
     );
     // CSS 2.1 §10.4: the tentative width clamped by `max-width`, then

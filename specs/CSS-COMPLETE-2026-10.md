@@ -10106,3 +10106,24 @@ row comes from.
   architect's two-sheet scenario through `cascade_all`): blue, `a < b` (green: green, `b < a`), and the
   same with the inert layer under an unmatched `@media` in the earlier sheet. The one-sheet tests stay
   green.
+- 2026-10-09 — C15G-ABSPOS-CLAMP (Phase 15 gate architect N1; CSS 2.1 §10.3.7, CSS Anchor Positioning 1
+  §4.1). Found: `compute_placed_rect`'s `auto` width with one inset `auto` was the box's max-content width
+  (`content_max_size`), never clamped to the room, though its doc claimed §10.3.7 — a 99-cell line at
+  `left: 30` in 80 columns was 99 wide, and an anchored tooltip at `left: anchor(right)` overflowed, so it
+  tried its fallbacks (or hid under `no-overflow`) where the engines wrap it. Decided: §10.3.7's
+  shrink-to-fit, `min(max(preferred minimum width, available width), preferred width)`, which is the
+  `fit-content` keyword the box already resolves (`Keywords::keyword`), with the available width §10.3.7
+  defines — "found by solving for 'width' after setting 'left' (in case 1) or 'right' (in case 3) to 0":
+  the containing block's width less the inset that is not `auto` (the static position's offset when both
+  are, `ltr`; 0 under `rtl`, where the static position is the right edge) and the margins that are not
+  `auto` (`shrink_available`). Explicit, percentage and `calc` widths, both insets set, and the aligned
+  `fit-content` path are unchanged; `min-` / `max-width` still apply after. The block axis keeps the
+  content height at that width. Red (`css_phase8/containing_block.rs`,
+  `an_auto_width_absolute_box_shrinks_to_fit_the_available_width`): `left: 30` gave `(30, 0, 99, 1)`
+  (green: `(30, 0, 50, 2)`; `right: 30` `(0, 0, 50, 2)`; with `margin-left: 2` `(32, 0, 48, 3)`;
+  `width: max-content` still 99). Anchored (`css_phase15/anchor.rs`,
+  `an_anchored_tooltip_wraps_rather_than_falls_back`): "one two three" at `left: anchor(right)` beside an
+  anchor ending at column 11 of 20, with `flip-inline`, was `(11, 1, 13, 1)` — overflowing, no option fit,
+  the base kept — and is `(11, 1, 9, 2)`, the 9 cells there with its text wrapped (shrink-to-fit is the
+  available width once the text is wider; it does not shrink to the wrapped lines), the base fitting. A silent
+  behaviour change (`sc-abspos-shrink`); no existing expectation moved.
