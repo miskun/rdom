@@ -121,3 +121,17 @@ pub use var::PendingDeclaration;
 #[cfg(doctest)]
 #[doc = include_str!("../README.md")]
 struct ReadmeDoctests;
+
+// The style data is `Send + Sync` — a sheet or a declaration block can be
+// parsed on one thread and used on another (`Shared` is an `Arc`, a
+// `CustomValue` and a `TuiColor` count atomically). Asserted at compile
+// time, so a non-`Send` field fails here rather than in a consumer's
+// `spawn` (C16G-HARDENING).
+const _: fn() = || {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<TuiStyle>();
+    assert_send_sync::<Stylesheet>();
+    assert_send_sync::<CustomValue>();
+    assert_send_sync::<TuiColor>();
+    assert_send_sync::<color::ColorDepth>();
+};

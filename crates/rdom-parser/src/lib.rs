@@ -60,6 +60,8 @@
 //! assert!(err.hint.is_some());
 //! ```
 
+#![forbid(unsafe_code)]
+
 mod char_refs;
 mod dom_ext;
 mod entities;

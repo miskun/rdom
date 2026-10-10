@@ -11305,3 +11305,13 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   compile (no such function); green after — 16 names, each parsing to one of the 16 targets. The acid coverage test
   maps each name to its target by parsing `p::name {}`. Post-0.5 API: an "after 0.5" table row and
   `pseudo_element_names_hints`.
+- 2026-10-10 — C16G-HARDENING 1/3 (Phase 16 gate architect N9: `unsafe` and thread safety). Found: rdom-style and
+  rdom-css carried `#![forbid(unsafe_code)]`, rdom-core, rdom-parser and rdom-tui did not (their only `unsafe`, the
+  `cfg(test)` counting allocator `test_alloc.rs`); nothing asserted the thread safety the docs claim. Fix: the forbid
+  at the rdom-core and rdom-parser roots; in rdom-tui `forbid` outside `cfg(test)` and, under it, `deny` with one
+  `#[allow(unsafe_code)]` on `mod test_alloc` — the narrowest scope a `forbid` allows. A workspace check
+  (`rdom-showcase/tests/integration/unsafe_code.rs`) pins all five roots: red first (the three crates' attributes
+  missing), green after. Send + Sync: a compile-time assertion in rdom-style for `TuiStyle`, `Stylesheet`,
+  `CustomValue`, `TuiColor` and `ColorDepth` (rdom-tui's `AppHandle` already had one) — red at first compile:
+  ``OnceCell<RuleIndex>` cannot be shared between threads safely``, `Stylesheet`'s lazily built rule index. Root
+  fix: a `std::sync::OnceLock`, so a parsed sheet is `Sync` (shared behind an `Arc`); green after.

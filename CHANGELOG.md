@@ -50,6 +50,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Changed — `rdom-core`
 
+- **rdom-core, rdom-parser and rdom-tui forbid `unsafe` code** at the crate root, as rdom-style and rdom-css did (rdom-tui's test-only counting allocator excepted), pinned by a workspace check. (C16G-HARDENING)
 - **`EventDetail::ContentVisibilityAutoStateChange`** (was `ContentVisibilityAutoState`, new since 0.5) takes the web event's name, and its accessor follows the `as_<variant>` pattern: `as_content_visibility_auto_state_change()`. (C14G-API-NAMING)
 - **`ControlStateHook` returns `Option<bool>`**: `None` leaves a question to the substrate's default (the content attribute for `DefaultChecked` / `DefaultSelected`, else `false`), so a hook written before a `ControlState` question was added does not answer it `false`. Migration: `Some(answer)`, and `_ => None`. (C11G-API)
 - **`SelectorCaches` documents that it is one pass's**: hook-backed state (user validity, default checkedness, validity) moves no mutation epoch, so caches kept across frames go stale for it. (C11G-API)
@@ -295,6 +296,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Changed — `rdom-style`
 
+- **`Stylesheet` is `Sync`**: its lazily built rule index is a `OnceLock` (it was a `OnceCell`), so a parsed sheet can be shared across threads; `TuiStyle`, `Stylesheet`, `CustomValue`, `TuiColor` and `ColorDepth` are asserted `Send + Sync` at compile time. (C16G-HARDENING)
 - **`MediaPreferences::color_bits` / `with_color_bits` are gone** (added after 0.5): `color`, `color-index` and `monochrome` read `MediaEnvironment::color_depth`, which an `App` sets from its backend; use `App::with_color_depth`. (C16G-COLOR-DEPTH)
 - Docs: the README's property list covers Phases 14–15 and ends with every name `property_names()` returns, generated; `property_dispatch::readme_tests` fails when they differ. (C15G-README)
 - **Containment names**: `WillChange::has(feature)` (was `names`, a predicate); `ContainerType` is `#[non_exhaustive]` with `new(size)` / `with_scroll_state(on)` (Anchor Positioning 2 adds `anchored`); `TextAlign::InternalCenter` is `#[doc(hidden)]`, UA-only. All new since 0.5. (C14G-API-NAMING)

@@ -48,6 +48,11 @@
 //! - `TuiNodeMut`   → `rdom_core::NodeMut<'_, TuiExt>`
 //! - `TuiEventCtx`  → `rdom_core::EventCtx<'_, TuiExt>`
 
+// No `unsafe` ships (C16G-HARDENING); the unit tests' counting
+// allocator (`test_alloc`) is the one exception, and only under `cfg(test)`.
+#![cfg_attr(not(test), forbid(unsafe_code))]
+#![cfg_attr(test, deny(unsafe_code))]
+
 use rdom_core as core;
 
 pub mod accessors;
@@ -65,6 +70,7 @@ pub mod tui_event;
 mod sealed;
 
 #[cfg(test)]
+#[allow(unsafe_code)]
 mod test_alloc;
 
 pub use accessors::{

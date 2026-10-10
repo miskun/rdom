@@ -315,8 +315,9 @@ impl From<(&str, ParseError)> for StyleError {
 pub struct Stylesheet {
     rules: Vec<Rule>,
     /// Lazily built rightmost-selector index; reset whenever `rules`
-    /// changes.
-    index: std::cell::OnceCell<RuleIndex>,
+    /// changes. A `OnceLock`, so a sheet shared across threads stays
+    /// `Sync` (C16G-HARDENING).
+    index: std::sync::OnceLock<RuleIndex>,
     /// Next `source_idx` to assign.
     next_source_idx: u32,
     /// Custom-property (`--foo: bar;`) root values. `define_var` adds
@@ -443,7 +444,7 @@ impl Stylesheet {
     fn push_rules(&mut self, new_rules: impl IntoIterator<Item = Rule>) {
         self.touch();
         self.rules.extend(new_rules);
-        self.index = std::cell::OnceCell::new();
+        self.index = std::sync::OnceLock::new();
     }
 
     /// Every mutation renews the version.

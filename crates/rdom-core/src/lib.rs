@@ -30,6 +30,8 @@
 //! assert_eq!(dom.node(hero).first_element_child().unwrap().tag_name(), Some("h1"));
 //! ```
 
+#![forbid(unsafe_code)]
+
 mod abort;
 mod accessor;
 mod attrs;
