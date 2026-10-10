@@ -303,6 +303,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-FIX-13 | A modal dialog's `color`, inherited by its `::backdrop`, no longer recolors the page beneath it (CSS 2.1 §14.1; found by tile 15c) | done |
 | ACID-FIX-14 | Transitions and animations interpolate colors in gamma-encoded sRGB, the space CSS Color 4 §12.1 requires for legacy sRGB colors — rdom computes every color to sRGB (found by step I6) | done |
 | ACID-FIX-15 | A frame dispatches its transition and animation events before its style and layout, so their listeners' changes are drawn in that frame (HTML §8.1.7.3; found by step I6) | done |
+| ACID-FIX-16 | An `App` built `with_backend` writes no terminal modes to process stdout on a resize; only the `App` that set up the terminal re-arms its mouse capture (found by step I19) | done |
 | ACID-TILES-A | Static tiles 1–13 (9a / 9b / 9c included), references derived from the spec | done |
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
@@ -11073,3 +11074,12 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   updated). All green at first run but a transcription slip in I19's first reference (tile 20's `px` taken a column
   right of where the static reference has it); no reference was changed against the spec. ACID-INTERACTIVE found
   ACID-FIX-14 and ACID-FIX-15.
+- 2026-10-10 — ACID-FIX-16 (found by acid step I19). The step's resizes printed `ESC[?1000h ESC[?1002h …` into the
+  test run's own output: `App::handle_event` re-armed the mouse capture on a resize by writing it to process stdout
+  for every `App`, including one built `with_backend` — a headless test app, or an app whose backend is not stdout —
+  which never entered any mode there. Root cause: the re-arm restores a mode `App::new` sets up, so it belongs to the
+  `App` holding the `TerminalGuard` `App::new` creates; it now runs only then (`self.guard.is_some()`). Red:
+  `terminal_ownership_tests::a_headless_resize_writes_nothing_to_stdout`, which runs a headless resize in a child test
+  process and reads its stdout (the mouse-capture sequences there); green after, the rest of rdom-tui unchanged.
+  Silent change `sc-resize-rearm`, with the re-arm a program that sets up its own terminal can do in a `resize`
+  listener.

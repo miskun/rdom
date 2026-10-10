@@ -148,6 +148,8 @@ mod starting_style_tests;
 #[cfg(test)]
 mod teardown_tests;
 #[cfg(test)]
+mod terminal_ownership_tests;
+#[cfg(test)]
 mod tests;
 
 use std::io::{self, Stdout};

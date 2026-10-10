@@ -118,12 +118,19 @@ impl<B: Backend> App<B> {
                 // DEC private-mode state across viewport changes;
                 // EnableMouseCapture is idempotent on conformant
                 // terminals and recovers motion-event delivery
-                // where it was lost.
-                let mut stdout = std::io::stdout();
-                if let Err(e) = crate::render::backend_crossterm::enter_mouse_capture(&mut stdout) {
-                    crate::rdom_trace!("Resize: failed to re-arm mouse capture: {e}");
-                } else {
-                    crate::rdom_trace!("Resize: re-armed mouse capture");
+                // where it was lost. Only on the terminal this App
+                // set up (`App::new`, which holds the guard): an App
+                // built `with_backend` entered no mode on stdout and
+                // writes nothing there (ACID-FIX-16).
+                if self.guard.is_some() {
+                    let mut stdout = std::io::stdout();
+                    if let Err(e) =
+                        crate::render::backend_crossterm::enter_mouse_capture(&mut stdout)
+                    {
+                        crate::rdom_trace!("Resize: failed to re-arm mouse capture: {e}");
+                    } else {
+                        crate::rdom_trace!("Resize: re-armed mouse capture");
+                    }
                 }
             }
             CtEvent::FocusGained => {
