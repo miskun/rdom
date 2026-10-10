@@ -11277,3 +11277,18 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   at 256 colours; green after, with `color::depth::tests` (detection, the media numbers, quantization: every cube
   and ramp entry maps to itself). README claims made true; DIVERGENCES §1's colour line rewritten, §2's media
   entry follows the depth; silent change `sc-color-depth`.
+- 2026-10-10 — C16G-TBODY-SCROLL (Phase 16 gate API B3, decision 3; CSS Overflow 3 §3, CSS 2.1 §11.1.1 and §10.1,
+  CSS Position 3 §3.4). Confirmed first: `a_scrolling_tbody_does_not_scroll` (`css_phase13/upgrade.rs`) — a
+  `<tbody>` with `overflow-y: auto; height: 2` is no scroll container (a row group is neither a block, flex nor grid
+  container), `set_scroll_top(2)` leaves `scroll_top()` 0 and the rows unmoved — green at first run, which is what
+  browsers do: no divergence, none recorded. The port's answer, a scrolling wrapper with `thead th { position:
+  sticky; top: 0 }`, was red: `a_table_scrolls_in_a_wrapper_under_a_sticky_header` read `[" r2", " r3", " r4"]`
+  after a two-row scroll — the header scrolled away. Root cause (ACID-style fix): `sticky.rs` clamped a sticky box to
+  its parent's content box ("approximated by the parent", a DIVERGENCES line), and a header cell's parent is its
+  one-row `<tr>`. Fix: the containing block per CSS 2.1 §10.1 rule 2 — the nearest ancestor that is a block
+  container or establishes a formatting context, past inline boxes, box-less elements and table rows, row groups and
+  columns (`sticky::containing_block`) — the table for a cell, as in browsers. A transparent header lets the rows
+  under it show through, as on the web; the recipe gives it `background-color: Canvas`. Green after; the sticky
+  tests unchanged. Docs: UPGRADING's table port gains the scrolling-body step, RECIPES "A table with a scrolling
+  body" (doctested: a two-row scroll, the header kept), DIVERGENCES' sticky line rewritten, CSS-COVERAGE's
+  `position` row; silent change `sc-sticky-containing-block`.

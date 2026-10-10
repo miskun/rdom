@@ -17,8 +17,10 @@
 //!    the containing block, and effectively scrolls out with it.
 //!
 //! All four insets (`top` / `bottom` / `left` / `right`, cells or
-//! `calc()` against the scrollport) pin against the nearest scrollport;
-//! the containing block is approximated by the parent's content box.
+//! `calc()` against the scrollport) pin against the nearest scrollport,
+//! within the containing block's content box (CSS 2.1 §10.1: the nearest
+//! ancestor box that is a block container or establishes a formatting
+//! context — a table's for its header cells, C16G-TBODY-SCROLL).
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -87,10 +89,8 @@ fn place_one(dom: &mut Dom<TuiExt>, id: NodeId) {
         return;
     };
 
-    // Containing block (post-stick clamp): parent element's
-    // `content_layout`. CSS uses the sticky's containing block,
-    // which for v1 we approximate by the parent.
-    let cb_rect = parent
+    // Containing block (post-stick clamp): its content box.
+    let cb_rect = containing_block(dom, parent)
         .and_then(|p| dom.node(p).ext().map(|e| e.content_layout))
         .unwrap_or(scrollport);
 
@@ -196,6 +196,42 @@ pub(super) fn sticky_offset(
         }
     }
     (placed.x - natural.x, placed.y - natural.y)
+}
+
+/// The box whose content box is a sticky box's containing block, from
+/// its parent `from` up (CSS 2.1 §10.1 rule 2, CSS Position 3 §3.4): the
+/// nearest that is a block container or establishes a formatting context
+/// — not an inline box, a box-less element, or a table row, row group or
+/// column, so a sticky `<th>` sticks across its table, as in browsers,
+/// not within its one-row `<tr>` (C16G-TBODY-SCROLL).
+fn containing_block(dom: &Dom<TuiExt>, from: Option<NodeId>) -> Option<NodeId> {
+    use crate::layout::{Display, TablePart};
+    let mut cursor = from;
+    while let Some(id) = cursor {
+        let node = dom.node(id);
+        if node.node_type() == NodeType::Element {
+            let skipped = node.computed().is_some_and(|c| {
+                matches!(
+                    c.display,
+                    Display::Inline
+                        | Display::Contents
+                        | Display::TablePart(
+                            TablePart::Row
+                                | TablePart::RowGroup
+                                | TablePart::HeaderGroup
+                                | TablePart::FooterGroup
+                                | TablePart::Column
+                                | TablePart::ColumnGroup
+                        )
+                )
+            });
+            if !skipped {
+                return Some(id);
+            }
+        }
+        cursor = crate::render::box_tree::slot::parent(dom, id);
+    }
+    None
 }
 
 /// The scrollport of the nearest scroll container at or above `from`

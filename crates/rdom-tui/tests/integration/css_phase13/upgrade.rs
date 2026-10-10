@@ -3,7 +3,7 @@
 //! a column-synced virtual table (rdom-virtualtable's shape) from 0.5's
 //! `size_columns` / `table_used_width` / cell margins to CSS tables.
 
-use rdom_tui::{LayoutRect, TuiAccessors, TuiNodeExt};
+use rdom_tui::{LayoutRect, TuiAccessors, TuiAccessorsMut, TuiNodeExt};
 
 use super::{by_id, doc, paint, rows};
 
@@ -109,4 +109,53 @@ fn a_virtual_table_ports_to_css_tables() {
     // The chip sits at the pane's right edge, over the header row.
     assert_eq!((rect(&dom, "chip").x, rect(&dom, "chip").y), (28, 0));
     assert!(rows(&buf)[0].ends_with("+3"), "{:?}", rows(&buf)[0]);
+}
+
+/// C16G-TBODY-SCROLL (Phase 16 gate API B3). CSS 2.1 §11.1.1 and CSS
+/// Overflow 3 §3: `overflow` applies to block containers, flex and grid
+/// containers; a table row group is none of them, so a `<tbody>` given
+/// `overflow-y: auto` is no scroll container — setting its `scrollTop`
+/// does nothing (CSSOM View §4: only a scroll container scrolls), as in
+/// browsers. rdom-virtualtable's 0.5 shape scrolled its `<tbody>`; the
+/// port scrolls a wrapper instead (below).
+#[test]
+fn a_scrolling_tbody_does_not_scroll() {
+    let mut dom = doc(
+        r#"<div><table><tbody id="b"><tr><td>r1</td></tr><tr><td>r2</td></tr><tr><td>r3</td></tr><tr><td>r4</td></tr></tbody></table></div>"#,
+    );
+    let css = "tbody { overflow-y: auto; height: 2 }";
+    paint(&mut dom, css, 20, 6);
+    let b = by_id(&dom, "b");
+    dom.node_mut(b).set_scroll_top(2).unwrap();
+    let buf = paint(&mut dom, css, 20, 6);
+    assert_eq!(
+        dom.node(b).scroll_top(),
+        Some(0),
+        "a row group is no scroll container"
+    );
+    assert_eq!(rows(&buf)[0], " r1", "the rows unmoved");
+}
+
+/// The port's scrolling body (UPGRADING "Porting a column-synced table",
+/// RECIPES "A table with a scrolling body"): a scrolling wrapper around
+/// the table, its header cells `position: sticky; top: 0` (CSS Position
+/// 3 §3.4: a sticky box sticks within its nearest scroll container, and
+/// a cell's containing block is its table, CSS 2.1 §10.1) with a
+/// background to cover the rows passing under it — a scroll moves the
+/// body rows under a header that stays.
+#[test]
+fn a_table_scrolls_in_a_wrapper_under_a_sticky_header() {
+    let mut dom = doc(
+        r#"<div id="pane"><table><thead><tr><th>H</th></tr></thead><tbody><tr><td>r1</td></tr><tr><td>r2</td></tr><tr><td>r3</td></tr><tr><td>r4</td></tr><tr><td>r5</td></tr></tbody></table></div>"#,
+    );
+    let css = "#pane { overflow-y: auto; height: 3; scrollbar-width: none } \
+               thead th { position: sticky; top: 0; background-color: Canvas } \
+               th { text-align: left }";
+    let buf = paint(&mut dom, css, 20, 4);
+    assert_eq!(rows(&buf)[..3], [" H", " r1", " r2"]);
+    let pane = by_id(&dom, "pane");
+    dom.node_mut(pane).set_scroll_top(2).unwrap();
+    let buf = paint(&mut dom, css, 20, 4);
+    assert_eq!(dom.node(pane).scroll_top(), Some(2));
+    assert_eq!(rows(&buf)[..3], [" H", " r3", " r4"], "the header stays");
 }

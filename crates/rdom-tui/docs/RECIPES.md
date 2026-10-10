@@ -283,6 +283,51 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
 Scroll the wrapper (`scroll_to`) to bring the `Size` column, right-aligned by `col.num || td`, into view. Without `width: max-content` the table shrinks to its wrapper and wraps its cells, as a browser's does; `td { white-space: nowrap }` keeps rows one line either way. For exact column widths use `table-layout: fixed` with a table `width`: the first row's cells and the `<col>`s set the columns, and rows added later cannot move them.
 
+### A table with a scrolling body
+
+A `<tbody>` does not scroll: `overflow` applies to block, flex and grid containers (CSS Overflow 3 §3), and a row group is none of them, in rdom as in browsers. Scroll a wrapper around the whole table instead, and make the header cells sticky (CSS Position 3 §3.4) with a background to cover the rows passing under them — they stick across the table, their containing block (CSS 2.1 §10.1):
+
+```rust
+use rdom_tui::prelude::*;
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let sheet = rdom_css::from_css_strict(
+        "
+        .body    { height: 3; overflow-y: auto; scrollbar-width: none }
+        thead th { position: sticky; top: 0; background-color: Canvas }
+        th, td   { text-align: left }
+        ",
+    )?;
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    rdom_parser::parse_into(
+        &mut dom,
+        r#"<div class="body" id="body"><table>
+             <thead><tr><th>Name</th></tr></thead>
+             <tbody><tr><td>a</td></tr><tr><td>b</td></tr><tr><td>c</td></tr><tr><td>d</td></tr></tbody>
+           </table></div>"#,
+        root,
+    )?;
+    let area = Rect::new(0, 0, 12, 3);
+    let paint = |dom: &mut TuiDom| {
+        dom.cascade(&sheet);
+        dom.layout_dom(area);
+        let mut buf = Buffer::empty(area);
+        dom.paint_dom(&mut buf, area);
+        (0..3)
+            .map(|y| (0..6).map(|x| buf.cell(x, y).unwrap().symbol()).collect::<String>())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(paint(&mut dom), [" Name ", " a    ", " b    "]);
+
+    // Two rows down: the body rows move, the header stays.
+    let body = dom.get_element_by_id("body").unwrap();
+    dom.node_mut(body).set_scroll_top(2)?;
+    assert_eq!(paint(&mut dom), [" Name ", " c    ", " d    "]);
+    Ok(())
+}
+```
+
 ## Floats and text overflow
 
 `float` / `clear` follow CSS 2.1 §9.5: a float leaves the line, lines beside it are shortened, and `clear` moves a box below it; a box that establishes a block formatting context (`overflow: hidden`, `display: flow-root`) contains its floats, and so does the clearfix — an empty block `::after` that clears. `text-overflow` marks a clipped line's cut edge, and `line-clamp` ends a block after its Nth line with an ellipsis. A float floats where its parent lays out in block flow — the document root's children included, in the initial containing block.

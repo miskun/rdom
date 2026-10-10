@@ -633,6 +633,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Fixed — `rdom-tui`
 
+- **A sticky header cell sticks across its table** (CSS 2.1 §10.1, CSS Position 3 §3.4): a sticky box's containing block was its parent's content box, so a `thead th { position: sticky }` stayed inside its one-row `<tr>`; it is now the nearest block container or formatting-context root, as in browsers. (C16G-TBODY-SCROLL)
 - **A huge `steps()` count schedules in constant memory** (CSS Easing 1 §2.3): a stepped CSS animation listed its keyframe intervals' N + 1 change points every frame, so `steps(10000000)` allocated 80 MB per frame and `steps(4294967295)` aborted; step positions are now computed arithmetically, as browsers do. (C16G-STEPS-CAP)
 - **A full-opacity layer keeps its borders' default colour** (Compositing 1 §5.1): ACID-FIX-9 kept the text's, but a `currentcolor` border inside a clip path, filter, blend mode or isolated group still came back as explicit white — white on white in a light terminal; at opacity 1 the composite now takes the layer's cell, border state included, as painted. (C16G-DEFAULT-COLOUR-PATHS)
 - **A completed transition fires no `transitioncancel`** (CSS Transitions 2 §4): with its `transitionend` dispatched before the frame's style, a listener that removed the element or toggled the class back got a `transitioncancel` too (custom properties included); a transition whose end is queued now goes silently. (C16G-TRANSITION-CANCEL)

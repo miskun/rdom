@@ -131,6 +131,7 @@ Areas: [Layout, positioning and overflow](#layout-positioning-and-overflow) · [
 - <a id="sc-relative-in-flow"></a>**A relatively positioned box is laid out in flow, then shifted** (CSS 2.1 §9.4.3): its subtree is laid out where the box is in flow and moved with it, so a float inside it excludes the next paragraph's lines at the unshifted place. (C8-FLOAT)
 - <a id="sc-abspos-shrink"></a>**An `auto`-width absolutely positioned box wraps where its containing block ends** (CSS 2.1 §10.3.7): its width is shrink-to-fit — `min(max(min-content, available), max-content)` — so a long tooltip at `left: 30` in 80 columns wraps at 50 cells, and an anchored one wraps beside its anchor instead of overflowing into a fallback; it was its max-content width. (C15G-ABSPOS-CLAMP)
 - <a id="sc-stretch"></a>**`width: -webkit-fill-available` (and `stretch`, `-moz-available`) fills** (CSS Sizing 4 §3.1): the value was dropped as invalid, so a box sized by it took its `auto` size; now its margin box fills the containing block on that axis (a definite one for heights). (C15G-STRETCH)
+- <a id="sc-sticky-containing-block"></a>**A sticky box sticks within its CSS containing block** (CSS 2.1 §10.1, CSS Position 3 §3.4): the post-stick clamp was the parent's content box; it is now the nearest block container or formatting-context root, so a sticky `<th>` (in a one-row `<tr>`) or a sticky box in an inline element moves where it used to stay put. (C16G-TBODY-SCROLL)
 
 ### Tables
 
@@ -161,6 +162,15 @@ fn column_width(dom: &TuiDom, table: NodeId, i: usize) -> Option<usize> {
 ```
 
 Rows materializing in the window cannot move the columns under `fixed`, which only reads the first row.
+
+A scrolling body: 0.5 scrolled the `<tbody>` (`tbody { overflow-y: auto; height: … }`, `tbody.scroll_top()`); in 0.6 a `<tbody>` is a table row group, which takes no `overflow` (CSS Overflow 3 §3) — in browsers neither — so it no longer scrolls and `scroll_top()` stays 0. Scroll a wrapper around the table and keep the header in view with sticky header cells, which stick across their table:
+
+```css
+.pane    { overflow-y: auto; height: 20 }                          /* the scroller: read and set its scroll_top() */
+thead th { position: sticky; top: 0; background-color: Canvas }   /* covers the rows scrolling under it */
+```
+
+The recipe [A table with a scrolling body](crates/rdom-tui/docs/RECIPES.md#a-table-with-a-scrolling-body) runs it; `css_phase13/upgrade.rs` pins both halves. (C16G-TBODY-SCROLL)
 
 ### Lists, pseudo-elements and generated content
 
