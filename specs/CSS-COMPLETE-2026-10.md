@@ -11173,3 +11173,14 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `css_phase15::clip_path::a_full_opacity_layer_keeps_its_borders_default_colour` (`clip-path: inset(0); border:
   solid`, default `color`, light scheme) read the corner `┌` as `Rgb(255, 255, 255)`; green after, with the FIX-9
   test. `sc-layer-default-colours` widened to borders.
+- 2026-10-10 — C16G-STEPS-CAP (Phase 16 gate architect B3; CSS Easing 1 §2.3, CSS Values 4 §5.1). Found: rdom-style
+  takes `steps(<integer [1,∞]>)` clamped to `u32::MAX`, and the CSS animation scheduler (`css/schedule.rs`, every
+  frame of a stepped animation) asked `KeyframeEffect::change_points` for a sorted `Vec<f64>` of every interval's
+  N + 1 points — 80 MB per frame at `steps(10000000)`, an abort on OOM at `steps(4294967295)`. (Transitions were
+  already O(1): `ActiveAnimation::next_change` divides.) Decision: no clamp — browsers accept the integer and compute
+  step positions arithmetically, so rdom does the same: `change_points` returns a `ChangePoints` of single points and
+  `(start, span, n)` grids, and `after(x)` / `before(x)` find the neighbouring point by division (a step or two past
+  rounding), O(keyframes) in time and memory whatever N; `next_boundary` asks it in directed progress, forwards or
+  mirrored. Red: `frame_cost_tests::a_huge_step_count_schedules_in_bounded_memory` (largest single allocation, a new
+  `test_alloc::largest_allocation_in`) read `steps(10000000): 80000024 bytes at once`; green after for it and
+  `steps(4294967295)`, plus `change_point_tests` for the grid arithmetic; the stepped-schedule tests unchanged.

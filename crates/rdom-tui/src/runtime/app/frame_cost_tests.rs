@@ -459,3 +459,26 @@ fn a_frame_with_a_focus_scroll_runs_three_layouts_of_the_container_cap() {
         "three layout_doms at the cap"
     );
 }
+
+/// C16G-STEPS-CAP (Phase 16 gate architect B3; CSS Easing 1 §2.3, CSS
+/// Values 4 §5.1): `steps()` takes any `<integer [1,∞]>` — rdom keeps it
+/// to `u32::MAX` — and its step positions are arithmetic, as browsers
+/// compute them; scheduling a stepped animation must not list them. A
+/// `steps(10000000)` keyframe interval scheduled every frame allocated
+/// its 10⁷ + 1 change points (80 MB) per frame.
+#[test]
+fn a_huge_step_count_schedules_in_bounded_memory() {
+    use crate::test_alloc::largest_allocation_in;
+    for count in ["10000000", "4294967295"] {
+        let (mut app, _) = animated(&format!(
+            "@keyframes k {{ from {{ width: 2; animation-timing-function: steps({count}) }} \
+             to {{ width: 10 }} }} #a {{ animation: k 1s infinite }}"
+        ));
+        let largest = largest_allocation_in(|| {
+            run(&mut app, 64);
+            let now = app.scheduler.borrow().now();
+            let _ = app.animations.next_wake(now);
+        });
+        assert!(largest < 1 << 20, "steps({count}): {largest} bytes at once");
+    }
+}

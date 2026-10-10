@@ -621,6 +621,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Fixed — `rdom-tui`
 
+- **A huge `steps()` count schedules in constant memory** (CSS Easing 1 §2.3): a stepped CSS animation listed its keyframe intervals' N + 1 change points every frame, so `steps(10000000)` allocated 80 MB per frame and `steps(4294967295)` aborted; step positions are now computed arithmetically, as browsers do. (C16G-STEPS-CAP)
 - **A full-opacity layer keeps its borders' default colour** (Compositing 1 §5.1): ACID-FIX-9 kept the text's, but a `currentcolor` border inside a clip path, filter, blend mode or isolated group still came back as explicit white — white on white in a light terminal; at opacity 1 the composite now takes the layer's cell, border state included, as painted. (C16G-DEFAULT-COLOUR-PATHS)
 - **A completed transition fires no `transitioncancel`** (CSS Transitions 2 §4): with its `transitionend` dispatched before the frame's style, a listener that removed the element or toggled the class back got a `transitioncancel` too (custom properties included); a transition whose end is queued now goes silently. (C16G-TRANSITION-CANCEL)
 - **A headless `App` writes nothing to stdout on a resize**: the resize event re-armed the mouse capture on process stdout for every `App`, so one built `with_backend` (a test, a pipe) printed `ESC[?1000h…` into the program's output; only the `App` that set up the terminal (`App::new`) re-arms it now. (ACID-FIX-16)

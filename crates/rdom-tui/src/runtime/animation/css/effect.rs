@@ -142,14 +142,14 @@ impl KeyframeEffect {
         self.properties.iter().all(|p| p.inert)
     }
 
-    /// The iteration progresses at which its value can change, sorted,
-    /// when every keyframe interval is stepped (CSS Easing 1 §2.3: a
-    /// `steps(n)` interval changes only at its `n` equal divisions, and
-    /// at its ends) — `None` when one moves continuously, or a keyframe
-    /// sits on a timeline range. 0 and 1, the iteration's ends, are
-    /// always in it.
-    pub(crate) fn change_points(&self) -> Option<Vec<f64>> {
-        let mut out = vec![0.0, 1.0];
+    /// The iteration progresses at which its value can change, when every
+    /// keyframe interval is stepped (CSS Easing 1 §2.3: a `steps(n)`
+    /// interval changes only at its `n` equal divisions, and at its ends)
+    /// — `None` when one moves continuously, or a keyframe sits on a
+    /// timeline range. 0 and 1, the iteration's ends, are always in it.
+    /// O(keyframes), whatever the step counts (C16G-STEPS-CAP).
+    pub(crate) fn change_points(&self) -> Option<ChangePoints> {
+        let mut out = ChangePoints::ends();
         for p in &self.properties {
             if p.ranged {
                 return None;
@@ -158,17 +158,14 @@ impl KeyframeEffect {
                 let (a, b) = (&w[0], &w[1]);
                 let span = b.offset - a.offset;
                 match a.easing {
-                    TimingFunction::Steps { count, .. } => {
-                        let n = f64::from(count.max(1));
-                        out.extend((0..=count.max(1)).map(|k| a.offset + span * f64::from(k) / n));
+                    TimingFunction::Steps { count, .. } if span > 0.0 => {
+                        out.grids.push((a.offset, span, count.max(1)));
                     }
                     _ if span > 0.0 => return None,
-                    _ => out.push(a.offset),
+                    _ => out.points.push(a.offset),
                 }
             }
         }
-        out.sort_by(f64::total_cmp);
-        out.dedup();
         Some(out)
     }
 
@@ -333,5 +330,117 @@ fn draws_nothing(longhand: Longhand, frames: &[Frame], base: &ComputedStyle) -> 
             lists.all(|l| l.same_translations(&first))
         }
         _ => false,
+    }
+}
+
+/// The iteration progresses at which a stepped effect's value can change
+/// (CSS Easing 1 §2.3), held as arithmetic: each `steps(n)` interval is
+/// its `n + 1` equally spaced points, never listed — a step count may be
+/// anything to `u32::MAX` (CSS Values 4 §5.1), and browsers compute step
+/// positions rather than store them. Each query is O(keyframes), and so
+/// is the memory (C16G-STEPS-CAP).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ChangePoints {
+    /// Single points: the iteration's ends and zero-length intervals.
+    points: Vec<f64>,
+    /// `(start, span, n)`: the points `start + span · k / n`, `k` in
+    /// `0..=n`, `span > 0`.
+    grids: Vec<(f64, f64, u32)>,
+}
+
+impl ChangePoints {
+    /// Only the iteration's ends, 0 and 1.
+    pub(crate) fn ends() -> Self {
+        Self {
+            points: vec![0.0, 1.0],
+            grids: Vec::new(),
+        }
+    }
+
+    /// The smallest point greater than `x`.
+    pub(crate) fn after(&self, x: f64) -> Option<f64> {
+        let singles = self.points.iter().copied().filter(|&p| p > x);
+        let grids = self
+            .grids
+            .iter()
+            .filter_map(|&(a, span, n)| grid_after(a, span, n, x));
+        singles.chain(grids).min_by(f64::total_cmp)
+    }
+
+    /// The largest point less than `x`.
+    pub(crate) fn before(&self, x: f64) -> Option<f64> {
+        let singles = self.points.iter().copied().filter(|&p| p < x);
+        let grids = self
+            .grids
+            .iter()
+            .filter_map(|&(a, span, n)| grid_before(a, span, n, x));
+        singles.chain(grids).max_by(f64::total_cmp)
+    }
+}
+
+/// Point `k` of the grid `(a, span, n)`.
+fn grid_point(a: f64, span: f64, n: u32, k: f64) -> f64 {
+    a + span * k / f64::from(n)
+}
+
+/// The grid's smallest point greater than `x`: the index from the
+/// division, then at most a step or two past rounding.
+fn grid_after(a: f64, span: f64, n: u32, x: f64) -> Option<f64> {
+    let last = f64::from(n);
+    let mut k = ((x - a) / span * last).floor().clamp(-1.0, last) + 1.0;
+    while k <= last {
+        let p = grid_point(a, span, n, k);
+        if p > x {
+            return Some(p);
+        }
+        k += 1.0;
+    }
+    None
+}
+
+/// The grid's largest point less than `x`.
+fn grid_before(a: f64, span: f64, n: u32, x: f64) -> Option<f64> {
+    let last = f64::from(n);
+    let mut k = ((x - a) / span * last).ceil().clamp(0.0, last + 1.0) - 1.0;
+    while k >= 0.0 {
+        let p = grid_point(a, span, n, k);
+        if p < x {
+            return Some(p);
+        }
+        k -= 1.0;
+    }
+    None
+}
+
+#[cfg(test)]
+mod change_point_tests {
+    use super::ChangePoints;
+
+    /// `steps(4)` over `[0.5, 1]`: the points 0.5, 0.625, 0.75, 0.875, 1,
+    /// plus the iteration's ends — found without listing them.
+    #[test]
+    fn a_grid_answers_its_neighbours() {
+        let mut c = ChangePoints::ends();
+        c.grids.push((0.5, 0.5, 4));
+        assert_eq!(c.after(0.0), Some(0.5));
+        assert_eq!(c.after(0.5), Some(0.625));
+        assert_eq!(c.after(0.7), Some(0.75));
+        assert_eq!(c.after(1.0), None);
+        assert_eq!(c.before(0.625), Some(0.5));
+        assert_eq!(c.before(0.6), Some(0.5));
+        assert_eq!(c.before(0.5), Some(0.0));
+        assert_eq!(c.before(0.0), None);
+    }
+
+    /// `steps(4294967295)`: a neighbour one step away, at once.
+    #[test]
+    fn a_huge_grid_answers_in_constant_time() {
+        let mut c = ChangePoints::ends();
+        c.grids.push((0.0, 1.0, u32::MAX));
+        let step = 1.0 / f64::from(u32::MAX);
+        let next = c.after(0.5).unwrap();
+        assert!(next > 0.5 && next - 0.5 <= step * 1.01, "{next}");
+        let prev = c.before(0.5).unwrap();
+        assert!(prev < 0.5 && 0.5 - prev <= step * 1.01, "{prev}");
     }
 }

@@ -13,6 +13,7 @@
 use std::time::{Duration, Instant};
 
 use super::CssAnimation;
+use super::effect::ChangePoints;
 use super::timing::Phase;
 use crate::style::AnimationTimeline;
 
@@ -62,7 +63,7 @@ impl CssAnimation {
         match self.timing.phase(last) {
             Phase::After => None,
             Phase::Before => Some(self.at(self.timing.delay.max(0.0))),
-            Phase::Active => Some(self.at(self.next_boundary(last, &[0.0, 1.0]))),
+            Phase::Active => Some(self.at(self.next_boundary(last, &ChangePoints::ends()))),
         }
     }
 
@@ -75,7 +76,7 @@ impl CssAnimation {
     /// which the directed progress reaches one of `points` — in the
     /// current iteration, reversed in a backwards one — or the iteration
     /// ends; never past the end of the active interval.
-    fn next_boundary(&self, last: f64, points: &[f64]) -> f64 {
+    fn next_boundary(&self, last: f64, points: &ChangePoints) -> f64 {
         let timing = &self.timing;
         let end = timing.delay + timing.active_duration();
         if timing.duration <= 0.0 {
@@ -84,13 +85,20 @@ impl CssAnimation {
         let active = last - timing.delay;
         let iteration = (active / timing.duration).floor();
         let start = timing.delay + iteration * timing.duration;
-        let forwards = timing.forwards(iteration);
-        let next = points
-            .iter()
-            .map(|&p| start + timing.duration * if forwards { p } else { 1.0 - p })
-            .filter(|&t| t > last + EPSILON)
-            .fold(start + timing.duration, f64::min);
-        next.min(end)
+        // The directed progress a boundary must pass: one at `start +
+        // duration · p` (forwards) or `· (1 − p)` (backwards) is due
+        // after `last` when past this.
+        let past = (last + EPSILON - start) / timing.duration;
+        let next = if timing.forwards(iteration) {
+            points.after(past).map(|p| start + timing.duration * p)
+        } else {
+            points
+                .before(1.0 - past)
+                .map(|p| start + timing.duration * (1.0 - p))
+        };
+        next.unwrap_or(start + timing.duration)
+            .min(start + timing.duration)
+            .min(end)
     }
 
     /// The instant local time `ms` falls at, rounded up to the
