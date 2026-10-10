@@ -264,6 +264,8 @@ The DOM API is Rust-shaped rather than JS-shaped. The semantics match WHATWG DOM
 - **No `nav-up` / `nav-down` / `nav-left` / `nav-right`, by decision.** CSS UI 4 marks the directional-focus properties at risk and no browser ships them; focus moves by sequential navigation (Tab / Shift-Tab) and the built-ins' own arrow keys. The properties are unknown and dropped with a warning.
 - **`pointer-events` supports `auto` and `none` only.** The SVG-era values (`visiblePainted`, `stroke`, …) have no cell-grid meaning and are invalid. `none` falls through to what is beneath and `auto` descendants are hittable, as on the web.
 
+- **A bracketed paste is capped at 1 MiB, and Ctrl+C ends one** (C16G-HARDENING). The paste protocol (`CSI 200 ~ … CSI 201 ~`) sets no size and takes any byte as text; rdom's reader delivers at most 1 MiB of a paste and discards the rest to the end marker, so an unterminated paste cannot grow without bound, and reads an ETX byte (Ctrl+C) as ending the paste — the text before it delivered, the Ctrl+C a key — so a broken paste cannot swallow the interrupt. Terminals take control bytes out of what they paste, so a real paste holds no ETX.
+
 ### ARIA tree (no `<tree>` element on the web)
 
 The web platform has no tree element — trees are built from `role="tree"` / `role="treeitem"` / `role="group"` on `<ul>` / `<li>`. rdom ships that pattern as a native built-in (`runtime::builtins::tree` + UA rules), which means it acts on `role` and `aria-*` where the web platform treats them as accessibility metadata only:

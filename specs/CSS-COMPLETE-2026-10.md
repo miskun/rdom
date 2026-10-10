@@ -11315,3 +11315,12 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `CustomValue`, `TuiColor` and `ColorDepth` (rdom-tui's `AppHandle` already had one) — red at first compile:
   ``OnceCell<RuleIndex>` cannot be shared between threads safely``, `Stylesheet`'s lazily built rule index. Root
   fix: a `std::sync::OnceLock`, so a parsed sheet is `Sync` (shared behind an `Arc`); green after.
+- 2026-10-10 — C16G-HARDENING 2/3 (Phase 16 gate architect N10: the bracketed paste). Found: `csi::paste` held a
+  paste `Pending` until `CSI 201 ~`, so a paste that never ended buffered every later byte without bound and
+  swallowed Ctrl+C. Fix, after the reader's OSC cap pattern (`string::MAX_LEN` and its `Discard`): a paste past
+  `MAX_PASTE_LEN` (1 MiB) is delivered capped (cut at a UTF-8 boundary, a trailing start of the end marker not
+  counted) and the rest discarded without buffering to its end marker (`PasteDiscard`); and an ETX byte ends an open
+  paste — before the cap or in the discard — delivering the text before it and reading Ctrl+C again (terminals take
+  control bytes out of pastes, so a real one holds none; DIVERGENCES §2). Red:
+  `parse::tests::an_overlong_paste_is_capped_and_discarded_to_its_end` read a 1 048 586-byte paste,
+  `ctrl_c_ends_an_open_paste` nothing at all; green after, the reader's corpus unchanged.

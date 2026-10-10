@@ -309,6 +309,45 @@ fn bracketed_paste() {
     );
 }
 
+/// C16G-HARDENING: a paste longer than `MAX_PASTE_LEN` — an
+/// unterminated one included — is delivered capped, and the rest of it
+/// discarded to its end marker, as an over-long command string is: the
+/// reader never buffers without bound.
+#[test]
+fn an_overlong_paste_is_capped_and_discarded_to_its_end() {
+    let mut bytes = b"\x1b[200~".to_vec();
+    bytes.extend(std::iter::repeat_n(b'a', csi::MAX_PASTE_LEN + 10));
+    bytes.extend(b"\x1b[201~x");
+    let got = inputs(&[&bytes]);
+    let [Input::Event(Event::Paste(text)), Input::Event(after)] = &got[..] else {
+        panic!("{} inputs", got.len());
+    };
+    assert_eq!(text.len(), csi::MAX_PASTE_LEN);
+    assert_eq!(
+        *after,
+        event(b"x"),
+        "the rest discarded, then input as usual"
+    );
+}
+
+/// Ctrl+C (ETX) is never paste text — terminals take control bytes out of
+/// what they paste — so it ends an open paste, which is delivered, and is
+/// read again as Ctrl+C: an unterminated paste cannot swallow it, before
+/// the cap or in the discard after it.
+#[test]
+fn ctrl_c_ends_an_open_paste() {
+    let ctrl_c = event(b"\x03");
+    assert_eq!(
+        events(b"\x1b[200~abc\x03"),
+        vec![Event::Paste("abc".into()), ctrl_c.clone()]
+    );
+    let mut bytes = b"\x1b[200~".to_vec();
+    bytes.extend(std::iter::repeat_n(b'a', csi::MAX_PASTE_LEN + 10));
+    bytes.extend(b"\x03");
+    let got = inputs(&[&bytes]);
+    assert!(matches!(&got[..], [Input::Event(Event::Paste(_)), Input::Event(e)] if *e == ctrl_c));
+}
+
 #[test]
 fn focus_events() {
     assert_eq!(event(b"\x1b[I"), Event::FocusGained);

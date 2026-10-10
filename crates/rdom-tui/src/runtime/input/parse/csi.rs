@@ -20,6 +20,9 @@ use super::{Input, Step, keys, mouse};
 const PASTE_START: &[u8] = b"\x1b[200~";
 const PASTE_END: &[u8] = b"\x1b[201~";
 
+/// The longest paste delivered, in bytes (C16G-HARDENING).
+pub(super) const MAX_PASTE_LEN: usize = 1 << 20;
+
 /// Parse a buffer that starts `ESC [`.
 pub(super) fn parse(buf: &[u8]) -> Step {
     let Some(&first) = buf.get(2) else {
@@ -113,12 +116,90 @@ fn private(params: &[u8], last: u8) -> Step {
     }
 }
 
-/// `CSI 200 ~ text CSI 201 ~`: the text, as one event.
+/// `CSI 200 ~ text CSI 201 ~`: the text, as one event — capped at
+/// [`MAX_PASTE_LEN`] bytes, the rest discarded to the end marker
+/// ([`PasteDiscard`]); and ended by Ctrl+C (ETX), which terminals take
+/// out of what they paste, so an unterminated paste cannot swallow it
+/// (C16G-HARDENING).
 fn paste(buf: &[u8]) -> Step {
+    let body = &buf[PASTE_START.len().min(buf.len())..];
     if buf.len() >= PASTE_START.len() + PASTE_END.len() && buf.ends_with(PASTE_END) {
-        let text = &buf[PASTE_START.len()..buf.len() - PASTE_END.len()];
-        Step::event(Event::Paste(String::from_utf8_lossy(text).into_owned()))
-    } else {
-        Step::Pending
+        return Step::event(paste_event(&body[..body.len() - PASTE_END.len()]));
+    }
+    match body.last() {
+        Some(&ETX) => Step::Done(Some(Input::Event(paste_event(&body[..body.len() - 1]))), 1),
+        _ => {
+            // A trailing start of the end marker is not text yet.
+            let marker = end_marker_prefix(body);
+            if body.len() - marker > MAX_PASTE_LEN {
+                let cut = char_boundary(body, MAX_PASTE_LEN);
+                Step::PasteOverflow(
+                    Input::Event(paste_event(&body[..cut])),
+                    PasteDiscard { matched: marker },
+                )
+            } else {
+                Step::Pending
+            }
+        }
+    }
+}
+
+/// Ctrl+C.
+const ETX: u8 = 0x03;
+
+fn paste_event(text: &[u8]) -> Event {
+    Event::Paste(String::from_utf8_lossy(text).into_owned())
+}
+
+/// How many bytes at the end of `body` start the end marker.
+fn end_marker_prefix(body: &[u8]) -> usize {
+    (1..PASTE_END.len())
+        .rev()
+        .find(|&n| body.ends_with(&PASTE_END[..n]))
+        .unwrap_or(0)
+}
+
+/// The largest UTF-8 character boundary of `text` at or below `at`.
+fn char_boundary(text: &[u8], at: usize) -> usize {
+    (0..=at.min(text.len()))
+        .rev()
+        .find(|&i| i == text.len() || text[i] & 0xc0 != 0x80)
+        .unwrap_or(0)
+}
+
+/// The discard of a paste past [`MAX_PASTE_LEN`]: its bytes are dropped,
+/// without buffering, until its end marker — or a Ctrl+C, which is read
+/// again.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(in crate::runtime::input) struct PasteDiscard {
+    /// How many bytes of the end marker the last bytes matched.
+    matched: usize,
+}
+
+/// What a byte does to a discarded paste.
+#[derive(Debug, PartialEq)]
+pub(super) enum PasteStep {
+    /// Still discarding.
+    Continue(PasteDiscard),
+    /// The paste ended.
+    End,
+    /// The paste ended at a Ctrl+C, read again.
+    Reread(u8),
+}
+
+impl PasteDiscard {
+    /// Feed one byte.
+    pub(super) fn step(self, b: u8) -> PasteStep {
+        if b == ETX {
+            return PasteStep::Reread(b);
+        }
+        if b == PASTE_END[self.matched] {
+            return match self.matched + 1 {
+                n if n == PASTE_END.len() => PasteStep::End,
+                n => PasteStep::Continue(PasteDiscard { matched: n }),
+            };
+        }
+        let matched = usize::from(b == PASTE_END[0]);
+        PasteStep::Continue(PasteDiscard { matched })
     }
 }

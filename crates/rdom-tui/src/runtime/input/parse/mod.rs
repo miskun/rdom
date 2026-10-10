@@ -15,6 +15,9 @@
 //!   kitty graphics APC (`ESC _ G …`) — are consumed; an OSC 11 reply is the background color; one
 //!   past 4 KiB is discarded to its end, and a byte that cannot be in a
 //!   string aborts it and is read again (ECMA-48 §5.6);
+//! - a bracketed paste is delivered capped at 1 MiB, the rest discarded
+//!   to its end marker, and a Ctrl+C ends it and is read again (an
+//!   unterminated paste swallows neither memory nor the interrupt);
 //! - DA1 replies and mode 2031 reports are [`Input`]s, not dropped or
 //!   held;
 //! - a lone `ESC`, `ESC [`, `ESC O` or string introducer (`ESC ]`,
@@ -68,6 +71,9 @@ pub(super) enum Step {
     /// A command string past its length cap: the bytes are dropped, and
     /// the rest of the string is discarded as it arrives.
     Discard,
+    /// A paste past its length cap: the capped paste is delivered, and the
+    /// rest of it discarded as it arrives.
+    PasteOverflow(Input, csi::PasteDiscard),
 }
 
 impl Step {
@@ -99,6 +105,8 @@ pub(crate) struct Parser {
     ready: VecDeque<Input>,
     /// The rest of an over-long command string is being discarded.
     discard: Option<string::Discard>,
+    /// The rest of an over-long paste is being discarded.
+    paste_discard: Option<csi::PasteDiscard>,
 }
 
 impl Parser {
@@ -110,6 +118,14 @@ impl Parser {
     }
 
     fn push(&mut self, byte: u8) {
+        if let Some(discard) = self.paste_discard.take() {
+            match discard.step(byte) {
+                csi::PasteStep::Continue(d) => self.paste_discard = Some(d),
+                csi::PasteStep::End => {}
+                csi::PasteStep::Reread(b) => self.push(b),
+            }
+            return;
+        }
         if let Some(discard) = self.discard {
             self.discard = None;
             match discard.step(byte) {
@@ -131,6 +147,11 @@ impl Parser {
             Step::Discard => {
                 self.buf.clear();
                 self.discard = Some(string::Discard::START);
+            }
+            Step::PasteOverflow(input, discard) => {
+                self.buf.clear();
+                self.ready.push_back(input);
+                self.paste_discard = Some(discard);
             }
             Step::Done(input, unread) => {
                 let tail = self.buf.split_off(self.buf.len() - unread);
@@ -169,7 +190,7 @@ impl Parser {
     /// True while the buffer holds the start of an escape sequence (a
     /// reply that has begun arriving, say).
     pub(crate) fn in_sequence(&self) -> bool {
-        self.discard.is_some() || self.buf.first() == Some(&ESC)
+        self.discard.is_some() || self.paste_discard.is_some() || self.buf.first() == Some(&ESC)
     }
 
     /// True while the buffer is a prefix that is also a key by itself —
