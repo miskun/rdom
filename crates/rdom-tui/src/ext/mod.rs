@@ -249,6 +249,11 @@ pub struct TuiExt {
     /// `tree_has_collapse`.
     pub(crate) tree_has_relative_inline: bool,
 
+    /// `true` when the last cascade found this element
+    /// [`MAX_LAYOUT_DEPTH`](crate::MAX_LAYOUT_DEPTH) deep: it skips its
+    /// contents, which are not styled (C16G-DEPTH-CAPS).
+    pub(crate) depth_capped: bool,
+
     /// `true` when this element's own `content` or one of its
     /// pseudo-elements' read a counter (`counter()`), as of its last
     /// cascade: a walk whose counter values moved before it recomputes it.

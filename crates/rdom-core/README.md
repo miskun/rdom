@@ -85,6 +85,11 @@ Full spec-subset matching via `query_selector`, `query_selector_all`,
 | subsequent | `h1 ~ p` |
 | pseudo-classes | `:not(...)`, `:first-child`, `:last-child`, `:only-child`, `:nth-child(2n+1 of .x)`, `:nth-last-child()`, `:nth-of-type()`, `:nth-last-of-type()`, `:first-of-type`, `:last-of-type`, `:only-of-type`, `:empty`, `:root`, `:link`, `:any-link`, `:visited` (never matches), `:lang(de, "*-CH")`, `:dir(rtl)`, `:has(> img, + .note)`, `:hover`, `:active`, `:focus`, `:focus-within` |
 
+Selector arguments nest at most `selectors::MAX_SELECTOR_NESTING` (32)
+deep, and a nested rule's `&` expansions grow a selector to at most
+`selectors::MAX_SELECTOR_SIZE` (4096) simple selectors; past either the
+selector is invalid, so no selector text overflows the stack or memory.
+
 Pseudo-elements (`::before`, `::after`) are recognized as selector
 suffixes; they're extracted before parsing and delivered to
 rdom-tui's cascade separately. Core doesn't know what a

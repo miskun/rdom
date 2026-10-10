@@ -319,44 +319,52 @@ fn is_rendered(dom: &TuiDom, id: NodeId) -> bool {
         .is_none_or(|c| c.display != crate::layout::Display::None)
 }
 
+/// The tab-order walk from `root`, in document order (pre-order) with
+/// an explicit stack: a DOM may be any depth (C16G-DEPTH-CAPS).
 fn collect(
     dom: &TuiDom,
-    id: NodeId,
+    root: NodeId,
     positive: &mut Vec<(i32, usize, NodeId)>,
     zero: &mut Vec<(usize, NodeId)>,
     order: &mut usize,
 ) {
-    // A `display: none` subtree is not rendered: nothing in it is a
-    // focusable area, however the descendants are styled. An `inert` one
-    // has none either (HTML §6.3.1) — the walk's root, a modal dialog,
-    // escapes its own attribute.
-    if !is_rendered(dom, id) || (*order > 0 && dom.node(id).has_attribute("inert")) {
-        return;
-    }
-    *order += 1;
-    let current_order = *order;
-    // A `visibility: hidden` element is not rendered visibly, so not
-    // focusable (`is_rendered_and_visible`); its subtree is still walked
-    // — a `visible` descendant is (CSS Display 3 §4).
-    let tab = renders_visibly(dom, id)
-        .then(|| rendered_tab_index(dom, id))
-        .flatten();
-    if let Some(t) = tab {
-        if t > 0 {
-            positive.push((t, current_order, id));
-        } else if t == 0 {
-            zero.push((current_order, id));
+    let mut stack = vec![root];
+    while let Some(id) = stack.pop() {
+        // A `display: none` subtree is not rendered: nothing in it is a
+        // focusable area, however the descendants are styled. An `inert`
+        // one has none either (HTML §6.3.1) — the walk's root, a modal
+        // dialog, escapes its own attribute.
+        if !is_rendered(dom, id) || (*order > 0 && dom.node(id).has_attribute("inert")) {
+            continue;
         }
-        // t < 0: skip — not tab-reachable.
-    }
-    // CSS Containment 2 §4: skipped contents (`content-visibility:
-    // hidden`, a closed `<details>`'s slot) hold no focusable area; an
-    // off-screen `auto` element's stay in the tab order.
-    for child in dom.node(id).child_nodes() {
-        let child = child.id();
-        if !crate::node::in_skipped_contents(dom, id, child, SkippedFor::Features) {
-            collect(dom, child, positive, zero, order);
+        *order += 1;
+        let current_order = *order;
+        // A `visibility: hidden` element is not rendered visibly, so not
+        // focusable (`is_rendered_and_visible`); its subtree is still
+        // walked — a `visible` descendant is (CSS Display 3 §4).
+        let tab = renders_visibly(dom, id)
+            .then(|| rendered_tab_index(dom, id))
+            .flatten();
+        if let Some(t) = tab {
+            if t > 0 {
+                positive.push((t, current_order, id));
+            } else if t == 0 {
+                zero.push((current_order, id));
+            }
+            // t < 0: skip — not tab-reachable.
         }
+        // CSS Containment 2 §4: skipped contents (`content-visibility:
+        // hidden`, a closed `<details>`'s slot) hold no focusable area;
+        // an off-screen `auto` element's stay in the tab order. Pushed
+        // last child first, so the first is walked next.
+        let from = stack.len();
+        stack.extend(
+            dom.node(id)
+                .child_nodes()
+                .map(|c| c.id())
+                .filter(|&c| !crate::node::in_skipped_contents(dom, id, c, SkippedFor::Features)),
+        );
+        stack[from..].reverse();
     }
 }
 

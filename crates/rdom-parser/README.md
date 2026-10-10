@@ -44,6 +44,7 @@ let children = parse_into(&mut dom, "<h1>Title</h1><p>Body</p>", body)?;
 - Comments: `<!-- … -->` preserved as Comment nodes; `<?…>` and non-DOCTYPE `<!…>` become Comment nodes too
 - `<!DOCTYPE …>` is skipped
 - Full UTF-8: CJK, emoji, ZWJ sequences, combining marks all preserved correctly
+- Any nesting depth, with no recursion: elements attach at most `MAX_TREE_DEPTH` (512) below the mount, as Blink's and WebKit's parsers cap the tree — a node that would sit deeper goes to its parent's parent, so a hostile nest's tail becomes siblings in document order
 
 ## Not supported
 

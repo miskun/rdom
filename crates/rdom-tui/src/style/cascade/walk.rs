@@ -154,6 +154,7 @@ pub(super) fn cascade_subtree<'a>(
         };
         let mut flags = SubtreeFlags::default();
         let mut child = first_child(dom, id);
+        scratch.depth += 1;
         while let Some(c) = child {
             flags.merge(cascade_subtree(
                 dom,
@@ -166,6 +167,7 @@ pub(super) fn cascade_subtree<'a>(
             ));
             child = next_sibling(dom, c);
         }
+        scratch.depth -= 1;
         counters.exit(id);
         return flags;
     }
@@ -191,7 +193,11 @@ pub(super) fn cascade_subtree<'a>(
         has_relative_inline: styled.computed.position == crate::layout::Position::Relative
             && styled.computed.display == crate::layout::Display::Inline,
     };
-    let mut child = first_child(dom, id);
+    // At the depth cap the element skips its contents: they stay
+    // unstyled (C16G-DEPTH-CAPS).
+    let capped = super::depth::mark_depth(dom, id, scratch.depth);
+    let mut child = if capped { None } else { first_child(dom, id) };
+    scratch.depth += 1;
     while let Some(c) = child {
         // A `<details>` element's content inherits from its
         // `::details-content` slot.
@@ -207,6 +213,7 @@ pub(super) fn cascade_subtree<'a>(
         ));
         child = next_sibling(dom, c);
     }
+    scratch.depth -= 1;
     // A kept child leaves its own reads behind: only `::after`'s count.
     counters.take_read();
     super::finish::finish_element(dom, sheets, id, styled, flags, counters, scratch)
@@ -484,9 +491,11 @@ fn replay_kept<'a>(
     // Its own ops were applied computing it.
     let ops = StoredOps::pseudos_of(dom, id);
     let mut flags = SubtreeFlags::stored(dom, id);
-    if counters.is_changed() && flags.has_counters {
+    let capped = super::depth::mark_depth(dom, id, scratch.depth);
+    if counters.is_changed() && flags.has_counters && !capped {
         counters.replay_element(parent_id, id, &ops, |counters| {
             let mut child = first_child(dom, id);
+            scratch.depth += 1;
             while let Some(c) = child {
                 if takes_part(dom, c) {
                     let slot = super::details::inherited_style(dom, id, c);
@@ -497,6 +506,7 @@ fn replay_kept<'a>(
                 }
                 child = next_sibling(dom, c);
             }
+            scratch.depth -= 1;
         });
     } else {
         counters.replay_element(parent_id, id, &ops, |c| c.replay_children(dom, id));

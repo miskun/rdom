@@ -104,6 +104,7 @@ mod colors;
 pub(crate) mod conditions;
 pub(crate) mod container;
 mod decoration;
+mod depth;
 pub(crate) mod details;
 mod early_pseudos;
 mod element;

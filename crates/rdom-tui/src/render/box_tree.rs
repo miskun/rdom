@@ -41,6 +41,20 @@ use crate::node::TuiNodeExt;
 #[path = "box_tree_tests.rs"]
 mod tests;
 
+/// How deep the box tree goes: an element this many levels below the
+/// root skips its contents — nothing below it is styled, laid out,
+/// painted or hit — so every pass that recurses over the box tree (the
+/// cascade, layout, intrinsic sizing, paint, hit testing) is bounded
+/// whatever the DOM's depth (C16G-DEPTH-CAPS). Engines stop at a fixed
+/// depth for the same reason — Gecko reflows no frame nested deeper than
+/// its `MAX_REFLOW_DEPTH` (200), and the HTML parsers build trees at most
+/// 512 deep (as `rdom_parser::MAX_TREE_DEPTH` does). 128 is four times the
+/// depth Lighthouse already calls excessive (32), and keeps a debug
+/// build's deepest layout (nested grids, 10–14 KB of stack a level) inside
+/// a 2 MiB thread. Depth counts every node from the root: the root
+/// fragment is 0, its children 1.
+pub const MAX_LAYOUT_DEPTH: usize = 128;
+
 /// Count a child node a box-tree walk looks at (tests only).
 fn visit() {
     #[cfg(test)]

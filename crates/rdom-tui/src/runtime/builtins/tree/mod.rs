@@ -233,30 +233,28 @@ fn visible_items(dom: &TuiDom, tree: NodeId) -> Vec<NodeId> {
     out
 }
 
+/// Pre-order with an explicit stack of the item lists being read: a
+/// tree may nest to any depth (C16G-DEPTH-CAPS).
 fn collect_visible(dom: &TuiDom, container: NodeId, out: &mut Vec<NodeId>) {
-    for item in treeitem_children(dom, container) {
+    let mut stack = vec![treeitem_children(dom, container).into_iter()];
+    while let Some(items) = stack.last_mut() {
+        let Some(item) = items.next() else {
+            stack.pop();
+            continue;
+        };
         out.push(item);
         if is_expanded(dom, item)
             && let Some(group) = child_group(dom, item)
         {
-            collect_visible(dom, group, out);
+            stack.push(treeitem_children(dom, group).into_iter());
         }
     }
 }
 
 fn active(dom: &TuiDom, tree: NodeId) -> Option<NodeId> {
-    fn walk(dom: &TuiDom, id: NodeId) -> Option<NodeId> {
-        for child in dom.node(id).child_nodes() {
-            if child.has_attribute(ACTIVE_ATTR) {
-                return Some(child.id());
-            }
-            if let Some(found) = walk(dom, child.id()) {
-                return Some(found);
-            }
-        }
-        None
-    }
-    walk(dom, tree)
+    // Iterative: a DOM may be any depth (C16G-DEPTH-CAPS).
+    dom.descendants(tree)
+        .find(|&n| dom.node(n).has_attribute(ACTIVE_ATTR))
 }
 
 fn is_branch(dom: &TuiDom, item: NodeId) -> bool {

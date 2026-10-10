@@ -23,10 +23,10 @@ use rdom_core::{DocumentPosition, Dom, NodeId};
 
 use super::PropertyRegistry;
 use super::counters::{CounterState, StoredOps, takes_part};
+use super::depth::cascade_root;
 use super::registered::document_registry;
 use super::walk::{
-    Mode, Scratch, Sheets, SubtreeFlags, cascade_subtree, first_child, merge_root_vars,
-    next_sibling,
+    Mode, Scratch, Sheets, SubtreeFlags, first_child, merge_root_vars, next_sibling,
 };
 use crate::ext::TuiExt;
 use crate::style::{ComputedStyle, Stylesheet, TuiStyle, VarMap};
@@ -104,7 +104,7 @@ fn walk_with<'a>(
     let mut cascade_alone = |dom: &mut Dom<TuiExt>, root: NodeId| {
         let parent_computed = parent_computed_for(dom, root, merged_vars);
         let mut counters = CounterState::default();
-        let flags = cascade_subtree(
+        let flags = cascade_root(
             dom,
             sheets,
             root,
@@ -243,7 +243,7 @@ impl Ordered<'_, '_> {
         let pending = self.next < self.roots.len();
         if pending && id == self.roots[self.next] {
             let parent_computed = parent_computed_for(dom, id, self.merged_vars);
-            let flags = cascade_subtree(
+            let flags = cascade_root(
                 dom,
                 self.sheets,
                 id,
@@ -288,7 +288,7 @@ impl Ordered<'_, '_> {
             // It may read a counter whose value moved: restyle it. No
             // selector's result changed for it, so its matches stand.
             let parent_computed = parent_computed_for(dom, id, self.merged_vars);
-            let flags = cascade_subtree(
+            let flags = cascade_root(
                 dom,
                 self.sheets,
                 id,

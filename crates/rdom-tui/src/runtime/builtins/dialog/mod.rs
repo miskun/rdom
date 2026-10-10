@@ -184,19 +184,9 @@ fn is_inside(dom: &TuiDom, id: NodeId, ancestor: NodeId) -> bool {
 /// First focusable element in document order strictly inside `root`,
 /// a dialog just opened (`tabindex::is_focusable_in_opened`).
 fn first_focusable_in(dom: &TuiDom, root: NodeId) -> Option<NodeId> {
-    fn walk(dom: &TuiDom, id: NodeId, root: NodeId) -> Option<NodeId> {
-        for child in dom.node(id).child_nodes() {
-            let c = child.id();
-            if crate::runtime::focus::tabindex::is_focusable_in_opened(dom, c, root) {
-                return Some(c);
-            }
-            if let Some(found) = walk(dom, c, root) {
-                return Some(found);
-            }
-        }
-        None
-    }
-    walk(dom, root, root)
+    // Iterative: a DOM may be any depth (C16G-DEPTH-CAPS).
+    dom.descendants(root)
+        .find(|&c| crate::runtime::focus::tabindex::is_focusable_in_opened(dom, c, root))
 }
 
 /// The open modal dialog that currently owns interaction, if any:

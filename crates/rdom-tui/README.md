@@ -342,6 +342,14 @@ the `TuiEvent::keydown` / `keyup` / `keypress` / `click` / mouse /
 - `MutationObserver` is the invalidation mechanism. `DirtyTracker` is
   *one* observer; future devtools / a11y mirrors / reactive bindings
   can register their own without touching the cascade code.
+- Bounded against hostile values and hostile depth: no CSS, markup or
+  DOM can overflow the stack. The box tree stops at
+  `rdom_tui::MAX_LAYOUT_DEPTH` (128) — the element that deep skips its
+  contents, which are not styled, laid out, painted or hit — so every
+  pass that recurses over it is bounded, and every walk over the whole
+  DOM is iterative. The parsers cap their own nesting (rdom-css's
+  `MAX_BLOCK_DEPTH`, rdom-core's `MAX_SELECTOR_NESTING`, rdom-parser's
+  `MAX_TREE_DEPTH`); `specs/DIVERGENCES.md` §2 lists every cap.
 
 ## Examples
 

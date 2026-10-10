@@ -137,29 +137,15 @@ pub fn associated_control(dom: &TuiDom, label: NodeId) -> Option<NodeId> {
     find_labelable_descendant(dom, label)
 }
 
+// Iterative walks: a DOM may be any depth (C16G-DEPTH-CAPS).
 fn find_by_id(dom: &TuiDom, root: NodeId, needle: &str) -> Option<NodeId> {
-    if dom.node(root).get_attribute("id") == Some(needle) {
-        return Some(root);
-    }
-    for child in dom.node(root).child_nodes() {
-        if let Some(found) = find_by_id(dom, child.id(), needle) {
-            return Some(found);
-        }
-    }
-    None
+    std::iter::once(root)
+        .chain(dom.descendants(root))
+        .find(|&n| dom.node(n).get_attribute("id") == Some(needle))
 }
 
 fn find_labelable_descendant(dom: &TuiDom, start: NodeId) -> Option<NodeId> {
-    for child in dom.node(start).child_nodes() {
-        let id = child.id();
-        if is_labelable(dom, id) {
-            return Some(id);
-        }
-        if let Some(found) = find_labelable_descendant(dom, id) {
-            return Some(found);
-        }
-    }
-    None
+    dom.descendants(start).find(|&n| is_labelable(dom, n))
 }
 
 /// HTML living-standard "labelable element" list.

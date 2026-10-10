@@ -73,13 +73,12 @@ pub fn seed_all(dom: &mut TuiDom) {
     }
 }
 
+/// Iterative: a DOM may be any depth (C16G-DEPTH-CAPS).
 fn collect_selects(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
-    for child in dom.node(id).child_nodes() {
-        if child.tag_name() == Some("select") {
-            out.push(child.id());
-        }
-        collect_selects(dom, child.id(), out);
-    }
+    out.extend(
+        dom.descendants(id)
+            .filter(|&n| dom.node(n).tag_name() == Some("select")),
+    );
 }
 
 /// Capture `opt`'s current `selected` attribute as its `defaultSelected`

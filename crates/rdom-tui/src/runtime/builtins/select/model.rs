@@ -91,11 +91,21 @@ pub fn options(dom: &TuiDom, select: NodeId) -> Vec<NodeId> {
     out
 }
 
+/// In document order, through `<optgroup>`s nested to any depth, with
+/// no recursion (C16G-DEPTH-CAPS): an explicit stack of the child lists
+/// being read.
 fn walk_options(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
-    for child in dom.node(id).child_nodes() {
-        match child.tag_name() {
-            Some("option") => out.push(child.id()),
-            Some("optgroup") => walk_options(dom, child.id(), out),
+    let first = |n: NodeId| dom.node(n).first_child().map(|c| c.id());
+    let mut stack = vec![first(id)];
+    while let Some(slot) = stack.last_mut() {
+        let Some(child) = *slot else {
+            stack.pop();
+            continue;
+        };
+        *slot = dom.node(child).next_sibling().map(|n| n.id());
+        match dom.node(child).tag_name() {
+            Some("option") => out.push(child),
+            Some("optgroup") => stack.push(first(child)),
             _ => {}
         }
     }

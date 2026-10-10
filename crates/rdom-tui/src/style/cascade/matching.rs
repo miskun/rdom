@@ -51,6 +51,10 @@ pub(super) struct Scratch<'a> {
     /// whose trailing pseudo-classes do not hold (`::first-letter:hover`
     /// off the letter): the pseudo-element exists, unstyled by it.
     pub(super) gated: bool,
+    /// How deep below the root the walk is (`walk::cascade_root`): an
+    /// element [`MAX_LAYOUT_DEPTH`](crate::MAX_LAYOUT_DEPTH) deep keeps
+    /// its children unstyled (C16G-DEPTH-CAPS).
+    pub(super) depth: usize,
     /// The last collect matched a rule under an `@container`: its
     /// condition was tested against the element's query container, which
     /// a replay of the matches would not test again (`MatchedRules::reads_containers`).

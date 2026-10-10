@@ -123,8 +123,8 @@ pub use rdom_style::conditional::{Contrast, MediaList, MediaPreferences, Pointer
 #[cfg(any(test, feature = "test-util"))]
 pub use render::VirtualScreen;
 pub use render::{
-    Backend, Buffer, Cell, CellDiff, CompletedFrame, CrosstermBackend, LayoutExt, PaintExt, Rect,
-    SgrCapabilities, Style, Terminal, TerminalGuard, TestBackend,
+    Backend, Buffer, Cell, CellDiff, CompletedFrame, CrosstermBackend, LayoutExt, MAX_LAYOUT_DEPTH,
+    PaintExt, Rect, SgrCapabilities, Style, Terminal, TerminalGuard, TestBackend,
 };
 /// What [`App::get_animations`] lists (`Element.getAnimations()`, Web
 /// Animations 1 §6.7) and the longhand a transition event names.

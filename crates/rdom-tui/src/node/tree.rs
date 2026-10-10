@@ -166,15 +166,10 @@ pub fn first_text_descendant(
     dom: &rdom_core::Dom<TuiExt>,
     root: rdom_core::NodeId,
 ) -> Option<rdom_core::NodeId> {
-    if dom.node(root).node_type() == NodeType::Text {
-        return Some(root);
-    }
-    for child in dom.node(root).child_nodes() {
-        if let Some(found) = first_text_descendant(dom, child.id()) {
-            return Some(found);
-        }
-    }
-    None
+    // Iterative: a DOM may be any depth (C16G-DEPTH-CAPS).
+    std::iter::once(root)
+        .chain(dom.descendants(root))
+        .find(|&n| dom.node(n).node_type() == NodeType::Text)
 }
 
 /// Last text-node descendant of `root` (inclusive) in document
@@ -185,16 +180,11 @@ pub fn last_text_descendant(
     dom: &rdom_core::Dom<TuiExt>,
     root: rdom_core::NodeId,
 ) -> Option<rdom_core::NodeId> {
-    if dom.node(root).node_type() == NodeType::Text {
-        return Some(root);
-    }
-    let kids: Vec<rdom_core::NodeId> = dom.node(root).child_nodes().map(|c| c.id()).collect();
-    for child in kids.into_iter().rev() {
-        if let Some(found) = last_text_descendant(dom, child) {
-            return Some(found);
-        }
-    }
-    None
+    // Iterative: a DOM may be any depth (C16G-DEPTH-CAPS).
+    std::iter::once(root)
+        .chain(dom.descendants(root))
+        .filter(|&n| dom.node(n).node_type() == NodeType::Text)
+        .last()
 }
 
 /// Byte length of a text node's data. Returns `0` for non-text

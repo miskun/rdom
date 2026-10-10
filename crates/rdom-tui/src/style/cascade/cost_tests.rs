@@ -175,7 +175,9 @@ fn the_direction_rerun_runs_at_most_twice() {
 /// gone before the children start (`walk::style_element` /
 /// `finish_element`). A 400-deep chain — every level a `::before` and a
 /// scroll container's pseudo-elements, the most an element computes —
-/// cascades on a 1 MiB stack.
+/// cascades on a 1 MiB stack, down to the depth cap: the element
+/// [`MAX_LAYOUT_DEPTH`](crate::MAX_LAYOUT_DEPTH) deep is styled, those
+/// below it are not (C16G-DEPTH-CAPS).
 #[test]
 fn a_deep_tree_cascades_on_a_small_stack() {
     std::thread::Builder::new()
@@ -183,14 +185,18 @@ fn a_deep_tree_cascades_on_a_small_stack() {
         .spawn(|| {
             let mut dom: TuiDom = TuiDom::new();
             let mut parent = dom.root();
+            let mut chain = Vec::new();
             for _ in 0..400 {
                 let div = dom.create_element("div");
                 dom.append_child(parent, div).unwrap();
+                chain.push(div);
                 parent = div;
             }
             let css = sheet("div { color: red; overflow: auto } div::before { content: 'x' }");
             dom.cascade(&css);
-            assert!(dom.node(parent).computed().is_some());
+            let at_cap = chain[crate::MAX_LAYOUT_DEPTH - 1];
+            assert!(dom.node(at_cap).computed().is_some());
+            assert!(dom.node(parent).computed().is_none());
         })
         .unwrap()
         .join()

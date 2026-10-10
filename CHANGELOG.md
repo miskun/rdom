@@ -429,6 +429,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-tui`
 
+- **`MAX_LAYOUT_DEPTH` (128)**: the element that deep in the box tree skips its contents — not styled, laid out, painted, hit or focusable — so the cascade, layout, paint and hit testing recurse at most that deep whatever the DOM; the built-ins' whole-DOM walks and the tab order are iterative. A 100 000-deep DOM runs on a 2 MiB stack. (C16G-DEPTH-CAPS)
 - **`InlineFragment::offset()` and `InlineFragment::drawn_at()`**: the move a relatively positioned inline box gives a text fragment, and where it is drawn, as `GeneratedFragment` has for moved pseudo-elements. (ACID-FIX-5)
 - **The Phase 14 / 15 types at the root and in the prelude**: `AnchorDeclarations` and `PositionTryRule` (what `Stylesheet::position_try_rules()` returns) at the root; the prelude names the containment, multi-column, anchor, transform, filter, blending and clipping builders' arguments (`ContainerType`, `ColumnCount`, `PositionArea`, `TryFallback`, `Translate`, `FilterList`, `ClipPath`, `ClipRect`, …) and `Length`. (C15G-API)
 - **`client_rects()` is empty for an element with no box** (CSSOM View §6.1 step 1): `display: none` (its own or an ancestor's), skipped contents, `display: contents`; `InlineLayout::line_at_point(x, row)` (was `line_at`) names why it reads `x`. A wrapped inline box still reports one rect (DIVERGENCES). (C15G-API)

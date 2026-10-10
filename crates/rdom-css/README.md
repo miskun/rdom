@@ -231,6 +231,14 @@ let result = rdom_css::parse(".x { font-weight: ultraviolet }");
 assert_eq!(describe(&result.warnings[0].kind), "font-weight: bad value ultraviolet");
 ```
 
+The parser is bounded against hostile depth as against hostile values:
+blocks — style rules and the block at-rules, counted together — nest at
+most `rdom_css::MAX_BLOCK_DEPTH` (32) deep, and a deeper block is
+skipped whole with `WarningKind::BlockTooDeep`; a conditional prelude
+nests parentheses at most 32 deep, and a selector's arguments 32 deep
+(`rdom_core::selectors::MAX_SELECTOR_NESTING`), its `&` expansions to
+4096 simple selectors. No input overflows the stack.
+
 Each `Warning` carries the kind plus line + column. `ParseError`
 (returned by the strict APIs) maps the warning into a smaller
 `ParseErrorKind` enum suitable for fixed terminal error reporting.

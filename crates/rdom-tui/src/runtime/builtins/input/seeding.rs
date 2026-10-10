@@ -122,12 +122,12 @@ fn has_text_child(dom: &TuiDom, id: NodeId) -> bool {
 }
 
 fn walk_by_tag(dom: &TuiDom, id: NodeId, tag: &str, out: &mut Vec<NodeId>) {
-    if dom.node(id).tag_name() == Some(tag) {
-        out.push(id);
-    }
-    for child in dom.node(id).child_nodes() {
-        walk_by_tag(dom, child.id(), tag, out);
-    }
+    // Iterative: a DOM may be any depth (C16G-DEPTH-CAPS).
+    out.extend(
+        std::iter::once(id)
+            .chain(dom.descendants(id))
+            .filter(|&n| dom.node(n).tag_name() == Some(tag)),
+    );
 }
 
 /// Elements inserted (or `<input>`s retyped) since the last flush.

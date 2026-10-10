@@ -223,13 +223,13 @@ fn collect_ranges(dom: &TuiDom) -> Vec<NodeId> {
     out
 }
 
+/// Iterative: a DOM may be any depth (C16G-DEPTH-CAPS).
 fn walk(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
-    if is_range(dom, id) {
-        out.push(id);
-    }
-    for child in dom.node(id).child_nodes() {
-        walk(dom, child.id(), out);
-    }
+    out.extend(
+        std::iter::once(id)
+            .chain(dom.descendants(id))
+            .filter(|&n| is_range(dom, n)),
+    );
 }
 
 fn parse_attr<T: std::str::FromStr>(dom: &TuiDom, id: NodeId, name: &str) -> Option<T> {

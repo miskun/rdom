@@ -11230,3 +11230,27 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   SIZE-1. Red: `nesting_past_the_tree_depth_cap_is_flattened` (100 000 deep, 256 KiB stack) aborted with a stack
   overflow; green after, with `the_flattened_tail_keeps_document_order` (element 511 holds 512…520 then the text)
   and every existing parser test unchanged. `sc-depth-caps` extended.
+- 2026-10-10 — C16G-DEPTH-CAPS 5/5 (Phase 16 gate decision 2, architect B4: layout depth and the policy). Found: the
+  cascade (`walk::cascade_subtree`) recursed once per DOM level, and layout, paint and hit testing once per box-tree
+  level; besides them, the `App`'s whole-DOM walks recursed too — `input::seed_all`'s `walk_by_tag`, the range,
+  select, dialog, tree, label and autofocus scans, `<style>` collection, the tab order, `first_text_descendant` /
+  `last_text_descendant` — so a DOM built 100 000 deep through the API overflowed in `App::with_backend` before any
+  layout. Decision: `MAX_LAYOUT_DEPTH` = 128 (`render::box_tree`, re-exported at the root). The cascade carries its
+  depth (`Scratch::depth`, set from the root's by `cascade::depth::cascade_root`, the entry of every partial walk):
+  the element that deep is styled and marked `TuiExt::depth_capped`, which `skips_contents_for` reads — so the box
+  tree has no children there, as for `content-visibility: hidden`, and every box-tree pass stops — and its contents
+  are left unstyled (a subtree moved below the cap, or a root deeper than it, is unstyled whole, iteratively). Value:
+  Gecko reflows no frame deeper than its `MAX_REFLOW_DEPTH` (200); measured here, a debug build's nested grids take
+  10–14 KB of stack a level (flex and tables about 8, block flow 6), so 200 overflows a 2 MiB test thread and 128 —
+  four times what Lighthouse calls an excessive depth (32) — fits it with room. The whole-DOM walks became
+  iterative (`Dom::descendants`, or an explicit stack where they prune). Red:
+  `runtime::app::depth_tests::a_tree_past_the_layout_cap_is_cut_at_the_cap` (100 000 deep) and
+  `a_tree_to_the_cap_renders_whole` (511 deep, before the value was chosen) aborted with a stack overflow on a 2 MiB
+  thread; green after, with `a_subtree_moved_past_the_cap_is_unstyled_and_back_restyled`. Changed expectation:
+  `cascade::cost_tests::a_deep_tree_cascades_on_a_small_stack` (400 deep on 1 MiB) asserted the 400th element
+  styled; it now asserts the element at the cap styled and the 400th not. The test DOM is built bottom-up: appending
+  to an attached 100 000-deep chain is O(depth) per insertion (DOM §4.2.3's ancestor check), O(n²) top-down. The
+  policy ("bounded against hostile values and hostile depth") is recorded in DESIGN's decision archive, DIVERGENCES
+  §2 (the caps, and the parser's 512 under HTML parsing), TECH_DEBT `DEPTH-1` (what a capped page loses, and the
+  debug-stack budget the layout cap rests on) and the root, rdom-tui, rdom-css, rdom-core and rdom-parser READMEs.
+  Item done (5 commits).

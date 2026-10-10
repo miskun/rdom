@@ -100,16 +100,21 @@ fn collect_style_elements(dom: &TuiDom) -> Vec<NodeId> {
     out
 }
 
-fn walk(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
-    let node = dom.node(id);
-    if node.tag_name() == Some("style") {
-        out.push(id);
-        // No need to recurse into a `<style>` — its children are
-        // text content, not nested elements.
-        return;
-    }
-    for child in node.child_nodes() {
-        walk(dom, child.id(), out);
+/// Pre-order with an explicit stack: a DOM may be any depth
+/// (C16G-DEPTH-CAPS).
+fn walk(dom: &TuiDom, root: NodeId, out: &mut Vec<NodeId>) {
+    let mut stack = vec![root];
+    while let Some(id) = stack.pop() {
+        let node = dom.node(id);
+        if node.tag_name() == Some("style") {
+            out.push(id);
+            // No need to walk into a `<style>` — its children are
+            // text content, not nested elements.
+            continue;
+        }
+        let from = stack.len();
+        stack.extend(node.child_nodes().map(|c| c.id()));
+        stack[from..].reverse();
     }
 }
 

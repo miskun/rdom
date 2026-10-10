@@ -102,6 +102,8 @@ mod control_click_tests;
 #[cfg(test)]
 mod control_seeding_tests;
 #[cfg(test)]
+mod depth_tests;
+#[cfg(test)]
 mod frame_cost_tests;
 #[cfg(test)]
 mod frame_event_order_tests;

@@ -60,13 +60,13 @@ fn collect_options(dom: &TuiDom, root: NodeId) -> Vec<NodeId> {
     out
 }
 
+/// Iterative: a DOM may be any depth (C16G-DEPTH-CAPS).
 fn walk_options(dom: &TuiDom, id: NodeId, out: &mut Vec<NodeId>) {
-    if dom.node(id).tag_name() == Some("option") {
-        out.push(id);
-    }
-    for child in dom.node(id).child_nodes() {
-        walk_options(dom, child.id(), out);
-    }
+    out.extend(
+        std::iter::once(id)
+            .chain(dom.descendants(id))
+            .filter(|&n| dom.node(n).tag_name() == Some("option")),
+    );
 }
 
 pub(super) fn read_scroll_x(dom: &TuiDom, id: NodeId) -> i32 {

@@ -40,6 +40,7 @@ pub(crate) mod visibility;
 
 pub use backend::{Backend, TestBackend};
 pub use backend_crossterm::{CrosstermBackend, enter_tui_mode, leave_tui_mode};
+pub use box_tree::MAX_LAYOUT_DEPTH;
 pub use buffer::Buffer;
 pub use cell::{Cell, CellDiff};
 // `Color` + `Modifier` live in rdom-style as of the M4b mid-stream

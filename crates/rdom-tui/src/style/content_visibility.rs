@@ -117,7 +117,15 @@ pub(crate) enum SkippedFor {
 
 /// Whether `id`, as last cascaded, skips its contents for `who`.
 pub(crate) fn skips_contents_for(dom: &Dom<TuiExt>, id: NodeId, who: SkippedFor) -> bool {
-    let Some(c) = dom.node(id).ext().and_then(|e| e.computed.as_deref()) else {
+    let Some(ext) = dom.node(id).ext() else {
+        return false;
+    };
+    // An element at the box tree's depth cap skips its contents for
+    // everyone (`MAX_LAYOUT_DEPTH`, C16G-DEPTH-CAPS).
+    if ext.depth_capped {
+        return true;
+    }
+    let Some(c) = ext.computed.as_deref() else {
         return false;
     };
     match who {

@@ -85,15 +85,10 @@ fn find_autofocus_by(
     id: NodeId,
     focusable: &dyn Fn(&TuiDom, NodeId) -> bool,
 ) -> Option<NodeId> {
-    if dom.node(id).has_attribute("autofocus") && focusable(dom, id) {
-        return Some(id);
-    }
-    for child in dom.node(id).child_nodes() {
-        if let Some(target) = find_autofocus_by(dom, child.id(), focusable) {
-            return Some(target);
-        }
-    }
-    None
+    // Iterative: a DOM may be any depth (C16G-DEPTH-CAPS).
+    std::iter::once(id)
+        .chain(dom.descendants(id))
+        .find(|&n| dom.node(n).has_attribute("autofocus") && focusable(dom, n))
 }
 
 #[cfg(test)]
