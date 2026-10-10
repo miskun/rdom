@@ -225,6 +225,82 @@ fn many_siblings() {
     assert_eq!(ids.len(), 200);
 }
 
+/// C16G-DEPTH-CAPS: elements nest at most [`MAX_TREE_DEPTH`] (512) below
+/// the mount — Blink's and WebKit's HTML parsers cap the tree at 512
+/// (`kMaximumHTMLParserDOMTreeDepth`): a node that would sit deeper is
+/// attached to its parent's parent instead, so the deep tail becomes
+/// siblings in document order and nothing is lost. The parser keeps its
+/// open elements in a list, not on the call stack: 100 000-deep markup
+/// parses on a 256 KiB thread stack.
+fn on_small_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+    std::thread::Builder::new()
+        .stack_size(256 * 1024)
+        .spawn(f)
+        .expect("spawn")
+        .join()
+        .expect("no stack overflow")
+}
+
+/// The depth of `id` below `root`.
+fn depth_below(dom: &Dom<()>, root: rdom_core::NodeId, id: rdom_core::NodeId) -> usize {
+    let mut depth = 0;
+    let mut cur = id;
+    while cur != root {
+        cur = dom.node(cur).parent_node().unwrap().id();
+        depth += 1;
+    }
+    depth
+}
+
+#[test]
+fn nesting_past_the_tree_depth_cap_is_flattened() {
+    use rdom_parser::MAX_TREE_DEPTH;
+    let (elements, deepest, text) = on_small_stack(|| {
+        let n = 100_000;
+        let src = format!("{}x{}", "<div>".repeat(n), "</div>".repeat(n));
+        let (dom, ids) = parse::<()>(&src).unwrap();
+        let root = dom.root();
+        let all = dom.query_selector_all_in(ids[0], "div").unwrap();
+        let deepest = all
+            .iter()
+            .map(|&d| depth_below(&dom, root, d))
+            .max()
+            .unwrap();
+        (all.len() + 1, deepest, dom.text_content(ids[0]))
+    });
+    assert_eq!(elements, 100_000, "no element lost");
+    assert_eq!(deepest, MAX_TREE_DEPTH);
+    assert_eq!(text, "x");
+}
+
+#[test]
+fn the_flattened_tail_keeps_document_order() {
+    use rdom_parser::MAX_TREE_DEPTH;
+    let n = MAX_TREE_DEPTH + 8;
+    let src: String = (1..=n)
+        .map(|i| format!("<i id=\"e{i}\">"))
+        .collect::<String>()
+        + "x"
+        + &"</i>".repeat(n);
+    let (dom, _) = parse::<()>(&src).unwrap();
+    let holder = dom
+        .get_element_by_id_within(dom.root(), &format!("e{}", MAX_TREE_DEPTH - 1))
+        .unwrap();
+    let kids: Vec<String> = dom
+        .node(holder)
+        .child_nodes()
+        .map(|c| {
+            c.get_attribute("id")
+                .map_or_else(|| "#text".into(), str::to_string)
+        })
+        .collect();
+    let want: Vec<String> = (MAX_TREE_DEPTH..=n)
+        .map(|i| format!("e{i}"))
+        .chain(["#text".to_string()])
+        .collect();
+    assert_eq!(kids, want);
+}
+
 // ─── parse_into under existing tree ──────────────────────────────────
 
 #[test]

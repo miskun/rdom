@@ -11217,3 +11217,16 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   inputs (100 000 deep, 256 KiB stack) aborted with a stack overflow, `nesting_to_the_cap_parses` and
   `ampersand_nesting_counts_against_the_cap` accepted 33 levels, `ampersand_doubling_stops_at_the_size_cap` read
   7167 simple selectors; green after. `sc-depth-caps` extended.
+- 2026-10-10 — C16G-DEPTH-CAPS 4/5 (Phase 16 gate decision 2, architect B4: HTML parse depth; HTML §13.2.6
+  "insert an element", Blink `kMaximumHTMLParserDOMTreeDepth` / WebKit `maximumHTMLParserDOMTreeDepth` = 512). Found:
+  rdom-parser was recursive descent — `parse_element` ↔ `parse_nodes` once per open element — so `<div>`×100 000
+  overflowed the stack. Decision: the browsers' answer, not an error — the open elements are a list (`Open`, no
+  recursion at all), and a node is attached at most `MAX_TREE_DEPTH` = 512 below the mount: past it to its parent's
+  parent, so a hostile nest's tail becomes siblings in document order and nothing is lost; end tags still match their
+  own start tags (the parser stays strict). An element under another is appended when it opens (its parent is still
+  detached, so nothing observes it); a top-level one when it closes, so the mount still gains whole subtrees and its
+  mutation records are unchanged. The rewrite took `parser/mod.rs` to 577 production lines; comments and
+  declarations (`comment.rs`) and RAWTEXT / RCDATA bodies (`raw_text.rs`) split out (moves), leaving 444 — off
+  SIZE-1. Red: `nesting_past_the_tree_depth_cap_is_flattened` (100 000 deep, 256 KiB stack) aborted with a stack
+  overflow; green after, with `the_flattened_tail_keeps_document_order` (element 511 holds 512…520 then the text)
+  and every existing parser test unchanged. `sc-depth-caps` extended.

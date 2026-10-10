@@ -68,4 +68,4 @@ mod parser;
 
 pub use dom_ext::NodeMutHtml;
 pub use error::{ParseError, Result};
-pub use parser::{parse, parse_into};
+pub use parser::{MAX_TREE_DEPTH, parse, parse_into};

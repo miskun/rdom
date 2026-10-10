@@ -388,6 +388,10 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 - **An important declaration beats a later normal one in the same block** (CSS Cascade 4 §6.4): `color: red !important; color: blue` is red; a block applies normal declarations, then important ones, each in source order (shorthands per field, `var()`, custom properties, inline `style`). (C1G-BLOCK-IMPORTANCE)
 - **`@import` cycles and nesting** (CSS Cascade 5 §3): a sheet parsed with its URL is on the cycle stack, a cycle is recognised by the loader's resolved URL, nested relative URLs get their importer as base, and an endless chain stops at `MAX_IMPORT_DEPTH`. (C1G-IMPORT-EDGES)
 
+### Added — `rdom-parser`
+
+- **`MAX_TREE_DEPTH` (512), with no recursion**: elements nest at most 512 below the mount, as Blink's and WebKit's HTML parsers cap the tree — a node that would sit deeper attaches to its parent's parent, so a hostile nest's tail becomes siblings in document order; the open elements are a list, so 100 000-deep markup cannot overflow the stack. (C16G-DEPTH-CAPS)
+
 ### Breaking — `rdom-tui`
 
 - **The document root is the initial containing block, a block container** (CSS 2.1 §10.1): its children lay out in block flow, not as the items of a viewport flex column — no `flex: 1` fill, margins collapse, floats float, inline children share lines. Migration: `height: 100%` (plus `display: flex; flex-direction: column`) on the app's top element; see silent change [`sc-root-block`](UPGRADING-0.6.md#sc-root-block). (C13-ROOT-BLOCK)

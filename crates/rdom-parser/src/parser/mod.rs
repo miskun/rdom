@@ -1,4 +1,5 @@
-//! Recursive-descent HTML-ish parser.
+//! HTML-ish parser: a hand-rolled tokenizer with the open elements in a
+//! list (no recursion), the tree capped at [`MAX_TREE_DEPTH`].
 //!
 //! Consumes a template string, emits `Dom<Ext>` tree under a mount
 //! NodeId. Supports:
@@ -26,10 +27,20 @@
 
 use rdom_core::{Dom, NodeId, is_void_element};
 
-use crate::char_refs::{RefContext, decode_character_references, scan_reference};
+use crate::char_refs::{RefContext, scan_reference};
 use crate::error::{ParseError, Result};
 
 mod attr;
+mod comment;
+mod raw_text;
+
+/// How deep elements nest below the mount: a node that would sit deeper
+/// is attached to its parent's parent instead, so the deep tail of a
+/// hostile nest becomes siblings, in document order (C16G-DEPTH-CAPS).
+/// Blink's and WebKit's HTML parsers cap the tree at the same 512
+/// (`kMaximumHTMLParserDOMTreeDepth` / `maximumHTMLParserDOMTreeDepth`),
+/// for the same reason: every later tree walk is bounded by it.
+pub const MAX_TREE_DEPTH: usize = 512;
 
 /// Parse `template` into a fresh `Dom<Ext>` with a Fragment root. The
 /// returned ids are the top-level children of the fragment.
@@ -63,6 +74,25 @@ where
 }
 
 // ─── Internal parser ────────────────────────────────────────────────
+
+/// What a start tag began.
+enum Started {
+    /// An element complete with its start tag, appended.
+    Whole(NodeId),
+    /// An element whose children and end tag follow, and its lowercase
+    /// tag.
+    Open(NodeId, String),
+}
+
+/// An element whose end tag the parse is waiting for.
+struct Open {
+    element: NodeId,
+    /// Its lowercase tag, which its end tag must match.
+    tag: String,
+    /// Where its children attach and at what depth below the mount: the
+    /// element itself, or — at [`MAX_TREE_DEPTH`] — where it attached.
+    holder: (NodeId, usize),
+}
 
 struct Parser<'a> {
     src: &'a str,
@@ -135,27 +165,45 @@ impl<'a> Parser<'a> {
         ParseError::new(msg, self.line, self.col, self.pos)
     }
 
-    // ── Top-level: parse children of `parent` ─────────────────────
+    // ── Top-level: parse the nodes under the mount ────────────────
 
-    fn parse_nodes<Ext>(&mut self, dom: &mut Dom<Ext>, parent: NodeId) -> Result<Vec<NodeId>>
+    /// Parse nodes into `mount` until the input ends or an end tag closes
+    /// nothing open (left for the caller). The open elements are a list,
+    /// not the call stack — the parse never recurses — and a node is
+    /// attached at most [`MAX_TREE_DEPTH`] below the mount (`Open::holder`).
+    /// An element under another is appended when it opens, as its
+    /// parent is still detached; a top-level one when it closes, so the
+    /// mount gains whole subtrees.
+    fn parse_nodes<Ext>(&mut self, dom: &mut Dom<Ext>, mount: NodeId) -> Result<Vec<NodeId>>
     where
         Ext: Default + 'static,
     {
         let mut out = Vec::new();
+        let mut open: Vec<Open> = Vec::new();
         loop {
+            let (parent, depth) = open.last().map_or((mount, 0), |o| o.holder);
+            let top = open.is_empty();
             if self.eof() {
+                if let Some(o) = open.last() {
+                    return Err(self
+                        .err(format!("missing closing tag for <{}>", o.tag))
+                        .with_hint(format!("add </{}> to close", o.tag)));
+                }
                 break;
             }
             if self.starts_with("</") {
-                // Bubble up to the containing element parser.
-                break;
-            }
-            if self.starts_with("<!--") {
-                let id = self.parse_comment(dom, parent)?;
-                out.push(id);
+                // Nothing open: bubble up to the caller.
+                let Some(o) = open.pop() else { break };
+                self.parse_end_tag(&o.tag)?;
+                if open.is_empty() {
+                    self.append(dom, mount, o.element, &o.tag)?;
+                    out.push(o.element);
+                }
                 continue;
             }
-            if self.starts_with("<!") {
+            let id = if self.starts_with("<!--") {
+                Some(self.parse_comment(dom, parent)?)
+            } else if self.starts_with("<!") {
                 if self.src[self.pos + 2..]
                     .get(..7)
                     .is_some_and(|k| k.eq_ignore_ascii_case("DOCTYPE"))
@@ -163,60 +211,48 @@ impl<'a> Parser<'a> {
                     // `<!DOCTYPE html>`: consumed, no node (rdom has no
                     // DocumentType node — see DIVERGENCES §HTML parsing).
                     self.skip_declaration();
+                    None
                 } else {
                     // Any other `<!…>` is a bogus comment (§13.2.5.42).
-                    let id = self.parse_bogus_comment(dom, parent)?;
-                    out.push(id);
+                    Some(self.parse_bogus_comment(dom, parent)?)
                 }
-                continue;
-            }
-            if self.starts_with("<?") {
+            } else if self.starts_with("<?") {
                 // `<?…>` is a bogus comment (§13.2.5.6 "?" branch).
-                let id = self.parse_bogus_comment(dom, parent)?;
-                out.push(id);
-                continue;
-            }
-            if self.peek() == Some(b'<') && self.peek_at(1).is_some_and(|b| b.is_ascii_alphabetic())
+                Some(self.parse_bogus_comment(dom, parent)?)
+            } else if self.peek() == Some(b'<')
+                && self.peek_at(1).is_some_and(|b| b.is_ascii_alphabetic())
             {
-                let id = self.parse_element(dom, parent)?;
-                out.push(id);
-                continue;
-            }
-            // Plain text until the next tag open. A `<` not followed by
-            // an ASCII letter, `/`, `!`, or `?` is text (§13.2.5.6).
-            let id = self.parse_text(dom, parent)?;
-            if let Some(id) = id {
+                match self.parse_start_tag(dom, parent)? {
+                    Started::Whole(id) => Some(id),
+                    Started::Open(element, tag) => {
+                        if !top {
+                            self.append(dom, parent, element, &tag)?;
+                        }
+                        let holder = if depth + 1 < MAX_TREE_DEPTH {
+                            (element, depth + 1)
+                        } else {
+                            (parent, depth)
+                        };
+                        open.push(Open {
+                            element,
+                            tag,
+                            holder,
+                        });
+                        None
+                    }
+                }
+            } else {
+                // Plain text until the next tag open. A `<` not followed
+                // by an ASCII letter, `/`, `!`, or `?` is text (§13.2.5.6).
+                self.parse_text(dom, parent)?
+            };
+            if let Some(id) = id
+                && top
+            {
                 out.push(id);
             }
         }
         Ok(out)
-    }
-
-    // ── Comment ────────────────────────────────────────────────────
-
-    fn parse_comment<Ext>(&mut self, dom: &mut Dom<Ext>, parent: NodeId) -> Result<NodeId>
-    where
-        Ext: Default + 'static,
-    {
-        // Consume `<!--`.
-        self.advance_n(4);
-        let start = self.pos;
-        loop {
-            if self.eof() {
-                return Err(self
-                    .err("unterminated comment")
-                    .with_hint("missing `-->` closing"));
-            }
-            if self.starts_with("-->") {
-                let data = &self.src[start..self.pos];
-                self.advance_n(3);
-                let id = dom.create_comment(data);
-                dom.append_child(parent, id)
-                    .map_err(|e| self.err(format!("failed to append comment: {:?}", e)))?;
-                return Ok(id);
-            }
-            self.advance();
-        }
     }
 
     // ── Text ───────────────────────────────────────────────────────
@@ -270,114 +306,6 @@ impl<'a> Parser<'a> {
                 .is_some_and(|b| b.is_ascii_alphabetic() || matches!(b, b'/' | b'!' | b'?'))
     }
 
-    /// HTML §13.2.5.41 bogus comment state: everything from just after
-    /// the `<` up to the next `>` becomes a Comment node's data
-    /// (`<?xml version="1.0"?>` → `?xml version="1.0"?`).
-    fn parse_bogus_comment<Ext>(&mut self, dom: &mut Dom<Ext>, parent: NodeId) -> Result<NodeId>
-    where
-        Ext: Default + 'static,
-    {
-        self.advance(); // '<'
-        let start = self.pos;
-        while let Some(b) = self.peek() {
-            if b == b'>' {
-                break;
-            }
-            self.advance();
-        }
-        let data = self.src[start..self.pos].to_string();
-        if self.peek() == Some(b'>') {
-            self.advance();
-        }
-        let id = dom.create_comment(&data);
-        dom.append_child(parent, id)
-            .map_err(|e| self.err(format!("failed to append comment: {:?}", e)))?;
-        Ok(id)
-    }
-
-    /// Consume a `<!DOCTYPE …>` declaration through its closing `>`, or
-    /// to EOF.
-    fn skip_declaration(&mut self) {
-        while let Some(b) = self.advance() {
-            if b == b'>' {
-                return;
-            }
-        }
-    }
-
-    /// Byte offset of the `</tag` (ASCII-case-insensitive, followed by
-    /// whitespace, `/`, or `>`) that ends a RAWTEXT / RCDATA element,
-    /// searching from the cursor. `None` at EOF.
-    fn find_end_tag(&self, tag_lc: &str) -> Option<usize> {
-        let hay = &self.bytes[self.pos..];
-        let needle_len = 2 + tag_lc.len();
-        let mut i = 0;
-        while i + needle_len <= hay.len() {
-            if hay[i] == b'<' && hay[i + 1] == b'/' {
-                let name = &hay[i + 2..i + needle_len];
-                if name.eq_ignore_ascii_case(tag_lc.as_bytes()) {
-                    let after = hay.get(i + needle_len).copied();
-                    if after.is_none_or(|b| b.is_ascii_whitespace() || b == b'>' || b == b'/') {
-                        return Some(self.pos + i);
-                    }
-                }
-            }
-            i += 1;
-        }
-        None
-    }
-
-    /// Parse the body of a RAWTEXT (`<style>`, `<script>`) or RCDATA
-    /// (`<textarea>`, `<title>`) element as a single text node, then
-    /// consume its end tag. RCDATA decodes character references; RAWTEXT
-    /// takes the bytes verbatim (HTML §13.2.5.3–6).
-    fn parse_special_text<Ext>(
-        &mut self,
-        dom: &mut Dom<Ext>,
-        element: NodeId,
-        tag_lc: &str,
-        decode_entities: bool,
-    ) -> Result<()>
-    where
-        Ext: Default + 'static,
-    {
-        let Some(end) = self.find_end_tag(tag_lc) else {
-            return Err(self
-                .err(format!("missing closing tag for <{}>", tag_lc))
-                .with_hint(format!("add </{}> to close", tag_lc)));
-        };
-        let mut raw = &self.src[self.pos..end];
-        // HTML §13.2.6.4.7: a newline immediately after `<textarea>` is
-        // ignored (the same rule HTML applies to `<pre>` / `<listing>`).
-        if tag_lc == "textarea" {
-            raw = raw
-                .strip_prefix("\r\n")
-                .or_else(|| raw.strip_prefix('\n'))
-                .unwrap_or(raw);
-        }
-        let text = if decode_entities {
-            decode_character_references(raw)
-        } else {
-            raw.to_string()
-        };
-        if !text.is_empty() {
-            let id = dom.create_text_node(&text);
-            dom.append_child(element, id)
-                .map_err(|e| self.err(format!("failed to append text: {:?}", e)))?;
-        }
-        // Walk (not jump) so line / column stay right for later errors.
-        self.advance_n(end - self.pos);
-        self.advance_n(2 + tag_lc.len()); // `</tag`
-        self.skip_ws();
-        if self.peek() != Some(b'>') {
-            return Err(self
-                .err(format!("expected `>` in </{}>", tag_lc))
-                .with_hint("no attributes on closing tags"));
-        }
-        self.advance();
-        Ok(())
-    }
-
     // ── Entity ─────────────────────────────────────────────────────
 
     fn parse_entity(&mut self, context: RefContext) -> Result<String> {
@@ -400,7 +328,25 @@ impl<'a> Parser<'a> {
 
     // ── Element ────────────────────────────────────────────────────
 
-    fn parse_element<Ext>(&mut self, dom: &mut Dom<Ext>, parent: NodeId) -> Result<NodeId>
+    /// Append `element` (`<tag>`) to `parent`.
+    fn append<Ext>(
+        &self,
+        dom: &mut Dom<Ext>,
+        parent: NodeId,
+        element: NodeId,
+        tag: &str,
+    ) -> Result<()>
+    where
+        Ext: Default + 'static,
+    {
+        dom.append_child(parent, element)
+            .map_err(|e| self.err(format!("failed to append <{}>: {:?}", tag, e)))
+    }
+
+    /// A start tag through its `>`: an element complete with it — void,
+    /// self-closing, or RAWTEXT / RCDATA with its body and end tag —
+    /// appended to `parent`; or one whose children follow.
+    fn parse_start_tag<Ext>(&mut self, dom: &mut Dom<Ext>, parent: NodeId) -> Result<Started>
     where
         Ext: Default + 'static,
     {
@@ -435,9 +381,8 @@ impl<'a> Parser<'a> {
                             .with_hint("self-closing syntax is `/>`"));
                     }
                     self.advance();
-                    dom.append_child(parent, element)
-                        .map_err(|e| self.err(format!("failed to append <{}>: {:?}", tag_lc, e)))?;
-                    return Ok(element);
+                    self.append(dom, parent, element, &tag_lc)?;
+                    return Ok(Started::Whole(element));
                 }
                 Some(_) => {
                     self.parse_attribute(dom, element)?;
@@ -445,41 +390,21 @@ impl<'a> Parser<'a> {
             }
         }
 
-        // Void tag? Done.
-        if is_void_element(&tag_lc) {
-            dom.append_child(parent, element)
-                .map_err(|e| self.err(format!("failed to append <{}>: {:?}", tag_lc, e)))?;
-            return Ok(element);
-        }
-
         // RAWTEXT / RCDATA elements take their body as one text node
-        // up to their own end tag.
+        // up to their own end tag; a void element has none.
         match tag_lc.as_str() {
-            "style" | "script" => {
-                self.parse_special_text(dom, element, &tag_lc, false)?;
-                dom.append_child(parent, element)
-                    .map_err(|e| self.err(format!("failed to append <{}>: {:?}", tag_lc, e)))?;
-                return Ok(element);
-            }
-            "textarea" | "title" => {
-                self.parse_special_text(dom, element, &tag_lc, true)?;
-                dom.append_child(parent, element)
-                    .map_err(|e| self.err(format!("failed to append <{}>: {:?}", tag_lc, e)))?;
-                return Ok(element);
-            }
-            _ => {}
+            t if is_void_element(t) => {}
+            "style" | "script" => self.parse_special_text(dom, element, &tag_lc, false)?,
+            "textarea" | "title" => self.parse_special_text(dom, element, &tag_lc, true)?,
+            _ => return Ok(Started::Open(element, tag_lc)),
         }
+        self.append(dom, parent, element, &tag_lc)?;
+        Ok(Started::Whole(element))
+    }
 
-        // Parse children, then expect </tag>.
-        self.parse_nodes(dom, element)?;
-
-        if !self.starts_with("</") {
-            return Err(self
-                .err(format!("missing closing tag for <{}>", tag_lc))
-                .with_hint(format!("add </{}> to close", tag_lc)));
-        }
+    /// The end tag `</tag>` of the open element `tag`, at the cursor.
+    fn parse_end_tag(&mut self, tag_lc: &str) -> Result<()> {
         self.advance_n(2); // '</'
-
         let close_tag = self.parse_tag_name()?;
         if close_tag.to_ascii_lowercase() != tag_lc {
             return Err(self
@@ -496,10 +421,7 @@ impl<'a> Parser<'a> {
                 .with_hint("no attributes on closing tags"));
         }
         self.advance();
-
-        dom.append_child(parent, element)
-            .map_err(|e| self.err(format!("failed to append <{}>: {:?}", tag_lc, e)))?;
-        Ok(element)
+        Ok(())
     }
 
     fn parse_tag_name(&mut self) -> Result<String> {

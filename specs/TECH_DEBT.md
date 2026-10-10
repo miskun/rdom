@@ -15,14 +15,13 @@ For the durable architectural divergences (web-platform departures shipped on pu
   | `rdom-style/src/property_dispatch/logical.rs` | 525 |
   | `render/virtual_screen/tests/terminal.rs` (test code the rule counts by name) | 524 |
   | `rdom-core/src/dispatch.rs` | 522 / 1290 |
-  | `rdom-parser/src/parser/mod.rs` | 522 / 1025 |
   | `runtime/builtins/form/mod.rs` | 522 |
   | `runtime/app/mod.rs` | 521 |
   | `runtime/editing/perform/mod.rs` | 520 |
   | `rdom-style/src/property_dispatch/set.rs` | 507 |
   | `style/cascade/matching.rs` | 506 / 526 |
   | `runtime/router/mouse/mod.rs` | 506 |
-  | `rdom-core/src/selectors/mod.rs` | 505 |
+  | `rdom-core/src/selectors/mod.rs` | 509 |
   | `render/inline/packer/mod.rs` | 503 |
   | `style/cascade/walk.rs` | 502 / 516 |
   | `style/dirty_tracker/mod.rs` | 500 |
