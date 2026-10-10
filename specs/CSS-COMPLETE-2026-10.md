@@ -11324,3 +11324,18 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   control bytes out of pastes, so a real one holds none; DIVERGENCES §2). Red:
   `parse::tests::an_overlong_paste_is_capped_and_discarded_to_its_end` read a 1 048 586-byte paste,
   `ctrl_c_ends_an_open_paste` nothing at all; green after, the reader's corpus unchanged.
+- 2026-10-10 — C16G-HARDENING 3/3 (Phase 16 gate architect N10, decision 4: signals). Found: nothing handled
+  SIGTERM, SIGHUP or SIGTSTP / SIGCONT, though signal-hook was a dependency (SIGWINCH's self-pipe): a `kill` or a
+  closed window left raw mode, the alternate screen and mouse capture on. Fix, Unix only, after the SIGWINCH pattern:
+  the reader registers a self-pipe each for SIGTSTP, SIGCONT, SIGHUP and SIGTERM (`Source::with_signals`; polled
+  with the terminal, each descriptor once — macOS `poll` reported nothing for a descriptor listed twice, which the
+  reader's own tests caught — and no allocation per wait) and delivers `Input::Signal` — `Terminate(n)`, `Suspend`, `Continue`;
+  `run` acts on each through one decision table (`app::signals::action`): terminate → `leave_tui_mode`, then
+  `emulate_default_handler(n)` so the parent sees the signal's status; suspend → when the `App` set the terminal up
+  (`App::new`), leave TUI mode, stop (the default action), and on resume enter TUI mode and the theme reports again
+  and redraw every cell (`redraw_whole`: a full redraw, the style cache forgotten); an `App` given its terminal only
+  stops; continue → redraw every cell (a SIGSTOP no handler sees). Red (the behaviour stubbed out):
+  `reader::tests::signals_come_out_as_inputs`, which raises the four signals in a child test process, failed — the
+  child died of its SIGTERM — and `signals_tests::a_continue_redraws_every_cell` drew nothing; green after, with
+  `each_signal_has_its_action`. Not testable in-process: the stop and the exit themselves. Silent change
+  `sc-signals`. Batch A (C16G-TRANSITION-CANCEL … C16G-HARDENING) done.

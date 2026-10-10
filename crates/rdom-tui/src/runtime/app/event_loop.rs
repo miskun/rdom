@@ -103,7 +103,13 @@ impl App<CrosstermBackend<Stdout>> {
                         self.scheduler
                             .borrow_mut()
                             .set_now(std::time::Instant::now());
-                        self.handle_input(next);
+                        match next {
+                            #[cfg(unix)]
+                            crate::runtime::input::Input::Signal(signal) => {
+                                self.on_signal(signal)?;
+                            }
+                            other => self.handle_input(other),
+                        }
                         // Zero-timeout poll: only continue if
                         // another input is already buffered. As
                         // soon as the queue drains we exit the

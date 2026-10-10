@@ -51,6 +51,22 @@ pub(crate) enum Input {
     /// The terminal's color scheme: a DEC mode 2031 report
     /// (`CSI ? 997 ; 1 n` dark, `; 2 n` light).
     ColorScheme(ColorScheme),
+    /// A signal about the process and its terminal (Unix,
+    /// C16G-HARDENING).
+    Signal(Signal),
+}
+
+/// A signal the reader listens for, beside the window-size change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Signal {
+    /// SIGTERM or SIGHUP (its number): restore the terminal and end the
+    /// process as the signal would.
+    Terminate(i32),
+    /// SIGTSTP (Ctrl+Z, a job-control stop): leave the terminal as it
+    /// was, then stop.
+    Suspend,
+    /// SIGCONT: the process runs again — the screen may have changed.
+    Continue,
 }
 
 /// How long a lone `ESC` (or `ESC [`, `ESC O`, a string introducer

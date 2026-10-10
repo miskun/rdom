@@ -146,6 +146,9 @@ mod scroll_timeline_tests;
 mod setter_mutation_tests;
 #[cfg(test)]
 mod sibling_mark_tests;
+mod signals;
+#[cfg(all(test, unix))]
+mod signals_tests;
 #[cfg(test)]
 mod skipped_contents_tests;
 #[cfg(test)]

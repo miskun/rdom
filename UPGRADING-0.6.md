@@ -317,6 +317,7 @@ Code written against git `main` between 0.5 and this release also meets the [cha
 ## API changes from 0.5
 
 One row per renamed or reshaped public item: the 0.5 form, its replacement, the item (its Breaking bullet in [`CHANGELOG.md`](CHANGELOG.md) and its Log entry), and the `tests/integration/migration_hints.rs` group that compiles the new form with `use rdom_tui::*;` (`—`: nothing a consumer builds).
+- <a id="sc-signals"></a>**`App::run` handles SIGTERM, SIGHUP, SIGTSTP and SIGCONT** (Unix): a terminate or hang-up restores the terminal and then ends the process with the signal's status — an app that ran its own shutdown on SIGTERM (a `signal-hook` handler) now has the process end once `run` sees it, so do that work in the handler or before `run` returns; a job-control stop leaves TUI mode and a resume redraws everything. (C16G-HARDENING)
 
 ### `rdom-style`
 

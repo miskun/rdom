@@ -129,3 +129,47 @@ fn a_full_read_reads_on() {
     assert_eq!(all.len(), 1024);
     assert_eq!(all[1023], key(KeyCode::Up, KeyModifiers::NONE));
 }
+
+// ── Signals (C16G-HARDENING) ─────────────────────────────────────────
+
+/// SIGTERM, SIGHUP, SIGTSTP and SIGCONT reach the reader through
+/// self-pipes, as SIGWINCH does, and come out as `Input::Signal`s, in
+/// the order they were raised. Run in a child process: the handlers are
+/// process-wide, and while they are registered the default actions
+/// (terminate, stop) do not happen.
+#[test]
+fn signals_come_out_as_inputs() {
+    let exe = std::env::current_exe().expect("the test binary");
+    let out = std::process::Command::new(exe)
+        .args([
+            "--exact",
+            "runtime::input::reader::tests::signals_child",
+            "--ignored",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .output()
+        .expect("the child test runs");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "the child failed: {stdout}");
+    assert!(stdout.contains("child-done"), "the child ran: {stdout:?}");
+}
+
+#[test]
+#[ignore = "run by signals_come_out_as_inputs in a child process"]
+fn signals_child() {
+    use signal_hook::consts::{SIGCONT, SIGHUP, SIGTERM, SIGTSTP};
+    let (ours, _theirs) = UnixStream::pair().unwrap();
+    let mut r = InputReader::from_fd_with_signals(ours.into()).unwrap();
+    for (sig, want) in [
+        (SIGTERM, Signal::Terminate(SIGTERM)),
+        (SIGHUP, Signal::Terminate(SIGHUP)),
+        (SIGTSTP, Signal::Suspend),
+        (SIGCONT, Signal::Continue),
+    ] {
+        signal_hook::low_level::raise(sig).unwrap();
+        assert!(r.poll(Duration::from_millis(500)).unwrap(), "{sig}");
+        assert_eq!(r.next(), Some(Input::Signal(want)), "{sig}");
+    }
+    println!("child-done");
+}

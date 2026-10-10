@@ -42,6 +42,10 @@ impl<B: Backend> App<B> {
             Input::Background(background) => self.note_terminal_background(background),
             Input::ColorScheme(scheme) => self.note_terminal_scheme(scheme),
             Input::DeviceAttributes => {}
+            // `run` acts on a signal before it gets here (`signals`); a
+            // continue that comes this way still redraws.
+            Input::Signal(crate::runtime::input::Signal::Continue) => self.redraw_whole(),
+            Input::Signal(_) => {}
         }
     }
 

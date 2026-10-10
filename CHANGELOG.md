@@ -433,6 +433,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-tui`
 
+- **Signal handling in `App::run`** (Unix): SIGTERM and SIGHUP restore the terminal, then end the process as the signal would; SIGTSTP leaves TUI mode before stopping and SIGCONT re-enters it with a full redraw — self-pipes, as for SIGWINCH. (C16G-HARDENING)
 - **Colour depth** (`App::with_color_depth` / `set_color_depth`, `Backend::set_color_depth`): detected from `NO_COLOR`, `COLORTERM` and `TERM`; each colour is emitted as the nearest the terminal shows — the xterm 256-colour palette, the 16 ANSI colours, or none — and the `color` / `color-index` / `monochrome` media features follow it. (C16G-COLOR-DEPTH)
 - **`MAX_LAYOUT_DEPTH` (128)**: the element that deep in the box tree skips its contents — not styled, laid out, painted, hit or focusable — so the cascade, layout, paint and hit testing recurse at most that deep whatever the DOM; the built-ins' whole-DOM walks and the tab order are iterative. A 100 000-deep DOM runs on a 2 MiB stack. (C16G-DEPTH-CAPS)
 - **`InlineFragment::offset()` and `InlineFragment::drawn_at()`**: the move a relatively positioned inline box gives a text fragment, and where it is drawn, as `GeneratedFragment` has for moved pseudo-elements. (ACID-FIX-5)

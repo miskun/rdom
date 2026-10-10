@@ -4,7 +4,11 @@
 //! not a terminal) and a self-pipe the `SIGWINCH` handler writes to
 //! (`signal_hook::low_level::pipe`, crossterm's mechanism); each read
 //! is fed to the [`Parser`], and a window-size change becomes
-//! `Event::Resize` with the size `crossterm::terminal::size` reads. A
+//! `Event::Resize` with the size `crossterm::terminal::size` reads.
+//! SIGTERM, SIGHUP, SIGTSTP and SIGCONT have self-pipes of their own and
+//! become `Input::Signal`s (C16G-HARDENING) — while the reader is open
+//! their default actions do not happen, and the `App` does what they
+//! would after restoring the terminal. A
 //! lone escape prefix waits [`ESC_GRACE`] for the rest of its
 //! sequence.
 //!
@@ -15,7 +19,7 @@ use std::time::Duration;
 
 use super::Input;
 #[cfg(unix)]
-use super::{ESC_GRACE, Parser};
+use super::{ESC_GRACE, Parser, Signal};
 
 /// The terminal's input, parsed.
 pub(crate) struct InputReader {
@@ -42,6 +46,12 @@ impl InputReader {
     #[cfg(test)]
     pub(crate) fn from_fd(fd: std::os::fd::OwnedFd) -> Self {
         Self::with_source(unix::Source::from_fd(fd))
+    }
+
+    /// Read `fd`, and listen for the signals as [`Self::open`] does.
+    #[cfg(test)]
+    pub(crate) fn from_fd_with_signals(fd: std::os::fd::OwnedFd) -> std::io::Result<Self> {
+        Ok(Self::with_source(unix::Source::from_fd(fd).with_signals()?))
     }
 
     fn with_source(unix: unix::Source) -> Self {
@@ -92,6 +102,9 @@ impl InputReader {
                 let (w, h) = crossterm::terminal::size()?;
                 self.parser
                     .deliver(Input::Event(crossterm::event::Event::Resize(w, h)));
+            }
+            for signal in self.unix.drain_signals(&ready) {
+                self.parser.deliver(Input::Signal(signal));
             }
         }
     }
@@ -200,6 +213,8 @@ mod unix {
     use rustix::event::{PollFd, PollFlags, poll};
     use rustix::io::Errno;
 
+    use super::Signal;
+
     /// Bytes read per `read(2)` (crossterm reads 1 KiB too).
     const BUF_SIZE: usize = 1024;
 
@@ -229,9 +244,38 @@ mod unix {
         }
     }
 
+    /// A signal's self-pipe; unregistered on drop.
+    struct SignalPipe {
+        signal: Signal,
+        rx: UnixStream,
+        id: signal_hook::SigId,
+    }
+
+    impl Drop for SignalPipe {
+        fn drop(&mut self) {
+            signal_hook::low_level::unregister(self.id);
+        }
+    }
+
+    /// The signals listened for, beside SIGWINCH, in the order a `wait`
+    /// that finds several reports them.
+    const SIGNALS: [(i32, Signal); 4] = [
+        (signal_hook::consts::SIGTSTP, Signal::Suspend),
+        (signal_hook::consts::SIGCONT, Signal::Continue),
+        (
+            signal_hook::consts::SIGHUP,
+            Signal::Terminate(signal_hook::consts::SIGHUP),
+        ),
+        (
+            signal_hook::consts::SIGTERM,
+            Signal::Terminate(signal_hook::consts::SIGTERM),
+        ),
+    ];
+
     pub(super) struct Source {
         tty: Tty,
         resize: Option<Resize>,
+        signals: Vec<SignalPipe>,
         buf: Box<[u8; BUF_SIZE]>,
     }
 
@@ -239,6 +283,17 @@ mod unix {
     pub(super) struct Ready {
         pub(super) input: bool,
         pub(super) resize: bool,
+        /// Which of `Source::signals` fired, by index.
+        signals: [bool; SIGNALS.len()],
+    }
+
+    /// A self-pipe for `signal`: the read end, and the registration.
+    fn self_pipe(signal: i32) -> io::Result<(UnixStream, signal_hook::SigId)> {
+        let (rx, tx) = UnixStream::pair()?;
+        rx.set_nonblocking(true)?;
+        tx.set_nonblocking(true)?;
+        let id = signal_hook::low_level::pipe::register(signal, tx)?;
+        Ok((rx, id))
     }
 
     impl Source {
@@ -254,15 +309,23 @@ mod unix {
                         .into(),
                 )
             };
-            let (rx, tx) = UnixStream::pair()?;
-            rx.set_nonblocking(true)?;
-            tx.set_nonblocking(true)?;
-            let id = signal_hook::low_level::pipe::register(signal_hook::consts::SIGWINCH, tx)?;
-            Ok(Self {
+            let (rx, id) = self_pipe(signal_hook::consts::SIGWINCH)?;
+            Self {
                 tty,
                 resize: Some(Resize { rx, id }),
+                signals: Vec::new(),
                 buf: Box::new([0; BUF_SIZE]),
-            })
+            }
+            .with_signals()
+        }
+
+        /// Listen for [`SIGNALS`] too.
+        pub(super) fn with_signals(mut self) -> io::Result<Self> {
+            for (number, signal) in SIGNALS {
+                let (rx, id) = self_pipe(number)?;
+                self.signals.push(SignalPipe { signal, rx, id });
+            }
+            Ok(self)
         }
 
         #[cfg(test)]
@@ -270,6 +333,7 @@ mod unix {
             Self {
                 tty: Tty::Owned(fd),
                 resize: None,
+                signals: Vec::new(),
                 buf: Box::new([0; BUF_SIZE]),
             }
         }
@@ -280,35 +344,60 @@ mod unix {
             let ms = timeout.as_micros().div_ceil(1000);
             let ms = i32::try_from(ms).unwrap_or(i32::MAX);
             let tty = self.tty.fd();
-            let mut fds = [
-                PollFd::new(&tty, PollFlags::IN),
-                PollFd::new(&tty, PollFlags::IN),
-            ];
-            let n = match &self.resize {
-                Some(r) => {
-                    fds[1] = PollFd::new(&r.rx, PollFlags::IN);
-                    2
-                }
-                None => 1,
-            };
+            // The terminal, the size pipe and the signal pipes that exist,
+            // each once (a descriptor twice in one `poll` is not portable);
+            // the slots past them hold the terminal, unpolled.
+            let tty_fd = PollFd::new(&tty, PollFlags::IN);
+            let mut fds = [const { None::<PollFd<'_>> }; 2 + SIGNALS.len()]
+                .map(|_: Option<PollFd<'_>>| tty_fd.clone());
+            let mut n = 1;
+            let resize_at = self.resize.as_ref().map(|r| {
+                fds[n] = PollFd::new(&r.rx, PollFlags::IN);
+                n += 1;
+                n - 1
+            });
+            let signals_at = n;
+            for pipe in &self.signals {
+                fds[n] = PollFd::new(&pipe.rx, PollFlags::IN);
+                n += 1;
+            }
             let fds = &mut fds[..n];
+            let nothing = Ready {
+                input: false,
+                resize: false,
+                signals: [false; SIGNALS.len()],
+            };
             match poll(fds, ms) {
                 Ok(_) => {}
                 // A signal (the size change itself) interrupted the wait:
                 // report nothing; the caller polls again.
-                Err(Errno::INTR) => {
-                    return Ok(Ready {
-                        input: false,
-                        resize: false,
-                    });
-                }
+                Err(Errno::INTR) => return Ok(nothing),
                 Err(e) => return Err(e.into()),
             }
             let ready = |f: &PollFd<'_>| !f.revents().is_empty();
-            Ok(Ready {
+            let mut out = Ready {
                 input: ready(&fds[0]),
-                resize: fds.get(1).is_some_and(ready),
-            })
+                resize: resize_at.is_some_and(|i| ready(&fds[i])),
+                ..nothing
+            };
+            for (fired, fd) in out.signals.iter_mut().zip(&fds[signals_at..]) {
+                *fired = ready(fd);
+            }
+            Ok(out)
+        }
+
+        /// The signals `ready` found raised, their pipes emptied (several
+        /// raises of one signal are one).
+        pub(super) fn drain_signals(&mut self, ready: &Ready) -> Vec<Signal> {
+            let mut out = Vec::new();
+            for (pipe, fired) in self.signals.iter_mut().zip(ready.signals) {
+                if fired {
+                    let mut sink = [0u8; 64];
+                    while matches!(pipe.rx.read(&mut sink), Ok(n) if n > 0) {}
+                    out.push(pipe.signal);
+                }
+            }
+            out
         }
 
         /// Read what the terminal has sent (after `wait` said so), and
