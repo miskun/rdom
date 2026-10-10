@@ -307,7 +307,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
 | ACID-INTERACTIVE-HARNESS | Stage 2's driver: scripted keys, mouse, wheel and resize against a fresh headless `App` per step with a controllable clock, per-checkpoint references in the stage-1 format, failure reports naming the step, checkpoint, tile, cells and spec; steps I1, I2, I10 on tile 34 | done |
-| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I10 |
+| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I12 |
 | ACID-STATIC-REST | The static features part 2 left out: tile 14's wrapped cells beside a row span; tile 15a's range slider, pixel `outline-offset` and script-unchecked default box; tile 18's baseline row group and `aspect-ratio` item; tile 19's overflowing text over a float and cleared first child's margin; tile 25's whole-moving `overflow: hidden` box and `box-decoration-break: clone`; tile 26's `popovertarget` + `flip-block` popover, `position-try-order: most-height` and `anchor-center`; their click and hit checks in stage 2 | |
 
 ## Log
@@ -10999,3 +10999,17 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `reference::shows_fg` now counts only the decorations drawn in the foreground (an overline, a strike, an underline
   without an `ul` colour), with its own case, and the reference's legend for that cell names no foreground. Every
   stage-1 tile still matches under the refined rule.
+- 2026-10-10 — ACID-INTERACTIVE, steps I11–I12. I11 (page 11, stage-2 tile 41; CSS Scroll Snap 1 §4–§6.2.3, CSS
+  Overscroll Behavior 1 §3, CSSOM View §5.1 / §12.1, DIVERGENCES §2 snapping per operation, keyboard scrolling does
+  not chain, smooth scrolling): two wheel ticks move a `y mandatory` list one item each; PageDown from 2 stops at 4,
+  the `scroll-snap-stop: always` item it would pass, then reaches 7; a tick on a `proximity` list of 6-row items rests
+  at 1, between them; an `overscroll-behavior: contain` scroller at its end keeps the tick, a plain one's Down at its
+  end goes nowhere, and its tick chains to the outer box; Tab past `scroll-padding: 1 0` scrolls each newly focused
+  row into the padding-inset region; a row inserted above the snapped one re-snaps the list to it (§5.4); ticks and
+  PageDown walk a card taller than the snapport through its covering range (3 → 4 → 7), stop at the range's end (8)
+  and leave for the next item (11); a smooth PageDown is 0, 2, 4 at 0, 50, 250 ms. I12 (page 2, tiles 9a–9c;
+  Selectors 4 §3.6.3, C10-PSEUDO-CHAINS, C10G-MARKER-HIT): `::before:hover` only over the `::before`'s cells, not its
+  host's text; a press on `::after` makes it `:active` and focuses its `tabindex` host while `::before:focus` never
+  matches; `::marker:hover` on an outside and an inside marker; `::first-letter:hover` on a floated drop cap. Tile 9a
+  gains the `::after:active` and `::before:focus` rules and `tabindex="0"` on their host — its rest state unchanged.
+  Both green at first run; no reference was changed.

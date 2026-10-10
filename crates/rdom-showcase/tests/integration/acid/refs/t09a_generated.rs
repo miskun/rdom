@@ -29,7 +29,9 @@
 //!
 //! - Row 0: `<` `attr(data-x)` `:` `mid` `>` → `<ATTR:mid>`; `★alt` (the
 //!   `/ "star"` alt text is not drawn); `S:one` (`:before`). The
-//!   `::before:hover` rule does not apply: nothing is hovered.
+//!   `::before:hover` and `::after:active` rules do not apply: nothing is
+//!   hovered or pressed; nor does `::before:focus` (Selectors 4 §3.6.3: a
+//!   `::before` is never focused). Step I12 drives them.
 //! - Rows 2–6, x 0: `.ca` and each nested `.lv` reset `n`, each `.it`
 //!   increments it: `counters(n, ".")` reads every instance outward-in —
 //!   `1 A`, `1.1 B`, `1.2 C`, `1.2.1 D`, one block per row.

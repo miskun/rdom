@@ -15,6 +15,8 @@ pub mod i07_cssom;
 pub mod i08_smooth_scroll;
 pub mod i09_caret;
 pub mod i10_pointer_events;
+pub mod i11_snap;
+pub mod i12_pseudo;
 
 /// Every step, in `ACID.md` order.
 pub const ALL: &[&Step] = &[
@@ -28,4 +30,6 @@ pub const ALL: &[&Step] = &[
     &i08_smooth_scroll::STEP,
     &i09_caret::STEP,
     &i10_pointer_events::STEP,
+    &i11_snap::STEP,
+    &i12_pseudo::STEP,
 ];

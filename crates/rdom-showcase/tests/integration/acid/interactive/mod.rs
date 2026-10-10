@@ -194,3 +194,13 @@ fn step_i09_caret() {
 fn step_i10_pointer_events() {
     assert_step(&steps::i10_pointer_events::STEP);
 }
+
+#[test]
+fn step_i11_snap() {
+    assert_step(&steps::i11_snap::STEP);
+}
+
+#[test]
+fn step_i12_pseudo() {
+    assert_step(&steps::i12_pseudo::STEP);
+}

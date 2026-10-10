@@ -361,3 +361,8 @@ fn tile_39_smooth_scroll() {
 fn tile_40_caret() {
     assert_tile(&refs::t40_caret::REF);
 }
+
+#[test]
+fn tile_41_snap() {
+    assert_tile(&refs::t41_snap::REF);
+}

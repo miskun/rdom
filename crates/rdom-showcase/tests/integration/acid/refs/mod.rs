@@ -48,6 +48,7 @@ pub mod t37_transitions;
 pub mod t38_cssom;
 pub mod t39_smooth_scroll;
 pub mod t40_caret;
+pub mod t41_snap;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -95,4 +96,5 @@ pub const ALL: &[&Reference] = &[
     &t38_cssom::REF,
     &t39_smooth_scroll::REF,
     &t40_caret::REF,
+    &t41_snap::REF,
 ];

@@ -23,7 +23,7 @@ pub const TILE: Tile = Tile {
     w: 58,
     h: 17,
     markup: r#"
-<div class="band"><p class="g1" data-x="ATTR">mid</p><p class="alt">alt</p><p class="sc">one</p></div>
+<div class="band"><p class="g1" data-x="ATTR" tabindex="0">mid</p><p class="alt">alt</p><p class="sc">one</p></div>
 <div class="band"><div class="ca"><div class="it">A<div class="lv"><div class="it">B</div><div class="it">C<div class="lv"><div class="it">D</div></div></div></div></div></div><div class="cb"><div class="sl"><div class="l">x</div><div class="l">y</div><div class="l cs">w</div><div class="l">v</div></div><div class="sl"><div class="l">z</div></div></div><p class="ps"></p><p class="cs1"></p></div>
 <div class="band"><p class="qq"><span class="q1">a<span class="q2">b</span></span> <q lang="de">x</q> <q lang="fr">y</q> <q lang="ja">z</q> <span class="cq">w</span></p><div class="bf">text</div><p class="wr">aa <span class="ip">bb cc</span> dd</p></div>
 <div class="band"><p class="host">HOST</p><div class="ctx"><p class="h2">AAAA</p><p class="sib">SS</p></div><p class="rb">xyz</p></div>
@@ -38,6 +38,8 @@ pub const TILE: Tile = Tile {
 .acid-t9a .g1::before { content: "<" attr(data-x) ":"; }
 .acid-t9a .g1::after { content: ">"; }
 .acid-t9a .g1::before:hover { color: rgb(192, 0, 0); }
+.acid-t9a .g1::after:active { color: rgb(0, 160, 0); }
+.acid-t9a .g1::before:focus { color: rgb(0, 0, 192); }
 .acid-t9a .alt::before { content: "★" / "star"; }
 .acid-t9a .sc:before { content: "S:"; }
 .acid-t9a .ca { width: 9; }
