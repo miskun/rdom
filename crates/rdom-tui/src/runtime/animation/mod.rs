@@ -136,7 +136,14 @@ impl AnimationRegistry {
         std::mem::take(&mut self.pending_events)
     }
 
+    /// Queue `old`'s `transitioncancel` — unless it completed: CSS
+    /// Transitions 2 §4 fires one only for a transition going idle from
+    /// "not idle and not after", and one whose `transitionend` is queued
+    /// is in its after phase (C16G-TRANSITION-CANCEL).
     fn cancel_event(&mut self, old: &ActiveAnimation, now: Instant) {
+        if old.ended_dispatched {
+            return;
+        }
         push_at(
             &mut self.pending_events,
             now,
@@ -150,17 +157,27 @@ impl AnimationRegistry {
         );
     }
 
-    /// The running transition of `property` on `(node, slot)`.
+    /// The running transition of `property` on `(node, slot)`: one whose
+    /// `transitionend` is queued has completed (CSS Transitions 1 §3) and
+    /// stays only until the frame retires it.
     fn running(&self, node: NodeId, slot: StyleSlot, property: Longhand) -> Option<usize> {
-        self.active
-            .iter()
-            .position(|a| a.node == node && a.slot == slot && a.property == property)
+        self.active.iter().position(|a| {
+            a.node == node && a.slot == slot && a.property == property && !a.ended_dispatched
+        })
     }
 
     /// Register a new animation, replacing any running one for the same
     /// longhand: that one is cancelled (`transitioncancel`) and the new
     /// one starts from its current value (CSS Transitions 1 §3).
     pub(super) fn register(&mut self, mut anim: ActiveAnimation, now: Instant) {
+        // A completed one of the same longhand goes silently: no cancel,
+        // and nothing to reverse (§3 "running transition").
+        self.active.retain(|a| {
+            !(a.ended_dispatched
+                && a.node == anim.node
+                && a.slot == anim.slot
+                && a.property == anim.property)
+        });
         if let Some(pos) = self.running(anim.node, anim.slot, anim.property) {
             let old = self.active.swap_remove(pos);
             self.cancel_event(&old, now);

@@ -305,3 +305,122 @@ fn sorting_a_list_of_spinners_tears_down_in_linear_time() {
         assert!(steps <= 8 * n, "{n} rows: {steps} teardown steps");
     }
 }
+
+// ── C16G-TRANSITION-CANCEL ──────────────────────────────────────
+
+const FADE: &str = "#a { width: 2; transition: width 100ms linear } #a.wide { width: 10 }";
+
+/// CSS Transitions 2 §4 (event dispatch): `transitioncancel` is for a
+/// transition going idle from "not idle and not after" — a completed one
+/// (after phase) fires none. The fade-out-then-remove idiom: a
+/// `transitionend` listener removes the element, which must not then see
+/// a `transitioncancel` (architect B1 of the Phase 16 gate).
+#[test]
+fn removing_the_element_on_transitionend_fires_no_cancel() {
+    let (mut app, div) = animated(FADE);
+    let log = record(&mut app, div);
+    let root = app.dom().root();
+    app.dom_mut()
+        .add_event_listener(
+            div,
+            "transitionend",
+            ListenerOptions::default(),
+            move |ctx| {
+                ctx.dom.remove_child(root, div).unwrap();
+            },
+        )
+        .unwrap();
+    app.dom_mut().set_attribute(div, "class", "wide").unwrap();
+    app.advance(0).unwrap();
+    app.advance(60).unwrap();
+    app.advance(60).unwrap();
+    app.advance(16).unwrap();
+    assert!(has(&log, "transitionend"), "{:?}", log.borrow());
+    assert!(!has(&log, "transitioncancel"), "{:?}", log.borrow());
+    assert!(app.animations.is_empty());
+}
+
+/// §4 and Transitions 1 §3: a `transitionend` listener that toggles the
+/// class back (ping-pong) starts a new transition from the end value — no
+/// `transitioncancel` for the completed one, and no reversal of it.
+#[test]
+fn toggling_back_on_transitionend_fires_no_cancel() {
+    let (mut app, div) = animated(FADE);
+    let log = record(&mut app, div);
+    app.dom_mut()
+        .add_event_listener(
+            div,
+            "transitionend",
+            ListenerOptions::default(),
+            move |ctx| {
+                ctx.dom.set_attribute(div, "class", "").unwrap();
+            },
+        )
+        .unwrap();
+    app.dom_mut().set_attribute(div, "class", "wide").unwrap();
+    app.advance(0).unwrap();
+    app.advance(60).unwrap();
+    app.advance(60).unwrap();
+    assert!(has(&log, "transitionend"), "{:?}", log.borrow());
+    assert!(!has(&log, "transitioncancel"), "{:?}", log.borrow());
+    // The way back runs its full 100ms from 10: half-way is 6.
+    app.advance(50).unwrap();
+    assert_eq!(width(&app, div), 6, "a fresh transition, not a reversal");
+}
+
+/// The same for a registered custom property's transition (CSS
+/// Properties and Values 1 §2.4 animates it as a transition like any
+/// other): removed on its `transitionend`, it fires no cancel.
+#[test]
+fn removing_on_a_custom_property_transitionend_fires_no_cancel() {
+    let (mut app, div) = animated(
+        "@property --w { syntax: '<number>'; inherits: false; initial-value: 0 } \
+         #a { --w: 0; transition: --w 100ms linear } #a.wide { --w: 8 }",
+    );
+    let log = record(&mut app, div);
+    let root = app.dom().root();
+    app.dom_mut()
+        .add_event_listener(
+            div,
+            "transitionend",
+            ListenerOptions::default(),
+            move |ctx| {
+                ctx.dom.remove_child(root, div).unwrap();
+            },
+        )
+        .unwrap();
+    app.dom_mut().set_attribute(div, "class", "wide").unwrap();
+    app.advance(0).unwrap();
+    app.advance(60).unwrap();
+    app.advance(60).unwrap();
+    app.advance(16).unwrap();
+    assert!(has(&log, "transitionend"), "{:?}", log.borrow());
+    assert!(!has(&log, "transitioncancel"), "{:?}", log.borrow());
+}
+
+/// CSS Animations 2 §4.2's table: an animation that went idle from its
+/// after phase fires no `animationcancel` — removed on its
+/// `animationend`, it sees none (the phase rule already held; pinned
+/// beside the transitions').
+#[test]
+fn removing_the_element_on_animationend_fires_no_cancel() {
+    let (mut app, div) =
+        animated("@keyframes g { from { width: 2 } to { width: 10 } } #a { animation: g 100ms }");
+    let log = record(&mut app, div);
+    let root = app.dom().root();
+    app.dom_mut()
+        .add_event_listener(
+            div,
+            "animationend",
+            ListenerOptions::default(),
+            move |ctx| {
+                ctx.dom.remove_child(root, div).unwrap();
+            },
+        )
+        .unwrap();
+    app.advance(60).unwrap();
+    app.advance(60).unwrap();
+    app.advance(16).unwrap();
+    assert!(has(&log, "animationend"), "{:?}", log.borrow());
+    assert!(!has(&log, "animationcancel"), "{:?}", log.borrow());
+}

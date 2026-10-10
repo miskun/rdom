@@ -11148,3 +11148,16 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   recipe; (4) SIGTERM / SIGHUP restore the terminal and exit, SIGTSTP / SIGCONT suspend and resume.
   Full reports: `target/claude-logs/c16_gate_{architect,api}.md`. Fix as `C16G-*`, two batches (A the
   release blockers and hardening, B fidelity, test infrastructure and docs), then Phase 17.
+- 2026-10-10 — C16G-TRANSITION-CANCEL (Phase 16 gate architect B1; CSS Transitions 2 §4, CSS Animations 2 §4.2's
+  event table: a cancel only for "not idle and not after → idle"). Found: ACID-FIX-15 queues `transitionend` before
+  the frame's style, but the finished entry stayed in the registry until the style pass retired it, and `register`,
+  `cancel` and `cancel_for_node` ignored `ended_dispatched` — so the fade-out-then-remove idiom (remove on
+  `transitionend`) and a ping-pong listener (toggle the class back) each got a `transitioncancel` after the end, and
+  the ping-pong's new transition started as a reversal of the finished one; registered custom properties had the same
+  shape. Decision: a transition whose end is queued is completed (after phase) — `running` skips it, `register` and
+  the custom-property diff drop it silently, and `cancel_event` / `cancel_custom_for_node` queue no cancel for it.
+  CSS animations already followed the table (`cancel_event` skips the after phase); pinned beside it. Red: three
+  tests in `runtime/app/teardown_tests.rs` (`removing_the_element_on_transitionend_…`, `toggling_back_on_…`,
+  `removing_on_a_custom_property_transitionend_…`) logged `transitioncancel` after `transitionend`; green after, with
+  `removing_the_element_on_animationend_fires_no_cancel` green from the start. No silent change against 0.5 (0.5
+  dispatched the end after the frame, where these listeners saw no cancel).

@@ -621,6 +621,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Fixed — `rdom-tui`
 
+- **A completed transition fires no `transitioncancel`** (CSS Transitions 2 §4): with its `transitionend` dispatched before the frame's style, a listener that removed the element or toggled the class back got a `transitioncancel` too (custom properties included); a transition whose end is queued now goes silently. (C16G-TRANSITION-CANCEL)
 - **A headless `App` writes nothing to stdout on a resize**: the resize event re-armed the mouse capture on process stdout for every `App`, so one built `with_backend` (a test, a pipe) printed `ESC[?1000h…` into the program's output; only the `App` that set up the terminal (`App::new`) re-arms it now. (ACID-FIX-16)
 - **A frame's transition and animation events go out before its style** (HTML §8.1.7.3, Web Animations 1 §4.4): `transitionstart` / `transitionend` / `animationstart` / `animationiteration` / `animationend` were dispatched after the frame's paint, so what their listeners changed showed a frame late; it is now drawn in the frame the event happened in. (ACID-FIX-15)
 - **An inline element can be an anchor** (CSS Anchor Positioning 1 §2): its anchor box is the bounding box of its line fragments; it read the inline box's missing rect — 0 × 0 at the origin — so `anchor()` resolved against nothing and `position-visibility: anchors-visible`, the initial value, hid the box. (ACID-FIX-11)

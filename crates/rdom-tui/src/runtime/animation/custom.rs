@@ -281,6 +281,9 @@ impl AnimationRegistry {
             else {
                 continue;
             };
+            // A completed one goes silently (C16G-TRANSITION-CANCEL).
+            self.custom
+                .retain(|a| !(a.ended_dispatched && a.node == id && a.name == name));
             let running = self
                 .custom
                 .iter()
@@ -380,12 +383,17 @@ impl AnimationRegistry {
         self.custom.iter().map(|a| a.node)
     }
 
-    /// Cancel the custom-property transitions of `node`.
+    /// Cancel the custom-property transitions of `node`; a completed one
+    /// (its `transitionend` queued) goes with no `transitioncancel` (CSS
+    /// Transitions 2 §4, C16G-TRANSITION-CANCEL).
     pub(super) fn cancel_custom_for_node(&mut self, node: NodeId, now: Instant) {
         let mut i = 0;
         while i < self.custom.len() {
             if self.custom[i].node == node {
                 let a = self.custom.swap_remove(i);
+                if a.ended_dispatched {
+                    continue;
+                }
                 super::push_at(
                     &mut self.custom_events,
                     now,
