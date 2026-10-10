@@ -50,6 +50,8 @@ pub(crate) use events::AnimationEventKind;
 pub(crate) use events::PendingAnimationEvent;
 pub(crate) use info::slot_order;
 pub use info::{AnimationInfo, AnimationKind};
+#[cfg(test)]
+pub(crate) use timeline::resolve_timeline;
 use timing::{Phase, Timing};
 
 /// What the cascade hook reads to run CSS animations: the sheets of the

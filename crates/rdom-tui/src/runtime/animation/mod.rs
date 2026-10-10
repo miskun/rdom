@@ -450,6 +450,8 @@ pub(crate) fn transitions_discretely(style: &ComputedStyle, name: &str) -> bool 
 
 mod active;
 mod css;
+#[cfg(test)]
+pub(crate) use css::resolve_timeline;
 mod custom;
 mod diff;
 #[cfg(test)]

@@ -11359,3 +11359,15 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `scroll_update::tests::anchored_boxes_follow_sticky_and_relative_anchors` diverged at step 0 (updated `x: 7`, laid
   out `x: 5`); green after, with `a_box_sized_by_a_sticky_anchor_is_laid_out_at_that_size` (mutation-checked: with no
   resize round it reads `(0, -1, 5, 13)`). No silent change against 0.5 (anchor positioning is new in 0.6).
+- 2026-10-10 — C16G-ORACLE-GAPS (Phase 16 gate architect N1). The scroll-update oracle (`scroll_update/tests.rs`: a
+  fixture built twice, one updated and one laid out after each scroll, every element's state compared) gained the
+  cases the gate found unpinned: sticky headings in a multi-column container, relatively positioned inline boxes
+  (text across lines, a nested box, an atom), a shown popover at its static position (`inset: auto`) in a scroller,
+  an open `<select>` whose picker flips and unflips with the scroll, an anchor and its box in two different
+  scrollers, nested scrollers each with a sticky header, `scroll()` / `view()` timelines at layout level, and root
+  inline text with a line-clamp container. The snapshot now also holds each scroll container's positioned-box reach,
+  each element's resolved timelines (`resolve_timeline`, re-exported for tests) and clamp point, and the root's
+  anonymous block boxes — the state it left out. `the_gap_fixtures_exercise_their_cases` pins that each fixture
+  holds its case (the picker flipped then not, the popover in the top layer and moving, both timelines active, the
+  column heading stuck). Divergences found: the relative-inline one (an inline anchor read with the last run's
+  offsets), fixed by C16G-ANCHOR-AFTER-MOVE; the rest agree at first run. Test-only: no CHANGELOG entry.
