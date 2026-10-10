@@ -1,6 +1,6 @@
 # ACID — an rdom acid test
 
-**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Part 3 under way: the stage-2 harness (ACID-INTERACTIVE-HARNESS) and steps I1–I21 (ACID-INTERACTIVE, after ACID-FIX-14 and 15) on tiles 4, 9a–9c, 20, 22, 26 and 34–49.
+**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Part 3 under way: the stage-2 harness (ACID-INTERACTIVE-HARNESS), steps I1–I21 (ACID-INTERACTIVE, after ACID-FIX-14 … 16) and the static features part 2 left out (ACID-STATIC-REST: tiles 50–55, steps I22–I24).
 
 ## Why
 
@@ -134,6 +134,12 @@ Each tile: what it combines → what the spec says the cells must show.
 | 47 | **Above the fold** (stage 2: I19) | a `40vw` paragraph over a `content-visibility: auto` block on the page's last row, its `contentvisibilityautostatechange` logged | At rest: the block on screen and relevant — `cv` shown, the first determination logged `f`. |
 | 48 | **Slide a panel in** (stage 2: I20) | a button adding `.open`: a panel transitioning `translate: -100% 0` → `0`, a box sliding in by `@keyframes translateX()`, a `rotate()` spinner | At rest: the panel and the box off the tile's left edge; the spinner's `S`. |
 | 49 | **Picker and columns by height** (stage 2: I21) | an article `calc(100vh - 24)` wide under `column-width`; a `popovertarget` button whose popover takes `position-area: bottom span-right` with `flip-block`, near the page's foot | At rest: the article in 3 columns of 2 rows; the popover closed. |
+| 50 | **Tables: wraps beside a row span** (ACID-STATIC-REST, tile 14's) | a collapsed table: a cell spanning two rows beside a cell whose three words wrap in a two-cell column, a one-line cell under it | The rows 3 and 1 tall, the spanning cell across both and the line between them, which runs under the second column only (`├──┤`); `R` in the middle (CSS 2.1 §17.5.3, §17.6.2). |
+| 51 | **Controls: slider, px offset, default** (ACID-STATIC-REST, tile 15a's) | a range slider at mid-range; a word ringed with `outline-offset: 1px`; a `checked` checkbox the load script unchecks | The track and thumb in the accent; the ring two cells out (a pixel offset is a cell, DIVERGENCES §1); the box `[ ] ` in its `:default` colour, not `:checked`'s (HTML §4.16.3). |
+| 52 | **Grid: baseline row, aspect-ratio** (ACID-STATIC-REST, tile 18's) | a baseline-aligned grid row, one item with two rows of padding above its text; an `aspect-ratio: 3 / 1` item under `align-self: normal` | The other item moved down to the shared baseline; the ratio box 6 × 2 at the row's start (Grid 2 §6.2, §10). |
+| 53 | **Floats: overflow over, cleared margin** (ACID-STATIC-REST, tile 19's) | a paragraph's `nowrap` word overflowing over a float; a parent's float followed by a first child with `clear` and `margin-top` | The text drawn over the float (Appendix E step 7 after 5); the parent not moved by the child's margin, the child below the float (CSS 2.1 §8.3.1, §9.5.2). |
+| 54 | **Multicol: whole box, cloned border** (ACID-STATIC-REST, tile 25's) | an `overflow: hidden` box after two lines in a 3-row column; a bordered box split across two 4-row columns under `box-decoration-break: clone` | The monolithic box moved whole to column 2; the bordered box's two fragments each closed by its border (Fragmentation 3 §4.1, §5.4). |
+| 55 | **Anchors: most-height, center, flip** (ACID-STATIC-REST, tile 26's) | a `position-area: bottom` box with a `flip-block` fallback under `position-try-order: most-height`; a `justify-self: anchor-center` box; a load-script-shown `popovertarget` popover on the page's last rows | The box flipped above (the taller area tried first); the centred box; the popover above its button (Anchor Positioning 1 §3.1, §3.4, §4). |
 
 ### Part 2 notes (2026-10-10)
 
@@ -146,7 +152,10 @@ features to stage 2 or a later pass: tile 14's wrapped cells beside a row span; 
 tile 19's overflowing text over a float and a cleared first child's margin; tile 24's click on a clipped-out corner;
 tile 25's `overflow: hidden` box moving whole, `box-decoration-break: clone`, and the `client_rects()` / hit checks;
 tile 26's `popovertarget` popover with `position-area: bottom span-right` and `flip-block`, `position-try-order:
-most-height` and `justify-self: anchor-center`.
+most-height` and `justify-self: anchor-center`. (Part 3 covered them, ACID-STATIC-REST: static tiles 50–55 — one per tile they extend, as the tiles were full
+— and stage-2 steps I22–I24 for the clicks and hits; tile 26's popover is opened by tile 49's I21 and statically in
+tile 55. `anchor-center` beside an anchor at the containing block's very edge is left out: whether the centred box is
+then shifted inside the containing block turns on overflow-alignment text this test could not settle from the spec.)
 
 ## Stage 2 — interactive script
 
@@ -209,6 +218,9 @@ Decided while building its harness (ACID-INTERACTIVE-HARNESS, 2026-10-10):
 | I19 | Resize the terminal (C14-MEDIA, C14-CONTAINER, C14-CONTAIN) | from 120 × 50 to 70 × 50 and back: tile 20's width queries flip and restyle (one whole-tree cascade per flip, none for a resize that flips nothing — not visible in cells, rdom-tui's `media_tests` pin it); a `matchMedia("(width < 100)")` listener logs `true` then `false`; tile 22's viewport-relative pane (`calc(20vw + 12)`: 36 at 120 columns, 26 at 70 — a percentage of the tile could not follow the terminal) re-queries its container and its card turns into a column and back; a `content-visibility: auto` block just above the fold (tile 47) fires `contentvisibilityautostatechange` with `skipped: true` as the narrower terminal's longer, re-wrapped content above it pushes it off screen (the height stays 50 rows), and `skipped: false` as the width comes back |
 | I20 | Slide a panel in (C15-TRANSLATE) | a click adds `.open` to a panel (tile 48; tile 23 is full) (`translate: -100% 0; transition: translate 200ms linear` → `translate: 0`): at 0, 100 and 200 ms it sits at −width, −width/2 and 0 in whole cells; each frame whose cell offset changed lays out once, the others none; a click on its visible part mid-way hits it, a click where it will be does not; a `@keyframes` `transform: translateX()` slide-in runs the same course; a `rotate()` spinner beside it lays out nothing |
 | I21 | Scroll an anchor and resize past a picker (C15-ANCHOR, C15-COLUMNS) | wheel ticks over tile 26's scroll box move the anchored tooltip with its anchor every frame, then hide it as the anchor leaves the box's scrollport (and the `always` one stays); opening a picker with the terminal resized four rows shorter puts it above its button (`flip-block`), and back below at full height; the same resize rebalances a `column-width` article (a narrower article gets two columns and taller sets) — the picker and the article are tile 49's, near the page's foot, where a height can reach them (tile 26 and tile 25 sit at the page's top and do not follow the height); that the article lays out once is rdom-tui's own test |
+| I22 | A click on a clipped-out corner (ACID-STATIC-REST, tile 24) | the cut corner of tile 24's `inset(0 round 3)` box hits the band beneath and a click there goes to it; beside it the box is hit (CSS Masking 1 §5) |
+| I23 | A fragmented paragraph's rects and hits (ACID-STATIC-REST, tile 25) | `client_rects()` of tile 25's split paragraph lists its two column fragments; its second fragment is hit, the column rule between them hits the article (CSSOM View §6.1, Fragmentation 3 §5.4) |
+| I24 | Overflowing text's hit (ACID-STATIC-REST, `HIT-OVERFLOW-1`) | tile 53's text overflowing its paragraph over a float is hit as the float — DIVERGENCES §4's documented limitation, pinned (a browser hits the paragraph) |
 
 ## Coverage — gaps found while inventorying
 

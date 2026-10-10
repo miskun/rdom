@@ -309,7 +309,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
 | ACID-INTERACTIVE-HARNESS | Stage 2's driver: scripted keys, mouse, wheel and resize against a fresh headless `App` per step with a controllable clock, per-checkpoint references in the stage-1 format, failure reports naming the step, checkpoint, tile, cells and spec; steps I1, I2, I10 on tile 34 | done |
 | ACID-INTERACTIVE | Stage 2, steps I1–I21 | done |
-| ACID-STATIC-REST | The static features part 2 left out: tile 14's wrapped cells beside a row span; tile 15a's range slider, pixel `outline-offset` and script-unchecked default box; tile 18's baseline row group and `aspect-ratio` item; tile 19's overflowing text over a float and cleared first child's margin; tile 25's whole-moving `overflow: hidden` box and `box-decoration-break: clone`; tile 26's `popovertarget` + `flip-block` popover, `position-try-order: most-height` and `anchor-center`; their click and hit checks in stage 2 | |
+| ACID-STATIC-REST | The static features part 2 left out: tile 14's wrapped cells beside a row span; tile 15a's range slider, pixel `outline-offset` and script-unchecked default box; tile 18's baseline row group and `aspect-ratio` item; tile 19's overflowing text over a float and cleared first child's margin; tile 25's whole-moving `overflow: hidden` box and `box-decoration-break: clone`; tile 26's `popovertarget` + `flip-block` popover, `position-try-order: most-height` and `anchor-center`; their click and hit checks in stage 2 || done |
 
 ## Log
 
@@ -11083,3 +11083,21 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   process and reads its stdout (the mouse-capture sequences there); green after, the rest of rdom-tui unchanged.
   Silent change `sc-resize-rearm`, with the re-arm a program that sets up its own terminal can do in a `resize`
   listener.
+- 2026-10-10 — ACID-STATIC-REST (Phase 16 part 3). The static features part 2's notes left out, each in a new tile on
+  page 13 named after the tile it extends (those are full): 50 — a collapsed table's row-spanning cell beside a cell
+  whose words wrap, the line between the rows running under the second column only (CSS 2.1 §17.5.3, §17.6.2); 51 — a
+  range slider (the UA's track and thumb in the accent), `outline-offset: 1px` (one cell), a `checked` checkbox the
+  load script unchecks, still `:default` and no longer `:checked` (HTML §4.16.3); 52 — a grid row's baseline group,
+  one item pushed down to the other's padded baseline, and an `aspect-ratio: 3 / 1` item under `align-self: normal`
+  (Grid 2 §6.2, §10); 53 — `nowrap` text overflowing its paragraph over a float (Appendix E), and a parent's first
+  child with `clear` and `margin-top` that neither moves the parent nor stays above the float (§8.3.1, §9.5.2,
+  C8G-CLEARANCE-COLLAPSE); 54 — an `overflow: hidden` box moving whole to the next column and a bordered box split
+  under `box-decoration-break: clone` (Fragmentation 3 §4.1, §5.4); 55 — `position-try-order: most-height` trying
+  the taller `flip-block` area first, `justify-self: anchor-center`, and a load-shown `popovertarget` popover on the
+  page's foot flipped above its button. The clicks and hits are stage-2 steps: I22 (tile 24: a clipped-out corner
+  hits and receives the click as the band beneath, CSS Masking 1 §5), I23 (tile 25: `client_rects()` of the split
+  paragraph lists its two fragments; its second is hit, the column rule between them hits the article) and I24
+  (tile 53: the text over the float hits the float — DIVERGENCES §4's `HIT-OVERFLOW-1` limitation, pinned; TECH_DEBT
+  notes it). All green at first run; no reference was changed. Left out: `anchor-center` beside an anchor at the
+  containing block's very edge (ACID.md tile 26's wording), whose overflow alignment this item could not settle from
+  the spec text; recorded in ACID.md's part 2 notes.

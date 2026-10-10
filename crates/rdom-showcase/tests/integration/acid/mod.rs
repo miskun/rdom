@@ -406,3 +406,33 @@ fn tile_48_slide() {
 fn tile_49_picker() {
     assert_tile(&refs::t49_picker::REF);
 }
+
+#[test]
+fn tile_50_table_span() {
+    assert_tile(&refs::t50_table_span::REF);
+}
+
+#[test]
+fn tile_51_controls_rest() {
+    assert_tile(&refs::t51_controls_rest::REF);
+}
+
+#[test]
+fn tile_52_grid_rest() {
+    assert_tile(&refs::t52_grid_rest::REF);
+}
+
+#[test]
+fn tile_53_floats_rest() {
+    assert_tile(&refs::t53_floats_rest::REF);
+}
+
+#[test]
+fn tile_54_multicol_rest() {
+    assert_tile(&refs::t54_multicol_rest::REF);
+}
+
+#[test]
+fn tile_55_anchor_rest() {
+    assert_tile(&refs::t55_anchor_rest::REF);
+}

@@ -26,6 +26,9 @@ pub mod i18_scroll_driven;
 pub mod i19_resize;
 pub mod i20_slide;
 pub mod i21_anchor_resize;
+pub mod i22_clip_hit;
+pub mod i23_fragments;
+pub mod i24_overflow_hit;
 
 /// Every step, in `ACID.md` order.
 pub const ALL: &[&Step] = &[
@@ -50,4 +53,7 @@ pub const ALL: &[&Step] = &[
     &i19_resize::STEP,
     &i20_slide::STEP,
     &i21_anchor_resize::STEP,
+    &i22_clip_hit::STEP,
+    &i23_fragments::STEP,
+    &i24_overflow_hit::STEP,
 ];

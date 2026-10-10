@@ -57,6 +57,12 @@ pub mod t46_scroll_driven;
 pub mod t47_fold;
 pub mod t48_slide;
 pub mod t49_picker;
+pub mod t50_table_span;
+pub mod t51_controls_rest;
+pub mod t52_grid_rest;
+pub mod t53_floats_rest;
+pub mod t54_multicol_rest;
+pub mod t55_anchor_rest;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -113,4 +119,10 @@ pub const ALL: &[&Reference] = &[
     &t47_fold::REF,
     &t48_slide::REF,
     &t49_picker::REF,
+    &t50_table_span::REF,
+    &t51_controls_rest::REF,
+    &t52_grid_rest::REF,
+    &t53_floats_rest::REF,
+    &t54_multicol_rest::REF,
+    &t55_anchor_rest::REF,
 ];

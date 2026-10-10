@@ -55,6 +55,12 @@ mod t46_scroll_driven;
 mod t47_fold;
 mod t48_slide;
 mod t49_picker;
+mod t50_table_span;
+mod t51_controls_rest;
+mod t52_grid_rest;
+mod t53_floats_rest;
+mod t54_multicol_rest;
+mod t55_anchor_rest;
 
 /// Every tile, in `ACID.md` order.
 pub const TILES: &[&Tile] = &[
@@ -111,6 +117,12 @@ pub const TILES: &[&Tile] = &[
     &t47_fold::TILE,
     &t48_slide::TILE,
     &t49_picker::TILE,
+    &t50_table_span::TILE,
+    &t51_controls_rest::TILE,
+    &t52_grid_rest::TILE,
+    &t53_floats_rest::TILE,
+    &t54_multicol_rest::TILE,
+    &t55_anchor_rest::TILE,
 ];
 
 /// The sheets the tiles' `<style>` elements `@import`, by URL — what the

@@ -249,3 +249,18 @@ fn step_i20_slide() {
 fn step_i21_anchor_resize() {
     assert_step(&steps::i21_anchor_resize::STEP);
 }
+
+#[test]
+fn step_i22_clip_hit() {
+    assert_step(&steps::i22_clip_hit::STEP);
+}
+
+#[test]
+fn step_i23_fragments() {
+    assert_step(&steps::i23_fragments::STEP);
+}
+
+#[test]
+fn step_i24_overflow_hit() {
+    assert_step(&steps::i24_overflow_hit::STEP);
+}
