@@ -251,3 +251,24 @@ fn a_full_opacity_layer_keeps_the_terminals_default_colours() {
         );
     }
 }
+
+/// C16G-DEFAULT-COLOUR-PATHS (Phase 16 gate architect B2): ACID-FIX-9 at
+/// the root. A layer at full opacity is the cell as painted — its border
+/// state too: `border: solid` in the default `color` (`currentcolor`,
+/// `Color::Reset`) under `clip-path: inset(0)` keeps the terminal's
+/// default foreground, not the canvas stand-in, which a light scheme
+/// makes explicit white on the terminal's own light background.
+#[test]
+fn a_full_opacity_layer_keeps_its_borders_default_colour() {
+    let mut dom = doc(r#"<div id="c">abc</div>"#);
+    styled(&mut dom, "#c { clip-path: inset(0); border: solid }", 8, 3);
+    let area = Rect::new(0, 0, 8, 3);
+    let mut buf = Buffer::empty(area);
+    buf.set_color_scheme(rdom_tui::ColorScheme::Light);
+    dom.paint_dom(&mut buf, area);
+    for (x, y) in [(0, 0), (3, 0), (0, 1), (7, 2)] {
+        let cell = buf.cell(x, y).unwrap();
+        assert_eq!(cell.fg, Color::Reset, "({x}, {y}) {:?}", cell.symbol());
+    }
+    assert_eq!(buf.cell(1, 1).unwrap().fg, Color::Reset, "the text too");
+}

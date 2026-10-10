@@ -28,7 +28,9 @@
 //!   spacer.
 //! - `Color::Reset` resolves through the canvas model of the buffer's
 //!   color scheme ([`canvas_fg`] / [`canvas_bg`]) before it blends.
-//!   `α = 0` composites nothing.
+//!   `α = 0` composites nothing; at `α = 1` nothing blends — the cell is
+//!   the layer's as painted (glyph, colours, border state, quadrants),
+//!   so the terminal's default colours stay default (C16G-DEFAULT-COLOUR-PATHS).
 //! - **Coverage.** In a buffer that tracks coverage (`coverage.rs`), a
 //!   cell part counts as painted when the layer changed it or when the
 //!   layer's own coverage says it painted it — a black fill on a black
@@ -165,24 +167,46 @@ impl Buffer {
         // this buffer tracks one): a paint may leave a cell's colors as
         // they were — black on black — and is still the layer's.
         let painted = layer.coverage_of(j);
+        let bg_painted = after.bg != before.bg || painted & BG != 0;
+
+        let glyph_painted = match glyph {
+            LayerGlyph::New | LayerGlyph::Spacer => text_wins,
+            LayerGlyph::Same => true,
+            // The layer repainted the glyph already there, or tinted it.
+            LayerGlyph::None => {
+                (painted & GLYPH != 0 && after == before) || (bg_painted && shows_glyph(before))
+            }
+        };
+        let border_painted = text_wins
+            || border_wins
+            || bg_painted
+            // A contribution equal to the backdrop's: repainted as it was.
+            || (painted & BORDER != 0 && !adds);
+        let marks = if bg_painted { BG } else { 0 }
+            | if glyph_painted { GLYPH } else { 0 }
+            | if border_painted { BORDER } else { 0 }
+            | painted & SHADOW;
+        if alpha >= 1.0 {
+            // At full opacity nothing blends: the layer — painted over a
+            // copy of these cells — is the cell as painted, its colours
+            // (the terminal's default ones, not their canvas stand-ins),
+            // glyph, border contributions and quadrants (ACID-FIX-9,
+            // C16G-DEFAULT-COLOUR-PATHS). Every blend below runs at
+            // `α < 1` only, where both sides must be definite colours.
+            self.content[i] = after.clone();
+            self.border_dirs[i] = layer.border_dirs[j];
+            self.half_block_quads[i] = layer.half_block_quads[j];
+            self.mark(i, marks);
+            return wide && text_wins;
+        }
 
         let scheme = self.scheme;
         let backdrop_bg = canvas_bg(before.bg, scheme);
         let bg_changed = after.bg != before.bg;
-        let bg_painted = bg_changed || painted & BG != 0;
         let layer_bg = canvas_bg(after.bg, scheme);
-        // At full opacity nothing blends: a colour the layer painted is
-        // the cell's as it is — the terminal's default ones too, not
-        // their canvas stand-ins (ACID-FIX-9). Below it, both sides are
-        // definite colours for the blend.
-        let opaque = alpha >= 1.0;
         let mut out = before.clone();
         if bg_changed {
-            out.bg = if opaque {
-                after.bg
-            } else {
-                alpha_blend(layer_bg, alpha, backdrop_bg)
-            };
+            out.bg = alpha_blend(layer_bg, alpha, backdrop_bg);
         }
         match glyph {
             LayerGlyph::New | LayerGlyph::Spacer if text_wins => {
@@ -194,11 +218,7 @@ impl Buffer {
                 out.underline_color = after.underline_color;
                 out.diff = after.diff;
                 out.link = after.link.clone();
-                out.fg = if opaque {
-                    after.fg
-                } else {
-                    alpha_blend(canvas_fg(after.fg, scheme), alpha, backdrop_bg)
-                };
+                out.fg = alpha_blend(canvas_fg(after.fg, scheme), alpha, backdrop_bg);
             }
             LayerGlyph::Same => {
                 out.modifier = after.modifier;
@@ -207,15 +227,11 @@ impl Buffer {
                 out.link = after.link.clone();
                 if after.fg != before.fg {
                     // Same glyph shape: its pixels mix the two colours.
-                    out.fg = if opaque {
-                        after.fg
-                    } else {
-                        alpha_blend(
-                            canvas_fg(after.fg, scheme),
-                            alpha,
-                            canvas_fg(before.fg, scheme),
-                        )
-                    };
+                    out.fg = alpha_blend(
+                        canvas_fg(after.fg, scheme),
+                        alpha,
+                        canvas_fg(before.fg, scheme),
+                    );
                 }
             }
             _ => {
@@ -224,27 +240,8 @@ impl Buffer {
                 }
             }
         }
-        let glyph_painted = match glyph {
-            LayerGlyph::New | LayerGlyph::Spacer => text_wins,
-            LayerGlyph::Same => true,
-            // The layer repainted the glyph already there, or tinted it.
-            LayerGlyph::None => {
-                (painted & GLYPH != 0 && after == before) || (bg_painted && shows_glyph(before))
-            }
-        };
         self.content[i] = out;
-        let border_painted = text_wins
-            || border_wins
-            || bg_painted
-            // A contribution equal to the backdrop's: repainted as it was.
-            || (painted & BORDER != 0 && !adds);
-        self.mark(
-            i,
-            if bg_painted { BG } else { 0 }
-                | if glyph_painted { GLYPH } else { 0 }
-                | if border_painted { BORDER } else { 0 }
-                | painted & SHADOW,
-        );
+        self.mark(i, marks);
 
         if text_wins || border_wins {
             // The layer's glyph takes the cell: its border state (the

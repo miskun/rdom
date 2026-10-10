@@ -11161,3 +11161,15 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `removing_on_a_custom_property_transitionend_…`) logged `transitioncancel` after `transitionend`; green after, with
   `removing_the_element_on_animationend_fires_no_cancel` green from the start. No silent change against 0.5 (0.5
   dispatched the end after the frame, where these listeners saw no cancel).
+- 2026-10-10 — C16G-DEFAULT-COLOUR-PATHS (Phase 16 gate architect B2; Compositing 1 §5.1, CSS Masking 1 §5). Found:
+  ACID-FIX-9 gated the text and background writes on `alpha >= 1`, but three composite paths still resolved
+  `Color::Reset` to its canvas stand-in at full opacity — the layer's border winner (`w.fg = alpha_blend(canvas_fg
+  (…))`), and the backdrop glyph and border tints under a painted background — so a `currentcolor` border inside a
+  clip path, filter, blend mode or isolated group came back explicit white. Decision: one rule for the whole cell
+  instead of a gate per write — the layer was painted over a copy of these cells (and a clip restores the backdrop
+  outside its shape), so at `α = 1` it *is* the composite: `composite_cell` takes the layer's cell, border state and
+  quadrants as painted, after the coverage marks, and every blend path below now runs at `α < 1` only, where the
+  canvas stand-ins are needed; no composite path can turn a default colour explicit at opacity 1 again. Red:
+  `css_phase15::clip_path::a_full_opacity_layer_keeps_its_borders_default_colour` (`clip-path: inset(0); border:
+  solid`, default `color`, light scheme) read the corner `┌` as `Rgb(255, 255, 255)`; green after, with the FIX-9
+  test. `sc-layer-default-colours` widened to borders.
