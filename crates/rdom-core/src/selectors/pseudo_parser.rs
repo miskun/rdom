@@ -70,21 +70,21 @@ impl Parser<'_> {
             "not" => {
                 self.expect(b'(', ":not")?;
                 self.skip_ws();
-                let inner = self.parse_selector_list()?;
+                let inner = self.descend(Self::parse_selector_list)?;
                 self.skip_ws();
                 self.expect(b')', ":not")?;
                 Ok(SimpleSelector::Not(Box::new(inner)))
             }
             "is" => {
                 self.expect(b'(', ":is")?;
-                let inner = self.parse_forgiving_list()?;
+                let inner = self.descend(Self::parse_forgiving_list)?;
                 self.expect(b')', ":is")?;
                 Ok(SimpleSelector::Is(Box::new(inner)))
             }
             "where" => {
                 self.expect(b'(', ":where")?;
                 self.skip_ws();
-                let inner = self.parse_selector_list()?;
+                let inner = self.descend(Self::parse_selector_list)?;
                 self.skip_ws();
                 self.expect(b')', ":where")?;
                 Ok(SimpleSelector::Where(Box::new(inner)))
@@ -129,7 +129,7 @@ impl Parser<'_> {
             }
             self.pos += 2;
             self.skip_ws();
-            let list = self.parse_selector_list()?;
+            let list = self.descend(Self::parse_selector_list)?;
             self.skip_ws();
             Some(list)
         } else {
@@ -224,7 +224,7 @@ impl Parser<'_> {
         }
         self.expect(b'(', ":has")?;
         self.in_has = true;
-        let relative = self.parse_relative_list();
+        let relative = self.descend(Self::parse_relative_list);
         self.in_has = false;
         let relative = relative?;
         self.skip_ws();

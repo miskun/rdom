@@ -1,5 +1,6 @@
 //! The selector parser: text → [`SelectorList`].
 
+use super::limits::{MAX_SELECTOR_NESTING, MAX_SELECTOR_SIZE};
 use super::{
     AttrCase, AttrOp, Combinator, ComplexSelector, CompoundSelector, ParseError, PseudoClass,
     SelectorList, SimpleSelector,
@@ -32,6 +33,13 @@ pub(super) struct Parser<'a> {
     /// Inside a `:has()` argument, where `:has()` is invalid (Selectors 4
     /// §4.5).
     pub(super) in_has: bool,
+    /// The selector arguments being parsed, one inside another
+    /// (`limits::MAX_SELECTOR_NESTING`).
+    depth: usize,
+    /// The simple selectors `&` has copied in so far
+    /// (`limits::MAX_SELECTOR_SIZE`), and the size of one copy.
+    expanded: usize,
+    nest_size: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -44,7 +52,39 @@ impl<'a> Parser<'a> {
             nest_seen: false,
             scope_seen: false,
             in_has: false,
+            depth: 0,
+            expanded: 0,
+            nest_size: nest.map_or(0, SelectorList::size),
         }
+    }
+
+    /// Parse a selector argument one level deeper — or, past
+    /// [`MAX_SELECTOR_NESTING`], fail without recursing (C16G-DEPTH-CAPS).
+    pub(super) fn descend<T>(
+        &mut self,
+        parse: impl FnOnce(&mut Self) -> Result<T, ParseError>,
+    ) -> Result<T, ParseError> {
+        if self.depth >= MAX_SELECTOR_NESTING {
+            return Err(self.err(format!(
+                "selector arguments nest deeper than {MAX_SELECTOR_NESTING}"
+            )));
+        }
+        self.depth += 1;
+        let out = parse(self);
+        self.depth -= 1;
+        out
+    }
+
+    /// Note one more copy of the parent list `&` stands for — or fail
+    /// past [`MAX_SELECTOR_SIZE`] (C16G-DEPTH-CAPS).
+    pub(super) fn expand_parent(&mut self) -> Result<(), ParseError> {
+        self.expanded = self.expanded.saturating_add(self.nest_size);
+        if self.expanded > MAX_SELECTOR_SIZE {
+            return Err(self.err(format!(
+                "`&` expands the selector past {MAX_SELECTOR_SIZE} simple selectors"
+            )));
+        }
+        Ok(())
     }
 
     /// Only whitespace may follow the parsed list.
@@ -308,7 +348,10 @@ impl<'a> Parser<'a> {
         self.pos += 1;
         self.nest_seen = true;
         Ok(match self.nest {
-            Some(parent) => SimpleSelector::Is(Box::new(parent.clone())),
+            Some(parent) => {
+                self.expand_parent()?;
+                SimpleSelector::Is(Box::new(parent.clone()))
+            }
             None => SimpleSelector::Pseudo(PseudoClass::Scope),
         })
     }

@@ -495,12 +495,16 @@ impl fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 mod anb;
+#[cfg(test)]
+mod depth_tests;
+mod limits;
 mod nesting;
 mod parser;
 mod pseudo_parser;
 #[cfg(test)]
 mod tests;
 
+pub use limits::{MAX_SELECTOR_NESTING, MAX_SELECTOR_SIZE};
 pub use nesting::{parse_nested, parse_scoped};
 pub use parser::parse;
 

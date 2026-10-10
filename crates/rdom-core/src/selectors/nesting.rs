@@ -19,6 +19,7 @@
 //! elements with the same specificity, and keeps the subject's id /
 //! class / type visible to the rule index.
 
+use super::limits::MAX_SELECTOR_NESTING;
 use super::parser::Parser;
 use super::{
     Combinator, ComplexSelector, CompoundSelector, ParseError, PseudoClass, SelectorList,
@@ -80,8 +81,14 @@ fn parse_relative(
         let mut complex = p.parse_complex_selector()?;
         let absolute = p.nest_seen || (scope_anchors && p.scope_seen);
         match (leading, absolute) {
-            (Some(combinator), _) => anchor(&mut complex, combinator, parent),
-            (None, false) => anchor(&mut complex, Combinator::Descendant, parent),
+            (Some(combinator), _) => {
+                p.expand_parent()?;
+                anchor(&mut complex, combinator, parent);
+            }
+            (None, false) => {
+                p.expand_parent()?;
+                anchor(&mut complex, Combinator::Descendant, parent);
+            }
             (None, true) => {}
         }
         splice_outermost(&mut complex, parent);
@@ -94,7 +101,16 @@ fn parse_relative(
         break;
     }
     p.finish()?;
-    Ok(SelectorList(items))
+    let list = SelectorList(items);
+    // `&` adds its parent's nesting to the depth it sits at (after the
+    // splice, which may remove a level): capped as a whole.
+    if list.nesting() > MAX_SELECTOR_NESTING {
+        return Err(ParseError {
+            msg: format!("nested selector arguments nest deeper than {MAX_SELECTOR_NESTING}"),
+            pos: 0,
+        });
+    }
+    Ok(list)
 }
 
 /// Prefix `complex` with `& <combinator>`.

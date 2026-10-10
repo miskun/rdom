@@ -11204,3 +11204,16 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   stack) aborted with "has overflowed its stack", then `condition_parentheses_nested_past_the_cap_do_not_parse` the
   same after the block cap; green after, with `nesting_to_the_cap_is_kept` (32 deep parses with no warning on the
   same stack). Silent change `sc-depth-caps`.
+- 2026-10-10 — C16G-DEPTH-CAPS 3/5 (Phase 16 gate decision 2, architect B4: selector nesting and `&` growth; Selectors
+  4 §4.2–§4.5, §13.3.1, CSS Nesting 1 §2). Found: the selector parser recursed once per argument (`:is(` / `:not(` /
+  `:where(` / `:has(` / `:nth-child(… of`), reachable from sheets and `querySelector`, uncapped; and each `&` cloned
+  the whole parent list, so `& &` doubled a nested rule's selector per level (7167 simple selectors after ten levels
+  from `a, b`; about 2³⁰ at thirty). Decision: two named caps in `selectors::limits` — `MAX_SELECTOR_NESTING` = 32
+  argument levels (the parser's `descend` fails past it without recursing, so a forgiving `:is()` drops the argument
+  and the others are invalid; a nested rule's final list, `&`'s parent nesting included after the splice, is checked
+  as a whole) and `MAX_SELECTOR_SIZE` = 4096 simple selectors copied in by `&` and the implied anchor
+  (`expand_parent`, counted before each copy, so memory stays bounded). No engine publishes either cap; real
+  selectors nest a few deep. Red: `selectors::depth_tests` — the deep `:not(` / `:where(` / `:nth-child(1 of`
+  inputs (100 000 deep, 256 KiB stack) aborted with a stack overflow, `nesting_to_the_cap_parses` and
+  `ampersand_nesting_counts_against_the_cap` accepted 33 levels, `ampersand_doubling_stops_at_the_size_cap` read
+  7167 simple selectors; green after. `sc-depth-caps` extended.
