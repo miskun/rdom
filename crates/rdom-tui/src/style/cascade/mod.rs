@@ -92,7 +92,8 @@ pub(crate) use matching::MatchedRules;
 #[cfg(test)]
 pub(crate) use matching::probe as match_probe;
 pub(crate) use media::{
-    document_media, document_media_preferences, must_restyle, set_document_media_preferences,
+    document_color_depth, document_media, document_media_preferences, must_restyle,
+    set_document_color_depth, set_document_media_preferences,
 };
 #[cfg(test)]
 pub(crate) use registered::probe as registry_probe;

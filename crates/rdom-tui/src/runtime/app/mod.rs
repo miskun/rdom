@@ -28,9 +28,10 @@
 //! | Frame rate while anything animates | [`with_animation_frame_rate`](App::with_animation_frame_rate) | 60 fps | 60 fps |
 //! | Caret blink half-period | [`with_caret_blink`](App::with_caret_blink) | 530 ms | steady (`None`) |
 //! | SGR extensions emitted | [`with_sgr_capabilities`](App::with_sgr_capabilities) | from the environment ([`SgrCapabilities::from_env`](crate::SgrCapabilities::from_env)) | the backend's (a `TestBackend`'s `BASIC`) |
+//! | Color depth (24-bit, 256, 16, none) — and the `color` / `color-index` / `monochrome` media features | [`with_color_depth`](App::with_color_depth); at run time [`set_color_depth`](App::set_color_depth) | from the environment ([`ColorDepth::detect`](crate::ColorDepth::detect): `NO_COLOR`, `COLORTERM`, `TERM`) | the backend's (a `TestBackend`'s `TrueColor`) |
 //! | Pointer-shape protocol | [`with_pointer_shapes`](App::with_pointer_shapes) | from the environment ([`PointerShapes::from_env`](crate::PointerShapes::from_env)) | `None` |
 //! | Preferred color scheme | [`with_color_scheme`](App::with_color_scheme); at run time [`set_color_scheme`](App::set_color_scheme) | asked of the terminal when `run` starts (OSC 11), dark without an answer | dark |
-//! | Media preferences (`prefers-reduced-motion`, `prefers-contrast`, the pointer, …) | [`with_media_preferences`](App::with_media_preferences); at run time [`set_media_preferences`](App::set_media_preferences) | no preference, a mouse, 24-bit color ([`MediaPreferences::default`](crate::MediaPreferences::default)) | the same |
+//! | Media preferences (`prefers-reduced-motion`, `prefers-contrast`, the pointer, …) | [`with_media_preferences`](App::with_media_preferences); at run time [`set_media_preferences`](App::set_media_preferences) | no preference, a mouse ([`MediaPreferences::default`](crate::MediaPreferences::default)) | the same |
 //! | Clipboard | [`with_clipboard`](App::with_clipboard) | the system clipboard | the system clipboard |
 //! | `<a href>` URL opener | [`with_url_opener`](App::with_url_opener) | the system opener | the system opener |
 //! | `@import` loader for `<style>` sheets | [`with_import_loader`](App::with_import_loader) | none (imports unresolved) | none |
@@ -93,6 +94,8 @@ mod stylesheets;
 mod animation_event_tests;
 #[cfg(test)]
 mod calc_size_tests;
+#[cfg(test)]
+mod color_depth_tests;
 #[cfg(test)]
 mod config_tests;
 #[cfg(test)]
@@ -303,7 +306,8 @@ impl App<CrosstermBackend<Stdout>> {
         // The decorations past ECMA-48's subset go only to a terminal
         // known to read them (CSS Text Decoration's underline styles).
         let backend = CrosstermBackend::new(io::stdout())
-            .with_sgr_capabilities(crate::render::SgrCapabilities::from_env());
+            .with_sgr_capabilities(crate::render::SgrCapabilities::from_env())
+            .with_color_depth(crate::ColorDepth::detect(|name| std::env::var(name).ok()));
         let terminal = Terminal::new(backend)?;
         let mut app = Self::build(dom, stylesheet, terminal)?
             .with_pointer_shapes(crate::runtime::pointer_shape::PointerShapes::from_env());
@@ -425,6 +429,8 @@ impl<B: Backend> App<B> {
         };
         app.prelude
             .sync_sheet_set(&mut app.dom, &app.tracker, &app.stylesheets);
+        // The color media features read the backend's depth.
+        app.sync_color_depth();
         Ok(app)
     }
 

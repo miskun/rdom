@@ -34,9 +34,14 @@ impl MediaFeature {
             "aspect-ratio" | "device-aspect-ratio" => {
                 self.range(Kind::Ratio, f64::from(vp.cols) / f64::from(vp.rows))
             }
-            "color" => self.range(Kind::Integer, f64::from(p.color_bits)),
-            "color-index" => self.range(Kind::Integer, 0.0),
-            "monochrome" => self.range(Kind::Integer, if p.color_bits == 0 { 1.0 } else { 0.0 }),
+            // §6.1–§6.3: the terminal's color depth (C16G-COLOR-DEPTH); a
+            // terminal with no color shows one bit — the default or not.
+            "color" => self.range(Kind::Integer, f64::from(env.color_depth.bits())),
+            "color-index" => self.range(Kind::Integer, f64::from(env.color_depth.index_entries())),
+            "monochrome" => {
+                let mono = env.color_depth == crate::color::ColorDepth::NoColor;
+                self.range(Kind::Integer, if mono { 1.0 } else { 0.0 })
+            }
             // §4.4: a grid device — a terminal is the spec's example.
             "grid" => self.range(Kind::Integer, 1.0),
             // A terminal has no pixel density: the concept does not exist

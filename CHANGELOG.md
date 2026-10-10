@@ -162,6 +162,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-style`
 
+- **`color::ColorDepth`** with `detect`, `quantize`, `bits` and `index_entries`, `nearest_256` / `nearest_16` (nearest in Oklab), and `MediaEnvironment::color_depth`, which the colour media features read. (C16G-COLOR-DEPTH)
 - **`conditional::MAX_CONDITION_NESTING` (32)**: an `@media` / `@supports` / `@container` prelude nesting parentheses deeper does not parse (`not all`; an invalid rule); and `SourceCursor::block_depth` / `in_block`, the block depth a parser caps its recursion by. (C16G-DEPTH-CAPS)
 - **`PseudoElementTarget::named()`**: every pseudo-element target a selector can end in, from the selector-text splitter's own tables (`::highlight()` once, unnamed). (ACID-COVERAGE)
 - **`MotionStyle` / `MotionDeclarations` and `GridStyle` / `GridDeclarations`**: the transition, animation and timeline lists and the grid properties as two shared groups of `ComputedStyle` / `TuiStyle` (`motion`, `grid`); re-exported at the `rdom_tui` root. (C15G-STYLE-SIZE)
@@ -294,6 +295,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Changed — `rdom-style`
 
+- **`MediaPreferences::color_bits` / `with_color_bits` are gone** (added after 0.5): `color`, `color-index` and `monochrome` read `MediaEnvironment::color_depth`, which an `App` sets from its backend; use `App::with_color_depth`. (C16G-COLOR-DEPTH)
 - Docs: the README's property list covers Phases 14–15 and ends with every name `property_names()` returns, generated; `property_dispatch::readme_tests` fails when they differ. (C15G-README)
 - **Containment names**: `WillChange::has(feature)` (was `names`, a predicate); `ContainerType` is `#[non_exhaustive]` with `new(size)` / `with_scroll_state(on)` (Anchor Positioning 2 adds `anchored`); `TextAlign::InternalCenter` is `#[doc(hidden)]`, UA-only. All new since 0.5. (C14G-API-NAMING)
 - **Unit resolvers return what they read**: `CalcExpr::absolutize_in`, `ComputedStyle::resolve_context_units` / `resolve_viewport_units`, `LineHeight::computed`, `VerticalAlign::computed` and `PropertySyntax::computed` return `calc::UnitReads { viewport, container }` beside the value; the thread-wide `calc::viewport_reads()` / `container_reads()` counts (new since 0.5) are gone. (C14G-READ-COUNTERS)
@@ -429,6 +431,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-tui`
 
+- **Colour depth** (`App::with_color_depth` / `set_color_depth`, `Backend::set_color_depth`): detected from `NO_COLOR`, `COLORTERM` and `TERM`; each colour is emitted as the nearest the terminal shows — the xterm 256-colour palette, the 16 ANSI colours, or none — and the `color` / `color-index` / `monochrome` media features follow it. (C16G-COLOR-DEPTH)
 - **`MAX_LAYOUT_DEPTH` (128)**: the element that deep in the box tree skips its contents — not styled, laid out, painted, hit or focusable — so the cascade, layout, paint and hit testing recurse at most that deep whatever the DOM; the built-ins' whole-DOM walks and the tab order are iterative. A 100 000-deep DOM runs on a 2 MiB stack. (C16G-DEPTH-CAPS)
 - **`InlineFragment::offset()` and `InlineFragment::drawn_at()`**: the move a relatively positioned inline box gives a text fragment, and where it is drawn, as `GeneratedFragment` has for moved pseudo-elements. (ACID-FIX-5)
 - **The Phase 14 / 15 types at the root and in the prelude**: `AnchorDeclarations` and `PositionTryRule` (what `Stylesheet::position_try_rules()` returns) at the root; the prelude names the containment, multi-column, anchor, transform, filter, blending and clipping builders' arguments (`ContainerType`, `ColumnCount`, `PositionArea`, `TryFallback`, `Translate`, `FilterList`, `ClipPath`, `ClipRect`, …) and `Length`. (C15G-API)

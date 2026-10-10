@@ -11254,3 +11254,26 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   §2 (the caps, and the parser's 512 under HTML parsing), TECH_DEBT `DEPTH-1` (what a capped page loses, and the
   debug-stack budget the layout cap rests on) and the root, rdom-tui, rdom-css, rdom-core and rdom-parser READMEs.
   Item done (5 commits).
+- 2026-10-10 — C16G-COLOR-DEPTH (Phase 16 gate API B1, decision 1; Media Queries 4 §6.1–§6.3, CSS Color 4 §9.2).
+  Found: the READMEs and DIVERGENCES claimed a 256-colour fallback, but `render/sgr.rs` emitted every `Rgb` as
+  `38;2;r;g;b`, and `color` was a fixed `MediaPreferences::color_bits` of 8. Decision (implemented, not removed): a
+  `ColorDepth` (rdom-style `color`, `#[non_exhaustive]`: `TrueColor`, `Ansi256`, `Ansi16`, `NoColor`) detected by
+  `ColorDepth::detect` — `NO_COLOR` set and not empty → none (its convention), `COLORTERM=truecolor|24bit` →
+  24-bit, `TERM=*-256color` → 256, else 16; plus `WT_SESSION` → 24-bit, since Windows Terminal draws 24-bit colour
+  and sets no `COLORTERM` (the one addition to the gate's rule). It is the backend's (`Backend::set_color_depth` /
+  `color_depth`, provided methods; `TestBackend` and `CrosstermBackend` store it, `App::new` detects it,
+  `App::with_color_depth` / `set_color_depth` override it, in the config table). Quantization is at emission, styles
+  keep their sRGB: `emit_sgr_transition_at` quantizes the new state before the diff (so two colours with one nearest
+  entry emit nothing between them) — nearest in Oklab, at 256 colours among the cube's eight entries around the
+  colour and the gray ramp's nearest (never 0–15, the theme's), at 16 among xterm's sixteen, emitted as SGR 30–37 /
+  90–97 / 40–47 / 100–107; with no colour every colour is the default and the attributes stay. The media features
+  read `MediaEnvironment::color_depth`, which the `App` keeps in step with its backend (`sync_color_depth`,
+  restyling when a query flips): `color` 8 / 2 / 1 / 0, `color-index` 0 / 256 / 16 / 0, `monochrome` 1 with none;
+  `MediaPreferences::color_bits` / `with_color_bits` (post-0.5) are gone — API-table row, `color_depth_hints`.
+  `VirtualScreen` decodes SGR 30–37 / 90–97 as the palette indices they select (`Color::Indexed(0..=15)`, not
+  invented RGB values), so a 16-colour frame reads back as emitted; its three ANSI-16 parser tests changed with it.
+  Red: `runtime::app::color_depth_tests` — the 256, 16 and no-colour tests read `Rgb(255, 135, 0)` / `Rgb(250, 10,
+  10)` where they asked for `Indexed(208)` / `Indexed(9)` / `Reset`, and the media test `Rgb(0, 95, 0)` (`color: 8`)
+  at 256 colours; green after, with `color::depth::tests` (detection, the media numbers, quantization: every cube
+  and ramp entry maps to itself). README claims made true; DIVERGENCES §1's colour line rewritten, §2's media
+  entry follows the depth; silent change `sc-color-depth`.

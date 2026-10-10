@@ -109,9 +109,9 @@ fn preferences_come_from_the_environment() {
         .with_reduced_motion(true)
         .with_contrast(Contrast::More)
         .with_forced_colors(true)
-        .with_pointer(false, PointerAccuracy::None)
-        .with_color_bits(0);
-    let env = MediaEnvironment::new(Viewport::new(10, 10), ColorScheme::Light, prefs);
+        .with_pointer(false, PointerAccuracy::None);
+    let env = MediaEnvironment::new(Viewport::new(10, 10), ColorScheme::Light, prefs)
+        .with_color_depth(crate::color::ColorDepth::NoColor);
     for yes in [
         "(prefers-reduced-motion: reduce)",
         "(prefers-reduced-motion)",

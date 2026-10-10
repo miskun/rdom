@@ -57,6 +57,45 @@ impl<B: Backend> App<B> {
         self.terminal.backend().sgr_capabilities()
     }
 
+    /// Emit every color at `depth` — the nearest the terminal shows: the
+    /// xterm 256-color palette, the 16 ANSI colors, or none — overriding
+    /// what the backend had: [`App::new`]'s guess from the environment
+    /// ([`ColorDepth::detect`](crate::ColorDepth::detect): `NO_COLOR`,
+    /// `COLORTERM`, `TERM`), a [`TestBackend`](crate::TestBackend)'s
+    /// [`TrueColor`](crate::ColorDepth::TrueColor). The media features
+    /// `color`, `color-index` and `monochrome` follow it
+    /// (C16G-COLOR-DEPTH). The next frame is drawn whole.
+    pub fn with_color_depth(mut self, depth: crate::ColorDepth) -> Self {
+        self.set_color_depth(depth);
+        self
+    }
+
+    /// The color depth the app's backend emits at.
+    pub fn color_depth(&self) -> crate::ColorDepth {
+        self.terminal.backend().color_depth()
+    }
+
+    /// [`with_color_depth`](Self::with_color_depth) on a running app.
+    pub fn set_color_depth(&mut self, depth: crate::ColorDepth) {
+        self.terminal.backend_mut().set_color_depth(depth);
+        self.terminal.queue_full_redraw();
+        self.sync_color_depth();
+    }
+
+    /// Report the backend's color depth to the media queries, restyling
+    /// when a query flips.
+    pub(super) fn sync_color_depth(&mut self) {
+        let depth = self.terminal.backend().color_depth();
+        if crate::style::cascade::document_color_depth(&self.dom) == depth {
+            return;
+        }
+        crate::style::cascade::set_document_color_depth(&mut self.dom, depth);
+        let sheets = self.prelude.cascade_order(&self.stylesheets);
+        if crate::style::cascade::must_restyle(&self.dom, &sheets, &self.prelude.registry, false) {
+            self.redraw.note(super::redraw::Redraw::Cascade);
+        }
+    }
+
     /// Replace the clipboard backend. Useful for tests
     /// (`MemoryClipboard`) and for apps that want custom format
     /// or transport on `copy`.

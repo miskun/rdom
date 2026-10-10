@@ -8,9 +8,10 @@
 //! ## Encoding
 //!
 //! - Foreground: `\x1b[38;5;Nm` (indexed), `\x1b[38;2;R;G;Bm`
-//!   (truecolor), `\x1b[39m` (reset). rdom is truecolor-only — every
-//!   CSS named color expands to a 24-bit `Rgb` triple at parse time;
-//!   no ANSI-16 short codes are emitted.
+//!   (truecolor), `\x1b[39m` (reset). Styles hold 24-bit colors; each
+//!   is emitted at the terminal's [`ColorDepth`] — its nearest palette
+//!   index at 256 colors, an ANSI-16 code (`3n` / `9n`) at 16, nothing
+//!   but the default with no color (C16G-COLOR-DEPTH).
 //! - Background: same with `48;5`, `48;2`, `49`.
 //! - Modifier bits: `1` bold, `3` italic, `4` underline,
 //!   `5` slow blink, `6` rapid blink, `7` reversed, `8` hidden,
@@ -35,6 +36,7 @@ use std::io::{self, Write};
 
 pub use super::sgr_capabilities::SgrCapabilities;
 use super::{Color, Modifier};
+use crate::ColorDepth;
 
 /// The SGR state we need to track across cells: fg, bg, the modifier
 /// bitmask and the underline color.
@@ -77,6 +79,29 @@ pub fn emit_sgr_transition_for<W: Write>(
     new: SgrState,
     caps: SgrCapabilities,
 ) -> io::Result<SgrState> {
+    emit_sgr_transition_at(w, prev, new, caps, ColorDepth::TrueColor)
+}
+
+/// [`emit_sgr_transition_for`] for a terminal showing `depth`: each
+/// color is emitted as the nearest the terminal shows
+/// ([`ColorDepth::quantize`]) — at 16 colors as SGR 30–37 / 90–97 (and
+/// their backgrounds), which a 16-color terminal reads — and the state
+/// returned (and compared next) is the quantized one, so two colors
+/// with the same nearest one emit nothing between them.
+pub fn emit_sgr_transition_at<W: Write>(
+    w: &mut W,
+    prev: SgrState,
+    new: SgrState,
+    caps: SgrCapabilities,
+    depth: ColorDepth,
+) -> io::Result<SgrState> {
+    let new = SgrState {
+        fg: depth.quantize(new.fg),
+        bg: depth.quantize(new.bg),
+        underline_color: depth.quantize(new.underline_color),
+        ..new
+    };
+    let ansi16 = depth == ColorDepth::Ansi16;
     if prev == new {
         return Ok(new);
     }
@@ -122,11 +147,11 @@ pub fn emit_sgr_transition_for<W: Write>(
 
     // fg diff.
     if prev.fg != new.fg {
-        emit_fg(w, new.fg)?;
+        emit_fg(w, new.fg, ansi16)?;
     }
     // bg diff.
     if prev.bg != new.bg {
-        emit_bg(w, new.bg)?;
+        emit_bg(w, new.bg, ansi16)?;
     }
     // Underline color diff.
     if caps.underline_color && prev.underline_color != new.underline_color {
@@ -230,13 +255,16 @@ fn modifier_off_codes(
 
 // ─── Color encoding ─────────────────────────────────────────────────
 
-/// Emit an SGR sequence setting the foreground color. Truecolor-
-/// only: `Rgb` emits `\x1b[38;2;r;g;b m`, `Indexed` emits
-/// `\x1b[38;5;n m`, `Reset` emits `\x1b[39m`. No ANSI-16
-/// quantization — every Rgb goes out as `38;2;r;g;b`.
-fn emit_fg<W: Write>(w: &mut W, color: Color) -> io::Result<()> {
+/// Emit an SGR sequence setting the foreground color: `Rgb` as
+/// `\x1b[38;2;r;g;b m`, `Indexed` as `\x1b[38;5;n m` — or, for a
+/// 16-color terminal (`ansi16`, the color already quantized to 0–15),
+/// `\x1b[3n m` / `\x1b[9n m` — and `Reset` as `\x1b[39m`. The colors
+/// arrive quantized to the terminal's depth ([`emit_sgr_transition_at`]).
+fn emit_fg<W: Write>(w: &mut W, color: Color, ansi16: bool) -> io::Result<()> {
     match color {
         Color::Reset => write!(w, "\x1b[39m"),
+        Color::Indexed(n) if ansi16 && n < 8 => write!(w, "\x1b[{}m", 30 + n),
+        Color::Indexed(n) if ansi16 && n < 16 => write!(w, "\x1b[{}m", 90 + n - 8),
         Color::Indexed(n) => write!(w, "\x1b[38;5;{}m", n),
         Color::Rgb(r, g, b) => write!(w, "\x1b[38;2;{};{};{}m", r, g, b),
         // A cell is opaque: paint composites alpha away before a color
@@ -247,9 +275,11 @@ fn emit_fg<W: Write>(w: &mut W, color: Color) -> io::Result<()> {
 }
 
 /// Mirror of [`emit_fg`] for background colors.
-fn emit_bg<W: Write>(w: &mut W, color: Color) -> io::Result<()> {
+fn emit_bg<W: Write>(w: &mut W, color: Color, ansi16: bool) -> io::Result<()> {
     match color {
         Color::Reset => write!(w, "\x1b[49m"),
+        Color::Indexed(n) if ansi16 && n < 8 => write!(w, "\x1b[{}m", 40 + n),
+        Color::Indexed(n) if ansi16 && n < 16 => write!(w, "\x1b[{}m", 100 + n - 8),
         Color::Indexed(n) => write!(w, "\x1b[48;5;{}m", n),
         Color::Rgb(r, g, b) => write!(w, "\x1b[48;2;{};{};{}m", r, g, b),
         Color::Rgba(r, g, b, _) => write!(w, "\x1b[48;2;{};{};{}m", r, g, b),

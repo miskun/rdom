@@ -18,6 +18,7 @@ use std::rc::Rc;
 use rdom_core::Dom;
 use rdom_style::Stylesheet;
 use rdom_style::calc::UnitReads;
+use rdom_style::color::ColorDepth;
 use rdom_style::conditional::{MediaEnvironment, MediaPreferences};
 
 use super::conditions::ConditionResults;
@@ -45,13 +46,35 @@ pub(crate) fn set_document_media_preferences(dom: &mut Dom<TuiExt>, prefs: Media
     }
 }
 
+/// The document-data slot holding the color depth the `App` emits at.
+#[derive(Debug, Clone, Copy)]
+struct DocumentColorDepth(ColorDepth);
+
+/// The color depth `dom`'s media queries read (24-bit until an `App`
+/// sets its backend's, C16G-COLOR-DEPTH).
+pub(crate) fn document_color_depth(dom: &Dom<TuiExt>) -> ColorDepth {
+    dom.document_data::<DocumentColorDepth>()
+        .map_or(ColorDepth::TrueColor, |d| d.0)
+}
+
+/// Set the color depth `dom`'s media queries read.
+pub(crate) fn set_document_color_depth(dom: &mut Dom<TuiExt>, depth: ColorDepth) {
+    match dom.document_data_mut::<DocumentColorDepth>() {
+        Some(slot) => slot.0 = depth,
+        None => {
+            dom.set_document_data(DocumentColorDepth(depth));
+        }
+    }
+}
+
 /// The environment `dom`'s media queries evaluate in.
 pub(crate) fn document_media(dom: &Dom<TuiExt>) -> MediaEnvironment {
     let env = MediaEnvironment::new(
         super::document_viewport(dom),
         super::document_color_scheme(dom),
         document_media_preferences(dom),
-    );
+    )
+    .with_color_depth(document_color_depth(dom));
     // No viewport yet (a headless cascade before `set_viewport` or a
     // layout): the size features are unknown, not 0 × 0.
     if super::viewport::has_document_viewport(dom) {

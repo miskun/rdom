@@ -28,6 +28,7 @@ pub struct CrosstermBackend<W: Write> {
     writer: W,
     state: BackendState,
     caps: SgrCapabilities,
+    depth: crate::ColorDepth,
 }
 
 impl<W: Write> CrosstermBackend<W> {
@@ -38,6 +39,7 @@ impl<W: Write> CrosstermBackend<W> {
             writer,
             state: BackendState::default(),
             caps: SgrCapabilities::BASIC,
+            depth: crate::ColorDepth::TrueColor,
         }
     }
 
@@ -46,6 +48,15 @@ impl<W: Write> CrosstermBackend<W> {
     /// ([`SgrCapabilities::from_env`] guesses the running terminal's).
     pub fn with_sgr_capabilities(mut self, caps: SgrCapabilities) -> Self {
         self.caps = caps;
+        self
+    }
+
+    /// Emit every color at `depth`, the nearest the terminal shows
+    /// (initially [`TrueColor`](crate::ColorDepth::TrueColor);
+    /// [`ColorDepth::detect`](crate::ColorDepth::detect) reads the
+    /// running terminal's).
+    pub fn with_color_depth(mut self, depth: crate::ColorDepth) -> Self {
+        self.depth = depth;
         self
     }
 
@@ -106,7 +117,12 @@ impl<W: Write> Backend for CrosstermBackend<W> {
     where
         I: Iterator<Item = (u16, u16, &'a Cell)>,
     {
-        draw_iter(&mut self.writer, &mut self.state, self.caps, content)
+        draw_iter(
+            &mut self.writer,
+            &mut self.state,
+            (self.caps, self.depth),
+            content,
+        )
     }
 
     fn reset_style_cache(&mut self) {
@@ -119,6 +135,14 @@ impl<W: Write> Backend for CrosstermBackend<W> {
 
     fn sgr_capabilities(&self) -> SgrCapabilities {
         self.caps
+    }
+
+    fn set_color_depth(&mut self, depth: crate::ColorDepth) {
+        self.depth = depth;
+    }
+
+    fn color_depth(&self) -> crate::ColorDepth {
+        self.depth
     }
 }
 

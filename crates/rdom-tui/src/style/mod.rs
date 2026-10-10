@@ -57,7 +57,7 @@ pub use rdom_style::PositionTryRule;
 /// (`animation::Longhand`, `animation::AnimationType`) — what a running
 /// transition composites onto a style.
 pub use rdom_style::animation;
-pub use rdom_style::color::{ColorScheme, ColorSchemeList, SystemColor};
+pub use rdom_style::color::{ColorDepth, ColorScheme, ColorSchemeList, SystemColor};
 /// The counter styles (CSS Counter Styles 3): `@counter-style` rules
 /// (`counters::CounterStyleRule`, `counters::System`, …), the predefined
 /// styles and the registry — rdom-style's module, so `CounterStyle::symbols`

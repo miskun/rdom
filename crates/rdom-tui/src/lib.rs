@@ -118,7 +118,9 @@ pub use rdom_style::calc;
 pub use rdom_style::calc::Viewport;
 /// The parsed media query lists of `@media` and the preferences they read
 /// beyond the viewport and the color scheme (Media Queries 4 / 5).
-pub use rdom_style::conditional::{Contrast, MediaList, MediaPreferences, PointerAccuracy};
+pub use rdom_style::conditional::{
+    Contrast, MediaEnvironment, MediaList, MediaPreferences, PointerAccuracy,
+};
 /// Test-only VT emulator; see [`render::virtual_screen`].
 #[cfg(any(test, feature = "test-util"))]
 pub use render::VirtualScreen;
@@ -154,7 +156,7 @@ pub use style::transition::{
     TransitionRule,
 };
 pub use style::{
-    AnchorDeclarations, CascadeExt, Color, ColorContext, ColorFunction, ColorScheme,
+    AnchorDeclarations, CascadeExt, Color, ColorContext, ColorDepth, ColorFunction, ColorScheme,
     ColorSchemeList, ComputedStyle, Content, ContentContext, CounterOp, CounterStyle,
     CounterStyleName, CustomValue, DirtyTracker, EffectsDeclarations, FontDeclarations,
     FragmentationDeclarations, GridDeclarations, ImportantMask, LayerId, MaskDeclarations,

@@ -35,7 +35,8 @@ fn clear_screen() {
 fn sgr_fg_ansi16() {
     let mut s = VirtualScreen::new(5, 1);
     s.apply(b"\x1b[31mA");
-    assert_eq!(s.cell(0, 0).unwrap().fg, Color::Rgb(255, 0, 0));
+    // SGR 31 selects palette entry 1, whose color is the theme's.
+    assert_eq!(s.cell(0, 0).unwrap().fg, Color::Indexed(1));
 }
 
 #[test]
@@ -56,7 +57,7 @@ fn sgr_bg_indexed() {
 fn sgr_bright_fg() {
     let mut s = VirtualScreen::new(5, 1);
     s.apply(b"\x1b[91mX");
-    assert_eq!(s.cell(0, 0).unwrap().fg, Color::Rgb(240, 128, 128));
+    assert_eq!(s.cell(0, 0).unwrap().fg, Color::Indexed(9));
 }
 
 #[test]
@@ -64,8 +65,8 @@ fn sgr_multiple_in_one_csi() {
     let mut s = VirtualScreen::new(5, 1);
     s.apply(b"\x1b[1;31;40mX");
     let c = s.cell(0, 0).unwrap();
-    assert_eq!(c.fg, Color::Rgb(255, 0, 0));
-    assert_eq!(c.bg, Color::Rgb(0, 0, 0));
+    assert_eq!(c.fg, Color::Indexed(1));
+    assert_eq!(c.bg, Color::Indexed(0));
     assert!(c.modifier.contains(Modifier::BOLD));
 }
 
@@ -73,7 +74,7 @@ fn sgr_multiple_in_one_csi() {
 fn sgr_reset_clears_state() {
     let mut s = VirtualScreen::new(5, 1);
     s.apply(b"\x1b[31;1mA\x1b[0mB");
-    assert_eq!(s.cell(0, 0).unwrap().fg, Color::Rgb(255, 0, 0));
+    assert_eq!(s.cell(0, 0).unwrap().fg, Color::Indexed(1));
     assert_eq!(s.cell(1, 0).unwrap().fg, Color::Reset);
     assert!(!s.cell(1, 0).unwrap().modifier.contains(Modifier::BOLD));
 }

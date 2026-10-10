@@ -27,8 +27,9 @@
 
 use std::io;
 
-use super::sgr::{SgrCapabilities, SgrState, emit_cup, emit_sgr_transition_for};
+use super::sgr::{SgrCapabilities, SgrState, emit_cup, emit_sgr_transition_at};
 use super::{Cell, Rect};
+use crate::ColorDepth;
 
 /// The minimum a Backend must do.
 ///
@@ -37,8 +38,10 @@ use super::{Cell, Rect};
 ///
 /// **A backend that wraps another** (one that records, throttles or
 /// tees the output) must forward
-/// [`set_sgr_capabilities`](Self::set_sgr_capabilities) and
-/// [`sgr_capabilities`](Self::sgr_capabilities) to the inner backend.
+/// [`set_sgr_capabilities`](Self::set_sgr_capabilities),
+/// [`sgr_capabilities`](Self::sgr_capabilities),
+/// [`set_color_depth`](Self::set_color_depth) and
+/// [`color_depth`](Self::color_depth) to the inner backend.
 /// Both are provided methods: left out, the wrapper takes their defaults,
 /// so `App::with_sgr_capabilities` is silently dropped and the inner
 /// backend draws the common subset.
@@ -87,6 +90,21 @@ pub trait Backend: io::Write {
     fn sgr_capabilities(&self) -> SgrCapabilities {
         SgrCapabilities::BASIC
     }
+
+    /// Emit every color at `depth` from the next draw on, each the
+    /// nearest the terminal shows (C16G-COLOR-DEPTH;
+    /// [`App::with_color_depth`](crate::App::with_color_depth) calls it).
+    /// A backend that emits colors as they are, as this default does,
+    /// ignores it.
+    fn set_color_depth(&mut self, depth: ColorDepth) {
+        let _ = depth;
+    }
+
+    /// The color depth the backend emits at ([`ColorDepth::TrueColor`]
+    /// for one that emits colors as they are).
+    fn color_depth(&self) -> ColorDepth {
+        ColorDepth::TrueColor
+    }
 }
 
 /// Internal tracking shared by both backend implementations. Both
@@ -114,7 +132,7 @@ pub(crate) struct BackendState {
 pub(crate) fn draw_iter<'a, W, I>(
     writer: &mut W,
     state: &mut BackendState,
-    caps: SgrCapabilities,
+    (caps, depth): (SgrCapabilities, ColorDepth),
     iter: I,
 ) -> io::Result<()>
 where
@@ -138,7 +156,7 @@ where
             modifier: cell.modifier,
             underline_color: cell.underline_color,
         };
-        state.sgr = emit_sgr_transition_for(writer, state.sgr, new_sgr, caps)?;
+        state.sgr = emit_sgr_transition_at(writer, state.sgr, new_sgr, caps, depth)?;
 
         // OSC 8 hyperlink transition (Polish #9). Emit close when
         // leaving a link, open when entering one, close+open when
@@ -197,6 +215,7 @@ pub struct TestBackend {
     state: BackendState,
     cursor_visible: bool,
     caps: SgrCapabilities,
+    depth: ColorDepth,
 }
 
 impl TestBackend {
@@ -207,6 +226,7 @@ impl TestBackend {
             state: BackendState::default(),
             cursor_visible: true,
             caps: SgrCapabilities::BASIC,
+            depth: ColorDepth::TrueColor,
         }
     }
 
@@ -214,6 +234,14 @@ impl TestBackend {
     /// [`SgrCapabilities::BASIC`]), as to a terminal that has them.
     pub fn with_sgr_capabilities(mut self, caps: SgrCapabilities) -> Self {
         self.caps = caps;
+        self
+    }
+
+    /// Emit every color at `depth` (initially
+    /// [`TrueColor`](ColorDepth::TrueColor)), as to a terminal that shows
+    /// that many.
+    pub fn with_color_depth(mut self, depth: ColorDepth) -> Self {
+        self.depth = depth;
         self
     }
 
@@ -299,9 +327,10 @@ impl Backend for TestBackend {
             buffer,
             state,
             caps,
+            depth,
             ..
         } = self;
-        draw_iter(buffer, state, *caps, content)
+        draw_iter(buffer, state, (*caps, *depth), content)
     }
 
     fn reset_style_cache(&mut self) {
@@ -314,6 +343,14 @@ impl Backend for TestBackend {
 
     fn sgr_capabilities(&self) -> SgrCapabilities {
         self.caps
+    }
+
+    fn set_color_depth(&mut self, depth: ColorDepth) {
+        self.depth = depth;
+    }
+
+    fn color_depth(&self) -> ColorDepth {
+        self.depth
     }
 }
 

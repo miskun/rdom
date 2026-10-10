@@ -182,7 +182,7 @@ impl VirtualScreen {
                 27 => { /* reverse-video off — no internal flag */ }
                 28 => self.sgr.modifier.remove(Modifier::HIDDEN),
                 29 => self.sgr.modifier.remove(Modifier::CROSSED_OUT),
-                30..=37 => self.sgr.fg = ansi16_color((n - 30) as u8, false),
+                30..=37 => self.sgr.fg = Color::Indexed((n - 30) as u8),
                 38 => {
                     // Extended fg. "38;5;N" or "38;2;R;G;B".
                     if let Some(mode) = tokens.get(i + 1) {
@@ -210,7 +210,7 @@ impl VirtualScreen {
                     }
                 }
                 39 => self.sgr.fg = Color::Reset,
-                40..=47 => self.sgr.bg = ansi16_color((n - 40) as u8, false),
+                40..=47 => self.sgr.bg = Color::Indexed((n - 40) as u8),
                 48 => {
                     if let Some(mode) = tokens.get(i + 1) {
                         match mode.parse::<u32>().unwrap_or(0) {
@@ -249,8 +249,8 @@ impl VirtualScreen {
                     i += used;
                 }
                 59 => self.sgr.underline_color = Color::Reset,
-                90..=97 => self.sgr.fg = ansi16_color((n - 90) as u8, true),
-                100..=107 => self.sgr.bg = ansi16_color((n - 100) as u8, true),
+                90..=97 => self.sgr.fg = Color::Indexed((n - 90 + 8) as u8),
+                100..=107 => self.sgr.bg = Color::Indexed((n - 100 + 8) as u8),
                 _ => { /* unknown SGR — ignore */ }
             }
             i += 1;
@@ -320,42 +320,6 @@ fn parse_pair(s: &str) -> (u32, u32) {
     let a = parts.next().and_then(|t| t.parse().ok()).unwrap_or(1);
     let b = parts.next().and_then(|t| t.parse().ok()).unwrap_or(1);
     (a, b)
-}
-
-/// Decode an ANSI-16 SGR code (`\x1b[30-37m` base, `\x1b[90-97m`
-/// bright) back into a 24-bit `Color::Rgb`. rdom itself never emits
-/// these short codes since T7 (we're truecolor-only on the wire),
-/// but `VirtualScreen` still has to *parse* arbitrary incoming SGR
-/// streams (replay, test harnesses, anything that wasn't produced
-/// by rdom). The triples below are the canonical xterm RGB values
-/// for the 16 ANSI palette slots — close to the legacy variants
-/// that lived in `Color` pre-T6.
-fn ansi16_color(code: u8, bright: bool) -> Color {
-    if bright {
-        match code {
-            0 => Color::Rgb(169, 169, 169),
-            1 => Color::Rgb(240, 128, 128),
-            2 => Color::Rgb(144, 238, 144),
-            3 => Color::Rgb(255, 255, 224),
-            4 => Color::Rgb(173, 216, 230),
-            5 => Color::Rgb(255, 128, 255),
-            6 => Color::Rgb(224, 255, 255),
-            7 => Color::Rgb(255, 255, 255),
-            _ => Color::Reset,
-        }
-    } else {
-        match code {
-            0 => Color::Rgb(0, 0, 0),
-            1 => Color::Rgb(255, 0, 0),
-            2 => Color::Rgb(0, 128, 0),
-            3 => Color::Rgb(255, 255, 0),
-            4 => Color::Rgb(0, 0, 255),
-            5 => Color::Rgb(255, 0, 255),
-            6 => Color::Rgb(0, 255, 255),
-            7 => Color::Rgb(128, 128, 128),
-            _ => Color::Reset,
-        }
-    }
 }
 
 /// Return the next grapheme cluster starting at the beginning of

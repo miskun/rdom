@@ -16,7 +16,9 @@
 //!   our `(x, y)` model)
 //! - **Clear screen** `\x1b[2J` — every cell → `Cell::EMPTY`
 //! - **SGR** `\x1b[Nm`, `\x1b[N;M;...m` — fg/bg/modifier state
-//!   - Color codes: `30-37`, `90-97` (ANSI-16); `38;5;N` (Indexed);
+//!   - Color codes: `30-37`, `90-97` (ANSI-16, as the palette indices
+//!     `Indexed(0..=15)` they select — what rdom emits at 16 colors,
+//!     C16G-COLOR-DEPTH); `38;5;N` (Indexed);
 //!     `38;2;R;G;B` (Rgb); `39` (reset fg). Same shape with 40+ for bg.
 //!   - Modifier codes: `1` bold, `2` dim, `3` italic, `4` underline,
 //!     `5`/`6` blink, `7` reversed, `8` hidden, `9` crossed-out

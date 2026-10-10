@@ -4,12 +4,13 @@
 //!
 //! The values are a terminal's (rdom-tui's mapping, DIVERGENCES §2
 //! "Media features in a terminal"): the viewport in cells, a grid device
-//! with a 24-bit-color screen that redraws fast, scripting enabled (the
+//! whose colors are the terminal's color depth, that redraws fast, scripting enabled (the
 //! event handlers are the scripts), a mouse — `hover` and a `fine`
-//! pointer — unless the backend says otherwise.
+//! pointer — unless the backend says otherwise; the color features read
+//! the backend's [`ColorDepth`].
 
 use crate::calc::Viewport;
-use crate::color::ColorScheme;
+use crate::color::{ColorDepth, ColorScheme};
 
 /// The environment `@media` and `matchMedia` evaluate against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -22,6 +23,9 @@ pub struct MediaEnvironment {
     pub color_scheme: ColorScheme,
     /// The user's and the device's preferences.
     pub preferences: MediaPreferences,
+    /// How many colors the terminal shows: `color`, `color-index` and
+    /// `monochrome` (Media Queries 4 §6.1–§6.3). Default 24-bit.
+    pub color_depth: ColorDepth,
     /// Whether the viewport is known: a backend that has none yet (a
     /// cascade before any layout or viewport) says so, and the size
     /// features — `width`, `height`, `aspect-ratio`, `orientation` and
@@ -41,8 +45,15 @@ impl MediaEnvironment {
             viewport,
             color_scheme,
             preferences,
+            color_depth: ColorDepth::TrueColor,
             viewport_known: true,
         }
+    }
+
+    /// The same environment on a terminal of `depth`.
+    pub fn with_color_depth(mut self, depth: ColorDepth) -> Self {
+        self.color_depth = depth;
+        self
     }
 
     /// The same environment with no known viewport (`viewport_known`).
@@ -76,9 +87,6 @@ pub struct MediaPreferences {
     pub hover: bool,
     /// `pointer` / `any-pointer` (§7.1); default `fine`.
     pub pointer: PointerAccuracy,
-    /// `color` (§6.1): bits per color component; `0` is a monochrome
-    /// device. Default 8 — rdom emits 24-bit color.
-    pub color_bits: u8,
 }
 
 impl Default for MediaPreferences {
@@ -92,7 +100,6 @@ impl Default for MediaPreferences {
             inverted_colors: false,
             hover: true,
             pointer: PointerAccuracy::Fine,
-            color_bits: 8,
         }
     }
 }
@@ -145,12 +152,6 @@ impl MediaPreferences {
     pub fn with_pointer(mut self, hover: bool, pointer: PointerAccuracy) -> Self {
         self.hover = hover;
         self.pointer = pointer;
-        self
-    }
-
-    /// `color`: bits per color component (`0`: monochrome).
-    pub fn with_color_bits(mut self, bits: u8) -> Self {
-        self.color_bits = bits;
         self
     }
 }

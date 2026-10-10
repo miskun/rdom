@@ -33,6 +33,7 @@
 
 mod absolute;
 mod convert;
+mod depth;
 mod gamut;
 mod interpolate;
 mod matrices;
@@ -41,6 +42,7 @@ pub mod palette;
 mod scheme;
 pub(crate) mod system;
 
+pub use depth::{ColorDepth, nearest_16, nearest_256};
 pub use scheme::{ColorScheme, ColorSchemeList};
 pub use system::SystemColor;
 

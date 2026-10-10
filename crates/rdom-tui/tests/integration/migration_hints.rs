@@ -1746,3 +1746,24 @@ fn grid_and_motion_group_hints() {
     } = (*c.motion).clone();
     assert_eq!((grid_row_start, animation_delay.len()), (GridLine::Auto, 0));
 }
+
+/// C16G-COLOR-DEPTH: `MediaPreferences::color_bits` / `with_color_bits`
+/// are gone — the color media features read the terminal's color depth:
+/// `App::with_color_depth(ColorDepth::…)` (which the backend also emits
+/// at), or `MediaEnvironment::with_color_depth` without an `App`.
+#[test]
+fn color_depth_hints() {
+    let terminal = Terminal::new(TestBackend::new(4, 1)).unwrap();
+    let app = App::with_backend(TuiDom::new(), Stylesheet::new(), terminal)
+        .unwrap()
+        .with_color_depth(ColorDepth::Ansi256);
+    assert_eq!(app.color_depth(), ColorDepth::Ansi256);
+    let env = MediaEnvironment::new(
+        Viewport::new(80, 24),
+        ColorScheme::Dark,
+        MediaPreferences::new(),
+    )
+    .with_color_depth(ColorDepth::NoColor);
+    assert!(MediaList::parse("(monochrome)").matches(&env));
+    assert_eq!(ColorDepth::Ansi16.index_entries(), 16);
+}

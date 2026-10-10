@@ -84,6 +84,7 @@ What you see after upgrading, and the entries that explain it, most likely first
 | A centred or hovered box moved, or a fixed child stopped following the viewport | [`sc-transforms`](#sc-transforms) |
 | Screen-reader-only text disappeared, or part of a box is cut away | [`sc-legacy-clip`](#sc-legacy-clip), [`sc-clip-path`](#sc-clip-path) |
 | Colours look washed out, inverted or blended | [`sc-filters`](#sc-filters), [`sc-blending`](#sc-blending), [`sc-transparent`](#sc-transparent) |
+| Colours look banded or slightly off in tmux, screen or Apple Terminal, or are gone (`NO_COLOR`) | [`sc-color-depth`](#sc-color-depth) |
 | Content flows into columns | [`sc-multicol`](#sc-multicol) |
 | A popup moved next to another element | [`sc-anchor`](#sc-anchor) |
 | A box with `container-type` collapsed, or content disappeared | [`sc-container-type`](#sc-container-type), [`sc-containment`](#sc-containment) |
@@ -202,6 +203,7 @@ Rows materializing in the window cannot move the columns under `fixed`, which on
 - <a id="sc-glyph-overpaint"></a>**A glyph drawn over another shows in its own style** (CSS 2.1 Appendix E, CSS Color 4 §3): text, a border or an outline painted over an earlier glyph in a cell — over a negative-`z-index` pseudo-element, under a positioned box without a background — took the earlier glyph's colour when its own was the default, and kept its bold, italic and decorations; it now shows its own colour (the terminal default included), weight and decorations, over the background beneath. (ACID-FIX-3)
 - <a id="sc-transparent"></a>**`transparent` is transparent black** (it was the terminal default color): `color: transparent` hides text. (C3-TRANSPARENT)
 - <a id="sc-paint-phases"></a>**Overflowing text paints over what follows it** (CSS 2.1 Appendix E): a block's text running past it into a float or a later block now shows over the float's and the block's backgrounds (it was covered by them). (C8G-PAINT-PHASES)
+- <a id="sc-color-depth"></a>**Colours are emitted at the terminal's colour depth** (Media Queries 4 §6.1–§6.3): 0.5 sent every colour as 24-bit `38;2;r;g;b`; `App::new` now reads `NO_COLOR`, `COLORTERM` and `TERM`, and a terminal without `COLORTERM=truecolor` / `24bit` — Apple Terminal, tmux or screen with `TERM=*-256color` — gets each colour as its nearest xterm-256 palette entry (a 16-colour one its nearest ANSI colour; `NO_COLOR` none), so close colours can merge. `App::with_color_depth(ColorDepth::TrueColor)` restores 24-bit output. `VirtualScreen` decodes SGR 30–37 / 90–97 as `Color::Indexed(0..=15)`. (C16G-COLOR-DEPTH)
 
 ### Selectors and the cascade
 
@@ -453,3 +455,4 @@ For consumers of git `main` only: these items did not exist in 0.5.0 (each check
 | `ContainerType { size, scroll_state }` literal; an exhaustive pattern | `ContainerType::new(size).with_scroll_state(on)` (`#[non_exhaustive]`: CSS Anchor Positioning 2 adds `anchored`); a pattern adds `..` | C14G-API-NAMING | `containment_naming_hints` |
 | a `match` arm for `TextAlign::InternalCenter` | `#[doc(hidden)]` UA-only value that never reaches a computed style: match it under `_` | C14G-API-NAMING | — |
 | `calc::viewport_reads()` / `calc::container_reads()` sampled around a resolution; `absolutize_in(cx)` → `CalcExpr`; `resolve_context_units(cx)`, `LineHeight::computed(cx)`, `VerticalAlign::computed(rows, cx)`, `PropertySyntax::computed(v, viewport)` → the value | removed; each returns `(value, UnitReads)` (`resolve_context_units` the `UnitReads`): `.0` for the value, `reads.viewport` / `reads.container` for what it read | C14G-READ-COUNTERS | `unit_reads_hints` |
+| `MediaPreferences::color_bits` / `with_color_bits(n)` | `App::with_color_depth(ColorDepth::…)` (the backend emits at it, the media features read it); without an `App`, `MediaEnvironment::with_color_depth` | C16G-COLOR-DEPTH | `color_depth_hints` |

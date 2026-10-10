@@ -55,7 +55,8 @@ pub use paint_pass::PaintExt;
 pub use rdom_style::{Color, Modifier};
 pub use rect::Rect;
 pub use sgr::{
-    SgrCapabilities, SgrState, emit_cup, emit_reset, emit_sgr_transition, emit_sgr_transition_for,
+    SgrCapabilities, SgrState, emit_cup, emit_reset, emit_sgr_transition, emit_sgr_transition_at,
+    emit_sgr_transition_for,
 };
 pub use style::Style;
 pub use terminal::{CompletedFrame, Terminal, TerminalGuard};

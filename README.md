@@ -78,7 +78,7 @@ Everything below is on `main` and ships in 0.6.0 (not yet published). Upgrading 
 - **User-agent stylesheet.** HTML's UA rules (about 190) give naked HTML its look: bracketed `[ Label ]` buttons, rounded modal dialogs, `▸` / `▾` disclosure triangles, `•` / `◦` / `▪` list markers and numbered `<ol>`, `│` blockquote rail, `─` `<hr>`, `▾` select chevron, a background-tint `:focus-visible` indicator. Run `cargo run -p rdom-showcase --example ua_chrome` to see it.
 - **DOM API completeness.** Per-tag accessors (`input_value`, `select_options`, `details_open`, `form_elements`, …), CSSOM (`style.set_property`, `style_declaration`, camelCase aliases), scroll APIs (`scroll_top` / `scroll_into_view`), `element_from_point`, `bounding_rect` / `client_rects`, programmatic focus / blur / click.
 - **Bounded input.** No CSS, markup or DOM can abort the process: values that drive loops are bounded, and every recursion over input depth has a named cap — CSS blocks 32, selector arguments 32, parsed trees 512 (as Blink and WebKit), the box tree 128 — with clean degradation past it ([`specs/DIVERGENCES.md`](specs/DIVERGENCES.md) §2).
-- **Terminal niceties.** OSC 52 clipboard fallback, OSC 8 hyperlinks for `<a href>`, truecolor + 256-color fallback, synchronized output (DEC 2026), the kitty keyboard protocol, integer-cell grid, monospaced advance.
+- **Terminal niceties.** OSC 52 clipboard fallback, OSC 8 hyperlinks for `<a href>`, 24-bit color quantized to the 256- or 16-color palette at the detected depth (`NO_COLOR` honored), synchronized output (DEC 2026), the kitty keyboard protocol, integer-cell grid, monospaced advance.
 
 ## Roadmap
 
