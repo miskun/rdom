@@ -52,6 +52,8 @@ pub mod t41_snap;
 pub mod t42_user_validity;
 pub mod t43_popovers;
 pub mod t44_popover_motion;
+pub mod t45_keyframes;
+pub mod t46_scroll_driven;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -103,4 +105,6 @@ pub const ALL: &[&Reference] = &[
     &t42_user_validity::REF,
     &t43_popovers::REF,
     &t44_popover_motion::REF,
+    &t45_keyframes::REF,
+    &t46_scroll_driven::REF,
 ];

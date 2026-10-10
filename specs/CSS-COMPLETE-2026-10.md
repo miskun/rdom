@@ -307,7 +307,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
 | ACID-INTERACTIVE-HARNESS | Stage 2's driver: scripted keys, mouse, wheel and resize against a fresh headless `App` per step with a controllable clock, per-checkpoint references in the stage-1 format, failure reports naming the step, checkpoint, tile, cells and spec; steps I1, I2, I10 on tile 34 | done |
-| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I16 |
+| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I18 |
 | ACID-STATIC-REST | The static features part 2 left out: tile 14's wrapped cells beside a row span; tile 15a's range slider, pixel `outline-offset` and script-unchecked default box; tile 18's baseline row group and `aspect-ratio` item; tile 19's overflowing text over a float and cleared first child's margin; tile 25's whole-moving `overflow: hidden` box and `box-decoration-break: clone`; tile 26's `popovertarget` + `flip-block` popover, `position-try-order: most-height` and `anchor-center`; their click and hit checks in stage 2 | |
 
 ## Log
@@ -11041,3 +11041,16 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `:popover-open` but stays displayed and in the top layer — above a `z-index: 5` box — while it fades out under
   `display` / `overlay` `allow-discrete`, then is gone; a second popover without the `overlay` transition leaves the
   top layer at once and fades under the box. Both green at first run; no reference was changed.
+- 2026-10-10 — ACID-INTERACTIVE, steps I17–I18 (page 12, stage-2 tiles 45 and 46). I17 (CSS Animations 1 §3–§4, 2 §3.1 /
+  §4.2, Web Animations 1 §4.5–§5.4, CSS Cascade 4 §6.1): with `.run` added at the clock's 0, at 0 / 25 / 75 / 125 /
+  225 ms — three keyframes under a `steps(2)` first-interval easing (0, 50, 150, then the own grey), an `alternate`
+  second iteration running back (150 at 125), a `forwards` fill holding 200, a `backwards` fill holding the first
+  keyframe through a 50 ms delay, a constant red animation drawn over a 200 ms transition of the same property (the
+  transition's `(24, 24, 149)` showing once the animation ends), a keyframe `width` 2 → 10 in whole cells, an
+  `!important` width that does not animate, `animation-composition: add` taking 4 to 8; the log shows `s`, `i0.1`,
+  `e0.2` and the cancelled animation's `c` (an event raised by a frame's own style change drawn at the next frame).
+  I18 (Scroll-driven Animations 1 §2–§4): scrolling, with no clock tick, sizes a sticky `scroll()` bar 3, 4, 8, 12 of
+  12 (the end still active), fades a `view()` item through `entry` (0.5 at its middle, then 1), grows an item to 7
+  of its `contain 50%` peak of 8, and an `rtl` scroller's named inline timeline, counted from its right-hand origin,
+  sizes a bar outside it through `timeline-scope`; made `overflow: clip`, the scroller is no scroll container and
+  its bar idles at its own width. Both green at first run; no reference was changed.

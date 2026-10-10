@@ -224,3 +224,13 @@ fn step_i15_light_dismiss() {
 fn step_i16_popover_motion() {
     assert_step(&steps::i16_popover_motion::STEP);
 }
+
+#[test]
+fn step_i17_keyframes() {
+    assert_step(&steps::i17_keyframes::STEP);
+}
+
+#[test]
+fn step_i18_scroll_driven() {
+    assert_step(&steps::i18_scroll_driven::STEP);
+}

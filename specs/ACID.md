@@ -1,6 +1,6 @@
 # ACID — an rdom acid test
 
-**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Part 3 under way: the stage-2 harness (ACID-INTERACTIVE-HARNESS) with steps I1–I16 on tiles 4, 9a–9c and 34–44.
+**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Part 3 under way: the stage-2 harness (ACID-INTERACTIVE-HARNESS) with steps I1–I18 on tiles 4, 9a–9c and 34–46.
 
 ## Why
 
@@ -129,6 +129,8 @@ Each tile: what it combines → what the spec says the cells must show.
 | 42 | **User validity** (stage 2: I14) | a form with a `pattern` field, a `required` checkbox, a `required` field with a placeholder, submit and reset buttons, a `form:has(:user-invalid)` label and a `change` / `blur` log | At rest: no `:user-*` state matches — nothing was committed (HTML §4.16.3). |
 | 43 | **Popover light dismiss** (stage 2: I15) | a `popovertarget` button for an auto popover holding an `[autofocus]` field and a nested popover's button; a manual popover's button; plain text to click outside on; two closed modal dialogs | At rest: two buttons and `outside`; no popover or dialog showing. |
 | 44 | **Popover entry and exit** (stage 2: I16) | two popovers fading in from `@starting-style` and out under `display` / `overlay` `allow-discrete` (one without `overlay`), over a black tile and a `z-index: 5` box | At rest: the buttons, the maroon box, black. |
+| 45 | **Keyframes on the clock** (stage 2: I17) | swatches under `@keyframes` with a per-keyframe `steps()`, `alternate` iterations (events logged), `forwards` and delayed `backwards` fills, an animation over a transition, a cancelled animation; a keyframe `width`, the same against `!important`, `animation-composition: add` | At rest: nothing runs — grey swatches, the boxes at their own widths, empty logs. |
+| 46 | **Scroll-driven animations** (stage 2: I18) | a sticky bar on `scroll()`, a `view()` item fading in over `entry`, an item with a `contain 50%` keyframe, an `rtl` scroller's named inline timeline read outside it through `timeline-scope` | At rest: both timelines at 0% — the bars 0 wide; the view items out of sight. |
 
 ### Part 2 notes (2026-10-10)
 

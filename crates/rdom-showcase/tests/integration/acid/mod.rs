@@ -381,3 +381,13 @@ fn tile_43_popovers() {
 fn tile_44_popover_motion() {
     assert_tile(&refs::t44_popover_motion::REF);
 }
+
+#[test]
+fn tile_45_keyframes() {
+    assert_tile(&refs::t45_keyframes::REF);
+}
+
+#[test]
+fn tile_46_scroll_driven() {
+    assert_tile(&refs::t46_scroll_driven::REF);
+}
