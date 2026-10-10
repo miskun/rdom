@@ -51,6 +51,7 @@ pub static STEP: Step = Step {
     page: 10,
     spec: &["CSS Transitions 1 §3, §6; CSS Easing 1 §2.2–§2.3; CSS Color 4 §12.1"],
     run,
+    configure: None,
 };
 
 const SPEC: &[&str] = &[

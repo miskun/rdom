@@ -30,6 +30,7 @@ pub static STEP: Step = Step {
     page: 10,
     spec: &["HTML §4.10.5.1, §4.10.21.1, §4.16.3; Selectors 4 §14.4"],
     run,
+    configure: None,
 };
 
 const SPEC: &[&str] = &[

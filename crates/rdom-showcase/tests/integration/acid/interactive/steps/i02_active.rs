@@ -26,6 +26,7 @@ pub static STEP: Step = Step {
     page: 10,
     spec: &["Selectors 4 §9.4; HTML §4.16.3; UI Events §3.4"],
     run,
+    configure: None,
 };
 
 const SPEC: &[&str] = &["Selectors 4 §9.4; HTML §4.16.3; UI Events §3.4"];

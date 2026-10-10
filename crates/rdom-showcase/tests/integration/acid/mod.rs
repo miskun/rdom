@@ -346,3 +346,18 @@ fn tile_36_form_state() {
 fn tile_37_transitions() {
     assert_tile(&refs::t37_transitions::REF);
 }
+
+#[test]
+fn tile_38_cssom() {
+    assert_tile(&refs::t38_cssom::REF);
+}
+
+#[test]
+fn tile_39_smooth_scroll() {
+    assert_tile(&refs::t39_smooth_scroll::REF);
+}
+
+#[test]
+fn tile_40_caret() {
+    assert_tile(&refs::t40_caret::REF);
+}

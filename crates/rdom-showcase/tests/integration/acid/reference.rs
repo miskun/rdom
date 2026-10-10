@@ -38,9 +38,11 @@
 //!
 //! A space shows no foreground and no weight or slant, so on a cell whose
 //! expected glyph is a space the comparison skips `fg`, `bold`, `italic`
-//! and `blink` — unless the cell carries a line decoration (underline,
-//! overline, strike), which is drawn in the foreground. Background,
-//! decorations and the underline colour are always compared.
+//! and `blink` — unless the cell carries a line decoration drawn in the
+//! foreground: an overline, a strike, or an underline with no colour of
+//! its own (an underline in an `ul` colour is drawn in that colour, so
+//! the blank's foreground stays unseen). Background, decorations and the
+//! underline colour are always compared.
 
 use rdom_tui::{Color, Modifier};
 use unicode_width::UnicodeWidthStr;
@@ -99,9 +101,17 @@ const LINES: Modifier = Modifier::from_bits_truncate(
 );
 
 /// Whether a cell whose glyph is `glyph` shows `style`'s foreground: a
-/// non-blank glyph does, a blank one only through a line decoration.
-pub fn shows_fg(glyph: &str, modifier: Modifier) -> bool {
-    glyph != " " || !(modifier & LINES).is_empty()
+/// non-blank glyph does, a blank one only through a line decoration drawn
+/// in it — an overline or a strike, or an underline without a colour of
+/// its own (`underline_color` `Reset`; SGR 58 draws it in that colour).
+pub fn shows_fg(glyph: &str, modifier: Modifier, underline_color: Color) -> bool {
+    let own_color = underline_color != Color::Reset;
+    let in_fg = if own_color {
+        Modifier::OVERLINED | Modifier::CROSSED_OUT
+    } else {
+        LINES
+    };
+    glyph != " " || !(modifier & in_fg).is_empty()
 }
 
 /// The modifier bits a cell with `glyph` shows.
@@ -279,7 +289,17 @@ fn reference_format_parses_its_documented_forms() {
     assert_eq!(parsed.rows[0][1].glyph, "");
     assert_eq!(parsed.rows[0][2].style.fg, Color::Rgb(0, 160, 0));
     assert!(r.parse(5, 1).is_err());
-    assert!(shows_fg("x", Modifier::empty()));
-    assert!(!shows_fg(" ", Modifier::BOLD));
-    assert!(shows_fg(" ", Modifier::UNDERLINED));
+    assert!(shows_fg("x", Modifier::empty(), Color::Reset));
+    assert!(!shows_fg(" ", Modifier::BOLD, Color::Reset));
+    assert!(shows_fg(" ", Modifier::UNDERLINED, Color::Reset));
+    let red = Color::Rgb(255, 0, 0);
+    assert!(
+        !shows_fg(" ", Modifier::UNDERLINED, red),
+        "drawn in its own colour"
+    );
+    assert!(shows_fg(
+        " ",
+        Modifier::UNDERLINED | Modifier::CROSSED_OUT,
+        red
+    ));
 }

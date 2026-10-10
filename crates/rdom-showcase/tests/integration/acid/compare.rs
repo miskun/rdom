@@ -116,7 +116,7 @@ fn visible(glyph: &str, style: Style) -> Style {
     let modifier = visible_modifiers(glyph, style.modifier);
     let underlined = modifier.contains(rdom_tui::Modifier::UNDERLINED);
     Style {
-        fg: if shows_fg(glyph, style.modifier) {
+        fg: if shows_fg(glyph, style.modifier, style.underline_color) {
             style.fg
         } else {
             rdom_tui::Color::Reset

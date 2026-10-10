@@ -47,6 +47,7 @@ pub static STEP: Step = Step {
     page: 10,
     spec: &["Selectors 4 §13.2; HTML §6.6; CSS UI 4 §5; DIVERGENCES FOCUS-VOCAB-1"],
     run,
+    configure: None,
 };
 
 const SPEC: &[&str] = &[

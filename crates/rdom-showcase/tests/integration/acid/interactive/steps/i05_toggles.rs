@@ -24,6 +24,7 @@ pub static STEP: Step = Step {
     page: 10,
     spec: &["HTML §4.10.5.1.15, §4.10.5.1.16; Selectors 4 §14.3"],
     run,
+    configure: None,
 };
 
 const SPEC: &[&str] = &["HTML §4.10.5.1.15–16 (radio button group); Selectors 4 §14.3"];

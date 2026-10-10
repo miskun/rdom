@@ -119,6 +119,7 @@ fn harness_reports_step_checkpoint_tile_and_cells() {
         page: 10,
         spec: &["test step spec"],
         run: wrong,
+        configure: None,
     };
     let result = run(&STEP);
     assert_eq!(result.checkpoints, 3);
@@ -172,6 +173,21 @@ fn step_i05_toggles() {
 #[test]
 fn step_i06_transitions() {
     assert_step(&steps::i06_transitions::STEP);
+}
+
+#[test]
+fn step_i07_cssom() {
+    assert_step(&steps::i07_cssom::STEP);
+}
+
+#[test]
+fn step_i08_smooth_scroll() {
+    assert_step(&steps::i08_smooth_scroll::STEP);
+}
+
+#[test]
+fn step_i09_caret() {
+    assert_step(&steps::i09_caret::STEP);
 }
 
 #[test]

@@ -47,6 +47,9 @@ pub struct Step {
     pub spec: &'static [&'static str],
     /// The script: actions and checkpoints, in order.
     pub run: fn(&mut Session),
+    /// What the step sets on the `App` before its first frame (a caret
+    /// blink rate, a pointer-shape protocol); `None` for most steps.
+    pub configure: Option<fn(App<TestBackend>) -> App<TestBackend>>,
 }
 
 /// One acid page in a headless `App`, driven by a [`Step`]'s script.
@@ -54,6 +57,8 @@ pub struct Session {
     pub step: &'static Step,
     app: App<TestBackend>,
     screen: VirtualScreen,
+    /// The bytes the last action wrote to the terminal.
+    output: Vec<u8>,
     /// Checkpoints run, paint and fact checks together.
     checkpoints: usize,
     failures: Vec<String>,
@@ -81,6 +86,9 @@ impl Session {
             .unwrap()
             .with_sgr_capabilities(SgrCapabilities::EXTENDED)
             .with_import_loader(acid::import_loader());
+        if let Some(configure) = step.configure {
+            app = configure(app);
+        }
         app.push_stylesheet(acid::late_stylesheet());
         app.advance(0).unwrap();
         acid::run_scripts(app.dom_mut(), step.page);
@@ -88,6 +96,7 @@ impl Session {
             step,
             app,
             screen: VirtualScreen::new(PAGE_WIDTH, PAGE_HEIGHT),
+            output: Vec::new(),
             checkpoints: 0,
             failures: Vec::new(),
         };
@@ -105,6 +114,13 @@ impl Session {
     fn read_back(&mut self) {
         let bytes = self.app.terminal_mut().backend_mut().take_bytes();
         self.screen.apply(&bytes);
+        self.output = bytes;
+    }
+
+    /// What the last action wrote to the terminal, as text — for the
+    /// sequences a `VirtualScreen` keeps no cell of (OSC 22).
+    pub fn output(&self) -> String {
+        String::from_utf8_lossy(&self.output).into_owned()
     }
 
     // ── geometry ──

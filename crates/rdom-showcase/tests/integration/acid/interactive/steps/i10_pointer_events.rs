@@ -25,6 +25,7 @@ pub static STEP: Step = Step {
     page: 10,
     spec: &["CSS UI 4 §4.4; CSSOM View §6; UI Events §3.5"],
     run,
+    configure: None,
 };
 
 static AFTER: Reference = Reference {

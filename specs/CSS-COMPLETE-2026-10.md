@@ -307,7 +307,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
 | ACID-INTERACTIVE-HARNESS | Stage 2's driver: scripted keys, mouse, wheel and resize against a fresh headless `App` per step with a controllable clock, per-checkpoint references in the stage-1 format, failure reports naming the step, checkpoint, tile, cells and spec; steps I1, I2, I10 on tile 34 | done |
-| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I6, I10 |
+| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I10 |
 | ACID-STATIC-REST | The static features part 2 left out: tile 14's wrapped cells beside a row span; tile 15a's range slider, pixel `outline-offset` and script-unchecked default box; tile 18's baseline row group and `aspect-ratio` item; tile 19's overflowing text over a float and cleared first child's margin; tile 25's whole-moving `overflow: hidden` box and `box-decoration-break: clone`; tile 26's `popovertarget` + `flip-block` popover, `position-try-order: most-height` and `anchor-center`; their click and hit checks in stage 2 | |
 
 ## Log
@@ -10981,3 +10981,21 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   allow-keywords`, its content visible throughout (`content-visibility` under `allow-discrete`); the delayed swatch's
   log reads `r` at 25 and `rs` from 50. Found ACID-FIX-14 (the colors were Oklab's, not sRGB's) and ACID-FIX-15 (the
   `transitionstart` listener's change drew a frame late); green after both. No reference was changed.
+- 2026-10-10 — ACID-INTERACTIVE, steps I7–I9 (page 10, stage-2 tiles 38–40). I7 (HTML §4.2.6, CSSOM §6.7, CSS Cascade 4
+  §6.1): rewriting a `<style>` element's text and `style.setProperty()` restyle at the next frame — the rewritten
+  sheet keeps its place before the App's sheets, so its `!important` rule beats the App's later normal one — and
+  `removeProperty()` drops the inline colour. I8 (CSSOM View §4.1, §5.1, §12.1; DIVERGENCES §2 "Smooth scrolling has
+  a fixed duration and curve"): a `scrollTo` on a `scroll-behavior: smooth` box is at 0 in its first frame, 7 at
+  125 ms (eased 0.875 of 8) and 8 at 250 ms; `scrollIntoView({block: "nearest"})` of a line above the scrollport moves
+  it 8 → 3 → 2, the outer box, which shows the inner one whole, staying at 0. I9 (HTML §6.6, CSS UI 4 §4.1, §6.2;
+  DIVERGENCES §2 caret paint, `caret-shape`, `cursor`): with a 500 ms blink (`Step::configure`, new) the block caret
+  is on after a click and off 600 ms later; typing `c` lands in the field and restarts it; `underscore` underlines
+  the end cell and then `b` in red; `bar` is `▏` at the end, unblinking under `caret-animation: manual`, and an
+  underline over `b`; over a kitty-like terminal (`PointerShapes::Osc22`) the pointer's OSC 22 is `pointer` over the
+  link, `grab` over the `cursor: grab` box and `text` over the field (`Session::output`, new). All matched after two
+  corrections, neither of rdom: the script first hovered the field the last click had left the pointer on — no change
+  of shape, nothing sent — and now hovers away first; and the comparator compared the foreground of a blank cell
+  under the underscore caret, whose underline SGR 58 draws in its own colour (red), so that foreground is not seen —
+  `reference::shows_fg` now counts only the decorations drawn in the foreground (an overline, a strike, an underline
+  without an `ul` colour), with its own case, and the reference's legend for that cell names no foreground. Every
+  stage-1 tile still matches under the refined rule.

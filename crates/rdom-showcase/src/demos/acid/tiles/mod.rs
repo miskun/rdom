@@ -43,6 +43,9 @@ mod t34_pointer;
 mod t35_focus;
 mod t36_form_state;
 pub mod t37_transitions;
+mod t38_cssom;
+mod t39_smooth_scroll;
+mod t40_caret;
 
 /// Every tile, in `ACID.md` order.
 pub const TILES: &[&Tile] = &[
@@ -87,6 +90,9 @@ pub const TILES: &[&Tile] = &[
     &t35_focus::TILE,
     &t36_form_state::TILE,
     &t37_transitions::TILE,
+    &t38_cssom::TILE,
+    &t39_smooth_scroll::TILE,
+    &t40_caret::TILE,
 ];
 
 /// The sheets the tiles' `<style>` elements `@import`, by URL — what the

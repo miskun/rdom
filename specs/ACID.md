@@ -1,6 +1,6 @@
 # ACID — an rdom acid test
 
-**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Part 3 under way: the stage-2 harness (ACID-INTERACTIVE-HARNESS) with steps I1–I6 and I10 on tiles 34–37.
+**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Part 3 under way: the stage-2 harness (ACID-INTERACTIVE-HARNESS) with steps I1–I10 on tiles 34–40.
 
 ## Why
 
@@ -59,7 +59,9 @@ Decided while building the harness (ACID-HARNESS, 2026-10-09):
   (underline colour) and the modifiers `bold`, `italic`, `underline` / `double` / `curly` / `dotted`
   / `dashed`, `overline`, `strike`, `blink`; `.` is the all-default style. A blank cell shows no
   foreground, weight or slant, so those are compared on a blank only when it carries a line
-  decoration. Each reference file (`tests/integration/acid/refs/`) carries its spec citations and
+  decoration drawn in its foreground — an overline, a strike, or an underline without an `ul` colour
+  of its own (refined with step I9: SGR 58 draws an underline in its own colour, and the blank's
+  foreground is then not seen). Each reference file (`tests/integration/acid/refs/`) carries its spec citations and
   the derivation of its cells.
 - **Imports.** A tile's `<style>` element may `@import` a sheet the tile declares (`IMPORT`, gathered in
   `tiles::IMPORTS`); the page's loader (`acid::import_loader`) serves them by URL, as a host's loader serves files —
@@ -120,6 +122,9 @@ Each tile: what it combines → what the spec says the cells must show.
 | 35 | **Focus: Tab vs click** (stage 2: I3) | a button with an author `:focus-visible { outline: auto }` beside an empty text field; a button whose `click` listener unhides a panel and focuses its field, logging whether it got the focus | At rest: the UA's button and field chrome, nothing focused — no ring, no caret; the `hidden` panel takes no box. |
 | 36 | **Form state** (stage 2: I4, I5) | a `required` empty field whose sibling's `::after` and its form's label read `:valid` / `:invalid`; a checkbox and a radio group in a form beside a same-named radio outside it, both radios checked | At rest: the field and its form `:invalid` (`bad`, `form` red); both radios checked — different groups, their form owners differ (HTML §4.10.5.1.15). |
 | 37 | **Transitions on the clock** (stage 2: I6) | four swatches transitioning black → `rgb(200, 0, 0)` under `linear()` stops, `steps(2, jump-start)` after a delay, a negative delay and `linear`, with a `transitionrun` / `transitionstart` log; `gap`, `padding-left` and `height` transitions; a `details` opening its `::details-content` from `height: 0` to `auto` under `interpolate-size` | At rest: nothing runs (CSS Transitions 1 §3) — black swatches, `abc`, `pad`, a one-row box and the closed `details`. |
+| 38 | **CSSOM rewrite** (stage 2: I7) | a live `<style>` element colouring two words, the App's sheet recolouring the second, a word coloured by its `style` attribute | At rest: `sty` red, `app` blue (the App's sheets cascade after `<style>` sheets, DIVERGENCES §2), `inl` red. |
+| 39 | **Smooth scroll, `scrollIntoView`** (stage 2: I8) | an outer scroll container around an inner one under `scroll-behavior: smooth`, neither with a scrollbar | At rest: both at 0 — `top`, `a0`–`a2` on navy, `o2`. |
+| 40 | **Caret and pointer** (stage 2: I9) | three fields — the block caret in `caret-color` / `caret-text-color`, `caret-shape: underscore`, `caret-shape: bar` with `caret-animation: manual` — a link and a `cursor: grab` box | At rest: the UA's field chrome, no caret; the link in the accent, underlined. |
 
 ### Part 2 notes (2026-10-10)
 
@@ -158,7 +163,9 @@ Decided while building its harness (ACID-INTERACTIVE-HARNESS, 2026-10-10):
 - **Per-checkpoint references** in the stage-1 format, derived by hand, each step's in its own file
   (`interactive/steps/iNN_….rs`) with its spec citations and derivation; a checkpoint that matches a
   tile's rest state reuses the static reference. Facts no cell shows (an event order, a hit target,
-  a `matchMedia` log) are `Session::check`s with their spec section.
+  a `matchMedia` log, an OSC 22 pointer shape read from `Session::output`) are `Session::check`s with their spec
+  section. A step's `configure` sets what its `App` needs before the first frame (a caret blink rate, a pointer-shape
+  protocol).
 - **Reports.** Failures are collected, not panicked, so one wrong checkpoint never hides the next;
   each names the step, the checkpoint (number and words), the tile, every differing cell with both
   sides and the spec, with the painted crop for diagnosis. One test per step

@@ -33,6 +33,7 @@ pub static STEP: Step = Step {
     page: 10,
     spec: &["Selectors 4 §9.2, §16.1–§16.4"],
     run,
+    configure: None,
 };
 
 const SPEC: &[&str] = &["Selectors 4 §9.2 (ancestors), §16 (combinators)"];
