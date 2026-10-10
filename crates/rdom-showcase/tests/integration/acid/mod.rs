@@ -366,3 +366,8 @@ fn tile_40_caret() {
 fn tile_41_snap() {
     assert_tile(&refs::t41_snap::REF);
 }
+
+#[test]
+fn tile_42_user_validity() {
+    assert_tile(&refs::t42_user_validity::REF);
+}

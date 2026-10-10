@@ -17,6 +17,8 @@ pub mod i09_caret;
 pub mod i10_pointer_events;
 pub mod i11_snap;
 pub mod i12_pseudo;
+pub mod i13_invalidation;
+pub mod i14_user_validity;
 
 /// Every step, in `ACID.md` order.
 pub const ALL: &[&Step] = &[
@@ -32,4 +34,6 @@ pub const ALL: &[&Step] = &[
     &i10_pointer_events::STEP,
     &i11_snap::STEP,
     &i12_pseudo::STEP,
+    &i13_invalidation::STEP,
+    &i14_user_validity::STEP,
 ];

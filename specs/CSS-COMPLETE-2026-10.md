@@ -307,7 +307,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
 | ACID-INTERACTIVE-HARNESS | Stage 2's driver: scripted keys, mouse, wheel and resize against a fresh headless `App` per step with a controllable clock, per-checkpoint references in the stage-1 format, failure reports naming the step, checkpoint, tile, cells and spec; steps I1, I2, I10 on tile 34 | done |
-| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I12 |
+| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I14 |
 | ACID-STATIC-REST | The static features part 2 left out: tile 14's wrapped cells beside a row span; tile 15a's range slider, pixel `outline-offset` and script-unchecked default box; tile 18's baseline row group and `aspect-ratio` item; tile 19's overflowing text over a float and cleared first child's margin; tile 25's whole-moving `overflow: hidden` box and `box-decoration-break: clone`; tile 26's `popovertarget` + `flip-block` popover, `position-try-order: most-height` and `anchor-center`; their click and hit checks in stage 2 | |
 
 ## Log
@@ -11013,3 +11013,18 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   matches; `::marker:hover` on an outside and an inside marker; `::first-letter:hover` on a floated drop cap. Tile 9a
   gains the `::after:active` and `::before:focus` rules and `tabindex="0"` on their host — its rest state unchanged.
   Both green at first run; no reference was changed.
+- 2026-10-10 — ACID-INTERACTIVE, steps I13–I14. I13 (page 1, tile 4; Selectors 4 §4.5, §7.2, §9.2, §14.3, §15, HTML
+  §3.2.6.4): each DOM change restyles tile 4 at the next frame — an item inserted before the `:nth-child(2n+1)` list
+  shifts the green to the new odd positions, an `of .x` sibling losing `.x` moves `even of .x` to `d`, `.img` added
+  two levels inside the `:not(:has(.img))` probe clears it, a sibling losing and regaining `.note` toggles
+  `:has(+ a.note)`, the pointer over a `:has(:hover)` span greens it, a click checks the checkbox of a
+  `:has(:checked)` form, and the `dir=auto` span's Hebrew replaced by Latin no longer matches `:dir(rtl)`. Tile 4 grows
+  a row for the `:has(:hover)` span and the inline `:has(:checked)` form (its static reference gains that row, plain at
+  rest), and its `no-img` probe's text moves two elements deep (`data > time`), drawn the same. I14 (page 11, stage-2
+  tile 42; HTML §4.16.3, §4.10.5.5, §4.10.21.3, §4.10.22): typing a `pattern` mismatch colours nothing until Tab
+  commits it (`change` before `blur`, logged `cb`), then `:user-invalid` and the form's `:has(:user-invalid)` label;
+  fixed and left again, `:user-valid`; the submit button makes the untouched `required` checkbox and field
+  `:user-invalid` and focuses the checkbox (blocked submission, no tint — pointer-caused focus); reset clears every
+  state; a click on the `required` checkbox shows `:user-valid` checked, `:user-invalid` unchecked. The states colour
+  text, the checkbox and the placeholder, never a focused field's background, which the UA's `!important` tint
+  covers. Both green at first run; no reference was changed.

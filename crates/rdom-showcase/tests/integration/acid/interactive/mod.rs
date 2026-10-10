@@ -204,3 +204,13 @@ fn step_i11_snap() {
 fn step_i12_pseudo() {
     assert_step(&steps::i12_pseudo::STEP);
 }
+
+#[test]
+fn step_i13_invalidation() {
+    assert_step(&steps::i13_invalidation::STEP);
+}
+
+#[test]
+fn step_i14_user_validity() {
+    assert_step(&steps::i14_user_validity::STEP);
+}

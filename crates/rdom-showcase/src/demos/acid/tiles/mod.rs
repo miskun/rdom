@@ -47,6 +47,7 @@ mod t38_cssom;
 mod t39_smooth_scroll;
 mod t40_caret;
 pub mod t41_snap;
+mod t42_user_validity;
 
 /// Every tile, in `ACID.md` order.
 pub const TILES: &[&Tile] = &[
@@ -95,6 +96,7 @@ pub const TILES: &[&Tile] = &[
     &t39_smooth_scroll::TILE,
     &t40_caret::TILE,
     &t41_snap::TILE,
+    &t42_user_validity::TILE,
 ];
 
 /// The sheets the tiles' `<style>` elements `@import`, by URL — what the

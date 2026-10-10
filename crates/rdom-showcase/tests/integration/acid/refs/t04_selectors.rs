@@ -63,8 +63,11 @@
 //!    `child` (`:has(> a.sel)`) green, `!child` (the `.sel` a grandchild)
 //!    default; `adj` (`:has(+ a.note)`) green before its default `.`;
 //!    `sib` (`:has(~ aside .warn)`; the `aside` made inline by the tile)
-//!    green before `.w`; `no-img` (`:not(:has(.img))`) green, `!no-img`
-//!    default.
+//!    green before `.w`; `no-img` (`:not(:has(.img))`, its text two
+//!    elements deep) green, `!no-img` default.
+//! 7. `hover` (`:has(:hover)`) and the form's `[ ] chk` (`:has(:checked)`,
+//!    the form inline) default: nothing is hovered or checked (step I13
+//!    hovers and checks them). The checkbox is the UA's 4-cell `[ ] `.
 
 use super::super::reference::Reference;
 
@@ -95,5 +98,7 @@ pub const REF: Reference = Reference {
 |gg.gg.....gggg..........ggg...............................|
 |ehas child !child adj. sib.w no-img !no-img               |
 |gggg.ggggg........ggg..ggg...gggggg.......................|
+|hover [ ] chk                                             |
+|..........................................................|
 "#,
 };
