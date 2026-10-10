@@ -24,8 +24,10 @@
 //!
 //! - Row 0: the card's two parts are blocks. The sidebar (x 0, 20 wide)
 //!   is under 30: the card stays a block container — `IMG`, then `text`; its bar 50 % of 20 = 10 (row 2). The pane
-//!   (x 22, 36) is 30 or more: the card is a row, gap 1 — `IMG text`; its
-//!   bar 18 (row 1).
+//!   (x 22, `calc(20vw + 12)`: 36 at 120 columns — CSS Values 4 §6.1.2,
+//!   DIVERGENCES §1 "The viewport is the terminal") is 30 or more: the card
+//!   is a row, gap 1 — `IMG text`; its bar 18 (row 1). Step I19 narrows
+//!   the terminal under it.
 //! - Row 4: inside the 10-wide `.inner`, inside the 24-wide container
 //!   `box`: `named` queries `box` (24 > 20, green), `near` the nearest
 //!   container, `.inner` (10, not). The `size` container (x 26, 10 × 3):

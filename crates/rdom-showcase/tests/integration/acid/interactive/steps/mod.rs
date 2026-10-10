@@ -23,6 +23,9 @@ pub mod i15_light_dismiss;
 pub mod i16_popover_motion;
 pub mod i17_keyframes;
 pub mod i18_scroll_driven;
+pub mod i19_resize;
+pub mod i20_slide;
+pub mod i21_anchor_resize;
 
 /// Every step, in `ACID.md` order.
 pub const ALL: &[&Step] = &[
@@ -44,4 +47,7 @@ pub const ALL: &[&Step] = &[
     &i16_popover_motion::STEP,
     &i17_keyframes::STEP,
     &i18_scroll_driven::STEP,
+    &i19_resize::STEP,
+    &i20_slide::STEP,
+    &i21_anchor_resize::STEP,
 ];

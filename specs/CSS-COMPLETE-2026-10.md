@@ -307,7 +307,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
 | ACID-INTERACTIVE-HARNESS | Stage 2's driver: scripted keys, mouse, wheel and resize against a fresh headless `App` per step with a controllable clock, per-checkpoint references in the stage-1 format, failure reports naming the step, checkpoint, tile, cells and spec; steps I1, I2, I10 on tile 34 | done |
-| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I18 |
+| ACID-INTERACTIVE | Stage 2, steps I1–I21 | done |
 | ACID-STATIC-REST | The static features part 2 left out: tile 14's wrapped cells beside a row span; tile 15a's range slider, pixel `outline-offset` and script-unchecked default box; tile 18's baseline row group and `aspect-ratio` item; tile 19's overflowing text over a float and cleared first child's margin; tile 25's whole-moving `overflow: hidden` box and `box-decoration-break: clone`; tile 26's `popovertarget` + `flip-block` popover, `position-try-order: most-height` and `anchor-center`; their click and hit checks in stage 2 | |
 
 ## Log
@@ -11054,3 +11054,22 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   of its `contain 50%` peak of 8, and an `rtl` scroller's named inline timeline, counted from its right-hand origin,
   sizes a bar outside it through `timeline-scope`; made `overflow: clip`, the scroller is no scroll container and
   its bar idles at its own width. Both green at first run; no reference was changed.
+- 2026-10-10 — ACID-INTERACTIVE, steps I19–I21; the item closed. I19 (page 6; Media Queries 4 §4, CSSOM View §4.2, CSS
+  Conditional 5 §6, CSS Containment 2 §4.4): at 70 × 50 tile 20's `minw` and `px` stop matching and `maxw` and `npx`
+  start, a `matchMedia("(width < 100)")` listener hears `true`, tile 22's pane — now `calc(20vw + 12)`, 36 at 120
+  columns as before, so its static reference stands — turns its card into a column with a 13-cell bar, and a new
+  stage-2 tile 47's `40vw` paragraph re-wraps to five lines, pushing its `content-visibility: auto` block off the
+  50-row screen (`skipped` true, logged a frame later); back at 120 everything returns and the listener hears
+  `false`. The cascade counts ACID.md names are not visible in cells (rdom-tui's `media_tests` pin them). I20 (page
+  6, stage-2 tile 48 — tile 23 is full; CSS Transforms 1 §3 / 2 §5.1): a click starts a `translate: -100% 0` → `0`
+  transition and a `@keyframes translateX()` slide-in; at 100 ms both sit half in (−5) and the pointer over the
+  panel's drawn half hits it while the cell it is heading for does not; at 200 ms both are in; a `rotate()` spinner
+  never moves. I21 (page 7; CSS Anchor Positioning 1 §3–§5, CSS Multi-column 1 §3.4 / §7): wheel ticks over tile 26's
+  scroller move the `always` box with its anchor every tick and show the `anchors-visible` one only while the anchor is
+  in the port; with the terminal 46 rows tall, a new stage-2 tile 49 at the page's foot has its `calc(100vh - 24)`
+  article in 2 columns of 3 rows and its picker's `flip-block` popover above the button, and back at 50 rows 3
+  columns of 2 rows and the popover below. ACID.md's I21 text named tile 25's columns and tile 26's picker; both sit
+  at the page's top, out of a 4-row resize's reach, so the step's article and picker are tile 49's (the text is
+  updated). All green at first run but a transcription slip in I19's first reference (tile 20's `px` taken a column
+  right of where the static reference has it); no reference was changed against the spec. ACID-INTERACTIVE found
+  ACID-FIX-14 and ACID-FIX-15.

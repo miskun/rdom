@@ -54,6 +54,9 @@ pub mod t43_popovers;
 pub mod t44_popover_motion;
 pub mod t45_keyframes;
 pub mod t46_scroll_driven;
+pub mod t47_fold;
+pub mod t48_slide;
+pub mod t49_picker;
 
 /// Every reference.
 pub const ALL: &[&Reference] = &[
@@ -107,4 +110,7 @@ pub const ALL: &[&Reference] = &[
     &t44_popover_motion::REF,
     &t45_keyframes::REF,
     &t46_scroll_driven::REF,
+    &t47_fold::REF,
+    &t48_slide::REF,
+    &t49_picker::REF,
 ];

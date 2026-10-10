@@ -234,3 +234,18 @@ fn step_i17_keyframes() {
 fn step_i18_scroll_driven() {
     assert_step(&steps::i18_scroll_driven::STEP);
 }
+
+#[test]
+fn step_i19_resize() {
+    assert_step(&steps::i19_resize::STEP);
+}
+
+#[test]
+fn step_i20_slide() {
+    assert_step(&steps::i20_slide::STEP);
+}
+
+#[test]
+fn step_i21_anchor_resize() {
+    assert_step(&steps::i21_anchor_resize::STEP);
+}

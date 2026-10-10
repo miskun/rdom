@@ -52,6 +52,9 @@ mod t43_popovers;
 mod t44_popover_motion;
 mod t45_keyframes;
 mod t46_scroll_driven;
+mod t47_fold;
+mod t48_slide;
+mod t49_picker;
 
 /// Every tile, in `ACID.md` order.
 pub const TILES: &[&Tile] = &[
@@ -105,6 +108,9 @@ pub const TILES: &[&Tile] = &[
     &t44_popover_motion::TILE,
     &t45_keyframes::TILE,
     &t46_scroll_driven::TILE,
+    &t47_fold::TILE,
+    &t48_slide::TILE,
+    &t49_picker::TILE,
 ];
 
 /// The sheets the tiles' `<style>` elements `@import`, by URL — what the

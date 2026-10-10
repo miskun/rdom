@@ -391,3 +391,18 @@ fn tile_45_keyframes() {
 fn tile_46_scroll_driven() {
     assert_tile(&refs::t46_scroll_driven::REF);
 }
+
+#[test]
+fn tile_47_fold() {
+    assert_tile(&refs::t47_fold::REF);
+}
+
+#[test]
+fn tile_48_slide() {
+    assert_tile(&refs::t48_slide::REF);
+}
+
+#[test]
+fn tile_49_picker() {
+    assert_tile(&refs::t49_picker::REF);
+}

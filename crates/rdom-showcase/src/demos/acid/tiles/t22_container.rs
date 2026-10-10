@@ -34,7 +34,7 @@ pub const TILE: Tile = Tile {
 .acid-t22 .cq { container-type: inline-size; }
 .acid-t22 .side { width: 20; }
 .acid-t22 .card b { display: block; }
-.acid-t22 .pane { width: 36; }
+.acid-t22 .pane { width: calc(20vw + 12); }
 @container (width >= 30) { .acid-t22 .card { display: flex; gap: 1; } }
 .acid-t22 .bar { width: 50cqw; height: 1; background-color: rgb(0, 128, 128); }
 .acid-t22 .outer { container: box / inline-size; width: 24; }
