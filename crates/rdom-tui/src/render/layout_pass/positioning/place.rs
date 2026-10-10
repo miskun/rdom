@@ -20,6 +20,10 @@ use super::*;
 /// placed rect by `layout_node`; a `::before` / `::after`, its content
 /// laid out inside it (`pseudo::place`).
 ///
+/// A box `given` a rect takes it instead of the one its insets ask for: an
+/// anchor-positioned box whose size changed when its anchors moved after
+/// this phase, placed again at that size (`after_placement`).
+///
 /// Returns the boxes it placed, in document order (a host's `::before`
 /// right after the host, its `::after` after the host's descendants).
 ///
@@ -30,6 +34,7 @@ use super::*;
 pub(in crate::render::layout_pass) fn place_positioned(
     dom: &mut Dom<TuiExt>,
     viewport: LayoutRect,
+    given: &Given,
 ) -> Vec<BoxItem> {
     let positioned = collect_positioned(dom);
     // The anchor names, found on the first anchor-positioned box; the boxes
@@ -49,14 +54,20 @@ pub(in crate::render::layout_pass) fn place_positioned(
                     node: id,
                     pseudo: false,
                 };
-                let placed = super::anchor::placed_rect(
-                    dom,
-                    &anchors,
-                    Placed::Element(id),
-                    querying,
-                    &computed,
-                    cb,
-                );
+                let placed = match given.get(&item) {
+                    Some(&rect) => super::anchor::Placement {
+                        rect,
+                        hidden: false,
+                    },
+                    None => super::anchor::placed_rect(
+                        dom,
+                        &anchors,
+                        Placed::Element(id),
+                        querying,
+                        &computed,
+                        cb,
+                    ),
+                };
                 if placed.hidden {
                     super::anchor::visibility::hide(dom, id, None);
                 }
@@ -74,13 +85,22 @@ pub(in crate::render::layout_pass) fn place_positioned(
                     },
                 );
             }
-            BoxItem::Generated(host, slot) => {
-                super::pseudo::place(dom, &anchors, host, slot, viewport)
-            }
+            BoxItem::Generated(host, slot) => super::pseudo::place(
+                dom,
+                &anchors,
+                host,
+                slot,
+                viewport,
+                given.get(&item).copied(),
+            ),
         }
     }
     positioned
 }
+
+/// Rects given to positioned boxes instead of the ones their insets ask
+/// for ([`place_positioned`]).
+pub(in crate::render::layout_pass) type Given = std::collections::HashMap<BoxItem, LayoutRect>;
 
 /// The positioned boxes phase 2 places, in document order; each
 /// element's positioned pseudo-elements from the last placement are

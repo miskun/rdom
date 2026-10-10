@@ -39,14 +39,15 @@ pub(in crate::render::layout_pass) fn is_positioned_box(
 }
 
 /// Place `host`'s positioned `slot` pseudo-element against its
-/// containing block and lay its content out inside it, keeping the box on
-/// `host`.
+/// containing block — at `given` when given (`place::Given`) — and lay its
+/// content out inside it, keeping the box on `host`.
 pub(in crate::render::layout_pass) fn place(
     dom: &mut Dom<TuiExt>,
     anchors: &super::anchor::AnchorIndex,
     host: NodeId,
     slot: PseudoSlot,
     viewport: LayoutRect,
+    given: Option<LayoutRect>,
 ) {
     let Some(item) = AnonymousItem::pseudo(dom, host, slot) else {
         return;
@@ -61,18 +62,24 @@ pub(in crate::render::layout_pass) fn place(
         node: host,
         pseudo: true,
     };
-    let rect = super::anchor::placed_rect(
-        dom,
-        anchors,
-        Placed::Generated {
-            host,
-            slot,
-            item: &item,
+    let rect = match given {
+        Some(rect) => super::anchor::Placement {
+            rect,
+            hidden: false,
         },
-        querying,
-        &style,
-        cb,
-    );
+        None => super::anchor::placed_rect(
+            dom,
+            anchors,
+            Placed::Generated {
+                host,
+                slot,
+                item: &item,
+            },
+            querying,
+            &style,
+            cb,
+        ),
+    };
     if rect.hidden {
         super::anchor::visibility::hide(dom, host, Some(slot));
     }

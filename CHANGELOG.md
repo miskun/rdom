@@ -636,6 +636,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Fixed — `rdom-tui`
 
+- **An anchored box follows a sticky or relatively moved anchor** (CSS Anchor Positioning 1 §2): anchors were read before sticky boxes stuck and relative inline boxes moved, so a tooltip under a sticky header stayed where the unstuck header would be; anchored boxes are now placed again after those moves, by a layout and by a scroll alike. (C16G-ANCHOR-AFTER-MOVE)
 - **An unterminated bracketed paste no longer buffers without bound or swallows Ctrl+C**: a paste is delivered capped at 1 MiB, the rest discarded to its end marker as an over-long OSC string is, and a Ctrl+C byte ends an open paste and is read as the key. (C16G-HARDENING)
 - **A sticky header cell sticks across its table** (CSS 2.1 §10.1, CSS Position 3 §3.4): a sticky box's containing block was its parent's content box, so a `thead th { position: sticky }` stayed inside its one-row `<tr>`; it is now the nearest block container or formatting-context root, as in browsers. (C16G-TBODY-SCROLL)
 - **A huge `steps()` count schedules in constant memory** (CSS Easing 1 §2.3): a stepped CSS animation listed its keyframe intervals' N + 1 change points every frame, so `steps(10000000)` allocated 80 MB per frame and `steps(4294967295)` aborted; step positions are now computed arithmetically, as browsers do. (C16G-STEPS-CAP)

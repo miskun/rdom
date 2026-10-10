@@ -86,6 +86,7 @@
 //! intrinsic measurement; the root fragment's box is the initial
 //! containing block (`icb`).
 
+mod after_placement;
 mod auto_height;
 pub(crate) mod baselines;
 mod block;
@@ -228,26 +229,18 @@ fn layout_once(dom: &mut Dom<TuiExt>, viewport: Rect) {
         icb::lay_out(dom, root, root_rect);
         // Pass 2 — place absolute / fixed elements against their
         // containing blocks.
-        let placed = positioning::place_positioned(dom, root_rect);
+        let placed = positioning::place_positioned(dom, root_rect, &positioning::Given::new());
         if !positioned_overflow::settle(dom, &placed) {
             break;
         }
     }
-    // Pass 2.5 — place position: sticky elements. They stayed
-    // in flow during pass 1; this pass adjusts their rect based
-    // on the nearest scrollable ancestor's scroll position.
-    sticky::place_sticky(dom);
-    // Pass 2.6 — an open `<select>` picker flips above its field where
-    // the screen ends.
-    picker::place_pickers(dom, root_rect);
     #[cfg(debug_assertions)]
     block::debug_assert_no_margin_chain_memo(dom, root);
-    // Pass 3 — move relatively positioned and sticky `::before` /
-    // `::after` from their in-flow places (phase 2 placed the
-    // absolute and fixed ones with the elements).
-    positioning::offset_in_flow_pseudos(dom);
-    // … and relatively positioned inline boxes (ACID-FIX-5).
-    positioning::offset_relative_inlines(dom);
+    // Pass 3 — the passes that move laid-out boxes (sticky boxes,
+    // relative and sticky pseudo-elements, relative inline boxes, an open
+    // picker's flip), then the anchor-positioned boxes placed against the
+    // anchors they moved (`after_placement`).
+    after_placement::run(dom, root_rect);
     intrinsic::end_pass(dom);
     // The highlight layers the paints after this layout read, indexed
     // once (`highlight_index`).

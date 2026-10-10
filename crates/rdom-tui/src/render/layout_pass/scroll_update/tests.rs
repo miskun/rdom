@@ -347,3 +347,67 @@ fn relevance_kept_scrolls_without_a_layout() {
         Update::Scrolled,
     );
 }
+
+/// C16G-ANCHOR-AFTER-MOVE (CSS Anchor Positioning 1 §2, CSS Position 3
+/// §3.4, CSS 2.1 §9.4.3): boxes anchored to a sticky header and to a
+/// relatively moved inline box are placed against where those moved — by
+/// a scroll update as by a layout.
+#[test]
+fn anchored_boxes_follow_sticky_and_relative_anchors() {
+    let markup = r#"<div id="s"><h1>H</h1><p>a <span id="r">rel</span></p><p>b</p><p>c</p><p>d</p><p>e</p><p>f</p><p>g</p><p>h</p></div><div id="t">T</div><div id="u">U</div>"#;
+    let css = "#s { overflow-y: auto; height: 5; width: 20 } p, h1 { margin: 0 } \
+               h1 { position: sticky; top: 0; anchor-name: --h } \
+               #r { position: relative; left: 2; anchor-name: --r } \
+               #t { position: absolute; position-anchor: --h; top: anchor(bottom); left: anchor(left) } \
+               #u { position: absolute; top: anchor(--r bottom); left: anchor(--r right) }";
+    agrees(
+        markup,
+        css,
+        &[&[("s", 0, 2)], &[("s", 0, 4)], &[("s", 0, 0)]],
+        Update::Scrolled,
+    );
+    let mut dom = build(markup, css);
+    let at = |dom: &TuiDom, id: &str| {
+        let r = dom
+            .node(dom.get_element_by_id(id).unwrap())
+            .layout_rect()
+            .unwrap();
+        (r.x, r.y)
+    };
+    assert_eq!(at(&dom, "u"), (7, 2), "under the moved inline, laid out");
+    scroll(&mut dom, "s", 0, 3);
+    assert_eq!(update(&mut dom, VIEW), Update::Scrolled);
+    assert_eq!(at(&dom, "t"), (0, 1), "under the stuck header, scrolled");
+    assert_eq!(at(&dom, "u"), (7, -1), "under the moved inline, scrolled");
+}
+
+/// C16G-ANCHOR-AFTER-MOVE: a box stretched from a sticky anchor to its
+/// containing block's bottom is laid out at the size the stuck anchor
+/// gives it — phase 2 runs again with that rect — and a scroll that
+/// changes the size lays out.
+#[test]
+fn a_box_sized_by_a_sticky_anchor_is_laid_out_at_that_size() {
+    let markup = r#"<div id="s"><p>x</p><h1>H</h1><p>a</p><p>b</p><p>c</p><p>d</p><p>e</p><p>f</p></div><div id="t"><p id="in">in</p></div>"#;
+    let css = "#s { overflow-y: auto; height: 5; width: 20 } p, h1 { margin: 0 } \
+               h1 { position: sticky; top: 0; anchor-name: --h } \
+               #t { position: absolute; top: anchor(--h bottom); bottom: 0; left: 0; width: 5 } \
+               #in { height: 100% }";
+    let rect = |dom: &TuiDom, id: &str| {
+        let r = dom
+            .node(dom.get_element_by_id(id).unwrap())
+            .layout_rect()
+            .unwrap();
+        (r.x, r.y, r.width, r.height)
+    };
+    let mut dom = build(markup, css);
+    assert_eq!(rect(&dom, "t"), (0, 2, 5, 10));
+    scroll(&mut dom, "s", 0, 3);
+    dom.layout_dom(VIEW);
+    assert_eq!(rect(&dom, "t"), (0, 1, 5, 11), "from the stuck header down");
+    assert_eq!(
+        rect(&dom, "in"),
+        (0, 1, 5, 11),
+        "its content laid out at that size"
+    );
+    agrees(markup, css, &[&[("s", 0, 3)]], Update::LaidOut);
+}

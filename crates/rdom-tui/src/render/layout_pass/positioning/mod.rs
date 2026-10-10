@@ -69,10 +69,10 @@ pub(super) use axis::axis_position_anchored;
 pub(super) use containing::{
     absolute_containing_block, containing_ancestor, fixed_containing_ancestor,
 };
-pub(super) use place::place_positioned;
+pub(super) use place::{Given, place_positioned};
 pub(super) use pseudo_offsets::{PseudoMove, offset_in_flow_pseudos};
 pub(super) use relative::{apply_relative_shift, relative_offset};
-pub(super) use relative_inlines::offset_relative_inlines;
+pub(super) use relative_inlines::{clear_offsets, offset_relative_inlines};
 pub(super) use static_pos::{
     out_of_flow_positioned_children, record_static_position, record_static_positions_in_ifc,
     static_anchors, static_position_in_ifc,

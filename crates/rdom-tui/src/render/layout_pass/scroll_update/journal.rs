@@ -1,9 +1,9 @@
 //! What the last layout did after placing the positioned boxes, kept so
 //! a scroll update can take it back (document data): the passes that run
-//! after phase 2 — sticky placement, the picker flip, the relative and
-//! sticky `::before` / `::after` offsets — each move boxes that are
-//! already laid out, and the sticky and picker ones depend on the scroll
-//! offsets. A scroll update undoes them, moves the scrolled content, and
+//! after phase 2 — sticky placement, the relative and sticky `::before` /
+//! `::after` offsets, the relatively positioned inline boxes, the picker
+//! flip — each move boxes that are already laid out, and the sticky and
+//! picker ones depend on the scroll offsets. A scroll update undoes them, moves the scrolled content, and
 //! runs them again ([`super`]).
 
 use rdom_core::{Dom, NodeId};
@@ -23,6 +23,10 @@ pub(in crate::render::layout_pass) enum PostMove {
     Box { id: NodeId, dx: i32, dy: i32 },
     /// A relative or sticky pseudo-element moved in its owner's flow.
     Pseudo(crate::render::layout_pass::positioning::PseudoMove),
+    /// Text in `owner`'s flows moved with the relatively positioned inline
+    /// boxes it is inside (`InlineFragment::offset`); undone by putting
+    /// every fragment back where its line put it.
+    InlineOffsets { owner: NodeId },
 }
 
 /// Where phase 2 placed a positioned box: the rect placement gave it, and
@@ -60,7 +64,9 @@ impl Journal {
             BoxItem::Node(id) | BoxItem::Generated(id, _) => live(id),
         }) && self.sticky.iter().all(|&id| live(id))
             && self.moves.iter().all(|m| match *m {
-                PostMove::Subtree { id, .. } | PostMove::Box { id, .. } => live(id),
+                PostMove::Subtree { id, .. }
+                | PostMove::Box { id, .. }
+                | PostMove::InlineOffsets { owner: id } => live(id),
                 PostMove::Pseudo(p) => live(p.owner()),
             })
     }
@@ -129,6 +135,9 @@ pub(super) fn undo(dom: &mut Dom<TuiExt>, moves: &[PostMove]) {
                 crate::render::layout_pass::tree::shift_box(dom, id, -dx, -dy);
             }
             PostMove::Pseudo(p) => p.undo(dom),
+            PostMove::InlineOffsets { owner } => {
+                crate::render::layout_pass::positioning::clear_offsets(dom, owner);
+            }
         }
     }
 }

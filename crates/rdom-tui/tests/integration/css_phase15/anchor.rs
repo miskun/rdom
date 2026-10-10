@@ -412,3 +412,56 @@ fn an_inline_element_anchors_by_its_fragments() {
     assert_eq!(rect(&dom, "t"), (6, 1, 1, 1));
     assert_eq!(row(&buf, 1), "      T     ");
 }
+
+/// §2 (the anchor box) and CSS Position 3 §3.4: a sticky anchor is read
+/// where it sticks, not where the flow left it (C16G-ANCHOR-AFTER-MOVE).
+/// A scroll of three rows pins the header at the scrollport's top; the
+/// tip sits under it, and `position-visibility: anchors-visible` (the
+/// initial value) sees the stuck header and keeps the tip shown.
+#[test]
+fn an_anchored_box_follows_its_sticky_anchor() {
+    let mut dom = doc(
+        r#"<body><div id="sc"><h1 id="h">H</h1><p>1</p><p>2</p><p>3</p><p>4</p><p>5</p><p>6</p></div><div id="t">T</div></body>"#,
+    );
+    let css = format!(
+        "{PAGE} #sc {{ height: 4; overflow: auto }} p, h1 {{ margin: 0 }}
+         #h {{ position: sticky; top: 0; anchor-name: --h }}
+         #t {{ position: absolute; position-anchor: --h; top: anchor(bottom); left: anchor(left) }}"
+    );
+    styled(&mut dom, &css, 20, 8);
+    assert_eq!(rect(&dom, "t"), (0, 1, 1, 1));
+    let sc = by_id(&dom, "sc");
+    dom.node_mut(sc).ext_mut().unwrap().scroll_y = 3;
+    dom.layout_dom(Rect::new(0, 0, 20, 8));
+    assert_eq!(rect(&dom, "h").1, 0, "the header sticks");
+    assert_eq!(
+        rect(&dom, "t"),
+        (0, 1, 1, 1),
+        "the tip under the stuck header"
+    );
+    let area = Rect::new(0, 0, 20, 8);
+    let mut buf = Buffer::empty(area);
+    dom.paint_dom(&mut buf, area);
+    assert!(
+        row(&buf, 1).starts_with("T "),
+        "shown: its anchor is visible — {:?}",
+        row(&buf, 1)
+    );
+}
+
+/// §2 and CSS 2.1 §9.4.3: an anchor inside a relatively positioned inline
+/// box is read where the box moved it (C16G-ANCHOR-AFTER-MOVE).
+#[test]
+fn an_anchored_box_follows_a_relatively_moved_inline_anchor() {
+    let mut dom = doc(r#"<body><p>ab <span id="s">cde</span> fg</p><div id="t">T</div></body>"#);
+    styled(
+        &mut dom,
+        &format!(
+            "{PAGE} body {{ position: relative }} #s {{ anchor-name: --s; position: relative; top: 1; left: 2 }}
+             #t {{ position: absolute; top: anchor(--s bottom); left: anchor(--s right) }}"
+        ),
+        12,
+        4,
+    );
+    assert_eq!(rect(&dom, "t"), (8, 2, 1, 1));
+}

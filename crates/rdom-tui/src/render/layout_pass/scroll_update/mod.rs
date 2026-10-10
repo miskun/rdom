@@ -9,9 +9,10 @@
 //! again — leaving exactly what a layout at the new offsets would — and
 //! redoes only what depends on where things are on screen:
 //!
-//! 1. The post-placement moves the last layout made (sticky boxes, a
-//!    flipped `<select>` picker, relative and sticky `::before` /
-//!    `::after`), recorded in its [`journal`], are taken back.
+//! 1. The post-placement moves the last layout made (sticky boxes,
+//!    relative and sticky `::before` / `::after`, relatively positioned
+//!    inline boxes, a flipped `<select>` picker), recorded in its
+//!    [`journal`], are taken back.
 //! 2. Each scroll container whose offset moved since its content was
 //!    placed (`scrollbar::state::laid_out`) has its offset clamped, as
 //!    layout clamps it, and its content moved by the difference
@@ -23,13 +24,15 @@
 //!    offset is the current one, DIVERGENCES), are placed again in tree
 //!    order (`positioning::place_again`), `position-visibility` decided
 //!    again; one that moved is moved with its content.
-//! 4. The sticky boxes, the picker flip and the pseudo-element offsets run
-//!    again.
+//! 4. The post-placement passes run again, and the anchor-positioned
+//!    boxes are placed against the anchors they moved
+//!    (`after_placement`, C16G-ANCHOR-AFTER-MOVE).
 //!
 //! Anything that would make the result differ from a layout's falls back
 //! to [`LayoutExt::layout_dom`](crate::render::LayoutExt::layout_dom): no
 //! record of a layout at this viewport, an offset on a box that is not a
-//! scroll container, a box placed again at another size, positioned boxes
+//! scroll container, a box placed again at another size (in step 3 or 4),
+//! positioned boxes
 //! reaching further into their scroll containers (`positioned_overflow`),
 //! or a `content-visibility: auto` element changing relevance (which
 //! re-cascades). Scroll snapping, the scroll-driven timelines and the
@@ -120,21 +123,29 @@ fn try_update(dom: &mut Dom<TuiExt>, viewport: LayoutRect) -> Option<Update> {
         }
     }
     // 3. The positioned boxes whose placement may have moved.
-    let replaced = place_again(dom, &mut j, viewport, stays)?;
-    if replaced {
+    crate::render::layout_pass::intrinsic::begin_pass(dom);
+    let again = place_again(dom, &mut j, viewport, stays);
+    if !again.resized.is_empty() {
+        crate::render::layout_pass::intrinsic::end_pass(dom);
+        return None;
+    }
+    if again.moved {
         let items: Vec<BoxItem> = j.positioned.iter().map(|p| p.item).collect();
         if crate::render::layout_pass::positioned_overflow::settle(dom, &items) {
+            crate::render::layout_pass::intrinsic::end_pass(dom);
             return None;
         }
     }
     // 4. What depends on where the boxes are now, recorded again.
     let sticky = std::mem::take(&mut j.sticky);
     journal::restore(dom, j);
-    crate::render::layout_pass::sticky::place_sticky_in(dom, &sticky);
     journal::set_sticky(dom, &sticky);
-    crate::render::layout_pass::picker::place_pickers(dom, viewport);
-    crate::render::layout_pass::positioning::offset_in_flow_pseudos(dom);
-    crate::render::layout_pass::positioning::offset_relative_inlines(dom);
+    crate::render::layout_pass::after_placement::post_moves(dom, viewport, &sticky);
+    let resized = reanchor(dom, viewport);
+    crate::render::layout_pass::intrinsic::end_pass(dom);
+    if !resized.is_empty() {
+        return None;
+    }
     if crate::style::content_visibility::would_change(dom, viewport) {
         return None;
     }
@@ -178,30 +189,70 @@ fn moved_scrollers(dom: &Dom<TuiExt>) -> Option<Vec<NodeId>> {
     Some(out)
 }
 
+/// What [`place_again`] did.
+#[derive(Debug, Default)]
+struct PlacedAgain {
+    /// Whether a box moved.
+    moved: bool,
+    /// The boxes placed again at another size, each with the rect it now
+    /// takes where phase 2 placed it (`place::Given`) — left where they
+    /// were, to be laid out.
+    resized: Vec<(BoxItem, LayoutRect)>,
+}
+
+/// After the post-placement passes: place every anchor-positioned box
+/// again, in tree order, against the anchors those passes moved — when
+/// they moved any box — moving each that moved with its content
+/// (C16G-ANCHOR-AFTER-MOVE). The boxes whose size changed, with the rects
+/// to lay them out at.
+pub(in crate::render::layout_pass) fn reanchor(
+    dom: &mut Dom<TuiExt>,
+    viewport: LayoutRect,
+) -> Vec<(BoxItem, LayoutRect)> {
+    let Some(mut j) = journal::take(dom) else {
+        return Vec::new();
+    };
+    let again = if j.moves.is_empty() {
+        PlacedAgain::default()
+    } else {
+        place_again(dom, &mut j, viewport, Vec::new())
+    };
+    journal::restore(dom, j);
+    again.resized
+}
+
+/// Take back the post-placement moves the journal holds: the boxes return
+/// to where phase 2 left them.
+pub(in crate::render::layout_pass) fn undo_moves(dom: &mut Dom<TuiExt>) {
+    if let Some(mut j) = journal::take(dom) {
+        journal::undo(dom, &j.moves);
+        j.moves.clear();
+        journal::restore(dom, j);
+    }
+}
+
 /// Place again, in tree order, every anchor-positioned box and the boxes
-/// in `stays`; `None` when one's size changed (it must be laid out).
-/// Whether one moved.
+/// in `stays`, moving each that moved; one whose size changed is left
+/// where it is and listed (it must be laid out).
 fn place_again(
     dom: &mut Dom<TuiExt>,
     j: &mut journal::Journal,
     viewport: LayoutRect,
     stays: Vec<BoxItem>,
-) -> Option<bool> {
+) -> PlacedAgain {
     use crate::render::layout_pass::positioning;
     let mut pending: HashSet<BoxItem> = stays.into_iter().collect();
     let anchored = j
         .positioned
         .iter()
         .any(|p| positioning::is_anchored(dom, p.item));
+    let mut out = PlacedAgain::default();
     if pending.is_empty() && !anchored {
-        return Some(false);
+        return out;
     }
     // Only anchor-positioned boxes are ever hidden; each is placed again.
     positioning::begin_hidden(dom);
     let anchors = positioning::AnchorIndex::default();
-    crate::render::layout_pass::intrinsic::begin_pass(dom);
-    let mut any = false;
-    let mut result = Some(());
     for k in 0..j.positioned.len() {
         let record = j.positioned[k];
         if !pending.remove(&record.item) && !positioning::is_anchored(dom, record.item) {
@@ -219,13 +270,19 @@ fn place_again(
             record.rect.width,
             record.rect.height,
         );
-        if (rect.width, rect.height) != (expected.width, expected.height) {
-            result = None;
-            break;
-        }
         let (dx, dy) = (rect.x - expected.x, rect.y - expected.y);
+        if (rect.width, rect.height) != (expected.width, expected.height) {
+            let given = LayoutRect::new(
+                record.rect.x + dx,
+                record.rect.y + dy,
+                rect.width,
+                rect.height,
+            );
+            out.resized.push((record.item, given));
+            continue;
+        }
         if (dx, dy) != (0, 0) {
-            any = true;
+            out.moved = true;
             let mut more = Vec::new();
             match record.item {
                 BoxItem::Node(id) => move_box(dom, id, dx, dy, &mut more),
@@ -239,8 +296,7 @@ fn place_again(
             at: (now.0 + dx, now.1 + dy),
         };
     }
-    crate::render::layout_pass::intrinsic::end_pass(dom);
-    result.map(|()| any)
+    out
 }
 
 /// Move `host`'s positioned `slot` pseudo-element's box.

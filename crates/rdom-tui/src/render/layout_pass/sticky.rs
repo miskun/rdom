@@ -28,26 +28,20 @@ use crate::ext::TuiExt;
 use crate::layout::{LayoutRect, Length, Position};
 use crate::node::TuiNodeExt;
 
-/// Walk the tree, find every sticky element, and rewrite its
-/// `LayoutRect` to pin against its scrollport when the scroll
-/// position requires it.
-pub(super) fn place_sticky(dom: &mut Dom<TuiExt>) {
-    let sticky_ids = collect_sticky(dom, dom.root());
-    super::scroll_update::set_sticky(dom, &sticky_ids);
-    place_sticky_in(dom, &sticky_ids);
-}
-
-/// Place the sticky elements `ids`, in document order — the ones the last
-/// layout found, when a scroll update places them again.
+/// Rewrite the `LayoutRect` of each sticky element `ids` (in document
+/// order, [`collect_sticky`]) to pin against its scrollport when the
+/// scroll position requires it — the ones the last layout found, when a
+/// scroll update places them again.
 pub(super) fn place_sticky_in(dom: &mut Dom<TuiExt>, ids: &[NodeId]) {
     for &id in ids {
         place_one(dom, id);
     }
 }
 
-fn collect_sticky(dom: &Dom<TuiExt>, id: NodeId) -> Vec<NodeId> {
+/// The document's sticky elements, in document order.
+pub(super) fn collect_sticky(dom: &Dom<TuiExt>) -> Vec<NodeId> {
     let mut out = Vec::new();
-    walk(dom, id, &mut out);
+    walk(dom, dom.root(), &mut out);
     out
 }
 

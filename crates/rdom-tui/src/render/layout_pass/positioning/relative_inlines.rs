@@ -13,8 +13,11 @@
 //! containing block a relative box has: the content box of the block
 //! container whose flow holds it (`relative::relative_offset`).
 //!
-//! The text offsets are set, not added, so the pass is idempotent: a
-//! scroll update runs it again after taking the journalled box moves back.
+//! The text offsets are set, not added, so the pass is idempotent; an
+//! owner whose text moved is journalled too (`PostMove::InlineOffsets`), so
+//! a scroll update taking the moves back sees the flow as phase 2 did —
+//! where an anchor inside the box is read before it moves
+//! (C16G-ANCHOR-AFTER-MOVE) — and runs the pass again.
 
 use rdom_core::{Dom, NodeId, NodeType};
 
@@ -89,6 +92,7 @@ fn offset_owner(dom: &mut Dom<TuiExt>, owner: NodeId) {
     for (flow, il) in flows {
         mover.flow(dom, il, flow, &mut texts, &mut atoms);
     }
+    let text_moved = texts.iter().any(|&(.., by)| by != (0, 0));
     if let Some(ext) = dom.node_mut(owner).ext_mut() {
         for &(flow, line, f, by) in &texts {
             let il = match flow {
@@ -106,12 +110,37 @@ fn offset_owner(dom: &mut Dom<TuiExt>, owner: NodeId) {
             }
         }
     }
+    if text_moved {
+        crate::render::layout_pass::scroll_update::record(
+            dom,
+            crate::render::layout_pass::scroll_update::PostMove::InlineOffsets { owner },
+        );
+    }
     for (atom, (dx, dy)) in atoms {
         crate::render::layout_pass::tree::shift_box(dom, atom, dx, dy);
         crate::render::layout_pass::scroll_update::record(
             dom,
             crate::render::layout_pass::scroll_update::PostMove::Box { id: atom, dx, dy },
         );
+    }
+}
+
+/// Take back the text moves of `owner`'s flows: every fragment where its
+/// line put it, as phase 2 left it.
+pub(in crate::render::layout_pass) fn clear_offsets(dom: &mut Dom<TuiExt>, owner: NodeId) {
+    let mut node = dom.node_mut(owner);
+    let Some(ext) = node.ext_mut() else {
+        return;
+    };
+    let anonymous = ext
+        .anonymous_blocks
+        .iter_mut()
+        .filter(|a| a.generated.is_none())
+        .map(|a| &mut a.inline_layout);
+    for il in ext.inline_layout.iter_mut().chain(anonymous) {
+        for fragment in il.lines.iter_mut().flat_map(|l| l.fragments.iter_mut()) {
+            fragment.offset = (0, 0);
+        }
     }
 }
 

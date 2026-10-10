@@ -11339,3 +11339,23 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   child died of its SIGTERM — and `signals_tests::a_continue_redraws_every_cell` drew nothing; green after, with
   `each_signal_has_its_action`. Not testable in-process: the stop and the exit themselves. Silent change
   `sc-signals`. Batch A (C16G-TRANSITION-CANCEL … C16G-HARDENING) done.
+- 2026-10-10 — C16G-ANCHOR-AFTER-MOVE (Phase 16 gate architect N2; CSS Anchor Positioning 1 §2, CSS Position 3 §3.4,
+  CSS 2.1 §9.4.3). Found: phase 2 read anchors before the post-placement passes moved them — a box anchored to a
+  sticky header stayed where the unstuck header would be (and `position-visibility: anchors-visible` hid it as
+  scrolled away), one anchored inside a relatively positioned inline box ignored the box's offset; and a scroll update
+  diverged from a layout here, because the relative-inline text offsets (set, not journalled) survived the undo, so
+  its phase-2-equivalent placement read moved inline anchors that a layout's phase 2 did not. Decision: re-resolve,
+  in a layout and a scroll update alike (`layout_pass::after_placement`) — the post-placement passes run in one
+  order (sticky, pseudo-element offsets, relative inlines, then the picker flip, so a select inside a moved inline box
+  flips where it is), then every anchor-positioned box is placed again in tree order against the moved anchors
+  (`scroll_update::reanchor`, the scroll update's own place-again) and moved with its content; one whose size
+  changed (stretched from a sticky anchor to a fixed edge) gets its content laid out at that size — the moves taken
+  back, phase 2 run again with the box given its rect (`place::Given`), the passes again, at most three rounds — and
+  a scroll update meeting one lays out. The relative-inline text moves are journalled (`PostMove::InlineOffsets`,
+  undone by clearing the owner's fragment offsets), so undo restores phase 2's state exactly. The anchored boxes'
+  reach into scroll containers stays measured at phase 2 (DIVERGENCES' anchor entry). Red:
+  `css_phase15::anchor::an_anchored_box_follows_its_sticky_anchor` read `(0, -2)` for `(0, 1)`,
+  `…_follows_a_relatively_moved_inline_anchor` `(6, 1)` for `(8, 2)`, and the oracle
+  `scroll_update::tests::anchored_boxes_follow_sticky_and_relative_anchors` diverged at step 0 (updated `x: 7`, laid
+  out `x: 5`); green after, with `a_box_sized_by_a_sticky_anchor_is_laid_out_at_that_size` (mutation-checked: with no
+  resize round it reads `(0, -1, 5, 13)`). No silent change against 0.5 (anchor positioning is new in 0.6).
