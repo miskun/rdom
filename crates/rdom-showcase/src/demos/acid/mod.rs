@@ -35,7 +35,8 @@ use std::io;
 use std::sync::LazyLock;
 
 use rdom_parser::parse_into;
-use rdom_tui::{App, NodeId, Stylesheet, TuiDom};
+use rdom_tui::render::Backend;
+use rdom_tui::{App, ListenerOptions, NodeId, Stylesheet, TuiDom};
 
 use crate::{Category, Demo, Source};
 
@@ -194,23 +195,72 @@ pub fn late_stylesheet() -> Stylesheet {
 }
 
 /// Run `page` full screen (`cargo run -p rdom-showcase --example acid --
-/// <page>`), with both sheets as the tests push them.
+/// <page>`), with both sheets as the tests push them, paging as
+/// [`page_through`] describes; Ctrl+C quits.
 pub fn run_standalone(page: u8) -> io::Result<()> {
+    let page = page.clamp(1, page_count());
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let page_root = build_page(&mut dom, page);
     dom.append_child(root, page_root).unwrap();
     let mut app = App::new(dom, stylesheet())?.with_import_loader(import_loader());
     app.push_stylesheet(late_stylesheet());
-    // The scripts need the first frame's layout: queue them for the
-    // loop's second iteration, after it has drawn the page once.
+    page_through(&mut app, page);
+    app.run()
+}
+
+/// Make `app`, showing `page`, a pager: Ctrl+N and Ctrl+P show the next
+/// and the previous page (wrapping), each built afresh with its tiles'
+/// setup and — after its first frame — load scripts, the static tiles' and
+/// the stage-2 tiles', which take the pointer and the keys as the steps
+/// drive them. Queues `page`'s own load scripts too.
+pub fn page_through<B: Backend>(app: &mut App<B>, page: u8) {
     let handle = app.handle();
+    queue_scripts(&handle, page);
+    let mut current = page;
+    let root = app.dom().root();
+    app.dom_mut()
+        .add_event_listener(root, "keydown", ListenerOptions::default(), move |ctx| {
+            let Some(key) = ctx.event.detail.as_keyboard() else {
+                return;
+            };
+            let step: i16 = match key.key.as_str() {
+                "n" if key.modifiers.ctrl => 1,
+                "p" if key.modifiers.ctrl => -1,
+                _ => return,
+            };
+            let count = i16::from(page_count());
+            let next = u8::try_from((i16::from(current) - 1 + step).rem_euclid(count) + 1)
+                .expect("a page number");
+            current = next;
+            swap_page(ctx.dom, next);
+            queue_scripts(&handle, next);
+            ctx.event.prevent_default();
+        })
+        .unwrap();
+}
+
+/// Replace the page under the document's root with `page`, built afresh.
+fn swap_page(dom: &mut TuiDom, page: u8) {
+    let root = dom.root();
+    if let Some(old) = dom
+        .query_selector_in(root, ".acid")
+        .expect("a valid selector")
+    {
+        dom.remove_child_dropping(root, old).unwrap();
+    }
+    let page_root = build_page(dom, page);
+    dom.append_child(root, page_root).unwrap();
+}
+
+/// Queue `page`'s load scripts for the loop's second iteration from now —
+/// after it has drawn the page once, as they need its layout.
+fn queue_scripts(handle: &rdom_tui::AppHandle, page: u8) {
     let next = handle.clone();
     handle.inject(move |_| {
         next.inject(move |ctx| run_scripts(ctx.dom, page));
         next.request_redraw();
     });
-    app.run()
 }
 
 static SOURCE_CSS: LazyLock<String> = LazyLock::new(|| format!("{}{}", css(), late_css()));

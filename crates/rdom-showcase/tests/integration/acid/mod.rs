@@ -27,9 +27,8 @@ fn assert_tile(reference: &'static Reference) {
     assert!(report.passed(), "\n{}", report.failure());
 }
 
-/// Every tile, page by page: a line per tile, then each failure's report.
-#[test]
-fn report() {
+/// Every tile's result, page by page, in `refs::ALL` order within a page.
+fn static_results() -> Vec<TileReport> {
     let mut reports: Vec<TileReport> = Vec::new();
     for page in 1..=acid::page_count() {
         let screen = paint_page(page);
@@ -42,20 +41,33 @@ fn report() {
             }
         }
     }
+    reports
+}
+
+/// A tile's result as one summary line.
+fn tile_line(r: &TileReport) -> String {
+    format!(
+        "  {:>3} {:<38} p{:<2} {}\n",
+        r.tile.id,
+        r.tile.title,
+        r.tile.page,
+        if r.passed() {
+            "pass".to_string()
+        } else if let Some(e) = &r.error {
+            format!("ERROR {e}")
+        } else {
+            format!("FAIL ({} cells)", r.diffs.len())
+        }
+    )
+}
+
+/// Every tile, page by page: a line per tile, then each failure's report.
+#[test]
+fn report() {
+    let reports = static_results();
     let mut out = String::from("\nacid static tiles:\n");
     for r in &reports {
-        out.push_str(&format!(
-            "  {:>3} {:<36} {}\n",
-            r.tile.id,
-            r.tile.title,
-            if r.passed() {
-                "pass".to_string()
-            } else if let Some(e) = &r.error {
-                format!("ERROR {e}")
-            } else {
-                format!("FAIL ({} cells)", r.diffs.len())
-            }
-        ));
+        out.push_str(&tile_line(r));
     }
     let failed: Vec<&TileReport> = reports.iter().filter(|r| !r.passed()).collect();
     for r in &failed {
@@ -63,6 +75,102 @@ fn report() {
         out.push_str(&r.failure());
     }
     assert!(failed.is_empty(), "{out}");
+}
+
+/// The whole acid run in one list: every static tile and every stage-2
+/// step with its result (printed with `--nocapture`), then every failure's
+/// report.
+#[test]
+fn summary() {
+    let tiles = static_results();
+    let steps = interactive::results();
+    let mut out = format!(
+        "\nacid: {} tiles on {} pages, {} interactive steps\n\nstage 1 — static tiles:\n",
+        tiles.len(),
+        acid::page_count(),
+        steps.len()
+    );
+    for r in &tiles {
+        out.push_str(&tile_line(r));
+    }
+    out.push_str("\nstage 2 — interactive steps:\n");
+    for r in &steps {
+        out.push_str(&interactive::summary_line(r));
+    }
+    let failed_tiles: Vec<&TileReport> = tiles.iter().filter(|r| !r.passed()).collect();
+    let failed_steps: Vec<_> = steps.iter().filter(|r| !r.passed()).collect();
+    out.push_str(&format!(
+        "\n{} of {} tiles and {} of {} steps pass\n",
+        tiles.len() - failed_tiles.len(),
+        tiles.len(),
+        steps.len() - failed_steps.len(),
+        steps.len()
+    ));
+    println!("{out}");
+    for r in &failed_tiles {
+        out.push('\n');
+        out.push_str(&r.failure());
+    }
+    for r in &failed_steps {
+        out.push('\n');
+        out.push_str(&r.failure());
+    }
+    assert!(failed_tiles.is_empty() && failed_steps.is_empty(), "{out}");
+}
+
+/// The example's pager (`acid::page_through`): Ctrl+N and Ctrl+P swap the
+/// page shown for the next and the previous one, wrapping at the ends.
+#[test]
+fn the_example_pages_through_every_page() {
+    use crossterm::event::{Event as CtEvent, KeyCode, KeyEvent, KeyModifiers};
+    use rdom_tui::TuiDom;
+    use rdom_tui::render::{Terminal, TestBackend};
+    use rdom_tui::runtime::app::App;
+
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let page_root = acid::build_page(&mut dom, 1);
+    dom.append_child(root, page_root).unwrap();
+    let terminal = Terminal::new(TestBackend::new(acid::PAGE_WIDTH, acid::PAGE_HEIGHT)).unwrap();
+    let mut app = App::with_backend(dom, acid::stylesheet(), terminal)
+        .unwrap()
+        .with_import_loader(acid::import_loader());
+    app.push_stylesheet(acid::late_stylesheet());
+    acid::page_through(&mut app, 1);
+    let shown = |app: &App<TestBackend>| -> Vec<u8> {
+        (1..=acid::page_count())
+            .filter(|p| {
+                let dom = app.dom();
+                dom.query_selector_in(dom.root(), &format!(".acid-page-{p}"))
+                    .expect("a valid selector")
+                    .is_some()
+            })
+            .collect()
+    };
+    let ctrl = |app: &mut App<TestBackend>, c: char| {
+        app.handle_event(CtEvent::Key(KeyEvent::new(
+            KeyCode::Char(c),
+            KeyModifiers::CONTROL,
+        )));
+        for _ in 0..3 {
+            app.advance(0).unwrap();
+        }
+    };
+    for _ in 0..3 {
+        app.advance(0).unwrap();
+    }
+    assert_eq!(shown(&app), [1]);
+    ctrl(&mut app, 'n');
+    assert_eq!(shown(&app), [2]);
+    ctrl(&mut app, 'p');
+    ctrl(&mut app, 'p');
+    assert_eq!(
+        shown(&app),
+        [acid::page_count()],
+        "wrapped to the last page"
+    );
+    ctrl(&mut app, 'n');
+    assert_eq!(shown(&app), [1], "and back");
 }
 
 /// Every tile has a reference and every reference a tile.

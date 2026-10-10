@@ -45,7 +45,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | done 2026-10-09 (both gates; 22 gate fixes `C15G-*`; their re-review rides with the Phase 16 gate) |
-| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | part 1 done 2026-10-09 (harness, tiles 1–13, ACID-FIX-1 … 5); part 2 done 2026-10-10 (tiles 14–33, the coverage test, ACID-FIX-6 … 13); part 3 (interactive script) in progress |
+| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | part 1 done 2026-10-09 (harness, tiles 1–13, ACID-FIX-1 … 5); part 2 done 2026-10-10 (tiles 14–33, the coverage test, ACID-FIX-6 … 13); part 3 done 2026-10-10 (the stage-2 harness, steps I1–I24, tiles 34–55, ACID-FIX-14 … 16); items done, gates pending |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
 
 Phases follow dependencies: values and color before the properties that use them; flex alignment
@@ -11101,3 +11101,15 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   notes it). All green at first run; no reference was changed. Left out: `anchor-center` beside an anchor at the
   containing block's very edge (ACID.md tile 26's wording), whose overflow alignment this item could not settle from
   the spec text; recorded in ACID.md's part 2 notes.
+- 2026-10-10 — Phase 16 part 3 closed; ACID.md DONE. One summary test, `acid::summary`, runs both stages and lists
+  every tile (59, page by page) and step (24) with its result, then each failure's report; the stage reports
+  (`acid::report`, `acid::interactive::report`) are its halves. `cargo run -p rdom-showcase --example acid` pages
+  through all 13 pages with Ctrl+N / Ctrl+P (`acid::page_through`: the next page built afresh with its setup and,
+  after its first frame, its load scripts; wrapping at the ends), tested headless by
+  `the_example_pages_through_every_page`. Part 3 found ACID-FIX-14 (legacy colours interpolate in sRGB), ACID-FIX-15
+  (a frame's animation events before its style) and ACID-FIX-16 (no terminal modes to a headless App's stdout).
+  References changed with a written argument: I9's underscore-caret end cell names no foreground (the comparator now
+  compares a blank's foreground only under a decoration drawn in it — an underline in its own SGR 58 colour is not);
+  ACID.md's step texts corrected where the spec says otherwise (I15: light dismiss returns no focus) or the page
+  could not hold the case (I19's pane `calc(20vw + 12)`, I20's panel tile 48, I21's picker and article tile 49).
+  Phase 16 status: items done, gates pending.

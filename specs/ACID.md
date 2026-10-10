@@ -1,6 +1,6 @@
 # ACID — an rdom acid test
 
-**Status:** IN PROGRESS (2026-10-10) — parts 1 and 2 built: the harness, static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c) and the coverage test (`acid::coverage`, no exemptions), all green after ACID-FIX-1 … 13 (`CSS-COMPLETE-2026-10.md` Phase 16). Part 3 under way: the stage-2 harness (ACID-INTERACTIVE-HARNESS), steps I1–I21 (ACID-INTERACTIVE, after ACID-FIX-14 … 16) and the static features part 2 left out (ACID-STATIC-REST: tiles 50–55, steps I22–I24).
+**Status:** DONE (2026-10-10) — static tiles 1–33 (9a / 9b / 9c, 15a / 15b / 15c), stage-2 tiles 34–49 and the left-out static tiles 50–55 on 13 pages; interactive steps I1–I24; the coverage test (`acid::coverage`, no exemptions); one summary test (`acid::summary`) listing every tile and step with its result — all green after ACID-FIX-1 … 16 (`CSS-COMPLETE-2026-10.md` Phase 16). `cargo run -p rdom-showcase --example acid` pages through it (Ctrl+N / Ctrl+P).
 
 ## Why
 
@@ -190,6 +190,12 @@ Decided while building its harness (ACID-INTERACTIVE-HARNESS, 2026-10-10):
   (`acid::interactive::step_i01_…`), plus `acid::interactive::report`, which runs every step and
   lists each one's result. `harness_reports_step_checkpoint_tile_and_cells` is the harness's own
   case.
+- **The whole run.** `acid::summary` lists every static tile (page by page) and every step with its result — the
+  list printed with `--nocapture` — then every failure's report; `acid::report` and `acid::interactive::report` are its
+  two halves. The example (`--example acid -- <page>`) is a pager over the same pages: Ctrl+N / Ctrl+P show the next
+  and previous page, built afresh with their setup and load scripts (`acid::page_through`, which
+  `the_example_pages_through_every_page` drives headless); the stage-2 tiles are live there, to hover, click, type and
+  scroll as the steps do.
 - **Stage-2 tiles.** A step that needs markup no static tile has gets a tile of its own on the pages
   after the static ones (from page 10), with a static reference for its rest state — the state its
   steps start from. Tile 34 (hover chains, `:active` timing, `pointer-events: none`) serves I1, I2
