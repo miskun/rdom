@@ -371,3 +371,13 @@ fn tile_41_snap() {
 fn tile_42_user_validity() {
     assert_tile(&refs::t42_user_validity::REF);
 }
+
+#[test]
+fn tile_43_popovers() {
+    assert_tile(&refs::t43_popovers::REF);
+}
+
+#[test]
+fn tile_44_popover_motion() {
+    assert_tile(&refs::t44_popover_motion::REF);
+}

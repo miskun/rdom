@@ -307,7 +307,7 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
 | ACID-TILES-B | Static tiles 14–26 | done |
 | ACID-COVERAGE | The coverage test (every dispatched property, `PseudoClass` and `PseudoElementTarget` used on the page) | done |
 | ACID-INTERACTIVE-HARNESS | Stage 2's driver: scripted keys, mouse, wheel and resize against a fresh headless `App` per step with a controllable clock, per-checkpoint references in the stage-1 format, failure reports naming the step, checkpoint, tile, cells and spec; steps I1, I2, I10 on tile 34 | done |
-| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I14 |
+| ACID-INTERACTIVE | Stage 2, steps I1–I21 | partial — I1–I16 |
 | ACID-STATIC-REST | The static features part 2 left out: tile 14's wrapped cells beside a row span; tile 15a's range slider, pixel `outline-offset` and script-unchecked default box; tile 18's baseline row group and `aspect-ratio` item; tile 19's overflowing text over a float and cleared first child's margin; tile 25's whole-moving `overflow: hidden` box and `box-decoration-break: clone`; tile 26's `popovertarget` + `flip-block` popover, `position-try-order: most-height` and `anchor-center`; their click and hit checks in stage 2 | |
 
 ## Log
@@ -11028,3 +11028,16 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   state; a click on the `required` checkbox shows `:user-valid` checked, `:user-invalid` unchecked. The states colour
   text, the checkbox and the placeholder, never a focused field's background, which the UA's `!important` tint
   covers. Both green at first run; no reference was changed.
+- 2026-10-10 — ACID-INTERACTIVE, steps I15–I16 (page 12, stage-2 tiles 43 and 44). I15 (HTML §6.12 popover focusing
+  steps, light dismiss, close requests; §4.11.4): a manual popover shown first stays through everything; an auto
+  popover opens with its `[autofocus]` field focused; a nested popover opens from a button inside it; a click inside
+  the outer one hides the nested one only, a press inside with the release outside hides nothing, a click outside
+  hides the outer one without returning focus; Esc hides one popover per press, focus back on the element focused
+  before each opened (tinted: keyboard focus); with two modal dialogs open, Esc cancels the upper, then the lower.
+  `ACID.md`'s I15 text had the click outside return focus to the button; HTML's light dismiss runs "hide all popovers
+  until" with `focusPreviousElement` false, so the step checks that it does not, and the text is corrected (only the
+  close request returns focus). I16 (CSS Transitions 1 §3 / 2 §3, CSS Position 4 §3.4, CSS Color 4 §3.2): a popover
+  fades in from its `@starting-style` `opacity: 0` (nothing at 0, half at 50 ms, full at 100); hidden, it is no longer
+  `:popover-open` but stays displayed and in the top layer — above a `z-index: 5` box — while it fades out under
+  `display` / `overlay` `allow-discrete`, then is gone; a second popover without the `overlay` transition leaves the
+  top layer at once and fades under the box. Both green at first run; no reference was changed.

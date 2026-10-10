@@ -214,3 +214,13 @@ fn step_i13_invalidation() {
 fn step_i14_user_validity() {
     assert_step(&steps::i14_user_validity::STEP);
 }
+
+#[test]
+fn step_i15_light_dismiss() {
+    assert_step(&steps::i15_light_dismiss::STEP);
+}
+
+#[test]
+fn step_i16_popover_motion() {
+    assert_step(&steps::i16_popover_motion::STEP);
+}

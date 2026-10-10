@@ -19,6 +19,8 @@ pub mod i11_snap;
 pub mod i12_pseudo;
 pub mod i13_invalidation;
 pub mod i14_user_validity;
+pub mod i15_light_dismiss;
+pub mod i16_popover_motion;
 
 /// Every step, in `ACID.md` order.
 pub const ALL: &[&Step] = &[
@@ -36,4 +38,6 @@ pub const ALL: &[&Step] = &[
     &i12_pseudo::STEP,
     &i13_invalidation::STEP,
     &i14_user_validity::STEP,
+    &i15_light_dismiss::STEP,
+    &i16_popover_motion::STEP,
 ];
