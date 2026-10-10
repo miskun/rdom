@@ -45,7 +45,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | done 2026-10-09 (both gates; 22 gate fixes `C15G-*`; their re-review rides with the Phase 16 gate) |
-| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | part 1 done 2026-10-09 (harness, tiles 1–13, ACID-FIX-1 … 5); part 2 done 2026-10-10 (tiles 14–33, the coverage test, ACID-FIX-6 … 13); part 3 done 2026-10-10 (the stage-2 harness, steps I1–I24, tiles 34–55, ACID-FIX-14 … 16); items done, gates pending |
+| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | gates run 2026-10-10; `C16G-*` fixes in progress |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
 
 Phases follow dependencies: values and color before the properties that use them; flex alignment
@@ -11113,3 +11113,38 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   ACID.md's step texts corrected where the spec says otherwise (I15: light dismiss returns no focus) or the page
   could not hold the case (I19's pane `calc(20vw + 12)`, I20's panel tile 48, I21's picker and article tile 49).
   Phase 16 status: items done, gates pending.
+- 2026-10-10 — Phase 16 gates (with the C15G re-review: all at the root; the acid references are
+  spec-derived — 11 tiles and 5 steps recomputed). Release verdicts: architect no-go until four local
+  fixes, API no-go for publish / go for Phase 17. Architect blocking — ACID-FIX-15 makes a finished
+  transition fire `transitioncancel` after its `transitionend` (a fade-out-then-remove gets a
+  spurious cancel; custom properties too); ACID-FIX-9 left three composite paths (layer border winner,
+  backdrop glyph / border tints) turning the default colour into its explicit stand-in; `steps(N)` up
+  to `u32::MAX` allocates N+1 floats per schedule (abort); no hostile-depth policy (CSS nesting, nested
+  `@media`, `:is()` nesting, HTML nesting and layout depth recurse uncapped; `& &` nesting doubles
+  per level) and `@scope to ) {}` underflows a `usize`. API blocking — a "256-colour fallback" is
+  claimed but every colour is sent as truecolor; inter-crate pins must all move to 0.6.0; a
+  rdom-virtualtable-style scrolling `<tbody>` likely cannot scroll (row groups take no overflow) and
+  the table port omits it; acid-fix entries mis-ranked in UPGRADING areas and the two reversals (fix 8
+  fieldset text, fix 13 `::backdrop{color}`) unreachable from the by-symptom index; rename
+  `PseudoElementTarget::named()` before it ships; release text edits. Non-blocking: scroll-update
+  oracle gaps (sticky in multicol, relative inlines, top layer / open select, anchor and box in different
+  scrollers, nested scrollers with sticky); an anchor read before sticky / relative-inline moves; the
+  coverage test's "used" means "parses" (rules matching nothing count, functional pseudo-classes not
+  required), introspection functions undocumented; VirtualScreen agrees with the backend by
+  construction (no round-trip check), the comparator never checks OSC 8 URIs, label rows, gutters or
+  unnamed tiles; acid runtime duplicated work and no `catch_unwind` per page; C15G leftovers
+  (`clip: rect(1px,…)`, `min/max-height: stretch` indefinite, `-webkit-fill-available` idiom, abspos
+  `stretch` without insets); no `#![forbid(unsafe_code)]` in core / parser / tui; no Send + Sync
+  assertions; SIZE-1 drift; no SIGTERM / SIGHUP / SIGTSTP handling; an unterminated bracketed paste
+  buffers unbounded and swallows Ctrl+C; `@charset` rejected by strict parsing; API-table rows for the
+  Phase 15 reshapes; `PositionArea::is_none()` doc; `with_backend` resize re-arm builder option; acid
+  example on-screen help; manifests (rdom-tui description, rdom-core category, MSRV unchecked).
+  Decisions: (1) the 256-colour fallback is implemented, not removed — colour depth is detected
+  (COLORTERM / TERM, overridable on `App`), and RGB is quantized to the 256- or 16-colour palette, also
+  feeding the `color` media feature; (2) hostile depth is capped, not merely documented — fixed depth
+  limits for CSS block / selector / `@media` nesting, `:is()` nesting, HTML parse depth and layout depth
+  (a subtree beyond the layout cap is not laid out, as browsers cap), each named, documented and tested;
+  (3) a scrolling `<tbody>` follows the web: a scrolling wrapper with a sticky `thead`, in the port and a
+  recipe; (4) SIGTERM / SIGHUP restore the terminal and exit, SIGTSTP / SIGCONT suspend and resume.
+  Full reports: `target/claude-logs/c16_gate_{architect,api}.md`. Fix as `C16G-*`, two batches (A the
+  release blockers and hardening, B fidelity, test infrastructure and docs), then Phase 17.
