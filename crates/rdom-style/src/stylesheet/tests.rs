@@ -933,16 +933,27 @@ fn no_other_pseudo_element_nests() {
 
 // ── The named pseudo-elements (ACID-COVERAGE) ───────────────────────
 
-/// `PseudoElementTarget::named` lists every target but `None`: the
-/// sixteen pseudo-elements a selector can end in, each once by kind.
+/// C16G-NAMES: `pseudo_element_names` lists each pseudo-element a
+/// selector can end in once, by its name after `::` — `highlight` for
+/// `::highlight()`, the nested `before::marker` / `after::marker` — and
+/// each parses to its target: the sixteen kinds but `None`.
 #[test]
-fn named_pseudo_element_targets_cover_every_kind_but_none() {
-    let kinds: std::collections::HashSet<_> = PseudoElementTarget::named()
-        .map(|t| std::mem::discriminant(&t))
+fn pseudo_element_names_list_each_target_once() {
+    let names: Vec<&str> = super::pseudo_element_names().collect();
+    let unique: std::collections::HashSet<_> = names.iter().collect();
+    assert_eq!(unique.len(), names.len(), "each once: {names:?}");
+    let kinds: std::collections::HashSet<_> = names
+        .iter()
+        .map(|name| {
+            let text = match *name {
+                "highlight" => "p::highlight(x)".to_string(),
+                name => format!("p::{name}"),
+            };
+            let (_, target) = super::selector_text::extract_pseudo_suffix(&text)
+                .unwrap_or_else(|e| panic!("{text}: {e}"));
+            std::mem::discriminant(&target)
+        })
         .collect();
     assert!(!kinds.contains(&std::mem::discriminant(&PseudoElementTarget::None)));
-    // Before, After, Backdrop, Selection, Scrollbar, ScrollbarThumb and its
-    // two axes, Placeholder, FirstLine, FirstLetter, Marker, Highlight,
-    // DetailsContent, BeforeMarker, AfterMarker.
-    assert_eq!(kinds.len(), 16);
+    assert_eq!((names.len(), kinds.len()), (16, 16));
 }

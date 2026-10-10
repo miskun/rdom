@@ -45,7 +45,8 @@ impl AtRule {
 
 /// The name of every at-rule rdom-css evaluates — `@import` and the ones
 /// the top-level dispatch reads from its table — without the `@`, in no
-/// particular order. The acid page's coverage test asks for each.
+/// particular order: for tooling that offers or checks at-rules. Any
+/// other at-rule is consumed whole with `WarningKind::UnsupportedAtRule`.
 pub fn at_rule_names() -> impl Iterator<Item = &'static str> {
     std::iter::once("import").chain(DISPATCHED.iter().map(|(name, _)| *name))
 }

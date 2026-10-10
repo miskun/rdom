@@ -18,7 +18,8 @@
 //!
 //! What must be used is read from the crates that dispatch it:
 //! `property_dispatch::property_names()`, `selectors::pseudo_class_names()`
-//! (each parsed to its `PseudoClass`), `PseudoElementTarget::named()` and
+//! (each parsed to its `PseudoClass`), `pseudo_element_names()` (each parsed to
+//! its `PseudoElementTarget`) and
 //! `rdom_css::at_rule_names()`.
 
 use std::collections::{BTreeSet, HashSet};
@@ -224,6 +225,17 @@ fn state_classes(state: UserActionState, out: &mut HashSet<Discriminant<PseudoCl
     }
 }
 
+/// The target of the pseudo-element `name` (`pseudo_element_names`), as
+/// a rule ending in it parses.
+fn element_named(name: &str) -> PseudoElementTarget {
+    let text = match name {
+        "highlight" => "p::highlight(x) {}".to_string(),
+        name => format!("p::{name} {{}}"),
+    };
+    let sheet = rdom_css::from_css_strict(&text).expect("a listed pseudo-element parses");
+    sheet.rules()[0].pseudo.clone()
+}
+
 /// The `PseudoClass` the selector parser makes of `name`.
 fn class_named(name: &str) -> PseudoClass {
     let text = if name == "dir" {
@@ -278,11 +290,9 @@ fn gaps() -> Gaps {
             gaps.pseudo_classes.push(format!(":{name}"));
         }
     }
-    let mut seen = HashSet::new();
-    for target in PseudoElementTarget::named() {
-        let kind = discriminant(&target);
-        if seen.insert(kind) && !elements.contains(&kind) {
-            gaps.pseudo_elements.push(format!("{target:?}"));
+    for name in rdom_tui::pseudo_element_names() {
+        if !elements.contains(&discriminant(&element_named(name))) {
+            gaps.pseudo_elements.push(format!("::{name}"));
         }
     }
     for name in rdom_css::at_rule_names() {

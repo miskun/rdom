@@ -512,7 +512,9 @@ pub use parser::parse;
 /// [`PseudoClass`] of, as written after the colon — `dir` for the
 /// functional `:dir()` — in no particular order. The parser reads its
 /// keyword pseudo-classes from the same table, so a pseudo-class it
-/// accepts is listed here (the acid page's coverage test asks for each).
+/// accepts is listed here: for tooling that offers or checks
+/// pseudo-classes. The other functional ones (`:not()`, `:is()`,
+/// `:where()`, `:has()`, `:nth-*()`, `:lang()`) are not listed.
 pub fn pseudo_class_names() -> impl Iterator<Item = &'static str> {
     pseudo_parser::KEYWORD_PSEUDO_CLASSES
         .iter()

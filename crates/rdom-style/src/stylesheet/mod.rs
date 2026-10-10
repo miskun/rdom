@@ -160,17 +160,20 @@ pub enum PseudoElementTarget {
     AfterMarker,
 }
 
-impl PseudoElementTarget {
-    /// Every target a rule's selector can name — read from the tables the
-    /// selector text is split by, so a pseudo-element the parser accepts
-    /// is here — with `::highlight()` once, its name empty, and never
-    /// [`None`](Self::None). In no particular order, a target possibly
-    /// more than once (`::before` and the legacy `:before`). The acid
-    /// page's coverage test asks for each.
-    pub fn named() -> impl Iterator<Item = PseudoElementTarget> {
-        selector_text::named_targets()
-    }
+/// The name of every pseudo-element a style rule's selector can end in,
+/// each once, as written after `::` (ASCII case-insensitive there):
+/// `before`, `marker`, `scrollbar-thumb:vertical`, the nested
+/// `before::marker`, `highlight` for the functional `::highlight()`, … —
+/// in no particular order. The selector parser reads the same tables, so
+/// a pseudo-element it accepts is listed: for tooling that offers or
+/// checks pseudo-elements, beside rdom-core's `pseudo_class_names` and
+/// rdom-css's `at_rule_names`. The legacy one-colon spellings (`:before`)
+/// name the same pseudo-elements and are not listed again.
+pub fn pseudo_element_names() -> impl Iterator<Item = &'static str> {
+    selector_text::pseudo_element_names()
+}
 
+impl PseudoElementTarget {
     /// The targets whose rules style a given scrollbar-thumb axis, in
     /// layering order: the axis-neutral rules first, the axis rules
     /// on top.

@@ -76,7 +76,7 @@ pub use rdom_style::{
     Rule, RuleContext, RuleOrigin, Shared, Specificity, StyleError, StyleSelector, Stylesheet,
     TableDeclarations, TextDeclarations, TextDecorationDeclarations, TimingFunction,
     TransitionProperty, TransitionRule, TuiColor, TuiStyle, UiDeclarations, UserActionState, Value,
-    VarMap, parse_color, resolve_tui_color,
+    VarMap, parse_color, pseudo_element_names, resolve_tui_color,
 };
 pub use rdom_style::{
     AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,

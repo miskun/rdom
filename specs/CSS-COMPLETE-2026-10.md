@@ -11292,3 +11292,16 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   tests unchanged. Docs: UPGRADING's table port gains the scrolling-body step, RECIPES "A table with a scrolling
   body" (doctested: a two-row scroll, the header kept), DIVERGENCES' sticky line rewritten, CSS-COVERAGE's
   `position` row; silent change `sc-sticky-containing-block`.
+- 2026-10-10 — C16G-NAMES (Phase 16 gate API N1, architect N5's introspection docs). Found:
+  `PseudoElementTarget::named()` took no argument where every other `named` in the crate set is a constructor, listed
+  a target twice (`::before` and the legacy `:before`) and held an unnamed `Highlight("")` sentinel; it and its
+  siblings described themselves as "the acid page's coverage test". Decision: public API, not `#[doc(hidden)]` — the
+  lists serve any tool that offers or checks CSS (completion, linting, coverage), and each is read from the tables
+  its parser uses, so it cannot drift. Renamed to match its siblings: the free function `pseudo_element_names()`
+  (rdom-style, re-exported at the rdom-tui root) returning `&'static str`, each pseudo-element once as written after
+  `::` — `highlight` for `::highlight()`, the nested `before::marker` / `after::marker`, the legacy one-colon
+  spellings left out; `pseudo_class_names()` and `at_rule_names()` keep their names, their docs reworded as general
+  API (what they leave out included). Red: `stylesheet::tests::pseudo_element_names_list_each_target_once` did not
+  compile (no such function); green after — 16 names, each parsing to one of the 16 targets. The acid coverage test
+  maps each name to its target by parsing `p::name {}`. Post-0.5 API: an "after 0.5" table row and
+  `pseudo_element_names_hints`.

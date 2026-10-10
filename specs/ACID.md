@@ -24,7 +24,7 @@ web Acid tests, adapted to a terminal grid.
    combination, not "the page differs".
 4. **Coverage is enforced mechanically.** A companion test (`acid::coverage`) fails when any CSS
    property name rdom dispatches (`property_dispatch::property_names()`), any `PseudoClass`
-   (`selectors::pseudo_class_names()`), any `PseudoElementTarget` (`PseudoElementTarget::named()`)
+   (`selectors::pseudo_class_names()`), any pseudo-element (`pseudo_element_names()`)
    or any at-rule rdom-css evaluates (`rdom_css::at_rule_names()`) is not used somewhere in the
    tiles' CSS, read by parsing it. New features cannot skip it; an exemption needs a written reason
    (there are none).

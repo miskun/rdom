@@ -1767,3 +1767,13 @@ fn color_depth_hints() {
     assert!(MediaList::parse("(monochrome)").matches(&env));
     assert_eq!(ColorDepth::Ansi16.index_entries(), 16);
 }
+
+/// C16G-NAMES: `PseudoElementTarget::named()` is `pseudo_element_names()`
+/// — names as written after `::`, each once — beside the other
+/// introspection lists.
+#[test]
+fn pseudo_element_names_hints() {
+    let names: Vec<&str> = pseudo_element_names().collect();
+    assert!(names.contains(&"before") && names.contains(&"highlight"));
+    assert!(!names.iter().any(|n| n.is_empty()));
+}

@@ -101,7 +101,7 @@ pub use specificity::Specificity;
 pub use stylesheet::{
     ConditionId, ConditionKind, ConditionRule, Import, Layer, LayerId, LayerOrder, PositionTryRule,
     PseudoElementTarget, Rule, RuleContext, RuleIndex, RuleOrigin, Scope, ScopeId, StyleError,
-    StyleSelector, Stylesheet, UserActionState,
+    StyleSelector, Stylesheet, UserActionState, pseudo_element_names,
 };
 pub use transition::{
     LinearStop, TimingFunction, TransitionBehavior, TransitionProperty, TransitionRule,

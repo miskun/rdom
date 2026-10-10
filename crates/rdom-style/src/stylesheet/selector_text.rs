@@ -53,18 +53,17 @@ const LEGACY_SUFFIXES: [(&str, PseudoElementTarget); 4] = [
     (":first-letter", PseudoElementTarget::FirstLetter),
 ];
 
-/// Every target a selector's pseudo-element suffix can name (the tables
-/// above, and `::highlight()`, here with an empty name): what
-/// [`PseudoElementTarget::named`] lists.
-pub(super) fn named_targets() -> impl Iterator<Item = PseudoElementTarget> {
+/// Every pseudo-element a selector's suffix can name, each once, as
+/// written after `::` — the tables above, the legacy one-colon spellings
+/// left out (they name the same targets), and `highlight` for
+/// `::highlight()`: what [`pseudo_element_names`](super::pseudo_element_names)
+/// lists.
+pub(super) fn pseudo_element_names() -> impl Iterator<Item = &'static str> {
     SUFFIXES
         .iter()
         .chain(NESTED_SUFFIXES.iter())
-        .chain(LEGACY_SUFFIXES.iter())
-        .map(|(_, target)| target.clone())
-        .chain(std::iter::once(PseudoElementTarget::Highlight(
-            std::sync::Arc::from(""),
-        )))
+        .filter_map(|(suffix, _)| suffix.strip_prefix("::"))
+        .chain(std::iter::once("highlight"))
 }
 
 /// Strip a trailing pseudo-element (`::before`, `::scrollbar-thumb:vertical`,

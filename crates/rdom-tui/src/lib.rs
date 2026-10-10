@@ -164,7 +164,8 @@ pub use style::{
     PropertySyntaxError, PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError,
     Rule, RuleContext, RuleOrigin, Shared, Specificity, StyleError, StyleSelector, Stylesheet,
     SystemColor, TableDeclarations, TextDeclarations, TextDecorationDeclarations, TuiColor,
-    TuiStyle, UiDeclarations, UserActionState, Value, VarMap, parse_color, resolve_tui_color,
+    TuiStyle, UiDeclarations, UserActionState, Value, VarMap, parse_color, pseudo_element_names,
+    resolve_tui_color,
 };
 pub use style::{
     AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,
