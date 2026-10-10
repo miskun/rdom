@@ -8,6 +8,7 @@ mod calc_parsing;
 mod colors;
 mod counter_style;
 mod custom_properties;
+mod depth;
 mod display_flow;
 mod import;
 mod important;

@@ -18,6 +18,15 @@
 //! every rule inside one records the innermost it sits under; the
 //! backend's cascade evaluates them.
 
+/// How deep a conditional rule's prelude may nest parentheses and
+/// functions — `@media ((…))`, `@supports (not (…))`, `@container`: past
+/// it the prelude does not parse (a media query is `not all`, Media
+/// Queries 4 §3.2; an `@supports` or `@container` rule is invalid). Its
+/// grouping and grammar recurse once per level; the cap bounds them
+/// against hostile depth, as [`MAX_CALC_NESTING`](crate::parse::values::MAX_CALC_NESTING)
+/// bounds `calc()` (C16G-DEPTH-CAPS).
+pub const MAX_CONDITION_NESTING: usize = 32;
+
 mod container;
 mod media;
 mod media_env;

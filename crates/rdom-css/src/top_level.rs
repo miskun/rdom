@@ -55,6 +55,43 @@ pub(crate) fn parse_rule_list(
     sheet: &mut Stylesheet,
     warnings: &mut Vec<Warning>,
     ctx: RuleContext,
+    imports: Option<&mut Imports<'_>>,
+) {
+    match imports {
+        Some(imports) => rule_list(cursor, sheet, warnings, ctx, Some(imports)),
+        None => in_block(cursor, warnings, |cursor, warnings| {
+            rule_list(cursor, sheet, warnings, ctx, None);
+        }),
+    }
+}
+
+/// Run `body` over the block the cursor is just inside, one block
+/// deeper — or, past [`MAX_BLOCK_DEPTH`](crate::MAX_BLOCK_DEPTH), skip
+/// the block through its `}` without recursing, with
+/// `WarningKind::BlockTooDeep` (C16G-DEPTH-CAPS).
+pub(crate) fn in_block(
+    cursor: &mut SourceCursor,
+    warnings: &mut Vec<Warning>,
+    body: impl FnOnce(&mut SourceCursor, &mut Vec<Warning>),
+) {
+    if cursor.block_depth() >= crate::MAX_BLOCK_DEPTH {
+        warnings.push(Warning {
+            kind: WarningKind::BlockTooDeep,
+            line: cursor.line(),
+            column: cursor.col(),
+        });
+        crate::scan::skip_rest_of_block(cursor);
+        return;
+    }
+    cursor.in_block(|cursor| body(cursor, warnings));
+}
+
+/// [`parse_rule_list`], within the nesting cap.
+fn rule_list(
+    cursor: &mut SourceCursor,
+    sheet: &mut Stylesheet,
+    warnings: &mut Vec<Warning>,
+    ctx: RuleContext,
     mut imports: Option<&mut Imports<'_>>,
 ) {
     let layer = ctx.layer;

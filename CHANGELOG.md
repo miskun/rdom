@@ -161,6 +161,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-style`
 
+- **`conditional::MAX_CONDITION_NESTING` (32)**: an `@media` / `@supports` / `@container` prelude nesting parentheses deeper does not parse (`not all`; an invalid rule); and `SourceCursor::block_depth` / `in_block`, the block depth a parser caps its recursion by. (C16G-DEPTH-CAPS)
 - **`PseudoElementTarget::named()`**: every pseudo-element target a selector can end in, from the selector-text splitter's own tables (`::highlight()` once, unnamed). (ACID-COVERAGE)
 - **`MotionStyle` / `MotionDeclarations` and `GridStyle` / `GridDeclarations`**: the transition, animation and timeline lists and the grid properties as two shared groups of `ComputedStyle` / `TuiStyle` (`motion`, `grid`); re-exported at the `rdom_tui` root. (C15G-STYLE-SIZE)
 - **`Shared<T>`**: a style group behind a shared pointer, copied on write (`Deref` / `DerefMut`, `Shared::new`, `From`, `ptr_eq`, one `Default` per group type); re-exported at the `rdom_tui` root. (C15G-STYLE-SIZE)
@@ -353,6 +354,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-css`
 
+- **`MAX_BLOCK_DEPTH` (32) and `WarningKind::BlockTooDeep`**: style rules and block at-rules nest at most 32 deep, counted together; a deeper block is skipped whole with the warning and the parse goes on, so a hostile `a{a{a{…` or nested `@media` cannot overflow the stack. (C16G-DEPTH-CAPS)
 - **`rdom_css::at_rule_names()`**: the at-rules rdom-css evaluates (`import` and the table its top-level dispatch now reads); any other is consumed with `UnsupportedAtRule`. (ACID-COVERAGE)
 - **`@position-try`** (CSS Anchor Positioning 1 §4.1): named position options, their descriptors checked (`WarningKind::PositionTryDescriptorDropped { name, descriptor, reason }`, the reason `NotADescriptor` or `Important`), kept per layer and condition (`Stylesheet::position_try_rules`). (C15-ANCHOR, C15G-API)
 - **Keyframe selectors on a timeline range** (Scroll-driven Animations 1 §4.4): `entry 20%`, `exit -10%` (`KeyframeSelector::in_range`, `range()`), placed on a view timeline's range each frame, ignored on any other timeline. (C12-SCROLL-DRIVEN)

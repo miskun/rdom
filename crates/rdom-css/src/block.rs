@@ -163,6 +163,19 @@ fn consume_block_contents(
     block: Block<'_>,
     own_rule: bool,
 ) {
+    crate::top_level::in_block(cursor, warnings, |cursor, warnings| {
+        block_contents(cursor, sheet, warnings, block, own_rule);
+    });
+}
+
+/// [`consume_block_contents`] within the nesting cap.
+fn block_contents(
+    cursor: &mut SourceCursor,
+    sheet: &mut Stylesheet,
+    warnings: &mut Vec<Warning>,
+    block: Block<'_>,
+    own_rule: bool,
+) {
     let mut run: Option<DeclarationRun> = None;
     let mut pending_own = own_rule;
     loop {

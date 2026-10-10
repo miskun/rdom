@@ -11190,3 +11190,17 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   Fix at the root: it splits only text that opens with `(`, and an unmatched `)` is `None` (`checked_sub`) — an
   invalid prelude, dropped with its block. Red: `scope::an_unopened_parenthesis_drops_the_scope_rule` panicked with
   "attempt to subtract with overflow" at `scope.rs:119`; green after.
+- 2026-10-10 — C16G-DEPTH-CAPS 2/5 (Phase 16 gate decision 2, architect B4: CSS block and conditional nesting; CSS
+  Syntax 3 §5.4, CSS Nesting 1 §2–§3, Media Queries 4 §3.2, CSS Conditional 3 §6). Found: rdom-css recursed once per
+  block — `consume_block_contents` for style rules and nested at-rules, `parse_rule_list` for top-level `@media` /
+  `@supports` / `@layer` / `@starting-style` bodies — and rdom-style's conditional prelude grouping (`Prelude::group`)
+  and grammar once per parenthesis, all uncapped. Decision: one counter for every block, carried by the cursor
+  (`SourceCursor::block_depth` / `in_block` — depth is a position in the source, like its line), and one guard
+  (`top_level::in_block`) at the two recursion points: past `MAX_BLOCK_DEPTH` = 32 the block is skipped iteratively
+  through its `}` with `WarningKind::BlockTooDeep` (no engine publishes a CSS nesting cap; real sheets nest a handful
+  deep). Conditional preludes: `MAX_CONDITION_NESTING` = 32 (calc's `MAX_CALC_NESTING`), checked on the token stream
+  before grouping — past it `@media` is `not all` (MQ4 §3.2's malformed query), `@supports` / `@container` invalid.
+  Red: `depth::style_rules_nested_past_the_cap_are_skipped` and its siblings (100 000 deep, on a 256 KiB thread
+  stack) aborted with "has overflowed its stack", then `condition_parentheses_nested_past_the_cap_do_not_parse` the
+  same after the block cap; green after, with `nesting_to_the_cap_is_kept` (32 deep parses with no warning on the
+  same stack). Silent change `sc-depth-caps`.

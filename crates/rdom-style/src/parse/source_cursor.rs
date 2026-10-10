@@ -11,6 +11,8 @@ pub struct SourceCursor<'a> {
     pos: usize,
     line: u32,
     col: u32,
+    /// The blocks entered through [`SourceCursor::in_block`] and not left.
+    depth: usize,
 }
 
 impl<'a> SourceCursor<'a> {
@@ -27,7 +29,24 @@ impl<'a> SourceCursor<'a> {
             pos: 0,
             line,
             col,
+            depth: 0,
         }
+    }
+
+    /// How many blocks deep the parser reading through this cursor is:
+    /// the [`in_block`](Self::in_block) calls it is inside. A parser that
+    /// recurses per block caps this against hostile nesting (rdom-css's
+    /// `MAX_BLOCK_DEPTH`).
+    pub fn block_depth(&self) -> usize {
+        self.depth
+    }
+
+    /// Run `f` one block deeper ([`block_depth`](Self::block_depth)).
+    pub fn in_block<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        self.depth += 1;
+        let out = f(self);
+        self.depth -= 1;
+        out
     }
 
     pub fn line(&self) -> u32 {

@@ -62,8 +62,24 @@ fn last_index(inner: &[Cv], start: usize) -> usize {
 impl<'a> Prelude<'a> {
     /// Tokenize `text`; `None` when it does not tokenize (an
     /// unterminated string or comment).
+    /// `None`, too, when its blocks nest deeper than
+    /// [`MAX_CONDITION_NESTING`](super::MAX_CONDITION_NESTING): grouping
+    /// and the condition grammar recurse once per block (C16G-DEPTH-CAPS).
     pub(crate) fn parse(text: &'a str) -> Option<Self> {
         let tokens = tokenize_spans(text, 1, 1).ok()?;
+        let mut depth = 0usize;
+        for token in &tokens.tokens {
+            match token {
+                Token::LParen | Token::Function(_) => {
+                    depth += 1;
+                    if depth > super::MAX_CONDITION_NESTING {
+                        return None;
+                    }
+                }
+                Token::RParen => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+        }
         Some(Prelude { text, tokens })
     }
 

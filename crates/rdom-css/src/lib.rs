@@ -153,6 +153,17 @@ pub trait ImportLoader {
 /// produces an endless chain of distinct URLs.
 pub const MAX_IMPORT_DEPTH: usize = 16;
 
+/// How deep blocks nest before one is skipped
+/// (`WarningKind::BlockTooDeep`): style rules (CSS Nesting 1 §2) and the
+/// at-rules that hold blocks — `@media`, `@supports`, `@container`,
+/// `@layer`, `@scope`, `@starting-style` — counted together, so
+/// `a { @media screen { b { … } } }` is three deep. The parser recurses
+/// once per block; the cap bounds its stack against hostile depth, as
+/// [`MAX_IMPORT_DEPTH`] and rdom-style's `MAX_CALC_NESTING` bound theirs
+/// (C16G-DEPTH-CAPS). Real sheets nest a handful deep; no engine
+/// publishes a cap of its own.
+pub const MAX_BLOCK_DEPTH: usize = 32;
+
 /// A sheet an [`ImportLoader`] loaded: its resolved URL — its identity
 /// and the base of its own imports — and its text.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -256,6 +267,7 @@ fn warning_to_error(w: &Warning) -> ParseError {
         WarningKind::ImportCycle(_)
         | WarningKind::ImportFailed { .. }
         | WarningKind::ImportTooDeep(_) => ParseErrorKind::ExpectedToken("importable sheet"),
+        WarningKind::BlockTooDeep => ParseErrorKind::ExpectedToken("block within the nesting cap"),
         WarningKind::InvalidAtRulePrelude { .. } | WarningKind::InvalidPropertyRule { .. } => {
             ParseErrorKind::ExpectedToken("at-rule prelude")
         }
@@ -382,6 +394,9 @@ pub enum WarningKind {
     /// An `@import` (its URL) nested deeper than [`MAX_IMPORT_DEPTH`]:
     /// nothing is imported.
     ImportTooDeep(String),
+    /// A block nested deeper than [`MAX_BLOCK_DEPTH`] — a style rule's or
+    /// an at-rule's: skipped whole, and the parse goes on after its `}`.
+    BlockTooDeep,
     /// An `@import` whose sheet did not load: no loader was given, or
     /// the loader refused (`reason`). Nothing is imported.
     ImportFailed {
