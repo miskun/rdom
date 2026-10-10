@@ -45,7 +45,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | done 2026-10-09 (both gates; 22 gate fixes `C15G-*`; their re-review rides with the Phase 16 gate) |
-| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | gates run 2026-10-10; `C16G-*` fixes in progress |
+| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | gates run 2026-10-10; `C16G-*` batch A done 2026-10-10, batch B pending |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
 
 Phases follow dependencies: values and color before the properties that use them; flex alignment
