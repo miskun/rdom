@@ -379,6 +379,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Fixed — `rdom-css`
 
+- **`@scope to ) {}` no longer panics** (CSS Syntax 3 §5.4.9): a `)` that closes nothing ran the prelude's parenthesis depth below zero — a debug-build panic from CSS text, a wrap in release; it is an invalid prelude, and the rule is dropped with its block. (C16G-DEPTH-CAPS)
 - **Escapes in a selector prelude are copied through intact**, so an escaped `{`, `}`, quote or `,` (`.x\{\,y`) neither ends the prelude nor splits the selector list. (C1-ESCAPES)
 - `:ROOT { --x: … }` styles the root like `:root`. (C1-CASE)
 - **An important declaration beats a later normal one in the same block** (CSS Cascade 4 §6.4): `color: red !important; color: blue` is red; a block applies normal declarations, then important ones, each in source order (shorthands per field, `var()`, custom properties, inline `style`). (C1G-BLOCK-IMPORTANCE)

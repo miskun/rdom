@@ -101,8 +101,14 @@ fn strip_keyword<'s>(text: &'s str, keyword: &str) -> Option<&'s str> {
 }
 
 /// Split `(…)…` at its balanced closing parenthesis (strings and
-/// escapes respected): the inside and the rest.
+/// escapes respected): the inside and the rest. `None` when `text` does
+/// not open with `(`, or a `)` closes nothing (CSS Syntax 3 §5.4.9: an
+/// unmatched `)` is a parse error — not a depth below zero,
+/// C16G-DEPTH-CAPS).
 pub(crate) fn parenthesized(text: &str) -> Option<(&str, &str)> {
+    if !text.starts_with('(') {
+        return None;
+    }
     let mut depth = 0usize;
     let mut quote = None;
     let mut chars = text.char_indices();
@@ -116,7 +122,7 @@ pub(crate) fn parenthesized(text: &str) -> Option<(&str, &str)> {
             (None, '"' | '\'') => quote = Some(c),
             (None, '(') => depth += 1,
             (None, ')') => {
-                depth -= 1;
+                depth = depth.checked_sub(1)?;
                 if depth == 0 {
                     return Some((&text[1..i], &text[i + 1..]));
                 }

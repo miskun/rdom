@@ -55,3 +55,24 @@ fn invalid_scope_prelude_drops_the_rule() {
         assert_eq!(r.stylesheet.rules().len(), 1, "{css}");
     }
 }
+
+/// C16G-DEPTH-CAPS (Phase 16 gate architect B4): a `)` before any `(` in
+/// the prelude — `to )` — is an invalid prelude (CSS Cascade 6 §2.5,
+/// CSS Syntax 3 §5.4.9: an unmatched `)` is a parse error), not an
+/// underflow of the parenthesis depth: the rule is dropped with its
+/// block and the next rule stands.
+#[test]
+fn an_unopened_parenthesis_drops_the_scope_rule() {
+    for css in [
+        "@scope to ) { a { width: 1 } } q { width: 2 }",
+        "@scope ) { a { width: 1 } } q { width: 2 }",
+    ] {
+        let r = parse(css);
+        assert!(
+            matches!(&r.warnings[..], [w] if matches!(&w.kind, WarningKind::InvalidAtRulePrelude { name, .. } if name == "scope")),
+            "{css}: {:?}",
+            r.warnings
+        );
+        assert_eq!(r.stylesheet.rules().len(), 1, "{css}");
+    }
+}

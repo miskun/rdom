@@ -11184,3 +11184,9 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   mirrored. Red: `frame_cost_tests::a_huge_step_count_schedules_in_bounded_memory` (largest single allocation, a new
   `test_alloc::largest_allocation_in`) read `steps(10000000): 80000024 bytes at once`; green after for it and
   `steps(4294967295)`, plus `change_point_tests` for the grid arithmetic; the stepped-schedule tests unchanged.
+- 2026-10-10 — C16G-DEPTH-CAPS 1/5 (Phase 16 gate architect B4, the panic; CSS Syntax 3 §5.4.9, CSS Cascade 6 §2.5).
+  Found: `rdom-css`'s `parenthesized` ran `depth -= 1` on a `usize` at a `)` that closed nothing — `@scope to ) {}`
+  panicked in a debug build and wrapped in release (`@import`'s `layer(` / `supports(` share it, but always open).
+  Fix at the root: it splits only text that opens with `(`, and an unmatched `)` is `None` (`checked_sub`) — an
+  invalid prelude, dropped with its block. Red: `scope::an_unopened_parenthesis_drops_the_scope_rule` panicked with
+  "attempt to subtract with overflow" at `scope.rs:119`; green after.
