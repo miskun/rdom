@@ -11489,3 +11489,8 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `animation/table/{paint,flow}.rs` were a size split under concern names: `before_grid.rs` / `from_grid.rs`,
   documented as split by size. (5) `inline_box_rect`'s `O(fragments × depth)` per inline-anchor lookup is recorded
   under TECH_DEBT `SCROLL-UPDATE-1`, not paid down. With this, Phase 16's batch B is done.
+- 2026-10-18 — C16G-PRELUDE-RESULT (TECH_DEBT `PRELUDE-RESULT-1`, decided with the release: drop it). The prelude no
+  longer exports rdom-core's `Result<T>`; under `use rdom_tui::prelude::*` `Result` is std's, so the usual `main`
+  signature compiles. Red: the root README doctest's E0107 (C16G-HYGIENE 2/3), pinned now by
+  `migration_hints::prelude_result_hints`. Nothing in the workspace named the alias through the prelude. A compile
+  break: CHANGELOG Breaking, the guide's API table, the hint test; `PRELUDE-RESULT-1` paid down.

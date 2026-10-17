@@ -397,6 +397,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 
 | 0.5 | Unreleased | Item | Hint test |
 |---|---|---|---|
+| `Result<T>` through `use rdom_tui::prelude::*` | `rdom_tui::Result<T>`; under the prelude `Result` is std's again, so `fn main() -> Result<(), Box<dyn Error>>` compiles | C16G-PRELUDE-RESULT | `prelude_result_hints` |
 | `ActiveAnimation { … }` (public, never returned by a public API) | crate-private; `App::get_animations` → `AnimationInfo` (`kind()`, `play_state()`, `current_time_ms()`) | C3G-SCHEME-CONSISTENCY, C12G-API-HYGIENE | `animation_api_hygiene_hints` |
 | `runtime::builtins::table::size_all_tables(&mut dom)` / `size_columns(&mut dom, table)`; `TuiExt::table_used_width` | removed — the table formatting context sizes the columns; a fixed column is `width` on its cells or `<col>`; the used widths are `node.table_tracks()?.columns()[i].len()` | C13-TFC, C13G-TABLE-TRACKS | `table_layout_hints` |
 | `set_width(Size)` / `set_height(Size)` | `set_width(impl Into<Size>)` / `set_height(impl Into<Size>)` | C3G-API | `sizing_hints` |

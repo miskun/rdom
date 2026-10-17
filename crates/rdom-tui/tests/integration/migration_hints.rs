@@ -1777,3 +1777,23 @@ fn pseudo_element_names_hints() {
     assert!(names.contains(&"before") && names.contains(&"highlight"));
     assert!(!names.iter().any(|n| n.is_empty()));
 }
+
+/// C16G-PRELUDE-RESULT (TECH_DEBT `PRELUDE-RESULT-1`): the prelude no
+/// longer exports rdom-core's one-parameter `Result<T>`, which a glob
+/// import put over std's — so the common `main` signature compiles under
+/// `use rdom_tui::prelude::*`. Code that named the alias through the
+/// prelude writes `rdom_tui::Result<T>` (still at the root).
+#[test]
+fn prelude_result_hints() {
+    mod app {
+        use rdom_tui::prelude::*;
+
+        pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+            let dom = TuiDom::new();
+            assert!(dom.query_selector_all_in(dom.root(), "p")?.is_empty());
+            Ok(())
+        }
+    }
+    app::main().unwrap();
+    let _: rdom_tui::Result<()> = Ok(());
+}

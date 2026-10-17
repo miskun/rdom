@@ -167,7 +167,6 @@ pub use crate::{
     Rect,
     RenderContext,
     RepeatCount,
-    Result,
     RouteOutcome,
     Router,
     Rule,
