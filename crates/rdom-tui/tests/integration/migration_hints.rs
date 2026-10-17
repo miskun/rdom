@@ -1,5 +1,5 @@
 //! C4G-REEXPORTS, C5G-REEXPORTS-AND-ROOT — every type a CHANGELOG
-//! `[Unreleased]` migration hint names is reachable by a consumer that
+//! migration hint (`[0.6.0]` and later) names is reachable by a consumer that
 //! depends on `rdom-tui` alone and writes `use rdom_tui::*;` — the
 //! root, the full public surface (the prelude is a typical app's set,
 //! not a migration surface). Module paths a hint names are reached from

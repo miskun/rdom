@@ -94,13 +94,14 @@ fn the_top_list_has_fifteen_entries() {
 #[test]
 fn the_changelog_points_at_the_guide() {
     let changelog = read(&repo().join("CHANGELOG.md"));
-    let unreleased = changelog
-        .split("\n## [0.5.0]")
-        .next()
-        .expect("an [Unreleased] section");
-    assert!(unreleased.contains("(UPGRADING-0.6.md)"));
+    let release = changelog
+        .split("\n## [0.6.0]")
+        .nth(1)
+        .and_then(|s| s.split("\n## [0.5.0]").next())
+        .expect("a [0.6.0] section");
+    assert!(release.contains("(UPGRADING-0.6.md)"));
     assert!(
-        !unreleased.contains("<a id=\"sc-"),
+        !release.contains("<a id=\"sc-"),
         "the behaviour-change list moved to UPGRADING-0.6.md"
     );
 }

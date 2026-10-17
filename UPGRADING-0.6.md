@@ -4,7 +4,7 @@ rdom 0.6 makes its CSS behave as the web platform's does: the initial values, th
 
 Start with the [Top 15](#top-15--what-most-05-apps-hit): the changes most 0.5 apps hit, each with its fix. If something looks wrong and you do not know why, the [By symptom](#by-symptom) index maps what you see to the entries that explain it. [All behaviour changes, by area](#all-behaviour-changes-by-area) lists every change that compiles unchanged but renders or reads differently, and [Compile breaks](#compile-breaks) and the [API changes table](#api-changes-from-05) list what no longer compiles.
 
-[`CHANGELOG.md`](CHANGELOG.md)'s `[Unreleased]` section lists every addition and fix by crate. The full story of each change is in [`specs/CSS-COMPLETE-2026-10.md`](specs/CSS-COMPLETE-2026-10.md)'s Log, by the item id that ends each entry. Every deliberate departure from the web platform is in [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md).
+[`CHANGELOG.md`](CHANGELOG.md)'s `[0.6.0]` section lists every addition and fix by crate. The full story of each change is in [`specs/CSS-COMPLETE-2026-10.md`](specs/CSS-COMPLETE-2026-10.md)'s Log, by the item id that ends each entry. Every deliberate departure from the web platform is in [`specs/DIVERGENCES.md`](specs/DIVERGENCES.md).
 
 Lengths are terminal cells: a bare number is cells, and a pixel or font-relative length (`px`, `em`, `rem`, …) never becomes geometry — `width: 10px` is dropped as invalid. Such a length only selects: a border's glyph weight, and which rules a `@media` / `@container` query or `column-width` picks, at 8px a column and 16px a row (DESIGN, "Pixel lengths select, cells measure").
 
@@ -327,7 +327,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 
 ### `rdom-style`
 
-| 0.5 | Unreleased | Item | Hint test |
+| 0.5 | 0.6 | Item | Hint test |
 |---|---|---|---|
 | `ComputedStyle::min_width` / `min_height: Option<MinSize>` | `MinSize` (`None` → `MinSize::Auto`) | C3G-MIN-AUTO | `sizing_hints` |
 | `TuiStyle::transition_*` / `ComputedStyle::transition_*` fields (`c.transition_duration`) | in the `motion` group: `c.motion.transition_duration` (`MotionStyle` / `MotionDeclarations`, `Shared`); a literal sets `motion: MotionDeclarations { … }.into()`; the builders are unchanged | C15G-STYLE-SIZE | `grid_and_motion_group_hints` |
@@ -389,13 +389,13 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 
 ### `rdom-core`
 
-| 0.5 | Unreleased | Item | Hint test |
+| 0.5 | 0.6 | Item | Hint test |
 |---|---|---|---|
 | `SimpleSelector::Attribute { name, op, value }` | `Attribute { name, op, value, case }` (`case: AttrCase::Default` for the 0.5 behaviour; `{ name, .. }` in a pattern) | C11-ATTR-FLAGS | `selector_hints` |
 
 ### `rdom-tui`
 
-| 0.5 | Unreleased | Item | Hint test |
+| 0.5 | 0.6 | Item | Hint test |
 |---|---|---|---|
 | `Result<T>` through `use rdom_tui::prelude::*` | `rdom_tui::Result<T>`; under the prelude `Result` is std's again, so `fn main() -> Result<(), Box<dyn Error>>` compiles | C16G-PRELUDE-RESULT | `prelude_result_hints` |
 | `ActiveAnimation { … }` (public, never returned by a public API) | crate-private; `App::get_animations` → `AnimationInfo` (`kind()`, `play_state()`, `current_time_ms()`) | C3G-SCHEME-CONSISTENCY, C12G-API-HYGIENE | `animation_api_hygiene_hints` |
@@ -434,7 +434,7 @@ One row per renamed or reshaped public item: the 0.5 form, its replacement, the 
 
 For consumers of git `main` only: these items did not exist in 0.5.0 (each checked against the `v0.5.0` tag), so a 0.5 consumer has nothing to change.
 
-| Before | Unreleased | Item | Hint test |
+| Before | 0.6 | Item | Hint test |
 |---|---|---|---|
 | exhaustive `match` on `MaxSize` / `FlexBasis` | add a `CalcSize(c)` arm (`c.basis_max_size()` / `basis_flex_basis()`, `c.resolve(…)`); a `calc-size()` basis may be `CalcSizeBasis::Content` | C12-ANIMATABLE | `calc_size_hints` |
 | `lookup_in` / `substitute` → `String`; `resolve_custom_properties` maps `Option<String>` | `Result<CustomValue, SubstitutionError>`; maps `Option<CustomValue>` | C1G-VAR-COST, C2G-SUBSTITUTION-ERRORS | `cascade_hints`, `typed_error_hints` |

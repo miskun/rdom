@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-18
+
 ### Upgrading from 0.5
 
 See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hit, each with its fix; an index from what you see to its cause; every change that compiles unchanged but renders or reads differently, by area, each with its stable `sc-…` anchor; the compile breaks with the `migration_hints.rs` tests that compile their new forms; and the table of renamed or reshaped API items. Each Breaking bullet below ends with its migration.

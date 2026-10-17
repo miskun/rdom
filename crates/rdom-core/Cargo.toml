@@ -1,16 +1,16 @@
 [package]
 name = "rdom-core"
 # Pinned here rather than inherited so rdom-core can diverge from the shared
-# workspace version (it did during the 0.3 series). At 0.5.0 every published
+# workspace version (it did during the 0.3 series). At 0.6.0 every published
 # crate ships together at the same version.
-version = "0.5.0"
+version = "0.6.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Arena-backed DOM for Rust — pure tree + events, no renderer. Can be used headlessly or paired with rdom-tui for terminal rendering."
 readme = "README.md"
 keywords = ["dom", "tree", "arena", "html"]
-categories = ["data-structures", "parser-implementations"]
+categories = ["data-structures", "web-programming"]
 
 [features]
 default = []

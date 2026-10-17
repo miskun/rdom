@@ -46,7 +46,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | done 2026-10-09 (both gates; 22 gate fixes `C15G-*`; their re-review rides with the Phase 16 gate) |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | done 2026-10-18 (both gates; `C16G-*` batch A 2026-10-10, batch B 2026-10-18; their re-review rides with the Phase 17 release review) |
-| 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
+| 17 | Release 0.6.0 (publish on Miska's go-ahead) | prep 2026-10-18 (go-ahead given); publish below |
 
 Phases follow dependencies: values and color before the properties that use them; flex alignment
 before grid (Box Alignment is shared); text before lists (markers are inline content); everything
@@ -11494,3 +11494,14 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   signature compiles. Red: the root README doctest's E0107 (C16G-HYGIENE 2/3), pinned now by
   `migration_hints::prelude_result_hints`. Nothing in the workspace named the alias through the prelude. A compile
   break: CHANGELOG Breaking, the guide's API table, the hint test; `PRELUDE-RESULT-1` paid down.
+- 2026-10-18 — Phase 17 prep (Miska's go-ahead: drop the prelude `Result`, then release). Bump plan: all five
+  published crates changed since `v0.5.0` (core, style, css, tui by source; parser by its refactor and its
+  rdom-core dependency), so all go to **0.6.0** together and every inter-crate pin with them — rdom-tui's
+  build-dependency on rdom-style and versioned dev-dependency on rdom-parser included; rdom-css's dev-dependencies on
+  rdom-tui / rdom-parser stay path-only (the publish cycle); the showcase's pins too. One `v0.6.0` tag. Publish order
+  core → style → parser → css → tui. Manifests (API gate N8): rdom-tui's description names 0.6's layout and runtime,
+  its keywords `css` / `layout` for `flexbox` / `cascade`; rdom-core's category `web-programming` for
+  `parser-implementations`. MSRV: `rust-version = "1.88"` verified — the five crates `cargo +1.88.0 check` clean —
+  and a CI `msrv` job keeps it so. Release text: CHANGELOG `[0.6.0] - 2026-10-18` (an empty `[Unreleased]` above
+  it), the guide's API tables' column and pointer read 0.6, the root README drops "not yet published";
+  `the_changelog_points_at_the_guide` reads the `[0.6.0]` section.

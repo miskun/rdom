@@ -1,15 +1,15 @@
 [package]
 name = "rdom-tui"
 # Pinned here rather than inherited so rdom-tui can diverge from the shared
-# workspace version (it did during the 0.3 series). At 0.5.0 every published
+# workspace version (it did during the 0.3 series). At 0.6.0 every published
 # crate ships together at the same version.
-version = "0.5.0"
+version = "0.6.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Terminal rendering layer for rdom-core — flexbox layout, TUI styles, key/mouse events. Use rdom-core directly for headless DOM manipulation."
+description = "Terminal backend for rdom-core — the CSS cascade, block, flex, grid, table and multi-column layout, anchor positioning, effects, and a runtime with native HTML controls, events, focus and selection."
 readme = "README.md"
-keywords = ["tui", "dom", "terminal", "flexbox", "cascade"]
+keywords = ["tui", "dom", "terminal", "css", "layout"]
 categories = ["command-line-interface", "gui"]
 
 [features]
@@ -30,9 +30,9 @@ test-util = []
 features = ["test-util"]
 
 [dependencies]
-rdom-core = { path = "../rdom-core", version = "0.5.0" }
-rdom-css = { path = "../rdom-css", version = "0.5.0" }
-rdom-style = { path = "../rdom-style", version = "0.5.0" }
+rdom-core = { path = "../rdom-core", version = "0.6.0" }
+rdom-css = { path = "../rdom-css", version = "0.6.0" }
+rdom-style = { path = "../rdom-style", version = "0.6.0" }
 
 # Terminal rendering primitives. Pure-Rust, ~30KB binary cost combined.
 # - compact_str: inline-stored grapheme cluster in each Cell (up to 24B)
@@ -80,14 +80,14 @@ signal-hook = { version = "0.3", default-features = false }
 # camelCase aliases (one method per shipped CSS property) onto
 # `StyleDeclaration`. Same single source of truth the runtime uses
 # — no parallel list to drift. See `build.rs`.
-rdom-style = { path = "../rdom-style", version = "0.5.0" }
+rdom-style = { path = "../rdom-style", version = "0.6.0" }
 
 [dev-dependencies]
 proptest = "1"
 criterion = { version = "0.5", default-features = false, features = ["rayon"] }
 # Used by the `parse_and_render` example (the three crates composing).
 # Not a runtime dep of rdom-tui itself.
-rdom-parser = { path = "../rdom-parser", version = "0.5.0" }
+rdom-parser = { path = "../rdom-parser", version = "0.6.0" }
 # The crate's own integration tests need `VirtualScreen` (`test-util`):
 # a self dev-dependency turns the feature on for every test build of
 # this package, so `cargo test -p rdom-tui` and `cargo test --workspace`

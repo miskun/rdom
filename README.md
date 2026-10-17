@@ -59,7 +59,7 @@ See [`crates/rdom-tui/examples/`](crates/rdom-tui/examples/) for three self-cont
 
 ## Features
 
-Everything below is on `main` and ships in 0.6.0 (not yet published). Upgrading from 0.5: [`UPGRADING-0.6.md`](UPGRADING-0.6.md). Release notes for every version: [`CHANGELOG.md`](CHANGELOG.md). What rdom-tui's CSS covers, area by area with worked examples: the [rdom-tui README](crates/rdom-tui/README.md#css-at-a-glance).
+Everything below ships in 0.6.0. Upgrading from 0.5: [`UPGRADING-0.6.md`](UPGRADING-0.6.md). Release notes for every version: [`CHANGELOG.md`](CHANGELOG.md). What rdom-tui's CSS covers, area by area with worked examples: the [rdom-tui README](crates/rdom-tui/README.md#css-at-a-glance).
 
 - **DOM substrate.** Arena with generational `NodeId`s, attributes, classes, tree mutation, CSS selectors (Selectors 4), 3-phase event dispatch with `stopPropagation` / `preventDefault` / `AbortSignal`, `MutationObserver`, `Selection` / `Range` / `Position`, the Custom Highlight API registry, serialization (`outer_markup` / `inner_markup`).
 - **HTML template parser.** Hand-rolled, no external deps. `parseFromString` equivalent, tokenizing per HTML §13.2. Round-trippable for the supported subset.
