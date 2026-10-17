@@ -11439,3 +11439,13 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   under `@media (width < 120) or (height < 51)` the keys shorten and a note says the terminal is too small. The
   pager updates the number. `pager.rs`, its own sheet (`pager_stylesheet`), so the acid sheets and coverage are
   unchanged. Red: `the_example_shows_the_page_and_the_keys_below_the_page` (did not compile without the footer).
+- 2026-10-18 — C16G-UPGRADING (Phase 16 gate API B4, N2). Found: the ACID-FIX entries were prepended to their
+  areas, against the guide's widest-reach-first rule, and the two reversals of 0.5 behaviour (fix 8's fieldset text,
+  fix 13's `::backdrop { color }`) were unreachable from By symptom; the post-0.5 table lacked C15G-API's reshapes.
+  Done: `sc-inline-block-margins`, `sc-inline-anchor`, `sc-relative-inline` (Layout), `sc-junction-arms`,
+  `sc-heavy-double-corner` (Tables), `sc-summary-weight` … `sc-backdrop-color` (Forms) and
+  `sc-layer-default-colours` (Effects) moved to the ends of their areas; By-symptom rows for the dimmed backdrop,
+  lost bold, the fieldset's grey, border corners and dashes, and test snapshots / stdout; `sc-outline` and
+  `sc-vertical-align` join "the next ones by reach"; three post-0.5 rows (`AnchorStyle::position_area` and
+  `PositionArea::keywords` / `tracks`, `PositionTryDescriptorDropped`, `line_at_point`). The Top 15 stays as is
+  (the gate's ACCEPT). Docs only.
