@@ -121,3 +121,9 @@ pub use top_layer::TopLayerKind;
 pub use traversal::Descendants;
 pub use tree::AdjacentPosition;
 pub use validate::InvariantViolation;
+
+/// The README's examples, compiled and run as doctests so they keep
+/// compiling as the API moves (C16G-HYGIENE).
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

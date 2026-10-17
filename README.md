@@ -21,9 +21,9 @@ rdom-css    = "0.6"   # optional: parse real CSS at runtime
 
 Build a tree, attach styles, run it:
 
-```rust
+```rust,no_run
 use rdom_parser::parse;
-use rdom_tui::prelude::*;
+use rdom_tui::{App, TuiExt};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (dom, _ids) = parse::<TuiExt>(r#"

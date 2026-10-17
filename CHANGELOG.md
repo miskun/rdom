@@ -50,6 +50,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Changed — `rdom-core`
 
+- Docs: **the rdom-core, rdom-parser and root READMEs compile**: their examples are doctests now, and four that did not compile are complete — rdom-core's abort example named a `ListenerOptions::signal` builder that is `with_signal`, and the root README's `use rdom_tui::prelude::*` shadowed `Result` (the prelude's one-parameter alias) under its `fn main() -> Result<(), Box<dyn Error>>`. (C16G-HYGIENE)
 - **rdom-core, rdom-parser and rdom-tui forbid `unsafe` code** at the crate root, as rdom-style and rdom-css did (rdom-tui's test-only counting allocator excepted), pinned by a workspace check. (C16G-HARDENING)
 - **`EventDetail::ContentVisibilityAutoStateChange`** (was `ContentVisibilityAutoState`, new since 0.5) takes the web event's name, and its accessor follows the `as_<variant>` pattern: `as_content_visibility_auto_state_change()`. (C14G-API-NAMING)
 - **`ControlStateHook` returns `Option<bool>`**: `None` leaves a question to the substrate's default (the content attribute for `DefaultChecked` / `DefaultSelected`, else `false`), so a hook written before a `ControlState` question was added does not answer it `false`. Migration: `Some(answer)`, and `_ => None`. (C11G-API)

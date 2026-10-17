@@ -45,3 +45,9 @@ pub use status_bar::{seed_default_hints, wire_focus_hints};
 #[cfg(doctest)]
 #[doc = include_str!("../../../UPGRADING-0.6.md")]
 struct UpgradingDoctests;
+
+/// The workspace README's examples, compiled as doctests (C16G-HYGIENE);
+/// hosted here for the same reason.
+#[cfg(doctest)]
+#[doc = include_str!("../../../README.md")]
+struct RootReadmeDoctests;

@@ -59,8 +59,17 @@ parameterize with their own struct to hang layout / style /
 rendering state off each element without touching core code.
 
 ```rust
-// In rdom-tui:
-pub type TuiDom = Dom<TuiExt>;
+use rdom_core::Dom;
+
+// rdom-tui's is `pub type TuiDom = Dom<TuiExt>;` — yours the same way:
+#[derive(Debug, Default)]
+pub struct MyExt {
+    pub needs_paint: bool,
+}
+pub type MyDom = Dom<MyExt>;
+
+let dom: MyDom = Dom::new();
+assert!(dom.query_selector_all_in(dom.root(), "p").unwrap().is_empty());
 ```
 
 Core operates entirely through generic `NodeId` + attributes +
@@ -129,6 +138,8 @@ Every mutation entry point (`set_attribute`, `add_class`,
 registered observer:
 
 ```rust
+use rdom_core::{Dom, Mutation, MutationObserver};
+
 struct Logger;
 impl MutationObserver<()> for Logger {
     fn observe(&mut self, _dom: &mut Dom<()>, record: &Mutation) {
@@ -140,7 +151,8 @@ let mut dom: Dom = Dom::new();
 dom.add_mutation_observer(Box::new(Logger));
 
 let d = dom.create_element("div");
-dom.append_child(dom.root(), d).unwrap();
+let root = dom.root();
+dom.append_child(root, d).unwrap();
 dom.add_class(d, "primary").unwrap();
 // Logger sees: ChildListChanged, ClassChanged.
 ```
@@ -187,16 +199,22 @@ Modern-HTML cancellation pattern. Create a controller, share its
 signal across listener registrations, abort once to remove them all:
 
 ```rust
-use rdom_core::AbortController;
+use rdom_core::{AbortController, Dom, Event, ListenerOptions};
+
+let mut dom: Dom = Dom::new();
+let root = dom.root();
+let (a, b) = (dom.create_element("button"), dom.create_element("button"));
+dom.append_child(root, a).unwrap();
+dom.append_child(root, b).unwrap();
 
 let controller = AbortController::new();
-let opts = ListenerOptions::default().signal(controller.signal());
-
-dom.add_event_listener(a, "click", opts.clone(), handler_a)?;
-dom.add_event_listener(b, "click", opts.clone(), handler_b)?;
+let opts = ListenerOptions::default().with_signal(controller.signal());
+dom.add_event_listener(a, "click", opts.clone(), |_| println!("a")).unwrap();
+dom.add_event_listener(b, "click", opts, |_| println!("b")).unwrap();
 
 // ... some time later ...
-controller.abort();  // removes both listeners
+controller.abort(); // removes both listeners
+dom.dispatch_event(a, &mut Event::new("click")).unwrap(); // prints nothing
 ```
 
 Supersedes the older `remove_event_listener` workflow for
@@ -207,8 +225,17 @@ scope-bound cleanup (widgets unmounting, components tearing down).
 `outer_markup(id)` emits a subtree as HTML-ish text:
 
 ```rust
-let out = dom.outer_markup(root);
-// <div id="app"><h1>Hello</h1></div>
+use rdom_core::Dom;
+
+let mut dom: Dom = Dom::new();
+let app = dom.create_element("div");
+dom.set_attribute(app, "id", "app").unwrap();
+let h1 = dom.create_element("h1");
+let text = dom.create_text_node("Hello");
+dom.append_child(h1, text).unwrap();
+dom.append_child(app, h1).unwrap();
+assert_eq!(dom.outer_markup(app), r#"<div id="app"><h1>Hello</h1></div>"#);
+assert_eq!(dom.inner_markup(app), "<h1>Hello</h1>");
 ```
 
 `inner_markup(id)` omits the element's own tag, emitting only its

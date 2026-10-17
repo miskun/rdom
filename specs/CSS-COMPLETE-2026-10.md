@@ -11468,3 +11468,12 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   one no longer past it (counts informational, as of the recount; CLAUDE.md says so); a `.md` under `src/` is a
   source only when a Rust file beside it `include_str!`s it (`markdown_under_src_must_be_included`). Red: the new
   SIZE-1 test, naming the five; the table recounted (18 files, none past 575).
+- 2026-10-18 — C16G-HYGIENE 2/3 (Phase 16 gate architect N9: README doctests). The rdom-core, rdom-parser and root
+  READMEs join the doctests (`ReadmeDoctests` in each crate, `RootReadmeDoctests` in rdom-showcase). Red: seven
+  snippets did not compile — fragments without imports or a `dom` (core's ext alias, observer, abort, serialization;
+  parser's `parse_into` and round trip), core's abort example calling `ListenerOptions::signal`, which is
+  `with_signal`, and the root README's headline example: `use rdom_tui::prelude::*` brings in the prelude's
+  `Result<T>` alias, which shadows std's under `fn main() -> Result<(), Box<dyn Error>>`. Each is now a complete
+  snippet; the root one imports `App` and `TuiExt` by name and is `no_run`. Open question for the release: whether
+  the prelude should keep exporting `Result` (since 0.1.0; dropping it is a compile break) — recorded in
+  TECH_DEBT `PRELUDE-RESULT-1`.

@@ -23,13 +23,16 @@ let (dom, ids): (Dom<()>, _) = parse(r#"
 For building into an existing tree:
 
 ```rust
+use rdom_core::Dom;
 use rdom_parser::parse_into;
 
 let mut dom: Dom<()> = Dom::new();
 let body = dom.create_element("body");
-dom.append_child(dom.root(), body).unwrap();
+let root = dom.root();
+dom.append_child(root, body).unwrap();
 
-let children = parse_into(&mut dom, "<h1>Title</h1><p>Body</p>", body)?;
+let children = parse_into(&mut dom, "<h1>Title</h1><p>Body</p>", body).unwrap();
+assert_eq!(children.len(), 2);
 ```
 
 ## Supported
@@ -70,6 +73,8 @@ println!("{err}"); // "parse error at line 1, col 14: …"
 For a well-behaved subset, `parse(x).outer_markup() == x`:
 
 ```rust
+use rdom_parser::parse;
+
 let src = "<div><p>Hello &amp; world</p></div>";
 let (dom, ids) = parse::<()>(src).unwrap();
 assert_eq!(dom.outer_markup(ids[0]), src);

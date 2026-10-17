@@ -71,3 +71,9 @@ mod parser;
 pub use dom_ext::NodeMutHtml;
 pub use error::{ParseError, Result};
 pub use parser::{MAX_TREE_DEPTH, parse, parse_into};
+
+/// The README's examples, compiled and run as doctests so they keep
+/// compiling as the API moves (C16G-HYGIENE).
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
