@@ -4,7 +4,9 @@
 //! default). Ctrl+N / Ctrl+P page forward and back through every page —
 //! pages 1–9 and 13 the static tiles, 10–12 the stage-2 tiles, live: hover,
 //! click, type and scroll them as the interactive steps do — and Ctrl+C
-//! quits. The references are derived for a 120 × 50 terminal.
+//! quits. The references are derived for a 120 × 50 page; the footer
+//! below it (page number and keys) takes one more row, so run it in a
+//! 120 × 51 terminal or larger — the footer says when it is too small.
 //!
 //! Implementation lives in `rdom_showcase::demos::acid` — every page is
 //! browsable, stacked, in the showcase under "Built-ins → Acid".

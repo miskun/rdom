@@ -245,6 +245,68 @@ fn the_example_pages_through_every_page() {
     assert_eq!(shown(&app), [1], "and back");
 }
 
+/// The example's footer (C16G-ACID-PAGER; Phase 16 gate API N6): a row of
+/// its own below the 120 × 50 page — page number, keys — that follows the
+/// pager, and says so when the terminal is too small for the page.
+#[test]
+fn the_example_shows_the_page_and_the_keys_below_the_page() {
+    use crossterm::event::{Event as CtEvent, KeyCode, KeyEvent, KeyModifiers};
+    use rdom_tui::TuiDom;
+    use rdom_tui::render::{Terminal, TestBackend};
+    use rdom_tui::runtime::app::App;
+
+    let run = |w: u16, h: u16, next: bool| -> Vec<String> {
+        let mut dom: TuiDom = TuiDom::new();
+        let root = dom.root();
+        let page_root = acid::build_page(&mut dom, 1);
+        dom.append_child(root, page_root).unwrap();
+        acid::add_pager_footer(&mut dom, 1);
+        let terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
+        let mut app = App::with_backend(dom, acid::stylesheet(), terminal)
+            .unwrap()
+            .with_import_loader(acid::import_loader());
+        app.push_stylesheet(acid::late_stylesheet());
+        app.push_stylesheet(acid::pager_stylesheet());
+        acid::page_through(&mut app, 1);
+        for _ in 0..3 {
+            app.advance(0).unwrap();
+        }
+        if next {
+            app.handle_event(CtEvent::Key(KeyEvent::new(
+                KeyCode::Char('n'),
+                KeyModifiers::CONTROL,
+            )));
+            for _ in 0..3 {
+                app.advance(0).unwrap();
+            }
+        }
+        let buf = app.terminal().buffer();
+        (0..h)
+            .map(|y| (0..w).map(|x| buf.cell(x, y).unwrap().symbol()).collect())
+            .collect()
+    };
+    let rows = run(acid::PAGE_WIDTH, acid::PAGE_HEIGHT + 1, false);
+    let footer = rows.last().unwrap();
+    assert!(
+        footer.starts_with(" acid page 1/13 · Ctrl+N next · Ctrl+P previous · Ctrl+C quit"),
+        "{footer:?}"
+    );
+    assert!(!footer.contains("too small"), "{footer:?}");
+    let rows = run(acid::PAGE_WIDTH, acid::PAGE_HEIGHT + 1, true);
+    assert!(
+        rows.last().unwrap().starts_with(" acid page 2/13"),
+        "the pager moves it"
+    );
+    let rows = run(100, 40, false);
+    assert!(
+        rows.last()
+            .unwrap()
+            .contains("too small: the pages are 120 × 50, plus this row"),
+        "{:?}",
+        rows.last()
+    );
+}
+
 /// Every tile has a reference and every reference a tile.
 #[test]
 fn every_tile_has_a_reference() {

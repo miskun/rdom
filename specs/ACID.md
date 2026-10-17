@@ -216,7 +216,9 @@ Decided while building its harness (ACID-INTERACTIVE-HARNESS, 2026-10-10):
   two halves. The example (`--example acid -- <page>`) is a pager over the same pages: Ctrl+N / Ctrl+P show the next
   and previous page, built afresh with their setup and load scripts (`acid::page_through`, which
   `the_example_pages_through_every_page` drives headless); the stage-2 tiles are live there, to hover, click, type and
-  scroll as the steps do.
+  scroll as the steps do. A footer on the row below the page (`acid::add_pager_footer`, outside the page, so no
+  frame changes) gives the page number and the keys, and says when the terminal is smaller than 120 × 51
+  (`the_example_shows_the_page_and_the_keys_below_the_page`; C16G-ACID-PAGER).
 - **Stage-2 tiles.** A step that needs markup no static tile has gets a tile of its own on the pages
   after the static ones (from page 10), with a static reference for its rest state — the state its
   steps start from. Tile 34 (hover chains, `:active` timing, `pointer-events: none`) serves I1, I2

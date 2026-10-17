@@ -40,9 +40,11 @@ use rdom_tui::{App, ListenerOptions, NodeId, Stylesheet, TuiDom};
 
 use crate::{Category, Demo, Source};
 
+mod pager;
 mod tile;
 pub mod tiles;
 
+pub use pager::{add_pager_footer, pager_stylesheet};
 pub use tile::Tile;
 pub use tiles::TILES;
 
@@ -196,15 +198,18 @@ pub fn late_stylesheet() -> Stylesheet {
 
 /// Run `page` full screen (`cargo run -p rdom-showcase --example acid --
 /// <page>`), with both sheets as the tests push them, paging as
-/// [`page_through`] describes; Ctrl+C quits.
+/// [`page_through`] describes, with the footer ([`add_pager_footer`])
+/// on the row below the page; Ctrl+C quits.
 pub fn run_standalone(page: u8) -> io::Result<()> {
     let page = page.clamp(1, page_count());
     let mut dom: TuiDom = TuiDom::new();
     let root = dom.root();
     let page_root = build_page(&mut dom, page);
     dom.append_child(root, page_root).unwrap();
+    add_pager_footer(&mut dom, page);
     let mut app = App::new(dom, stylesheet())?.with_import_loader(import_loader());
     app.push_stylesheet(late_stylesheet());
+    app.push_stylesheet(pager_stylesheet());
     page_through(&mut app, page);
     app.run()
 }
@@ -234,6 +239,7 @@ pub fn page_through<B: Backend>(app: &mut App<B>, page: u8) {
                 .expect("a page number");
             current = next;
             swap_page(ctx.dom, next);
+            pager::show_page(ctx.dom, next);
             queue_scripts(&handle, next);
             ctx.event.prevent_default();
         })

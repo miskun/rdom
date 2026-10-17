@@ -824,6 +824,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Changed — `rdom-showcase`
 
+- **The acid example shows where it is**: a footer on the row below the 120 × 50 page gives the page number and the pager's keys, and says when the terminal is too small for the page (`acid::add_pager_footer`, `pager_stylesheet`). (C16G-ACID-PAGER)
 - **The acid test checks more and runs once**: links (OSC 8), label rows and gutters, the replay against the frame drawn and tiles a step does not name; the coverage test counts a declaration only when its rule matched something; each page and step runs once per run, a panic reported as its failure (11.6 s → 5.4 s). (C16G-ACID-RIGOUR)
 - **The shell and the demos fill the screen with CSS**: `.app-shell` and every demo root that relied on the document root's flex column (`flex: 1`) declare `height: 100%` with `box-sizing: border-box`, as a web app shell does — standalone, and in the view pane, which lays its demo out in block flow; the snapshots are unchanged. The `rdom-tui` examples do the same. (C13-ROOT-BLOCK)
 - **The DESIGN type check follows `pub mod` paths**: a type reachable as `rdom_core::table::CellSpan` or through `rdom_tui::runtime::…` is as public as a re-exported one; the 37 such types it found are classified in DESIGN. (C13G-MISC)

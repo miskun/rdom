@@ -11432,3 +11432,10 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `App::mouse_rearm` flag `App::new` sets (it owns stdout) and `with_backend` leaves off; the resize path reads the
   flag, not the guard. Red: `a_rearming_app_rearms_on_resize` (child process, as the ACID-FIX-16 test) — did not
   compile without the builder. The app module's option table, the README's and `sc-resize-rearm` updated.
+- 2026-10-18 — C16G-ACID-PAGER (Phase 16 gate API N6). Found: the acid example documented Ctrl+N / Ctrl+P only in
+  its file comment, showed no page number, and never told the user the references assume 120 × 50. Decision: a
+  footer under the document root, beside the page (pages 5, 6 and 13 use the page's last row, so it cannot sit
+  inside it), fixed to the viewport's last row — `acid page N/13 · Ctrl+N next · Ctrl+P previous · Ctrl+C quit`;
+  under `@media (width < 120) or (height < 51)` the keys shorten and a note says the terminal is too small. The
+  pager updates the number. `pager.rs`, its own sheet (`pager_stylesheet`), so the acid sheets and coverage are
+  unchanged. Red: `the_example_shows_the_page_and_the_keys_below_the_page` (did not compile without the footer).
