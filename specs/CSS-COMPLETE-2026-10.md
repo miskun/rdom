@@ -1,6 +1,6 @@
 # CSS-COMPLETE-2026-10 — every CSS feature that means something in a terminal
 
-**Status:** IN PROGRESS (started 2026-10-03). Ships as **0.6.0**. Routing moves to 0.7.0, async
+**Status:** DONE (2026-10-03 – 2026-10-18). Shipped as **0.6.0** (tag `v0.6.0`). Routing moves to 0.7.0, async
 tasks to 0.8.0.
 
 **Goal.** Implement every row of [`CSS-COVERAGE.md`](CSS-COVERAGE.md) classed *Partial* or
@@ -46,7 +46,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | done 2026-10-09 (both gates; 22 gate fixes `C15G-*`; their re-review rides with the Phase 16 gate) |
 | 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | done 2026-10-18 (both gates; `C16G-*` batch A 2026-10-10, batch B 2026-10-18; their re-review rides with the Phase 17 release review) |
-| 17 | Release 0.6.0 (publish on Miska's go-ahead) | prep 2026-10-18 (go-ahead given); publish below |
+| 17 | Release 0.6.0 (publish on Miska's go-ahead) | done 2026-10-18 — published, tagged `v0.6.0` |
 
 Phases follow dependencies: values and color before the properties that use them; flex alignment
 before grid (Box Alignment is shared); text before lists (markers are inline content); everything
@@ -11505,3 +11505,6 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   and a CI `msrv` job keeps it so. Release text: CHANGELOG `[0.6.0] - 2026-10-18` (an empty `[Unreleased]` above
   it), the guide's API tables' column and pointer read 0.6, the root README drops "not yet published";
   `the_changelog_points_at_the_guide` reads the `[0.6.0]` section.
+- 2026-10-18 — **0.6.0 released.** Published from `4418f406` in order rdom-core, rdom-style, rdom-parser, rdom-css,
+  rdom-tui — each verified by cargo against the registry, every crate's `max_version` 0.6.0 on crates.io — and
+  tagged `v0.6.0`. The program is done; routing moves to 0.7.0, async tasks to 0.8.0.
