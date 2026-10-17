@@ -11,34 +11,47 @@
 mod session;
 mod steps;
 
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::{LazyLock, OnceLock};
+
 use session::{Session, Step, StepResult, run};
 
+use super::compare::panic_text;
 use super::reference::Reference;
 
 fn assert_step(step: &'static Step) {
-    let result = run(step);
+    let result = result(step);
     assert!(result.passed(), "\n{}", result.failure());
 }
 
-/// Every step's result: a line per step, then each failure's report.
-pub fn results() -> Vec<StepResult> {
-    steps::ALL
+/// Every listed step's result, once per test run.
+static RESULTS: LazyLock<Vec<OnceLock<StepResult>>> =
+    LazyLock::new(|| steps::ALL.iter().map(|_| OnceLock::new()).collect());
+
+/// `step`'s result: run the first time it is asked for — by its own test,
+/// `report` or `summary` — and kept for the run; a panic is a failure.
+fn result(step: &'static Step) -> &'static StepResult {
+    let i = steps::ALL
         .iter()
-        .map(|step| {
-            std::panic::catch_unwind(|| run(step)).unwrap_or_else(|panic| {
-                let why = panic
-                    .downcast_ref::<String>()
-                    .cloned()
-                    .or_else(|| panic.downcast_ref::<&str>().map(|s| s.to_string()))
-                    .unwrap_or_default();
-                StepResult {
-                    step,
-                    checkpoints: 0,
-                    failures: vec![format!("step {} panicked: {why}", step.id)],
-                }
-            })
+        .position(|s| std::ptr::eq(*s, step))
+        .expect("a listed step");
+    RESULTS[i].get_or_init(|| {
+        catch_unwind(AssertUnwindSafe(|| run(step))).unwrap_or_else(|panic| StepResult {
+            step,
+            checkpoints: 0,
+            failures: vec![format!(
+                "step {} panicked: {}",
+                step.id,
+                panic_text(&*panic)
+            )],
+            used: Default::default(),
         })
-        .collect()
+    })
+}
+
+/// Every step's result.
+pub fn results() -> Vec<&'static StepResult> {
+    steps::ALL.iter().map(|step| result(step)).collect()
 }
 
 /// Each step as one summary line.
@@ -66,7 +79,7 @@ fn report() {
     for r in &results {
         out.push_str(&summary_line(r));
     }
-    let failed: Vec<&StepResult> = results.iter().filter(|r| !r.passed()).collect();
+    let failed: Vec<&&StepResult> = results.iter().filter(|r| !r.passed()).collect();
     for r in &failed {
         out.push('\n');
         out.push_str(&r.failure());

@@ -522,3 +522,44 @@ fn decorations_emit_by_the_terminals_capabilities() {
     assert!(!cell.modifier.contains(Modifier::UNDERLINE_CURLY));
     assert_eq!(cell.underline_color, Color::Reset);
 }
+
+/// `Terminal::buffer` is the frame drawn: the screen a replay of the
+/// backend's output shows, cell for cell — over two frames, the second a
+/// diff, with a wide glyph overwritten by narrow ones (C16G-ACID-RIGOUR).
+#[test]
+fn the_terminal_buffer_is_what_the_replay_shows() {
+    use crate::render::{Buffer, Style, Terminal, TestBackend};
+
+    let mut term = Terminal::new(TestBackend::new(6, 2)).unwrap();
+    term.draw(|buf: &mut Buffer| {
+        buf.set_string(0, 0, "中文x", Style::new().bg(Color::Rgb(0, 0, 9)));
+        Ok(())
+    })
+    .unwrap();
+    term.draw(|buf: &mut Buffer| {
+        buf.set_string(1, 0, "ab", Style::new().fg(Color::Rgb(9, 0, 0)));
+        buf.set_string(0, 1, "end", Style::new());
+        Ok(())
+    })
+    .unwrap();
+    let mut screen = VirtualScreen::new(6, 2);
+    screen.apply(term.backend().bytes());
+    assert!(
+        screen.unsupported().is_empty(),
+        "{:?}",
+        screen.unsupported()
+    );
+    for y in 0..2 {
+        for x in 0..6 {
+            let (a, b) = (
+                term.buffer().cell(x, y).unwrap(),
+                screen.cell(x, y).unwrap(),
+            );
+            assert_eq!(
+                (a.symbol(), a.fg, a.bg, a.is_spacer()),
+                (b.symbol(), b.fg, b.bg, b.is_spacer()),
+                "({x}, {y})"
+            );
+        }
+    }
+}

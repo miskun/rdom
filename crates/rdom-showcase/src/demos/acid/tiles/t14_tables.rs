@@ -6,7 +6,7 @@
 //! cell beats the table, `none` loses to the table); a separated table
 //! spaced by `border-spacing` with a `rowspan` and a `colspan` cell and an
 //! empty cell under `empty-cells: hide`; column rules (`col.x || td`,
-//! `td:nth-col(3)`) on a spanning cell, a right-aligned `th` row and a
+//! `td:nth-col(3)`, `td:nth-last-col(3)`) on a spanning cell, a right-aligned `th` row and a
 //! bottom caption; an anonymous table of `display: table-row` /
 //! `table-cell` boxes; `vertical-align: top / middle / bottom / baseline`
 //! cells in a three-row row, a centred `th` row and caption and a zebra
@@ -40,6 +40,7 @@ pub const TILE: Tile = Tile {
 .acid-t14 .cs { text-align: right; caption-side: bottom; }
 .acid-t14 .cs col.x || td { color: rgb(255, 0, 0); }
 .acid-t14 .cs td:nth-col(3) { background-color: rgb(0, 128, 0); }
+.acid-t14 .cs td:nth-last-col(3) { font-weight: bold; }
 .acid-t14 .an .r { display: table-row; }
 .acid-t14 .an .c { display: table-cell; padding: 0 1; }
 .acid-t14 .va .t { vertical-align: top; }

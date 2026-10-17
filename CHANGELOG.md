@@ -163,6 +163,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-style`
 
+- **`property_dispatch::declares(style, name)`**: whether a declaration block declares a property — a longhand, a shorthand through any longhand, a legacy alias, a value waiting on `var()`, a flow-relative one the cascade maps — for tooling that asks what a rule sets. (C16G-ACID-RIGOUR)
 - **`color::ColorDepth`** with `detect`, `quantize`, `bits` and `index_entries`, `nearest_256` / `nearest_16` (nearest in Oklab), and `MediaEnvironment::color_depth`, which the colour media features read. (C16G-COLOR-DEPTH)
 - **`conditional::MAX_CONDITION_NESTING` (32)**: an `@media` / `@supports` / `@container` prelude nesting parentheses deeper does not parse (`not all`; an invalid rule); and `SourceCursor::block_depth` / `in_block`, the block depth a parser caps its recursion by. (C16G-DEPTH-CAPS)
 - **`pseudo_element_names()`**: the name of every pseudo-element a selector can end in, each once, as written after `::` (`highlight` for `::highlight()`), from the selector-text splitter's own tables — for tooling, beside `pseudo_class_names()` and `at_rule_names()`. (ACID-COVERAGE, C16G-NAMES)
@@ -433,6 +434,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-tui`
 
+- **`Terminal::buffer`**, the frame last drawn; **`VirtualScreen::unsupported`**, the sequences it did not model; and, under `test-util`, **`App::matched_rules(id)`**, the rules the last cascade matched for an element with their sheets — so a test can check the replay against the frame and what styled what. (C16G-ACID-RIGOUR)
 - **Signal handling in `App::run`** (Unix): SIGTERM and SIGHUP restore the terminal, then end the process as the signal would; SIGTSTP leaves TUI mode before stopping and SIGCONT re-enters it with a full redraw — self-pipes, as for SIGWINCH. (C16G-HARDENING)
 - **Colour depth** (`App::with_color_depth` / `set_color_depth`, `Backend::set_color_depth`): detected from `NO_COLOR`, `COLORTERM` and `TERM`; each colour is emitted as the nearest the terminal shows — the xterm 256-colour palette, the 16 ANSI colours, or none — and the `color` / `color-index` / `monochrome` media features follow it. (C16G-COLOR-DEPTH)
 - **`MAX_LAYOUT_DEPTH` (128)**: the element that deep in the box tree skips its contents — not styled, laid out, painted, hit or focusable — so the cascade, layout, paint and hit testing recurse at most that deep whatever the DOM; the built-ins' whole-DOM walks and the tab order are iterative. A 100 000-deep DOM runs on a 2 MiB stack. (C16G-DEPTH-CAPS)
@@ -596,6 +598,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Changed — `rdom-tui`
 
+- **`VirtualScreen` behaves as a terminal at the edges** (`test-util`): it autowraps (deferred, scrolling from the last row), wraps a wide glyph that does not fit, erases a wide glyph partly overwritten, and reports the sequences it does not model instead of skipping them silently. (C16G-ACID-RIGOUR)
 - Docs: **the README is an overview** — quick start with 0.6 pins, a "CSS at a glance" table linking each feature area to its recipe, the runtime and terminal notes, and a pointer to `UPGRADING-0.6.md`; the recipes moved to `docs/RECIPES.md`, still doctested (`RecipesDoctests`), with new multi-column and effects recipes. The rdom-css and root READMEs are corrected. (C15G-README)
 - **Sheets without `@media` evaluate no condition per environment**: a sheet set with no conditional rule evaluates nothing and allocates nothing for one, and one whose conditions are only `@supports` / `@container` evaluates them once, not at every new viewport or scheme. (C14G-COST-PINS)
 - **A frame moving only colors, `opacity` or shadows skips layout**: a running transition or animation of those composites and paints without laying the page out (`ANIM-RELAYOUT-1` narrowed), and the live loop wakes at the animation frame rate while one runs (it woke at the tick rate). (C12-KEYFRAMES)
@@ -817,6 +820,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Changed — `rdom-showcase`
 
+- **The acid test checks more and runs once**: links (OSC 8), label rows and gutters, the replay against the frame drawn and tiles a step does not name; the coverage test counts a declaration only when its rule matched something; each page and step runs once per run, a panic reported as its failure (11.6 s → 5.4 s). (C16G-ACID-RIGOUR)
 - **The shell and the demos fill the screen with CSS**: `.app-shell` and every demo root that relied on the document root's flex column (`flex: 1`) declare `height: 100%` with `box-sizing: border-box`, as a web app shell does — standalone, and in the view pane, which lays its demo out in block flow; the snapshots are unchanged. The `rdom-tui` examples do the same. (C13-ROOT-BLOCK)
 - **The DESIGN type check follows `pub mod` paths**: a type reachable as `rdom_core::table::CellSpan` or through `rdom_tui::runtime::…` is as public as a re-exported one; the 37 such types it found are classified in DESIGN. (C13G-MISC)
 - **List markers hang in the lists' padding** in the `lists-generated` and `ua-chrome` demos (their snapshots moved): the lists' four cells of padding hold them, so "1. Paragraph…" starts a cell further left than 0.5's `li::before` (bullets stay put), and an item's second paragraph lines up under its first rather than under the marker — what a browser draws (CSS Lists 3 §3.5). (C10-LIST-ITEM, C10G-MARKER-CLIP)

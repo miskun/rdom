@@ -202,7 +202,9 @@ pub(crate) use set::{set_parsed_in, set_unset_in};
 pub(crate) use table::{
     IMPORTANT_BITS, copy_fields, covers, important_bit_name, set_field_count, sets_any_field,
 };
-pub use table::{canonical_property_name, inherits, property_mask, property_names, remove};
+pub use table::{
+    canonical_property_name, declares, inherits, property_mask, property_names, remove,
+};
 pub(crate) use value_serializers::serialize_math;
 
 /// Reason `set` / `set_from_tokens` rejected a declaration.

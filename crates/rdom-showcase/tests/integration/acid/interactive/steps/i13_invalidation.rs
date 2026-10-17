@@ -50,8 +50,10 @@ const SPEC: &[&str] = &[
 
 const LEGEND: &[(char, &str)] = &[
     ('g', "fg #00a000"),
-    ('u', "fg #00a000 underline"),
-    ('v', "fg #0000c0 underline"),
+    ('k', "fg #00a000 bold underline link #a"),
+    ('v', "fg #0000c0 underline link #b"),
+    ('y', "fg #00a000 underline link #c"),
+    ('z', "fg #00a000 underline link #d"),
 ];
 
 static INSERTED: Reference = Reference {
@@ -68,7 +70,7 @@ static INSERTED: Reference = Reference {
 |012345 abcdef 1234 abcde abcd                             |
 |g.g.g....g..g...gg...gg..g.gg.............................|
 |is where not !not not-cx link !visited any !any list      |
-|gg.ggggg.ggg......gggggg.uuuu.vvvvvvvv.uuu......uuuu......|
+|gg.ggggg.ggg......gggggg.kkkk.vvvvvvvv.yyy......zzzz......|
 |de ch !fr שלום !rtl-css rtl                               |
 |gg.gg.....gggg..........ggg...............................|
 |ehas child !child adj. sib.w no-img !no-img               |
@@ -92,7 +94,7 @@ static OF_S: Reference = Reference {
 |012345 abcdef 1234 abcde abcd                             |
 |g.g.g.....g.....gg...gg..g.gg.............................|
 |is where not !not not-cx link !visited any !any list      |
-|gg.ggggg.ggg......gggggg.uuuu.vvvvvvvv.uuu......uuuu......|
+|gg.ggggg.ggg......gggggg.kkkk.vvvvvvvv.yyy......zzzz......|
 |de ch !fr שלום !rtl-css rtl                               |
 |gg.gg.....gggg..........ggg...............................|
 |ehas child !child adj. sib.w no-img !no-img               |
@@ -116,7 +118,7 @@ static DEEP: Reference = Reference {
 |012345 abcdef 1234 abcde abcd                             |
 |g.g.g.....g.....gg...gg..g.gg.............................|
 |is where not !not not-cx link !visited any !any list      |
-|gg.ggggg.ggg......gggggg.uuuu.vvvvvvvv.uuu......uuuu......|
+|gg.ggggg.ggg......gggggg.kkkk.vvvvvvvv.yyy......zzzz......|
 |de ch !fr שלום !rtl-css rtl                               |
 |gg.gg.....gggg..........ggg...............................|
 |ehas child !child adj. sib.w no-img !no-img               |
@@ -140,7 +142,7 @@ static NOTE_LOST: Reference = Reference {
 |012345 abcdef 1234 abcde abcd                             |
 |g.g.g.....g.....gg...gg..g.gg.............................|
 |is where not !not not-cx link !visited any !any list      |
-|gg.ggggg.ggg......gggggg.uuuu.vvvvvvvv.uuu......uuuu......|
+|gg.ggggg.ggg......gggggg.kkkk.vvvvvvvv.yyy......zzzz......|
 |de ch !fr שלום !rtl-css rtl                               |
 |gg.gg.....gggg..........ggg...............................|
 |ehas child !child adj. sib.w no-img !no-img               |
@@ -164,7 +166,7 @@ static NOTE_BACK: Reference = Reference {
 |012345 abcdef 1234 abcde abcd                             |
 |g.g.g.....g.....gg...gg..g.gg.............................|
 |is where not !not not-cx link !visited any !any list      |
-|gg.ggggg.ggg......gggggg.uuuu.vvvvvvvv.uuu......uuuu......|
+|gg.ggggg.ggg......gggggg.kkkk.vvvvvvvv.yyy......zzzz......|
 |de ch !fr שלום !rtl-css rtl                               |
 |gg.gg.....gggg..........ggg...............................|
 |ehas child !child adj. sib.w no-img !no-img               |
@@ -188,7 +190,7 @@ static HOVER: Reference = Reference {
 |012345 abcdef 1234 abcde abcd                             |
 |g.g.g.....g.....gg...gg..g.gg.............................|
 |is where not !not not-cx link !visited any !any list      |
-|gg.ggggg.ggg......gggggg.uuuu.vvvvvvvv.uuu......uuuu......|
+|gg.ggggg.ggg......gggggg.kkkk.vvvvvvvv.yyy......zzzz......|
 |de ch !fr שלום !rtl-css rtl                               |
 |gg.gg.....gggg..........ggg...............................|
 |ehas child !child adj. sib.w no-img !no-img               |
@@ -212,7 +214,7 @@ static CHECKED: Reference = Reference {
 |012345 abcdef 1234 abcde abcd                             |
 |g.g.g.....g.....gg...gg..g.gg.............................|
 |is where not !not not-cx link !visited any !any list      |
-|gg.ggggg.ggg......gggggg.uuuu.vvvvvvvv.uuu......uuuu......|
+|gg.ggggg.ggg......gggggg.kkkk.vvvvvvvv.yyy......zzzz......|
 |de ch !fr שלום !rtl-css rtl                               |
 |gg.gg.....gggg..........ggg...............................|
 |ehas child !child adj. sib.w no-img !no-img               |
@@ -236,7 +238,7 @@ static LATIN: Reference = Reference {
 |012345 abcdef 1234 abcde abcd                             |
 |g.g.g.....g.....gg...gg..g.gg.............................|
 |is where not !not not-cx link !visited any !any list      |
-|gg.ggggg.ggg......gggggg.uuuu.vvvvvvvv.uuu......uuuu......|
+|gg.ggggg.ggg......gggggg.kkkk.vvvvvvvv.yyy......zzzz......|
 |de ch !fr abcd !rtl-css rtl                               |
 |gg.gg...................ggg...............................|
 |ehas child !child adj. sib.w no-img !no-img               |

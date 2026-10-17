@@ -49,7 +49,11 @@
 //!    `time:only-of-type` `d` green; `b` default.
 //! 4. `is`, `where`, `not` (`:not(.zz)`) and `not-cx` (`:not(.zz .l5)`)
 //!    green, `!not` (`.l4:not(.l4)`) default. The links are underlined by
-//!    the UA (`u` / `v`): `link` (`:link`) green; `!visited` keeps its blue
+//!    the UA, each cell of one in its OSC 8 hyperlink — the `href` as
+//!    written, `#a` … `#d` (HTML §4.6.1; DIVERGENCES §2 "A hyperlink's URI
+//!    is its `href` as written") — so `k` / `v` / `y` / `z` differ by link
+//!    alone: `link` (`:link`) green, and bold — `:not(:visited)` holds,
+//!    `:visited` never matching; `!visited` keeps its blue
 //!    — `:visited` never matches; `any` (`:any-link`) green; `!any` has no
 //!    `href`, so neither `:any-link` nor the UA underline: default; `list`
 //!    (`:visited, :link`) green.
@@ -80,8 +84,10 @@ pub const REF: Reference = Reference {
     ],
     legend: &[
         ('g', "fg #00a000"),
-        ('u', "fg #00a000 underline"),
-        ('v', "fg #0000c0 underline"),
+        ('k', "fg #00a000 bold underline link #a"),
+        ('v', "fg #0000c0 underline link #b"),
+        ('y', "fg #00a000 underline link #c"),
+        ('z', "fg #00a000 underline link #d"),
     ],
     grid: r#"
 |desc child !child deep .adj .tadj-text ..sib ..!adj       |
@@ -93,7 +99,7 @@ pub const REF: Reference = Reference {
 |12345 abcdef 1234 abcde abcd                              |
 |g.g.g...g..g...gg...gg..g.gg..............................|
 |is where not !not not-cx link !visited any !any list      |
-|gg.ggggg.ggg......gggggg.uuuu.vvvvvvvv.uuu......uuuu......|
+|gg.ggggg.ggg......gggggg.kkkk.vvvvvvvv.yyy......zzzz......|
 |de ch !fr שלום !rtl-css rtl                               |
 |gg.gg.....gggg..........ggg...............................|
 |ehas child !child adj. sib.w no-img !no-img               |

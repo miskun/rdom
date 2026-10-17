@@ -153,6 +153,25 @@ pub(crate) struct MatchedRules {
 /// ([`Scratch::intern_highlights`]).
 pub(super) type HighlightRefs = Rc<[Rc<[MatchRef]>]>;
 
+impl MatchedRules {
+    /// Every recorded match — the element's box, its pseudo-elements' and
+    /// its `::highlight()` boxes' — as `(sheet, rule)` positions in the
+    /// sheet set the cascade ran with; a rule matched by several boxes
+    /// once per box.
+    #[cfg(any(test, feature = "test-util"))]
+    pub(crate) fn positions(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        let slots = self.slots.iter().flatten().flat_map(|refs| refs.iter());
+        let highlights = self
+            .highlights
+            .iter()
+            .flat_map(|h| h.iter())
+            .flat_map(|refs| refs.iter());
+        slots
+            .chain(highlights)
+            .map(|r| (r.sheet as usize, r.rule as usize))
+    }
+}
+
 impl PartialEq for MatchedRules {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.stamp, &other.stamp)

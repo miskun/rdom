@@ -74,6 +74,7 @@ pub const TILE: Tile = Tile {
 .acid-t4 .k1:link { color: rgb(0, 160, 0); }
 .acid-t4 .k2 { color: rgb(0, 0, 192); }
 .acid-t4 .k2:visited { color: rgb(192, 0, 0); }
+.acid-t4 .k1:not(:visited) { font-weight: bold; }
 .acid-t4 .k3:any-link { color: rgb(0, 160, 0); }
 .acid-t4 .k4:any-link { color: rgb(192, 0, 0); }
 .acid-t4 .k5:visited, .acid-t4 .k5:link { color: rgb(0, 160, 0); }

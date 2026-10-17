@@ -200,3 +200,85 @@ fn resize_larger_new_rows_blank() {
         assert_eq!(s.row(y).trim_end(), "");
     }
 }
+
+// ── What a terminal does that the backend should never need (C16G-ACID-RIGOUR) ──
+
+/// DEC autowrap (xterm's default `DECAWM`), with the wrap deferred: a
+/// glyph written in the last column leaves the cursor there, and the
+/// next glyph goes to the start of the next row.
+#[test]
+fn autowrap_moves_the_next_glyph_to_the_next_row() {
+    let mut s = VirtualScreen::new(4, 2);
+    s.apply(b"abcd");
+    assert_eq!((s.row(0).as_str(), s.row(1).as_str()), ("abcd", "    "));
+    s.apply(b"ef");
+    assert_eq!((s.row(0).as_str(), s.row(1).as_str()), ("abcd", "ef  "));
+}
+
+/// A wrap from the last row scrolls the screen up a row.
+#[test]
+fn a_wrap_from_the_last_row_scrolls() {
+    let mut s = VirtualScreen::new(4, 2);
+    s.apply(b"abcdefghij");
+    assert_eq!((s.row(0).as_str(), s.row(1).as_str()), ("efgh", "ij  "));
+}
+
+/// A CUP cancels a pending wrap: the cursor goes where it is sent.
+#[test]
+fn a_cup_cancels_the_pending_wrap() {
+    let mut s = VirtualScreen::new(4, 2);
+    s.apply(b"abcd\x1b[1;2Hx");
+    assert_eq!((s.row(0).as_str(), s.row(1).as_str()), ("axcd", "    "));
+}
+
+/// A two-cell glyph that does not fit before the right edge wraps whole.
+#[test]
+fn a_wide_glyph_at_the_edge_wraps_whole() {
+    let mut s = VirtualScreen::new(3, 2);
+    s.apply("ab中".as_bytes());
+    assert_eq!(s.row(0), "ab ");
+    assert_eq!(s.row(1), "中 ");
+}
+
+/// A narrow glyph written over the second half of a wide one erases the
+/// wide glyph: its first cell becomes a blank, as terminals show it.
+#[test]
+fn a_narrow_glyph_over_a_spacer_erases_the_wide_glyph() {
+    let mut s = VirtualScreen::new(4, 1);
+    s.apply("\x1b[42m中\x1b[1;2H\x1b[49mx".as_bytes());
+    assert_eq!(s.row(0), " x  ");
+    let first = s.cell(0, 0).unwrap();
+    assert!(!first.is_spacer() && first.symbol() == " ");
+    assert_eq!(
+        first.bg,
+        Color::Indexed(2),
+        "the erased half keeps its own colours"
+    );
+}
+
+/// … and over its first half: the orphaned second cell becomes a blank.
+#[test]
+fn a_narrow_glyph_over_a_wide_glyph_erases_its_second_half() {
+    let mut s = VirtualScreen::new(4, 1);
+    s.apply("中\x1b[1;1Hy".as_bytes());
+    assert_eq!(s.row(0), "y   ");
+    assert!(!s.cell(1, 0).unwrap().is_spacer());
+}
+
+/// Sequences the screen does not model are reported, not skipped
+/// silently: erase in line, cursor forward, a scroll region, a partial
+/// erase in display, insert mode, an unknown SGR and an unknown escape —
+/// and the ones it models are not.
+#[test]
+fn unmodelled_sequences_are_reported() {
+    let mut s = VirtualScreen::new(4, 2);
+    s.apply(b"\x1b[1;1H\x1b[2J\x1b[0;1;38;2;1;2;3m\x1b[?25l\x1b[?1003h\x1b]8;;u\x1b\\a");
+    assert_eq!(s.unsupported(), &[] as &[String]);
+    s.apply(b"\x1b[K\x1b[3C\x1b[1;2r\x1b[0J\x1b[4h\x1b[73m\x1b7");
+    assert_eq!(
+        s.unsupported(),
+        [
+            "CSI K", "CSI 3C", "CSI 1;2r", "CSI 0J", "CSI 4h", "SGR 73", "ESC 7"
+        ]
+    );
+}

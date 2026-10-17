@@ -2,7 +2,7 @@
 //! numbering. Each file carries its spec citations and the derivation of
 //! every cell (ground rule 1: from the spec, never from rdom's output).
 
-use super::reference::Reference;
+use super::reference::{Frame, Reference};
 
 pub mod t01_cascade;
 pub mod t02_specificity;
@@ -126,3 +126,6 @@ pub const ALL: &[&Reference] = &[
     &t54_multicol_rest::REF,
     &t55_anchor_rest::REF,
 ];
+
+/// The page frames a tile covers ([`Frame`]).
+pub const FRAMES: &[&Frame] = &[&t15c_modal::FRAME];

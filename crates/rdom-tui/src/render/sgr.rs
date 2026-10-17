@@ -14,10 +14,10 @@
 //!   but the default with no color (C16G-COLOR-DEPTH).
 //! - Background: same with `48;5`, `48;2`, `49`.
 //! - Modifier bits: `1` bold, `3` italic, `4` underline,
-//!   `5` slow blink, `6` rapid blink, `7` reversed, `8` hidden,
-//!   `9` crossed-out. Turn-off codes: `22` bold, `23` italic,
-//!   `24` underline, `25` blink, `27` reversed, `28` hidden,
-//!   `29` crossed-out.
+//!   `5` slow blink, `6` rapid blink, `8` hidden, `9` crossed-out.
+//!   Turn-off codes: `22` bold, `23` italic, `24` underline, `25` blink,
+//!   `28` hidden, `29` crossed-out. Neither `2` (dim) nor `7` (reverse
+//!   video) is emitted: rdom has neither modifier.
 //! - The decorations beyond ECMA-48's common subset, only to a terminal
 //!   whose [`SgrCapabilities`] say it understands them: the underline
 //!   styles `4:1`–`4:5` (colon sub-parameters, which an older terminal

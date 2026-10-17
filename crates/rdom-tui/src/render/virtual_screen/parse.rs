@@ -30,8 +30,9 @@ impl VirtualScreen {
                         i += 1;
                         i += self.parse_osc(&bytes[i..]);
                     }
-                    _ => {
-                        // Unknown / single-char escape — skip this byte.
+                    other => {
+                        // An escape the screen does not model.
+                        self.unsupported_sequence(format!("ESC {}", char::from(other)));
                         i += 1;
                     }
                 }
@@ -107,6 +108,8 @@ impl VirtualScreen {
                     for c in &mut self.cells {
                         *c = Cell::EMPTY;
                     }
+                } else {
+                    self.unsupported_sequence(format!("CSI {params_str}J"));
                 }
             }
             b'm' => {
@@ -116,6 +119,13 @@ impl VirtualScreen {
             b'h' | b'l' => {
                 // Private mode set (`h`) / reset (`l`). \x1b[?25l etc.
                 let set = final_byte == b'h';
+                if !params_str.starts_with('?') {
+                    // A standard mode (insert, …) changes what text does.
+                    self.unsupported_sequence(format!(
+                        "CSI {params_str}{}",
+                        char::from(final_byte)
+                    ));
+                }
                 let trimmed = params_str.trim_start_matches('?');
                 for part in trimmed.split(';') {
                     match part {
@@ -125,8 +135,8 @@ impl VirtualScreen {
                     }
                 }
             }
-            _ => {
-                // Unknown CSI — skip silently.
+            other => {
+                self.unsupported_sequence(format!("CSI {params_str}{}", char::from(other)));
             }
         }
         total_consumed
@@ -251,7 +261,7 @@ impl VirtualScreen {
                 59 => self.sgr.underline_color = Color::Reset,
                 90..=97 => self.sgr.fg = Color::Indexed((n - 90 + 8) as u8),
                 100..=107 => self.sgr.bg = Color::Indexed((n - 100 + 8) as u8),
-                _ => { /* unknown SGR — ignore */ }
+                _ => self.unsupported_sequence(format!("SGR {}", tokens[i])),
             }
             i += 1;
         }
@@ -285,7 +295,7 @@ impl VirtualScreen {
                     self.sgr.underline_color = color;
                 }
             }
-            _ => {}
+            _ => self.unsupported_sequence(format!("SGR {code}:{sub}")),
         }
     }
 }

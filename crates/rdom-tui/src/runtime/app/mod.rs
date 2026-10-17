@@ -82,6 +82,8 @@ mod config;
 mod event_loop;
 mod frame;
 mod input;
+#[cfg(any(test, feature = "test-util"))]
+mod introspect;
 mod keyboard_defaults;
 mod media;
 mod pointer;

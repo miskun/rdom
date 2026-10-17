@@ -24,16 +24,23 @@
 //! hit target). Failures are collected, not panicked, so one wrong
 //! checkpoint never hides the next; [`Session::finish`] reports them all,
 //! each naming the step, the checkpoint, the tile, the cells and the spec.
+//!
+//! A step answers for the whole page, not only the tiles it compares: a
+//! tile it does not name — compared at a checkpoint, or declared changed
+//! with [`Session::changes`] — must look as it did when the step began at
+//! every paint checkpoint and at the end, so an interaction that leaks
+//! into another tile fails.
 
 use crossterm::event::{
     Event as CtEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
 use rdom_showcase::demos::acid::{self, PAGE_HEIGHT, PAGE_WIDTH, TILES, Tile};
-use rdom_tui::render::{Terminal, TestBackend};
+use rdom_tui::render::TestBackend;
 use rdom_tui::runtime::app::App;
-use rdom_tui::{NodeId, SgrCapabilities, TuiDom, VirtualScreen};
+use rdom_tui::{NodeId, TuiDom, VirtualScreen};
 
-use super::super::compare::check_on;
+use super::super::compare::{Configure, check_on, painted};
+use super::super::coverage::Used;
 use super::super::reference::Reference;
 
 /// One stage-2 step: a scripted interaction on one acid page.
@@ -49,8 +56,11 @@ pub struct Step {
     pub run: fn(&mut Session),
     /// What the step sets on the `App` before its first frame (a caret
     /// blink rate, a pointer-shape protocol); `None` for most steps.
-    pub configure: Option<fn(App<TestBackend>) -> App<TestBackend>>,
+    pub configure: Option<Configure>,
 }
+
+/// Every tile of a page as the screen shows it (`compare::painted`).
+type Crops = Vec<(&'static Tile, String)>;
 
 /// One acid page in a headless `App`, driven by a [`Step`]'s script.
 pub struct Session {
@@ -62,6 +72,16 @@ pub struct Session {
     /// Checkpoints run, paint and fact checks together.
     checkpoints: usize,
     failures: Vec<String>,
+    /// Every tile of the page as the step found it.
+    start: Crops,
+    /// The tiles the step names: compared at a checkpoint, or declared
+    /// changed ([`Session::changes`]).
+    named: Vec<&'static str>,
+    /// The page's tiles at each paint checkpoint: its number and words.
+    seen: Vec<(usize, String, Crops)>,
+    /// What the tiles' rules styled at the checkpoints (the coverage
+    /// test).
+    used: Used,
 }
 
 fn tile(id: &str) -> &'static Tile {
@@ -77,21 +97,7 @@ impl Session {
     /// first frame at the clock's 0, the tiles' load scripts, a second
     /// frame.
     pub fn open(step: &'static Step) -> Session {
-        let mut dom: TuiDom = TuiDom::new();
-        let root = dom.root();
-        let page_root = acid::build_page(&mut dom, step.page);
-        dom.append_child(root, page_root).unwrap();
-        let terminal = Terminal::new(TestBackend::new(PAGE_WIDTH, PAGE_HEIGHT)).unwrap();
-        let mut app = App::with_backend(dom, acid::stylesheet(), terminal)
-            .unwrap()
-            .with_sgr_capabilities(SgrCapabilities::EXTENDED)
-            .with_import_loader(acid::import_loader());
-        if let Some(configure) = step.configure {
-            app = configure(app);
-        }
-        app.push_stylesheet(acid::late_stylesheet());
-        app.advance(0).unwrap();
-        acid::run_scripts(app.dom_mut(), step.page);
+        let app = super::super::compare::open_page(step.page, step.configure);
         let mut session = Session {
             step,
             app,
@@ -99,9 +105,23 @@ impl Session {
             output: Vec::new(),
             checkpoints: 0,
             failures: Vec::new(),
+            start: Vec::new(),
+            named: Vec::new(),
+            seen: Vec::new(),
+            used: Used::default(),
         };
         session.settle();
+        session.start = session.crops();
+        session.used.record(&session.app);
         session
+    }
+
+    /// Every tile of the page as the screen shows it now
+    /// (`compare::painted`).
+    fn crops(&self) -> Crops {
+        acid::tiles_on(self.step.page)
+            .map(|t| (t, painted(&self.screen, t)))
+            .collect()
     }
 
     /// Finish the loop iteration (`advance(0)`) and replay what it drew.
@@ -274,7 +294,11 @@ impl Session {
     /// the checkpoint `at`, in the step's own words.
     pub fn expect(&mut self, at: &str, refs: &[&'static Reference]) {
         self.checkpoints += 1;
+        self.used.record(&self.app);
+        self.seen
+            .push((self.checkpoints, at.to_string(), self.crops()));
         for reference in refs {
+            self.named.push(reference.tile);
             assert!(
                 tile(reference.tile).page == self.step.page,
                 "step {}: tile {} is not on page {}",
@@ -294,10 +318,21 @@ impl Session {
         }
     }
 
+    /// Declare that the step changes `tiles` without comparing them at a
+    /// checkpoint — `why`, in the step's own words (a resize reflowing the
+    /// whole page). A tile the step neither compares nor declares must
+    /// look at every checkpoint, and at the end, as it did when the step
+    /// began.
+    pub fn changes(&mut self, tiles: &[&'static str], why: &str) {
+        assert!(!why.is_empty(), "step {}: say why", self.step.id);
+        self.named.extend_from_slice(tiles);
+    }
+
     /// Record a fact no cell shows: `holds`, or a failure naming the
     /// checkpoint, what was wanted, what was seen and the spec.
     pub fn check(&mut self, at: &str, holds: bool, seen: impl std::fmt::Display, spec: &str) {
         self.checkpoints += 1;
+        self.used.record(&self.app);
         if !holds {
             self.failures.push(format!(
                 "{} — checkpoint {} \"{at}\" — spec: {spec}\n  seen: {seen}\n",
@@ -329,12 +364,31 @@ impl Session {
         )
     }
 
-    /// The step's verdict.
-    pub fn finish(self) -> StepResult {
+    /// The step's verdict: its checkpoints' failures, then every tile it
+    /// does not name that changed from where the step began — at a paint
+    /// checkpoint or at its end.
+    pub fn finish(mut self) -> StepResult {
+        self.seen
+            .push((self.checkpoints, "the step's end".to_string(), self.crops()));
+        self.used.record(&self.app);
+        for (k, at, crops) in std::mem::take(&mut self.seen) {
+            for ((t, before), (_, now)) in self.start.iter().zip(&crops) {
+                if before != now && !self.named.contains(&t.id) {
+                    self.failures.push(format!(
+                        "{} — checkpoint {k} \"{at}\": tile {} \"{}\" changed, but the step does not name it\n  when the step began:\n{before}  now:\n{now}",
+                        self.header(),
+                        t.id,
+                        t.title,
+                    ));
+                    self.named.push(t.id);
+                }
+            }
+        }
         StepResult {
             step: self.step,
             checkpoints: self.checkpoints,
             failures: self.failures,
+            used: self.used,
         }
     }
 }
@@ -344,6 +398,9 @@ pub struct StepResult {
     pub step: &'static Step,
     pub checkpoints: usize,
     pub failures: Vec<String>,
+    /// What the tiles' rules styled at its checkpoints (the coverage
+    /// test).
+    pub used: Used,
 }
 
 impl StepResult {

@@ -11371,3 +11371,31 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   holds its case (the picker flipped then not, the popover in the top layer and moving, both timelines active, the
   column heading stuck). Divergences found: the relative-inline one (an inline anchor read with the last run's
   offsets), fixed by C16G-ANCHOR-AFTER-MOVE; the rest agree at first run. Test-only: no CHANGELOG entry.
+- 2026-10-10 — C16G-ACID-RIGOUR (Phase 16 gate architect N3–N6). Coverage: "used" meant "parses somewhere" — a
+  declaration in a rule matching nothing, or under a condition that never holds, counted, and the functional
+  pseudo-classes were not required. Decision: used = written by a tile in an author rule the cascade matched to an
+  element of its page under conditions that held — at the stage-1 paint or any stage-2 checkpoint — read through a
+  new `test-util` introspection, `App::matched_rules(id)` (the element's recorded `MatchedRules`, resolved against
+  the cascade's sheet order); a property counts when such a rule declares it (`property_dispatch::declares`, new in
+  rdom-style: fields, `var()` and flow-relative declarations, aliases) — or a `@keyframes` / `@position-try` block it
+  names does — and it is written as its own valid declaration (so a shorthand counts only where written); an
+  at-rule when a matched rule sits in it or names it (`@starting-style` rules, which the cascade records no match
+  of, by their selectors matching an element); the functional pseudo-classes (`:not` … `:lang`, `:nth-*col`) are
+  required. Red: the tightened test reported 6 gaps — `-webkit-line-clamp` and `grid` (a serialize-based first
+  draft; `declares` fixed it), `:visited` (only in a rule that never matches), `:nth-last-col()` (never written),
+  `@property` and `@starting-style` (detection, fixed); the page answers: tile 4's link gains
+  `.k1:not(:visited) { font-weight: bold }` and tile 14 `td:nth-last-col(3) { font-weight: bold }` (`aa`, `dd`),
+  each reference row derived (Selectors 4 §9.2, §16.3). `strip_comments` now skips strings. VirtualScreen: autowrap
+  (deferred; scrolling from the last row), a wide glyph wrapping whole, a narrow glyph over either half of a wide
+  one erasing the other half, and every unmodelled sequence (an unknown CSI, a partial erase, a standard mode, an
+  unknown SGR or escape) reported by `VirtualScreen::unsupported` — red: six `virtual_screen` parser tests; stale
+  SGR 2 / 7 docs corrected. Comparator: the OSC 8 link compared (legend `link <uri>`, plus `hidden` / `rapid`) —
+  red: tiles 4 and 40 and steps I9, I13 read links their references did not name, now derived (the `href` as
+  written: new DIVERGENCES §2 entry, rdom documents have no URL); page frames (`acid::page_frames`: labels grey,
+  gutters blank, `refs::FRAMES` for 15c's backdrop, derived) — red: page 5's label row under the backdrop, and a
+  mutation dropping the tiles' `overflow: clip` failed page 6; the round trip against `Terminal::buffer` (new) —
+  every page green at first run, no unmodelled sequence; a step failing when a tile it does not name changes
+  (`Session::changes` to declare one) — red: I19's resize cut tiles 21, 23, 24, 48, now checked back at rest.
+  Runtime: each page painted once (`painted_page`, a `OnceLock` per page, `catch_unwind` → the page's tiles report
+  the panic), each step run once (`interactive::result`), `Session::open` and the paint share `open_page`; the
+  showcase integration binary went from 213 tests in 11.6 s to 215 in 5.4 s. Silent change `sc-virtual-screen-wrap`.

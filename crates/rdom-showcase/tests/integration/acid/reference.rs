@@ -30,7 +30,9 @@
 //!   absent;
 //! - modifiers: `bold`, `italic`, `underline` (single), `double`,
 //!   `curly`, `dotted`, `dashed` (an underline in that style), `overline`,
-//!   `strike`, `blink`.
+//!   `strike`, `blink`, `rapid` (rapid blink), `hidden`;
+//! - `link <uri>` — the OSC 8 hyperlink the cell belongs to; a cell whose
+//!   style names none must belong to none.
 //!
 //! `.` is predefined as the all-default style and may not be redefined.
 //!
@@ -59,13 +61,32 @@ pub struct Reference {
     pub grid: &'static str,
 }
 
+/// What a page shows outside its tiles where one tile paints over the
+/// whole viewport — a modal dialog's `::backdrop` — derived from the spec
+/// like a [`Reference`]: the labels' style, and every other cell's
+/// (`compare::check_frame`). Pages without one show the labels in grey and
+/// blanks.
+pub struct Frame {
+    pub page: u8,
+    /// The tile whose paint covers the frame.
+    pub tile: &'static str,
+    /// The spec sections the derivation follows.
+    pub spec: &'static [&'static str],
+    /// The labels' glyph style there (legend words).
+    pub label: &'static str,
+    /// The style of every other cell outside the tiles (legend words).
+    pub blank: &'static str,
+}
+
 /// A legend entry, parsed.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Style {
     pub fg: Color,
     pub bg: Color,
     pub underline_color: Color,
     pub modifier: Modifier,
+    /// The OSC 8 hyperlink's URI.
+    pub link: Option<String>,
 }
 
 impl Style {
@@ -74,6 +95,7 @@ impl Style {
         bg: Color::Reset,
         underline_color: Color::Reset,
         modifier: Modifier::empty(),
+        link: None,
     };
 }
 
@@ -145,7 +167,7 @@ pub fn parse_style(text: &str) -> Result<Style, String> {
         let mut next = || {
             words
                 .next()
-                .ok_or_else(|| format!("{word:?} wants a colour"))
+                .ok_or_else(|| format!("{word:?} wants a value"))
         };
         match word {
             "fg" => style.fg = color(next()?)?,
@@ -161,6 +183,9 @@ pub fn parse_style(text: &str) -> Result<Style, String> {
             "overline" => style.modifier |= Modifier::OVERLINED,
             "strike" => style.modifier |= Modifier::CROSSED_OUT,
             "blink" => style.modifier |= Modifier::SLOW_BLINK,
+            "rapid" => style.modifier |= Modifier::RAPID_BLINK,
+            "hidden" => style.modifier |= Modifier::HIDDEN,
+            "link" => style.link = Some(next()?.to_string()),
             other => return Err(format!("unknown legend word {other:?}")),
         }
     }
@@ -219,7 +244,7 @@ impl Reference {
                 let style = legend
                     .iter()
                     .find(|(l, _)| *l == letter)
-                    .map(|(_, s)| *s)
+                    .map(|(_, s)| s.clone())
                     .ok_or_else(|| format!("row {y}: style letter {letter:?} not in the legend"))?;
                 row.push(Expected { glyph, style });
             }
@@ -251,6 +276,7 @@ pub fn describe(style: &Style) -> String {
         (Modifier::OVERLINED, "overline"),
         (Modifier::CROSSED_OUT, "strike"),
         (Modifier::SLOW_BLINK, "blink"),
+        (Modifier::RAPID_BLINK, "rapid"),
         (Modifier::HIDDEN, "hidden"),
     ] {
         if m.contains(bit) {
@@ -265,6 +291,9 @@ pub fn describe(style: &Style) -> String {
     if m.contains(Modifier::UNDERLINED) && (m & styled).is_empty() {
         out.push_str(" underline");
     }
+    if let Some(uri) = &style.link {
+        out.push_str(&format!(" link {uri}"));
+    }
     out
 }
 
@@ -278,6 +307,19 @@ fn reference_format_parses_its_documented_forms() {
     let bits = Modifier::BOLD | Modifier::UNDERLINED | Modifier::UNDERLINE_CURLY;
     assert!(style.modifier.contains(bits));
     assert!(parse_style("fg red").is_err());
+    let linked = parse_style("fg #0000ee underline link #a hidden rapid").unwrap();
+    assert_eq!(linked.link.as_deref(), Some("#a"));
+    assert!(
+        linked
+            .modifier
+            .contains(Modifier::HIDDEN | Modifier::RAPID_BLINK)
+    );
+    assert_eq!(
+        parse_style(&describe(&linked)).unwrap(),
+        linked,
+        "describe reads back"
+    );
+    assert!(parse_style("link").is_err());
     let r = Reference {
         tile: "t",
         spec: &[],

@@ -7,7 +7,9 @@
 //! underlined, HTML §15.3.4). Nothing focused: no caret.
 //!
 //! Derivation: the fields at x 0–5, 7–12, 14–19, each `ab` in white at
-//! its content start; row 1 `link` (x 0–3) and `grab` (x 5–8).
+//! its content start; row 1 `link` (x 0–3), in its OSC 8 hyperlink `#x`
+//! (HTML §4.6.1, the `href` as written: DIVERGENCES §2 "A hyperlink's URI
+//! is its `href` as written"), and `grab` (x 5–8).
 
 use super::super::reference::Reference;
 
@@ -20,7 +22,7 @@ pub const REF: Reference = Reference {
     legend: &[
         ('f', "bg #1f2123"),
         ('w', "fg #ffffff bg #1f2123"),
-        ('L', "fg #1e90ff underline"),
+        ('L', "fg #1e90ff underline link #x"),
     ],
     grid: r#"
 | ab     ab     ab                     |

@@ -79,7 +79,7 @@ const LEGEND: &[(char, &str)] = &[
     ('U', "bg #2d2f31 ul #ff0000 underline"),
     ('G', "fg #00a000 bg #2d2f31"),
     ('v', "fg #ffffff bg #2d2f31 ul #00a000 underline"),
-    ('L', "fg #1e90ff underline"),
+    ('L', "fg #1e90ff underline link #x"),
 ];
 
 static F1_ON: Reference = Reference {

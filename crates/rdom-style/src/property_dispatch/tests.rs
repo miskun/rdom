@@ -1317,3 +1317,42 @@ fn a_dispatch_error_is_a_std_error() {
     let err: Box<dyn std::error::Error> = Box::new(DispatchError::InvalidValue);
     assert_eq!(err.to_string(), "invalid value for property");
 }
+
+// ─── declares (C16G-ACID-RIGOUR) ──────────────────────────────────────
+
+/// `declares` answers whether a block declares a property — a longhand,
+/// a shorthand through any longhand it sets, a legacy alias, a value
+/// waiting on `var()`, a flow-relative inline-axis property — and only
+/// that: CSSOM §6.6's "the declarations" of the block, by property.
+#[test]
+fn declares_names_what_a_block_declares() {
+    let block = |css: &str| {
+        let mut style = TuiStyle::new();
+        for d in css.split(';').filter(|d| !d.trim().is_empty()) {
+            let (name, value) = d.split_once(':').unwrap();
+            set(name.trim(), value.trim(), &mut style).unwrap();
+        }
+        style
+    };
+    let s = block(
+        "color: red; -webkit-line-clamp: 3; grid: 1 1 / 2 2; width: var(--w); margin-inline-start: 1",
+    );
+    for name in [
+        "color",
+        "line-clamp",
+        "-webkit-line-clamp",
+        "grid",
+        "grid-template-rows",
+        "width",
+        "margin-inline-start",
+    ] {
+        assert!(declares(&s, name), "{name}");
+    }
+    for name in ["background-color", "height", "margin-top", "unknown-thing"] {
+        assert!(!declares(&s, name), "{name}");
+    }
+    assert!(
+        declares(&block("margin-top: 1"), "margin"),
+        "a shorthand by a longhand"
+    );
+}

@@ -37,7 +37,7 @@
 //!   its cells hold no letter) becomes 0.6 · (0, 0, 100) + 0.4 · (0, 100,
 //!   0) = `#00283c`, except where the dialog covers it.
 
-use super::super::reference::Reference;
+use super::super::reference::{Frame, Reference};
 
 pub const REF: Reference = Reference {
     tile: "15c",
@@ -153,4 +153,21 @@ pub const REF: Reference = Reference {
 |                                                                                                                        |
 |kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk|
 "#,
+};
+
+/// The page's frame under the backdrop: the backdrop covers the viewport,
+/// so the label row (page row 0, `15c Modal dialog & ::backdrop`, grey
+/// `#808080`) is tinted too — its letters 0.6 · (0, 0, 100) + 0.4 · (128,
+/// 128, 128) = (51.2, 51.2, 111.2), rounded `#33336f`, on the backdrop's
+/// `#00003c` over the black canvas, and its blanks `#00003c`.
+pub static FRAME: Frame = Frame {
+    page: 5,
+    tile: "15c",
+    spec: &[
+        "CSS Position 4 §3",
+        "Compositing 1 §5.1",
+        "DIVERGENCES §2 \"Translucent colors composite per cell\"",
+    ],
+    label: "fg #33336f bg #00003c",
+    blank: "bg #00003c",
 };

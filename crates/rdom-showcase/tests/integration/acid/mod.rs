@@ -18,7 +18,7 @@ mod interactive;
 mod reference;
 mod refs;
 
-use compare::{TileReport, check, check_on, paint_page};
+use compare::{FrameReport, TileReport, check, check_on, painted_page};
 use rdom_showcase::demos::acid;
 use reference::Reference;
 
@@ -27,21 +27,60 @@ fn assert_tile(reference: &'static Reference) {
     assert!(report.passed(), "\n{}", report.failure());
 }
 
-/// Every tile's result, page by page, in `refs::ALL` order within a page.
+/// Every tile's result, page by page, in `refs::ALL` order within a page —
+/// each page painted once for the run (`compare::painted_page`), and a page
+/// whose paint panicked reported against each of its tiles, so one page
+/// never hides another's.
 fn static_results() -> Vec<TileReport> {
     let mut reports: Vec<TileReport> = Vec::new();
     for page in 1..=acid::page_count() {
-        let screen = paint_page(page);
+        let screen = painted_page(page).map(|p| &p.screen);
         for reference in refs::ALL {
-            if acid::TILES
+            let Some(t) = acid::TILES
                 .iter()
-                .any(|t| t.id == reference.tile && t.page == page)
-            {
-                reports.push(check_on(&screen, reference));
-            }
+                .copied()
+                .find(|t| t.id == reference.tile && t.page == page)
+            else {
+                continue;
+            };
+            reports.push(match screen {
+                Ok(screen) => check_on(screen, reference),
+                Err(e) => TileReport {
+                    tile: t,
+                    spec: reference.spec,
+                    error: Some(e.to_string()),
+                    diffs: Vec::new(),
+                    painted: String::new(),
+                },
+            });
         }
     }
     reports
+}
+
+/// Every page's frame: the replay against the frame drawn, and what shows
+/// outside the tiles.
+fn frame_results() -> Vec<FrameReport> {
+    (1..=acid::page_count()).map(FrameReport::of).collect()
+}
+
+/// A frame's result as one summary line.
+fn frame_line(r: &FrameReport) -> String {
+    format!(
+        "  page {:<2} {}\n",
+        r.page,
+        if r.passed() {
+            "pass".to_string()
+        } else if let Some(e) = &r.error {
+            format!("ERROR {e}")
+        } else {
+            format!(
+                "FAIL ({} replay, {} outside cells)",
+                r.round_trip.len(),
+                r.outside.len()
+            )
+        }
+    )
 }
 
 /// A tile's result as one summary line.
@@ -77,12 +116,31 @@ fn report() {
     assert!(failed.is_empty(), "{out}");
 }
 
+/// Every page's frame (`compare::round_trip`, `compare::check_frame`): the
+/// replayed screen is the frame the `App` drew, with no sequence it could
+/// not model, and outside the tiles only their labels show.
+#[test]
+fn page_frames() {
+    let frames = frame_results();
+    let mut out = String::from("\nacid page frames:\n");
+    for r in &frames {
+        out.push_str(&frame_line(r));
+    }
+    let failed: Vec<&FrameReport> = frames.iter().filter(|r| !r.passed()).collect();
+    for r in &failed {
+        out.push('\n');
+        out.push_str(&r.failure());
+    }
+    assert!(failed.is_empty(), "{out}");
+}
+
 /// The whole acid run in one list: every static tile and every stage-2
 /// step with its result (printed with `--nocapture`), then every failure's
 /// report.
 #[test]
 fn summary() {
     let tiles = static_results();
+    let frames = frame_results();
     let steps = interactive::results();
     let mut out = format!(
         "\nacid: {} tiles on {} pages, {} interactive steps\n\nstage 1 — static tiles:\n",
@@ -93,16 +151,23 @@ fn summary() {
     for r in &tiles {
         out.push_str(&tile_line(r));
     }
+    out.push_str("\nstage 1 — page frames:\n");
+    for r in &frames {
+        out.push_str(&frame_line(r));
+    }
     out.push_str("\nstage 2 — interactive steps:\n");
     for r in &steps {
         out.push_str(&interactive::summary_line(r));
     }
     let failed_tiles: Vec<&TileReport> = tiles.iter().filter(|r| !r.passed()).collect();
+    let failed_frames: Vec<&FrameReport> = frames.iter().filter(|r| !r.passed()).collect();
     let failed_steps: Vec<_> = steps.iter().filter(|r| !r.passed()).collect();
     out.push_str(&format!(
-        "\n{} of {} tiles and {} of {} steps pass\n",
+        "\n{} of {} tiles, {} of {} page frames and {} of {} steps pass\n",
         tiles.len() - failed_tiles.len(),
         tiles.len(),
+        frames.len() - failed_frames.len(),
+        frames.len(),
         steps.len() - failed_steps.len(),
         steps.len()
     ));
@@ -111,11 +176,18 @@ fn summary() {
         out.push('\n');
         out.push_str(&r.failure());
     }
+    for r in &failed_frames {
+        out.push('\n');
+        out.push_str(&r.failure());
+    }
     for r in &failed_steps {
         out.push('\n');
         out.push_str(&r.failure());
     }
-    assert!(failed_tiles.is_empty() && failed_steps.is_empty(), "{out}");
+    assert!(
+        failed_tiles.is_empty() && failed_frames.is_empty() && failed_steps.is_empty(),
+        "{out}"
+    );
 }
 
 /// The example's pager (`acid::page_through`): Ctrl+N and Ctrl+P swap the

@@ -24,10 +24,13 @@ web Acid tests, adapted to a terminal grid.
    combination, not "the page differs".
 4. **Coverage is enforced mechanically.** A companion test (`acid::coverage`) fails when any CSS
    property name rdom dispatches (`property_dispatch::property_names()`), any `PseudoClass`
-   (`selectors::pseudo_class_names()`), any pseudo-element (`pseudo_element_names()`)
-   or any at-rule rdom-css evaluates (`rdom_css::at_rule_names()`) is not used somewhere in the
-   tiles' CSS, read by parsing it. New features cannot skip it; an exemption needs a written reason
-   (there are none).
+   (`selectors::pseudo_class_names()`) or functional pseudo-class (`:not()`, `:is()`, `:where()`,
+   `:has()`, `:nth-*()`, `:nth-*col()`, `:lang()`), any pseudo-element (`pseudo_element_names()`)
+   or any at-rule rdom-css evaluates (`rdom_css::at_rule_names()`) is not *used*: written by a tile
+   in a rule that styled something — matched an element of its page, under conditions that held,
+   in the static paint or at a stage-2 checkpoint (`App::matched_rules`; C16G-ACID-RIGOUR). A
+   declaration in a rule matching nothing, or under `@media (width > 9999)`, does not count. New
+   features cannot skip it; an exemption needs a written reason (there are none).
 5. **Two stages.** *Static* (one frame, no input) first; *interactive* (scripted input against the
    headless `App`, like Acid3's scripted half) second.
 6. **It lives in the showcase** (`Built-ins → Acid`, plus `cargo run -p rdom-showcase --example
@@ -45,7 +48,7 @@ Decided while building the harness (ACID-HARNESS, 2026-10-09):
   tile (`rdom_showcase::demos::acid::Tile`) names its page and its rectangle there: an absolutely
   positioned `div.acid-tile` that clips its content (`overflow: clip`), is its own stacking context
   (`z-index: 0`) and the containing block of its positioned descendants, with its label on the row
-  above (not compared). The tests paint one page at a time as the whole document of a 120 × 50
+  above (compared with the gutters: see Comparator). The tests paint one page at a time as the whole document of a 120 × 50
   headless `App`; `cargo run -p rdom-showcase --example acid -- <page>` runs one page full screen,
   and `Built-ins → Acid` stacks every page in the showcase's view pane, where the pane, not the
   terminal, is the viewport (a tile reading the viewport is right only on its own page).
@@ -75,7 +78,20 @@ Decided while building the harness (ACID-HARNESS, 2026-10-09):
   cell: glyph, foreground, background, modifiers, underline colour. A failure names the tile, its
   spec sections, every differing cell with both sides, and prints the painted crop for diagnosis.
   One test per tile (`acid::tile_05_…`), plus `acid::report`, which runs every tile and lists each
-  one's result, so a failing tile never hides another.
+  one's result, so a failing tile never hides another. Tightened with the Phase 16 gate
+  (C16G-ACID-RIGOUR, 2026-10-10):
+  - the OSC 8 link is compared too (legend `link <uri>`; a cell naming none must have none), and
+    the legend spells `hidden` and `rapid` blink;
+  - **page frames** (`acid::page_frames`): outside the tiles a page shows only the labels (grey, the
+    `id title` clipped to the tile's width) and blanks, so a tile whose `overflow: clip` fails, or
+    whose content escapes onto a label row or a gutter, fails; a tile that covers the viewport (15c's
+    `::backdrop`) derives the frame's styles in its reference file (`refs::FRAMES`);
+  - **round trip**: the replayed screen must equal the frame the `App` drew (`Terminal::buffer`) on
+    every cell, and the stream may hold no sequence `VirtualScreen` does not model (it reports
+    them) — the emulator now autowraps, scrolls and erases a partly overwritten wide glyph as a
+    terminal does, so it cannot agree with the backend only by sharing its blind spots;
+  - each page is painted once per run, and a page whose paint panics is reported against its tiles
+    (`catch_unwind`), not as a crash that hides the others.
 
 ## Stage 1 — static tiles
 
@@ -184,12 +200,17 @@ Decided while building its harness (ACID-INTERACTIVE-HARNESS, 2026-10-10):
   a `matchMedia` log, an OSC 22 pointer shape read from `Session::output`) are `Session::check`s with their spec
   section. A step's `configure` sets what its `App` needs before the first frame (a caret blink rate, a pointer-shape
   protocol).
+- **The whole page answers.** A tile the step does not name — compare at a checkpoint, or declare
+  with `Session::changes` and a reason — must look at every paint checkpoint, and at the end, as it
+  did when the step began; an interaction that leaks into another tile fails (C16G-ACID-RIGOUR).
+  I19's narrower terminal cuts tiles 21, 23, 24 and 48 off, so it checks them back at rest.
 - **Reports.** Failures are collected, not panicked, so one wrong checkpoint never hides the next;
   each names the step, the checkpoint (number and words), the tile, every differing cell with both
   sides and the spec, with the painted crop for diagnosis. One test per step
   (`acid::interactive::step_i01_…`), plus `acid::interactive::report`, which runs every step and
   lists each one's result. `harness_reports_step_checkpoint_tile_and_cells` is the harness's own
-  case.
+  case. Each step runs once per test run, whichever of these asks first, and a panic is its
+  failure (C16G-ACID-RIGOUR).
 - **The whole run.** `acid::summary` lists every static tile (page by page) and every step with its result — the
   list printed with `--nocapture` — then every failure's report; `acid::report` and `acid::interactive::report` are its
   two halves. The example (`--example acid -- <page>`) is a pager over the same pages: Ctrl+N / Ctrl+P show the next

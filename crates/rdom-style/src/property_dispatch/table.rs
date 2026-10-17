@@ -366,6 +366,25 @@ pub fn property_mask(name: &str) -> Option<crate::ImportantMask> {
     )
 }
 
+/// Whether `style` declares the property `name` (ASCII case-insensitive,
+/// a legacy alias included): a storage field it writes is set — any
+/// longhand's, for a shorthand — or a declaration of it waits for the
+/// cascade (a value holding `var()` or `attr()`, a flow-relative
+/// inline-axis property the cascade maps by direction). For tooling that
+/// asks which properties a rule's block sets; `false` for an unknown name.
+pub fn declares(style: &TuiStyle, name: &str) -> bool {
+    let name = canonical_property_name(name);
+    if style.pending.iter().any(|d| d.name == *name) {
+        return true;
+    }
+    if super::logical::serialize_inline_axis(&name, style).is_some() {
+        return true;
+    }
+    fields_of(&name)
+        .or_else(|| super::logical::fields(&name))
+        .is_some_and(|fields| fields.iter().any(|f| f.is_set(style)))
+}
+
 /// How many of the table's storage fields `style` sets.
 pub(crate) fn set_field_count(style: &TuiStyle) -> usize {
     Field::EVERY.iter().filter(|f| f.is_set(style)).count()

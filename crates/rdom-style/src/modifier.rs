@@ -13,7 +13,7 @@ bitflags_like! {
     /// Text-decoration bitflags. Compose multiple effects with `|`.
     ///
     /// Terminal support varies:
-    /// - Bold, Underlined, Reversed, Hidden, Crossed — widely supported.
+    /// - Bold, Underlined, Hidden, Crossed — widely supported.
     /// - Italic — most modern terminals; iTerm2, WezTerm, Alacritty yes; some old emulators no.
     /// - Slow/RapidBlink — rare, distracting; users often disable.
     /// - Overlined and the underline styles (double, curly, dotted,

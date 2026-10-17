@@ -81,6 +81,13 @@ impl<B: Backend> Terminal<B> {
         &mut self.backend
     }
 
+    /// The last frame drawn: what the terminal shows, cell by cell, once
+    /// the backend's output is applied — the buffer a test compares a
+    /// replay of that output against (`VirtualScreen`).
+    pub fn buffer(&self) -> &Buffer {
+        &self.front
+    }
+
     /// Current viewport.
     pub fn size(&self) -> Rect {
         self.back.area

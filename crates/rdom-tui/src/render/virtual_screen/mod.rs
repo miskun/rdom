@@ -20,10 +20,12 @@
 //!     `Indexed(0..=15)` they select — what rdom emits at 16 colors,
 //!     C16G-COLOR-DEPTH); `38;5;N` (Indexed);
 //!     `38;2;R;G;B` (Rgb); `39` (reset fg). Same shape with 40+ for bg.
-//!   - Modifier codes: `1` bold, `2` dim, `3` italic, `4` underline,
-//!     `5`/`6` blink, `7` reversed, `8` hidden, `9` crossed-out
-//!   - Off codes: `0` full reset, `22` bold+dim off, `23`, `24`, `25`,
-//!     `27`, `28`, `29`
+//!   - Modifier codes: `1` bold, `3` italic, `4` underline, `5`/`6`
+//!     blink, `8` hidden, `9` crossed-out; `2` (dim) and `7` (reverse
+//!     video) are accepted and change nothing — rdom has neither
+//!     modifier, and emits neither
+//!   - Off codes: `0` full reset, `22` bold off, `23`, `24`, `25`, `27`,
+//!     `28`, `29`
 //!   - Decorations: `4:0`–`4:5` (underline off / styles), `53` / `55`
 //!     overline, `58:2::R:G:B` / `58:5:N` (and their `;` forms) / `59`
 //!     underline color
@@ -36,9 +38,21 @@
 //! - **Plain chars** — written at cursor, advances by
 //!   `UnicodeWidthStr::width` (wide glyphs → primary + spacer cell)
 //!
-//! Unsupported sequences are silently skipped — this is a test utility,
-//! not a full VT100 emulator. The set above covers everything our
-//! backend emits.
+//! - **Autowrap** (xterm's default `DECAWM`), deferred: a glyph written
+//!   in the last column leaves the cursor past it, and the next glyph
+//!   wraps to the next row — scrolling the screen up from the last row,
+//!   as a line feed there does; a two-cell glyph that does not fit before
+//!   the edge wraps whole. A CUP cancels the pending wrap.
+//! - **A wide glyph partly overwritten** is erased whole: its other half
+//!   becomes a blank keeping its own colours.
+//!
+//! Every other sequence — an unknown CSI (erase in line, cursor forward,
+//! a scroll region, a partial erase in display, a mode that is not
+//! private), an unknown SGR code or escape — changes nothing and is
+//! recorded in [`VirtualScreen::unsupported`], so a test can assert the
+//! stream held nothing the screen could not show (C16G-ACID-RIGOUR). This
+//! is a test utility, not a full VT100 emulator; the set above covers
+//! everything rdom's backends emit.
 //!
 //! ## Layout
 //!
@@ -68,6 +82,8 @@ pub struct VirtualScreen {
     /// The OSC 8 hyperlink open at the cursor, which the cells written
     /// next carry.
     link: Option<Box<str>>,
+    /// The sequences applied that the screen does not model, in order.
+    unsupported: Vec<String>,
 }
 
 impl VirtualScreen {
@@ -82,6 +98,7 @@ impl VirtualScreen {
             sgr: SgrState::default(),
             cursor_visible: true,
             link: None,
+            unsupported: Vec::new(),
         }
     }
 
@@ -105,6 +122,13 @@ impl VirtualScreen {
     /// Current SGR state.
     pub fn sgr(&self) -> SgrState {
         self.sgr
+    }
+
+    /// The sequences applied so far that the screen does not model — each
+    /// as `CSI <params><final>`, `SGR <code>` or `ESC <byte>` — so a test
+    /// can assert the stream held nothing it could not show.
+    pub fn unsupported(&self) -> &[String] {
+        &self.unsupported
     }
 
     /// Look up a cell. `None` if out of bounds.
@@ -165,12 +189,7 @@ impl VirtualScreen {
         }
         // Control chars — advance or just drop.
         if g == "\n" {
-            self.cursor.1 = self
-                .cursor
-                .1
-                .saturating_add(1)
-                .min(self.height.saturating_sub(1));
-            self.cursor.0 = 0;
+            self.next_row();
             return;
         }
         if g == "\r" {
@@ -182,9 +201,20 @@ impl VirtualScreen {
         }
 
         let width = UnicodeWidthStr::width(g).max(1) as u16;
+        // Autowrap (DECAWM, xterm's default), deferred: a cursor past the
+        // last column wraps before the next glyph, and a two-cell glyph
+        // that does not fit before the edge wraps whole.
+        if self.cursor.0 >= self.width || (width == 2 && self.cursor.0 + 1 >= self.width) {
+            self.next_row();
+        }
         let (x, y) = self.cursor;
         if y >= self.height || x >= self.width {
             return;
+        }
+        // A wide glyph partly overwritten is erased whole.
+        self.break_wide_at(x, y);
+        if width == 2 {
+            self.break_wide_at(x + 1, y);
         }
 
         // Write primary cell.
@@ -194,11 +224,11 @@ impl VirtualScreen {
         cell.modifier = self.sgr.modifier;
         cell.underline_color = self.sgr.underline_color;
         cell.link = self.link.clone();
-        let i = y as usize * self.width as usize + x as usize;
+        let i = self.index(x, y);
         self.cells[i] = cell;
 
-        if width == 2 && x + 1 < self.width {
-            let spacer_i = y as usize * self.width as usize + (x + 1) as usize;
+        if width == 2 {
+            let spacer_i = self.index(x + 1, y);
             let mut spacer = Cell::EMPTY;
             spacer.fg = self.sgr.fg;
             spacer.bg = self.sgr.bg;
@@ -209,7 +239,57 @@ impl VirtualScreen {
             self.cells[spacer_i] = spacer;
         }
 
-        // Advance cursor.
-        self.cursor.0 = (x + width).min(self.width);
+        // Advance the cursor; past the last column it waits to wrap.
+        self.cursor.0 = x + width;
+    }
+
+    fn index(&self, x: u16, y: u16) -> usize {
+        y as usize * self.width as usize + x as usize
+    }
+
+    /// The cursor to the start of the next row, scrolling the screen up a
+    /// row from the last.
+    fn next_row(&mut self) {
+        self.cursor.0 = 0;
+        if self.cursor.1 + 1 < self.height {
+            self.cursor.1 += 1;
+            return;
+        }
+        let w = self.width as usize;
+        self.cells.drain(..w.min(self.cells.len()));
+        self.cells.extend(std::iter::repeat_n(Cell::EMPTY, w));
+    }
+
+    /// Before a glyph is written at `(x, y)`: when the cell there is half of
+    /// a two-cell glyph, the other half becomes a blank keeping its own
+    /// colours — a terminal erases a wide glyph that is partly overwritten.
+    fn break_wide_at(&mut self, x: u16, y: u16) {
+        if x >= self.width {
+            return;
+        }
+        let here = self.index(x, y);
+        let other = if self.cells[here].is_spacer() {
+            x.checked_sub(1)
+        } else if self.cells[here].cell_width() == 2 {
+            (x + 1 < self.width).then_some(x + 1)
+        } else {
+            None
+        };
+        if let Some(ox) = other {
+            let oi = self.index(ox, y);
+            let old = &self.cells[oi];
+            let mut blank = Cell::EMPTY;
+            blank.fg = old.fg;
+            blank.bg = old.bg;
+            blank.modifier = old.modifier;
+            blank.underline_color = old.underline_color;
+            blank.link = old.link.clone();
+            self.cells[oi] = blank;
+        }
+    }
+
+    /// Record a sequence the screen does not model.
+    fn unsupported_sequence(&mut self, what: String) {
+        self.unsupported.push(what);
     }
 }

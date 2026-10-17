@@ -27,13 +27,17 @@
 //!    `auto` block moves to page row 51, off the 50-row screen — skipped;
 //!    the frame after, the log reads `log:ft`.
 //! 2. Back to 120 × 50: tiles 20 and 22 as at rest; `matchMedia` reports
-//!    `false`; the block back on row 49 — relevant: `log:ftf`.
+//!    `false`; the block back on row 49 — relevant: `log:ftf`. Tiles 21,
+//!    23, 24 and 48 (x 61–118), cut off at 70 columns, are drawn again as
+//!    at rest: none of them queries the viewport.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::super::super::reference::Reference;
-use super::super::super::refs::{t20_media, t22_container};
+use super::super::super::refs::{
+    t20_media, t21_supports, t22_container, t23_transforms, t24_effects, t48_slide,
+};
 use super::super::session::{Session, Step};
 
 pub static STEP: Step = Step {
@@ -254,7 +258,17 @@ fn run(s: &mut Session) {
     let flips = log.borrow().clone();
     s.check_eq("matchMedia at 70", flips, vec![true], "CSSOM View §4.2");
     s.resize(120, 50);
-    s.expect("120 × 50 again", &[&t20_media::REF, &t22_container::REF]);
+    s.expect(
+        "120 × 50 again",
+        &[
+            &t20_media::REF,
+            &t22_container::REF,
+            &t21_supports::REF,
+            &t23_transforms::REF,
+            &t24_effects::REF,
+            &t48_slide::REF,
+        ],
+    );
     s.advance(0);
     s.expect("120 × 50, the frame after", &[&WIDE_47]);
     let flips = log.borrow().clone();

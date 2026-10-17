@@ -60,7 +60,8 @@
 //!   inherit `right`. `col.x || td`: `bb` and the spanning `ef` (it spans
 //!   column 2) red; `td:nth-col(3)`: `cc`'s cell and `ef`'s (it spans
 //!   column 3) green, padding included; `ef` right-aligned in its 6 content
-//!   cells. The caption keeps its UA `center`: (12 − 3) / 2 rounded down —
+//!   cells. `td:nth-last-col(3)` (Selectors 4 §16.3: the third column
+//!   from the last of three, the first): `aa` and `dd` bold. The caption keeps its UA `center`: (12 − 3) / 2 rounded down —
 //!   x 4.
 //! - `.an`: two `table-row` divs in an anonymous table; the cells share
 //!   columns 4 (`ab`, `d`) and 5 (`c`, `efg`).
@@ -102,9 +103,9 @@ pub const REF: Reference = Reference {
 |┌───╥───╖   ┌─┐ ┌─┐        A   B   C    ab  c             |
 |.....rrr...................B...B...B......................|
 |│ a ║ b ║   │ │ │a│       aa  bb  cc    d   efg           |
-|..............................rr.gggg.....................|
+|..........................BB..rr.gggg.....................|
 |└───╬═══╣   │r│ └─┘       dd      ef                      |
-|.............................gggggRRg.....................|
+|..........................BB.gggggRRg.....................|
 | c  │ d │   │ │ ┌────┐       cap                          |
 |..........................................................|
 |────┶━━━┙   │ │ │wide│                                    |
