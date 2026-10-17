@@ -11449,3 +11449,14 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   `sc-vertical-align` join "the next ones by reach"; three post-0.5 rows (`AnchorStyle::position_area` and
   `PositionArea::keywords` / `tracks`, `PositionTryDescriptorDropped`, `line_at_point`). The Top 15 stays as is
   (the gate's ACCEPT). Docs only.
+- 2026-10-18 — C16G-DOCS (Phase 16 gate API N3, N4; architect N7, N11). `PositionArea::is_none()` says it is the
+  keyword, not "undeclared" (beside `Option`'s `is_none`) nor invalid (`PositionArea::new`'s `None`); the rdom-tui
+  README's UA `:disabled` rule is the control-scoped one (ACID-FIX-8), `::selection` is white on the highlight
+  colour (not reversed), and "eleven more demos" with the acid pages; `cascade_and_layout`'s doc no longer says it
+  always lays out (a scroll-only frame moves the scrolled boxes, C15G-SCROLL-NO-RELAYOUT); the smooth-scroll
+  DIVERGENCES entry states its curve, `1 − (1 − t)³` rounded to the nearest cell, which I8 and I11 derive from;
+  ACID.md ground rule 1 requires a divergence the acid work adds to carry its spec rationale and a review of its
+  own, and a reference pinning a known limitation to say so — I24's title now reads "pinned limitation
+  HIT-OVERFLOW-1"; the t01 reference's `span.c-layer.c-layer` is (0,3,1). The journal docs (N11) already named the
+  relative-inline moves since C16G-ANCHOR-AFTER-MOVE. The `animation/table/{paint,flow}.rs` naming goes with
+  C16G-HYGIENE.

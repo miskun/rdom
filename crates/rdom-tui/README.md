@@ -113,7 +113,7 @@ type+pseudo_element)` compared lexicographically. Same-specificity
 ties break on source order. `!important` inverts origin priority, so
 a UA `!important` rule beats an author `!important` rule.
 
-`Stylesheet::new()` bakes in UA defaults (`:disabled { color: <muted>; user-select: none }`, …).
+`Stylesheet::new()` bakes in UA defaults (`button:disabled, input:disabled, select:disabled, … { color: <muted>; user-select: none }`, …).
 `Stylesheet::bare()` skips them for tests.
 
 `display: flex` lays its items out in a row: `flex-direction`'s initial value is `row` (CSS Flexbox §5.1; rdom 0.5 and earlier defaulted to `column`), so a container meant to stack its items needs `flex-direction: column` (`.flex_column()`). `flex-direction` applies to flex containers only: a block container stacks its children on its block axis whatever it says.
@@ -264,7 +264,8 @@ phases:
   The selection drag takes no pointer capture: `mousemove` /
   `mouseup` keep targeting the element under the pointer and `click`
   goes to the common ancestor, as in browsers. `::selection`
-  pseudo-element paints selected cells with a reversed-fg/bg overlay.
+  pseudo-element paints selected cells — the UA's is white text on a
+  highlight background, which an author `::selection` rule overrides.
 - **Clipboard** — Ctrl-C / Ctrl-X / Ctrl-V dispatch `copy` /
   `cut` / `paste` events (cancelable). Default action writes the
   serialized selection to the system clipboard via `arboard`;
@@ -362,9 +363,9 @@ cargo run -p rdom-tui --example parse_and_render  # rdom-parser + rdom-css + rdo
 ```
 
 Each file is the whole program and uses `App::run`. No manual event
-loops, no direct `enter_tui_mode` in user code. Ten more demos
+loops, no direct `enter_tui_mode` in user code. Eleven more demos
 (scrollable list, text selection, ARIA tree, sticky, border collapse,
-UA chrome, …) live in the workspace's `rdom-showcase` crate:
+UA chrome, the acid test's pages, …) live in the workspace's `rdom-showcase` crate:
 `cargo run -p rdom-showcase` for the tour, or
 `cargo run -p rdom-showcase --example <name>` for one.
 

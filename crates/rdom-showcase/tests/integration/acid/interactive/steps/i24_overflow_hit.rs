@@ -18,7 +18,7 @@ use super::super::session::{Session, Step};
 
 pub static STEP: Step = Step {
     id: "I24",
-    title: "Overflowing text's hit (HIT-OVERFLOW-1)",
+    title: "Overflowing text's hit — pinned limitation HIT-OVERFLOW-1",
     page: 13,
     spec: &["CSSOM View §6; DIVERGENCES §4 overflow hit, TECH_DEBT HIT-OVERFLOW-1"],
     run,

@@ -15,7 +15,11 @@ web Acid tests, adapted to a terminal grid.
 1. **The reference comes from the spec, not from rdom.** Every expected cell is derived by hand
    from what CSS / HTML mandate (or, where rdom deliberately differs, from the cited
    `DIVERGENCES.md` entry). A snapshot recorded from rdom's own output would only pin today's
-   bugs, as the translucency snapshot did.
+   bugs, as the translucency snapshot did. A divergence the acid work *adds* — a new
+   `DIVERGENCES.md` entry a reference then derives from — needs its spec rationale in the entry and
+   a review of its own (a gate, or the item's log entry naming why it is not a bug), so that
+   documenting today's output never stands in for deriving it (C16G-DOCS; Phase 16 gate N7). A
+   reference that pins a known limitation (TECH_DEBT) says so in its step's or tile's title.
 2. **Colour-aware comparison.** The reference records glyph, foreground, background and
    modifiers (bold / italic / underline) per cell, through a small legend (`a` = `rgb(…) on rgb(…)
    bold`). Glyph-only snapshots let the bright-`p` opacity artefact through.

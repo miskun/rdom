@@ -281,7 +281,11 @@ impl PositionArea {
         })
     }
 
-    /// Whether this is `none`.
+    /// Whether this is the keyword `none` — not "undeclared": on a
+    /// [`TuiStyle`](crate::TuiStyle) the declaration is an
+    /// `Option<Value<PositionArea>>`, whose own `is_none()` means no
+    /// declaration; and [`PositionArea::new`] returning `None` means an
+    /// invalid pair, not `none`.
     pub fn is_none(&self) -> bool {
         self.keywords.is_none()
     }

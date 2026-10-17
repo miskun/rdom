@@ -43,7 +43,7 @@
 //! - `invalid`: `color: not-a-color` is invalid and ignored at parse time
 //!   (Syntax 3 / Cascade 4 §4.2), so the valid green before it stands.
 //! - `unlayered`: an unlayered normal rule (green, 0,2,0) beats a layered
-//!   one with more specificity (red, 0,4,1) — Cascade 5 §6.4.
+//!   one with more specificity (red, 0,3,1) — Cascade 5 §6.4.
 //! - `imp-layer`: important in layer `base` (green) beats important
 //!   unlayered (red) — the layer order reverses for important styles.
 //! - `layer-id`: an id selector in a layer (red) still loses to the

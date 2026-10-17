@@ -225,9 +225,11 @@ impl<B: Backend> App<B> {
     /// synthetic move. Drains the dirty-root tracker like a real frame, so the
     /// subsequent `draw_if_dirty` only re-cascades what the synthetic move
     /// newly dirtied (it still paints — the autoscroll notes `Redraw::Layout`).
-    /// It always lays out, and cascades what a frame would: the whole
-    /// tree when `Redraw::Cascade` is pending (then left at `Layout`, as
-    /// the cascade is done), else the dirty roots.
+    /// It cascades what a frame would — the whole tree when
+    /// `Redraw::Cascade` is pending (then left at `Layout`, as the cascade
+    /// is done), else the dirty roots — and lays out when a frame would;
+    /// when only scroll offsets moved (`Redraw::Scroll`, its floor) it
+    /// moves the scrolled boxes instead (`layout_pass::scroll_update`).
     pub(super) fn cascade_and_layout(&mut self, area: Rect) {
         self.run_prelude(PreludeRun::OffFrame);
         let dirty_roots = self.take_dirty_roots();
