@@ -11399,3 +11399,9 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   Runtime: each page painted once (`painted_page`, a `OnceLock` per page, `catch_unwind` → the page's tiles report
   the panic), each step run once (`interactive::result`), `Session::open` and the paint share `open_page`; the
   showcase integration binary went from 213 tests in 11.6 s to 215 in 5.4 s. Silent change `sc-virtual-screen-wrap`.
+- 2026-10-18 — C16G-CHARSET (Phase 16 gate API N7; CSS Syntax 3 §3.2, §5.4.2). Found: a web sheet's leading
+  `@charset "UTF-8";` reported `UnsupportedAtRule`, so `from_css_strict` failed on the first line of a pasted
+  real-world sheet. Decision: a `@charset` statement leading the sheet (after whitespace and comments) is the
+  encoding marker and is consumed with no warning — the source is a decoded `&str`; one after any rule stays
+  `UnsupportedAtRule` (CSSOM has no `CSSCharsetRule`). Not an at-rule rdom-css evaluates, so `at_rule_names()` and
+  the acid coverage are unchanged. Red: `a_leading_charset_is_the_encoding_marker_and_no_warning`.

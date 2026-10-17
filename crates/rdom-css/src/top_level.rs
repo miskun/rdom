@@ -3,6 +3,8 @@
 //!
 //! - a qualified rule is a style rule, `<prelude> { <block> }`
 //!   (`block.rs`, which also parses the rules nested in its block);
+//! - a leading `@charset "…";` is the encoding marker (§3.2), consumed
+//!   silently;
 //! - `@import` is evaluated (`import.rs`) while it leads the sheet;
 //! - `@layer` is evaluated (`layer.rs`); its block form parses a nested
 //!   list of rules into the layer; `@scope` is evaluated (`scope.rs`),
@@ -35,6 +37,7 @@ pub(crate) fn parse_stylesheet(
     warnings: &mut Vec<Warning>,
     imports: &mut Imports<'_>,
 ) {
+    skip_encoding_marker(cursor, warnings);
     parse_rule_list(
         cursor,
         sheet,
@@ -42,6 +45,20 @@ pub(crate) fn parse_stylesheet(
         RuleContext::default(),
         Some(imports),
     );
+}
+
+/// A `@charset "…";` leading the sheet names its encoding (CSS Syntax 3
+/// §3.2); the source is already decoded text, so the statement is
+/// consumed with no warning. Anywhere later it is an unknown at-rule.
+fn skip_encoding_marker(cursor: &mut SourceCursor, warnings: &mut Vec<Warning>) {
+    if !skip_ws_and_comments(cursor, warnings) || cursor.peek() != Some('@') {
+        return;
+    }
+    let (name, used) = rdom_core::css_syntax::consume_ident(&cursor.rest()[1..]);
+    if name.eq_ignore_ascii_case("charset") {
+        cursor.advance(1 + used);
+        skip_at_rule_rest(cursor, warnings, false);
+    }
 }
 
 /// §5.4.1 "consume a list of rules" in `ctx` — its layer (`None`:

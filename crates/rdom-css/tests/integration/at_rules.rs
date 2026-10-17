@@ -92,3 +92,37 @@ fn at_rule_warning_carries_the_at_rule_position() {
         .unwrap();
     assert_eq!((w.line, w.column), (2, 1));
 }
+
+// ---- @charset: the encoding marker (CSS Syntax 3 §3.2) -------------------
+
+#[test]
+fn a_leading_charset_is_the_encoding_marker_and_no_warning() {
+    // CSS Syntax 3 §3.2: `@charset "…";` at the head of a sheet names its
+    // encoding; a `&str` is already decoded, so it is consumed silently —
+    // and a pasted web sheet passes `parse_strict`.
+    let r = parse("@charset \"UTF-8\";\na { color: red }");
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    assert_eq!(
+        selectors("@charset \"UTF-8\";\na { color: red }"),
+        vec!["a"]
+    );
+    assert!(rdom_css::parse_strict("@charset \"utf-8\"; a { color: red }").is_ok());
+}
+
+#[test]
+fn a_charset_after_a_rule_is_still_reported() {
+    // Only the head of the sheet is an encoding marker; later, `@charset`
+    // is a rule no CSS defines (CSSOM has no `CSSCharsetRule`).
+    let r = parse("a { color: red } @charset \"UTF-8\"; b { color: blue }");
+    assert_eq!(
+        selectors("a { color: red } @charset \"UTF-8\"; b { color: blue }"),
+        vec!["a", "b"]
+    );
+    assert!(
+        r.warnings
+            .iter()
+            .any(|w| matches!(&w.kind, WarningKind::UnsupportedAtRule(name) if name == "charset")),
+        "{:?}",
+        r.warnings
+    );
+}

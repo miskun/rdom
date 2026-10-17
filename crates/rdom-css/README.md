@@ -156,8 +156,10 @@ a typed warning: `InvalidAtRulePrelude` for an invalid prelude,
 `PositionTryDescriptorDropped` for a declaration that is no
 `@position-try` descriptor or is `!important`.
 
-Every other at-rule (`@charset`, `@font-face`, `@page`, …) is consumed
-whole per CSS Syntax 3 §5.4.2 and reported with
+A `@charset "…";` leading the sheet is its encoding marker (CSS Syntax 3
+§3.2) and is consumed with no warning: the source is already decoded.
+Every other at-rule (`@font-face`, `@page`, a later `@charset`, …) is
+consumed whole per CSS Syntax 3 §5.4.2 and reported with
 `WarningKind::UnsupportedAtRule(name)`; the rules around it are
 unaffected — matching browser behavior, so copy-pasting CSS from MDN
 doesn't blow up.
