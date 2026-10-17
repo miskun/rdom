@@ -12,6 +12,17 @@ use crate::runtime::selection::clipboard::Clipboard;
 use crate::runtime::url_opener::UrlOpener;
 
 impl<B: Backend> App<B> {
+    /// Re-arm the mouse capture on stdout at every resize, as [`App::new`]
+    /// does for the terminal it set up — some terminals and multiplexers
+    /// drop the DEC mouse modes across a resize. For an app that sets up
+    /// its own crossterm terminal on stdout (mouse capture included) and
+    /// passes it to [`App::with_backend`], which writes nothing to stdout
+    /// by default: its output is its backend's.
+    pub fn with_mouse_rearm(mut self, rearm: bool) -> Self {
+        self.mouse_rearm = rearm;
+        self
+    }
+
     /// The frame rate while timers, `requestAnimationFrame`,
     /// transitions or animations run: `fps` frames a second, clamped to
     /// 1–120. Default 60 (a 16 ms frame budget). Pass `30` on slower

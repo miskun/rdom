@@ -220,6 +220,7 @@ environment or the clock:
 | Caret blink half-period | `with_caret_blink` | 530 ms | steady (`None`) |
 | SGR extensions emitted | `with_sgr_capabilities` | from the environment (`SgrCapabilities::from_env`) | the backend's (a `TestBackend`'s `BASIC`) |
 | Pointer-shape protocol | `with_pointer_shapes` | from the environment (`PointerShapes::from_env`) | `None` |
+| Mouse capture re-armed on stdout at each resize | `with_mouse_rearm` | on | off (writes nothing to stdout) |
 | Preferred color scheme | `with_color_scheme`; at run time `set_color_scheme` | asked of the terminal when `run` starts (OSC 11), dark without an answer | dark |
 | Media preferences (`prefers-reduced-motion`, `prefers-contrast`, the pointer, …) | `with_media_preferences`; at run time `set_media_preferences` | no preference, a mouse, 24-bit color | the same |
 | Clipboard | `with_clipboard` | the system clipboard | the system clipboard |

@@ -30,6 +30,7 @@
 //! | SGR extensions emitted | [`with_sgr_capabilities`](App::with_sgr_capabilities) | from the environment ([`SgrCapabilities::from_env`](crate::SgrCapabilities::from_env)) | the backend's (a `TestBackend`'s `BASIC`) |
 //! | Color depth (24-bit, 256, 16, none) — and the `color` / `color-index` / `monochrome` media features | [`with_color_depth`](App::with_color_depth); at run time [`set_color_depth`](App::set_color_depth) | from the environment ([`ColorDepth::detect`](crate::ColorDepth::detect): `NO_COLOR`, `COLORTERM`, `TERM`) | the backend's (a `TestBackend`'s `TrueColor`) |
 //! | Pointer-shape protocol | [`with_pointer_shapes`](App::with_pointer_shapes) | from the environment ([`PointerShapes::from_env`](crate::PointerShapes::from_env)) | `None` |
+//! | Mouse capture re-armed on stdout at each resize | [`with_mouse_rearm`](App::with_mouse_rearm) | on | off (writes nothing to stdout) |
 //! | Preferred color scheme | [`with_color_scheme`](App::with_color_scheme); at run time [`set_color_scheme`](App::set_color_scheme) | asked of the terminal when `run` starts (OSC 11), dark without an answer | dark |
 //! | Media preferences (`prefers-reduced-motion`, `prefers-contrast`, the pointer, …) | [`with_media_preferences`](App::with_media_preferences); at run time [`set_media_preferences`](App::set_media_preferences) | no preference, a mouse ([`MediaPreferences::default`](crate::MediaPreferences::default)) | the same |
 //! | Clipboard | [`with_clipboard`](App::with_clipboard) | the system clipboard | the system clipboard |
@@ -266,6 +267,10 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// terminal mode is restored even if `run` panics. `None` for
     /// the generic / test App (no TUI mode was entered).
     guard: Option<TerminalGuard>,
+    /// Re-arm the mouse capture on stdout at each resize: on for the
+    /// terminal `App::new` set up, opt-in for `with_backend`
+    /// (`with_mouse_rearm`, C16G-MOUSE-REARM).
+    pub(super) mouse_rearm: bool,
 
     /// Shared flags + inject queue for cross-thread `AppHandle`s.
     /// Always populated; a handle is cheap to construct even if
@@ -317,6 +322,7 @@ impl App<CrosstermBackend<Stdout>> {
         let mut app = Self::build(dom, stylesheet, terminal)?
             .with_pointer_shapes(crate::runtime::pointer_shape::PointerShapes::from_env());
         app.guard = Some(guard);
+        app.mouse_rearm = true;
         app.prelude
             .caret_blink
             .set_period(Some(crate::runtime::caret_blink::DEFAULT_CARET_BLINK));
@@ -428,6 +434,7 @@ impl<B: Backend> App<B> {
             frame_stats: Default::default(),
             should_quit: false,
             guard: None,
+            mouse_rearm: false,
             shared: AppShared::new(),
             clipboard: Box::new(SystemClipboard::new()),
             url_opener,

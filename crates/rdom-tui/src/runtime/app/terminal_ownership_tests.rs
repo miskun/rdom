@@ -53,3 +53,41 @@ fn a_headless_resize_writes_nothing_to_stdout() {
         "a with_backend app wrote mouse-capture modes to stdout: {stdout:?}"
     );
 }
+
+/// The child half of [`a_rearming_app_rearms_on_resize`]: a headless app
+/// that opted in with `with_mouse_rearm(true)`, resized once.
+#[test]
+#[ignore = "run by a_rearming_app_rearms_on_resize in a child process"]
+fn rearming_resize_child() {
+    let terminal = Terminal::new(TestBackend::new(20, 5)).unwrap();
+    let mut app = App::with_backend(TuiDom::new(), Stylesheet::new(), terminal)
+        .unwrap()
+        .with_mouse_rearm(true);
+    app.advance(0).unwrap();
+    app.terminal_mut().backend_mut().resize(30, 6);
+    app.handle_event(CtEvent::Resize(30, 6));
+    app.advance(0).unwrap();
+    print!("child-done");
+}
+
+/// The Phase 16 API gate's N5: an app that set up its own crossterm
+/// terminal on stdout and passes it `with_backend` re-arms the mouse
+/// capture on a resize by opting in (C16G-MOUSE-REARM) — the
+/// `sc-resize-rearm` workaround was a `resize` listener writing to stdout.
+#[test]
+fn a_rearming_app_rearms_on_resize() {
+    let exe = std::env::current_exe().expect("the test binary");
+    let out = std::process::Command::new(exe)
+        .args([
+            "--exact",
+            "runtime::app::terminal_ownership_tests::rearming_resize_child",
+            "--ignored",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .output()
+        .expect("the child test runs");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "the child failed: {stdout}");
+    assert!(stdout.contains("\x1b[?1000h"), "re-armed: {stdout:?}");
+}

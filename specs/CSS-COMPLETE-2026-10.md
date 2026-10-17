@@ -11426,3 +11426,9 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   whole containing block — it starts at the static position (`static_inset`, shared with `shrink_available`, and
   `margins`). Tests: `css_phase5::stretch` (three new). The `inline_box_rect` cost, the `inherit_ui` assert and the
   `GridStyle` clone pin go with C16G-HYGIENE.
+- 2026-10-18 — C16G-MOUSE-REARM (Phase 16 gate API N5). Found: after ACID-FIX-16 an app that builds its own
+  crossterm terminal on stdout and passes it `with_backend` had only a workaround to keep the resize re-arm — a
+  `resize` listener writing `enter_mouse_capture` to stdout. Decision: `App::with_mouse_rearm(bool)`, an
+  `App::mouse_rearm` flag `App::new` sets (it owns stdout) and `with_backend` leaves off; the resize path reads the
+  flag, not the guard. Red: `a_rearming_app_rearms_on_resize` (child process, as the ACID-FIX-16 test) — did not
+  compile without the builder. The app module's option table, the README's and `sc-resize-rearm` updated.

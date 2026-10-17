@@ -436,6 +436,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Added — `rdom-tui`
 
+- **`App::with_mouse_rearm(bool)`**: re-arm the mouse capture on stdout at every resize, as `App::new` does — for an app that sets up its own crossterm terminal and passes it `with_backend`, which writes nothing to stdout by default (ACID-FIX-16). (C16G-MOUSE-REARM)
 - **`Terminal::buffer`**, the frame last drawn; **`VirtualScreen::unsupported`**, the sequences it did not model; and, under `test-util`, **`App::matched_rules(id)`**, the rules the last cascade matched for an element with their sheets — so a test can check the replay against the frame and what styled what. (C16G-ACID-RIGOUR)
 - **Signal handling in `App::run`** (Unix): SIGTERM and SIGHUP restore the terminal, then end the process as the signal would; SIGTSTP leaves TUI mode before stopping and SIGCONT re-enters it with a full redraw — self-pipes, as for SIGWINCH. (C16G-HARDENING)
 - **Colour depth** (`App::with_color_depth` / `set_color_depth`, `Backend::set_color_depth`): detected from `NO_COLOR`, `COLORTERM` and `TERM`; each colour is emitted as the nearest the terminal shows — the xterm 256-colour palette, the 16 ANSI colours, or none — and the `color` / `color-index` / `monochrome` media features follow it. (C16G-COLOR-DEPTH)
