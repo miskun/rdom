@@ -21,6 +21,9 @@ use std::path::{Path, PathBuf};
 /// The most lines a production file may have.
 const LIMIT: usize = 600;
 
+/// The bar: a production file past it is listed in TECH_DEBT `SIZE-1`.
+const BAR: usize = 500;
+
 /// Generated data tables, exempt from the limit (paths under `crates/`).
 const EXEMPT: &[&str] = &["rdom-parser/src/entities.rs"];
 
@@ -80,8 +83,9 @@ fn production_lines_skip_inline_test_modules() {
     assert!(!is_test_file("walk.rs"));
 }
 
-#[test]
-fn no_production_file_passes_the_limit() {
+/// Every production file (path under `crates/`) with its production
+/// line count.
+fn production_files() -> Vec<(String, usize)> {
     let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let mut files = Vec::new();
     for krate in std::fs::read_dir(&crates).expect("the crates directory") {
@@ -91,7 +95,7 @@ fn no_production_file_passes_the_limit() {
         }
     }
     assert!(files.len() > 100, "found the workspace's sources");
-    let mut over: Vec<String> = files
+    let mut out: Vec<(String, usize)> = files
         .iter()
         .filter_map(|path| {
             let rel = path
@@ -104,36 +108,122 @@ fn no_production_file_passes_the_limit() {
                 return None;
             }
             let n = production_lines(&std::fs::read_to_string(path).ok()?);
-            (n > LIMIT).then(|| format!("{rel}: {n}"))
+            Some((rel, n))
         })
         .collect();
-    over.sort();
+    out.sort();
+    out
+}
+
+#[test]
+fn no_production_file_passes_the_limit() {
+    let over: Vec<String> = production_files()
+        .into_iter()
+        .filter(|(_, n)| *n > LIMIT)
+        .map(|(rel, n)| format!("{rel}: {n}"))
+        .collect();
     assert!(
         over.is_empty(),
         "production files past {LIMIT} lines — split them by concern (TECH_DEBT SIZE-1): {over:#?}"
     );
 }
 
-/// Extensions a file under `crates/*/src/` may carry: Rust sources and
-/// the Markdown pulled in by `include_str!` doctests. Anything else —
-/// a mutation-run backup like `content.rs.m7`, an editor swap file —
-/// would ship in the crate tarball (C15G-HYGIENE).
-const SOURCE_EXTENSIONS: &[&str] = &["rs", "md"];
+/// The files TECH_DEBT `SIZE-1`'s table names, as paths under `crates/`
+/// (a path without a crate is rdom-tui's `src/`).
+fn size_one_listed(tech_debt: &str) -> Vec<String> {
+    let section = tech_debt
+        .split("- **`SIZE-1`")
+        .nth(1)
+        .expect("TECH_DEBT has SIZE-1")
+        .split("\n- **")
+        .next()
+        .unwrap();
+    let mut listed: Vec<String> = section
+        .lines()
+        .filter_map(|l| {
+            let path = l.trim().strip_prefix("| `")?.split('`').next()?;
+            Some(if path.starts_with("rdom-") {
+                path.to_string()
+            } else {
+                format!("rdom-tui/src/{path}")
+            })
+        })
+        .collect();
+    listed.sort();
+    listed
+}
 
-/// Every file under `dir` whose extension is not in [`SOURCE_EXTENSIONS`].
+/// CLAUDE.md §Architecture Hygiene: a production file past the 500-line
+/// bar is listed in TECH_DEBT `SIZE-1`, and the table lists no file that
+/// is back under it — checked here so the list cannot drift (C16G-HYGIENE;
+/// Phase 16 gate architect N9). The counts in the table are as of its
+/// last recount.
+#[test]
+fn size_one_lists_every_file_past_the_bar() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let tech_debt =
+        std::fs::read_to_string(root.join("specs/TECH_DEBT.md")).expect("TECH_DEBT.md readable");
+    let listed = size_one_listed(&tech_debt);
+    let past: Vec<String> = production_files()
+        .into_iter()
+        .filter(|(_, n)| *n > BAR)
+        .map(|(rel, _)| rel)
+        .collect();
+    let missing: Vec<&String> = past.iter().filter(|p| !listed.contains(p)).collect();
+    let stale: Vec<&String> = listed.iter().filter(|p| !past.contains(p)).collect();
+    assert!(
+        missing.is_empty() && stale.is_empty(),
+        "TECH_DEBT SIZE-1 out of date — past {BAR} lines but not listed: {missing:#?}; \
+         listed but not past it: {stale:#?}"
+    );
+}
+
+/// Whether the Markdown file `name` is pulled in by `include_str!` from
+/// one of `sources`, the Rust files beside it — a doctest page.
+fn is_included_markdown(name: &str, sources: &[String]) -> bool {
+    let needle = format!("include_str!(\"{name}\")");
+    sources.iter().any(|s| s.contains(&needle))
+}
+
+/// Every file under `dir` that is neither Rust nor Markdown a Rust file
+/// beside it includes (`include_str!`, a doctest page). Anything else —
+/// a mutation-run backup like `content.rs.m7`, an editor swap file, a
+/// stray note — would ship in the crate tarball (C15G-HYGIENE,
+/// C16G-HYGIENE).
 fn stray_files(dir: &Path, out: &mut Vec<PathBuf>) {
-    for entry in std::fs::read_dir(dir).expect("readable source dir") {
-        let path = entry.expect("dir entry").path();
+    let entries: Vec<PathBuf> = std::fs::read_dir(dir)
+        .expect("readable source dir")
+        .map(|e| e.expect("dir entry").path())
+        .collect();
+    let sources: Vec<String> = entries
+        .iter()
+        .filter(|p| p.extension().is_some_and(|e| e == "rs"))
+        .filter_map(|p| std::fs::read_to_string(p).ok())
+        .collect();
+    for path in entries {
         if path.is_dir() {
             stray_files(&path, out);
-        } else if !path
-            .extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|e| SOURCE_EXTENSIONS.contains(&e))
-        {
+            continue;
+        }
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let source = match path.extension().and_then(|e| e.to_str()) {
+            Some("rs") => true,
+            Some("md") => is_included_markdown(name, &sources),
+            _ => false,
+        };
+        if !source {
             out.push(path);
         }
     }
+}
+
+/// The rule's own cases: Markdown is a source only where a Rust file
+/// beside it includes it.
+#[test]
+fn markdown_under_src_must_be_included() {
+    let sources = vec!["#[doc = include_str!(\"doctests.md\")]".to_string()];
+    assert!(is_included_markdown("doctests.md", &sources));
+    assert!(!is_included_markdown("NOTES.md", &sources));
 }
 
 #[test]
@@ -160,7 +250,7 @@ fn no_stray_files_under_src() {
     stray.sort();
     assert!(
         stray.is_empty(),
-        "files under crates/*/src that are neither Rust nor doctest Markdown would ship in the \
-         crate tarball — delete them: {stray:#?}"
+        "files under crates/*/src that are neither Rust nor Markdown a Rust file beside them \
+         includes would ship in the crate tarball — delete them: {stray:#?}"
     );
 }

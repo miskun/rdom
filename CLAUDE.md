@@ -123,7 +123,7 @@ The few-hundred-line bar applies to production modules. Test files may run long 
 
 The bar is checked mechanically: `rdom-showcase/tests/integration/file_sizes.rs` (in the one unpublished crate, since it reads every sibling's sources) fails `cargo test --workspace` when a production file passes 600 lines. Production means every `.rs` file under `crates/*/src/`, except test files (`tests.rs`, `*_tests.rs`, `test_*.rs`) and the lines of an inline `#[cfg(test)] mod … { … }` block; the generated `rdom-parser/src/entities.rs` table is exempt. Three numbers, one rule each:
 
-- **500 — the bar.** A production file aims to stay under 500 lines; one past it is listed, with its count, in `specs/TECH_DEBT.md` `SIZE-1`.
+- **500 — the bar.** A production file aims to stay under 500 lines; one past it is listed, with its count, in `specs/TECH_DEBT.md` `SIZE-1`. The listing is checked too: `file_sizes::size_one_lists_every_file_past_the_bar` fails when a file past 500 is missing from the table or a listed one is back under it (the counts are as of the table's last recount).
 - **575 — split on touch.** A change that leaves a production file it touched past 575 lines splits that file by concern in the same change (or in a dedicated split commit right before it). Between 500 and 575 a file may grow, listed.
 - **600 — the hard limit.** The test fails the gate past it; no file reaches it, because a touch past 575 splits.
 

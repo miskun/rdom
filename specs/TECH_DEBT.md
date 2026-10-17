@@ -6,25 +6,28 @@ For the durable architectural divergences (web-platform departures shipped on pu
 
 ## Open
 
-- **`SIZE-1` — production files between 500 and 600 lines.** The rule (C7G-SIZES, CLAUDE.md §Architecture Hygiene): a `crates/*/src` file's lines outside its inline `#[cfg(test)]` modules, test files (`tests.rs`, `*_tests.rs`, `test_*.rs`) not counted, the generated `rdom-parser/src/entities.rs` exempt; 500 the bar, 575 split on touch, 600 the gate's limit (`rdom-showcase/tests/integration/file_sizes.rs`). The splits that paid it down so far are in the history (`git log -S SIZE-1`) and the program Logs. Current, recounted after C15G-SPLITS (2026-10-09) — production lines, then the whole file where an inline test module adds to it (paths without a crate are rdom-tui's `src/`):
+- **`SIZE-1` — production files between 500 and 600 lines.** The rule (C7G-SIZES, CLAUDE.md §Architecture Hygiene): a `crates/*/src` file's lines outside its inline `#[cfg(test)]` modules, test files (`tests.rs`, `*_tests.rs`, `test_*.rs`) not counted, the generated `rdom-parser/src/entities.rs` exempt; 500 the bar, 575 split on touch, 600 the gate's limit (`rdom-showcase/tests/integration/file_sizes.rs`). The splits that paid it down so far are in the history (`git log -S SIZE-1`) and the program Logs. Current, recounted at C16G-HYGIENE (2026-10-18; `file_sizes::size_one_lists_every_file_past_the_bar` now fails when a file past 500 is missing here or a listed one is back under it) — production lines, then the whole file where an inline test module adds to it (paths without a crate are rdom-tui's `src/`):
 
   | File | Lines |
   |---|---|
+  | `render/virtual_screen/tests/terminal.rs` (test code the rule counts by name) | 565 |
+  | `runtime/app/mod.rs` | 545 |
   | `render/layout_pass/grid/subgrid.rs` | 534 |
+  | `style/cascade/matching.rs` | 529 / 549 |
   | `render/layout_pass/block/margin_collapse.rs` | 528 |
   | `rdom-style/src/property_dispatch/logical.rs` | 525 |
-  | `render/virtual_screen/tests/terminal.rs` (test code the rule counts by name) | 524 |
-  | `rdom-core/src/dispatch.rs` | 522 / 1290 |
+  | `rdom-core/src/selectors/mod.rs` | 523 |
   | `runtime/builtins/form/mod.rs` | 522 |
-  | `runtime/app/mod.rs` | 521 |
+  | `rdom-core/src/dispatch.rs` | 522 / 1290 |
   | `runtime/editing/perform/mod.rs` | 520 |
+  | `style/cascade/walk.rs` | 518 / 532 |
+  | `ext/mod.rs` | 512 |
   | `rdom-style/src/property_dispatch/set.rs` | 507 |
-  | `style/cascade/matching.rs` | 506 / 526 |
   | `runtime/router/mouse/mod.rs` | 506 |
-  | `rdom-core/src/selectors/mod.rs` | 509 |
+  | `runtime/app/frame.rs` | 504 |
   | `render/inline/packer/mod.rs` | 503 |
-  | `style/cascade/walk.rs` | 502 / 516 |
-  | `style/dirty_tracker/mod.rs` | 500 |
+  | `rdom-style/src/stylesheet/mod.rs` | 503 |
+  | `rdom-style/src/animation/value.rs` | 501 |
 
   None is past 575. Each holds one concern that has not split cleanly yet (a subgrid's track sizing, margin collapsing, the flow-relative property map, the event dispatch path, the parser's tree builder, …); a change that takes one past 575 splits it.
 

@@ -11460,3 +11460,11 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   HIT-OVERFLOW-1"; the t01 reference's `span.c-layer.c-layer` is (0,3,1). The journal docs (N11) already named the
   relative-inline moves since C16G-ANCHOR-AFTER-MOVE. The `animation/table/{paint,flow}.rs` naming goes with
   C16G-HYGIENE.
+- 2026-10-18 — C16G-HYGIENE 1/3 (Phase 16 gate architect N9: SIZE-1 drift, `.md` under `src/`). Found: the SIZE-1
+  table had drifted — four files past 500 unlisted (`ext/mod.rs`, `runtime/app/frame.rs`, rdom-style's
+  `stylesheet/mod.rs` and `animation/value.rs`), `style/dirty_tracker/mod.rs` back at 500 still listed, every count
+  stale; and `file_sizes`' stray-file check allowed any `.md` under `src/`. Decision: the listing is checked —
+  `size_one_lists_every_file_past_the_bar` reads the table and fails on a file past 500 it does not name or a named
+  one no longer past it (counts informational, as of the recount; CLAUDE.md says so); a `.md` under `src/` is a
+  source only when a Rust file beside it `include_str!`s it (`markdown_under_src_must_be_included`). Red: the new
+  SIZE-1 test, naming the five; the table recounted (18 files, none past 575).
