@@ -45,7 +45,7 @@ the commit that lands it (`done <sha>`), and the log at the end records phase ga
 | 13 | Tables (real table formatting context) | done 2026-10-09 (both gates; 17 gate fixes — 15 `C13G-*`, and `C13-ROOT-BLOCK` / `C13-ROOT-CANVAS`, the root block container; their re-review rides with the Phase 14 gate) |
 | 14 | Conditional rules, containment | done 2026-10-09 (both gates; 15 gate fixes `C14G-*`; their re-review rides with the Phase 15 gate) |
 | 15 | Transforms, filters, compositing, multi-column, anchor positioning | done 2026-10-09 (both gates; 22 gate fixes `C15G-*`; their re-review rides with the Phase 16 gate) |
-| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | gates run 2026-10-10; `C16G-*` batch A done 2026-10-10, batch B pending |
+| 16 | Acid test (static tiles + interactive script, coverage-enforced) — `ACID.md` | done 2026-10-18 (both gates; `C16G-*` batch A 2026-10-10, batch B 2026-10-18; their re-review rides with the Phase 17 release review) |
 | 17 | Release 0.6.0 (publish on Miska's go-ahead) | |
 
 Phases follow dependencies: values and color before the properties that use them; flex alignment
@@ -11477,3 +11477,15 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   snippet; the root one imports `App` and `TuiExt` by name and is `no_run`. Open question for the release: whether
   the prelude should keep exporting `Result` (since 0.1.0; dropping it is a compile break) — recorded in
   TECH_DEBT `PRELUDE-RESULT-1`.
+- 2026-10-18 — C16G-HYGIENE 3/3 (Phase 16 gate architect N8, N10, N11). (1) The panic hook (process-global, never
+  uninstalled) restored the terminal on every panic, writing the mode resets into a program's stdout after its `App`
+  had ended — red: `the_panic_hook_writes_only_while_a_terminal_is_held` (child processes, with and without an armed
+  guard); armed `TerminalGuard`s are counted (`render::terminal::ARMED`, `tui_mode_held`) and the hook restores
+  only while one is. (2) `inherit_ui` assumed `working.ui` was the initial group; a `debug_assert` says so —
+  red: `inherit_ui_requires_an_uncascaded_working_style` (`should_panic`). (3) `resolve_context_units` copied the
+  shared `GridStyle` for every grid with a track list; it copies only when a track holds a math function
+  (`expr::template_has_calc`, `sizes_have_calc`, shared with `absolutize_list`) — red:
+  `context_units_copy_the_grid_group_only_for_math_tracks` (5 allocations for plain tracks, now 0). (4)
+  `animation/table/{paint,flow}.rs` were a size split under concern names: `before_grid.rs` / `from_grid.rs`,
+  documented as split by size. (5) `inline_box_rect`'s `O(fragments × depth)` per inline-anchor lookup is recorded
+  under TECH_DEBT `SCROLL-UPDATE-1`, not paid down. With this, Phase 16's batch B is done.

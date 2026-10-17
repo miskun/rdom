@@ -10,7 +10,7 @@ use super::super::entry::{
 use super::super::value::{blend, discrete, interpolable};
 
 /// The longhands up to the grid ones, in the dispatch table's order.
-pub(super) const PAINT: &[Entry] = &[
+pub(super) const BEFORE_GRID: &[Entry] = &[
     // CSS Color 4 / Backgrounds 3
     e("color", ByComputedValue, value!(fg)),
     Entry {

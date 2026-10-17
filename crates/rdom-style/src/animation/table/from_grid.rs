@@ -7,7 +7,7 @@ use super::super::entry::{Entry, OVERLAY, Ops, e, fix_border, steps, value};
 use super::super::value::{blend, discrete, interpolable};
 
 /// The longhands from the grid ones on, in the dispatch table's order.
-pub(super) const FLOW: &[Entry] = &[
+pub(super) const FROM_GRID: &[Entry] = &[
     // CSS Grid 2
     e(
         "grid-template-columns",

@@ -242,10 +242,21 @@ pub struct TerminalGuard {
     active: bool,
 }
 
+/// How many [`TerminalGuard`]s are armed: the panic hook restores the
+/// terminal only while one is (C16G-HYGIENE).
+static ARMED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Whether a [`TerminalGuard`] holds the terminal now — TUI mode entered
+/// and not yet left.
+pub(crate) fn tui_mode_held() -> bool {
+    ARMED.load(std::sync::atomic::Ordering::SeqCst) > 0
+}
+
 impl TerminalGuard {
     /// Construct a guard. Does NOT enter TUI mode — caller is expected
     /// to have done that already. Drop will attempt to leave.
     pub fn new() -> Self {
+        ARMED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Self { active: true }
     }
 
@@ -253,7 +264,9 @@ impl TerminalGuard {
     /// restored the terminal (e.g., clean shutdown) and want to skip
     /// the drop-time restore.
     pub fn disarm(&mut self) {
-        self.active = false;
+        if std::mem::replace(&mut self.active, false) {
+            ARMED.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        }
     }
 }
 
@@ -267,6 +280,7 @@ impl Drop for TerminalGuard {
     fn drop(&mut self) {
         if self.active {
             let _ = super::backend_crossterm::leave_tui_mode(&mut io::stdout());
+            self.disarm();
         }
     }
 }

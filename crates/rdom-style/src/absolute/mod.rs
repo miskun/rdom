@@ -223,18 +223,15 @@ impl ComputedStyle {
                 });
             }
         }
-        // The grid group is shared: a grid that declares track lists is
-        // worked on as a copy, written back only when a value moved.
+        // The grid group is shared: a grid whose track lists hold a math
+        // function (a viewport unit is one) is worked on as a copy,
+        // written back only when a value moved; plain tracks copy nothing
+        // (C16G-HYGIENE).
         let g = &*self.grid;
-        let tracks =
-            |t: &crate::layout::GridTemplate| matches!(t, crate::layout::GridTemplate::Tracks(_));
-        let owned = |l: &std::borrow::Cow<'static, [crate::layout::TrackSize]>| {
-            matches!(l, std::borrow::Cow::Owned(_))
-        };
-        if tracks(&g.grid_template_columns)
-            || tracks(&g.grid_template_rows)
-            || owned(&g.grid_auto_columns)
-            || owned(&g.grid_auto_rows)
+        if expr::template_has_calc(&g.grid_template_columns)
+            || expr::template_has_calc(&g.grid_template_rows)
+            || expr::sizes_have_calc(g.grid_auto_columns.iter())
+            || expr::sizes_have_calc(g.grid_auto_rows.iter())
         {
             let mut grid = g.clone();
             for template in [

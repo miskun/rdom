@@ -8,6 +8,7 @@ use std::cell::Cell;
 use super::Dimension;
 use super::contribution::MEASURES;
 use super::size::RUNS;
+use crate::node::TuiNodeExt;
 use crate::render::Rect;
 use crate::render::layout_pass::intrinsic::memo_tests::{COLUMN_WALKS, ROW_WALKS};
 use crate::{CascadeExt, LayoutExt, TuiDom};
@@ -291,4 +292,45 @@ fn measuring_a_grid_copies_no_line_names() {
         })
     };
     assert_eq!(cost("[a b] 2 [c] 3 [d e f]"), cost("2 3") + 3);
+}
+
+/// The Phase 16 gate's architect N8: resolving a computed style's context
+/// units copies its shared grid group only when a track list holds a math
+/// function it may rewrite (a viewport unit is one; `calc(50% + 2)` stays
+/// one for layout) — a grid of plain tracks, the common case, allocates
+/// nothing there (C16G-HYGIENE).
+#[test]
+fn context_units_copy_the_grid_group_only_for_math_tracks() {
+    use crate::test_alloc::allocations_in;
+    let sheet = rdom_css::from_css_strict(
+        ".plain { display: grid; grid-template-columns: 10 1fr repeat(2, minmax(4, 1fr)); \
+                  grid-auto-rows: 2 3 } \
+         .math { display: grid; grid-template-columns: calc(50% + 2) 1fr }",
+    )
+    .unwrap();
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let [plain, math] = ["plain", "math"].map(|class| {
+        let el = dom.create_element("div");
+        dom.set_attribute(el, "class", class).unwrap();
+        dom.append_child(root, el).unwrap();
+        el
+    });
+    dom.cascade(&sheet);
+    let cx = crate::calc::UnitContext::new(crate::calc::Viewport::new(80, 20));
+    let mut plain = (*dom.node(plain).computed().unwrap()).clone();
+    assert_eq!(
+        allocations_in(|| {
+            plain.resolve_context_units(&cx);
+        }),
+        0,
+        "plain tracks: nothing to rewrite"
+    );
+    let mut math = (*dom.node(math).computed().unwrap()).clone();
+    assert!(
+        allocations_in(|| {
+            math.resolve_context_units(&cx);
+        }) > 0,
+        "a math track is worked on in a copy"
+    );
 }

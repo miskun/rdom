@@ -105,6 +105,10 @@ fn inherit_ui(working: &mut ComputedStyle, parent: &ComputedStyle) {
         resize,
     } = &*parent.ui;
     let initial = &*working.ui;
+    debug_assert!(
+        *initial == rdom_style::layout::UiStyle::default(),
+        "inherit_ui runs on an uncascaded working style: its UI group must be the initial one"
+    );
     let non_inherited_initial = *outline_style == initial.outline_style
         && *outline_width == initial.outline_width
         && *outline_color == initial.outline_color
@@ -232,4 +236,23 @@ pub(super) fn layout_differs(a: &ComputedStyle, b: &ComputedStyle) -> bool {
         || a.fragmentation != b.fragmentation
         // Anchor positioning places the box (CSS Anchor Positioning 1).
         || a.anchor != b.anchor
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `inherit_ui` reads `working`'s UI group as the initial values; run
+    /// on a style that already has others, it would keep them where it
+    /// should inherit — a debug build says so (Phase 16 gate architect
+    /// N8; C16G-HYGIENE).
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "uncascaded")]
+    fn inherit_ui_requires_an_uncascaded_working_style() {
+        let parent = ComputedStyle::initial();
+        let mut working = ComputedStyle::initial();
+        working.ui.appearance = rdom_style::layout::Appearance::None;
+        inherit_ui(&mut working, &parent);
+    }
 }

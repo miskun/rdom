@@ -88,14 +88,36 @@ pub(super) fn absolutize_list(
     list: &mut std::borrow::Cow<'static, [crate::layout::TrackSize]>,
     vp: &Reading<'_>,
 ) {
+    if sizes_have_calc(list.iter()) {
+        absolutize_sizes(list.to_mut().iter_mut(), vp);
+    }
+}
+
+/// Whether one of `sizes` has a math-function breadth — what
+/// [`absolutize_sizes`] rewrites.
+pub(super) fn sizes_have_calc<'a>(
+    mut sizes: impl Iterator<Item = &'a crate::layout::TrackSize>,
+) -> bool {
     use crate::layout::{TrackBreadth, TrackSize};
     let calc = |b: &TrackBreadth| matches!(b, TrackBreadth::Calc(_));
-    let has_calc = list.iter().any(|s| match s {
+    sizes.any(|s| match s {
         TrackSize::Breadth(b) | TrackSize::FitContent(b) => calc(b),
         TrackSize::MinMax(min, max) => calc(min) || calc(max),
-    });
-    if has_calc {
-        absolutize_sizes(list.to_mut().iter_mut(), vp);
+    })
+}
+
+/// Whether a track template has a math-function breadth — what
+/// [`absolutize_template`] rewrites.
+pub(super) fn template_has_calc(template: &crate::layout::GridTemplate) -> bool {
+    use crate::layout::TrackListItem;
+    match template {
+        crate::layout::GridTemplate::Tracks(list) => {
+            sizes_have_calc(list.items.iter().flat_map(|item| match item {
+                TrackListItem::Size(s) => std::slice::from_ref(s).iter(),
+                TrackListItem::Repeat(r) => r.sizes.iter(),
+            }))
+        }
+        crate::layout::GridTemplate::None | crate::layout::GridTemplate::Subgrid(_) => false,
     }
 }
 

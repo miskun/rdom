@@ -19,9 +19,11 @@
 //!
 //! A global `AtomicBool` guards the install. Multiple `App::new`
 //! calls don't stack hooks; re-running the binary picks up a fresh
-//! process with a fresh hook. We never uninstall: the hook is
-//! harmless when TUI mode isn't active (`leave_tui_mode` on an
-//! already-cooked terminal emits idempotent sequences).
+//! process with a fresh hook. It is never uninstalled — another hook
+//! may have been installed over it — so it restores the terminal only
+//! while a [`TerminalGuard`](crate::render::TerminalGuard) is armed: a
+//! panic after the app has ended, or in a program that never entered
+//! TUI mode on stdout, writes nothing to stdout (C16G-HYGIENE).
 
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -39,7 +41,9 @@ pub fn install() {
     }
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        let _ = leave_tui_mode(&mut io::stdout());
+        if crate::render::terminal::tui_mode_held() {
+            let _ = leave_tui_mode(&mut io::stdout());
+        }
         previous(info);
     }));
 }

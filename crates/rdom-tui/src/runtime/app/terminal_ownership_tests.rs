@@ -91,3 +91,55 @@ fn a_rearming_app_rearms_on_resize() {
     assert!(out.status.success(), "the child failed: {stdout}");
     assert!(stdout.contains("\x1b[?1000h"), "re-armed: {stdout:?}");
 }
+
+/// The child half of [`the_panic_hook_writes_only_while_a_terminal_is_held`]:
+/// the hook installed, then a panic with no `TerminalGuard` armed (an app
+/// that has ended, or one that never entered TUI mode on stdout), or —
+/// with `RDOM_TEST_ARMED` set — with one armed.
+#[test]
+#[ignore = "run by the_panic_hook_writes_only_while_a_terminal_is_held in a child process"]
+fn panicking_child() {
+    crate::runtime::app::panic_hook::install();
+    let _guard = std::env::var_os("RDOM_TEST_ARMED").map(|_| crate::render::TerminalGuard::new());
+    print!("child-start;");
+    panic!("the child panics");
+}
+
+/// The Phase 16 gate's architect N10: the panic hook is process-global
+/// and stays installed, so it must restore the terminal only while a
+/// `TerminalGuard` holds it — a panic after the app has ended (or in a
+/// program that never entered TUI mode on stdout) writes no mode
+/// sequences into its stdout (C16G-HYGIENE).
+#[test]
+fn the_panic_hook_writes_only_while_a_terminal_is_held() {
+    let run = |armed: bool| {
+        let exe = std::env::current_exe().expect("the test binary");
+        let mut cmd = std::process::Command::new(exe);
+        cmd.args([
+            "--exact",
+            "runtime::app::terminal_ownership_tests::panicking_child",
+            "--ignored",
+            "--nocapture",
+            "--test-threads=1",
+        ]);
+        if armed {
+            cmd.env("RDOM_TEST_ARMED", "1");
+        } else {
+            cmd.env_remove("RDOM_TEST_ARMED");
+        }
+        let out = cmd.output().expect("the child test runs");
+        assert!(!out.status.success(), "the child panicked");
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    let idle = run(false);
+    assert!(idle.contains("child-start;"), "the child ran: {idle:?}");
+    assert!(
+        !idle.contains("\x1b[?1000l"),
+        "no guard, no restore: {idle:?}"
+    );
+    let held = run(true);
+    assert!(
+        held.contains("\x1b[?1000l"),
+        "a held terminal is restored: {held:?}"
+    );
+}
