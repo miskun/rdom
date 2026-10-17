@@ -107,3 +107,87 @@ fn flex_and_grid_items_stretch() {
     );
     assert_eq!(xywh(rect(&dom, i)), (1, 0, 10, 1));
 }
+
+/// CSS Sizing 4 §3.1: `stretch` against an indefinite block size behaves
+/// as the automatic size — for `min-height` `auto` (0 here, DIVERGENCES
+/// §2), for `max-height` `none` — not the content height, which would
+/// floor or cap a declared height at it (C16G-STRETCH-LEFTOVERS).
+#[test]
+fn a_stretch_min_or_max_height_against_an_indefinite_block_is_automatic() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = el(&mut dom, root, "div", "p");
+    let s = el(&mut dom, p, "div", "s");
+    let t = dom.create_text_node("a b c d e");
+    dom.append_child(s, t).unwrap();
+    let m = el(&mut dom, p, "div", "m");
+    let t = dom.create_text_node("x");
+    dom.append_child(m, t).unwrap();
+    lay_out(
+        &mut dom,
+        ".s { width: 1; height: 2; min-height: stretch; overflow: hidden }
+         .m { height: 6; max-height: -webkit-fill-available }",
+        20,
+        20,
+    );
+    assert_eq!(rect(&dom, s).height, 2, "min-height: stretch is auto");
+    assert_eq!(rect(&dom, m).height, 6, "max-height: stretch is none");
+}
+
+/// A `height: stretch` box's height is definite when its containing
+/// block's is (CSS Sizing 4 §3.1, the stretch-fit size), so a percentage
+/// or a `stretch` inside resolves against it — the iOS idiom `html {
+/// height: -webkit-fill-available } body { min-height:
+/// -webkit-fill-available }` fills the viewport (C16G-STRETCH-LEFTOVERS).
+#[test]
+fn a_stretched_ancestor_height_is_definite() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let html = el(&mut dom, root, "html", "");
+    let body = el(&mut dom, html, "body", "");
+    let half = el(&mut dom, body, "div", "half");
+    lay_out(
+        &mut dom,
+        "html { height: -webkit-fill-available } body { margin: 0; min-height: -webkit-fill-available }
+         .half { height: 50% }",
+        20,
+        12,
+    );
+    assert_eq!(rect(&dom, html).height, 12);
+    assert_eq!(rect(&dom, body).height, 12, "body fills html");
+    // `min-height` leaves the body's own height `auto`: indefinite.
+    assert_eq!(rect(&dom, half).height, 0);
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = el(&mut dom, root, "div", "p");
+    let s = el(&mut dom, p, "div", "s");
+    let c = el(&mut dom, s, "div", "c");
+    lay_out(
+        &mut dom,
+        ".p { height: 10 } .s { height: stretch; margin-top: 2 } .c { height: 50% }",
+        20,
+        12,
+    );
+    assert_eq!(rect(&dom, s).height, 8);
+    assert_eq!(rect(&dom, c).height, 4, "50% of the stretched 8");
+}
+
+/// CSS Position 3 §4.1: an axis whose insets are both `auto` takes the
+/// static position as its start inset (and 0 as its end), so `stretch`
+/// fills from where the box would have been to the containing block's
+/// end — not the whole containing block (C16G-STRETCH-LEFTOVERS).
+#[test]
+fn an_absolute_stretch_without_insets_starts_at_its_static_position() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let p = el(&mut dom, root, "div", "p");
+    let a = el(&mut dom, p, "div", "a");
+    lay_out(
+        &mut dom,
+        ".p { position: relative; width: 20; height: 10; padding: 2 0 0 4 }
+         .a { position: absolute; width: stretch; height: stretch }",
+        30,
+        14,
+    );
+    assert_eq!(xywh(rect(&dom, a)), (4, 2, 20, 10));
+}

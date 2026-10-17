@@ -197,6 +197,12 @@ pub(crate) fn height_is_definite_below(dom: &Dom<TuiExt>, parent: Option<NodeId>
         }
         match parent_computed.height {
             Size::Fixed(_) => return true,
+            // The stretch-fit size is definite when the containing
+            // block's height is (CSS Sizing 4 §3.1): chain up
+            // (C16G-STRETCH-LEFTOVERS).
+            Size::Intrinsic(crate::layout::IntrinsicSize::Stretch) => {
+                next = crate::render::box_tree::box_parent(dom, parent_id);
+            }
             // Plain `auto` height tracks content → indefinite (CSS 2.1
             // §10.5) for a block-flow box. A flex item's is not: CSS
             // Flexbox §9.8 makes its post-flexing main size (a column

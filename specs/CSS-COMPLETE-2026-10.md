@@ -11415,3 +11415,14 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   stay invalid). `legacy_clip_covers_pixels_fixed_negative_edges_and_descendants` pins the paint: the pixel rect
   hides, a fixed box clips as an absolute one, out-of-box edges keep the border box, the child is clipped — the
   last three green at first run.
+- 2026-10-18 — C16G-STRETCH-LEFTOVERS (Phase 16 gate architect N8, the `stretch` leftovers; CSS Sizing 4 §3.1,
+  CSS Position 3 §4.1). Found, each red first: (1) `min-height` / `max-height: stretch` against an indefinite
+  basis measured max-content (`Keywords::keyword`'s fallthrough), so `height: 2; min-height: stretch` floored at
+  the content — now `auto` / `none` (`Keywords::indefinite_stretch`); (2) `height_is_definite_below` counted a
+  `height: stretch` ancestor as indefinite — it chains to the containing block now; and, found by the same test,
+  `auto_height::used_content_height` re-clamped an `auto` box after its children with keyword bounds ignored, so a
+  `min-height: stretch` applied in `resolve_block_height` was undone (`body` 0 rows under a stretched `html`) — it
+  resolves `stretch` through `Keywords` now; (3) an absolute box's `stretch` with both insets `auto` filled the
+  whole containing block — it starts at the static position (`static_inset`, shared with `shrink_available`, and
+  `margins`). Tests: `css_phase5::stretch` (three new). The `inline_box_rect` cost, the `inherit_ui` assert and the
+  `GridStyle` clone pin go with C16G-HYGIENE.

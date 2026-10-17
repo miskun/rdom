@@ -8,7 +8,7 @@
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::{PseudoSlot, StaticPosition, TuiExt};
-use crate::layout::{IntrinsicSize, LayoutRect, Length, Size, clamp_size};
+use crate::layout::{Direction, IntrinsicSize, LayoutRect, Length, Size, clamp_size};
 use crate::node::TuiNodeExt;
 use crate::style::ComputedStyle;
 
@@ -108,44 +108,68 @@ fn shrink_available(
     let inset = match (c.left.cells(basis), c.right.cells(basis)) {
         (Some(left), _) => left,
         (None, Some(right)) => right,
-        (None, None) => match placed.static_position(dom) {
-            Some(sp) if c.text_direction != crate::layout::TextDirection::Rtl => sp.x - cb.x,
-            _ => 0,
-        },
+        (None, None) => static_inset(dom, placed, c, cb, Direction::Row),
     };
-    let margin = |m: &crate::layout::MarginValue| match m {
-        crate::layout::MarginValue::Auto => 0,
-        m => i32::from(m.resolve(cb.width)),
-    };
-    let available = basis - inset - margin(&c.margin.left) - margin(&c.margin.right);
+    let available = basis - inset - margins(c, cb, Direction::Row);
     available.clamp(0, i32::from(u16::MAX)) as u16
 }
 
-/// CSS Sizing 4 §3.1 `stretch` on an absolutely positioned box: its
-/// inset-modified containing block (an `auto` inset 0) less its margins
-/// (`auto` 0) on `axis`, as a border box (C15G-STRETCH).
-fn stretch_fit(c: &ComputedStyle, cb: LayoutRect, axis: crate::layout::Direction) -> u16 {
-    let basis = i32::from(cb.width);
+/// CSS Position 3 §4.1: an axis whose insets are both `auto` takes the
+/// static position as its start inset and 0 as its end — the offset of
+/// the static position from the containing block's start on `axis` (0
+/// when it is unknown, and on the inline axis of an `rtl` box, whose
+/// start edge is the right one).
+fn static_inset(
+    dom: &Dom<TuiExt>,
+    placed: &Placed<'_>,
+    c: &ComputedStyle,
+    cb: LayoutRect,
+    axis: Direction,
+) -> i32 {
+    match (placed.static_position(dom), axis) {
+        (Some(sp), Direction::Row) if c.text_direction != crate::layout::TextDirection::Rtl => {
+            sp.x - cb.x
+        }
+        (Some(sp), Direction::Column) => sp.y - cb.y,
+        _ => 0,
+    }
+}
+
+/// The box's margins on `axis` (`auto` ones 0), against the containing
+/// block's width on both (CSS 2.1 §8.3).
+fn margins(c: &ComputedStyle, cb: LayoutRect, axis: Direction) -> i32 {
     let margin = |m: &crate::layout::MarginValue| match m {
         crate::layout::MarginValue::Auto => 0,
         m => i32::from(m.resolve(cb.width)),
     };
-    let (extent, insets, margins) = match axis {
-        crate::layout::Direction::Row => (
-            i32::from(cb.width),
-            c.left.cells(basis).unwrap_or(0) + c.right.cells(basis).unwrap_or(0),
-            margin(&c.margin.left) + margin(&c.margin.right),
-        ),
-        crate::layout::Direction::Column => {
-            let basis = i32::from(cb.height);
-            (
-                basis,
-                c.top.cells(basis).unwrap_or(0) + c.bottom.cells(basis).unwrap_or(0),
-                margin(&c.margin.top) + margin(&c.margin.bottom),
-            )
-        }
+    match axis {
+        Direction::Row => margin(&c.margin.left) + margin(&c.margin.right),
+        Direction::Column => margin(&c.margin.top) + margin(&c.margin.bottom),
+    }
+}
+
+/// CSS Sizing 4 §3.1 `stretch` on an absolutely positioned box: its
+/// inset-modified containing block (CSS Position 3 §4.1: one `auto`
+/// inset 0, both `auto` the static position's offset and 0) less its
+/// margins (`auto` 0) on `axis`, as a border box (C15G-STRETCH,
+/// C16G-STRETCH-LEFTOVERS).
+fn stretch_fit(
+    dom: &Dom<TuiExt>,
+    placed: &Placed<'_>,
+    c: &ComputedStyle,
+    cb: LayoutRect,
+    axis: Direction,
+) -> u16 {
+    let (extent, start, end) = match axis {
+        Direction::Row => (cb.width, &c.left, &c.right),
+        Direction::Column => (cb.height, &c.top, &c.bottom),
     };
-    (extent - insets - margins).clamp(0, i32::from(u16::MAX)) as u16
+    let basis = i32::from(extent);
+    let insets = match (start.cells(basis), end.cells(basis)) {
+        (None, None) => static_inset(dom, placed, c, cb, axis),
+        (start, end) => start.unwrap_or(0) + end.unwrap_or(0),
+    };
+    (basis - insets - margins(c, cb, axis)).clamp(0, i32::from(u16::MAX)) as u16
 }
 
 /// Compute the placed rect for an absolute/fixed box given its
@@ -175,7 +199,6 @@ pub(super) fn compute_placed_rect(
     c: &ComputedStyle,
     cb: LayoutRect,
 ) -> LayoutRect {
-    use crate::layout::Direction;
     // CSS Box Alignment 3 §6.1 / §6.2: an absolutely positioned box is
     // aligned in its inset-modified containing block (`self_align`); an
     // aligned `auto` size is `fit-content` there, not stretched.
@@ -213,7 +236,7 @@ pub(super) fn compute_placed_rect(
         &c.right,
         cb.width,
         |keyword, available| match keyword {
-            Some(IntrinsicSize::Stretch) => stretch_fit(c, cb, Direction::Row),
+            Some(IntrinsicSize::Stretch) => stretch_fit(dom, &placed, c, cb, Direction::Row),
             Some(k) => placed
                 .keywords(dom, c, Direction::Row, cb.height, cb.width)
                 .keyword(k, Some(cb.width), available),
@@ -245,7 +268,7 @@ pub(super) fn compute_placed_rect(
         &c.bottom,
         cb.height,
         |keyword, _| match keyword {
-            Some(IntrinsicSize::Stretch) => stretch_fit(c, cb, Direction::Column),
+            Some(IntrinsicSize::Stretch) => stretch_fit(dom, &placed, c, cb, Direction::Column),
             _ => placed.shrink_to_fit(dom, Direction::Column, width, cb.width),
         },
     );

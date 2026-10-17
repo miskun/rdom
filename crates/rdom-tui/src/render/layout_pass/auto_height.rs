@@ -5,7 +5,9 @@ use rdom_core::{Dom, NodeId};
 
 use super::block;
 use super::box_sizing::Sizer;
+use super::intrinsic::Keywords;
 use crate::ext::TuiExt;
+use crate::layout::{Direction, IntrinsicSize, MaxSize, MinSize};
 use crate::style::ComputedStyle;
 
 /// CSS 2.1 §10.6.3: resolve `height: Auto` on a block-flow element
@@ -148,10 +150,28 @@ pub(crate) fn used_content_height(
     // `compute_content_area_collapsed` used for this element's inset.
     let sizer = Sizer::vertical(computed, containing_block_width);
     // A keyword bound is the content height itself (CSS Sizing 3 §3.1),
-    // which the measured content already is: no clamp.
-    crate::layout::clamp_size(
-        content_height,
-        sizer.inner_opt(computed.min_height.cells(basis)),
-        sizer.inner_opt(computed.max_height.cells(basis)),
-    )
+    // which the measured content already is: no clamp — but `stretch`,
+    // the stretch-fit size against a definite basis (CSS Sizing 4 §3.1;
+    // C16G-STRETCH-LEFTOVERS), which [`Keywords`] gives without measuring.
+    let stretch = || {
+        let width = ext_width(dom, id).unwrap_or(0);
+        let kw = Keywords::new(
+            dom,
+            id,
+            computed,
+            Direction::Column,
+            width,
+            containing_block_width,
+        );
+        basis.map(|b| sizer.inner(kw.keyword(&IntrinsicSize::Stretch, Some(b), 0)))
+    };
+    let min = match &computed.min_height {
+        MinSize::Intrinsic(IntrinsicSize::Stretch) => stretch(),
+        m => sizer.inner_opt(m.cells(basis)),
+    };
+    let max = match &computed.max_height {
+        MaxSize::Intrinsic(IntrinsicSize::Stretch) => stretch(),
+        m => sizer.inner_opt(m.cells(basis)),
+    };
+    crate::layout::clamp_size(content_height, min, max)
 }

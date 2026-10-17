@@ -114,6 +114,7 @@ impl<'a> Keywords<'a> {
     /// A `min-*` floor as a border box; `None` for `auto`.
     pub(crate) fn min(&self, min: &MinSize, basis: Option<u16>, available: u16) -> Option<u16> {
         match min {
+            MinSize::Intrinsic(k) if self.indefinite_stretch(k, basis) => None,
             MinSize::Intrinsic(k) => Some(self.keyword(k, basis, available)),
             MinSize::CalcSize(c) => {
                 // CSS Values 5 §10: `size` is what the basis resolves to —
@@ -132,6 +133,7 @@ impl<'a> Keywords<'a> {
     /// A `max-*` limit as a border box; `None` for `none`.
     pub(crate) fn max(&self, max: &MaxSize, basis: Option<u16>, available: u16) -> Option<u16> {
         match max {
+            MaxSize::Intrinsic(k) if self.indefinite_stretch(k, basis) => None,
             MaxSize::Intrinsic(k) => Some(self.keyword(k, basis, available)),
             MaxSize::CalcSize(c) => {
                 let MaxSize::Intrinsic(k) = c.basis_max_size() else {
@@ -142,6 +144,14 @@ impl<'a> Keywords<'a> {
             }
             other => self.sizer.outer_opt(other.cells(basis)),
         }
+    }
+
+    /// `stretch` on the block axis against an indefinite `basis`: no
+    /// stretch-fit size, so a `min-*` / `max-*` limit behaves as the
+    /// automatic one — `auto`, `none` (CSS Sizing 4 §3.1;
+    /// C16G-STRETCH-LEFTOVERS).
+    fn indefinite_stretch(&self, k: &IntrinsicSize, basis: Option<u16>) -> bool {
+        *k == IntrinsicSize::Stretch && self.direction == Direction::Column && basis.is_none()
     }
 
     /// The border box a `calc-size()` gives from its basis's border box
