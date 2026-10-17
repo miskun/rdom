@@ -150,12 +150,22 @@ fn legacy_clip_parses() {
         ("rect(0 0 0 0)", "rect(0, 0, 0, 0)"),
         ("rect(1, 5, 3, auto)", "rect(1, 5, 3, auto)"),
         ("RECT(auto auto auto auto)", "rect(auto, auto, auto, auto)"),
+        // Empty along an axis whose edges are both pixel lengths (or 0):
+        // empty at any pixel-to-cell mapping, so it is the empty rect —
+        // WordPress's `.screen-reader-text` (C16G-LEGACY-CLIP-PX).
+        ("rect(1px, 1px, 1px, 1px)", "rect(0, 0, 0, 0)"),
+        ("rect(1px 1px 1px 1px)", "rect(0, 0, 0, 0)"),
+        ("rect(2px, auto, 1px, auto)", "rect(0, 0, 0, 0)"),
+        ("rect(auto, 0, auto, 1pt)", "rect(0, 0, 0, 0)"),
     ] {
         assert_eq!(round("clip", css).as_deref(), Some(out), "{css}");
     }
     for bad in [
         "rect(0, 0, 0)",
-        "rect(1px, 1px, 1px, 1px)",
+        // A pixel rectangle that is not empty is geometry (DESIGN).
+        "rect(0, 10px, 10px, 0)",
+        "rect(1px, auto, 2px, auto)",
+        "rect(1px, 1, 2px, 1)",
         "rect(10%, 0, 0, 0)",
         "none",
         "",

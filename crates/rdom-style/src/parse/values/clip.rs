@@ -9,7 +9,9 @@ use super::numeric::{
     LengthPercentage, Range, cells_i32, components, length_percentage, split_commas,
 };
 use crate::calc::CalcExpr;
-use crate::layout::{BasicShape, ClipPath, ClipRect, GeometryBox, Length, ShapeRadius};
+use crate::layout::{
+    BasicShape, ClipPath, ClipRect, GeometryBox, Length, PaintLength, ShapeRadius,
+};
 use crate::parse::token::Token;
 
 fn keyword(c: &[Token]) -> Option<String> {
@@ -235,8 +237,11 @@ fn position(parts: &[&[Token]]) -> Option<[Length; 2]> {
 /// `clip` (CSS 2.1 §11.1.2): `auto | rect(<top>, <right>, <bottom>,
 /// <left>)`, each edge a cell length or `auto`; the legacy space-separated
 /// form too (§11.1.2: "user agents may support separation of offsets with
-/// whitespace"). A clip is geometry, so a pixel length or a percentage is
-/// rejected (DESIGN) (C15G-LEGACY-CLIP).
+/// whitespace"). A clip is geometry, so a percentage, or a pixel length,
+/// is rejected (DESIGN) (C15G-LEGACY-CLIP) — except a rectangle empty
+/// along an axis whose two edges are pixel lengths (or `0`): it is empty
+/// at any pixel-to-cell mapping, so it is the empty rect, `rect(0, 0, 0,
+/// 0)` — WordPress's `rect(1px, 1px, 1px, 1px)` (C16G-LEGACY-CLIP-PX).
 pub fn parse_clip_rect(value: &[Token]) -> Option<ClipRect> {
     if keyword(value).as_deref() == Some("auto") {
         return Some(ClipRect::Auto);
@@ -256,19 +261,61 @@ pub fn parse_clip_rect(value: &[Token]) -> Option<ClipRect> {
     let [top, right, bottom, left] = parts.as_slice() else {
         return None;
     };
-    let edge = |c: &[Token]| -> Option<Option<i32>> {
-        if keyword(c).as_deref() == Some("auto") {
-            return Some(None);
-        }
-        match lp(c, Range::Any)? {
-            Length::Cells(n) => Some(Some(n)),
-            _ => None,
-        }
+    let edges = [edge(top)?, edge(right)?, edge(bottom)?, edge(left)?];
+    let cells = |e: Edge| match e {
+        Edge::Auto => Some(None),
+        Edge::Cells(n) => Some(Some(n)),
+        Edge::Px(_) => None,
     };
-    Some(ClipRect::Rect {
-        top: edge(top)?,
-        right: edge(right)?,
-        bottom: edge(bottom)?,
-        left: edge(left)?,
+    if !edges.iter().any(|e| matches!(e, Edge::Px(_))) {
+        let [top, right, bottom, left] = edges.map(cells);
+        return Some(ClipRect::Rect {
+            top: top?,
+            right: right?,
+            bottom: bottom?,
+            left: left?,
+        });
+    }
+    let [top, right, bottom, left] = edges.map(Edge::px);
+    let empty =
+        |start: Option<f32>, end: Option<f32>| matches!((start, end), (Some(s), Some(e)) if e <= s);
+    (empty(top, bottom) || empty(left, right)).then_some(ClipRect::Rect {
+        top: Some(0),
+        right: Some(0),
+        bottom: Some(0),
+        left: Some(0),
     })
+}
+
+/// One `rect()` edge.
+#[derive(Clone, Copy)]
+enum Edge {
+    Auto,
+    Cells(i32),
+    /// A pixel-family length, in CSS pixels.
+    Px(f32),
+}
+
+impl Edge {
+    /// The edge in pixels, when it has one: a pixel length, or a zero.
+    fn px(self) -> Option<f32> {
+        match self {
+            Edge::Px(p) => Some(p),
+            Edge::Cells(0) => Some(0.0),
+            Edge::Cells(_) | Edge::Auto => None,
+        }
+    }
+}
+
+fn edge(c: &[Token]) -> Option<Edge> {
+    if keyword(c).as_deref() == Some("auto") {
+        return Some(Edge::Auto);
+    }
+    match super::border::paint_length(c, false, Range::Any)? {
+        PaintLength::Px(p) => Some(Edge::Px(p)),
+        _ => match lp(c, Range::Any)? {
+            Length::Cells(n) => Some(Edge::Cells(n)),
+            _ => None,
+        },
+    }
 }

@@ -224,6 +224,45 @@ fn legacy_clip_keeps_the_rectangle_on_absolute_boxes_only() {
     assert_eq!(red_map(&buf, 8, 2), vec!["..##....", "........"]);
 }
 
+/// The legacy clip's paths the C15G item left untested (Phase 16 gate
+/// architect N8; CSS 2.1 §11.1.2): WordPress's `.screen-reader-text`
+/// (`clip: rect(1px, 1px, 1px, 1px)`, empty at any pixel scale) hides;
+/// a `position: fixed` box is clipped like an absolute one; negative and
+/// out-of-box edges keep the cells inside the border box only; and the
+/// clip takes the box's descendants with it (C16G-LEGACY-CLIP-PX).
+#[test]
+fn legacy_clip_covers_pixels_fixed_negative_edges_and_descendants() {
+    let box_with = |position: &str, clip: &str| {
+        let mut dom = doc(r#"<body><div id="c"><div id="k"></div></div></body>"#);
+        let buf = paint(
+            &mut dom,
+            &format!(
+                "{PAGE} #c {{ position: {position}; top: 0; left: 0; width: 4; height: 2; clip: {clip} }}
+                 #k {{ height: 2; background-color: rgb(255, 0, 0) }}"
+            ),
+            8,
+            2,
+        );
+        red_map(&buf, 8, 2)
+    };
+    assert_eq!(
+        box_with("absolute", "rect(1px, 1px, 1px, 1px)"),
+        vec!["........", "........"]
+    );
+    assert_eq!(
+        box_with("fixed", "rect(0, 3, 1, 1)"),
+        vec![".##.....", "........"]
+    );
+    assert_eq!(
+        box_with("absolute", "rect(-5, 9, 9, -5)"),
+        vec!["####....", "####...."]
+    );
+    assert_eq!(
+        box_with("absolute", "rect(1, 2, 9, -1)"),
+        vec!["........", "##......"]
+    );
+}
+
 /// ACID-FIX-9 (found by acid tile 24). A clip path, a filter, a blend
 /// mode or an isolated group paints its context through a layer at full
 /// opacity; nothing blends there, so a cell the layer painted keeps its

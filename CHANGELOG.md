@@ -327,6 +327,7 @@ See [`UPGRADING-0.6.md`](UPGRADING-0.6.md): the fifteen changes most 0.5 apps hi
 
 ### Fixed — `rdom-style`
 
+- **`clip: rect(1px, 1px, 1px, 1px)` parses** (CSS 2.1 §11.1.2): a pixel edge is geometry and was rejected, so WordPress's `.screen-reader-text` showed its text; a rectangle empty along an axis whose two edges are pixel lengths (or `0`) is empty at any scale and now parses as the empty rect, `rect(0, 0, 0, 0)`. Any other pixel edge is still invalid. (C16G-LEGACY-CLIP-PX)
 - **`<summary>` has no UA weight** (HTML §15.5.20): the UA sheet made it bold; HTML gives it only its disclosure marker. `summary { font-weight: bold }` restores the look. (ACID-FIX-4)
 - **`<dt>` and `<legend>` have no UA weight** (HTML §15.3.3, §15.3.12): the UA sheet made both bold; HTML gives `dt` only `display: block` and `legend` its display and padding. `dt, legend { font-weight: bold }` restores the look. (ACID-FIX-6)
 - **A disabled `<fieldset>` no longer greys its text** (HTML §4.16.3, as the engines' sheets): the UA's muted `:disabled` look matched the fieldset, so its legend and every text inside inherited it; it is now on the disabled controls only (`button`, `input`, `select`, `textarea`, `optgroup`, `option`). (ACID-FIX-8)

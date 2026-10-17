@@ -11405,3 +11405,13 @@ Fixes the tiles find are separate items, `ACID-FIX-<n>`, each in the crate that 
   encoding marker and is consumed with no warning — the source is a decoded `&str`; one after any rule stays
   `UnsupportedAtRule` (CSSOM has no `CSSCharsetRule`). Not an at-rule rdom-css evaluates, so `at_rule_names()` and
   the acid coverage are unchanged. Red: `a_leading_charset_is_the_encoding_marker_and_no_warning`.
+- 2026-10-18 — C16G-LEGACY-CLIP-PX (Phase 16 gate architect N8, the legacy-clip leftovers; CSS 2.1 §11.1.2).
+  Found: `clip: rect(1px, 1px, 1px, 1px)` — WordPress's `.screen-reader-text` — was rejected (a pixel edge is
+  geometry), so its text showed; `position: fixed`, negative edges and descendant clipping were untested.
+  Decision: a rectangle empty along an axis whose two edges are pixel-family lengths (or `0`) is empty at any
+  pixel-to-cell mapping, so it parses as the empty rect `rect(0, 0, 0, 0)` and serializes so (as `column-width`
+  stores its cells); any other pixel edge stays invalid (DESIGN "Pixel lengths select, cells measure").
+  Red: `legacy_clip_parses` (`rect(1px …)` cases, both separators, `auto` and `pt` edges; non-empty pixel rects
+  stay invalid). `legacy_clip_covers_pixels_fixed_negative_edges_and_descendants` pins the paint: the pixel rect
+  hides, a fixed box clips as an absolute one, out-of-box edges keep the border box, the child is clipped — the
+  last three green at first run.
