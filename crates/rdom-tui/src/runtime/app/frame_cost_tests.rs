@@ -311,8 +311,10 @@ fn a_frame_runs_at_most_two_layouts() {
     app.push_stylesheet(sheet.stylesheet);
     app.advance(0).unwrap();
     app.advance(0).unwrap();
-    crate::runtime::focus::focus_node(app.dom_mut(), Some(last));
+    // Counted from the focus: its layout flush lays out, the frame after
+    // it lays out again for the re-stepped timeline (`layout_flush`).
     ROUNDS.with(|r| r.set(0));
+    crate::runtime::focus::focus_node(app.dom_mut(), Some(last));
     app.advance(0).unwrap();
     let runs = ROUNDS.with(std::cell::Cell::get);
     use crate::TuiAccessors;
@@ -440,11 +442,13 @@ fn a_frame_with_a_focus_scroll_runs_three_layouts_of_the_container_cap() {
     for _ in 0..20 {
         app.advance(2000).unwrap();
     }
+    // Counted from the focus, whose layout flush lays out and scrolls
+    // before the resize (`layout_flush`).
+    ROUNDS.with(|r| r.set(0));
     crate::runtime::focus::focus_node(app.dom_mut(), Some(last));
     app.terminal_mut().backend_mut().resize(79, 10);
     app.handle_event(crossterm::event::Event::Resize(79, 10));
     app.take_frame_stats();
-    ROUNDS.with(|r| r.set(0));
     app.draw_if_dirty().unwrap();
     let layouts = ROUNDS.with(std::cell::Cell::get);
     use crate::TuiAccessors;

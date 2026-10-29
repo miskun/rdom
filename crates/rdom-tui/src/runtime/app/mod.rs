@@ -405,7 +405,7 @@ impl<B: Backend> App<B> {
         crate::runtime::autofocus::focus_first_autofocus(&mut dom);
         // From here a focused element scrolls into view at the frame's
         // layout (`runtime::focus`).
-        crate::runtime::focus::laid_out_by_app(&mut dom);
+        crate::runtime::layout_flush::pending::laid_out_by_app(&mut dom);
         let mut stylesheet_ids = stylesheets::StylesheetIdAllocator::default();
         let mut app = Self {
             dom,

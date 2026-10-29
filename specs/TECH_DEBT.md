@@ -20,11 +20,11 @@ For the durable architectural divergences (web-platform departures shipped on pu
   | `runtime/builtins/form/mod.rs` | 522 |
   | `rdom-core/src/dispatch.rs` | 522 / 1290 |
   | `runtime/editing/perform/mod.rs` | 520 |
+  | `runtime/app/frame.rs` | 519 |
   | `style/cascade/walk.rs` | 518 / 532 |
   | `ext/mod.rs` | 512 |
   | `rdom-style/src/property_dispatch/set.rs` | 507 |
   | `runtime/router/mouse/mod.rs` | 506 |
-  | `runtime/app/frame.rs` | 504 |
   | `render/inline/packer/mod.rs` | 503 |
   | `rdom-style/src/stylesheet/mod.rs` | 503 |
   | `rdom-style/src/animation/value.rs` | 501 |
@@ -32,6 +32,8 @@ For the durable architectural divergences (web-platform departures shipped on pu
   None is past 575. Each holds one concern that has not split cleanly yet (a subgrid's track sizing, margin collapsing, the flow-relative property map, the event dispatch path, the parser's tree builder, …); a change that takes one past 575 splits it.
 
 - **`PARTIAL-RELAYOUT-1` — no layout pass re-lays out only what changed (post-0.6).** `layout_dom` is a whole-tree pass: a style or text change, a running geometry transition or animation (`ANIM-RELAYOUT-1`) and a resize lay the whole document out, multi-column balancing and anchor fallbacks included. A scroll no longer does (C15G-SCROLL-NO-RELAYOUT: the scrolled boxes are moved, `layout_pass::scroll_update`). The pay-down is a pass that re-lays out the dirty subtrees and what their size changes reach — the subtree boundaries `contain: layout` / size containment already mark (CSS Containment 2 §3) and the translation invariance the scroll update relies on. Named by the Phase 15 gate (architect, program health); scheduled after 0.6.
+
+- **`FLUSH-LAYOUT-MARKS-1` — the frame prelude's own marks are not flushed, so they can cost the frame a second layout.** A layout flush (`runtime::layout_flush`, FLUSH-LAYOUT) lets the frame reuse its layout when nothing changed since, but the frame's prelude writes derived state the flush cannot run, because it lives on the `App`: the `data-rdom-scroll-focus` mark on the scroll container of a visibly focused element (`prelude::mark_scroll_focus`) and the form validity marks. A focus that moves into another scroll container under `:focus-visible` (Tab between scrollers) therefore makes the frame restyle that container and lay out once more — pinned at 4 rounds where the frame-serviced scroll took 3 (`layout_runs_tests::a_frame_runs_layout_at_most_twice_the_round_cap`). Fix: set the scroll-focus mark as part of the focus change (document data instead of `App` state), so the flush cascades it; then restore the bound to 3.
 
 - **`HIT-OVERFLOW-1` — content overflowing a non-clipping box is hit only inside that box.** CSS hit-tests what paints where it paints (CSSOM View §5 `elementFromPoint`, CSS 2.1 Appendix E): text overflowing an `overflow: visible` block, or a child box overflowing its parent, is a target where it is drawn. rdom's hit test enters a box only when the point is inside its border box (`runtime::hit_test::descend::descend_plain`, `box_contains`), so a click on such overflow lands on what is beneath it (found while building acid part 1; recorded in DIVERGENCES §4 by ACID-TILES-B, 2026-10-10). The pay-down: descend into a box that does not clip its overflow wherever the point is, which needs the inline hit to tell "on the block's own text" from "on nothing" (`inline_hit::hit_lines` answers both with `false`) and loses the border-box prune a hit test leans on — a per-box ink-overflow rect, or the scrollable-overflow rect layout already computes for scroll containers, would restore it. Acid step I24 pins today's behaviour (tile 53's overflowing text over a float hits the float); paying this down turns that checkpoint over.
 

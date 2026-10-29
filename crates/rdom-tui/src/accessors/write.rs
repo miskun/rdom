@@ -222,8 +222,9 @@ impl<'a> TuiAccessorsMut<'a> for rdom_core::NodeMut<'a, TuiExt> {
     }
 
     fn scroll_into_view_with(&mut self, options: ScrollIntoViewOptions) -> Result<()> {
+        use crate::runtime::layout_flush::pending::{Scroll, scroll_now_or_at_layout};
         let id = self.id();
-        crate::runtime::scrollbar::scroll_element_into_view(self.dom_mut(), id, options);
+        scroll_now_or_at_layout(self.dom_mut(), Scroll::IntoView(id, options));
         Ok(())
     }
 

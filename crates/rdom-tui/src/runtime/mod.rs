@@ -13,6 +13,8 @@
 //!   (OSC 22).
 //! - [`style_flush`] — bring an element's style up to date between
 //!   frames (what `focus()` does first).
+//! - [`layout_flush`] — bring the layout up to date between frames
+//!   (what `focus()` and `scroll_into_view()` do before they scroll).
 //! - [`selection`] — text selection, clipboard, `::selection`,
 //!   `user-select`.
 //! - Pointer capture (drag routing) is DOM state in `rdom-core`
@@ -43,6 +45,7 @@ pub(crate) mod implicit_events;
 #[cfg(test)]
 mod inert_tests;
 pub(crate) mod input;
+pub mod layout_flush;
 pub mod media_query;
 pub mod pointer_shape;
 pub(crate) mod resize;

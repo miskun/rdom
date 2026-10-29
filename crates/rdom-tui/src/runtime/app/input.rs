@@ -105,6 +105,9 @@ impl<B: Backend> App<B> {
                 // can react to viewport changes before the paint.
                 // Coalesced naturally — crossterm delivers one
                 // Resize signal per terminal change, not per cell.
+                // The last layout's area is stale: a geometry read in a
+                // `resize` listener waits for the frame (`layout_flush`).
+                crate::runtime::layout_flush::invalidate(&mut self.dom);
                 let root = self.dom.root();
                 // `resize`: bubbles, NOT cancelable per HTML.
                 let mut tui = TuiEvent::new("resize");

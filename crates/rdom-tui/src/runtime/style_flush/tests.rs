@@ -72,29 +72,15 @@ fn focus_flushes_the_style_of_a_just_shown_element() {
     assert_eq!(p.app.dom().focused(), None, "a just-hidden input");
 }
 
-/// The flush cascades only the dirty subtrees holding the element — the
-/// panel and its input, not the unrelated section that is dirty too — and
-/// leaves the rest for the frame; with nothing dirty above the element it
-/// matches nothing. (`match_probe` counts rule-matching passes: one per
-/// element and pseudo-element it styles.)
+/// `focus()` decides focusability from a style flush of the dirty
+/// subtrees holding the element, then — to scroll against the current
+/// layout — lays out, which cascades every dirty subtree
+/// (`runtime::layout_flush`). Each is cascaded once: the frame after
+/// matches nothing again. (`match_probe` counts rule-matching passes: one
+/// per element and pseudo-element it styles.)
 #[test]
-fn focus_flushes_only_the_dirty_subtrees_above_the_element() {
+fn focus_cascades_each_dirty_subtree_once() {
     let mut p = page(".panel.open { color: blue } .x { color: red }");
-    // What cascading the panel's subtree costs: a frame with only it
-    // dirty.
-    p.app
-        .dom_mut()
-        .set_attribute(p.panel, "class", "panel open")
-        .unwrap();
-    match_probe::take();
-    p.app.draw_if_dirty().unwrap();
-    let panel_cost = match_probe::take();
-    p.app
-        .dom_mut()
-        .set_attribute(p.panel, "class", "panel")
-        .unwrap();
-    p.app.draw_if_dirty().unwrap();
-    // Both dirty; the flush cascades the panel's subtree only.
     p.app
         .dom_mut()
         .set_attribute(p.other, "class", "x")
@@ -106,15 +92,17 @@ fn focus_flushes_only_the_dirty_subtrees_above_the_element() {
     match_probe::take();
     p.app.dom_mut().node_mut(p.input).focus();
     assert_eq!(p.app.dom().focused(), Some(p.input));
-    assert_eq!(match_probe::take(), panel_cost, "the panel's subtree only");
-    // The section is left for the frame (the focus change itself dirtied
-    // the panel's `:focus-within` chain again).
-    assert!(p.app.dirty_roots_snapshot().contains(&p.other));
+    assert!(match_probe::take() > 0);
+    assert!(
+        p.app.dirty_roots_snapshot().is_empty(),
+        "the section was cascaded with the panel"
+    );
     p.app.draw_if_dirty().unwrap();
-    match_probe::take();
-    // Nothing dirty above the element: no cascade at all.
-    p.app.dom_mut().node_mut(p.input).focus();
-    assert_eq!(match_probe::take(), 0, "a clean element flushes nothing");
+    assert_eq!(
+        match_probe::take(),
+        0,
+        "the frame cascades none of it again"
+    );
 }
 
 /// The frame after a flush still lays out and paints what the flush

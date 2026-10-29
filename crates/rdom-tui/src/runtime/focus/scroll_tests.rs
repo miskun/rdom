@@ -3,13 +3,14 @@
 //! moved (the tree's row click), not where HTML says the viewport is not
 //! scrolled (a closing dialog returning focus, HTML §4.11.4 "close the
 //! dialog"), not under `FocusOptions { preventScroll }` (HTML
-//! `focus(options)`); and against the layout the focus is shown in — in an
-//! `App`, at its next layout, not against rects a handler made stale.
+//! `focus(options)`); and against the current layout — in an `App` the
+//! layout is brought up to date first (`runtime::layout_flush`, whose
+//! tests cover a handler that moves an element and focuses it).
 
 use crossterm::event::{
     Event as CtEvent, KeyModifiers, MouseButton, MouseEvent as CtMouseEvent, MouseEventKind,
 };
-use rdom_core::{ListenerOptions, NodeId};
+use rdom_core::NodeId;
 
 use crate::prelude::*;
 use crate::runtime::focus::FocusOptions;
@@ -134,57 +135,11 @@ fn a_tree_row_click_does_not_scroll() {
     assert_eq!(app.dom().node(s).scroll_top(), Some(4));
 }
 
-/// In an `App`, a handler that moves an element and focuses it gets it
-/// scrolled into view where it is laid out next — five rows inserted
-/// above `t` take it from row 1 to row 6, below the 3-row scroller, which
-/// scrolls to 4 (its stale row 1 was in view: no scroll).
-#[test]
-fn focus_in_a_handler_scrolls_against_the_next_layout() {
-    let mut dom = TuiDom::new();
-    let root = dom.root();
-    let s = dom.create_element("div");
-    dom.set_attribute(s, "class", "s").unwrap();
-    dom.append_child(root, s).unwrap();
-    let first = dom.create_element("div");
-    let t0 = dom.create_text_node("a");
-    dom.append_child(first, t0).unwrap();
-    dom.append_child(s, first).unwrap();
-    let target = dom.create_element("button");
-    let tt = dom.create_text_node("T");
-    dom.append_child(target, tt).unwrap();
-    dom.append_child(s, target).unwrap();
-    let go = dom.create_element("button");
-    let tg = dom.create_text_node("Go");
-    dom.append_child(go, tg).unwrap();
-    dom.append_child(root, go).unwrap();
-    dom.add_event_listener(go, "click", ListenerOptions::default(), move |ctx| {
-        for _ in 0..5 {
-            let d = ctx.dom.create_element("div");
-            let t = ctx.dom.create_text_node("x");
-            ctx.dom.append_child(d, t).unwrap();
-            ctx.dom.insert_before(s, d, Some(target)).unwrap();
-        }
-        ctx.dom.node_mut(target).focus();
-    })
-    .unwrap();
-    let sheet = rdom_css::from_css_strict(
-        ".s { overflow-y: auto; height: 3; display: block } button { display: block }",
-    )
-    .unwrap();
-    let terminal = Terminal::new(TestBackend::new(20, 6)).unwrap();
-    let mut app = App::with_backend(dom, sheet, terminal).unwrap();
-    app.draw_if_dirty().unwrap();
-    click_at(&mut app, 1, 3);
-    app.draw_if_dirty().unwrap();
-    assert_eq!(app.dom().focused(), Some(target));
-    assert_eq!(app.dom().node(s).scroll_top(), Some(4));
-}
-
-/// C9G-MISC-CORRECTNESS — the scroll waits for the next layout only on a
-/// document an `App` lays out (it services it, `app::frame`): a second,
-/// bare document focused from inside an `App`'s handler — its scheduler on
-/// this thread — scrolls at once, as any bare document does; deferred,
-/// nothing would ever scroll it.
+/// C9G-MISC-CORRECTNESS — a scroll waits for a layout only on a document
+/// an `App` lays out (it services it, `app::frame`): a second, bare
+/// document focused from inside an `App`'s handler — its scheduler on this
+/// thread — scrolls at once, as any bare document does; deferred, nothing
+/// would ever scroll it.
 #[test]
 fn a_bare_document_focused_inside_an_app_handler_scrolls_at_once() {
     use crate::runtime::timers::{Scheduler, SchedulerGuard};

@@ -104,8 +104,10 @@ pub trait TuiAccessorsMut<'a>: crate::sealed::Sealed {
     /// (which drives the `:focus` cascade), then `focus` + `focusin`
     /// on this element — and scrolls it into view (HTML's focusing steps,
     /// `nearest` on both axes within each scroll container's
-    /// `scroll-padding`; under a running `App` at its next layout, where
-    /// the element is shown, DIVERGENCES). [`focus_with`](Self::focus_with)
+    /// `scroll-padding`, against the current layout: under a running `App`
+    /// the layout is brought up to date first,
+    /// [`flush_layout`](crate::runtime::layout_flush::flush_layout)).
+    /// [`focus_with`](Self::focus_with)
     /// with `prevent_scroll` focuses without scrolling.
     ///
     /// Lives on the mut trait taking `&mut self` because the literal
@@ -201,6 +203,15 @@ pub trait TuiAccessorsMut<'a>: crate::sealed::Sealed {
     /// `scrollIntoView(alignToTop)` form is
     /// `scroll_into_view_with(align_to_top.into())`. No-op for an
     /// element that is not rendered or has no scroll container.
+    ///
+    /// Against the current layout, as CSSOM View's: under a running `App`
+    /// the layout is brought up to date first
+    /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout)), so
+    /// an element created or moved in the same handler is scrolled to
+    /// where it is now, and `scroll_top()` read after the call is the
+    /// new offset. Before the `App`'s first frame, and after a resize
+    /// or a sheet-set change until the next one, it is done after the
+    /// next layout instead (DIVERGENCES).
     fn scroll_into_view_with(&mut self, options: ScrollIntoViewOptions) -> Result<()>;
 
     /// CSSOM-style write handle to the element's inline

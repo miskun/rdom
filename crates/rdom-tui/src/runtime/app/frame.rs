@@ -201,11 +201,16 @@ impl<B: Backend> App<B> {
     }
 
     /// Whether a style flush cascaded subtrees since the last frame
-    /// (`runtime::style_flush`): the frame lays out (noted on `redraw`)
-    /// and runs its transition hook for them.
+    /// (`runtime::style_flush`, or a layout flush's cascade): the frame
+    /// lays out (noted on `redraw`) and runs its transition hook for
+    /// them — and lays out after a layout flush that cascaded nothing.
     fn take_flushed(&mut self) -> Vec<NodeId> {
         let flushed = self.tracker.take_flushed();
-        self.redraw.note_if(!flushed.is_empty(), Redraw::Layout);
+        // A layout flush laid out since: lay out again, for the work a
+        // frame's layout starts (`runtime::layout_flush`).
+        let laid_out = crate::runtime::layout_flush::take_flushed(&mut self.dom);
+        self.redraw
+            .note_if(!flushed.is_empty() || laid_out, Redraw::Layout);
         flushed
     }
 
@@ -431,23 +436,32 @@ fn style_and_layout(
     let animate = must_lay_out || (redraw >= Redraw::Paint && !animations.is_empty());
     let mut laid_out = must_lay_out;
     let mut composites = 0;
+    // Whether this frame changed what layout reads beyond what a layout
+    // flush since the last frame saw.
+    let mut restyled = cascade.is_some();
     if animate {
         let advanced = animations.advance_frame(dom, now);
         composites = advanced.composites;
         laid_out |= advanced.layout;
+        restyled |= advanced.layout;
         // The elements waiting to leave the top layer leave once their
         // `overlay` is not `auto` (CSS Position 4 §3.3); the removal
         // re-cascades them next frame (its mutation dirties them).
         crate::runtime::top_layer::finish_removals(dom);
-        restyle_animated(dom, (sheets, registry), animations);
+        restyled |= restyle_animated(dom, (sheets, registry), animations);
     }
     // Only scroll offsets moved since the last layout (`Redraw::Scroll`):
     // the scrolled boxes are moved, not laid out (C15G-SCROLL-NO-RELAYOUT)
     // — unless the update finds it must lay out.
     let mut scrolled = false;
-    if laid_out {
+    // A layout flush laid the tree out as it is (`runtime::layout_flush`):
+    // what follows a layout runs on it, with no second layout — after a
+    // scroll update, which brings it up to the offsets a scroll made
+    // since the flush moved.
+    let reuse = laid_out && !restyled && crate::runtime::layout_flush::is_current_in(dom, area);
+    if laid_out && !reuse {
         dom.layout_dom(area);
-    } else if redraw == Redraw::Scroll {
+    } else if reuse || redraw == Redraw::Scroll {
         match scroll_update::update(dom, area) {
             scroll_update::Update::LaidOut => laid_out = true,
             scroll_update::Update::Scrolled | scroll_update::Update::Unmoved => scrolled = true,
@@ -462,7 +476,7 @@ fn style_and_layout(
         // scrolls into view against the layout it is shown in; a caret
         // edited out of its box's view is revealed.
         let resnapped = crate::runtime::scroll_snap::resnap(dom);
-        let focused = crate::runtime::focus::service_focus_scroll(dom);
+        let focused = crate::runtime::layout_flush::pending::service(dom);
         let revealed = crate::runtime::scrollbar::service_caret_reveal(dom);
         // Scroll-driven Animations 1 §5: a scroll or view timeline this
         // layout or those scrolls moved is stale — step it again (the
@@ -494,6 +508,7 @@ fn style_and_layout(
         // The animations in skipped contents, as this layout left them,
         // ask for no frames (CSS Containment 2 §4).
         animations.note_skipped(dom);
+        crate::runtime::layout_flush::note_laid_out(dom, area);
     }
     Pass {
         cascade,

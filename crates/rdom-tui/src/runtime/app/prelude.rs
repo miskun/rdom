@@ -295,6 +295,8 @@ impl FramePrelude {
             .cloned()
             .collect();
         crate::runtime::style_flush::publish(dom, sheets, self.registry.clone(), tracker.clone());
+        // The last layout used the old sheets (`layout_flush`).
+        crate::runtime::layout_flush::invalidate(dom);
         self.sync_sibling_combinators(tracker, app_sheets);
     }
 

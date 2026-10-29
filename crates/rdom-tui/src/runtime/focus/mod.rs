@@ -67,11 +67,12 @@ impl FocusOptions {
 /// the element into view": `nearest` on both axes, as browsers reveal a
 /// focused element, into each scroll container's optimal viewing region
 /// (its `scroll-padding`, the element's `scroll-margin`: CSS Scroll Snap 1
-/// §4). On a document an `App` lays out the scroll waits for its next
-/// layout — the one the new focus is shown in — so a handler that moved the
-/// element before focusing it reveals it where it is laid out, not at a
-/// rect its own changes made stale; on any other document it is done at
-/// once, against the last layout.
+/// §4). Against the current layout, as a browser's: on a document an `App`
+/// lays out the layout is brought up to date first
+/// (`runtime::layout_flush`), so a handler that moved the element before
+/// focusing it reveals it where it is now and reads the scroll it made;
+/// when it cannot be (before the first frame, after a resize) the scroll
+/// waits for the next layout.
 pub fn focus_node_with_options(dom: &mut TuiDom, new_focus: Option<NodeId>, options: FocusOptions) {
     let before = dom.focused();
     change_focus(dom, new_focus, None);
@@ -82,60 +83,9 @@ pub fn focus_node_with_options(dom: &mut TuiDom, new_focus: Option<NodeId>, opti
         && dom.focused() == Some(id)
         && before != Some(id)
     {
-        if dom.document_data::<LaidOutByApp>().is_some() {
-            dom.set_document_data(PendingFocusScroll(id));
-        } else {
-            scroll_into_view(dom, id);
-        }
+        use crate::runtime::layout_flush::pending::{Scroll, scroll_now_or_at_layout};
+        scroll_now_or_at_layout(dom, Scroll::Focus(id));
     }
-}
-
-/// Document data: an `App` lays this document out, and scrolls an element
-/// focused since its last layout into view at its next one
-/// ([`service_focus_scroll`]) — what [`focus_node_with_options`] reads, so
-/// the deferral is a property of the document, not of the thread it runs
-/// on (another document focused from an `App`'s handler scrolls at once).
-struct LaidOutByApp;
-
-/// Mark `dom` as one an `App` lays out (`App`'s construction).
-pub(crate) fn laid_out_by_app(dom: &mut TuiDom) {
-    dom.set_document_data(LaidOutByApp);
-}
-
-/// The focused element whose scroll into view waits for the next layout
-/// (document data; [`focus_node_with_options`], [`service_focus_scroll`]).
-struct PendingFocusScroll(NodeId);
-
-/// After a layout: scroll the element focused since the last one into
-/// view, when it still has the focus. Whether a scroll offset moved — the
-/// caller lays out again.
-pub(crate) fn service_focus_scroll(dom: &mut TuiDom) -> bool {
-    let Some(PendingFocusScroll(id)) = dom.remove_document_data::<PendingFocusScroll>() else {
-        return false;
-    };
-    if dom.focused() != Some(id) || !dom.contains(id) {
-        return false;
-    }
-    let offsets = |dom: &TuiDom| -> Vec<(i32, i32)> {
-        std::iter::successors(dom.node(id).parent_node(), |n| n.parent_node())
-            .filter_map(|n| n.tui_ext().map(|e| (e.scroll_x, e.scroll_y)))
-            .collect()
-    };
-    let before = offsets(dom);
-    scroll_into_view(dom, id);
-    offsets(dom) != before
-}
-
-/// Scroll the focused `id` into view, `nearest` on both axes.
-fn scroll_into_view(dom: &mut TuiDom, id: NodeId) {
-    use crate::runtime::smooth_scroll::{ScrollIntoViewOptions, ScrollLogicalPosition};
-    crate::runtime::scrollbar::scroll_element_into_view(
-        dom,
-        id,
-        ScrollIntoViewOptions::new()
-            .block(ScrollLogicalPosition::Nearest)
-            .inline(ScrollLogicalPosition::Nearest),
-    );
 }
 
 /// Change focus. Fires `blur` + `focusout` on the old focus,
