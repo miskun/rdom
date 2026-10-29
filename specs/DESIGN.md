@@ -113,6 +113,7 @@ The work that fed into 0.1.0 was organized in five internal milestones (M1 CSS p
 | **0.4.0** | **Hardening** ([`HARDENING-2026-09.md`](HARDENING-2026-09.md)): full workspace review, DIVERGENCES / TECH_DEBT re-audit, four gated fix batches (core, style + css, tui, parser). All five crates ship together. | ✅ Released 2026-09-24 |
 | **0.5.0** | **Stabilize** ([`STABILIZE-2026-09.md`](STABILIZE-2026-09.md)): every open `TECH_DEBT.md` row fixed, reclassified as a documented divergence, or documented as external; plus form validation, `:focus-visible`, live `<style>` and the rest of Phase 7. All five crates ship together. | Shipped 2026-09-29 |
 | **0.6.0** | **CSS completeness** ([`CSS-COMPLETE-2026-10.md`](CSS-COMPLETE-2026-10.md)): every CSS feature that means something in a terminal, from the [`CSS-COVERAGE.md`](CSS-COVERAGE.md) audit; plus the [`ACID.md`](ACID.md) acid test. | Shipped 2026-10-18 |
+| **0.6.1** | `rdom-tui` only — **the layout flush** (FLUSH-LAYOUT): `focus()` and `scroll_into_view()` scroll against a layout brought up to date first, as in browsers; `runtime::layout_flush::flush_layout` / `LayoutFlush` for code reading geometry in a handler; the frame prelude's DOM-derived stages in one owner (`runtime::derived_state`). | Shipped 2026-10-29 |
 | **0.7.0** | Client-side routing primitive. | Planned |
 | **0.8.0** | Async tasks during event handlers. | Planned |
 
