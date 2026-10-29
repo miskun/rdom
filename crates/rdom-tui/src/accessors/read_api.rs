@@ -112,6 +112,8 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// fields; rdom returns [`LayoutRect`](crate::LayoutRect) (i32 + u16) because the
     /// substrate is cell-grained. `DomRect` is re-exported below as
     /// a type alias for spec-name parity.
+    /// Reads the last layout
+    /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout) first in a handler).
     fn bounding_rect(&self) -> Option<DomRect>;
 
     /// `Element.getClientRects()` (CSSOM View §6) for a box: its border
@@ -130,6 +132,8 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// inline box that wraps reports its own rect
     /// ([`bounding_rect`](Self::bounding_rect)), where `getClientRects()` lists one rect per line
     /// (DIVERGENCES §2, "DOM API shape").
+    /// Reads the last layout
+    /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout) first in a handler).
     fn client_rects(&self) -> Vec<DomRect>;
 
     /// `Element.scrollTop` — vertical scroll offset in cells, measured
@@ -142,6 +146,8 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// `None` for non-element nodes; `0` for non-scrollable elements
     /// (browser-faithful: `el.scrollTop` always returns a number;
     /// for non-scrollable elements that number is `0`).
+    /// A layout clamps it
+    /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout) in a handler).
     fn scroll_top(&self) -> Option<i32>;
 
     /// `Element.scrollLeft` — horizontal scroll offset in cells,
@@ -152,6 +158,8 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// container whose cross-start is (`rtl` XOR `wrap-reverse`) —
     /// whose values run negative towards the overflow on the left, as in
     /// browsers. [`Self::scroll_range`] gives the legal values.
+    /// A layout clamps it
+    /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout) in a handler).
     fn scroll_left(&self) -> Option<i32>;
 
     /// The legal `scrollLeft` / `scrollTop` values against the
@@ -163,6 +171,8 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// a consumer that maps offsets to content (a virtual list) need
     /// not re-derive which. `0 ..= 0` on an axis that does not
     /// overflow. `None` for non-element nodes.
+    /// Reads the last layout
+    /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout) first in a handler).
     fn scroll_range(&self) -> Option<ScrollRange>;
 
     /// The used tracks of a laid-out grid container — the analogue of
@@ -171,6 +181,8 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// ([`GridTracks`](super::GridTracks)). `None` for an element that is
     /// not a grid container or has not been laid out as one, and for
     /// non-element nodes.
+    /// Reads the last layout
+    /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout) first in a handler).
     fn grid_tracks(&self) -> Option<super::GridTracks>;
 
     /// The used columns and rows of a laid-out table (CSS 2.1 §17.5),
@@ -179,6 +191,8 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// the last layout kept, never solved again. `None` for an element
     /// that is not a `table` / `inline-table` or has not been laid out
     /// as one, and for non-element nodes.
+    /// Reads the last layout
+    /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout) first in a handler).
     fn table_tracks(&self) -> Option<super::TableTracks>;
 
     /// `Element.scrollWidth` — the width of the scrolling area (CSSOM
@@ -186,10 +200,14 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// the end padding (CSS Overflow 3 §2.2), measured from the scrolling
     /// area origin — never less than the scrollport's width. `0` for a
     /// box that is not a scroll container.
+    /// Reads the last layout
+    /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout) first in a handler).
     fn scroll_width(&self) -> Option<i32>;
 
     /// `Element.scrollHeight` — the height of the scrolling area;
     /// companion to [`Self::scroll_width`].
+    /// Reads the last layout
+    /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout) first in a handler).
     fn scroll_height(&self) -> Option<i32>;
 
     /// CSSOM-style read view of the element's inline `TuiStyle`

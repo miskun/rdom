@@ -74,6 +74,9 @@ pub(crate) struct FrameStats {
     pub(crate) subtree_cascades: u32,
     /// Frames (or off-frame passes) that ran layout.
     pub(crate) layouts: u32,
+    /// Frames (or off-frame passes) that ran what follows a layout on a
+    /// layout flush's layout, without laying out (`runtime::layout_flush`).
+    pub(crate) reuses: u32,
     /// Frames (or off-frame passes) that moved the scrolled boxes without
     /// a layout (`Redraw::Scroll`).
     pub(crate) scroll_updates: u32,

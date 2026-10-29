@@ -9,15 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — `rdom-tui`
 
-- **`runtime::layout_flush::flush_layout(dom)`**: bring the layout of a document an `App` runs up to date between frames — every dirty subtree cascaded under the `App`'s sheets, the tree laid out in its last frame's area — so `layout_rect()`, `scroll_top()` and `scroll_height()` read after it reflect the handler's changes. Free when nothing changed; the frame after a flush reuses its layout when nothing changed since. The layout counterpart of `style_flush::flush_style`. (FLUSH-LAYOUT)
+- **`runtime::layout_flush::flush_layout(dom) -> LayoutFlush`**: bring the layout of a document an `App` runs up to date between frames — the DOM-derived state the frame keeps (control seeding, `<select>` selectedness, the scroll-focus marker, validity marks) settled, every dirty subtree cascaded under the `App`'s sheets, the tree laid out in its last frame's area — so `bounding_rect()`, `scroll_height()` and the other geometry readers reflect the handler's changes. It returns what it found: `Current` (nothing changed), `LaidOut`, `Stale` (it cannot before the next frame — before the first, after a resize, a sheet-set change or a change of the color scheme, media preferences or color depth, while a `<style>` sheet waits to be re-parsed) or `Unmanaged` (no `App` runs the document); `is_current()` says whether geometry read now is the tree's. A call with nothing changed lays nothing out, though settling the derived state walks the tree when a sheet reads `:valid` / `:invalid`; the frame after a flush reuses its layout when nothing changed since. The layout counterpart of `style_flush::flush_style`. (FLUSH-LAYOUT)
 
 ### Changed — `rdom-tui`
 
-- **`focus()` scrolls at once, against the current layout**, as HTML's focusing steps do: under an `App` it flushes layout first, so a handler that moves an element and focuses it reveals it where it is now and reads the new `scroll_top()` in the same handler. It scrolled at the `App`'s next layout. Before the first frame, and after a resize or a sheet-set change until the next frame, it still waits for that layout. (FLUSH-LAYOUT)
+- **`focus()` scrolls at once, against the current layout**, as HTML's focusing steps do: under an `App` it flushes layout first, so a handler that moves an element and focuses it reveals it where it is now and reads the new `scroll_top()` in the same handler. It scrolled at the `App`'s next layout. Where the layout cannot be flushed (`LayoutFlush::Stale`) it still waits for that layout. (FLUSH-LAYOUT)
+- **`focus()` and `scroll_into_view()` now do synchronous work a frame did**: a whole-tree layout when the tree changed since the last one (a handler that alternates changes and `focus()` in a loop lays out each time, as a browser's forced layout does), and the derived-state settling — so a popover whose `popover` attribute changed while showing fires its `beforetoggle` / `toggle` inside the call, and a `<select>` whose options changed settles there, where both used to wait for the next frame's prelude. (FLUSH-LAYOUT)
 
 ### Fixed — `rdom-tui`
 
-- **`scroll_into_view()` / `scroll_into_view_with()` work on an element created or moved in the same handler.** They scrolled against the last layout: an element created since had no box and nothing scrolled; one moved since was scrolled to where it had been. They now flush layout first under an `App` (and, before its first frame, scroll after it). (FLUSH-LAYOUT)
+- **`scroll_into_view()` / `scroll_into_view_with()` work on an element created or moved in the same handler.** They scrolled against the last layout: an element created since had no box and nothing scrolled; one moved since was scrolled to where it had been. They now flush layout first under an `App` and, where it cannot be flushed (`LayoutFlush::Stale`), scroll after the next frame's layout. (FLUSH-LAYOUT)
 
 ## [0.6.0] - 2026-10-18
 

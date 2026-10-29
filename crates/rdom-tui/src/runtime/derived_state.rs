@@ -10,8 +10,8 @@
 //!    settle (`select::Selectedness`), and the popovers whose `popover`
 //!    attribute changed state while showing hide (`popover::attribute`);
 //! 3. (the `App`'s `<style>` sheets, between 2 and 4 — not here: they
-//!    change the sheet set, which only the `App` can; [`style_pending`]
-//!    says whether one waits);
+//!    change the sheet set, which only the `App` can;
+//!    `cssom::style_elements::sheet_pending` says whether one waits);
 //! 4. **scroll-focus marker** — `data-rdom-scroll-focus` moves to the
 //!    container the keyboard scrolls, per the last layout;
 //! 5. **validity marks** — the elements whose `:valid` / `:invalid` or a
@@ -20,7 +20,7 @@
 //!
 //! Stages 1–2 also run before each input event (`App::handle_event`).
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use rdom_core::NodeId;
@@ -38,9 +38,6 @@ struct DerivedState {
     control_seeding: ControlSeeding,
     selectedness: Selectedness,
     popover_attributes: PopoverAttributes,
-    /// Set by the `<style>` elements' observer while a sheet waits to be
-    /// re-parsed (`cssom::style_elements`).
-    style_pending: Rc<Cell<bool>>,
     /// The element currently carrying `data-rdom-scroll-focus`.
     scroll_focus_marked: Option<NodeId>,
     validity_marks: FormStateMarks,
@@ -55,14 +52,12 @@ fn shared(dom: &TuiDom) -> Option<Shared> {
 }
 
 /// Install the stages' observers on `dom` and publish their state on it
-/// (`App`'s construction). `style_pending` is the `<style>` elements'
-/// dirty flag.
-pub(crate) fn install(dom: &mut TuiDom, style_pending: Rc<Cell<bool>>) {
+/// (`App`'s construction).
+pub(crate) fn install(dom: &mut TuiDom) {
     let state = DerivedState {
         control_seeding: ControlSeeding::install(dom),
         selectedness: Selectedness::install(dom),
         popover_attributes: PopoverAttributes::install(dom),
-        style_pending,
         scroll_focus_marked: None,
         validity_marks: FormStateMarks::default(),
     };
@@ -88,12 +83,6 @@ pub(crate) fn settle_controls(dom: &mut TuiDom) {
     selectedness.flush(dom);
     crate::runtime::builtins::select::settle_pickers(dom);
     popovers.flush(dom);
-}
-
-/// Whether a `<style>` element's sheet waits to be re-parsed: the sheet
-/// set is stale until the `App`'s next frame.
-pub(crate) fn style_pending(dom: &TuiDom) -> bool {
-    shared(dom).is_some_and(|Shared(s)| s.borrow().style_pending.get())
 }
 
 /// Stage 4: move `data-rdom-scroll-focus` to the scroll container the

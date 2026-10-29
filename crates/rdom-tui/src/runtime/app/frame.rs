@@ -83,8 +83,9 @@ impl<B: Backend> App<B> {
         // their listeners' changes are cascaded in this frame.
         self.report_media_changes();
         let dirty_roots = self.take_dirty_roots();
-        let flushed = self.take_flushed();
-        self.detach_removed();
+        let (flushed, flushed_layout) = self.take_flushed();
+        let detach_restyled = self.detach_removed();
+        let reusable = flushed_layout && !detach_restyled;
         let redraw = self.redraw;
 
         if redraw == Redraw::Clean && dirty_roots.is_empty() {
@@ -108,6 +109,7 @@ impl<B: Backend> App<B> {
                 (animations, now),
                 (redraw, cascaded_viewport),
                 (&dirty_roots, &flushed),
+                reusable,
                 buf.area,
             );
             dom.paint_dom(buf, buf.area);
@@ -189,29 +191,34 @@ impl<B: Backend> App<B> {
     /// since the last frame and forget their before-change styles
     /// (C12G-DETACHED) — before the cascade, so one inserted again is
     /// rendered afresh. The cancel events want a frame to go out in.
-    fn detach_removed(&mut self) {
+    /// Returns whether a computed style went back to the cascade's (no
+    /// record reports it: a layout flush's layout is stale).
+    fn detach_removed(&mut self) -> bool {
         let removed = self.tracker.take_detached();
         if removed.is_empty() {
-            return;
+            return false;
         }
         let running = !self.animations.is_empty();
         let now = self.frame_now();
-        self.animations.detach(&mut self.dom, &removed, now);
+        let restyled = self.animations.detach(&mut self.dom, &removed, now);
         self.redraw.note_if(running, Redraw::Paint);
+        restyled
     }
 
     /// Whether a style flush cascaded subtrees since the last frame
     /// (`runtime::style_flush`, or a layout flush's cascade): the frame
     /// lays out (noted on `redraw`) and runs its transition hook for
     /// them — and lays out after a layout flush that cascaded nothing.
-    fn take_flushed(&mut self) -> Vec<NodeId> {
+    /// Also whether a layout flush laid out since the last frame (the
+    /// frame may reuse that layout, `style_and_layout`).
+    fn take_flushed(&mut self) -> (Vec<NodeId>, bool) {
         let flushed = self.tracker.take_flushed();
-        // A layout flush laid out since: lay out again, for the work a
-        // frame's layout starts (`runtime::layout_flush`).
+        // A layout flush laid out since: run the work a frame's layout
+        // starts (`runtime::layout_flush`).
         let laid_out = crate::runtime::layout_flush::take_flushed(&mut self.dom);
         self.redraw
             .note_if(!flushed.is_empty() || laid_out, Redraw::Layout);
-        flushed
+        (flushed, laid_out)
     }
 
     /// The animations running on `node` and its pseudo-elements at the
@@ -238,8 +245,9 @@ impl<B: Backend> App<B> {
     pub(super) fn cascade_and_layout(&mut self, area: Rect) {
         self.run_prelude(PreludeRun::OffFrame);
         let dirty_roots = self.take_dirty_roots();
-        let flushed = self.take_flushed();
-        self.detach_removed();
+        let (flushed, flushed_layout) = self.take_flushed();
+        let detach_restyled = self.detach_removed();
+        let reusable = flushed_layout && !detach_restyled;
         let redraw = self.redraw.max(Redraw::Scroll);
         let now = self.frame_now();
         let sheets = self.prelude.cascade_order(&self.stylesheets);
@@ -249,6 +257,7 @@ impl<B: Backend> App<B> {
             (&mut self.animations, now),
             (redraw, &mut self.cascaded_viewport),
             (&dirty_roots, &flushed),
+            reusable,
             area,
         );
         self.note_pass(pass, false);
@@ -269,7 +278,8 @@ impl<B: Backend> App<B> {
                 Some(CascadeScope::Subtrees) => stats.subtree_cascades += 1,
                 None => {}
             }
-            stats.layouts += u32::from(pass.laid_out);
+            stats.layouts += u32::from(pass.fresh);
+            stats.reuses += u32::from(pass.laid_out && !pass.fresh);
             stats.scroll_updates += u32::from(pass.scrolled);
             stats.composites += pass.composites;
             stats.paints += u32::from(painted);
@@ -292,7 +302,11 @@ enum CascadeScope {
 #[cfg_attr(not(test), allow(dead_code))]
 struct Pass {
     cascade: Option<CascadeScope>,
+    /// What follows a layout ran: on a fresh layout (`fresh`), or on a
+    /// layout flush's.
     laid_out: bool,
+    /// `layout_dom` (or a scroll update that had to lay out) ran.
+    fresh: bool,
     /// The scrolled boxes were moved without a layout
     /// (`layout_pass::scroll_update`).
     scrolled: bool,
@@ -334,10 +348,10 @@ fn start_layout_transitions(
     animations: &mut AnimationRegistry,
     now: std::time::Instant,
     area: Rect,
-) -> u32 {
+) -> (u32, bool) {
     let roots = crate::render::layout_pass::container_pass::take_restyled(dom);
     if roots.is_empty() {
-        return 0;
+        return (0, false);
     }
     let inputs = crate::runtime::animation::CssInputs { sheets, registry };
     crate::runtime::animation::diff_layout_restyles_in(dom, animations, now, inputs, &roots);
@@ -346,7 +360,7 @@ fn start_layout_transitions(
         // What this layout re-cascades waits for the next frame's hook.
         dom.layout_dom(area);
     }
-    advanced.composites
+    (advanced.composites, advanced.layout)
 }
 
 /// The frame pipeline up to paint, shared by [`App::draw_if_dirty`] and
@@ -372,6 +386,7 @@ fn style_and_layout(
     (animations, now): (&mut AnimationRegistry, std::time::Instant),
     (redraw, cascaded_viewport): (Redraw, &mut Option<Viewport>),
     (dirty_roots, flushed): (&[NodeId], &[NodeId]),
+    reusable: bool,
     area: Rect,
 ) -> Pass {
     // The viewport-percentage units resolve against the terminal (CSS
@@ -454,21 +469,32 @@ fn style_and_layout(
     // the scrolled boxes are moved, not laid out (C15G-SCROLL-NO-RELAYOUT)
     // — unless the update finds it must lay out.
     let mut scrolled = false;
-    // A layout flush laid the tree out as it is (`runtime::layout_flush`):
-    // what follows a layout runs on it, with no second layout — after a
-    // scroll update, which brings it up to the offsets a scroll made
-    // since the flush moved.
-    let reuse = laid_out && !restyled && crate::runtime::layout_flush::is_current_in(dom, area);
+    // A layout flush since the last frame laid the tree out as it is
+    // (`runtime::layout_flush`) when nothing reached what layout reads
+    // since: no record, no cascade, no animation step, no detach reset
+    // (`reusable`), the same area. What follows a layout runs on it, with
+    // no second layout — after a scroll update, which brings it up to the
+    // offsets a scroll since the flush moved. Only after a flush: a frame
+    // never reuses its own layout.
+    let reuse =
+        reusable && laid_out && !restyled && crate::runtime::layout_flush::is_current_in(dom, area);
+    let mut fresh = false;
     if laid_out && !reuse {
         dom.layout_dom(area);
+        fresh = true;
     } else if reuse || redraw == Redraw::Scroll {
         match scroll_update::update(dom, area) {
-            scroll_update::Update::LaidOut => laid_out = true,
+            scroll_update::Update::LaidOut => {
+                laid_out = true;
+                fresh = true;
+            }
             scroll_update::Update::Scrolled | scroll_update::Update::Unmoved => scrolled = true,
         }
     }
     if laid_out || scrolled {
-        composites += start_layout_transitions(dom, (sheets, registry), animations, now, area);
+        let (c, relaid) = start_layout_transitions(dom, (sheets, registry), animations, now, area);
+        composites += c;
+        fresh |= relaid;
         // Against this layout, each correcting for the offsets moved since
         // it (`scrollbar::state::laid_out`), then one relayout for all:
         // CSS Scroll Snap 1 §5.4 — a snap container whose snap target moved
@@ -493,17 +519,24 @@ fn style_and_layout(
         if restepped {
             dom.layout_dom(area);
             laid_out = true;
+            fresh = true;
         } else if resnapped || focused || revealed {
             // Only scroll offsets moved since that layout.
             match scroll_update::update(dom, area) {
-                scroll_update::Update::LaidOut => laid_out = true,
+                scroll_update::Update::LaidOut => {
+                    laid_out = true;
+                    fresh = true;
+                }
                 scroll_update::Update::Scrolled | scroll_update::Update::Unmoved => {
                     scrolled = true;
                 }
             }
         }
         if restepped || resnapped || focused || revealed {
-            composites += start_layout_transitions(dom, (sheets, registry), animations, now, area);
+            let (c, relaid) =
+                start_layout_transitions(dom, (sheets, registry), animations, now, area);
+            composites += c;
+            fresh |= relaid;
         }
         // The animations in skipped contents, as this layout left them,
         // ask for no frames (CSS Containment 2 §4).
@@ -513,6 +546,7 @@ fn style_and_layout(
     Pass {
         cascade,
         laid_out,
+        fresh,
         scrolled,
         composites,
     }

@@ -71,8 +71,8 @@ impl FocusOptions {
 /// lays out the layout is brought up to date first
 /// (`runtime::layout_flush`), so a handler that moved the element before
 /// focusing it reveals it where it is now and reads the scroll it made;
-/// when it cannot be (before the first frame, after a resize) the scroll
-/// waits for the next layout.
+/// when it cannot be (`layout_flush::LayoutFlush::Stale` lists when) the
+/// scroll waits for the next layout.
 pub fn focus_node_with_options(dom: &mut TuiDom, new_focus: Option<NodeId>, options: FocusOptions) {
     let before = dom.focused();
     change_focus(dom, new_focus, None);

@@ -16,9 +16,9 @@
 //!
 //! What a flush does not do, each left to the `App`'s next frame:
 //!
-//! - **layout** — `bounding_rect`, the scroll metrics and the scroll a
-//!   focus change makes read the last layout (layout is a whole-tree pass
-//!   in rdom; the focus scroll waits for the frame, `runtime::focus`);
+//! - **layout** — `bounding_rect` and the scroll metrics read the last
+//!   layout; `runtime::layout_flush` brings it up to date (what a focus's
+//!   scroll does first);
 //! - **transitions and animations** — the change a flush cascades is
 //!   compared with the before-change style at the frame's transition hook
 //!   (CSS Transitions 1 §3), which still holds the last frame's styles, so
@@ -90,6 +90,12 @@ pub(crate) fn published(dom: &TuiDom) -> Option<CascadeInputs> {
         registry: inputs.registry.clone(),
         tracker: Some(inputs.tracker.clone()),
     })
+}
+
+/// The dirty tracker of the `App` running `dom`, or `None` on a document
+/// no `App` runs — without the rest of [`published`]'s inputs.
+pub(crate) fn published_tracker(dom: &TuiDom) -> Option<&DirtyTracker> {
+    dom.document_data::<StyleInputs>().map(|i| &i.tracker)
 }
 
 /// Bring `id`'s computed style up to date (HTML's "update style" before

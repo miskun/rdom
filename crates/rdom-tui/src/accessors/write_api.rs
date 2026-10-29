@@ -209,9 +209,11 @@ pub trait TuiAccessorsMut<'a>: crate::sealed::Sealed {
     /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout)), so
     /// an element created or moved in the same handler is scrolled to
     /// where it is now, and `scroll_top()` read after the call is the
-    /// new offset. Before the `App`'s first frame, and after a resize
-    /// or a sheet-set change until the next one, it is done after the
-    /// next layout instead (DIVERGENCES).
+    /// new offset. Where the layout cannot be brought up to date before
+    /// the next frame
+    /// ([`LayoutFlush::Stale`](crate::runtime::layout_flush::LayoutFlush::Stale)
+    /// lists when) it is done after that frame's layout instead
+    /// (DIVERGENCES).
     fn scroll_into_view_with(&mut self, options: ScrollIntoViewOptions) -> Result<()>;
 
     /// CSSOM-style write handle to the element's inline

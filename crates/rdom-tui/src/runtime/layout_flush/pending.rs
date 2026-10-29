@@ -1,6 +1,6 @@
 //! The scrolls into view that wait for an `App`'s next layout: asked for
-//! when its layout could not be brought up to date (before its first
-//! frame, after a resize or a sheet-set change; `layout_flush`), done
+//! when its layout could not be brought up to date (`LayoutFlush::Stale`
+//! lists when), done
 //! after the frame's layout, in the order they were asked for — a later
 //! one wins on a container both move, as it would done at once.
 
@@ -45,7 +45,7 @@ struct Pending(Vec<Scroll>);
 /// Scroll now, against a current layout — or, on a document an `App`
 /// lays out whose layout cannot be made current, at its next layout.
 pub(crate) fn scroll_now_or_at_layout(dom: &mut TuiDom, scroll: Scroll) {
-    if dom.document_data::<LaidOutByApp>().is_some() && !super::make_current(dom) {
+    if dom.document_data::<LaidOutByApp>().is_some() && !super::flush_layout(dom).is_current() {
         match dom.document_data_mut::<Pending>() {
             Some(p) => p.0.push(scroll),
             None => {
@@ -54,7 +54,19 @@ pub(crate) fn scroll_now_or_at_layout(dom: &mut TuiDom, scroll: Scroll) {
         }
         return;
     }
-    run(dom, scroll);
+    // The flush ran listeners (`derived_state`): one may have moved the
+    // focus on, or removed the element.
+    if still_wanted(dom, scroll) {
+        run(dom, scroll);
+    }
+}
+
+/// Whether `scroll` is still to be done: its element is in the document
+/// and, for a focus's, still has the focus (HTML scrolls the element
+/// focused).
+fn still_wanted(dom: &TuiDom, scroll: Scroll) -> bool {
+    let id = scroll.target();
+    dom.contains(id) && (!matches!(scroll, Scroll::Focus(_)) || dom.focused() == Some(id))
 }
 
 /// After a layout: do the scrolls waiting for it. Whether a scroll
@@ -65,15 +77,10 @@ pub(crate) fn service(dom: &mut TuiDom) -> bool {
     };
     let mut moved = false;
     for scroll in scrolls {
+        if !still_wanted(dom, scroll) {
+            continue;
+        }
         let id = scroll.target();
-        if !dom.contains(id) {
-            continue;
-        }
-        if let Scroll::Focus(_) = scroll
-            && dom.focused() != Some(id)
-        {
-            continue;
-        }
         let before = offsets(dom, id);
         run(dom, scroll);
         moved |= offsets(dom, id) != before;

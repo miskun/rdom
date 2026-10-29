@@ -102,10 +102,9 @@ impl FramePrelude {
     /// the derived-state stages it publishes on `dom`). Starts touched, so
     /// the first frame runs every check.
     pub(super) fn install(dom: &mut TuiDom) -> Self {
-        let style_elements = StyleElements::install(dom);
-        derived_state::install(dom, style_elements.pending_flag());
+        derived_state::install(dom);
         Self {
-            style_elements,
+            style_elements: StyleElements::install(dom),
             registrations: std::rc::Rc::new(crate::style::Stylesheet::bare()),
             registry: std::rc::Rc::default(),
             caret_blink: CaretBlink::new(None),

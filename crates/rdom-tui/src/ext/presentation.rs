@@ -360,11 +360,15 @@ impl TuiExt {
     /// styles kept for the cascade to reuse or replace; otherwise they go
     /// too, so an insertion styles it from scratch (and the cascade notes
     /// what its styles need, as `calc-size()`'s second layout pass).
-    pub(crate) fn forget_rendering(&mut self, connected: bool) {
+    /// Returns whether a connected element's computed style went back to
+    /// the cascade's — a change no mutation record reports.
+    pub(crate) fn forget_rendering(&mut self, connected: bool) -> bool {
+        let mut restyled = false;
         if connected {
             for slot in [StyleSlot::Host, StyleSlot::Before, StyleSlot::After] {
                 if let Some(base) = self.presentation_for(slot).and_then(|p| p.base.clone()) {
                     self.put_computed(slot, Some(base));
+                    restyled = true;
                 }
             }
         } else {
@@ -380,6 +384,7 @@ impl TuiExt {
             p.before_prev = None;
             p.after_prev = None;
         });
+        restyled
     }
 
     fn put_computed(&mut self, slot: StyleSlot, style: Option<Rc<ComputedStyle>>) {

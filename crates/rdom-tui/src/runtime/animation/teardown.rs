@@ -24,11 +24,13 @@ impl AnimationRegistry {
     /// each removed subtree still in the arena, and forget its
     /// before-change styles and composited values. Run before the
     /// frame's cascade, so a subtree inserted again in the same task is
-    /// diffed as newly rendered.
-    pub(crate) fn detach(&mut self, dom: &mut Dom<TuiExt>, roots: &[NodeId], now: Instant) {
+    /// diffed as newly rendered. Returns whether a connected element's
+    /// computed style went back to the cascade's (the frame then lays out:
+    /// no record reports it).
+    pub(crate) fn detach(&mut self, dom: &mut Dom<TuiExt>, roots: &[NodeId], now: Instant) -> bool {
         let removed: HashSet<NodeId> = roots.iter().copied().filter(|&r| dom.contains(r)).collect();
         if removed.is_empty() {
-            return;
+            return false;
         }
         // One climb per running element against every removed root at
         // once: O(entries × depth), whatever the number of roots (a sort
@@ -49,12 +51,14 @@ impl AnimationRegistry {
             }
         }
         let mut forgotten = HashSet::with_capacity(removed.len());
+        let mut restyled = false;
         for &root in roots {
             if removed.contains(&root) && forgotten.insert(root) {
                 let connected = dom.node(root).is_connected();
-                forget_subtree(dom, root, connected);
+                restyled |= forget_subtree(dom, root, connected);
             }
         }
+        restyled
     }
 
     /// Cancel the transitions and animations of every element that is no
@@ -102,16 +106,19 @@ fn subject(dom: &Dom<TuiExt>, node: NodeId) -> NodeId {
 }
 
 /// Forget the rendering state of the elements of the box tree under
-/// `root` (`TuiExt::forget_rendering`).
-fn forget_subtree(dom: &mut Dom<TuiExt>, root: NodeId, connected: bool) {
+/// `root` (`TuiExt::forget_rendering`); whether a computed style went
+/// back to the cascade's.
+fn forget_subtree(dom: &mut Dom<TuiExt>, root: NodeId, connected: bool) -> bool {
     let mut stack = vec![root];
+    let mut restyled = false;
     while let Some(id) = stack.pop() {
         if dom.node(id).node_type() != NodeType::Element {
             continue;
         }
         if let Some(ext) = dom.node_mut(id).ext_mut() {
-            ext.forget_rendering(connected);
+            restyled |= ext.forget_rendering(connected);
         }
         stack.extend(crate::render::box_tree::children(dom, id));
     }
+    restyled
 }

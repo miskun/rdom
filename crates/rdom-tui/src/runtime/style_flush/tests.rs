@@ -72,6 +72,48 @@ fn focus_flushes_the_style_of_a_just_shown_element() {
     assert_eq!(p.app.dom().focused(), None, "a just-hidden input");
 }
 
+/// `flush_style` cascades only the dirty subtrees holding the element —
+/// the panel and its input, not the unrelated section that is dirty too —
+/// and leaves the rest for the frame; with nothing dirty above the
+/// element it matches nothing. (`match_probe` counts rule-matching
+/// passes: one per element and pseudo-element it styles.)
+#[test]
+fn flush_style_cascades_only_the_dirty_subtrees_above_the_element() {
+    let mut p = page(".panel.open { color: blue } .x { color: red }");
+    // What cascading the panel's subtree costs: a frame with only it
+    // dirty.
+    p.app
+        .dom_mut()
+        .set_attribute(p.panel, "class", "panel open")
+        .unwrap();
+    match_probe::take();
+    p.app.draw_if_dirty().unwrap();
+    let panel_cost = match_probe::take();
+    p.app
+        .dom_mut()
+        .set_attribute(p.panel, "class", "panel")
+        .unwrap();
+    p.app.draw_if_dirty().unwrap();
+    // Both dirty; the flush cascades the panel's subtree only.
+    p.app
+        .dom_mut()
+        .set_attribute(p.other, "class", "x")
+        .unwrap();
+    p.app
+        .dom_mut()
+        .set_attribute(p.panel, "class", "panel open")
+        .unwrap();
+    match_probe::take();
+    assert!(super::flush_style(p.app.dom_mut(), p.input));
+    assert_eq!(match_probe::take(), panel_cost, "the panel's subtree only");
+    assert!(p.app.dirty_roots_snapshot().contains(&p.other));
+    p.app.draw_if_dirty().unwrap();
+    match_probe::take();
+    // Nothing dirty above the element: no cascade at all.
+    assert!(!super::flush_style(p.app.dom_mut(), p.input));
+    assert_eq!(match_probe::take(), 0, "a clean element flushes nothing");
+}
+
 /// `focus()` decides focusability from a style flush of the dirty
 /// subtrees holding the element, then — to scroll against the current
 /// layout — lays out, which cascades every dirty subtree

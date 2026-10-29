@@ -20,37 +20,108 @@
 //! reads, the same area), so a flush adds no layout to a frame that
 //! needed one anyway.
 //!
-//! What a flush cannot bring up to date, so it declines and the scroll a
-//! caller asked for waits for the `App`'s next layout (`pending`):
+//! What a flush cannot bring up to date, so it says so
+//! ([`LayoutFlush::Stale`]) and the scroll a caller asked for waits for
+//! the `App`'s next layout (`pending`): before the `App`'s first frame;
+//! after a resize or a change of its sheet set (`invalidate`); after a
+//! change of the document's environment — its color scheme, media
+//! preferences or color depth, which the frame restyles the whole tree
+//! for with no mutation the dirty tracker sees; and while a `<style>`
+//! sheet waits to be re-parsed (`cssom::style_elements::sheet_pending`). A
+//! terminal resized with no resize event is laid out in the old area
+//! until the frame (whose `Terminal::autoresize` sees it).
 //!
-//! - **before the `App`'s first frame** — there is no layout yet;
-//! - **after a resize or a change of the sheet set, and while a `<style>`
-//!   sheet waits to be re-parsed** — the area or the sheets the record
-//!   holds are stale (`invalidate`, `derived_state::style_pending`), and
-//!   the frame decides what to restyle.
+//! The frame's other pre-style work is not a flush's: `matchMedia` lists
+//! report their flips only at a frame (a flip needs an environment change
+//! or a resize, where a flush is stale), and the animations of the
+//! elements removed since are cancelled at the frame, which lays out
+//! again when that resets a computed style (`app::frame`). Changes made
+//! around the DOM's mutation API — a direct `TuiExt` write, signalled
+//! with `request_redraw` — are not seen by a flush; the frame restyles
+//! for them.
 //!
-//! Not flushed: a whole-tree restyle a colour-scheme change asks for.
 //! Readers that borrow the document — `scroll_top()`, `layout_rect()` —
 //! read the last layout; call [`flush_layout`] first to bring it up to
-//! date. On a document no `App` runs nothing is recorded and a flush
-//! does nothing: the caller cascades and lays it out.
+//! date. On a document no `App` runs nothing is recorded and a flush does
+//! nothing ([`LayoutFlush::Unmanaged`]): the caller cascades and lays it
+//! out.
 
 pub(crate) mod pending;
+
+use rdom_style::color::{ColorDepth, ColorScheme};
+use rdom_style::conditional::MediaPreferences;
 
 use crate::TuiDom;
 use crate::render::{LayoutExt, Rect};
 use crate::runtime::derived_state;
-use crate::style::Stylesheet;
 use crate::style::cascade::cascade_subtrees_all_with;
+use crate::style::dirty_tracker::DirtyTracker;
+use crate::style::{CascadeExt, Stylesheet};
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod waiting_tests;
 
-/// The `App`'s last layout of the document: the area, and the tracker's
-/// record count when it was made (document data).
+/// What [`flush_layout`] found: whether geometry read after it —
+/// `layout_rect()`, `scroll_top()`, `bounding_rect()` — is the tree's as it
+/// is now.
+///
+/// `#[non_exhaustive]`: a later reason a layout cannot be brought up to
+/// date may be told apart; [`LayoutFlush::is_current`] is the question
+/// most callers ask.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LayoutFlush {
+    /// The layout was up to date: nothing it reads changed since it was
+    /// made.
+    Current,
+    /// The layout was brought up to date.
+    LaidOut,
+    /// The layout could not be brought up to date before the `App`'s next
+    /// frame — before its first, after a resize, a sheet-set change or a
+    /// change of the document's environment (its color scheme, media
+    /// preferences or color depth), while a `<style>` sheet waits to be
+    /// re-parsed: geometry read now is the last layout's.
+    Stale,
+    /// No `App` runs the document: its caller cascades and lays it out
+    /// (`CascadeExt::cascade`, `LayoutExt::layout_dom`).
+    Unmanaged,
+}
+
+impl LayoutFlush {
+    /// Whether the layout is the tree's as it is now ([`Self::Current`]
+    /// or [`Self::LaidOut`]).
+    pub fn is_current(self) -> bool {
+        matches!(self, LayoutFlush::Current | LayoutFlush::LaidOut)
+    }
+}
+
+/// The `App`'s last layout of the document: the area, the tracker's
+/// record count and the document's environment when it was made
+/// (document data).
 struct LaidOut {
     area: Rect,
     records: u64,
+    environment: Environment,
+}
+
+/// What a cascade reads of the document's environment besides its tree
+/// and sheets: a change restyles the whole tree at the `App`'s next frame,
+/// with no mutation the dirty tracker sees.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Environment {
+    scheme: ColorScheme,
+    media: MediaPreferences,
+    depth: ColorDepth,
+}
+
+fn environment(dom: &TuiDom) -> Environment {
+    Environment {
+        scheme: dom.color_scheme(),
+        media: dom.media_preferences(),
+        depth: crate::style::cascade::document_color_depth(dom),
+    }
 }
 
 /// A flush laid the document out since the frame last took this
@@ -63,7 +134,12 @@ pub(crate) fn note_laid_out(dom: &mut TuiDom, area: Rect) {
     let Some(records) = records_seen(dom) else {
         return;
     };
-    dom.set_document_data(LaidOut { area, records });
+    let environment = environment(dom);
+    dom.set_document_data(LaidOut {
+        area,
+        records,
+        environment,
+    });
 }
 
 /// Forget the recorded layout: its area or its sheets are stale (a
@@ -78,11 +154,11 @@ pub(crate) fn take_flushed(dom: &mut TuiDom) -> bool {
     dom.remove_document_data::<FlushedLayout>().is_some()
 }
 
-/// Whether the recorded layout matches the tree: one was made, and no
-/// mutation record has arrived since.
+/// Whether the recorded layout matches the tree: one was made, no
+/// mutation record has arrived since, and the environment is the same.
 fn is_current(dom: &TuiDom) -> bool {
     match (dom.document_data::<LaidOut>(), records_seen(dom)) {
-        (Some(laid), Some(now)) => laid.records == now,
+        (Some(laid), Some(now)) => laid.records == now && laid.environment == environment(dom),
         _ => false,
     }
 }
@@ -98,45 +174,48 @@ pub(crate) fn is_current_in(dom: &TuiDom, area: Rect) -> bool {
 /// The record count of the dirty tracker the `App` running `dom`
 /// published, or `None` on a document no `App` runs.
 fn records_seen(dom: &TuiDom) -> Option<u64> {
-    crate::runtime::style_flush::published(dom)?
-        .tracker
-        .map(|t| t.records_seen())
+    crate::runtime::style_flush::published_tracker(dom).map(DirtyTracker::records_seen)
 }
 
 /// Bring the layout of the document an `App` runs up to date (CSSOM
-/// View's "update the layout"): cascade every dirty subtree under the
-/// `App`'s sheets and lay the tree out in the area of its last frame, so
-/// geometry read after it — `layout_rect()`, `scroll_top()`,
-/// `scroll_height()` — reflects every change made since. Returns whether
-/// it laid out: `false` when the layout is current already, on a
-/// document no `App` runs, and when it cannot be brought up to date
-/// before the next frame (before the first, after a resize or a sheet-set
-/// change; module doc).
+/// View's "update the layout"), so geometry read after it —
+/// `layout_rect()`, `scroll_top()`, `bounding_rect()` — reflects every
+/// change made since: bring the DOM-derived state up to date, cascade
+/// every dirty subtree under the `App`'s sheets and lay the tree out in
+/// the area of its last frame. Returns what it found ([`LayoutFlush`]):
+/// [`is_current`](LayoutFlush::is_current) says whether the geometry is
+/// the tree's as it is now.
 ///
 /// `focus()` and `scroll_into_view()` call it before they scroll. Each
-/// call brings the derived state up to date (a whole-tree walk when a
-/// sheet reads `:valid` / `:invalid`); each flush that lays out is a
-/// whole-tree layout; the next frame lays out
-/// again only if something changed since (it reuses the flush's
-/// layout otherwise): interleaving changes and flushes in a loop lays
-/// out every time, as a browser's forced layout does.
-pub fn flush_layout(dom: &mut TuiDom) -> bool {
-    let Some(area) = dom.document_data::<LaidOut>().map(|l| l.area) else {
-        return false;
-    };
-    if derived_state::style_pending(dom) {
-        return false;
-    }
+/// call brings the derived state up to date — seeding the controls
+/// inserted since, settling `<select>`s and popovers (their listeners run
+/// in it), and a whole-tree walk when a sheet reads `:valid` /
+/// `:invalid` — and each flush that lays out is a whole-tree layout; the
+/// next frame lays out again only if something changed since (it reuses
+/// the flush's layout otherwise). Interleaving changes and flushes in a
+/// loop lays out every time, as a browser's forced layout does.
+pub fn flush_layout(dom: &mut TuiDom) -> LayoutFlush {
     let Some(inputs) = crate::runtime::style_flush::published(dom) else {
-        return false;
+        return LayoutFlush::Unmanaged;
     };
     let Some(tracker) = inputs.tracker else {
-        return false;
+        return LayoutFlush::Unmanaged;
     };
-    let sheets: Vec<&Stylesheet> = inputs.sheets.iter().map(|s| &**s).collect();
-    // The derived state first, as the frame's prelude: what its stages
-    // write is cascaded here, and the frame finds it current.
+    let Some((area, recorded)) = dom
+        .document_data::<LaidOut>()
+        .map(|l| (l.area, l.environment))
+    else {
+        return LayoutFlush::Stale;
+    };
+    // The derived state first, in the frame prelude's order: what its
+    // stages write is cascaded here, and the frame finds it current.
+    // Stages 1–2 run listeners; the sheets and environment are checked
+    // after them, where the frame re-parses its `<style>` sheets.
     derived_state::settle_controls(dom);
+    if crate::cssom::style_elements::sheet_pending(dom) || recorded != environment(dom) {
+        return LayoutFlush::Stale;
+    }
+    let sheets: Vec<&Stylesheet> = inputs.sheets.iter().map(|s| &**s).collect();
     derived_state::mark_scroll_focus(dom);
     derived_state::mark_validity(dom, &tracker, sheets.iter().copied());
     let mut roots = tracker.take_roots();
@@ -146,7 +225,7 @@ pub fn flush_layout(dom: &mut TuiDom) -> bool {
     roots.sort_unstable();
     roots.dedup();
     if roots.is_empty() && is_current(dom) {
-        return false;
+        return LayoutFlush::Current;
     }
     if !roots.is_empty() {
         let cascaded = cascade_subtrees_all_with(dom, &sheets, Some(inputs.registry), &roots);
@@ -155,13 +234,5 @@ pub fn flush_layout(dom: &mut TuiDom) -> bool {
     dom.layout_dom(area);
     note_laid_out(dom, area);
     dom.set_document_data(FlushedLayout);
-    true
-}
-
-/// Make the layout current for a scroll an `App`'s document asks for:
-/// `true` when it is (current already, or flushed), `false` when the
-/// scroll must wait for the next frame.
-pub(crate) fn make_current(dom: &mut TuiDom) -> bool {
-    flush_layout(dom);
-    !derived_state::style_pending(dom) && is_current(dom)
+    LayoutFlush::LaidOut
 }

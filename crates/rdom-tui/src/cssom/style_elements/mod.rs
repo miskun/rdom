@@ -81,6 +81,19 @@ impl std::fmt::Debug for StyleElements {
     }
 }
 
+/// Document data: the observer's flag, set while a sheet waits to be
+/// re-parsed (read by [`sheet_pending`]).
+struct PendingSheets(Rc<Cell<bool>>);
+
+/// Whether a `<style>` element's sheet waits to be re-parsed at the
+/// `App`'s next frame — until then the sheet set is stale (a layout
+/// flush declines, `runtime::layout_flush`). `false` on a document no
+/// `App` runs.
+pub(crate) fn sheet_pending(dom: &TuiDom) -> bool {
+    dom.document_data::<PendingSheets>()
+        .is_some_and(|p| p.0.get())
+}
+
 impl StyleElements {
     /// Install the observer on `dom`. The first [`flush`](Self::flush)
     /// parses the `<style>` elements already in the tree.
@@ -89,6 +102,7 @@ impl StyleElements {
         dom.add_mutation_observer(Box::new(StyleObserver {
             dirty: dirty.clone(),
         }));
+        dom.set_document_data(PendingSheets(dirty.clone()));
         Self {
             dirty,
             entries: Vec::new(),
@@ -102,12 +116,6 @@ impl StyleElements {
         self.loader = loader;
         self.entries.clear();
         self.dirty.set(true);
-    }
-
-    /// The flag the observer sets while a sheet waits to be re-parsed
-    /// (`runtime::derived_state::style_pending` reads it).
-    pub(crate) fn pending_flag(&self) -> Rc<Cell<bool>> {
-        self.dirty.clone()
     }
 
     /// Bring the sheets up to date with the tree. Returns `true` when

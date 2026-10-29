@@ -10,7 +10,7 @@ use crossterm::event::{
 };
 use rdom_core::{ListenerOptions, NodeId};
 
-use super::flush_layout;
+use super::{LayoutFlush, flush_layout};
 use crate::prelude::*;
 
 fn row(dom: &mut TuiDom, text: &str) -> NodeId {
@@ -200,30 +200,91 @@ fn flush_layout_brings_the_layout_up_to_date_once() {
     let (mut app, s, _, _) = scroller_app(2);
     let dom = app.dom_mut();
     dom.node_mut(s).set_width(9u16);
-    assert!(flush_layout(dom), "a change was pending");
+    assert_eq!(
+        flush_layout(dom),
+        LayoutFlush::LaidOut,
+        "a change was pending"
+    );
     assert_eq!(dom.node(s).layout_rect().map(|r| r.width), Some(9));
-    assert!(!flush_layout(dom), "nothing changed since");
-}
-
-/// Up to date already: nothing to do.
-#[test]
-fn flush_layout_after_a_frame_does_nothing() {
-    let (mut app, _, _, _) = scroller_app(2);
-    assert!(!flush_layout(app.dom_mut()));
-}
-
-/// A document no `App` runs has no viewport or sheets to lay out with:
-/// the caller cascades and lays it out.
-#[test]
-fn flush_layout_on_a_bare_document_does_nothing() {
-    let mut dom = TuiDom::new();
-    let root = dom.root();
-    let d = row(&mut dom, "x");
-    dom.append_child(root, d).unwrap();
-    assert!(!flush_layout(&mut dom));
+    assert_eq!(
+        flush_layout(dom),
+        LayoutFlush::Current,
+        "nothing changed since"
+    );
 }
 
 // ---- the frame after a flush -----------------------------------------------
+
+/// A handler moves an element whose width is transitioning — a removal is
+/// a disconnection, so the frame cancels the transition and renders it
+/// afresh at its base width (CSS Transitions 1 §3) — then flushes. The
+/// flush laid it out at its transitioning width; the frame's cancel moves
+/// it with no record, so the frame lays out again rather than reuse.
+#[test]
+fn the_frame_lays_out_an_element_whose_transition_a_move_cancelled() {
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    rdom_parser::parse_into(
+        &mut dom,
+        r#"<div id="l"><div id="a">a</div><div id="e" class="e">e</div></div>"#,
+        root,
+    )
+    .unwrap();
+    let list = dom.get_element_by_id("l").unwrap();
+    let a = dom.get_element_by_id("a").unwrap();
+    let e = dom.get_element_by_id("e").unwrap();
+    let parsed =
+        rdom_css::parse(".e { width: 4; transition: width 10s linear } .e.wide { width: 24 }");
+    assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+    let terminal = Terminal::new(TestBackend::new(30, 6)).unwrap();
+    let mut app = App::with_backend(dom, parsed.stylesheet, terminal).unwrap();
+    app.advance(0).unwrap();
+    app.dom_mut().set_attribute(e, "class", "e wide").unwrap();
+    app.advance(0).unwrap();
+    app.advance(1000).unwrap();
+    let mid = app.dom().node(e).layout_rect().unwrap().width;
+    assert!(mid < 24, "transitioning: {mid}");
+    // The handler: move `e` above `a`, then flush.
+    let dom = app.dom_mut();
+    dom.insert_before(list, e, Some(a)).unwrap();
+    assert_eq!(flush_layout(dom), LayoutFlush::LaidOut);
+    app.draw_if_dirty().unwrap();
+    assert!(app.get_animations(e).is_empty(), "the move cancelled it");
+    assert_eq!(
+        app.dom().node(e).layout_rect().map(|r| r.width),
+        Some(24),
+        "laid out at its base width"
+    );
+}
+
+/// HTML's focusing steps scroll the element focused. The flush a focus
+/// makes can run a listener that moves the focus on (a popover's
+/// `beforetoggle`); its own focus scrolls, and the outer one, whose
+/// element lost the focus, does not undo it.
+#[test]
+fn a_focus_a_flush_listener_moved_on_is_not_scrolled() {
+    let (mut app, s, rows, _) = scroller_app(8);
+    for r in &rows {
+        app.dom_mut().set_attribute(*r, "tabindex", "0").unwrap();
+    }
+    let p = app.dom_mut().create_element("div");
+    app.dom_mut().set_attribute(p, "popover", "").unwrap();
+    let root = app.dom().root();
+    app.dom_mut().append_child(root, p).unwrap();
+    app.draw_if_dirty().unwrap();
+    crate::runtime::builtins::popover::show_popover(app.dom_mut(), p).unwrap();
+    app.draw_if_dirty().unwrap();
+    let first = rows[0];
+    app.dom_mut()
+        .add_event_listener(p, "beforetoggle", ListenerOptions::default(), move |ctx| {
+            ctx.dom.node_mut(first).focus();
+        })
+        .unwrap();
+    app.dom_mut().set_attribute(p, "popover", "manual").unwrap();
+    app.dom_mut().node_mut(rows[6]).focus();
+    assert_eq!(app.dom().focused(), Some(rows[0]), "the listener's focus");
+    assert_eq!(app.dom().node(s).scroll_top(), Some(0), "r0 stays in view");
+}
 
 /// The frame after a flush runs what follows a layout — the focus fixup,
 /// re-snaps, layout transitions — but does not lay the tree out again
@@ -234,13 +295,14 @@ fn the_frame_after_a_flush_reuses_its_layout() {
     let (mut app, s, _, _) = scroller_app(2);
     app.take_frame_stats();
     app.dom_mut().node_mut(s).set_width(9u16);
-    assert!(flush_layout(app.dom_mut()));
+    assert_eq!(flush_layout(app.dom_mut()), LayoutFlush::LaidOut);
     ROUNDS.with(|r| r.set(0));
     app.draw_if_dirty().unwrap();
     assert_eq!(ROUNDS.with(std::cell::Cell::get), 0, "no second layout");
+    let stats = app.take_frame_stats();
     assert_eq!(
-        app.take_frame_stats().layouts,
-        1,
+        (stats.layouts, stats.reuses),
+        (0, 1),
         "the post-layout work ran"
     );
 }
@@ -268,7 +330,7 @@ fn the_frame_moves_the_boxes_a_scroll_after_a_flush_moved() {
 fn the_frame_lays_out_a_change_made_after_a_flush() {
     let (mut app, s, _, _) = scroller_app(2);
     app.dom_mut().node_mut(s).set_width(9u16);
-    assert!(flush_layout(app.dom_mut()));
+    assert_eq!(flush_layout(app.dom_mut()), LayoutFlush::LaidOut);
     app.dom_mut().node_mut(s).set_width(12u16);
     app.draw_if_dirty().unwrap();
     assert_eq!(app.dom().node(s).layout_rect().map(|r| r.width), Some(12));
@@ -339,7 +401,7 @@ fn a_validity_change_is_laid_out_by_the_flush() {
         Some(1)
     );
     app.dom_mut().node_mut(input).set_value("").unwrap();
-    assert!(flush_layout(app.dom_mut()));
+    assert_eq!(flush_layout(app.dom_mut()), LayoutFlush::LaidOut);
     assert_eq!(
         app.dom().node(input).layout_rect().map(|r| r.height),
         Some(3)
@@ -360,7 +422,7 @@ fn an_inserted_control_is_seeded_by_the_flush() {
     let input = dom.create_element("input");
     dom.set_attribute(input, "value", "hello").unwrap();
     dom.append_child(s, input).unwrap();
-    assert!(flush_layout(dom));
+    assert_eq!(flush_layout(dom), LayoutFlush::LaidOut);
     assert_eq!(dom.node(input).value().as_deref(), Some("hello"));
     ROUNDS.with(|r| r.set(0));
     app.draw_if_dirty().unwrap();
@@ -430,7 +492,7 @@ fn a_flushed_layout_still_resnaps_in_the_frame() {
     let extra = dom.create_element("div");
     dom.set_attribute(extra, "class", "i").unwrap();
     dom.insert_before(s, extra, Some(items[0])).unwrap();
-    assert!(flush_layout(dom));
+    assert_eq!(flush_layout(dom), LayoutFlush::LaidOut);
     app.advance(16).unwrap();
     assert_eq!(app.dom().node(s).scroll_top(), Some(9));
 }
@@ -455,7 +517,7 @@ fn a_container_flip_in_a_flushed_layout_starts_its_transition() {
     let mut app = App::with_backend(dom, parsed.stylesheet, terminal).unwrap();
     app.draw_if_dirty().unwrap();
     app.dom_mut().node_mut(card).set_width(32u16);
-    assert!(flush_layout(app.dom_mut()));
+    assert_eq!(flush_layout(app.dom_mut()), LayoutFlush::LaidOut);
     app.advance(16).unwrap();
     assert_eq!(app.get_animations(t).len(), 1);
 }
