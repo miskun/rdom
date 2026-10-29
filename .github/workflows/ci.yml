@@ -33,7 +33,9 @@ jobs:
       # examples are golden-compared by its paint snapshot tests, so
       # visible regressions to the UA chrome are caught there.
       - run: cargo build --workspace --all-targets --locked
-      - run: cargo test --workspace --locked
+      # `--no-fail-fast`: one crate's failing test binary must not hide
+      # every other crate's results on that runner.
+      - run: cargo test --workspace --locked --no-fail-fast
 
   clippy:
     name: Clippy

@@ -223,7 +223,7 @@ cargo run -p rdom-showcase --example acid -- 1
 
 `rdom-tui` must not depend on `rdom-showcase`, not even as a dev-dependency: the substrate never builds against its consumer, and the published tarball ships its own examples and tests.
 
-CI (`.github/workflows/ci.yml`) runs build + test on `[ubuntu-latest, macos-latest, windows-latest]` and clippy, fmt and rustdoc on `ubuntu-latest`, for every push and PR against `main`. The toolchain is pinned to an exact version in `rust-toolchain.toml`; CI reads that file, so local dev and CI use the same `rustc` / `rustfmt` / `clippy`. Bump it in its own commit after running the full gate.
+CI (`.github/workflows/ci.yml`) runs build + test on `[ubuntu-latest, macos-latest, windows-latest]` and clippy, fmt and rustdoc on `ubuntu-latest`, for every push and PR against `main`; the test job runs `--no-fail-fast`, so one crate's failing test binary cannot hide every other crate's results on that runner (that is how a Windows-only stack overflow in `rdom-core` masked the rest for three weeks). A test that runs on a deliberately small thread stack sizes it from a real stack — Windows' 1 MiB main thread — not from what a macOS or Linux debug build happens to need: Windows debug frames are larger. The toolchain is pinned to an exact version in `rust-toolchain.toml`; CI reads that file, so local dev and CI use the same `rustc` / `rustfmt` / `clippy`. Bump it in its own commit after running the full gate.
 
 If a command cannot run because dependencies or the environment are wrong, say that clearly in the final response — do not commit.
 

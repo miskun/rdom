@@ -5,17 +5,29 @@
 //! [`MAX_SELECTOR_SIZE`] simple selectors — `& &` would double it at
 //! every level. Past either the selector is invalid (a forgiving
 //! `:is()` drops the argument), and nothing recurses past the cap: each
-//! deep test runs on a 256 KiB thread stack.
+//! deep test runs on a 1 MiB thread stack, the smallest main-thread stack
+//! rdom runs on (Windows'), where an uncapped parse of [`DEEP`] levels
+//! would need hundreds of megabytes.
+//!
+//! The budget is the real stack, not a tight one: parsing to the cap is
+//! bounded but its frames are a build's, not the parser's — measured on
+//! macOS (aarch64) at about 5.3 KiB a level in a debug build (6.8 KiB for
+//! `:nth-child(… of S)`), 1 KiB in a release build: 195–227 KiB at the
+//! cap in debug, 33 KiB in release. A Windows debug build's frames are
+//! larger still; a 256 KiB budget overflowed there.
 
 use super::{MAX_SELECTOR_NESTING, MAX_SELECTOR_SIZE, SelectorList, parse, parse_nested};
 
 /// Far past the caps.
 const DEEP: usize = 100_000;
 
-/// Run `f` on a thread with a 256 KiB stack.
+/// The smallest main-thread stack rdom runs on: Windows' 1 MiB.
+const MAIN_STACK: usize = 1024 * 1024;
+
+/// Run `f` on a thread with a [`MAIN_STACK`] stack.
 fn on_small_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
     std::thread::Builder::new()
-        .stack_size(256 * 1024)
+        .stack_size(MAIN_STACK)
         .spawn(f)
         .expect("spawn")
         .join()
@@ -49,11 +61,20 @@ fn forgiving_arguments_past_the_cap_are_dropped() {
     );
 }
 
-/// To the cap itself a selector parses; one more level does not.
+/// To the cap itself a selector parses — within the same stack, the
+/// deepest legal selector of each nesting function; one more level does
+/// not.
 #[test]
 fn nesting_to_the_cap_parses() {
-    assert!(parse(&nested(":not(", MAX_SELECTOR_NESTING, "a")).is_ok());
-    assert!(parse(&nested(":not(", MAX_SELECTOR_NESTING + 1, "a")).is_err());
+    for function in [":not(", ":is(", ":where(", ":nth-child(1 of "] {
+        let at_cap = nested(function, MAX_SELECTOR_NESTING, "a");
+        let past = nested(function, MAX_SELECTOR_NESTING + 1, "a");
+        let (ok, err) = on_small_stack(move || (parse(&at_cap).is_ok(), parse(&past).is_err()));
+        assert!(ok, "{function} to the cap");
+        if function != ":is(" && function != ":where(" {
+            assert!(err, "{function} past the cap");
+        }
+    }
 }
 
 /// CSS Nesting 1 §2: `& &` nested rule after nested rule doubles the
