@@ -15,8 +15,9 @@ use super::{PopoverState, is_showing};
 use crate::TuiDom;
 use crate::ext::TuiExt;
 
-/// The popovers whose attribute changed state while showing.
-#[derive(Debug, Default)]
+/// The popovers whose attribute changed state while showing. A clone
+/// shares the list.
+#[derive(Debug, Default, Clone)]
 pub(crate) struct PopoverAttributes {
     pending: Rc<RefCell<Vec<NodeId>>>,
 }

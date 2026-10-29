@@ -6,12 +6,14 @@
 //!
 //! An [`App`](crate::App) records each layout it makes on its document:
 //! the area it laid out in and how many mutation records its dirty
-//! tracker had seen (`note_laid_out`). Between frames the layout is
-//! current while no record has arrived since. [`flush_layout`] brings a
-//! stale one up to date as the frame would: it cascades every dirty
-//! subtree under the sheets the `App` published (`runtime::style_flush`),
-//! noting them for the frame's transition hook, and lays the whole tree
-//! out in the recorded area. The frame after a flush runs everything a
+//! tracker had seen (`note_laid_out`). [`flush_layout`] brings it up to
+//! date as the frame would: first the DOM-derived state the frame's
+//! prelude keeps current — control seeding, `<select>` selectedness, the
+//! scroll-focus marker, the validity marks (`runtime::derived_state`) —
+//! then, when a record arrived since or a subtree is dirty, it cascades
+//! every dirty subtree under the sheets the `App` published
+//! (`runtime::style_flush`), noting them for the frame's transition hook,
+//! and lays the whole tree out in the recorded area. The frame after a flush runs everything a
 //! layout starts — re-snaps, layout transitions, the focus fixup, scroll
 //! timelines — and reuses the flush's layout when nothing changed since
 //! (no record, no restyle of its own, no animation moving what layout
@@ -22,12 +24,12 @@
 //! caller asked for waits for the `App`'s next layout (`pending`):
 //!
 //! - **before the `App`'s first frame** — there is no layout yet;
-//! - **after a resize or a change of the sheet set** — the area or the
-//!   sheets the record holds are stale (`invalidate`), and the frame
-//!   decides what to restyle.
+//! - **after a resize or a change of the sheet set, and while a `<style>`
+//!   sheet waits to be re-parsed** — the area or the sheets the record
+//!   holds are stale (`invalidate`, `derived_state::style_pending`), and
+//!   the frame decides what to restyle.
 //!
-//! Not flushed, as with a style flush: `<style>` text edited since the
-//! last frame, and a whole-tree restyle a colour-scheme change asks for.
+//! Not flushed: a whole-tree restyle a colour-scheme change asks for.
 //! Readers that borrow the document — `scroll_top()`, `layout_rect()` —
 //! read the last layout; call [`flush_layout`] first to bring it up to
 //! date. On a document no `App` runs nothing is recorded and a flush
@@ -37,6 +39,7 @@ pub(crate) mod pending;
 
 use crate::TuiDom;
 use crate::render::{LayoutExt, Rect};
+use crate::runtime::derived_state;
 use crate::style::Stylesheet;
 use crate::style::cascade::cascade_subtrees_all_with;
 
@@ -111,7 +114,9 @@ fn records_seen(dom: &TuiDom) -> Option<u64> {
 /// change; module doc).
 ///
 /// `focus()` and `scroll_into_view()` call it before they scroll. Each
-/// flush that lays out is a whole-tree layout; the next frame lays out
+/// call brings the derived state up to date (a whole-tree walk when a
+/// sheet reads `:valid` / `:invalid`); each flush that lays out is a
+/// whole-tree layout; the next frame lays out
 /// again only if something changed since (it reuses the flush's
 /// layout otherwise): interleaving changes and flushes in a loop lays
 /// out every time, as a browser's forced layout does.
@@ -119,7 +124,7 @@ pub fn flush_layout(dom: &mut TuiDom) -> bool {
     let Some(area) = dom.document_data::<LaidOut>().map(|l| l.area) else {
         return false;
     };
-    if is_current(dom) {
+    if derived_state::style_pending(dom) {
         return false;
     }
     let Some(inputs) = crate::runtime::style_flush::published(dom) else {
@@ -128,14 +133,22 @@ pub fn flush_layout(dom: &mut TuiDom) -> bool {
     let Some(tracker) = inputs.tracker else {
         return false;
     };
+    let sheets: Vec<&Stylesheet> = inputs.sheets.iter().map(|s| &**s).collect();
+    // The derived state first, as the frame's prelude: what its stages
+    // write is cascaded here, and the frame finds it current.
+    derived_state::settle_controls(dom);
+    derived_state::mark_scroll_focus(dom);
+    derived_state::mark_validity(dom, &tracker, sheets.iter().copied());
     let mut roots = tracker.take_roots();
     // The hosts whose hovered or active pseudo-element changed: the
     // tracker sees no mutation for them (`app::frame::take_dirty_roots`).
     roots.extend(crate::style::pseudo_pointer::take_dirty(dom));
     roots.sort_unstable();
     roots.dedup();
+    if roots.is_empty() && is_current(dom) {
+        return false;
+    }
     if !roots.is_empty() {
-        let sheets: Vec<&Stylesheet> = inputs.sheets.iter().map(|s| &**s).collect();
         let cascaded = cascade_subtrees_all_with(dom, &sheets, Some(inputs.registry), &roots);
         tracker.note_flushed(&cascaded);
     }
@@ -150,5 +163,5 @@ pub fn flush_layout(dom: &mut TuiDom) -> bool {
 /// scroll must wait for the next frame.
 pub(crate) fn make_current(dom: &mut TuiDom) -> bool {
     flush_layout(dom);
-    is_current(dom)
+    !derived_state::style_pending(dom) && is_current(dom)
 }

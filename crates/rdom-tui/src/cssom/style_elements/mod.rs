@@ -104,6 +104,12 @@ impl StyleElements {
         self.dirty.set(true);
     }
 
+    /// The flag the observer sets while a sheet waits to be re-parsed
+    /// (`runtime::derived_state::style_pending` reads it).
+    pub(crate) fn pending_flag(&self) -> Rc<Cell<bool>> {
+        self.dirty.clone()
+    }
+
     /// Bring the sheets up to date with the tree. Returns `true` when
     /// they changed and the cascade must be invalidated.
     pub(crate) fn flush(&mut self, dom: &TuiDom) -> bool {

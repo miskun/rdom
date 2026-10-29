@@ -38,6 +38,7 @@ pub mod autofocus;
 pub mod builtins;
 pub mod caret_blink;
 pub(crate) mod color_scheme;
+pub(crate) mod derived_state;
 pub mod editing;
 pub mod focus;
 pub mod hit_test;

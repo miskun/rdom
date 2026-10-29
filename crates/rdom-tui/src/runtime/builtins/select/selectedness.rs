@@ -118,7 +118,8 @@ type Pending = Rc<Shared>;
 /// Runs the algorithm after option insertions and removals, and keeps a
 /// single-select's selection exclusive after a consumer marks an option
 /// `selected`: an installed mutation observer queues the work, and
-/// [`Selectedness::flush`] does it.
+/// [`Selectedness::flush`] does it. A clone shares the queue.
+#[derive(Clone)]
 pub(crate) struct Selectedness {
     pending: Pending,
 }

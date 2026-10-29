@@ -293,6 +293,111 @@ fn a_tab_press_lays_out_once() {
     assert_eq!(ROUNDS.with(std::cell::Cell::get), 1);
 }
 
+/// Tab into a scroller marks it (`data-rdom-scroll-focus`, the keyboard
+/// scroll cue) before the flush lays out, as the frame's prelude would:
+/// the frame then finds nothing to restyle, and the press lays out once.
+#[test]
+fn a_tab_into_a_scroller_lays_out_once() {
+    use crate::render::layout_pass::ROUNDS;
+    use crate::runtime::scrollbar::SCROLL_FOCUS_ATTR;
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState};
+    let (mut app, s, rows, _) = scroller_app(6);
+    for r in &rows {
+        app.dom_mut().set_attribute(*r, "tabindex", "0").unwrap();
+    }
+    app.draw_if_dirty().unwrap();
+    ROUNDS.with(|r| r.set(0));
+    app.handle_event(CtEvent::Key(KeyEvent {
+        code: KeyCode::Tab,
+        modifiers: KeyModifiers::empty(),
+        kind: KeyEventKind::Press,
+        state: KeyEventState::empty(),
+    }));
+    app.draw_if_dirty().unwrap();
+    assert_eq!(app.dom().focused(), Some(rows[0]));
+    assert!(app.dom().node(s).has_attribute(SCROLL_FOCUS_ATTR));
+    assert_eq!(ROUNDS.with(std::cell::Cell::get), 1);
+}
+
+/// A handler that empties a `required` input makes it `:invalid` at
+/// once, as a browser's style update does: the flush lays it out with
+/// its `:invalid` height, and the frame does not lay out again.
+#[test]
+fn a_validity_change_is_laid_out_by_the_flush() {
+    use crate::render::layout_pass::ROUNDS;
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    rdom_parser::parse_into(&mut dom, r#"<input id="i" required value="x">"#, root).unwrap();
+    let input = dom.get_element_by_id("i").unwrap();
+    let sheet =
+        rdom_css::from_css_strict("input { display: block } input:invalid { height: 3 }").unwrap();
+    let terminal = Terminal::new(TestBackend::new(20, 8)).unwrap();
+    let mut app = App::with_backend(dom, sheet, terminal).unwrap();
+    app.draw_if_dirty().unwrap();
+    assert_eq!(
+        app.dom().node(input).layout_rect().map(|r| r.height),
+        Some(1)
+    );
+    app.dom_mut().node_mut(input).set_value("").unwrap();
+    assert!(flush_layout(app.dom_mut()));
+    assert_eq!(
+        app.dom().node(input).layout_rect().map(|r| r.height),
+        Some(3)
+    );
+    ROUNDS.with(|r| r.set(0));
+    app.draw_if_dirty().unwrap();
+    assert_eq!(ROUNDS.with(std::cell::Cell::get), 0, "no second layout");
+}
+
+/// A text control a handler inserts gets its text node from the flush
+/// (control seeding), as it would before the frame's cascade: the frame
+/// finds nothing left to do and does not lay out again.
+#[test]
+fn an_inserted_control_is_seeded_by_the_flush() {
+    use crate::render::layout_pass::ROUNDS;
+    let (mut app, s, _, _) = scroller_app(2);
+    let dom = app.dom_mut();
+    let input = dom.create_element("input");
+    dom.set_attribute(input, "value", "hello").unwrap();
+    dom.append_child(s, input).unwrap();
+    assert!(flush_layout(dom));
+    assert_eq!(dom.node(input).value().as_deref(), Some("hello"));
+    ROUNDS.with(|r| r.set(0));
+    app.draw_if_dirty().unwrap();
+    assert_eq!(ROUNDS.with(std::cell::Cell::get), 0, "no second layout");
+}
+
+/// The derived-state stages run user code — a popover hidden because its
+/// `popover` attribute changed while showing fires `beforetoggle` — and a
+/// listener that focuses re-enters the flush from inside it. Nothing the
+/// stages share is borrowed across that, so the nested flush runs.
+#[test]
+fn a_listener_the_flush_runs_may_flush_again() {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    rdom_parser::parse_into(
+        &mut dom,
+        r#"<button id="b">B</button><div id="p" popover>P</div>"#,
+        root,
+    )
+    .unwrap();
+    let b = dom.get_element_by_id("b").unwrap();
+    let p = dom.get_element_by_id("p").unwrap();
+    let terminal = Terminal::new(TestBackend::new(20, 8)).unwrap();
+    let mut app = App::with_backend(dom, Stylesheet::new(), terminal).unwrap();
+    app.draw_if_dirty().unwrap();
+    crate::runtime::builtins::popover::show_popover(app.dom_mut(), p).unwrap();
+    app.draw_if_dirty().unwrap();
+    app.dom_mut()
+        .add_event_listener(p, "beforetoggle", ListenerOptions::default(), move |ctx| {
+            ctx.dom.node_mut(b).focus();
+        })
+        .unwrap();
+    app.dom_mut().set_attribute(p, "popover", "manual").unwrap();
+    flush_layout(app.dom_mut());
+    assert_eq!(app.dom().focused(), Some(b), "the listener's focus ran");
+}
+
 /// CSS Scroll Snap 1 §5.4 through a flush: a box inserted above the snap
 /// target and laid out by the handler still re-snaps the container in
 /// the frame (`scroll_snap::the_frame_resnaps_after_layout`, flushed).

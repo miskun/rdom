@@ -70,10 +70,7 @@ impl<B: Backend> App<B> {
         // Controls the app inserted since the last event get their text
         // node, and option lists it changed settle, before any default
         // action reads them.
-        self.prelude.control_seeding.flush(&mut self.dom);
-        self.prelude.selectedness.flush(&mut self.dom);
-        crate::runtime::builtins::select::settle_pickers(&mut self.dom);
-        self.prelude.popover_attributes.flush(&mut self.dom);
+        crate::runtime::derived_state::settle_controls(&mut self.dom);
         self.prelude.touched = true;
         match &event {
             CtEvent::Key(key) => {

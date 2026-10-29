@@ -33,10 +33,7 @@ fn el(dom: &mut TuiDom, parent: rdom_core::NodeId, class: &str) -> rdom_core::No
 /// one, the narrowed one); the re-snap, the focus scroll and the caret
 /// reveal then share one scroll update, which runs none. The focus lays
 /// the tree out when it is made (`runtime::layout_flush`), so the runs
-/// are counted from the focus on; the frame then lays out once more,
-/// because its prelude marks the newly focused scroller
-/// (`mark_scroll_focus`, a restyle the flush could not see) — one run
-/// more than when the frame scrolled to the focus itself.
+/// are counted from the focus on; the frame reuses that layout.
 #[test]
 fn a_frame_runs_layout_at_most_twice_the_round_cap() {
     let mut dom = TuiDom::new();
@@ -99,8 +96,8 @@ fn a_frame_runs_layout_at_most_twice_the_round_cap() {
     assert_eq!(app.dom().node(ta).scroll_top(), Some(1), "caret revealed");
     assert_eq!(app.dom().node(list).scroll_top(), Some(4), "focus revealed");
     assert_eq!(
-        runs, 4,
-        "3 rounds in the flush, 1 for the scroller mark; the services' scrolls lay nothing out"
+        runs, 3,
+        "3 rounds; the three services' scrolls lay nothing out"
     );
     assert!(runs <= 2 * crate::render::layout_pass::MAX_ROUNDS);
 }

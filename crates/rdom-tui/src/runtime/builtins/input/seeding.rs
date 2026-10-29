@@ -135,7 +135,8 @@ type Queue = Rc<RefCell<Vec<NodeId>>>;
 
 /// Seeds the controls inserted after `App::build` (module doc): an
 /// installed mutation observer queues the inserted subtrees, and
-/// [`ControlSeeding::flush`] seeds them.
+/// [`ControlSeeding::flush`] seeds them. A clone shares the queue.
+#[derive(Clone)]
 pub(crate) struct ControlSeeding {
     queue: Queue,
 }

@@ -4,21 +4,14 @@
 //!
 //! [`FramePrelude::run`] is the one place the order is written:
 //!
-//! 1. **control seeding** — give the text controls inserted since the
-//!    last boundary their text node (`input::ControlSeeding`,
-//!    `INPUT-SEED-ON-INSERT-1`), so this frame lays them out with it;
-//! 2. **`<select>` selectedness** — settle the selects whose options
-//!    changed (`select::Selectedness`), so the options it (re)selects
-//!    cascade this frame; hide the popovers whose `popover` attribute
-//!    changed state while showing (`popover::attribute`);
+//! 1. **control seeding** and 2. **`<select>` selectedness** — the
+//!    DOM-derived state stages (`runtime::derived_state`, which a layout
+//!    flush runs too), so this frame cascades what they write;
 //! 3. **`<style>` elements** — re-parse the sheets whose text changed
 //!    (`cssom::style_elements`); a change invalidates the cascade
 //!    ([`FramePrelude::sheets_changed`]);
-//! 4. **scroll-focus marker** — move `data-rdom-scroll-focus` to the
-//!    container the keyboard scrolls (frames only);
-//! 5. **validity marks** — dirty the elements whose `:valid` /
-//!    `:invalid` or a radio group's `:indeterminate` flipped
-//!    (`validation::FormStateMarks`);
+//! 4. **scroll-focus marker** (frames only) and 5. **validity marks** —
+//!    `runtime::derived_state` again;
 //! 6. **caret blink** — flip the caret phase (a paint-only change);
 //! 7. **smooth scrolls** — step the scrolls in flight (frames only);
 //! 8. **painted check** — any scroll offset moved since the last paint
@@ -39,17 +32,12 @@
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use rdom_core::NodeId;
-
 use super::StylesheetId;
 use super::redraw::Redraw;
 use crate::TuiDom;
 use crate::cssom::style_elements::StyleElements;
-use crate::runtime::builtins::input::ControlSeeding;
-use crate::runtime::builtins::popover::attribute::PopoverAttributes;
-use crate::runtime::builtins::select::Selectedness;
-use crate::runtime::builtins::validation::FormStateMarks;
 use crate::runtime::caret_blink::CaretBlink;
+use crate::runtime::derived_state;
 use crate::style::Stylesheet;
 use crate::style::dirty_tracker::DirtyTracker;
 
@@ -79,16 +67,6 @@ pub(super) struct PreludeCx<'a> {
 
 /// The state of the pre-cascade stages.
 pub(super) struct FramePrelude {
-    /// Seeds the text controls inserted after `App::build`; flushed
-    /// before each event and each frame.
-    pub(super) control_seeding: ControlSeeding,
-    /// Runs the `<select>` selectedness setting algorithm on selects
-    /// whose options were inserted / removed; flushed before each event
-    /// and each frame.
-    pub(super) selectedness: Selectedness,
-    /// Hides the popovers whose `popover` attribute changed state while
-    /// showing; flushed before each event and each frame.
-    pub(super) popover_attributes: PopoverAttributes,
     /// The document's `<style>` sheets, live (`cssom::style_elements`):
     /// they cascade before the App's own sheets, in tree order.
     pub(super) style_elements: StyleElements,
@@ -99,10 +77,6 @@ pub(super) struct FramePrelude {
     /// one registry the cascade and the transition engine share; rebuilt
     /// when the sheets change ([`Self::sheets_changed`]).
     pub(super) registry: std::rc::Rc<crate::style::cascade::PropertyRegistry>,
-    /// The element currently carrying `data-rdom-scroll-focus`.
-    scroll_focus_marked: Option<NodeId>,
-    /// Each element's `:valid` / `:invalid` state as of the last frame.
-    validity_marks: FormStateMarks,
     /// Caret blink phase (`runtime::caret_blink`). Off unless enabled —
     /// `App::new` enables it at the default rate.
     pub(super) caret_blink: CaretBlink,
@@ -124,19 +98,16 @@ pub(super) struct FramePrelude {
 }
 
 impl FramePrelude {
-    /// Install the prelude's observers on `dom` (control seeding,
-    /// selectedness, `<style>` elements). Starts touched, so the first
-    /// frame runs every check.
+    /// Install the prelude's observers on `dom` (`<style>` elements, and
+    /// the derived-state stages it publishes on `dom`). Starts touched, so
+    /// the first frame runs every check.
     pub(super) fn install(dom: &mut TuiDom) -> Self {
+        let style_elements = StyleElements::install(dom);
+        derived_state::install(dom, style_elements.pending_flag());
         Self {
-            control_seeding: ControlSeeding::install(dom),
-            selectedness: Selectedness::install(dom),
-            popover_attributes: PopoverAttributes::install(dom),
-            style_elements: StyleElements::install(dom),
+            style_elements,
             registrations: std::rc::Rc::new(crate::style::Stylesheet::bare()),
             registry: std::rc::Rc::default(),
-            scroll_focus_marked: None,
-            validity_marks: FormStateMarks::default(),
             caret_blink: CaretBlink::new(None),
             smooth_scroll_next: None,
             touched: true,
@@ -148,19 +119,15 @@ impl FramePrelude {
     pub(super) fn run(&mut self, cx: &mut PreludeCx<'_>, run: PreludeRun) -> u32 {
         let mut walks = 0;
         let frame = run == PreludeRun::Frame;
-        // 1.
-        self.control_seeding.flush(cx.dom);
-        // 2.
-        self.selectedness.flush(cx.dom);
-        crate::runtime::builtins::select::settle_pickers(cx.dom);
-        self.popover_attributes.flush(cx.dom);
+        // 1–2.
+        derived_state::settle_controls(cx.dom);
         // 3.
         if self.style_elements.flush(cx.dom) {
             self.sheets_changed(cx.dom, cx.tracker, cx.app_sheets, cx.redraw);
         }
         // 4.
         if frame {
-            self.mark_scroll_focus(cx.dom);
+            derived_state::mark_scroll_focus(cx.dom);
         }
         // Frames skip the whole-tree stages when no code ran; the
         // off-frame run always checks validity and leaves the flag for
@@ -172,7 +139,7 @@ impl FramePrelude {
         };
         // 5.
         if touched {
-            let walked = self.validity_marks.flush(
+            let walked = derived_state::mark_validity(
                 cx.dom,
                 cx.tracker,
                 self.style_elements
@@ -261,7 +228,7 @@ impl FramePrelude {
         self.sync_sheet_set(dom, tracker, app_sheets);
         tracker.take_roots();
         redraw.note(Redraw::Cascade);
-        self.validity_marks.sheets_changed();
+        derived_state::sheets_changed(dom);
         self.touched = true;
     }
 
@@ -342,33 +309,6 @@ impl FramePrelude {
             .chain(app_sheets.iter().map(|(_, s)| &**s))
             .chain(std::iter::once(&*self.registrations))
             .collect()
-    }
-
-    /// Keep `data-rdom-scroll-focus` on the scroll container the
-    /// keyboard scrolls: the nearest overflowing scroll ancestor of the
-    /// focus, per the previous frame's layout (`scrollbar::
-    /// scroll_focus_target`). The UA sheet colors that container's
-    /// scrollbar thumb through the attribute; `:focus-within` alone
-    /// would light every overflowing ancestor (`FOCUS-THUMB-NEAREST-1`).
-    /// The accent thumb is a focus indicator, so it shows only while the
-    /// focus is evident (`Dom::focus_visible`, `P7-FOCUS-VISIBLE-1`).
-    fn mark_scroll_focus(&mut self, dom: &mut TuiDom) {
-        let target =
-            crate::runtime::scrollbar::scroll_focus_target(dom).filter(|_| dom.focus_visible());
-        if target == self.scroll_focus_marked {
-            return;
-        }
-        if let Some(prev) = self.scroll_focus_marked.take()
-            && dom.contains(prev)
-        {
-            dom.remove_attribute(prev, crate::runtime::scrollbar::SCROLL_FOCUS_ATTR)
-                .expect("a live element accepts attribute removal");
-        }
-        if let Some(next) = target {
-            dom.set_attribute(next, crate::runtime::scrollbar::SCROLL_FOCUS_ATTR, "")
-                .expect("the focused element's ancestor is a live element");
-        }
-        self.scroll_focus_marked = target;
     }
 }
 
