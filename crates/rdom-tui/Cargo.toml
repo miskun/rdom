@@ -2,8 +2,8 @@
 name = "rdom-tui"
 # Pinned here rather than inherited so rdom-tui can diverge from the shared
 # workspace version (it did during the 0.3 series). At 0.6.0 every published
-# crate ships together at the same version.
-version = "0.6.0"
+# crate shipped together; 0.6.1 is rdom-tui only.
+version = "0.6.1"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

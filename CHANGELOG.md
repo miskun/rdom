@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-29
+
+Only `rdom-tui` bumps (0.6.0 → **0.6.1**); the other four crates are unchanged.
+
 ### Added — `rdom-tui`
 
 - **`runtime::layout_flush::flush_layout(dom) -> LayoutFlush`**: bring the layout of a document an `App` runs up to date between frames — the DOM-derived state the frame keeps (control seeding, `<select>` selectedness, the scroll-focus marker, validity marks) settled, every dirty subtree cascaded under the `App`'s sheets, the tree laid out in its last frame's area — so `bounding_rect()`, `scroll_height()` and the other geometry readers reflect the handler's changes. It returns what it found: `Current` (nothing changed), `LaidOut`, `Stale` (it cannot before the next frame — before the first, after a resize, a sheet-set change or a change of the color scheme, media preferences or color depth, while a `<style>` sheet waits to be re-parsed) or `Unmanaged` (no `App` runs the document); `is_current()` says whether geometry read now is the tree's. A call with nothing changed lays nothing out, though settling the derived state walks the tree when a sheet reads `:valid` / `:invalid`; the frame after a flush reuses its layout when nothing changed since. The layout counterpart of `style_flush::flush_style`. (FLUSH-LAYOUT)
