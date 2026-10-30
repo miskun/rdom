@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-31
+
+Only `rdom-tui` bumps (0.6.1 → **0.6.2**); the other four crates are unchanged.
+
 ### Added — `rdom-tui`
 
 - **`TuiAccessors::client_width()` / `client_height()` / `client_top()` / `client_left()`** — `Element.clientWidth` / `clientHeight` / `clientTop` / `clientLeft` (CSSOM View §6): the padding box less the scrollbar gutters (the scrollport, so `scroll_width() - client_width()` is how far a box scrolls), and its offset inside the border box — the top border, the left border plus a left-side scrollbar's gutter (`direction: rtl`). `0` for an element with no box (`display: none` / `contents`, skipped contents) or a non-atomic inline box; the viewport's size for the root (`Dom::root()`, the Fragment or an element root); `None` for a text or comment node. They read the last layout, as the other geometry readers do. `ScrollRange` moved to its own module; its path, `rdom_tui::accessors::ScrollRange`, is unchanged. (CLIENT-GEOMETRY)
