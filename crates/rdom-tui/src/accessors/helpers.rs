@@ -18,6 +18,17 @@ pub(super) fn parse_numeric_attribute(
     node.get_attribute(name).and_then(|s| s.parse().ok())
 }
 
+/// Whether `node` has a layout box (CSSOM View §6.1 step 1's "associated
+/// CSS layout box"): none under `display: none` (its own or an ancestor's,
+/// or inside skipped contents) or `display: contents`.
+pub(super) fn has_box(node: &rdom_core::NodeRef<'_, TuiExt>) -> bool {
+    use crate::node::TuiNodeExt;
+    let contents = node
+        .computed()
+        .is_some_and(|c| c.display == crate::layout::Display::Contents);
+    !contents && crate::node::is_rendered(node.dom(), node.id())
+}
+
 pub(super) fn write_boolean_attribute(
     node: &mut rdom_core::NodeMut<'_, TuiExt>,
     name: &str,

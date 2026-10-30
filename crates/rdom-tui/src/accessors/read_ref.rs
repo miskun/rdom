@@ -4,7 +4,7 @@
 
 use rdom_core::NodeId;
 
-use super::helpers::{effective_content_editable, parse_numeric_attribute};
+use super::helpers::{effective_content_editable, has_box, parse_numeric_attribute};
 use super::{DomRect, TuiAccessors};
 use crate::TuiExt;
 
@@ -97,13 +97,7 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
         let Some(ext) = self.tui_ext() else {
             return Vec::new();
         };
-        // CSSOM View §6.1 step 1: no associated layout box, no rects —
-        // `display: none` (its own or an ancestor's, or skipped contents)
-        // and `display: contents`.
-        let contents = self
-            .computed()
-            .is_some_and(|c| c.display == crate::layout::Display::Contents);
-        if contents || !crate::node::is_rendered(self.dom(), self.id()) {
+        if !has_box(self) {
             return Vec::new();
         }
         match ext.box_fragments() {
@@ -122,9 +116,9 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
         Some(self.tui_ext()?.scroll_x)
     }
 
-    fn scroll_range(&self) -> Option<super::read_api::ScrollRange> {
+    fn scroll_range(&self) -> Option<super::ScrollRange> {
         let b = crate::runtime::scrollbar::scroll_bounds(self.dom(), self.id())?;
-        Some(super::read_api::ScrollRange::new(
+        Some(super::ScrollRange::new(
             b.min_x..=b.max_x,
             b.min_y..=b.max_y,
         ))
@@ -154,6 +148,22 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
     fn scroll_height(&self) -> Option<i32> {
         use crate::node::TuiNodeExt;
         Some(self.tui_ext()?.scroll_content_height as i32)
+    }
+
+    fn client_width(&self) -> Option<i32> {
+        Some(super::client_box::client_box(self)?.width)
+    }
+
+    fn client_height(&self) -> Option<i32> {
+        Some(super::client_box::client_box(self)?.height)
+    }
+
+    fn client_top(&self) -> Option<i32> {
+        Some(super::client_box::client_box(self)?.top)
+    }
+
+    fn client_left(&self) -> Option<i32> {
+        Some(super::client_box::client_box(self)?.left)
     }
 
     fn style(&self) -> Option<crate::cssom::StyleDeclaration> {

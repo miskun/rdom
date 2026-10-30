@@ -70,7 +70,7 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeMut<'a, TuiExt> {
         self.as_ref().scroll_left()
     }
 
-    fn scroll_range(&self) -> Option<super::read_api::ScrollRange> {
+    fn scroll_range(&self) -> Option<super::ScrollRange> {
         self.as_ref().scroll_range()
     }
 
@@ -88,6 +88,22 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeMut<'a, TuiExt> {
 
     fn scroll_height(&self) -> Option<i32> {
         self.as_ref().scroll_height()
+    }
+
+    fn client_width(&self) -> Option<i32> {
+        self.as_ref().client_width()
+    }
+
+    fn client_height(&self) -> Option<i32> {
+        self.as_ref().client_height()
+    }
+
+    fn client_top(&self) -> Option<i32> {
+        self.as_ref().client_top()
+    }
+
+    fn client_left(&self) -> Option<i32> {
+        self.as_ref().client_left()
     }
 
     fn style(&self) -> Option<crate::cssom::StyleDeclaration> {

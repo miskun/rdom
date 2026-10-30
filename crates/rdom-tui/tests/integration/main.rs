@@ -31,6 +31,7 @@ mod bfc_cascade;
 mod border_model_contract;
 mod button_flex_repro;
 mod calc_layout;
+mod client_geometry;
 mod css_phase1;
 mod css_phase10;
 mod css_phase11;

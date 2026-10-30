@@ -4,6 +4,8 @@
 
 use rdom_core::NodeId;
 
+use super::ScrollRange;
+
 /// Read-side accessor surface for `<el>.{value, checked, …}()`-style
 /// calls.
 ///
@@ -209,6 +211,30 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
     /// Reads the last layout
     /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout) first in a handler).
     fn scroll_height(&self) -> Option<i32>;
+
+    /// `Element.clientWidth` (CSSOM View §6): the padding box's width less
+    /// the scrollbar gutters — the scrollport, which `scroll_width()` is
+    /// never less than. `0` for an element with no box (as
+    /// [`client_rects`](Self::client_rects) is empty) or an inline box; the
+    /// viewport's width for the root (`Dom::root()`, which stands for the
+    /// root element, DIVERGENCES §2). `None` for non-element nodes.
+    /// Reads the last layout
+    /// ([`flush_layout`](crate::runtime::layout_flush::flush_layout) first in a handler).
+    fn client_width(&self) -> Option<i32>;
+
+    /// `Element.clientHeight` — the padding box's height less the
+    /// horizontal scrollbar's gutter; companion to [`Self::client_width`].
+    fn client_height(&self) -> Option<i32>;
+
+    /// `Element.clientTop` (CSSOM View §6): the top border's width — where
+    /// [`client_height`](Self::client_height)'s box starts inside the
+    /// border box. `0` where `client_width` is.
+    fn client_top(&self) -> Option<i32>;
+
+    /// `Element.clientLeft`: the left border's width, plus the vertical
+    /// scrollbar's gutter when it sits on the left (`direction: rtl`).
+    /// `0` where `client_width` is.
+    fn client_left(&self) -> Option<i32>;
 
     /// CSSOM-style read view of the element's inline `TuiStyle`
     /// — `el.style.getPropertyValue("color")` and friends, plus
@@ -454,29 +480,3 @@ pub trait TuiAccessors<'a>: crate::sealed::Sealed {
 /// the equivalent IDL; this alias lets call sites read `DomRect`
 /// without reaching for the layout module.
 pub type DomRect = crate::layout::LayoutRect;
-
-/// A box's legal scroll offsets per axis ([`TuiAccessors::scroll_range`]):
-/// `scrollLeft` in [`x`](Self::x), `scrollTop` in [`y`](Self::y), each
-/// `0 ..= overflow` or `-overflow ..= 0` (CSSOM View §4).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ScrollRange {
-    x: std::ops::RangeInclusive<i32>,
-    y: std::ops::RangeInclusive<i32>,
-}
-
-impl ScrollRange {
-    /// The range `x` horizontally and `y` vertically.
-    pub fn new(x: std::ops::RangeInclusive<i32>, y: std::ops::RangeInclusive<i32>) -> Self {
-        Self { x, y }
-    }
-
-    /// The legal `scrollLeft` values.
-    pub fn x(&self) -> std::ops::RangeInclusive<i32> {
-        self.x.clone()
-    }
-
-    /// The legal `scrollTop` values.
-    pub fn y(&self) -> std::ops::RangeInclusive<i32> {
-        self.y.clone()
-    }
-}

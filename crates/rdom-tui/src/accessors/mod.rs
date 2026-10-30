@@ -32,12 +32,14 @@
 //! site. The narrow, tag-prefixed variants (`input_value`,
 //! `select_value`, etc.) ship in step 30.
 
+mod client_box;
 pub mod doc;
 mod grid_tracks;
 mod helpers;
 mod read_api;
 mod read_mut;
 mod read_ref;
+mod scroll_range;
 mod table_tracks;
 mod write;
 mod write_api;
@@ -50,6 +52,7 @@ pub use crate::runtime::smooth_scroll::{
 };
 pub use doc::TuiDocAccessors;
 pub use grid_tracks::GridTracks;
-pub use read_api::{DomRect, ScrollRange, TuiAccessors};
+pub use read_api::{DomRect, TuiAccessors};
+pub use scroll_range::ScrollRange;
 pub use table_tracks::TableTracks;
 pub use write_api::TuiAccessorsMut;

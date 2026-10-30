@@ -54,6 +54,10 @@ impl<'a> TuiAccessors<'a> for Mine {
     fn scroll_left(&self) -> Option<i32> { todo!() }
     fn scroll_width(&self) -> Option<i32> { todo!() }
     fn scroll_height(&self) -> Option<i32> { todo!() }
+    fn client_width(&self) -> Option<i32> { todo!() }
+    fn client_height(&self) -> Option<i32> { todo!() }
+    fn client_top(&self) -> Option<i32> { todo!() }
+    fn client_left(&self) -> Option<i32> { todo!() }
     fn style(&self) -> Option<StyleDeclaration> { todo!() }
     fn input_value(&self) -> Option<std::string::String> { todo!() }
     fn input_type(&self) -> Option<std::string::String> { todo!() }
