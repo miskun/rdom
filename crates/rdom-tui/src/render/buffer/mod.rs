@@ -47,6 +47,7 @@ mod border;
 mod composite;
 pub(crate) mod coverage;
 mod diff;
+mod layering;
 mod translucent;
 mod write;
 
@@ -57,6 +58,7 @@ pub use border::{
     BorderCell, BorderContribution, BorderDirState, BorderSide, DIR_E, DIR_N, DIR_S, DIR_W,
     QUAD_BL, QUAD_BR, QUAD_TL, QUAD_TR,
 };
+pub(crate) use layering::BorderLayer;
 
 /// 2D grid of cells.
 ///
@@ -85,6 +87,11 @@ pub struct Buffer {
     /// borders *weld* (a tab onto a panel → `▟ █ ▌`) instead of falling back
     /// to box-drawing T-junctions — see `border_join::HALF_BLOCK_QUAD_TABLE`.
     pub half_block_quads: Vec<u8>,
+    /// Per cell, the stacking context its border state was painted in
+    /// (`layering`): a write from a later one covers it.
+    pub(crate) border_layers: Vec<BorderLayer>,
+    /// The stacking context border writes paint in now (`layering`).
+    border_layer: BorderLayer,
     /// The color scheme whose canvas model a translucent paint blends
     /// the terminal's default colors with (`Buffer::color_scheme`).
     scheme: ColorScheme,
@@ -140,6 +147,8 @@ impl Buffer {
             content: vec![cell; len],
             border_dirs: vec![BorderCell::default(); len],
             half_block_quads: vec![0u8; len],
+            border_layers: vec![BorderLayer::ROOT; len],
+            border_layer: BorderLayer::ROOT,
             scheme: ColorScheme::default(),
             scratch: Scratch::default(),
             outlines: Vec::new(),
@@ -163,6 +172,8 @@ impl Buffer {
             content: cells,
             border_dirs: vec![BorderCell::default(); len],
             half_block_quads: vec![0u8; len],
+            border_layers: vec![BorderLayer::ROOT; len],
+            border_layer: BorderLayer::ROOT,
             scheme: ColorScheme::default(),
             scratch: Scratch::default(),
             outlines: Vec::new(),
@@ -214,6 +225,8 @@ impl Buffer {
             *dir = BorderCell::default();
         }
         self.half_block_quads.fill(0);
+        self.border_layers.fill(BorderLayer::ROOT);
+        self.border_layer = BorderLayer::ROOT;
         if let Some(c) = &mut self.coverage {
             c.fill(0);
         }
@@ -282,6 +295,10 @@ impl Buffer {
         out.content.clear();
         out.border_dirs.clear();
         out.half_block_quads.clear();
+        out.border_layers.clear();
+        // The layer paints on in the stacking context its region's
+        // writes paint in now.
+        out.border_layer = self.border_layer;
         for y in region.y..region.bottom() {
             let (Some(a), Some(b)) = (
                 self.index_of(region.x, y),
@@ -293,6 +310,8 @@ impl Buffer {
             out.border_dirs.extend_from_slice(&self.border_dirs[a..=b]);
             out.half_block_quads
                 .extend_from_slice(&self.half_block_quads[a..=b]);
+            out.border_layers
+                .extend_from_slice(&self.border_layers[a..=b]);
         }
         if tracks {
             out.track_coverage();

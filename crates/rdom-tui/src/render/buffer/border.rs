@@ -139,6 +139,7 @@ impl Buffer {
     /// the union of every contributing element's inward quadrants.
     pub fn add_half_block_quads(&mut self, x: u16, y: u16, quads: u8) {
         if let Some(i) = self.index_of(x, y) {
+            self.claim(i);
             self.half_block_quads[i] |= quads;
             self.mark(i, super::coverage::BORDER);
         }
@@ -183,6 +184,7 @@ impl Buffer {
     pub fn add_border_dir(&mut self, x: u16, y: u16, dir: usize, contribution: BorderContribution) {
         debug_assert!(dir < 4, "BorderCell index out of range");
         if let Some(i) = self.index_of(x, y) {
+            self.claim(i);
             self.border_dirs[i][dir].merge(contribution);
             self.mark(i, super::coverage::BORDER);
         }

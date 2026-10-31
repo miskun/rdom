@@ -11,6 +11,7 @@ use super::{FlowPlacement, anchor_href_for, paint_inline_layout};
 use crate::ext::{PseudoSlot, TuiExt};
 use crate::layout::LayoutRect;
 use crate::node::TuiNodeExt;
+use crate::render::buffer::BorderLayer;
 use crate::render::paint_pass::text::{
     glyph_style_from_computed, paint_text_from, style_from_computed,
 };
@@ -167,14 +168,26 @@ pub(in crate::render::paint_pass) fn paint_positioned_pseudo(
     else {
         return;
     };
-    if let Some(g) = anon.generated {
-        paint_generated_box(
-            dom,
-            g,
-            (anon.rect, &anon.inline_layout),
-            buf,
-            clip,
-            viewport,
-        );
+    let Some(g) = anon.generated else {
+        return;
+    };
+    // A numeric `z-index` makes the pseudo-element's box a stacking
+    // context (CSS 2.1 §9.9.1): its borders cover what lies beneath
+    // (LAYER-BORDERS).
+    let context = dom
+        .node(host)
+        .computed_pseudo(g.slot)
+        .is_some_and(|c| !matches!(c.z_index, crate::layout::ZIndex::Auto));
+    let previous = context.then(|| buf.enter_border_layer(BorderLayer::of_pseudo(host, k)));
+    paint_generated_box(
+        dom,
+        g,
+        (anon.rect, &anon.inline_layout),
+        buf,
+        clip,
+        viewport,
+    );
+    if let Some(previous) = previous {
+        buf.leave_border_layer(previous);
     }
 }

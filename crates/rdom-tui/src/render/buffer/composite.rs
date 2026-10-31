@@ -196,6 +196,7 @@ impl Buffer {
             self.content[i] = after.clone();
             self.border_dirs[i] = layer.border_dirs[j];
             self.half_block_quads[i] = layer.half_block_quads[j];
+            self.border_layers[i] = layer.border_layers[j];
             self.mark(i, marks);
             return wide && text_wins;
         }
@@ -258,6 +259,7 @@ impl Buffer {
             }
             self.border_dirs[i] = state;
             self.half_block_quads[i] = layer.half_block_quads[j];
+            self.border_layers[i] = layer.border_layers[j];
         } else if bg_painted {
             // The backdrop's border stays, tinted by the layer's bg.
             for d in &mut self.border_dirs[i] {

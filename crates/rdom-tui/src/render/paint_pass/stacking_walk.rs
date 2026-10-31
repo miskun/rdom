@@ -33,6 +33,23 @@ pub(super) fn paint_stacking_context(
     clip: Rect,
     viewport: Rect,
 ) {
+    // Its borders cover what earlier contexts left beneath them and join
+    // only what it paints itself (LAYER-BORDERS).
+    let previous = super::border_scope::context_layer(dom, root).map(|l| buf.enter_border_layer(l));
+    paint_context_layers(dom, root, buf, clip, viewport);
+    if let Some(previous) = previous {
+        buf.leave_border_layer(previous);
+    }
+}
+
+/// [`paint_stacking_context`] in the context's border layer.
+fn paint_context_layers(
+    dom: &Dom<TuiExt>,
+    root: NodeId,
+    buf: &mut Buffer,
+    clip: Rect,
+    viewport: Rect,
+) {
     // CSS `opacity` is group opacity: the subtree paints into a layer
     // at full opacity and the layer composites back at the element's
     // alpha, so nested opacities multiply and every paint inside —

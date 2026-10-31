@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed — `rdom-tui`
 
+- **A border in a higher stacking context covers the borders beneath it.** Every border on the page met in one table resolved by CSS Tables 3 §11.5 (wider, then style, then the more nested and earlier element), whatever its stacking order. An overlay with `z-index: 10` lost parts of its own ring to a nested box's border beneath it, the later of two `z-index: 1` boxes lost where they crossed, and a negative-`z-index` box joined the in-flow borders above it. A border painted in a later stacking context (a positioned box with a numeric `z-index`, `opacity < 1`, a transform, filter or blend mode, the top layer) now takes its cells whole, with its own glyph and color: it does not join the lines beneath it, and its rounded corners stay rounded. Borders within one stacking context still meet and join as before, and a z-indexed member of a collapse group still resolves its shared edges with its neighbours. (LAYER-BORDERS)
 - **Tree guide lines (`│ ├ └`) no longer draw through what paints above the tree.** They were painted after the whole document — the top layer included — so a modal dialog, a popover or any positioned box over a `[role=tree]` showed the tree's guides across its content. They now paint at the end of the tree's own content, in its stacking context: a box above the tree covers them, and an `opacity` / `filter` on the tree or an ancestor applies to them as to the rest of its paint. (LAYER-BORDERS)
 
 ## [0.6.2] - 2026-10-31

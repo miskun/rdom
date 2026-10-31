@@ -82,6 +82,7 @@
 mod background;
 mod border;
 mod border_join;
+mod border_scope;
 mod box_paint;
 mod canvas;
 mod column_rule;
