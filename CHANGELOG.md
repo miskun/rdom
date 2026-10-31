@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `rdom-tui`
+
+- **Tree guide lines (`│ ├ └`) no longer draw through what paints above the tree.** They were painted after the whole document — the top layer included — so a modal dialog, a popover or any positioned box over a `[role=tree]` showed the tree's guides across its content. They now paint at the end of the tree's own content, in its stacking context: a box above the tree covers them, and an `opacity` / `filter` on the tree or an ancestor applies to them as to the rest of its paint. (LAYER-BORDERS)
+
 ## [0.6.2] - 2026-10-31
 
 Only `rdom-tui` bumps (0.6.1 → **0.6.2**); the other four crates are unchanged.

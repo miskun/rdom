@@ -317,6 +317,11 @@ pub(super) fn paint_content(
     super::generated_box::paint_generated_boxes(dom, id, buf, children_clip);
     paint_anonymous_blocks(dom, id, buf, children_clip, viewport);
 
+    // A tree's guide lines, over its rows (they are part of its paint).
+    if super::tree_guides::is_tree(dom, id) {
+        super::tree_guides::paint_tree_guides(dom, id, buf, children_clip);
+    }
+
     // Scrollbar overlay (after children so it sits on top if
     // anything encroached).
     if frame.visible {

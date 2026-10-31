@@ -10,8 +10,9 @@
 //! [`super::border::paint_border`] does, then lets
 //! [`super::border_join::join_borders`] turn the 4-direction masks
 //! into the right glyph (`├` = N+E+S, `└` = N+E, `│` = N+S, `─` =
-//! E+W) via its single-line glyph table. This pass therefore runs AFTER the
-//! main paint walk and BEFORE the joiner (see `paint_dom`).
+//! E+W) via its single-line glyph table. The guides paint at the end of
+//! the tree's own content paint, so they belong to the tree's paint
+//! layer: whatever paints above the tree covers them.
 //!
 //! ## Geometry (2 cells per level)
 //!
@@ -32,8 +33,7 @@
 //!
 //! This pass reads layout rects + DOM structure only — it never
 //! recomputes layout or cascade. Glyph choice stays in the generic
-//! joiner. Mirrors the unguarded full-tree collection that
-//! `paint_modal_backdrops` already does for dialogs.
+//! joiner.
 
 use rdom_core::{Dom, NodeId};
 
@@ -43,7 +43,6 @@ use crate::node::TuiNodeExt;
 use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S};
 use crate::render::{Buffer, Rect, Style};
 use crate::style::Color;
-use crate::style::content_visibility::SkippedFor;
 use rdom_style::layout::{BorderStyle, BorderWeight};
 
 /// Cells of indent per nesting level. MUST match the
@@ -53,60 +52,41 @@ use rdom_style::layout::{BorderStyle, BorderWeight};
 /// its box.
 const TREE_INDENT: i32 = 2;
 
-/// Entry point — paint guides for every `[role=tree]` in the
-/// document. Called from `paint_dom` between the main walk and the
-/// border joiner.
-pub(super) fn paint_tree_guides(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: Rect) {
-    let mut trees = Vec::new();
-    collect_trees(dom, dom.root(), &mut trees);
-    for tree in trees {
-        // The guide pass is a standalone walk, so — unlike `paint_node`
-        // — it doesn't inherit the per-`overflow` clip a scroll
-        // container imposes on its descendants. Re-derive it: narrow
-        // the viewport clip to the scrollport of every clipping
-        // ancestor. Without this a tree taller than an `overflow:
-        // auto` ancestor paints its `│` trunk straight through the
-        // container's bottom edge (see the regression test).
-        let tree_clip = clip_for_tree(dom, tree, clip);
-        // Full-width span of the tree's PADDING box — row highlights
-        // fill from here to the right edge so the selected/cursor bg
-        // runs under the guide gutter AND under the tree's own padding
-        // (CSS `background-clip: border-box` default). Filling the
-        // padding box, not the content box, lets a consumer extend the
-        // highlight to the container edge by padding the tree without
-        // shifting content (the showcase sidebar fills the cell
-        // between the panel border and the tree this way).
-        let span = tree_padding_box(dom, tree)
-            .map(|r| {
-                // Reserve the vertical scrollbar's gutter (the rightmost
-                // padding-box column) when the tree shows one — otherwise the
-                // row highlight bleeds *under* the scrollbar thumb. A tree can
-                // own its scroll (FOCUS-VOCAB-1), so this is now reachable.
-                let gutter = if reserves_vscrollbar(dom, tree) { 1 } else { 0 };
-                (r.x, r.x + r.width as i32 - gutter)
-            })
-            .unwrap_or((tree_clip.x as i32, tree_clip.right() as i32));
-        for item in treeitem_children(dom, tree) {
-            paint_item(dom, item, buf, tree_clip, &[], span);
-        }
+/// Paint the guides of the `[role=tree]` element `tree`, clipped to
+/// `clip` — the clip its children paint into. Called at the end of the
+/// tree's own content paint (`box_paint::paint_content`), so the guides
+/// are part of the tree's paint: they land in its stacking context and
+/// any group layer around it, after its labels and before anything
+/// painted above it — a higher layer covers them like any other content
+/// of the tree.
+pub(super) fn paint_tree_guides(dom: &Dom<TuiExt>, tree: NodeId, buf: &mut Buffer, clip: Rect) {
+    // Full-width span of the tree's PADDING box — row highlights
+    // fill from here to the right edge so the selected/cursor bg
+    // runs under the guide gutter AND under the tree's own padding
+    // (CSS `background-clip: border-box` default). Filling the
+    // padding box, not the content box, lets a consumer extend the
+    // highlight to the container edge by padding the tree without
+    // shifting content (the showcase sidebar fills the cell
+    // between the panel border and the tree this way).
+    let span = tree_padding_box(dom, tree)
+        .map(|r| {
+            // Reserve the vertical scrollbar's gutter (the rightmost
+            // padding-box column) when the tree shows one — otherwise the
+            // row highlight bleeds *under* the scrollbar thumb. A tree can
+            // own its scroll (FOCUS-VOCAB-1), so this is now reachable.
+            let gutter = if reserves_vscrollbar(dom, tree) { 1 } else { 0 };
+            (r.x, r.x + r.width as i32 - gutter)
+        })
+        .unwrap_or((clip.x as i32, clip.right() as i32));
+    for item in treeitem_children(dom, tree) {
+        paint_item(dom, item, buf, clip, &[], span);
     }
 }
 
-/// Narrow `base_clip` to the scrollport (padding-box, per CSS
-/// Overflow 3 §3) of every clipping ancestor of `tree`, including the
-/// tree itself. Mirrors `paint_node`'s `children_clip` rule so guides
-/// painted by this standalone pass respect the same overflow clipping
-/// the main walk applies to a scroll container's descendants.
-fn clip_for_tree(dom: &Dom<TuiExt>, tree: NodeId, base_clip: Rect) -> Rect {
-    let mut clip = base_clip;
-    let mut cur = Some(tree);
-    while let Some(id) = cur {
-        if let Some(computed) = dom.node(id).ext().and_then(|e| e.computed.as_ref()) {
-            clip = crate::render::stacking::children_clip(dom, id, computed, clip);
-        }
-        cur = dom.node(id).parent_node().map(|p| p.id());
-    }
-    clip
+/// True when `id` is a `[role=tree]` element, whose content paint ends
+/// with its guides ([`paint_tree_guides`]).
+pub(super) fn is_tree(dom: &Dom<TuiExt>, id: NodeId) -> bool {
+    role(dom, id) == Some("tree")
 }
 
 /// The tree's padding box (border box minus its border) — the fill
@@ -135,20 +115,6 @@ fn reserves_vscrollbar(dom: &Dom<TuiExt>, tree: NodeId) -> bool {
         return false;
     };
     super::scrollbar::bars_shown(ext, c).0
-}
-
-fn collect_trees(dom: &Dom<TuiExt>, id: NodeId, out: &mut Vec<NodeId>) {
-    if role(dom, id) == Some("tree") {
-        out.push(id);
-    }
-    // Skipped contents (CSS Containment 2 §4) paint nothing, guides
-    // included.
-    for child in dom.node(id).child_nodes() {
-        let child = child.id();
-        if !crate::node::in_skipped_contents(dom, id, child, SkippedFor::Rendering) {
-            collect_trees(dom, child, out);
-        }
-    }
 }
 
 /// Paint one treeitem's guides and recurse into its child group.

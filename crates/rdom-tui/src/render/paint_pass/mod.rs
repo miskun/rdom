@@ -102,6 +102,8 @@ mod color_tests;
 #[cfg(test)]
 mod effect_cost_tests;
 #[cfg(test)]
+mod layer_border_tests;
+#[cfg(test)]
 mod phase_cost_tests;
 #[cfg(test)]
 mod tests;
@@ -143,10 +145,6 @@ impl PaintExt for Dom<TuiExt> {
         // The top layer (CSS Position 4): modal dialogs and popovers,
         // each over its `::backdrop`, above the whole document.
         top_layer::paint_top_layer(self, buf, clip);
-        // Tree guide lines — emit `│ ├ └` border contributions into
-        // the gutter of every `[role=tree]`. Runs BEFORE the joiner
-        // so the accumulated direction masks become glyphs.
-        tree_guides::paint_tree_guides(self, buf, clip);
         // Border-collapse joiner. Walks the buffer once and rewrites
         // box-drawing glyphs at junctions based on 4-neighbor
         // connectivity. Cheap when no element has `border-collapse:
