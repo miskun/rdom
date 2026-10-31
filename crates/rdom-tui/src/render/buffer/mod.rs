@@ -58,7 +58,7 @@ pub use border::{
     BorderCell, BorderContribution, BorderDirState, BorderSide, DIR_E, DIR_N, DIR_S, DIR_W,
     QUAD_BL, QUAD_BR, QUAD_TL, QUAD_TR,
 };
-pub(crate) use layering::BorderLayer;
+pub(crate) use layering::{BorderGroup, BorderLayer, DirOwner};
 
 /// 2D grid of cells.
 ///
@@ -92,6 +92,11 @@ pub struct Buffer {
     pub(crate) border_layers: Vec<BorderLayer>,
     /// The stacking context border writes paint in now (`layering`).
     border_layer: BorderLayer,
+    /// Per cell × per direction, the collapse group that owns its state
+    /// and when it last wrote it (`layering`).
+    pub(crate) border_owners: Vec<[DirOwner; 4]>,
+    /// The paint order of the last border write (`layering`).
+    border_seq: u32,
     /// The color scheme whose canvas model a translucent paint blends
     /// the terminal's default colors with (`Buffer::color_scheme`).
     scheme: ColorScheme,
@@ -149,6 +154,8 @@ impl Buffer {
             half_block_quads: vec![0u8; len],
             border_layers: vec![BorderLayer::ROOT; len],
             border_layer: BorderLayer::ROOT,
+            border_owners: vec![[DirOwner::default(); 4]; len],
+            border_seq: 0,
             scheme: ColorScheme::default(),
             scratch: Scratch::default(),
             outlines: Vec::new(),
@@ -174,6 +181,8 @@ impl Buffer {
             half_block_quads: vec![0u8; len],
             border_layers: vec![BorderLayer::ROOT; len],
             border_layer: BorderLayer::ROOT,
+            border_owners: vec![[DirOwner::default(); 4]; len],
+            border_seq: 0,
             scheme: ColorScheme::default(),
             scratch: Scratch::default(),
             outlines: Vec::new(),
@@ -227,6 +236,8 @@ impl Buffer {
         self.half_block_quads.fill(0);
         self.border_layers.fill(BorderLayer::ROOT);
         self.border_layer = BorderLayer::ROOT;
+        self.border_owners.fill([DirOwner::default(); 4]);
+        self.border_seq = 0;
         if let Some(c) = &mut self.coverage {
             c.fill(0);
         }
@@ -299,6 +310,8 @@ impl Buffer {
         // The layer paints on in the stacking context its region's
         // writes paint in now.
         out.border_layer = self.border_layer;
+        out.border_owners.clear();
+        out.border_seq = self.border_seq;
         for y in region.y..region.bottom() {
             let (Some(a), Some(b)) = (
                 self.index_of(region.x, y),
@@ -312,6 +325,8 @@ impl Buffer {
                 .extend_from_slice(&self.half_block_quads[a..=b]);
             out.border_layers
                 .extend_from_slice(&self.border_layers[a..=b]);
+            out.border_owners
+                .extend_from_slice(&self.border_owners[a..=b]);
         }
         if tracks {
             out.track_coverage();

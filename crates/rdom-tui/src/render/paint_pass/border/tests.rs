@@ -30,8 +30,12 @@ fn bordered() -> (Buffer, ComputedStyle, LayoutRect, Rect) {
 fn a_border_paints_without_allocating() {
     let (mut buf, c, outer, grid) = bordered();
     let clip = buf.area;
+    let origin = BorderOrigin {
+        priority: 7,
+        group: crate::render::buffer::BorderGroup::EXTERNAL,
+    };
     // Warm-up: the first translucent paint sizes the scratch layer.
-    paint_border_sides(&mut buf, &c, outer, grid, clip, 7);
-    let n = allocations_in(|| paint_border_sides(&mut buf, &c, outer, grid, clip, 7));
+    paint_border_sides(&mut buf, &c, outer, grid, clip, origin);
+    let n = allocations_in(|| paint_border_sides(&mut buf, &c, outer, grid, clip, origin));
     assert_eq!(n, 0, "allocations painting one bordered element");
 }

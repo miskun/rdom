@@ -12,7 +12,6 @@ use super::border::paint_border_sides;
 use super::layout_rect_to_grid;
 use crate::ext::{GeneratedBox, StyleSlot, TuiExt};
 use crate::layout::LayoutRect;
-use crate::render::buffer::BorderContribution;
 use crate::render::{Buffer, Rect};
 
 /// Paint the box of every generated flex or grid item of `container`,
@@ -80,14 +79,7 @@ pub(super) fn paint_box(
     };
     paint_background(buf, style, outer, content, clip);
     if !style.border.is_empty() {
-        // One level below its host, as a child box.
-        let mut depth: u16 = 1;
-        let mut cur = crate::render::box_tree::slot::parent(dom, g.host);
-        while let Some(node) = cur {
-            depth = depth.saturating_add(1);
-            cur = crate::render::box_tree::slot::parent(dom, node);
-        }
-        let priority = BorderContribution::pack_priority(depth, g.host.as_u32());
-        paint_border_sides(buf, style, outer, outer_grid, clip, priority);
+        let origin = super::border_scope::generated_origin(dom, g.host, g.slot as u8);
+        paint_border_sides(buf, style, outer, outer_grid, clip, origin);
     }
 }

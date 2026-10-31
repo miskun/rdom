@@ -223,3 +223,134 @@ fn a_z_indexed_member_of_a_collapse_group_keeps_conflict_resolution() {
     assert_eq!(buf.cell(shared, 1).unwrap().fg, BLUE, "{s}");
     assert_eq!(buf.cell(shared, 2).unwrap().symbol(), "┃", "{s}");
 }
+
+// ── Inside a stacking context: collapse groups resolve, others stack ──
+
+#[test]
+fn a_later_box_in_the_same_context_takes_the_lines_it_paints() {
+    // A positioned `z-index: auto` overlay paints after the in-flow
+    // boxes in the same stacking context: its lines are its own (red)
+    // where it crosses theirs, and the junctions still join every
+    // line that meets there, in the color of the box painted last.
+    let buf = render(
+        &format!(r#"{COLLAPSED}<div class="ov"></div>"#),
+        &format!(
+            "{COLLAPSED_CSS}
+             .ov {{ position: absolute; left: 4; top: 0; width: 12; height: 3; border: solid; color: red }}"
+        ),
+        24,
+        8,
+    );
+    let s = screen(&buf);
+    assert_eq!(row(&buf, 0), "┌───┬─────┬──────┬───┐", "{s}");
+    assert_eq!(colors(&buf, 0), "WWWWRRRRRRRRRRRRRRWWWW", "{s}");
+    assert_eq!(colors(&buf, 1), "W...R.....W......R...W", "{s}");
+    assert_eq!(row(&buf, 4), "│   └─────┼──────┘   │", "{s}");
+    assert_eq!(colors(&buf, 4), "W...RRRRRRRRRRRRRR...W", "{s}");
+}
+
+#[test]
+fn an_overlapping_later_box_owns_the_shared_line() {
+    // Two boxes overlapping by a row (a negative margin), neither in a
+    // collapse group: the later (blue) paints over the earlier (red), so
+    // the shared row is blue — even where the earlier border is heavier —
+    // and its ends join the red sides above.
+    let buf = render(
+        r#"<div class="x"></div><div class="y"></div>"#,
+        ".x { border: solid; color: red; width: 8; height: 1 }
+         .y { border: solid; color: blue; width: 8; height: 1; margin-top: -1 }",
+        12,
+        5,
+    );
+    let s = screen(&buf);
+    assert_eq!(row(&buf, 2), "├────────┤", "{s}");
+    assert_eq!(colors(&buf, 2), "BBBBBBBBBB", "{s}");
+    assert_eq!(colors(&buf, 1), "R........R", "{s}");
+
+    let heavy = render(
+        r#"<div class="x"></div><div class="y"></div>"#,
+        ".x { border: thick solid; color: red; width: 8; height: 1 }
+         .y { border: solid; color: blue; width: 8; height: 1; margin-top: -1 }",
+        12,
+        5,
+    );
+    let s = screen(&heavy);
+    assert!(row(&heavy, 2).contains("────────"), "{s}");
+    assert_eq!(colors(&heavy, 2), "BBBBBBBBBB", "{s}");
+}
+
+#[test]
+fn a_collapse_group_still_resolves_its_shared_edges() {
+    // CSS Tables 3 §11.5 inside the group, unchanged: the container's
+    // thick red ring beats its children's thin blue edges on it, though
+    // the children paint later; their shared edge stays theirs.
+    let buf = render(
+        COLLAPSED,
+        ".c { display: flex; border-collapse: collapse; border: thick solid; color: red; width: 20; height: 6 }
+         .a, .b { flex: 1; border: solid; color: blue }",
+        24,
+        8,
+    );
+    let s = screen(&buf);
+    assert_eq!(colors(&buf, 0), "RRRRRRRRRRRRRRRRRRRRRR", "{s}");
+    assert_eq!(buf.cell(1, 0).unwrap().symbol(), "━", "{s}");
+    assert_eq!(buf.cell(10, 2).unwrap().symbol(), "│", "{s}");
+    assert_eq!(buf.cell(10, 2).unwrap().fg, BLUE, "{s}");
+}
+
+#[test]
+fn a_hidden_edge_does_not_erase_a_later_unrelated_border() {
+    // `hidden` suppresses its collapse group's edge (§11.5 rule 1); a box
+    // outside the group painted later over that edge still shows its own.
+    let buf = render(
+        &format!(r#"{COLLAPSED}<div class="ov"></div>"#),
+        &format!(
+            "{COLLAPSED_CSS}
+             .a {{ border-top: hidden }}
+             .ov {{ position: absolute; left: 2; top: 0; width: 4; height: 1; border: solid; color: red }}"
+        ),
+        24,
+        8,
+    );
+    let s = screen(&buf);
+    let top: String = (2..8u16)
+        .map(|x| buf.cell(x, 0).unwrap().symbol().to_string())
+        .collect();
+    assert_eq!(top, "┌────┐", "{s}");
+    assert_eq!(&colors(&buf, 0)[2..8], "RRRRRR", "{s}");
+}
+
+#[test]
+fn removing_the_overlay_restores_the_borders_beneath() {
+    // The next frame, painted into the same buffer once the overlay is
+    // gone, draws the borders beneath as if it had never been there.
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    rdom_parser::parse_into(
+        &mut dom,
+        &format!(r#"{COLLAPSED}<div class="ov"></div>"#),
+        root,
+    )
+    .expect("markup parses");
+    let sheet = rdom_css::from_css_strict(&format!(
+        "{COLLAPSED_CSS}
+         .ov {{ position: absolute; left: 4; top: 0; width: 12; height: 3; border: solid; color: red; z-index: 10 }}"
+    ))
+    .expect("css parses");
+    let viewport = Rect::new(0, 0, 24, 8);
+    let mut buf = Buffer::empty(viewport);
+    dom.cascade(&sheet);
+    dom.layout_dom(viewport);
+    dom.paint_dom(&mut buf, viewport);
+    assert_eq!(row(&buf, 0), "┌───┌────────────┐───┐", "{}", screen(&buf));
+
+    let overlay = dom.query_selector(".ov").expect("overlay").id();
+    dom.remove_child(root, overlay).unwrap();
+    dom.cascade(&sheet);
+    dom.layout_dom(viewport);
+    buf.clear();
+    dom.paint_dom(&mut buf, viewport);
+    let without = render(COLLAPSED, COLLAPSED_CSS, 24, 8);
+    assert_eq!(screen(&buf), screen(&without));
+    assert_eq!(row(&buf, 0), "┌─────────┬──────────┐", "{}", screen(&buf));
+}

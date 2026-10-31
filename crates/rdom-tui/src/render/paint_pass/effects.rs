@@ -189,6 +189,7 @@ fn clip_cells(parent: &Buffer, layer: &mut Buffer, clip: crate::render::clip::Cl
             layer.border_dirs[i] = parent.border_dirs[j];
             layer.half_block_quads[i] = parent.half_block_quads[j];
             layer.border_layers[i] = parent.border_layers[j];
+            layer.border_owners[i] = parent.border_owners[j];
             if let Some(c) = &mut layer.coverage {
                 c[i] = 0;
             }

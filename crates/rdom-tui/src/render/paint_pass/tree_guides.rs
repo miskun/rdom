@@ -40,7 +40,7 @@ use rdom_core::{Dom, NodeId};
 use crate::ext::TuiExt;
 use crate::layout::CornerStyle;
 use crate::node::TuiNodeExt;
-use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S};
+use crate::render::buffer::{BorderContribution, BorderGroup, BorderSide, DIR_E, DIR_N, DIR_S};
 use crate::render::{Buffer, Rect, Style};
 use crate::style::Color;
 use rdom_style::layout::{BorderStyle, BorderWeight};
@@ -78,9 +78,24 @@ pub(super) fn paint_tree_guides(dom: &Dom<TuiExt>, tree: NodeId, buf: &mut Buffe
             (r.x, r.x + r.width as i32 - gutter)
         })
         .unwrap_or((clip.x as i32, clip.right() as i32));
+    // The guides resolve with the tree's own border, as its paint.
+    let gutter = Gutter {
+        clip,
+        span,
+        group: super::border_scope::group_of(dom, tree),
+    };
     for item in treeitem_children(dom, tree) {
-        paint_item(dom, item, buf, clip, &[], span);
+        paint_item(dom, item, buf, &gutter, &[]);
     }
+}
+
+/// What every guide of one tree paints with: the clip its children
+/// paint into, the full-width span of its rows (`tree_padding_box`), and
+/// the collapse group its border contributions resolve in.
+struct Gutter {
+    clip: Rect,
+    span: (i32, i32),
+    group: BorderGroup,
 }
 
 /// True when `id` is a `[role=tree]` element, whose content paint ends
@@ -125,9 +140,8 @@ fn paint_item(
     dom: &Dom<TuiExt>,
     item: NodeId,
     buf: &mut Buffer,
-    clip: Rect,
+    gutter: &Gutter,
     trunks: &[(u16, bool)],
-    span: (i32, i32),
 ) {
     if is_hidden(dom, item) {
         return;
@@ -166,7 +180,7 @@ fn paint_item(
     // fully, not just its first line.
     if let Some(bg) = row_highlight(dom, item) {
         for dy in 0..label_height {
-            fill_row_bg(buf, clip, span, row_y + dy, bg);
+            fill_row_bg(buf, gutter.clip, gutter.span, row_y + dy, bg);
         }
     }
 
@@ -181,7 +195,7 @@ fn paint_item(
     // (DIVERGENCES §ARIA tree). First label row only.
     if let Some(expanded) = dom.node(item).get_attribute("aria-expanded") {
         let glyph = if expanded == "true" { "▼" } else { "▶" };
-        put_glyph(buf, clip, rect.x, row_y, glyph, color);
+        put_glyph(buf, gutter.clip, rect.x, row_y, glyph, color);
     }
 
     // Ancestor trunks — `│` at each continuing ancestor's column,
@@ -190,7 +204,7 @@ fn paint_item(
     for &(col, continues) in trunks {
         if continues {
             for dy in 0..label_height {
-                put(buf, clip, col as i32, row_y + dy, &[DIR_N, DIR_S], color);
+                put(buf, gutter, col as i32, row_y + dy, &[DIR_N, DIR_S], color);
             }
         }
     }
@@ -212,12 +226,12 @@ fn paint_item(
         } else {
             &[DIR_N, DIR_E, DIR_S]
         };
-        put(buf, clip, own_col, row_y, connector, color);
+        put(buf, gutter, own_col, row_y, connector, color);
         // Continue the `│` down through any wrapped label rows so a
         // non-last item's trunk reaches its child group / next sibling.
         if !is_last {
             for dy in 1..label_height {
-                put(buf, clip, own_col, row_y + dy, &[DIR_N, DIR_S], color);
+                put(buf, gutter, own_col, row_y + dy, &[DIR_N, DIR_S], color);
             }
         }
     }
@@ -233,14 +247,15 @@ fn paint_item(
             child_trunks.push((own_col as u16, !is_last));
         }
         for child in treeitem_children(dom, group) {
-            paint_item(dom, child, buf, clip, &child_trunks, span);
+            paint_item(dom, child, buf, gutter, &child_trunks);
         }
     }
 }
 
 /// Write `dirs` as `Solid` border contributions at `(x, y)`. The
 /// joiner turns the accumulated 4-direction mask into the glyph.
-fn put(buf: &mut Buffer, clip: Rect, x: i32, y: i32, dirs: &[usize], color: Color) {
+fn put(buf: &mut Buffer, gutter: &Gutter, x: i32, y: i32, dirs: &[usize], color: Color) {
+    let clip = gutter.clip;
     if x < 0 || y < 0 {
         return;
     }
@@ -250,7 +265,7 @@ fn put(buf: &mut Buffer, clip: Rect, x: i32, y: i32, dirs: &[usize], color: Colo
     }
     let add = |buf: &mut Buffer, fg: Color| {
         for &dir in dirs {
-            buf.add_border_dir(
+            buf.add_border(
                 xu,
                 yu,
                 dir,
@@ -262,6 +277,7 @@ fn put(buf: &mut Buffer, clip: Rect, x: i32, y: i32, dirs: &[usize], color: Colo
                     corner_style: CornerStyle::Square,
                     side: BorderSide::Top,
                 },
+                gutter.group,
             );
         }
     };

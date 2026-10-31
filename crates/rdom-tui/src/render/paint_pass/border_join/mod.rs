@@ -53,7 +53,7 @@ use rdom_style::layout::{BorderStyle, BorderWeight, CornerStyle};
 use crate::ext::TuiExt;
 use crate::render::Buffer;
 use crate::render::buffer::{
-    BorderContribution, BorderDirState, BorderSide, DIR_E, DIR_N, DIR_S, DIR_W,
+    BorderContribution, BorderDirState, BorderSide, DIR_E, DIR_N, DIR_S, DIR_W, DirOwner,
 };
 
 /// The glyph of an outline ring cell (`outline`, CSS UI 4 §5) that joins
@@ -107,7 +107,7 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
                         buf.border_dir_at(x, y, DIR_S),
                         buf.border_dir_at(x, y, DIR_W),
                     ];
-                    let fg = dominant_contribution(&cell_state).fg;
+                    let fg = dominant_contribution(&cell_state, &owners_at(buf, x, y)).fg;
                     if let Some(cell) = buf.cell_mut(x, y) {
                         draw_border_glyph(cell, glyph, fg);
                     }
@@ -129,7 +129,7 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
             if mask == 0 {
                 continue;
             }
-            let dominant = dominant_contribution(&cell_state);
+            let dominant = dominant_contribution(&cell_state, &owners_at(buf, x, y));
             // Rounded-corner fast path: when this cell is a lone
             // bordered element's corner — exactly one priority
             // contributes across the visible directions, mask is
@@ -189,7 +189,8 @@ pub(super) fn join_borders(_dom: &Dom<TuiExt>, buf: &mut Buffer) {
 
 /// A junction's arms are the lines it joins (DIVERGENCES §1: "the glyph
 /// joins every direction's line"): an arm whose neighbour cell carries
-/// the line on, back toward this cell, is resolved together with that
+/// the line on, back toward this cell — in the same stacking context and
+/// collapse group (LAYER-BORDERS) — is resolved together with that
 /// cell's contributions to it (CSS Tables 3 §11.5), so a junction at the
 /// end of a collapsed line draws the line that won there — even where the
 /// box whose side won it stops short of the junction, as a table cell with
@@ -219,12 +220,22 @@ fn continued_arms(
         let (Some(nx), Some(ny)) = (x.checked_add_signed(dx), y.checked_add_signed(dy)) else {
             continue;
         };
+        let same_group = buf.border_layer_at(nx, ny) == buf.border_layer_at(x, y)
+            && buf.border_owner_at(nx, ny, back).group == buf.border_owner_at(x, y, dir).group;
+        if !same_group {
+            continue;
+        }
         let next = buf.border_dir_at(nx, ny, back);
         if let Some(c) = next.winner.filter(|_| next.is_visible()) {
             state[dir].merge(c);
         }
     }
     state
+}
+
+/// The owner of each direction at `(x, y)`, N, E, S, W.
+fn owners_at(buf: &Buffer, x: u16, y: u16) -> [DirOwner; 4] {
+    [DIR_N, DIR_E, DIR_S, DIR_W].map(|d| buf.border_owner_at(x, y, d))
 }
 
 /// Draw a border glyph in its border's color — the default (`Reset`,
@@ -287,7 +298,10 @@ fn visible_mask(cell_state: &[BorderDirState; 4]) -> u8 {
 }
 
 /// Pick the dominant contribution across the cell's visible
-/// directions. CSS Tables 3 §11.5 says the higher-rank style wins
+/// directions. Lines of different collapse groups meet only where a
+/// later box painted over an earlier one, so the group painted last
+/// (`owners`, LAYER-BORDERS) takes the cell; among its directions,
+/// CSS Tables 3 §11.5 says the higher-rank style wins
 /// (`double > solid > dashed > …`); on a tie, the higher-priority
 /// (more nested, then earlier-DOM) contribution wins. The dominant
 /// contribution's style chooses the glyph table; its color paints
@@ -300,14 +314,21 @@ fn visible_mask(cell_state: &[BorderDirState; 4]) -> u8 {
 /// weight), then the heavier style, and on a tie the horizontal side
 /// (top / bottom), so the top and bottom of a box read as whole lines
 /// (DIVERGENCES §2). Across elements, §11.5 likewise ranks width first.
-fn dominant_contribution(cell_state: &[BorderDirState; 4]) -> BorderContribution {
+fn dominant_contribution(
+    cell_state: &[BorderDirState; 4],
+    owners: &[DirOwner; 4],
+) -> BorderContribution {
     let dominance = |c: &BorderContribution| {
         let horizontal = matches!(c.side, BorderSide::Top | BorderSide::Bottom);
         (c.weight, c.style.rank(), c.priority, horizontal)
     };
+    let latest = (0..4)
+        .filter(|&d| cell_state[d].is_visible())
+        .max_by_key(|&d| owners[d].seq)
+        .map(|d| owners[d].group);
     let mut best: Option<BorderContribution> = None;
-    for dir_state in cell_state {
-        if !dir_state.is_visible() {
+    for (dir_state, owner) in cell_state.iter().zip(owners) {
+        if !dir_state.is_visible() || Some(owner.group) != latest {
             continue;
         }
         let Some(c) = dir_state.winner else { continue };

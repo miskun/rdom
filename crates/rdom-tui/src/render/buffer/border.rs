@@ -182,12 +182,7 @@ impl Buffer {
     /// the higher-rank (then higher-priority) contribution wins.
     /// Out-of-bounds writes silently no-op.
     pub fn add_border_dir(&mut self, x: u16, y: u16, dir: usize, contribution: BorderContribution) {
-        debug_assert!(dir < 4, "BorderCell index out of range");
-        if let Some(i) = self.index_of(x, y) {
-            self.claim(i);
-            self.border_dirs[i][dir].merge(contribution);
-            self.mark(i, super::coverage::BORDER);
-        }
+        self.add_border(x, y, dir, contribution, super::BorderGroup::EXTERNAL);
     }
 
     /// Read the per-direction state at `(x, y)`. Default

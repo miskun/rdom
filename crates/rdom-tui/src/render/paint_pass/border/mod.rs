@@ -13,6 +13,7 @@
 
 mod half_block;
 
+use super::border_scope::BorderOrigin;
 use crate::layout::{Border, BorderRadius, BorderWidth, CornerStyle, Corners, LayoutRect, Sides};
 use crate::render::buffer::{BorderContribution, BorderSide, DIR_E, DIR_N, DIR_S, DIR_W};
 use crate::render::{Buffer, Rect};
@@ -32,7 +33,7 @@ pub(super) fn paint_border_sides(
     outer: LayoutRect,
     outer_grid: Rect,
     clip: Rect,
-    priority: u64,
+    origin: BorderOrigin,
 ) {
     let (border, colors) = (computed.border, computed.border_color);
     // A zero-width side is already `none` in the used border.
@@ -58,7 +59,7 @@ pub(super) fn paint_border_sides(
             weights,
             corners,
         };
-        paint_border(buf, outer, border, ink, only, clip, priority, bounds);
+        paint_border(buf, outer, border, ink, only, clip, origin, bounds);
     };
     let opaque = colors.map(|c| c.alpha() != 0 && !c.is_translucent());
     if opaque.each().into_iter().any(|o| *o) {
@@ -156,7 +157,7 @@ fn paint_border(
     ink: Ink,
     only: Sides<bool>,
     clip: Rect,
-    priority: u64,
+    origin: BorderOrigin,
     bounds: Rect,
 ) {
     // BORDER-MODEL-1: paint writes per-cell × per-direction
@@ -192,7 +193,7 @@ fn paint_border(
     let pen = Pen {
         ink,
         only,
-        priority,
+        origin,
         corners: ink.corners,
         edges: (outer.x, outer.y, right_x, bottom_y),
     };
@@ -365,12 +366,13 @@ struct Ink {
 }
 
 /// What one element's border contributes with: each side's ink and
-/// whether this pass paints it, the structural priority, and each
+/// whether this pass paints it, its origin (§11.5 priority and collapse
+/// group), and each
 /// corner's style with where the corners are (left, top, right, bottom).
 struct Pen {
     ink: Ink,
     only: Sides<bool>,
-    priority: u64,
+    origin: BorderOrigin,
     corners: Corners<CornerStyle>,
     edges: (i32, i32, i32, i32),
 }
@@ -378,8 +380,9 @@ struct Pen {
 impl Pen {
     /// Add one direction's contribution to the cell. Routes the
     /// source side's `BorderStyle` + `border-*-color` + structural
-    /// priority through `add_border_dir` so CSS Tables 3 §11.5
-    /// conflict resolution can decide the winner per direction.
+    /// priority and collapse group through `add_border`, so CSS Tables 3
+    /// §11.5 conflict resolution — or, across groups, paint order — can
+    /// decide the winner per direction.
     #[inline]
     fn add(
         &self,
@@ -400,7 +403,7 @@ impl Pen {
         if style.is_none() || !painted {
             return;
         }
-        buf.add_border_dir(
+        buf.add_border(
             x,
             y,
             dir,
@@ -408,10 +411,11 @@ impl Pen {
                 style,
                 fg,
                 weight,
-                priority: self.priority,
+                priority: self.origin.priority,
                 corner_style: self.corner_at(x, y),
                 side,
             },
+            self.origin.group,
         );
     }
 }

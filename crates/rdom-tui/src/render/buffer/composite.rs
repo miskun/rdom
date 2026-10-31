@@ -96,6 +96,7 @@ impl Buffer {
         if alpha <= 0.0 {
             return;
         }
+        self.follow_border_seq(layer);
         let region = self.area.intersection(layer.area);
         if region.is_empty() {
             return;
@@ -197,6 +198,7 @@ impl Buffer {
             self.border_dirs[i] = layer.border_dirs[j];
             self.half_block_quads[i] = layer.half_block_quads[j];
             self.border_layers[i] = layer.border_layers[j];
+            self.border_owners[i] = layer.border_owners[j];
             self.mark(i, marks);
             return wide && text_wins;
         }
@@ -260,6 +262,7 @@ impl Buffer {
             self.border_dirs[i] = state;
             self.half_block_quads[i] = layer.half_block_quads[j];
             self.border_layers[i] = layer.border_layers[j];
+            self.border_owners[i] = layer.border_owners[j];
         } else if bg_painted {
             // The backdrop's border stays, tinted by the layer's bg.
             for d in &mut self.border_dirs[i] {

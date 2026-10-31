@@ -205,18 +205,18 @@ fn paint_own_box(
 
     // 2. Border. Writes per-cell × per-direction `BorderContribution`s
     // into `buf.border_dirs`; the joiner reads them after the
-    // walk and emits the right glyph + color. BORDER-MODEL-1
-    // priority encodes "child wins over ancestor" (depth) and
-    // "earlier DOM order wins on tie" (`NodeId` proxy for
-    // geometric position).
-    let priority = compute_border_priority(dom, id);
+    // walk and emits the right glyph + color. The origin carries
+    // the §11.5 priority ("child wins over ancestor", then "earlier
+    // DOM order wins") and the collapse group it resolves in
+    // (`border_scope`).
+    let origin = super::border_scope::origin_of(dom, id);
     if !computed.border.is_empty() {
-        paint_border_sides(buf, computed, outer, outer_grid, clip, priority);
+        paint_border_sides(buf, computed, outer, outer_grid, clip, origin);
     }
     // 3. A multi-column container's rules, just above its border (CSS
     // Multi-column 1 §4).
     if computed.is_multicol_container() {
-        super::column_rule::paint(dom, id, buf, computed, outer, clip, priority);
+        super::column_rule::paint(dom, id, buf, computed, outer, clip, origin);
     }
 }
 
@@ -327,30 +327,6 @@ pub(super) fn paint_content(
     if frame.visible {
         scrollbar::paint_scrollbars(dom, id, computed, buf, clip);
     }
-}
-
-/// Compute the structural priority for an element's border
-/// contributions. Encodes CSS Tables 3 §11.5 rules 5 + 6:
-///
-/// - **Rule 5 (closer-to-cell wins).** Deeper elements outrank
-///   their ancestors. We walk the parent chain to count depth.
-/// - **Rule 6 (geometric position).** Within the same depth,
-///   earlier-in-DOM wins. We use `NodeId.as_u32()` as a stable
-///   proxy: nodes are created in monotonic order, and for the
-///   common case of "build the tree top-down, append children in
-///   order" that aligns with leftmost / topmost in geometric
-///   layout. Edge cases (re-parented elements, mixed creation
-///   order) are accepted simplifications — documented in
-///   `DIVERGENCES.md` under "Layout."
-fn compute_border_priority(dom: &Dom<TuiExt>, id: NodeId) -> u64 {
-    use crate::render::buffer::BorderContribution;
-    let mut depth: u16 = 0;
-    let mut cur = crate::render::box_tree::slot::parent(dom, id);
-    while let Some(node) = cur {
-        depth = depth.saturating_add(1);
-        cur = crate::render::box_tree::slot::parent(dom, node);
-    }
-    BorderContribution::pack_priority(depth, id.as_u32())
 }
 
 /// True when `bg` fills a box: any color that is not fully transparent

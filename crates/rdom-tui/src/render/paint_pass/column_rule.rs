@@ -15,8 +15,9 @@ use crate::render::{Buffer, Rect};
 use crate::style::ComputedStyle;
 use rdom_style::layout::CornerStyle;
 
-/// Draw `id`'s column rules into `clip`: `computed` its style, `priority`
-/// its border contributions' (BORDER-MODEL-1), `outer` its border box.
+/// Draw `id`'s column rules into `clip`: `computed` its style, `owner`
+/// its border contributions' (BORDER-MODEL-1, LAYER-BORDERS), `outer` its
+/// border box.
 pub(super) fn paint(
     dom: &Dom<TuiExt>,
     id: NodeId,
@@ -24,7 +25,7 @@ pub(super) fn paint(
     computed: &ComputedStyle,
     outer: LayoutRect,
     clip: Rect,
-    priority: u64,
+    owner: super::border_scope::BorderOrigin,
 ) {
     let m = &computed.multicol;
     let Some(weight) = m.column_rule_width.weight() else {
@@ -64,7 +65,7 @@ pub(super) fn paint(
         style: m.column_rule_style,
         fg,
         weight,
-        priority,
+        priority: owner.priority,
         corner_style: CornerStyle::Square,
         side: BorderSide::Left,
     };
@@ -73,7 +74,7 @@ pub(super) fn paint(
             return;
         };
         if clip.contains(xu, yu) && buf.area.contains(xu, yu) {
-            buf.add_border_dir(xu, yu, dir, contribution);
+            buf.add_border(xu, yu, dir, contribution, owner.group);
         }
     };
     for set in sets {
