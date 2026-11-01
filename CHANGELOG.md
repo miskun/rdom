@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-11-01
+
+Only `rdom-tui` bumps (0.6.2 → **0.6.3**); the other four crates are unchanged.
+
 ### Fixed — `rdom-tui`
 
 - **A border in a higher stacking context covers the borders beneath it.** Every border on the page met in one table resolved by CSS Tables 3 §11.5 (wider, then style, then the more nested and earlier element), whatever its stacking order. An overlay with `z-index: 10` lost parts of its own ring to a nested box's border beneath it, the later of two `z-index: 1` boxes lost where they crossed, and a negative-`z-index` box joined the in-flow borders above it. A border painted in a later stacking context (a positioned box with a numeric `z-index`, `opacity < 1`, a transform, filter or blend mode, the top layer) now takes its cells whole, with its own glyph and color: it does not join the lines beneath it, and its rounded corners stay rounded. A z-indexed member of a collapse group still resolves its shared edges with its neighbours. (LAYER-BORDERS)
