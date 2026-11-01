@@ -354,3 +354,73 @@ fn removing_the_overlay_restores_the_borders_beneath() {
     assert_eq!(screen(&buf), screen(&without));
     assert_eq!(row(&buf, 0), "┌─────────┬──────────┐", "{}", screen(&buf));
 }
+
+// ── Out-of-flow children are not in a collapse group ─────────────
+
+/// A collapsed frame (white), 22 × 12, with a header and a list sharing
+/// its edges — junctions `├` / `┤` at row 5 — and an absolutely
+/// positioned 1-column handle over its left edge, rows 1–10 (`.h`).
+const FRAME: &str = r#"<main class="m"><div class="h"></div><header class="hd">Title</header><section class="ls">rows</section></main>"#;
+const FRAME_CSS: &str = ".m { position: relative; display: flex; flex-direction: column; width: 20; height: 10; border: solid; color: white; border-collapse: collapse }
+     .hd { height: 4; flex-shrink: 0; border: solid }
+     .ls { flex: 1; border-left: solid; border-right: solid; border-bottom: solid }
+     .h { position: absolute; left: -1; top: 0; bottom: 0; width: 1 }";
+
+#[test]
+fn an_absolutely_positioned_handle_draws_a_straight_line_over_the_edge() {
+    // Out of flow, the handle shares no edge with the frame (CSS 2.1
+    // §9.3.1; CSS Tables 3 §11.5 resolves the boxes that share grid
+    // lines): its own straight line covers the frame's left edge, the
+    // junction included; the frame's corners, outside it, stay the frame's.
+    let buf = render(
+        FRAME,
+        &format!("{FRAME_CSS} .h {{ z-index: 10; border-left: solid red }}"),
+        24,
+        12,
+    );
+    let s = screen(&buf);
+    let column: String = (0..12u16)
+        .map(|y| buf.cell(0, y).unwrap().symbol().to_string())
+        .collect();
+    assert_eq!(column, "┌││││││││││└", "{s}");
+    for y in 1..11u16 {
+        assert_eq!(buf.cell(0, y).unwrap().fg, RED, "row {y}\n{s}");
+    }
+    assert_eq!(buf.cell(0, 0).unwrap().fg, WHITE, "{s}");
+    assert_eq!(buf.cell(0, 11).unwrap().fg, WHITE, "{s}");
+    assert_eq!(row(&buf, 5), "│────────────────────┤", "{s}");
+}
+
+#[test]
+fn an_idle_handle_with_a_transparent_border_leaves_the_junctions_be() {
+    // A handle that draws nothing until hovered covers nothing.
+    let buf = render(
+        FRAME,
+        &format!("{FRAME_CSS} .h {{ z-index: 10; border-left: solid transparent }}"),
+        24,
+        12,
+    );
+    assert_eq!(row(&buf, 5), "├────────────────────┤", "{}", screen(&buf));
+    assert_eq!(row(&buf, 0), "┌────────────────────┐", "{}", screen(&buf));
+}
+
+#[test]
+fn a_recolored_collapsed_edge_keeps_its_junctions() {
+    // The other design: recolor the shared edge itself — the frame's and
+    // its in-flow children's left sides. Its junctions stay junctions; a
+    // thick edge outweighs the thin separators, so they take its color
+    // too (§11.5: the wider border wins; a thin one would leave each
+    // junction to its box's horizontal side, DIVERGENCES "A border corner
+    // takes one side's color").
+    let buf = render(
+        FRAME,
+        &format!("{FRAME_CSS} .m, .m > .hd, .m > .ls {{ border-left: thick solid red }}"),
+        24,
+        12,
+    );
+    let s = screen(&buf);
+    assert_eq!(buf.cell(0, 5).unwrap().symbol(), "┠", "{s}");
+    for y in 0..12u16 {
+        assert_eq!(buf.cell(0, y).unwrap().fg, RED, "row {y}\n{s}");
+    }
+}

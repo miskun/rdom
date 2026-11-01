@@ -9,7 +9,10 @@
 //!   ([`context_layer`]).
 //! - **Collapse group.** A collapsing container's shared edges resolve
 //!   as one, by CSS Tables 3 §11.5 — a table's grid, or a `border-collapse:
-//!   collapse` container and its direct children (BORDER-MODEL-1). A
+//!   collapse` container and its in-flow direct children (BORDER-MODEL-1):
+//!   the boxes layout overlaps on shared edges. An out-of-flow child — an
+//!   absolutely or fixed positioned box, a float — shares no edge (CSS 2.1
+//!   §9.3.1), so it is a box of its own over the frame. A
 //!   member of a group stays in its group's layer even where it roots a
 //!   stacking context of its own (a z-indexed cell): its edges are the
 //!   group's, resolved there, as a browser paints a collapsed table's
@@ -101,8 +104,9 @@ pub(super) fn context_layer(dom: &Dom<TuiExt>, root: NodeId) -> Option<BorderLay
 }
 
 /// True when the element `id` shares its edges with its box parent's
-/// collapse group: a table part of a collapsing table, or a direct child
-/// of a `border-collapse: collapse` container.
+/// collapse group: a table part of a collapsing table, or an in-flow
+/// direct child of a `border-collapse: collapse` container. An
+/// out-of-flow box (absolutely or fixed positioned, floated) shares none.
 pub(super) fn shares_collapsed_borders(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     let Some(parent) = crate::render::box_tree::box_parent(dom, id) else {
         return false;
@@ -110,6 +114,11 @@ pub(super) fn shares_collapsed_borders(dom: &Dom<TuiExt>, id: NodeId) -> bool {
     let Some(c) = dom.node(id).computed() else {
         return false;
     };
+    if crate::render::inline::generated::is_out_of_flow(c)
+        || crate::render::stacking::is_float(dom, id)
+    {
+        return false;
+    }
     if matches!(c.display, Display::TablePart(_)) {
         return in_collapsing_table(dom, parent);
     }

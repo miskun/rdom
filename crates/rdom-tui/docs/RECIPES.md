@@ -777,6 +777,67 @@ does so only on a text field or editing host — and the UA focus tint
 keys on it; `dom.set_focus_visible(bool)` sets it directly (it fires
 `InteractionChanged(FocusVisible)`).
 
+### Highlighting a pane edge: a resize handle
+
+A pane frame drawn with `border-collapse: collapse` shares its edges with
+the panes inside it, and their separators meet its sides in junctions
+(`├ ┤`). A resize handle over one of those edges can show itself two
+ways:
+
+- **A straight line over the edge.** Lay an absolutely positioned,
+  z-indexed handle over the edge with a transparent border that takes a
+  color on hover. Out of flow, it shares no edge with the frame, so its
+  line covers the cells it crosses, junctions included, and leaves the
+  frame's corners be. While idle a transparent border draws nothing.
+- **The edge itself, with its junctions.** Recolor the shared edge (the
+  frame's side and its in-flow children's) from the frame, e.g. with
+  `.frame:has(> .handle:hover)`. Its junctions stay junctions; a `thick`
+  edge outweighs thin separators, so the junctions take its color too.
+  With equal widths each junction keeps its box's horizontal side's color
+  (DIVERGENCES "A border corner takes one side's color").
+
+```rust
+use rdom_tui::prelude::*;
+
+let css = ".frame { position: relative; display: flex; flex-direction: column;
+                    width: 20; height: 8; border: solid; border-collapse: collapse }
+           .pane { flex: 1; border: solid }
+           .handle { position: absolute; z-index: 10; left: -1; top: 0; bottom: 0;
+                     width: 1; border-left: solid transparent }
+           .handle:hover { border-left-color: blue }";
+let mut dom: TuiDom = TuiDom::new();
+let root = dom.root();
+let frame = dom.create_element("div");
+dom.set_attribute(frame, "class", "frame").unwrap();
+dom.append_child(root, frame).unwrap();
+let handle = dom.create_element("div");
+dom.set_attribute(handle, "class", "handle").unwrap();
+dom.append_child(frame, handle).unwrap();
+for _ in 0..2 {
+    let pane = dom.create_element("section");
+    dom.set_attribute(pane, "class", "pane").unwrap();
+    dom.append_child(frame, pane).unwrap();
+}
+let sheet = rdom_css::from_css(css);
+let area = Rect::new(0, 0, 24, 10);
+let paint = |dom: &mut TuiDom| {
+    dom.cascade(&sheet);
+    dom.layout_dom(area);
+    let mut buf = Buffer::empty(area);
+    dom.paint_dom(&mut buf, area);
+    buf
+};
+// Idle: the separator meets the frame's edge in a junction.
+let idle = paint(&mut dom);
+let junction = (1..9).find(|&y| idle.cell(0, y).unwrap().symbol() == "├").unwrap();
+// Hovered: the handle's straight line covers the edge, junction included.
+dom.set_hovered(Some(handle));
+let hovered = paint(&mut dom);
+assert_eq!(hovered.cell(0, junction).unwrap().symbol(), "│");
+assert_eq!(hovered.cell(0, junction).unwrap().fg, Color::Rgb(0, 0, 255));
+assert_eq!(hovered.cell(0, 0).unwrap().symbol(), "┌");
+```
+
 ## Form states
 
 The input pseudo-classes follow HTML: `:valid` / `:invalid`, `:required` / `:optional`, `:read-only` / `:read-write`, `:in-range` / `:out-of-range`, `:default`, `:indeterminate` (a checkbox's flag, a radio group with nothing checked), and `:user-valid` / `:user-invalid`. The last two wait for the user: a field is judged once the user commits a change to it — leaving an edited text field, Enter in it, a toggle or a pick — or once its form's submission is attempted, and a reset forgets it. So an empty required field is `:invalid` from the start, but is shown as wrong only when the user has had a go at it:
