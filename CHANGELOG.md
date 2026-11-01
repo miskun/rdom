@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-11-01
+
+Only `rdom-tui` bumps (0.6.3 → **0.6.4**); the other four crates are unchanged.
+
 ### Fixed — `rdom-tui`
 
 - **An absolutely or fixed positioned or floated child of a `border-collapse: collapse` container is no longer part of its collapse group.** Out of flow, such a child shares no edge with the container (layout never overlapped it; CSS 2.1 §9.3.1), yet its border resolved with the container's edges by CSS Tables 3 §11.5 and joined their junctions. A resize handle laid over a pane frame's edge with `z-index` now draws its own straight line there, covering the frame's junctions and leaving its corners be; a handle with a transparent border covers nothing while idle. In-flow children (relatively positioned or z-indexed items included) still share the container's edges. `docs/RECIPES.md` gains "Highlighting a pane edge: a resize handle": the straight-line handle, or the recolored collapsed edge with its junctions. (LAYER-BORDERS)

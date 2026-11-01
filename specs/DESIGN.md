@@ -116,6 +116,7 @@ The work that fed into 0.1.0 was organized in five internal milestones (M1 CSS p
 | **0.6.1** | `rdom-tui` only — **the layout flush** (FLUSH-LAYOUT): `focus()` and `scroll_into_view()` scroll against a layout brought up to date first, as in browsers; `runtime::layout_flush::flush_layout` / `LayoutFlush` for code reading geometry in a handler; the frame prelude's DOM-derived stages in one owner (`runtime::derived_state`). | Shipped 2026-10-29 |
 | **0.6.2** | `rdom-tui` only — **the client box** (CLIENT-GEOMETRY): `client_width()` / `client_height()` / `client_top()` / `client_left()`, CSSOM View §6's `clientWidth` / `clientHeight` / `clientTop` / `clientLeft`. | Shipped 2026-10-31 |
 | **0.6.3** | `rdom-tui` only — **borders follow paint order** (LAYER-BORDERS): a border in a higher stacking context covers the borders beneath it instead of joining them; inside one stacking context the box painted later takes the lines it paints, CSS Tables 3 §11.5 deciding only within a collapse group; tree guide lines paint in the tree's own layer. | Shipped 2026-11-01 |
+| **0.6.4** | `rdom-tui` only — **out-of-flow children leave the collapse group** (LAYER-BORDERS): an absolutely / fixed positioned or floated child of a `border-collapse` container draws its own border over the container's instead of joining it — a resize handle's straight line over a pane edge; RECIPES "Highlighting a pane edge". | Shipped 2026-11-01 |
 | **0.7.0** | Client-side routing primitive. | Planned |
 | **0.8.0** | Async tasks during event handlers. | Planned |
 
