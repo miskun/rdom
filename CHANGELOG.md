@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `rdom-tui`
+
+- **A shrinking flex item clamped at `min-width: 0` passes the overflow it cannot take on to the other items.** When an item's share of a line's overflow (by `flex-shrink` × its base) exceeded its whole base, its target saturated at 0 instead of going below it, so its `min-width: 0` (explicit, or the automatic minimum of a scroll container) never registered as a violation: the item collapsed to 0 and the rest of its share was dropped, the line overflowed, and an item after it with `flex-shrink: 0` was pushed out of view. The §9.7 loop now keeps its targets signed: the item freezes at 0 and the other shrinkable items take the rest (CSS Flexbox §9.7). A `min-width` above 0 already redistributed.
+
 ## [0.6.4] - 2026-11-01
 
 Only `rdom-tui` bumps (0.6.3 → **0.6.4**); the other four crates are unchanged.

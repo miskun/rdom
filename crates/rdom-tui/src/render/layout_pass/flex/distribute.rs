@@ -9,7 +9,7 @@ use rdom_core::Dom;
 
 use super::main_axis::ChildMain;
 use crate::ext::TuiExt;
-use crate::layout::{Direction, clamp_size};
+use crate::layout::Direction;
 use crate::render::layout_pass::items::Item;
 use crate::render::layout_pass::shares::{Rolling, sums_below_one};
 
@@ -48,13 +48,18 @@ pub(super) struct MainAxisBudget {
 /// Shares are whole cells, distributed rolling (Bresenham) so no cell
 /// of the free space is dropped: two growing items over 31 cells get
 /// 15 + 16.
+///
+/// The loop's targets are signed: a shrinking item's share may exceed
+/// its whole base, and the target below zero is what makes its `min-*`
+/// (even `min-width: 0`) a violation that freezes it and hands the
+/// excess on to the items still unfrozen. Only a frozen target — clamped
+/// by its min / max — is a size.
 pub(super) fn resolve_flexible_lengths(
     dom: &Dom<TuiExt>,
     items: &[ChildMain],
     direction: Direction,
     budget: MainAxisBudget,
 ) -> Vec<u16> {
-    let n = items.len();
     let budgets = super::main_axis::MainBudgets {
         main: budget.main,
         cross: budget.cross,
@@ -62,92 +67,121 @@ pub(super) fn resolve_flexible_lengths(
     // The hypothetical main sizes: the bases clamped by `min-*` / `max-*`,
     // the §4.5 automatic minimum included (`ChildMain::hypothetical`, as
     // line breaking takes them).
-    let mut target: Vec<u16> = items
+    let mut slots: Vec<Slot> = items
         .iter()
-        .map(|ci| ci.hypothetical(dom, direction, budgets))
+        .map(|ci| Slot {
+            target: i32::from(ci.hypothetical(dom, direction, budgets)),
+            frozen: false,
+        })
         .collect();
     let net = budget.net;
     // A line with no room (`net <= 0`) shrinks too: its free space is
     // negative.
-    let growing = target.iter().map(|&h| i32::from(h)).sum::<i32>() < net;
+    let growing = slots.iter().map(|s| s.target).sum::<i32>() < net;
     let factor = |ci: &ChildMain| f64::from(if growing { ci.grow } else { ci.shrink });
     // Inflexible items freeze at their hypothetical sizes; the others
     // start from their bases.
-    let mut frozen = vec![false; n];
-    for (i, ci) in items.iter().enumerate() {
-        let h = target[i];
-        if factor(ci) <= 0.0 || (growing && ci.base > h) || (!growing && ci.base < h) {
-            frozen[i] = true;
+    for (slot, ci) in slots.iter_mut().zip(items) {
+        let h = slot.target;
+        let base = i32::from(ci.base);
+        if factor(ci) <= 0.0 || (growing && base > h) || (!growing && base < h) {
+            slot.frozen = true;
         } else {
-            target[i] = ci.base;
+            slot.target = base;
         }
     }
-    let free_now = |target: &[u16], frozen: &[bool]| -> i32 {
-        let used: i32 = (0..n)
-            .map(|i| i32::from(if frozen[i] { target[i] } else { items[i].base }))
+    let free_now = |slots: &[Slot]| -> i32 {
+        let used: i32 = slots
+            .iter()
+            .zip(items)
+            .map(|(s, ci)| {
+                if s.frozen {
+                    s.target
+                } else {
+                    i32::from(ci.base)
+                }
+            })
             .sum();
         net - used
     };
-    let initial_free = f64::from(free_now(&target, &frozen));
+    let initial_free = f64::from(free_now(&slots));
     // An unfrozen item's target clamped by its min / max: the §4.5
     // automatic minimum only where it can bind (a growing target is at
     // or above its base), resolved once per item (`ChildMain::auto_min`)
     // — so clamping again costs no walk, and the loop needs no buffer of
     // clamped targets.
-    let clamped = |ci: &ChildMain, t: u16| -> u16 {
+    let clamped = |ci: &ChildMain, t: i32| -> i32 {
         let floor = if growing {
             ci.min_main_above_base(dom, direction, budgets)
         } else {
             Some(ci.min_main(dom, direction, budgets))
         };
-        clamp_size(t, floor, ci.max)
+        let capped = ci.max.map_or(t, |m| t.min(i32::from(m)));
+        floor.map_or(capped, |f| capped.max(i32::from(f)))
     };
-    while frozen.iter().any(|f| !f) {
-        let factor_sum: f64 = (0..n)
-            .filter(|&i| !frozen[i])
-            .map(|i| factor(&items[i]))
+    while slots.iter().any(|s| !s.frozen) {
+        let factor_sum: f64 = slots
+            .iter()
+            .zip(items)
+            .filter(|(s, _)| !s.frozen)
+            .map(|(_, ci)| factor(ci))
             .sum();
-        let mut free = f64::from(free_now(&target, &frozen));
+        let mut free = f64::from(free_now(&slots));
         if sums_below_one(factor_sum) {
             let scaled = initial_free * factor_sum;
             if scaled.abs() < free.abs() {
                 free = scaled;
             }
         }
-        distribute(items, &frozen, &mut target, free, growing);
+        distribute(items, &mut slots, free, growing);
         // Sum the violations of the unfrozen targets' clamps.
-        let total: i64 = (0..n)
-            .filter(|&i| !frozen[i])
-            .map(|i| i64::from(clamped(&items[i], target[i])) - i64::from(target[i]))
+        let total: i64 = slots
+            .iter()
+            .zip(items)
+            .filter(|(s, _)| !s.frozen)
+            .map(|(s, ci)| i64::from(clamped(ci, s.target)) - i64::from(s.target))
             .sum();
         // Freezing an item changes only its own state, so one pass over
         // the items still unfrozen at its start decides them all.
-        for i in 0..n {
-            if frozen[i] {
+        for (slot, ci) in slots.iter_mut().zip(items) {
+            if slot.frozen {
                 continue;
             }
-            let c = clamped(&items[i], target[i]);
-            let v = i64::from(c) - i64::from(target[i]);
+            let c = clamped(ci, slot.target);
+            let v = i64::from(c) - i64::from(slot.target);
             let freeze = match total.signum() {
                 0 => true,
                 1 => v > 0,
                 _ => v < 0,
             };
             if freeze {
-                frozen[i] = true;
-                target[i] = c;
+                slot.frozen = true;
+                slot.target = c;
             }
         }
     }
-    target
+    // Every target is frozen, so clamped by its min (at least 0); a
+    // growing one past the cell grid's `u16` saturates there.
+    slots
+        .iter()
+        .map(|s| s.target.clamp(0, i32::from(u16::MAX)) as u16)
+        .collect()
+}
+
+/// One item's state in the §9.7 loop: its target main size (signed, see
+/// [`resolve_flexible_lengths`]) and whether it is frozen.
+struct Slot {
+    target: i32,
+    frozen: bool,
 }
 
 /// Share `free` among the unfrozen items: by `flex-grow` when growing,
 /// as overflow by `flex-shrink × inner base` when shrinking (§9.7 step
 /// 4.c: the inner flex base size, the content box); each unfrozen target
-/// is its base plus (minus) its share, rolling so the shares sum to the
-/// whole cells of `free`.
-fn distribute(items: &[ChildMain], frozen: &[bool], target: &mut [u16], free: f64, growing: bool) {
+/// is its base plus (minus) its share — below zero when the share
+/// exceeds the base — rolling so the shares sum to the whole cells of
+/// `free`.
+fn distribute(items: &[ChildMain], slots: &mut [Slot], free: f64, growing: bool) {
     let weight = |ci: &ChildMain| -> f64 {
         if growing {
             f64::from(ci.grow)
@@ -157,8 +191,8 @@ fn distribute(items: &[ChildMain], frozen: &[bool], target: &mut [u16], free: f6
     };
     let total: f64 = items
         .iter()
-        .zip(frozen)
-        .filter(|(_, f)| !**f)
+        .zip(slots.iter())
+        .filter(|(_, s)| !s.frozen)
         .map(|(ci, _)| weight(ci))
         .sum();
     let amount = if growing {
@@ -167,15 +201,16 @@ fn distribute(items: &[ChildMain], frozen: &[bool], target: &mut [u16], free: f6
         (-free).max(0.0)
     };
     let mut shares = Rolling::new(amount, total);
-    for (i, ci) in items.iter().enumerate() {
-        if frozen[i] {
+    for (slot, ci) in slots.iter_mut().zip(items) {
+        if slot.frozen {
             continue;
         }
-        let share = shares.share(weight(ci)).min(u32::from(u16::MAX)) as u16;
-        target[i] = if growing {
-            ci.base.saturating_add(share)
+        let share = shares.share(weight(ci)).min(i32::MAX as u32) as i32;
+        let base = i32::from(ci.base);
+        slot.target = if growing {
+            base.saturating_add(share)
         } else {
-            ci.base.saturating_sub(share)
+            base.saturating_sub(share)
         };
     }
 }

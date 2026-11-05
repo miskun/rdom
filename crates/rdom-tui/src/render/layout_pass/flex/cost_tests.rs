@@ -131,6 +131,6 @@ fn the_freeze_loop_allocates_nothing_per_iteration() {
         three, one,
         "allocations: {one} in one iteration, {three} in three"
     );
-    // The targets and the frozen flags.
+    // The loop's slots and the sizes it returns.
     assert_eq!(one, 2);
 }

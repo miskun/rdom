@@ -3584,6 +3584,54 @@ fn flex_shrink_redistributes_after_a_min_width_clamp() {
     );
 }
 
+/// The min clamp at zero: an item whose share of the overflow exceeds
+/// its whole base violates `min-width: 0` by the excess (§9.7 step 4.d,
+/// a negative target clamped up), freezes at 0, and the excess goes to
+/// the next shrinkable item. Row 20, items 20 (`flex-shrink: 1`) / 5
+/// (`flex-shrink: 1000`) / 5 (`flex-shrink: 0`): 10 cells must go; the
+/// second item's share is all 10 but it has 5, so the first gives the
+/// other 5 → 15 / 0 / 5, not 20 / 0 / 5 (overflowing the row).
+#[test]
+fn flex_shrink_passes_on_the_overflow_an_item_clamped_at_zero_cannot_take() {
+    use crate::layout::{Direction, Flow, MinSize, Size};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let row = dom.create_element("row");
+    dom.append_child(root, row).unwrap();
+    let mut items = Vec::new();
+    for tag in ["a", "b", "c"] {
+        let it = dom.create_element(tag);
+        dom.append_child(row, it).unwrap();
+        items.push(it);
+    }
+    let sheet = Stylesheet::bare()
+        .rule_unchecked(
+            "row",
+            TuiStyle::new()
+                .flow(Flow::Flex)
+                .direction(Direction::Row)
+                .width(Size::Fixed(20)),
+        )
+        .rule_unchecked(
+            "a",
+            TuiStyle::new()
+                .width(Size::Fixed(20))
+                .min_width(MinSize::Cells(0)),
+        )
+        .rule_unchecked(
+            "b",
+            TuiStyle::new()
+                .width(Size::Fixed(5))
+                .min_width(MinSize::Cells(0))
+                .flex_shrink(1000.0),
+        )
+        .rule_unchecked("c", TuiStyle::new().width(Size::Fixed(5)).flex_shrink(0.0));
+    cascade(&mut dom, &sheet);
+    dom.layout_dom(Rect::new(0, 0, 80, 10));
+    let w = |id| dom.node(id).ext().unwrap().layout.width;
+    assert_eq!((w(items[0]), w(items[1]), w(items[2])), (15, 0, 5));
+}
+
 /// Grow side of the same loop: an item clamped by `max-width` hands its
 /// surplus to the others. Budget 30, three auto items each `max-width`
 /// / no cap: item 0 capped at 5 → 5 / 12 / 13 (the odd cell lands on
