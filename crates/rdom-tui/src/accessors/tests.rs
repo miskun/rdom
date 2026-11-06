@@ -1802,3 +1802,31 @@ fn input_type_is_the_canonical_keyword_of_the_state() {
         Some("datetime-local".to_string())
     );
 }
+
+#[test]
+fn bounding_rect_of_an_inline_box_is_its_fragments_bounding_box() {
+    // CSSOM View §6.1: `getBoundingClientRect()` of an inline box is the
+    // bounding box of its fragments — a non-atomic inline box has no rect
+    // of its own in `ext.layout`.
+    use crate::Rect;
+    use crate::layout::LayoutRect;
+    use crate::render::layout_pass::LayoutExt;
+    use crate::style::{CascadeExt, Stylesheet};
+    let mut dom: TuiDom = TuiDom::new();
+    let root = dom.root();
+    let p = dom.create_element("p");
+    let a = dom.create_text_node("Hi ");
+    let b = dom.create_element("b");
+    let t = dom.create_text_node("there");
+    dom.append_child(b, t).unwrap();
+    dom.append_child(p, a).unwrap();
+    dom.append_child(p, b).unwrap();
+    dom.append_child(root, p).unwrap();
+    dom.cascade(&Stylesheet::new());
+    dom.layout_dom(Rect::new(0, 0, 20, 3));
+    assert_eq!(
+        dom.node(b).bounding_rect(),
+        Some(LayoutRect::new(3, 0, 5, 1))
+    );
+    assert_eq!(dom.node(b).client_rects(), [LayoutRect::new(3, 0, 5, 1)]);
+}

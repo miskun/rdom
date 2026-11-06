@@ -24,7 +24,6 @@ use rdom_core::NodeId;
 
 use crate::TuiDom;
 use crate::ext::StyleSlot;
-use crate::render::buffer::BorderCell;
 use crate::render::{Buffer, Cell, PaintExt, Rect};
 
 /// Which part of an element's paint an operation was.
@@ -122,7 +121,8 @@ impl PaintPart {
 pub enum OpKind {
     /// Wrote the cell: a glyph, colors, attributes.
     Write,
-    /// Added or cleared border state; the glyph comes from the joiner.
+    /// Added or cleared a border contribution, or recolored one (a tint,
+    /// a filter, a layer blending back); the glyph comes from the joiner.
     Border,
     /// A layer — an `opacity` / `filter` group, a translucent color —
     /// composited back onto the cell at `alpha`; the layer's own
@@ -154,54 +154,11 @@ pub struct PaintOp {
     pub cell: Cell,
     /// The cell's border state after the operation, for a
     /// [`OpKind::Border`] operation.
-    pub border: Option<BorderCell>,
+    pub border: Option<BorderState>,
     /// For a [`OpKind::Join`]: the elements whose contributions won the
     /// cell's directions, in direction order (N, E, S, W), without
     /// repeats.
     pub joined: Vec<NodeId>,
-}
-
-/// Every operation of one traced paint.
-#[derive(Debug, Clone, Default)]
-pub struct PaintTrace {
-    area: Rect,
-    region: Rect,
-    ops: Vec<PaintOp>,
-}
-
-impl PaintTrace {
-    pub(crate) fn new(area: Rect, region: Rect, ops: Vec<PaintOp>) -> Self {
-        PaintTrace { area, region, ops }
-    }
-
-    /// The area the traced paint covered.
-    pub fn area(&self) -> Rect {
-        self.area
-    }
-
-    /// The cells whose operations were recorded.
-    pub fn region(&self) -> Rect {
-        self.region
-    }
-
-    /// Every operation, in paint order.
-    pub fn ops(&self) -> &[PaintOp] {
-        &self.ops
-    }
-
-    /// The operations on the cell at `(x, y)`, in paint order.
-    pub fn ops_at(&self, x: u16, y: u16) -> impl Iterator<Item = &PaintOp> {
-        self.ops.iter().filter(move |op| (op.x, op.y) == (x, y))
-    }
-
-    /// The operation that decided what the cell at `(x, y)` shows: its last
-    /// operation on the frame that wrote the cell — a write, a blend or the
-    /// joiner's glyph — or `None` for a cell no paint wrote.
-    pub fn top_at(&self, x: u16, y: u16) -> Option<&PaintOp> {
-        self.ops_at(x, y)
-            .filter(|op| op.depth == 0 && op.kind != OpKind::Border)
-            .last()
-    }
 }
 
 /// Paint `dom` — cascaded and laid out — into a fresh buffer of `area`, as
@@ -215,9 +172,13 @@ pub fn trace_paint(dom: &TuiDom, area: Rect, region: Rect) -> (Buffer, PaintTrac
     (buf, PaintTrace::new(area, area.intersection(region), ops))
 }
 
+mod border;
 mod boxes;
+mod trace;
 
+pub use border::{BorderLine, BorderState};
 pub use boxes::{BoxModel, ScrollBox, box_model};
+pub use trace::PaintTrace;
 
 #[cfg(test)]
 mod tests;

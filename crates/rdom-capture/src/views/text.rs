@@ -21,9 +21,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use std::collections::BTreeMap;
-
-use crate::capture::{ColorValue, Grid, NodeInfo, Owners, Run};
+use crate::capture::{ColorValue, Grid, NodeInfo, NodeMap, Owners, Run};
 
 /// Which key layers the text view adds below the glyphs. The glyph, bg and
 /// fg layers read a [`Grid`] ([`text`]); the owners layer a capture's
@@ -95,7 +93,7 @@ pub fn capture_text(capture: &crate::Capture, options: TextOptions) -> Option<St
     if options.owners
         && let Some(owners) = &capture.owners
     {
-        let empty = BTreeMap::new();
+        let empty = NodeMap::default();
         out.push_str(&owners_layer(
             owners,
             capture.nodes.as_ref().unwrap_or(&empty),
@@ -143,8 +141,9 @@ fn layer(grid: &Grid, title: &str, color: impl Fn(&Run, &str) -> Option<ColorVal
 /// The owners layer as a key layer: a key letter per cell for each
 /// element-and-part that painted it, `.` for an unpainted cell, and the
 /// key below — `a .panel background (#3)`.
-pub fn owners_layer(owners: &Owners, nodes: &BTreeMap<String, NodeInfo>) -> String {
-    let mut keys: Vec<(Option<String>, String, Vec<String>)> = Vec::new();
+pub fn owners_layer(owners: &Owners, nodes: &NodeMap<NodeInfo>) -> String {
+    type Key = (Option<String>, String, Vec<String>, Option<String>);
+    let mut keys: Vec<Key> = Vec::new();
     let mut rows = String::new();
     for runs in &owners.rows {
         let mut row = String::new();
@@ -152,7 +151,12 @@ pub fn owners_layer(owners: &Owners, nodes: &BTreeMap<String, NodeInfo>) -> Stri
             let key = if run.node.is_none() && run.joined.is_empty() && run.part == "none" {
                 '.'
             } else {
-                let k = (run.node.clone(), run.part.clone(), run.joined.clone());
+                let k = (
+                    run.node.clone(),
+                    run.part.clone(),
+                    run.joined.clone(),
+                    run.via.clone(),
+                );
                 let i = keys.iter().position(|e| *e == k).unwrap_or_else(|| {
                     keys.push(k);
                     keys.len() - 1
@@ -174,14 +178,24 @@ pub fn owners_layer(owners: &Owners, nodes: &BTreeMap<String, NodeInfo>) -> Stri
         )
     };
     let mut out = format!("── owners ──\n{rows}");
-    for (i, (node, part, joined)) in keys.iter().enumerate() {
+    for (i, (node, part, joined, via)) in keys.iter().enumerate() {
         let key = KEYS.get(i).map_or('?', |k| char::from(*k));
         let who = match (node, joined.is_empty()) {
             (Some(n), _) => name(n),
             (None, false) => joined.iter().map(name).collect::<Vec<_>>().join(" + "),
             (None, true) => String::new(),
         };
-        out.push_str(&format!("{key} {part} {who}\n").replace("  ", " "));
+        let through = via
+            .as_ref()
+            .map(|v| format!(" via {}", name(v)))
+            .unwrap_or_default();
+        out.push_str(&format!("{key} {part} {who}{through}\n").replace("  ", " "));
+    }
+    if keys.len() > KEYS.len() {
+        out.push_str(&format!(
+            "(keys ran out: `?` stands for the last {} entries)\n",
+            keys.len() - KEYS.len()
+        ));
     }
     out
 }

@@ -182,17 +182,7 @@ fn clip_cells(parent: &Buffer, layer: &mut Buffer, clip: crate::render::clip::Cl
             if crate::render::clip::clip_contains(clip, i32::from(x), i32::from(y)) {
                 continue;
             }
-            let (Some(i), Some(j)) = (layer.index_of(x, y), parent.index_of(x, y)) else {
-                continue;
-            };
-            layer.content[i] = parent.content[j].clone();
-            layer.border_dirs[i] = parent.border_dirs[j];
-            layer.half_block_quads[i] = parent.half_block_quads[j];
-            layer.border_layers[i] = parent.border_layers[j];
-            layer.border_owners[i] = parent.border_owners[j];
-            if let Some(c) = &mut layer.coverage {
-                c[i] = 0;
-            }
+            layer.show_backdrop(parent, x, y);
         }
     }
 }

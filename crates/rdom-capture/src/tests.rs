@@ -744,3 +744,91 @@ fn the_text_view_keys_owners_by_element_and_part() {
     );
     assert!(r["result"].get("nodes").is_none());
 }
+
+#[test]
+fn nodes_keep_document_order_and_paths_escape_their_names() {
+    struct Many;
+    impl CaptureApp for Many {
+        fn build(
+            &self,
+            env: &Environment,
+            _: Option<&str>,
+        ) -> Result<App<TestBackend>, Box<dyn Error>> {
+            let mut dom = TuiDom::new();
+            let root = dom.root();
+            for i in 0..12 {
+                let p = dom.create_element("p");
+                dom.set_attribute(p, "class", &format!("n{i} a:b"))?;
+                dom.append_child(root, p)?;
+            }
+            Ok(env.app(dom, rdom_tui::Stylesheet::new())?)
+        }
+    }
+    let mut s = Session::new(Many);
+    s.open(small(), None).unwrap();
+    let c = s
+        .capture(&CaptureRequest::with_layers([Layer::Nodes]))
+        .unwrap();
+    let nodes = c.nodes.unwrap();
+    let classes: Vec<String> = nodes
+        .iter()
+        .map(|(_, n)| {
+            n.classes
+                .iter()
+                .find(|c| c.starts_with('n'))
+                .unwrap()
+                .clone()
+        })
+        .collect();
+    let expected: Vec<String> = (0..12).map(|i| format!("n{i}")).collect();
+    assert_eq!(classes, expected, "document order, not key order");
+    let json = serde_json::to_string(&nodes).unwrap();
+    let back: crate::capture::NodeMap<crate::capture::NodeInfo> =
+        serde_json::from_str(&json).unwrap();
+    assert_eq!(back, nodes, "the order survives a round trip");
+    assert!(
+        nodes.iter().next().unwrap().1.path.contains(".a\\:b"),
+        "{json}"
+    );
+}
+
+#[test]
+fn owners_look_through_a_groups_layer() {
+    struct Faded;
+    impl CaptureApp for Faded {
+        fn build(
+            &self,
+            env: &Environment,
+            _: Option<&str>,
+        ) -> Result<App<TestBackend>, Box<dyn Error>> {
+            let mut dom = TuiDom::new();
+            let root = dom.root();
+            let g = dom.create_element("div");
+            dom.set_attribute(g, "class", "g")?;
+            let p = dom.create_element("p");
+            let t = dom.create_text_node("ghost");
+            dom.append_child(p, t)?;
+            dom.append_child(g, p)?;
+            dom.append_child(root, g)?;
+            Ok(env.app(
+                dom,
+                rdom_css::from_css(".g { opacity: 0.5; color: #00ff00; }"),
+            )?)
+        }
+    }
+    let mut s = Session::new(Faded);
+    s.open(small(), None).unwrap();
+    let c = s
+        .capture(&CaptureRequest::with_layers([Layer::Owners]))
+        .unwrap();
+    let nodes = c.nodes.unwrap();
+    let run = &c.owners.unwrap().rows[0][0];
+    assert_eq!((run.part.as_str(), run.w), ("text", 5));
+    assert_eq!(nodes[run.node.as_deref().unwrap()].tag, "p");
+    assert_eq!(
+        nodes[run.via.as_deref().unwrap()].classes,
+        ["g"],
+        "through the group's layer"
+    );
+    assert!(c.meta.warnings.is_empty(), "{:?}", c.meta.warnings);
+}

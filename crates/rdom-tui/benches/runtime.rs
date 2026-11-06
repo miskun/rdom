@@ -149,6 +149,31 @@ fn bench_full_frame(c: &mut Criterion) {
     group.finish();
 }
 
+/// Paint alone, over a laid-out steady state: the cost the paint pass's
+/// write funnels carry (CAPTURE phase 2: a write checks for a paint
+/// recorder with one branch; this pins that it stays cheap).
+fn bench_paint_only(c: &mut Criterion) {
+    let mut group = c.benchmark_group("paint_only");
+    for (w, h) in [(80u16, 24u16), (200u16, 60u16)] {
+        let viewport = Rect::new(0, 0, w, h);
+        let (mut dom, sheet) = build_list_dom((h as usize) * 2);
+        dom.cascade(&sheet);
+        dom.layout_dom(viewport);
+        group.bench_with_input(
+            BenchmarkId::new("paint", format!("{w}x{h}")),
+            &(viewport,),
+            |b, &(vp,)| {
+                b.iter(|| {
+                    let mut buf = Buffer::empty(vp);
+                    dom.paint_dom(&mut buf, vp);
+                    black_box(buf);
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
 // ── 4. Range serialization on 10k-cell selection ────────────────────
 
 fn bench_serialize_10k_cells(c: &mut Criterion) {
@@ -270,6 +295,7 @@ criterion_group!(
     bench_hit_test_10k,
     bench_dispatch_depth_50,
     bench_full_frame,
+    bench_paint_only,
     bench_serialize_10k_cells,
     bench_scroll_list_mutation,
     bench_unicode_paragraph_wrap,

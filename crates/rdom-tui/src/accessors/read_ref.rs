@@ -88,8 +88,7 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
     }
 
     fn bounding_rect(&self) -> Option<DomRect> {
-        use crate::node::TuiNodeExt;
-        Some(self.tui_ext()?.layout)
+        super::helpers::border_rect(self.dom(), self.id())
     }
 
     fn client_rects(&self) -> Vec<DomRect> {
@@ -102,7 +101,9 @@ impl<'a> TuiAccessors<'a> for rdom_core::NodeRef<'a, TuiExt> {
         }
         match ext.box_fragments() {
             Some(f) => f.drawn(ext.layout).map(|d| d.rows).collect(),
-            None => vec![ext.layout],
+            None => super::helpers::border_rect(self.dom(), self.id())
+                .into_iter()
+                .collect(),
         }
     }
 

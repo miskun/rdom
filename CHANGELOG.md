@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Paint traces and box models** (`rdom_tui::capture`, CAPTURE phase 2): `trace_paint` / `App::trace_paint` repaint a frame with a recorder and return, per cell, every paint operation that touched it — the element, the part of its paint (`PaintPart`: background, border, text, a pseudo-element, a scrollbar, the outline, a group layer, …), what it did (`OpKind`: a write, a border contribution, a layer blended back at its alpha, the joiner's glyph with the elements whose borders met) and the cell after it. The recorder observes the paint pass's existing writes; without one, a write costs one branch. `box_model` gives an element's border, padding and content boxes, its scrollport and scroll state, and its fragments.
 - **`App::with_virtual_clock`**: the app's clock moves only by `App::advance`, from construction — a frame drawn before the first `advance` no longer syncs it to the wall clock. **`App::quit_requested`**: whether a tick handler or an `AppHandle` asked the app to stop, for drivers that step it themselves. **`rdom_tui::VERSION`**.
 
+### Fixed — `rdom-tui`
+
+- **`bounding_rect()` and `client_rects()` of a non-atomic inline box are the bounding box of its fragments** (CSSOM View §6.1 `getBoundingClientRect()`): they returned a zero rect at the origin, as such a box has no layout rect of its own — `<b>` in a paragraph now reports the cells its text occupies.
+
 ### Changed — `rdom-tui`
 
 - **`App::advance` runs what the live loop runs while no input arrives**: the tick handler once per elapsed tick period of virtual time (counted from the first `advance`; none at a zero tick rate), and the `AppHandle`'s redraw and quit requests. Before, a headless driver never saw ticks, a handle's `request_redraw` was ignored and its `quit` invisible.

@@ -52,10 +52,24 @@ pub fn box_model(dom: &TuiDom, id: NodeId) -> Option<BoxModel> {
         return None;
     }
     let ext = node.ext()?;
-    let border = ext.layout;
+    // A non-atomic inline box has no rect of its own, only fragments in
+    // its block's lines: its border box is their bounding box (CSSOM View
+    // §6.1, as `getBoundingClientRect()`).
+    let inline = computed.display == Display::Inline && !computed.is_atomic_inline();
+    let border = if inline {
+        crate::render::inline::inline_box_rect(dom, id)?
+    } else {
+        ext.layout
+    };
     let padding =
         crate::render::layout_pass::geometry::compute_padding_box(border, computed.border);
-    let content = node.content_layout_rect();
+    // An inline box has no content box of its own (CSS Display 3 §2):
+    // only a block, flex, grid or atomic box's layout places one.
+    let content = if inline {
+        None
+    } else {
+        node.content_layout_rect()
+    };
     let scroll = computed.is_scroll_container().then(|| ScrollBox {
         port: crate::render::layout_pass::scrollport::scrollport_of(ext, computed),
         offset: (ext.scroll_x, ext.scroll_y),

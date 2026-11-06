@@ -11,8 +11,18 @@ impl<B: Backend> App<B> {
     /// reads the cascade and layout the frame used, so its cells are the
     /// frame's — call it after [`draw_if_dirty`](Self::draw_if_dirty) or
     /// [`advance`](Self::advance), not between a change and its frame.
+    ///
+    /// The repaint is compared with the frame: [`PaintTrace::frame_mismatch`]
+    /// says how many cells differ (0 unless it saw other state).
     pub fn trace_paint(&self, region: Rect) -> PaintTrace {
-        let area = self.terminal.buffer().area;
-        trace_paint(&self.dom, area, region).1
+        let frame = self.terminal.buffer();
+        let (buf, trace) = trace_paint(&self.dom, frame.area, region);
+        let differ = frame
+            .content
+            .iter()
+            .zip(&buf.content)
+            .filter(|(a, b)| a != b)
+            .count();
+        trace.with_frame_mismatch(differ)
     }
 }

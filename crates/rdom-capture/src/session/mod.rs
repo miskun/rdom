@@ -102,8 +102,14 @@ impl CaptureRequest {
 fn nodes_owners(
     app: &App<TestBackend>,
     area: rdom_tui::Rect,
-) -> (crate::capture::Owners, Vec<rdom_tui::core_api::NodeId>) {
-    owners::owners(&app.trace_paint(area))
+) -> (
+    crate::capture::Owners,
+    Vec<rdom_tui::core_api::NodeId>,
+    usize,
+) {
+    let trace = app.trace_paint(area);
+    let (owners, named) = owners::owners(&trace);
+    (owners, named, trace.frame_mismatch())
 }
 
 /// Run app code, turning a panic into [`SessionError::AppPanicked`].
@@ -253,16 +259,25 @@ impl<A: CaptureApp> Session<A> {
             env: o.env.clone(),
             fixture: o.fixture.clone(),
             grid_hash: o.frame.hash.clone(),
+            warnings: Vec::new(),
         };
         let dom = o.app.dom();
         let mut named = Vec::new();
+        let mut warnings = Vec::new();
         let owners = if wants(Layer::Owners) {
             // A traced repaint of the frame: app code (a `<canvas>`
             // callback) may run, so it is guarded. The repaint reads the
             // app and changes nothing, so a panic there leaves it open.
             let area = o.app.terminal().buffer().area;
-            let (owners, n) = guarded(|| Ok(nodes_owners(&o.app, area)))?;
+            let (owners, n, mismatch) = guarded(|| Ok(nodes_owners(&o.app, area)))?;
             named.extend(n);
+            if mismatch > 0 {
+                warnings.push(format!(
+                    "owners: the traced repaint differs from the frame in {mismatch} cells \
+                     (a <canvas> callback or a layout that changed since the frame); \
+                     the owners layer may not describe what the grid shows there"
+                ));
+            }
             Some(owners)
         } else {
             None
@@ -276,6 +291,8 @@ impl<A: CaptureApp> Session<A> {
             named = nodes::elements(dom);
         }
         let nodes = (!named.is_empty()).then(|| nodes::nodes(dom, named));
+        let mut meta = meta;
+        meta.warnings = warnings;
         Ok(Capture {
             schema: SCHEMA.to_string(),
             meta,

@@ -184,6 +184,28 @@ impl Buffer {
         self.border_layers[i] = layer;
     }
 
+    /// Put back the cell at `(x, y)` as `backdrop` — the buffer this layer
+    /// was copied from — holds it: its content and border state, as if
+    /// the layer painted nothing there (a clip path's outside, CSS
+    /// Masking 1 §5). Its coverage is cleared.
+    pub(crate) fn show_backdrop(&mut self, backdrop: &Buffer, x: u16, y: u16) {
+        let (Some(i), Some(j)) = (self.index_of(x, y), backdrop.index_of(x, y)) else {
+            return;
+        };
+        self.touch(i);
+        self.content[i] = backdrop.content[j].clone();
+        self.border_dirs[i] = backdrop.border_dirs[j];
+        self.half_block_quads[i] = backdrop.half_block_quads[j];
+        self.border_layers[i] = backdrop.border_layers[j];
+        self.border_owners[i] = backdrop.border_owners[j];
+        if let Some(c) = &mut self.coverage {
+            c[i] = 0;
+        }
+        // The border state is the backdrop's again: so are the elements
+        // its directions came from.
+        self.trace_backdrop_border(i, backdrop, j);
+    }
+
     /// Carry on the paint order of `layer`, a copy of a region of this
     /// buffer painted further and composited back.
     pub(super) fn follow_border_seq(&mut self, layer: &Buffer) {

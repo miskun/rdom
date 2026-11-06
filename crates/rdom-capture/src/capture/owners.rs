@@ -1,12 +1,13 @@
 //! The owners layer: which element's paint decided what each cell shows
-//! (`specs/CAPTURE.md` §Paint trace) — the last operation on the frame
-//! that wrote the cell: a write, a blend, or the border joiner's glyph
-//! with the elements whose borders met there.
+//! (`specs/CAPTURE.md` §Paint trace) — the paint the cell shows, looking
+//! through layers (`PaintTrace::painter_at`): a write, the border joiner's
+//! glyph with the elements whose borders met there, and the element whose
+//! layer it reached the frame through (`via`).
 //!
 //! Rows are runs of cells with the same owner, tiling the row as the grid's
 //! runs do; a cell no paint wrote has no `node` and the part `"none"`.
 
-use rdom_tui::capture::{OpKind, PaintTrace};
+use rdom_tui::capture::PaintTrace;
 use rdom_tui::core_api::NodeId;
 use serde::{Deserialize, Serialize};
 
@@ -35,6 +36,10 @@ pub struct OwnerRun {
     /// For a border glyph: the elements whose borders met there.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub joined: Vec<String>,
+    /// The element whose layer — `opacity`, a filter, a translucent color
+    /// — the paint reached the frame through, when not `node` itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub via: Option<String>,
 }
 
 /// The owner of each cell of `trace`'s area, and every element named.
@@ -47,20 +52,18 @@ pub(crate) fn owners(trace: &PaintTrace) -> (Owners, Vec<NodeId>) {
         }
         node_key(id)
     };
-    // The top operation of each cell, found in one pass.
     let width = usize::from(area.width);
-    let mut top = vec![None; width * usize::from(area.height)];
-    for op in trace.ops() {
-        if op.depth == 0 && op.kind != OpKind::Border {
-            let (x, y) = (usize::from(op.x - area.x), usize::from(op.y - area.y));
-            top[y * width + x] = Some(op);
-        }
-    }
     let mut rows = Vec::with_capacity(usize::from(area.height));
     for y in 0..usize::from(area.height) {
         let mut runs: Vec<OwnerRun> = Vec::new();
         for x in 0..width {
-            let (node, part, joined) = match top[y * width + x] {
+            let (cx, cy) = (area.x + x as u16, area.y + y as u16);
+            let painter = trace.painter_at(cx, cy);
+            let via = trace
+                .top_at(cx, cy)
+                .filter(|top| painter.is_some_and(|p| p.depth > 0 && p.node != top.node))
+                .and_then(|top| top.node);
+            let (node, part, joined) = match painter {
                 Some(op) => (
                     op.node.map(&mut name),
                     op.part.name().to_string(),
@@ -68,14 +71,20 @@ pub(crate) fn owners(trace: &PaintTrace) -> (Owners, Vec<NodeId>) {
                 ),
                 None => (None, "none".to_string(), Vec::new()),
             };
+            let via = via.map(&mut name);
             match runs.last_mut() {
-                Some(r) if r.node == node && r.part == part && r.joined == joined => r.w += 1,
+                Some(r)
+                    if r.node == node && r.part == part && r.joined == joined && r.via == via =>
+                {
+                    r.w += 1
+                }
                 _ => runs.push(OwnerRun {
                     x: x as u16,
                     w: 1,
                     node,
                     part,
                     joined,
+                    via,
                 }),
             }
         }

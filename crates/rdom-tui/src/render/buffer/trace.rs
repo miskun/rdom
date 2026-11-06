@@ -130,8 +130,10 @@ impl Recorder {
             let y = self.area.y + (i / width) as u16;
             let recorded = self.region.contains(x, y);
             if borders[i] != self.borders[i] || quads[i] != self.quads[i] {
+                // A direction changes hands when its winning contribution
+                // does — not when a filter, a tint or a blend recolors it.
                 for (d, (now, seen)) in borders[i].iter().zip(&self.borders[i]).enumerate() {
-                    if now != seen {
+                    if !same_contribution(now, seen) {
                         self.dir_nodes[i][d] = node;
                     }
                 }
@@ -148,7 +150,7 @@ impl Recorder {
                         part,
                         OpKind::Border,
                         &content[i],
-                        Some(borders[i]),
+                        Some(crate::capture::BorderState::of(&borders[i], quads[i])),
                     ));
                 }
             }
@@ -181,7 +183,7 @@ impl Recorder {
         part: PaintPart,
         kind: OpKind,
         cell: &Cell,
-        border: Option<BorderCell>,
+        border: Option<crate::capture::BorderState>,
     ) -> PaintOp {
         PaintOp {
             x,
@@ -211,6 +213,17 @@ impl Recorder {
         }
         out
     }
+}
+
+/// Whether two states of a direction hold the same contribution, its
+/// color aside: a recolor (a filter, a tint, a layer blending back) keeps
+/// the element whose border it is.
+fn same_contribution(a: &super::BorderDirState, b: &super::BorderDirState) -> bool {
+    let key = |s: &super::BorderDirState| {
+        s.winner
+            .map(|w| (w.style, w.weight, w.priority, w.corner_style, w.side))
+    };
+    a.killed == b.killed && key(a) == key(b)
 }
 
 impl Buffer {
@@ -270,6 +283,21 @@ impl Buffer {
         out
     }
 
+    /// Cell `i`'s border state was put back as `backdrop`'s cell `j` holds
+    /// it: take the backdrop's border as seen, with the elements its
+    /// directions came from, so the restore moves no border to whoever
+    /// is painting.
+    pub(super) fn trace_backdrop_border(&mut self, i: usize, backdrop: &Buffer, j: usize) {
+        let Some(r) = self.tracer.0.as_deref_mut() else {
+            return;
+        };
+        r.borders[i] = self.border_dirs[i];
+        r.quads[i] = self.half_block_quads[i];
+        if let Some(b) = backdrop.tracer.0.as_deref() {
+            r.dir_nodes[i] = b.dir_nodes[j];
+        }
+    }
+
     /// Give `layer` — just copied from this buffer — a recorder one level
     /// deeper, carrying on whose paint is running.
     pub(crate) fn trace_layer(&mut self, layer: &mut Buffer) {
@@ -300,29 +328,42 @@ impl Buffer {
         }
         self.flush_trace();
         layer.flush_trace();
-        let child = layer.tracer.0.take();
-        if let (Some(r), Some(child)) = (self.tracer.0.as_deref_mut(), child.as_deref()) {
-            r.ops.extend(child.ops.iter().cloned());
+        let mut child = layer.tracer.0.take();
+        if let (Some(r), Some(child)) = (self.tracer.0.as_deref_mut(), child.as_deref_mut()) {
+            r.ops.append(&mut child.ops);
         }
         if let Some(r) = self.tracer.0.as_deref_mut() {
             r.blend = Some(alpha);
         }
         self.composite_group(layer, alpha);
-        // The directions the layer's border state brought take its
-        // elements.
+        self.flush_trace();
+        // A direction the layer's contribution holds after compositing —
+        // blended or not — is the element's that contributed it in the
+        // layer, not the group's.
         if let Some(child) = child.as_deref() {
-            let pairs: Vec<(usize, usize)> = (layer.area.y..layer.area.bottom())
-                .flat_map(|y| (layer.area.x..layer.area.right()).map(move |x| (x, y)))
-                .filter_map(|(x, y)| Some((self.index_of(x, y)?, layer.index_of(x, y)?)))
-                .filter(|&(i, j)| self.border_dirs[i] == layer.border_dirs[j])
-                .collect();
+            let mut adopt: Vec<(usize, usize, usize)> = Vec::new();
+            for y in layer.area.y..layer.area.bottom() {
+                for x in layer.area.x..layer.area.right() {
+                    let (Some(i), Some(j)) = (self.index_of(x, y), layer.index_of(x, y)) else {
+                        continue;
+                    };
+                    for d in 0..4 {
+                        if same_contribution(&self.border_dirs[i][d], &layer.border_dirs[j][d]) {
+                            adopt.push((i, j, d));
+                        }
+                    }
+                    let quads = self.half_block_quads[i];
+                    if quads != 0 && quads == layer.half_block_quads[j] {
+                        adopt.push((i, j, QUADS));
+                    }
+                }
+            }
             if let Some(r) = self.tracer.0.as_deref_mut() {
-                for (i, j) in pairs {
-                    r.dir_nodes[i] = child.dir_nodes[j];
+                for (i, j, d) in adopt {
+                    r.dir_nodes[i][d] = child.dir_nodes[j][d];
                 }
             }
         }
-        self.flush_trace();
         if let Some(r) = self.tracer.0.as_deref_mut() {
             r.blend = None;
         }

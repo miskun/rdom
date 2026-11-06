@@ -257,8 +257,12 @@ state for a contribution). The paint logic itself is unchanged: tracing observes
 translucent colors) get a recorder one level deeper whose operations are adopted when the layer composites back,
 followed by the `blend`. The joiner's operation names the nodes whose contributions won each direction. Quantization
 happens in the backend, not the paint, so it is not an operation: the grid's `*_shown` colors carry it. Recording
-can be limited to a rectangle. Cost with no recorder: one branch per write (`frame_cost_tests` unchanged);
-with one, 1.3–3× a plain paint, ≤ 1.7 ms for any 120×50 acid page in release (busy machine, load 5–8).
+can be limited to a rectangle. Cost with no recorder: one branch per write — `paint_only` (rdom-tui `runtime`
+bench) before the recorder (`ba5ccda0`) and after it: 87.3 → 87.1 µs at 80×24, 425 → 421 µs at 200×60, no
+change detected (p > 0.3; both runs at load ≈ 5 on 12 cores, so the absolute numbers are not quiet-machine
+costs, the comparison is). With a recorder: 1.3–3× a plain paint, ≤ 1.7 ms for any 120×50 acid page in release
+(measured busy, load 5–8 — indicative only). `PaintTrace` indexes its operations by cell; `painter_at` looks
+through layers to the paint a cell shows (a text in an `opacity` group is its element's, `via` the group).
 
 ### Derivation chain
 
@@ -547,6 +551,34 @@ Review (architect, fresh reviewer) — dispositions:
   app prints can't corrupt the protocol; `meta.rdom_tui`; a `null` id is answered; typed text sends Enter / Tab
   / Shift as a terminal does; the showcase snapshots use the text view (format-only golden change, checked
   glyph- and color-identical).
+
+### Phase 2 — paint recorder, traces, boxes: DONE (2026-11-07)
+
+Shipped: `rdom_tui::capture` (`trace_paint`, `App::trace_paint`, `PaintOp` / `PaintPart` / `OpKind` /
+`PaintTrace` with `top_at` / `painter_at` / `frame_mismatch`, `BorderState`, `box_model`); the capture layers
+`owners` (with `via`), `boxes`, `nodes` (document order, escaped paths); the acid exit test; the `paint_only`
+bench.
+
+Review (architect, fresh reviewer) — dispositions:
+
+- **B1 a clip path restored layer cells behind the recorder's back** — fixed: `clip_cells` goes through
+  `Buffer::show_backdrop`, which notes the cell and takes back the backdrop's border owners; test.
+- **B2 a recolor (tint, filter, layer blend) moved a border to the painter** — fixed: a direction changes hands only
+  when its winning contribution does (`same_contribution`, color aside), and a layer's owners are adopted per
+  direction by contribution after it composites; tests for a border in a group, in nested groups, under a
+  translucent `::backdrop`, under a clip path.
+- N1 the owners repaint is checked against the frame (`frame_mismatch`, `meta.warnings`); N2 owners look through
+  layers (`painter_at`, `via`); N3 `box_model` gives an inline box no content box and its fragments' bounding
+  box as its border box — which surfaced a real bug, fixed at the root: `bounding_rect()` / `client_rects()`
+  returned a zero rect for a non-atomic inline box (now the fragments' bounding box, CSSOM View §6.1, one helper
+  for both); N4 `nodes` / `boxes` keep document order (`NodeMap`); N5 `PaintTrace` indexes by cell and layers'
+  operations are moved, not cloned — a recorder per translucent write still copies its region (accepted: only
+  while tracing); N6 the contract carries `BorderState` (lines, hidden, quadrants), not the renderer's
+  conflict-resolution records; N7 paths escape ids and classes, and the owners text view says when its keys run
+  out; N8 measured before / after (above).
+- Exit test strengthened: every acid page's App repaint matches its frame, every join names its elements, every
+  operation names a live node; the replay check stays "last depth-0 operation = cell" — the layer chain is pinned
+  by the unit tests (groups, nested groups, clip, translucency, regions).
 
 ## Open questions
 

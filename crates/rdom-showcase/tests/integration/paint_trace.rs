@@ -6,7 +6,7 @@
 
 use rdom_showcase::demos::acid;
 use rdom_tui::Cell;
-use rdom_tui::capture::{PaintPart, trace_paint};
+use rdom_tui::capture::{OpKind, PaintPart, trace_paint};
 
 use crate::acid::compare::open_page;
 
@@ -25,9 +25,28 @@ fn every_acid_cell_is_explained_by_its_trace() {
             ));
             continue;
         }
+        if app.trace_paint(area).frame_mismatch() != 0 {
+            failures.push(format!(
+                "page {page}: the App's traced repaint differs from its frame"
+            ));
+        }
         for op in trace.ops() {
             if op.part == PaintPart::Unattributed {
                 failures.push(format!("page {page}: unattributed {op:?}"));
+                break;
+            }
+            if op.kind == OpKind::Join && op.joined.is_empty() {
+                failures.push(format!(
+                    "page {page}: a joined glyph names no element {op:?}"
+                ));
+                break;
+            }
+            if let Some(n) = op.node
+                && !app.dom().contains(n)
+            {
+                failures.push(format!(
+                    "page {page}: an operation names a dropped node {op:?}"
+                ));
                 break;
             }
         }

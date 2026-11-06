@@ -110,3 +110,21 @@ pub(super) fn effective_content_editable(dom: &TuiDom, id: NodeId) -> bool {
     }
     false
 }
+
+/// An element's border box from the last layout: its `ext.layout`, or —
+/// for a non-atomic inline box, which has no rect of its own, only
+/// fragments in its block's lines — their bounding box (CSSOM View §6.1);
+/// a zero rect for an inline box with no fragments. `None` for a node with
+/// no `TuiExt`.
+pub(crate) fn border_rect(dom: &TuiDom, id: NodeId) -> Option<crate::layout::LayoutRect> {
+    use crate::node::TuiNodeExt;
+    let node = dom.node(id);
+    let ext = node.tui_ext()?;
+    let inline = node
+        .computed()
+        .is_some_and(|c| c.display == crate::layout::Display::Inline && !c.is_atomic_inline());
+    if inline {
+        return Some(crate::render::inline::inline_box_rect(dom, id).unwrap_or_default());
+    }
+    Some(ext.layout)
+}

@@ -5,8 +5,6 @@
 //! slot reused — valid within one capture (`specs/CAPTURE.md` §Node
 //! identity; matching nodes across captures is the diff's job).
 
-use std::collections::BTreeMap;
-
 use rdom_tui::TuiDom;
 use rdom_tui::capture::{BoxModel, box_model};
 use rdom_tui::core_api::NodeId;
@@ -92,11 +90,11 @@ fn step(dom: &TuiDom, id: NodeId) -> String {
     let mut s = n.tag_name().unwrap_or_default().to_ascii_lowercase();
     if let Some(i) = n.get_attribute("id") {
         s.push('#');
-        s.push_str(i);
+        s.push_str(&escape_ident(i));
     }
     for c in dom.class_list(id) {
         s.push('.');
-        s.push_str(c);
+        s.push_str(&escape_ident(c));
     }
     s
 }
@@ -146,12 +144,32 @@ pub(crate) fn elements(dom: &TuiDom) -> Vec<NodeId> {
         .collect()
 }
 
-/// What each of `ids` is, keyed by node name.
+/// What each of `ids` is, keyed by node name, in document order.
 pub(crate) fn nodes(
     dom: &TuiDom,
     ids: impl IntoIterator<Item = NodeId>,
-) -> BTreeMap<String, NodeInfo> {
+) -> super::NodeMap<NodeInfo> {
     ids.into_iter()
         .map(|id| (node_key(id), node_info(dom, id)))
         .collect()
+}
+
+/// `s` as a CSS identifier (CSSOM §2.1 `serialize an identifier`, for the
+/// characters a class or id holds): a character outside `[A-Za-z0-9_-]`
+/// and non-ASCII is escaped with a backslash, a leading digit as a code
+/// point.
+fn escape_ident(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for (i, c) in s.chars().enumerate() {
+        let leading_digit = i == 0 && c.is_ascii_digit();
+        if leading_digit {
+            out.push_str(&format!("\\{:x} ", u32::from(c)));
+        } else if c.is_ascii_alphanumeric() || c == '_' || c == '-' || !c.is_ascii() {
+            out.push(c);
+        } else {
+            out.push('\\');
+            out.push(c);
+        }
+    }
+    out
 }

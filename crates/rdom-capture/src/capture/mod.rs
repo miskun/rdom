@@ -10,16 +10,16 @@
 mod color;
 mod grid;
 mod hash;
+mod node_map;
 pub(crate) mod nodes;
 pub(crate) mod owners;
 
 pub use color::ColorValue;
 pub use grid::{Attr, Grid, Run};
 pub use hash::{fnv1a64, grid_hash};
+pub use node_map::NodeMap;
 pub use nodes::{Boxes, NodeInfo, Scroll, node_key};
 pub use owners::{OwnerRun, Owners};
-
-use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -43,11 +43,11 @@ pub struct Capture {
     pub owners: Option<Owners>,
     /// Every element's boxes, by node ([`Layer::Boxes`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub boxes: Option<BTreeMap<String, Boxes>>,
+    pub boxes: Option<NodeMap<Boxes>>,
     /// What each element the other layers name is, by node — every
     /// element with [`Layer::Nodes`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub nodes: Option<BTreeMap<String, NodeInfo>>,
+    pub nodes: Option<NodeMap<NodeInfo>>,
 }
 
 impl Capture {
@@ -80,6 +80,10 @@ pub struct Meta {
     pub fixture: Option<String>,
     /// The grid's hash ([`grid_hash`]), always present.
     pub grid_hash: String,
+    /// What the capture could not do exactly, each said plainly (a traced
+    /// repaint that differs from the frame).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 /// A layer a capture can include.

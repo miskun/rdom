@@ -275,3 +275,144 @@ fn a_scroll_containers_box_model_has_its_scroll_state() {
     assert_eq!(scroll.size.1, 4, "four rows of content");
     assert_eq!(scroll.port.height, 2);
 }
+
+// ── phase 2 review: borders through layers, clips, painters ──
+
+/// A page of `markup` styled by `css` in a 30 × 8 viewport.
+fn page_of(markup: &str, css: &str) -> Page {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("div");
+    dom.append_child(root, host).unwrap();
+    rdom_parser::parse_into(&mut dom, markup, host).unwrap();
+    let area = Rect::new(0, 0, 30, 8);
+    dom.cascade(&rdom_css::from_css(css));
+    dom.layout_dom(area);
+    Page { dom, area }
+}
+
+/// Every join's `joined` names exactly `expected` at the box's corner.
+fn corner_join(p: &Page, x: u16, y: u16) -> Vec<NodeId> {
+    let (_, trace) = traced(p);
+    let top = trace.top_at(x, y).expect("a border glyph");
+    assert_eq!(top.kind, OpKind::Join, "{top:?}");
+    top.joined.clone()
+}
+
+#[test]
+fn a_border_inside_a_group_is_its_elements_not_the_groups() {
+    let p = page_of(
+        r#"<div class="g"><div class="b">x</div></div>"#,
+        ".g { opacity: 0.5; } .b { border: solid; width: 6; height: 3; }",
+    );
+    assert_eq!(corner_join(&p, 0, 0), [node(&p.dom, ".b")]);
+    let (_, trace) = traced(&p);
+    let painter = trace.painter_at(1, 1).expect("the x");
+    assert_eq!(
+        (painter.node, painter.part),
+        (Some(node(&p.dom, ".b")), PaintPart::Text)
+    );
+    assert_eq!(painter.depth, 1, "painted in the group's layer");
+}
+
+#[test]
+fn a_border_in_nested_groups_is_still_its_elements() {
+    let p = page_of(
+        r#"<div class="g"><div class="h"><div class="b">x</div></div></div>"#,
+        ".g { opacity: 0.8; } .h { opacity: 0.6; } .b { border: solid; width: 6; height: 3; }",
+    );
+    assert_eq!(corner_join(&p, 0, 0), [node(&p.dom, ".b")]);
+    let (_, trace) = traced(&p);
+    let painter = trace.painter_at(1, 1).unwrap();
+    assert_eq!((painter.node, painter.depth), (Some(node(&p.dom, ".b")), 2));
+}
+
+#[test]
+fn a_translucent_backdrop_tints_borders_without_taking_them() {
+    let mut p = page_of(
+        r#"<div class="b">page</div><dialog class="d">hi</dialog>"#,
+        ".b { border: solid; width: 8; height: 3; } dialog::backdrop { background-color: rgba(0, 0, 0, 0.5); }",
+    );
+    let d = node(&p.dom, ".d");
+    crate::runtime::builtins::dialog::show_modal(&mut p.dom, d).unwrap();
+    p.dom.cascade(&rdom_css::from_css(
+        ".b { border: solid; width: 8; height: 3; } dialog::backdrop { background-color: rgba(0, 0, 0, 0.5); }",
+    ));
+    p.dom.layout_dom(p.area);
+    let (buf, trace) = traced(&p);
+    assert_eq!(buf, untraced(&p));
+    assert_eq!(
+        corner_join(&p, 0, 0),
+        [node(&p.dom, ".b")],
+        "the tint recolors, the box keeps it"
+    );
+    assert!(
+        trace
+            .ops_at(0, 0)
+            .any(|op| op.part == PaintPart::Backdrop && op.node == Some(d)),
+        "the backdrop's tint is recorded on the cell"
+    );
+}
+
+#[test]
+fn a_clip_path_puts_the_backdrop_back_and_says_so() {
+    let p = page_of(
+        r#"<div class="o"><div class="c">clipped</div></div>"#,
+        ".o { border: solid; width: 20; height: 6; } .c { border: solid; width: 12; height: 4; clip-path: inset(1); }",
+    );
+    let (buf, trace) = traced(&p);
+    assert_eq!(buf, untraced(&p));
+    let c = node(&p.dom, ".c");
+    // The clipped element's own border ring (row 1, cols 1–12) is clipped
+    // away: the frame shows the outer box's inside there.
+    for x in 1..13 {
+        let painter = trace.painter_at(x, 1);
+        assert!(
+            painter.is_none_or(|op| op.node != Some(c) || op.part == PaintPart::Group),
+            "cell ({x}, 1) is not the clipped element's: {painter:?}"
+        );
+        if let Some(op) = painter {
+            assert_eq!(
+                &op.cell,
+                buf.cell(x, 1).unwrap(),
+                "the painter's cell is the frame's"
+            );
+        }
+    }
+    assert_eq!(corner_join(&p, 0, 0), [node(&p.dom, ".o")]);
+}
+
+#[test]
+fn a_wide_glyphs_two_cells_are_its_texts() {
+    let p = page_of(r#"<p class="w">中a</p>"#, "");
+    let (buf, trace) = traced(&p);
+    let w = node(&p.dom, ".w");
+    for x in 0..3 {
+        let top = trace.top_at(x, 0).unwrap();
+        assert_eq!((top.node, top.part), (Some(w), PaintPart::Text), "cell {x}");
+        assert_eq!(&top.cell, buf.cell(x, 0).unwrap());
+    }
+    assert!(buf.cell(1, 0).unwrap().is_spacer());
+}
+
+#[test]
+fn a_region_inside_a_layer_records_only_its_cells_through_the_layer() {
+    let p = page_of(
+        r#"<div class="g"><p class="t">ghost text</p></div>"#,
+        ".g { opacity: 0.5; }",
+    );
+    let region = Rect::new(2, 0, 2, 1);
+    let (buf, trace) = trace_paint(&p.dom, p.area, region);
+    assert_eq!(buf, untraced(&p));
+    assert!(trace.ops().iter().all(|op| region.contains(op.x, op.y)));
+    let painter = trace.painter_at(2, 0).unwrap();
+    assert_eq!((painter.node, painter.depth), (Some(node(&p.dom, ".t")), 1));
+}
+
+#[test]
+fn an_inline_box_has_no_content_box_of_its_own() {
+    let p = page();
+    let bold = super::box_model(&p.dom, node(&p.dom, ".bold")).expect("a rendered inline box");
+    assert_eq!(bold.content, None);
+    assert!(bold.border.width > 0);
+}
