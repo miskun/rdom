@@ -21,9 +21,13 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::capture::{ColorValue, Grid, Run};
+use std::collections::BTreeMap;
 
-/// Which key layers the text view adds below the glyphs.
+use crate::capture::{ColorValue, Grid, NodeInfo, Owners, Run};
+
+/// Which key layers the text view adds below the glyphs. The glyph, bg and
+/// fg layers read a [`Grid`] ([`text`]); the owners layer a capture's
+/// owners and nodes ([`capture_text`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 #[non_exhaustive]
@@ -32,6 +36,9 @@ pub struct TextOptions {
     pub bg: bool,
     /// The glyph color of every cell that shows a glyph.
     pub fg: bool,
+    /// Which element's paint decided every cell ([`owners_layer`]); read
+    /// from a capture's owners layer.
+    pub owners: bool,
 }
 
 impl Default for TextOptions {
@@ -39,17 +46,23 @@ impl Default for TextOptions {
         TextOptions {
             bg: true,
             fg: false,
+            owners: false,
         }
     }
 }
 
 impl TextOptions {
-    /// Both key layers.
-    pub const ALL: TextOptions = TextOptions { bg: true, fg: true };
+    /// Every key layer.
+    pub const ALL: TextOptions = TextOptions {
+        bg: true,
+        fg: true,
+        owners: true,
+    };
     /// The glyphs alone.
     pub const GLYPHS: TextOptions = TextOptions {
         bg: false,
         fg: false,
+        owners: false,
     };
 }
 
@@ -73,6 +86,22 @@ pub fn text(grid: &Grid, options: TextOptions) -> String {
         }));
     }
     out
+}
+
+/// The text view of `capture`: [`text`] of its grid, then — when asked
+/// and present — its owners layer. `None` without a grid.
+pub fn capture_text(capture: &crate::Capture, options: TextOptions) -> Option<String> {
+    let mut out = text(capture.grid.as_ref()?, options);
+    if options.owners
+        && let Some(owners) = &capture.owners
+    {
+        let empty = BTreeMap::new();
+        out.push_str(&owners_layer(
+            owners,
+            capture.nodes.as_ref().unwrap_or(&empty),
+        ));
+    }
+    Some(out)
 }
 
 /// One key layer: `color` of each cell (`None`: shown as `.`), given its
@@ -109,4 +138,56 @@ fn layer(grid: &Grid, title: &str, color: impl Fn(&Run, &str) -> Option<ColorVal
         out.push_str(&format!("{key} {c}\n"));
     }
     out
+}
+
+/// The owners layer as a key layer: a key letter per cell for each
+/// element-and-part that painted it, `.` for an unpainted cell, and the
+/// key below — `a .panel background (#3)`.
+pub fn owners_layer(owners: &Owners, nodes: &BTreeMap<String, NodeInfo>) -> String {
+    let mut keys: Vec<(Option<String>, String, Vec<String>)> = Vec::new();
+    let mut rows = String::new();
+    for runs in &owners.rows {
+        let mut row = String::new();
+        for run in runs {
+            let key = if run.node.is_none() && run.joined.is_empty() && run.part == "none" {
+                '.'
+            } else {
+                let k = (run.node.clone(), run.part.clone(), run.joined.clone());
+                let i = keys.iter().position(|e| *e == k).unwrap_or_else(|| {
+                    keys.push(k);
+                    keys.len() - 1
+                });
+                KEYS.get(i).map_or('?', |k| char::from(*k))
+            };
+            row.extend(std::iter::repeat_n(key, usize::from(run.w)));
+        }
+        rows.push_str(row.trim_end_matches('.'));
+        rows.push('\n');
+    }
+    if keys.is_empty() {
+        return String::new();
+    }
+    let name = |n: &String| {
+        nodes.get(n).map_or_else(
+            || format!("#{n}"),
+            |info| format!("{} (#{n})", short_path(&info.path)),
+        )
+    };
+    let mut out = format!("── owners ──\n{rows}");
+    for (i, (node, part, joined)) in keys.iter().enumerate() {
+        let key = KEYS.get(i).map_or('?', |k| char::from(*k));
+        let who = match (node, joined.is_empty()) {
+            (Some(n), _) => name(n),
+            (None, false) => joined.iter().map(name).collect::<Vec<_>>().join(" + "),
+            (None, true) => String::new(),
+        };
+        out.push_str(&format!("{key} {part} {who}\n").replace("  ", " "));
+    }
+    out
+}
+
+/// The last two steps of a node path: enough to recognize an element.
+fn short_path(path: &str) -> String {
+    let steps: Vec<&str> = path.split(" > ").collect();
+    steps[steps.len().saturating_sub(2)..].join(" > ")
 }

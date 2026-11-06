@@ -22,6 +22,7 @@
 //! inheritance, approximated). The used `user-select` (`style::user_select`)
 //! excludes text from the selection's layer only.
 
+use crate::capture::PaintPart;
 use std::borrow::Cow;
 
 use rdom_core::{Dom, NodeId, Position, Range};
@@ -55,7 +56,13 @@ impl<'a> Overlays<'a> {
         fragment: &InlineFragment,
     ) {
         for layer in self.0.layers_of(fragment.text_node) {
-            paint_layer(dom, buf, line_y, frag_x, clip, fragment, layer);
+            let part = match layer.source {
+                Source::Selection => PaintPart::Selection,
+                Source::Highlight(_) => PaintPart::Highlight,
+            };
+            buf.painting(Some(fragment.node), part, |buf| {
+                paint_layer(dom, buf, line_y, frag_x, clip, fragment, layer)
+            });
         }
     }
 }

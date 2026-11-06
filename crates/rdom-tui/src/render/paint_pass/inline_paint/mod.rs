@@ -115,7 +115,9 @@ pub(super) fn paint_inline_content(
     if let Some((text, style)) = inline_chrome(dom, id, computed, avail_single_row) {
         // The chrome is the host's own content (CSS Display 3 §4).
         if crate::render::visibility::shows(dom, id, crate::ext::StyleSlot::Host) {
-            paint_single_row_chrome(dom, id, &text, style, inner, buf, clip);
+            buf.painting(Some(id), crate::capture::PaintPart::Chrome, |buf| {
+                paint_single_row_chrome(dom, id, &text, style, inner, buf, clip)
+            });
         }
         return;
     }

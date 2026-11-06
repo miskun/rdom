@@ -111,6 +111,7 @@ mod tests;
 
 use rdom_core::Dom;
 
+use crate::capture::PaintPart;
 use crate::ext::TuiExt;
 use crate::layout::LayoutRect;
 use crate::render::{Buffer, Rect};
@@ -138,7 +139,9 @@ impl PaintExt for Dom<TuiExt> {
         buf.set_color_scheme(crate::style::CascadeExt::color_scheme(self));
         // The root element's background is the canvas's, beneath
         // everything (CSS Backgrounds 3 §2.11.2).
-        canvas::paint(self, buf, clip);
+        buf.painting(canvas::source(self), PaintPart::Canvas, |buf| {
+            canvas::paint(self, buf, clip)
+        });
         // The document is the root stacking context (CSS 2.1 Appendix
         // E): positioned descendants — positioned `::before` / `::after`
         // included — paint from its layers, nested contexts recursively.
@@ -150,7 +153,9 @@ impl PaintExt for Dom<TuiExt> {
         // box-drawing glyphs at junctions based on 4-neighbor
         // connectivity. Cheap when no element has `border-collapse:
         // collapse` (short-circuits via the bottom-up tree flag).
-        border_join::join_borders(self, buf);
+        buf.painting(None, PaintPart::BorderJoin, |buf| {
+            border_join::join_borders(self, buf)
+        });
     }
 }
 

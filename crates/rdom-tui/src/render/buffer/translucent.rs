@@ -44,8 +44,9 @@ impl Buffer {
             .take()
             .unwrap_or_else(|| Box::new(Buffer::empty(Rect::default())));
         self.copy_region_into(area, &mut layer);
+        self.trace_layer(&mut layer);
         paint(&mut layer);
-        self.composite_group(&layer, alpha);
+        self.composite_layer(&mut layer, alpha);
         self.scratch.0 = Some(layer);
     }
 

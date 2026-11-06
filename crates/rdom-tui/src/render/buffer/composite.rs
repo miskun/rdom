@@ -138,6 +138,7 @@ impl Buffer {
         after_wide: bool,
         next_blank: bool,
     ) -> bool {
+        self.touch(i);
         let before = &self.content[i];
         let after = &layer.content[j];
         let glyph = if after.is_spacer() && after_wide {
@@ -291,6 +292,7 @@ impl Buffer {
                 false
             };
             if orphan {
+                self.touch(i);
                 self.content[i].set_symbol(" ");
             }
         }

@@ -48,6 +48,7 @@ mod composite;
 pub(crate) mod coverage;
 mod diff;
 mod layering;
+pub(crate) mod trace;
 mod translucent;
 mod write;
 
@@ -110,6 +111,8 @@ pub struct Buffer {
     /// Per cell, what the paints into this buffer wrote (`coverage`):
     /// tracked by the layers of graphical effects only.
     pub(crate) coverage: Option<Vec<u8>>,
+    /// The paint recorder, while a traced paint runs (`trace`).
+    pub(crate) tracer: trace::Tracer,
 }
 
 /// A kept scratch layer. Not content: a clone starts without one, and
@@ -160,6 +163,7 @@ impl Buffer {
             scratch: Scratch::default(),
             outlines: Vec::new(),
             coverage: None,
+            tracer: trace::Tracer::default(),
         }
     }
 
@@ -187,6 +191,7 @@ impl Buffer {
             scratch: Scratch::default(),
             outlines: Vec::new(),
             coverage: None,
+            tracer: trace::Tracer::default(),
         }
     }
 
@@ -220,6 +225,7 @@ impl Buffer {
     /// Get a mutable cell. `None` if out of bounds.
     pub fn cell_mut(&mut self, x: u16, y: u16) -> Option<&mut Cell> {
         let i = self.index_of(x, y)?;
+        self.touch(i);
         Some(&mut self.content[i])
     }
 
@@ -253,6 +259,7 @@ impl Buffer {
         for y in clip.y..clip.bottom() {
             for x in clip.x..clip.right() {
                 if let Some(i) = self.index_of(x, y) {
+                    self.touch(i);
                     self.content[i] = cell.clone();
                 }
             }
@@ -344,6 +351,7 @@ impl Buffer {
         for y in overlap.y..overlap.bottom() {
             for x in overlap.x..overlap.right() {
                 if let (Some(src_i), Some(dst_i)) = (other.index_of(x, y), self.index_of(x, y)) {
+                    self.touch(dst_i);
                     self.content[dst_i] = other.content[src_i].clone();
                 }
             }

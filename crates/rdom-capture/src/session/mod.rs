@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 pub use error::SessionError;
 
 use crate::app::{CaptureApp, FixtureInfo};
-use crate::capture::{Capture, Layer, Meta, SCHEMA};
+use crate::capture::{Capture, Layer, Meta, SCHEMA, node_key, nodes, owners};
 use crate::env::{Environment, Viewport};
 use crate::input::Input;
 use error::panic_message;
@@ -95,6 +95,15 @@ impl CaptureRequest {
             layers: layers.into_iter().collect(),
         }
     }
+}
+
+/// The owners layer of the frame `app` shows over `area`, and the elements
+/// it names.
+fn nodes_owners(
+    app: &App<TestBackend>,
+    area: rdom_tui::Rect,
+) -> (crate::capture::Owners, Vec<rdom_tui::core_api::NodeId>) {
+    owners::owners(&app.trace_paint(area))
 }
 
 /// Run app code, turning a panic into [`SessionError::AppPanicked`].
@@ -236,6 +245,7 @@ impl<A: CaptureApp> Session<A> {
     /// A capture of the current frame with the layers `request` asks for.
     pub fn capture(&self, request: &CaptureRequest) -> Result<Capture, SessionError> {
         let o = self.open.as_ref().ok_or(SessionError::NotOpen)?;
+        let wants = |l: Layer| request.layers.contains(&l);
         let meta = Meta {
             rdom_capture: env!("CARGO_PKG_VERSION").to_string(),
             rdom_tui: rdom_tui::VERSION.to_string(),
@@ -244,13 +254,35 @@ impl<A: CaptureApp> Session<A> {
             fixture: o.fixture.clone(),
             grid_hash: o.frame.hash.clone(),
         };
+        let dom = o.app.dom();
+        let mut named = Vec::new();
+        let owners = if wants(Layer::Owners) {
+            // A traced repaint of the frame: app code (a `<canvas>`
+            // callback) may run, so it is guarded. The repaint reads the
+            // app and changes nothing, so a panic there leaves it open.
+            let area = o.app.terminal().buffer().area;
+            let (owners, n) = guarded(|| Ok(nodes_owners(&o.app, area)))?;
+            named.extend(n);
+            Some(owners)
+        } else {
+            None
+        };
+        let boxes = wants(Layer::Boxes).then(|| {
+            let boxes = nodes::boxes(dom);
+            named.extend(boxes.iter().map(|(id, _)| *id));
+            boxes.into_iter().map(|(id, b)| (node_key(id), b)).collect()
+        });
+        if wants(Layer::Nodes) {
+            named = nodes::elements(dom);
+        }
+        let nodes = (!named.is_empty()).then(|| nodes::nodes(dom, named));
         Ok(Capture {
             schema: SCHEMA.to_string(),
             meta,
-            grid: request
-                .layers
-                .contains(&Layer::Grid)
-                .then(|| o.frame.grid.clone()),
+            grid: wants(Layer::Grid).then(|| o.frame.grid.clone()),
+            owners,
+            boxes,
+            nodes,
         })
     }
 

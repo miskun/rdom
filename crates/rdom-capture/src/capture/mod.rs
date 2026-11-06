@@ -4,15 +4,22 @@
 //!
 //! A capture is layered. `meta` is always present and so is the grid
 //! hash; the grid itself and the other layers are included when asked
-//! ([`Layer`]).
+//! ([`Layer`]). Whenever a layer names elements, `nodes` says what each
+//! one is.
 
 mod color;
 mod grid;
 mod hash;
+pub(crate) mod nodes;
+pub(crate) mod owners;
 
 pub use color::ColorValue;
 pub use grid::{Attr, Grid, Run};
 pub use hash::{fnv1a64, grid_hash};
+pub use nodes::{Boxes, NodeInfo, Scroll, node_key};
+pub use owners::{OwnerRun, Owners};
+
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +38,16 @@ pub struct Capture {
     /// What every cell shows, when [`Layer::Grid`] was asked for.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grid: Option<Grid>,
+    /// Which element's paint decided each cell ([`Layer::Owners`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owners: Option<Owners>,
+    /// Every element's boxes, by node ([`Layer::Boxes`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boxes: Option<BTreeMap<String, Boxes>>,
+    /// What each element the other layers name is, by node — every
+    /// element with [`Layer::Nodes`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nodes: Option<BTreeMap<String, NodeInfo>>,
 }
 
 impl Capture {
@@ -72,4 +89,10 @@ pub struct Meta {
 pub enum Layer {
     /// What every cell shows.
     Grid,
+    /// Which element's paint decided each cell (a traced repaint).
+    Owners,
+    /// Every element's boxes.
+    Boxes,
+    /// Every element, not only the ones the other layers name.
+    Nodes,
 }

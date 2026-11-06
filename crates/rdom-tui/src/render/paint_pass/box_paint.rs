@@ -5,6 +5,7 @@
 //! (`paint_content`). The order between boxes, and which phase paints a
 //! box's own box and which its content, is `stacking_walk`'s.
 
+use crate::capture::PaintPart;
 use rdom_core::{Dom, NodeId, NodeType};
 
 use super::background::paint_background;
@@ -173,9 +174,11 @@ fn paint_own_box(
 ) {
     // 0. Outer shadows, under the background (CSS Backgrounds 3 §6.1);
     // they may show while the box itself is outside the clip.
-    shadow::paint_outer_shadows(buf, computed, outer, clip);
+    buf.painting(Some(id), PaintPart::Shadow, |buf| {
+        shadow::paint_outer_shadows(buf, computed, outer, clip)
+    });
     // The outline (CSS UI 4 §5), drawn when the stacking context ends.
-    super::outline::defer(dom, buf, computed, outer, clip);
+    super::outline::defer(dom, id, buf, computed, outer, clip);
 
     // Fast path: element entirely outside the clip.
     let Some(outer_grid) = layout_rect_to_grid(outer, clip) else {
@@ -198,10 +201,14 @@ fn paint_own_box(
     // own (CSS Backgrounds 3 §2.11.2, `canvas`).
     let is_tree_row = dom.node(id).get_attribute("role") == Some("treeitem");
     if !is_tree_row && !super::canvas::takes_background(dom, id) {
-        paint_background(buf, computed, outer, inner, clip);
+        buf.painting(Some(id), PaintPart::Background, |buf| {
+            paint_background(buf, computed, outer, inner, clip)
+        });
     }
     // Inset shadows, above the background and below the border.
-    shadow::paint_inset_shadows(buf, computed, outer, clip);
+    buf.painting(Some(id), PaintPart::Shadow, |buf| {
+        shadow::paint_inset_shadows(buf, computed, outer, clip)
+    });
 
     // 2. Border. Writes per-cell × per-direction `BorderContribution`s
     // into `buf.border_dirs`; the joiner reads them after the
@@ -211,12 +218,16 @@ fn paint_own_box(
     // (`border_scope`).
     let origin = super::border_scope::origin_of(dom, id);
     if !computed.border.is_empty() {
-        paint_border_sides(buf, computed, outer, outer_grid, clip, origin);
+        buf.painting(Some(id), PaintPart::Border, |buf| {
+            paint_border_sides(buf, computed, outer, outer_grid, clip, origin)
+        });
     }
     // 3. A multi-column container's rules, just above its border (CSS
     // Multi-column 1 §4).
     if computed.is_multicol_container() {
-        super::column_rule::paint(dom, id, buf, computed, outer, clip, origin);
+        buf.painting(Some(id), PaintPart::ColumnRule, |buf| {
+            super::column_rule::paint(dom, id, buf, computed, outer, clip, origin)
+        });
     }
 }
 
@@ -245,16 +256,20 @@ pub(super) fn paint_content(
         if !frame.visible {
             return;
         }
-        let mut ctx = crate::runtime::builtins::canvas::RenderContext::new(
-            buf,
-            inner.x,
-            inner.y,
-            inner.width,
-            inner.height,
-            children_clip,
-        );
-        paint.call(dom, &mut ctx);
-        scrollbar::paint_scrollbars(dom, id, computed, buf, clip);
+        buf.painting(Some(id), PaintPart::Content, |buf| {
+            let mut ctx = crate::runtime::builtins::canvas::RenderContext::new(
+                buf,
+                inner.x,
+                inner.y,
+                inner.width,
+                inner.height,
+                children_clip,
+            );
+            paint.call(dom, &mut ctx);
+        });
+        buf.painting(Some(id), PaintPart::Scrollbar, |buf| {
+            scrollbar::paint_scrollbars(dom, id, computed, buf, clip)
+        });
         return;
     }
 
@@ -266,11 +281,15 @@ pub(super) fn paint_content(
         // Text rows are addressed through the *scrolled* content rect so
         // a scroll container's first `scroll_y` lines sit above the port.
         let text_inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(inner);
-        paint_ifc(dom, id, text_inner, buf, children_clip, viewport);
+        buf.painting(Some(id), PaintPart::Content, |buf| {
+            paint_ifc(dom, id, text_inner, buf, children_clip, viewport)
+        });
         // Caret overlay — paint at the end so it sits on top of
         // every fragment in the inline flow. IFC blocks always have
         // an `inline_layout`, so this fires unconditionally.
-        paint_caret_if_editable(dom, buf, id, children_clip);
+        buf.painting(Some(id), PaintPart::Caret, |buf| {
+            paint_caret_if_editable(dom, buf, id, children_clip)
+        });
         // Scrollbar overlay — on top of any content that might
         // have leaked into the gutter (it can't, but paint order
         // still puts scrollbars last so any future strategy
@@ -278,21 +297,25 @@ pub(super) fn paint_content(
         // children_clip) so the scrollbar can sit in the gutter
         // which is outside children_clip when overflow clips.
         if frame.visible {
-            scrollbar::paint_scrollbars(dom, id, computed, buf, clip);
+            buf.painting(Some(id), PaintPart::Scrollbar, |buf| {
+                scrollbar::paint_scrollbars(dom, id, computed, buf, clip)
+            });
         }
         return;
     }
 
     // Compute ::before / own text / ::after paint positions.
     let text_inner = crate::render::inline::scrolled_content_rect(dom, id).unwrap_or(inner);
-    paint_inline_content(
-        dom,
-        id,
-        computed,
-        text_inner,
-        buf,
-        (children_clip, viewport),
-    );
+    buf.painting(Some(id), PaintPart::Content, |buf| {
+        paint_inline_content(
+            dom,
+            id,
+            computed,
+            text_inner,
+            buf,
+            (children_clip, viewport),
+        )
+    });
 
     // Caret overlay for pure-text leaf blocks (e.g. <input>,
     // <textarea>) — they go through `paint_inline_content` rather
@@ -300,7 +323,9 @@ pub(super) fn paint_content(
     // site too. `paint_caret_if_editable` is a no-op for elements
     // that aren't the inline-flow container of the focused caret.
     if crate::render::inline::has_inline_layout(dom, id) {
-        paint_caret_if_editable(dom, buf, id, children_clip);
+        buf.painting(Some(id), PaintPart::Caret, |buf| {
+            paint_caret_if_editable(dom, buf, id, children_clip)
+        });
     }
 
     // Recurse into in-flow element children (they paint at their own
@@ -315,17 +340,23 @@ pub(super) fn paint_content(
     // empty (pure-flex, pure-IFC, or pure-block containers).
     // A generated flex item's own box, under its lines.
     super::generated_box::paint_generated_boxes(dom, id, buf, children_clip);
-    paint_anonymous_blocks(dom, id, buf, children_clip, viewport);
+    buf.painting(Some(id), PaintPart::Content, |buf| {
+        paint_anonymous_blocks(dom, id, buf, children_clip, viewport)
+    });
 
     // A tree's guide lines, over its rows (they are part of its paint).
     if super::tree_guides::is_tree(dom, id) {
-        super::tree_guides::paint_tree_guides(dom, id, buf, children_clip);
+        buf.painting(Some(id), PaintPart::TreeGuide, |buf| {
+            super::tree_guides::paint_tree_guides(dom, id, buf, children_clip)
+        });
     }
 
     // Scrollbar overlay (after children so it sits on top if
     // anything encroached).
     if frame.visible {
-        scrollbar::paint_scrollbars(dom, id, computed, buf, clip);
+        buf.painting(Some(id), PaintPart::Scrollbar, |buf| {
+            scrollbar::paint_scrollbars(dom, id, computed, buf, clip)
+        });
     }
 }
 

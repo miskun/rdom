@@ -51,12 +51,13 @@ impl Buffer {
         if let Some(c) = &mut self.coverage {
             c[i] |= bits;
         }
+        self.touch(i);
     }
 
     /// Mark the cell at `(x, y)` as painted in `bits`.
     #[inline]
     pub(crate) fn mark_at(&mut self, x: u16, y: u16, bits: u8) {
-        if self.coverage.is_some()
+        if (self.coverage.is_some() || self.is_traced())
             && let Some(i) = self.index_of(x, y)
         {
             self.mark(i, bits);
@@ -81,6 +82,7 @@ impl Buffer {
                     continue;
                 };
                 let (b, g, border) = select(x, y, self.coverage_of(i));
+                self.touch(i);
                 let cell: &mut Cell = &mut self.content[i];
                 if b {
                     cell.bg = bg(i, cell.bg);

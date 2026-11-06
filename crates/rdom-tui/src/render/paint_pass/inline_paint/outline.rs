@@ -81,7 +81,7 @@ pub(super) fn defer_inline_outlines(
                 continue;
             }
             let outer = LayoutRect::new(e.left, e.top, width, height);
-            super::super::outline::defer(dom, buf, &style, outer, clip);
+            super::super::outline::defer(dom, e.element, buf, &style, outer, clip);
         }
     }
 }

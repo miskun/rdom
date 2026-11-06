@@ -88,6 +88,7 @@ mod input;
 mod introspect;
 mod keyboard_defaults;
 mod media;
+mod paint_trace;
 mod pointer;
 mod prelude;
 mod redraw;

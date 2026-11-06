@@ -3,6 +3,7 @@
 //! inline boxes on their rows, `text-overflow` cuts and the highlight
 //! overlays over them.
 
+use crate::capture::PaintPart;
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
@@ -190,15 +191,17 @@ pub(super) fn paint_inline_layout(
             && text_visible
         {
             for &(x, marker) in &cut.markers {
-                super::super::text::paint_text_from(
-                    buf,
-                    x,
-                    line_y as u16,
-                    outer_clip.x,
-                    outer_clip.right(),
-                    marker,
-                    marking.style,
-                );
+                buf.painting(Some(bg_dedup_owner), PaintPart::TextOverflow, |buf| {
+                    super::super::text::paint_text_from(
+                        buf,
+                        x,
+                        line_y as u16,
+                        outer_clip.x,
+                        outer_clip.right(),
+                        marker,
+                        marking.style,
+                    )
+                });
             }
         }
     }
@@ -221,6 +224,19 @@ struct TextAt<'a> {
 /// its line's `::first-line` / its block's `::first-letter`), with its
 /// link and the highlight overlays over it.
 fn paint_text_fragment(
+    dom: &Dom<TuiExt>,
+    fragment: &crate::render::inline::InlineFragment,
+    at: TextAt<'_>,
+    bg_dedup_owner: NodeId,
+    overlays: Option<&Overlays>,
+    buf: &mut Buffer,
+) {
+    buf.painting(Some(fragment.node), PaintPart::Text, |buf| {
+        paint_text_fragment_unattributed(dom, fragment, at, bg_dedup_owner, overlays, buf)
+    });
+}
+
+fn paint_text_fragment_unattributed(
     dom: &Dom<TuiExt>,
     fragment: &crate::render::inline::InlineFragment,
     at: TextAt<'_>,

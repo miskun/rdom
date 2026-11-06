@@ -10,6 +10,7 @@ use rdom_core::{Dom, NodeId};
 use super::background::paint_background;
 use super::border::paint_border_sides;
 use super::layout_rect_to_grid;
+use crate::capture::PaintPart;
 use crate::ext::{GeneratedBox, StyleSlot, TuiExt};
 use crate::layout::LayoutRect;
 use crate::render::{Buffer, Rect};
@@ -62,6 +63,18 @@ pub(super) fn paint_box(
     buf: &mut Buffer,
     clip: Rect,
 ) {
+    buf.painting(Some(g.host), PaintPart::Generated(g.slot.into()), |buf| {
+        paint_own_box_of(dom, g, content, buf, clip)
+    });
+}
+
+fn paint_own_box_of(
+    dom: &Dom<TuiExt>,
+    g: GeneratedBox,
+    content: LayoutRect,
+    buf: &mut Buffer,
+    clip: Rect,
+) {
     let Some(ext) = dom.node(g.host).ext() else {
         return;
     };
@@ -73,7 +86,7 @@ pub(super) fn paint_box(
         return;
     }
     let outer = g.border_box;
-    super::outline::defer(dom, buf, style, outer, clip);
+    super::outline::defer(dom, g.host, buf, style, outer, clip);
     let Some(outer_grid) = layout_rect_to_grid(outer, clip) else {
         return;
     };

@@ -17,7 +17,9 @@
 use rdom_style::color::SystemColor;
 use rdom_style::layout::{BorderStyle, BorderWeight, OutlineColor, OutlineStyle};
 
-use rdom_core::Dom;
+use rdom_core::{Dom, NodeId};
+
+use crate::capture::PaintPart;
 
 use super::border_join::outline_glyph;
 use crate::ext::TuiExt;
@@ -29,6 +31,8 @@ use crate::style::{Color, ComputedStyle};
 /// context's end.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct DeferredOutline {
+    /// The element whose outline it is.
+    node: NodeId,
     /// The ring's cells: the border box grown by the offset plus one.
     ring: LayoutRect,
     /// The clip the box painted into.
@@ -39,11 +43,12 @@ pub(crate) struct DeferredOutline {
     color: Color,
 }
 
-/// Record the outline of a box of `dom` with border box `outer`, styled
+/// Record the outline of `node`, a box of `dom` with border box `outer`, styled
 /// `style` and painted into `clip` — nothing for `outline-style: none` or
 /// a zero width.
 pub(super) fn defer(
     dom: &Dom<TuiExt>,
+    node: NodeId,
     buf: &mut Buffer,
     style: &ComputedStyle,
     outer: LayoutRect,
@@ -89,6 +94,7 @@ pub(super) fn defer(
         return;
     }
     buf.outlines.push(DeferredOutline {
+        node,
         ring,
         clip,
         line,
@@ -112,7 +118,7 @@ pub(super) fn paint_since(buf: &mut Buffer, mark: usize) {
     }
     let outlines = buf.outlines.split_off(mark);
     for o in outlines {
-        paint_ring(buf, &o);
+        buf.painting(Some(o.node), PaintPart::Outline, |buf| paint_ring(buf, &o));
     }
 }
 

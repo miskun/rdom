@@ -60,6 +60,7 @@ use rdom_core as core;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod accessors;
+pub mod capture;
 pub mod cssom;
 pub mod editing;
 pub mod ext;

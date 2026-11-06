@@ -32,6 +32,7 @@ mod details_toggle_regression;
 mod file_sizes;
 mod keyboard_nav;
 mod mutation_observer_demo;
+mod paint_trace;
 mod resize_integration;
 mod scaffold;
 mod scroll_indicator;

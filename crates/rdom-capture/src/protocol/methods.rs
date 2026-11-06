@@ -15,7 +15,7 @@ use crate::capture::{Capture, Layer, SCHEMA};
 use crate::env::Environment;
 use crate::input::Input;
 use crate::session::{CaptureRequest, Session};
-use crate::views::text::{TextOptions, text};
+use crate::views::text::{TextOptions, capture_text};
 
 /// A method's name and what it does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -44,7 +44,7 @@ pub(crate) const METHODS: &[MethodInfo] = &[
     },
     MethodInfo {
         name: "capture",
-        summary: "Capture the current frame. Params: {layers?: [\"grid\"], text?: {bg?, fg?}, out?: path}. With out, writes <out>.json (and <out>.txt) and returns their paths instead of the content.",
+        summary: "Capture the current frame. Params: {layers?: [\"grid\" | \"owners\" | \"boxes\" | \"nodes\"], text?: {bg?, fg?, owners?}, out?: path}. Layers that name elements bring a nodes table. With out, writes <out>.json (and <out>.txt) and returns their paths instead of the content.",
     },
     MethodInfo {
         name: "close",
@@ -172,16 +172,28 @@ struct Empty {}
 /// `capture`.
 fn capture<A: CaptureApp>(session: &Session<A>, p: CaptureParams) -> Result<Value, RpcError> {
     let mut layers = p.layers.clone();
-    // The text view reads the grid.
-    if p.text.is_some() && !layers.contains(&Layer::Grid) {
-        layers.push(Layer::Grid);
+    // The text view reads the grid, and its owners layer the owners.
+    let mut needs = |l: Layer| {
+        if !layers.contains(&l) {
+            layers.push(l);
+        }
+    };
+    if let Some(o) = p.text {
+        needs(Layer::Grid);
+        if o.owners {
+            needs(Layer::Owners);
+        }
     }
     let mut capture = session.capture(&CaptureRequest::with_layers(layers))?;
-    let text = p
-        .text
-        .map(|o| text(capture.grid.as_ref().expect("the grid was asked for"), o));
+    let text = p.text.and_then(|o| capture_text(&capture, o));
     if !p.layers.contains(&Layer::Grid) {
         capture.grid = None;
+    }
+    if !p.layers.contains(&Layer::Owners) {
+        capture.owners = None;
+        if !p.layers.contains(&Layer::Boxes) && !p.layers.contains(&Layer::Nodes) {
+            capture.nodes = None;
+        }
     }
     let Some(out) = p.out else {
         return json(CaptureResult {

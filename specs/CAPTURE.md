@@ -195,7 +195,9 @@ captures store deltas.
     "grid_hash": "b3:9f2c…"
   },
   "grid": { "rows": [[{"x": 0, "text": "┌ Settings ", "fg": "#c0c0c0", "bg": "#1e1e1e",
-                       "mods": ["bold"], "ul": null, "top": {"node": 12, "part": "border"}}]] },
+                       "mods": ["bold"]}]] },
+  "owners": { "rows": [[{"x": 0, "w": 1, "part": "border-join", "joined": ["12"]},
+                        {"x": 1, "w": 1, "node": "12", "part": "text"}]] },
   "outline": [
     {"node": 12, "key": "id:settings", "role": "region", "name": "Settings", "rect": [0, 0, 60, 20],
      "focus": "within", "children": [ … ]}
@@ -210,9 +212,14 @@ captures store deltas.
 }
 ```
 
-- `grid.top` is the topmost paint operation's node and part (`content`, `border`, `background`, `outline`,
-  `scrollbar`, `caret`, `selection`, `pseudo:before|after|marker`, `ua-chrome`, `highlight:<name>`). It's a
-  convenience derived from the paint trace, not the explanation.
+- `owners` (phase 2) is a layer of its own, not a field of the grid's runs: its runs tile each row by owner — the
+  last operation on the frame that wrote the cell: its node and part (`background`, `border-join` with the nodes
+  whose borders met, `text`, `pseudo:before|after|marker|first-letter`, `ua-chrome`, `caret`, `selection`,
+  `highlight`, `scrollbar`, `outline`, `group`, `backdrop`, `tree-guide`, `canvas`, …). It's a convenience derived
+  from the paint trace, not the explanation. Kept apart, the grid's runs, and so its hash, don't depend on whether
+  owners were asked for.
+- Every layer that names elements brings the `nodes` table (tag, `id`, classes, parent, path); `boxes` places
+  every rendered element (border, padding, content, scrollport and scroll state, fragments).
 - Colors are resolved sRGB; where the author wrote something else, `spec` carries it (`"ansi:4"`, `"oklch(…)"`,
   `"var(--fg)"`).
 - `source` is the CSS parser's file, line and column, or `#[track_caller]` for rules built in Rust; `null` when
@@ -241,10 +248,17 @@ The paint trace of a cell is the ordered list of paint operations that touched i
 ]}
 ```
 
-`rdom-tui` paint takes an optional `&mut dyn PaintRecorder`, passed explicitly through the paint context (no
-thread-locals). Every buffer write, blend and post-pass (border join, quantization) reports to it when present.
-Recording can be limited to a rectangle. Cost with no recorder: one branch per write, pinned by `frame_cost_tests`
-and a new benchmark with recording on.
+As built (phase 2): the recorder rides on the `Buffer` the paint pass already threads everywhere (an explicit
+field, no thread-locals). The buffer's write funnels — `cell_mut`, the coverage `mark`s every border write
+already makes, compositing and color mapping — note the cell; the paint pass names whose paint is running with
+`Buffer::painting(node, part, …)` around each element part; each time that changes the recorder compares the
+written cells with what it last saw and records one operation per change (the cell after it, and the border
+state for a contribution). The paint logic itself is unchanged: tracing observes it. Layers (`opacity`, filters,
+translucent colors) get a recorder one level deeper whose operations are adopted when the layer composites back,
+followed by the `blend`. The joiner's operation names the nodes whose contributions won each direction. Quantization
+happens in the backend, not the paint, so it is not an operation: the grid's `*_shown` colors carry it. Recording
+can be limited to a rectangle. Cost with no recorder: one branch per write (`frame_cost_tests` unchanged);
+with one, 1.3–3× a plain paint, ≤ 1.7 ms for any 120×50 acid page in release (busy machine, load 5–8).
 
 ### Derivation chain
 

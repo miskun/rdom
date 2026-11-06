@@ -5,6 +5,7 @@
 //! each in its pseudo-element's style (which holds a running transition's
 //! values).
 
+use crate::capture::PaintPart;
 use rdom_core::{Dom, NodeId};
 
 use super::{FlowPlacement, anchor_href_for, paint_inline_layout};
@@ -26,6 +27,20 @@ use crate::render::{Buffer, Rect};
 /// starts at its logical x (`origin_x` plus its own) even when that is
 /// left of the clip — `paint_text_from` skips the clipped prefix.
 pub(super) fn paint_generated(
+    dom: &Dom<TuiExt>,
+    generated: &crate::render::inline::GeneratedFragment,
+    at: (i32, u16, bool, Option<&[NodeId]>),
+    clip_left: u16,
+    right: u16,
+    buf: &mut Buffer,
+) {
+    let part = PaintPart::Generated(generated.slot.into());
+    buf.painting(Some(generated.host), part, |buf| {
+        paint_generated_run(dom, generated, at, clip_left, right, buf)
+    });
+}
+
+fn paint_generated_run(
     dom: &Dom<TuiExt>,
     generated: &crate::render::inline::GeneratedFragment,
     (origin_x, y, own_box, first): (i32, u16, bool, Option<&[NodeId]>),
@@ -103,6 +118,19 @@ pub(super) fn paint_generated_atom(
 /// a float — `g`, its lines `lines` at the rect given: its background and
 /// border, then its lines.
 fn paint_generated_box(
+    dom: &Dom<TuiExt>,
+    g: crate::ext::GeneratedBox,
+    lines: (LayoutRect, &crate::render::inline::InlineLayout),
+    buf: &mut Buffer,
+    clip: Rect,
+    viewport: Rect,
+) {
+    buf.painting(Some(g.host), PaintPart::Generated(g.slot.into()), |buf| {
+        paint_generated_box_unattributed(dom, g, lines, buf, clip, viewport)
+    });
+}
+
+fn paint_generated_box_unattributed(
     dom: &Dom<TuiExt>,
     g: crate::ext::GeneratedBox,
     (lines_at, lines): (LayoutRect, &crate::render::inline::InlineLayout),

@@ -21,6 +21,7 @@
 
 use rdom_core::{Dom, NodeId, NodeType};
 
+use crate::capture::PaintPart;
 use crate::ext::TuiExt;
 use crate::layout::{Display, LayoutRect};
 use crate::render::{Buffer, Rect};
@@ -37,11 +38,25 @@ pub(super) fn paint_group(
     effects: &Effects<'_>,
     paint: impl Fn(&mut Buffer),
 ) {
+    buf.painting(Some(root), PaintPart::Group, |buf| {
+        paint_group_layer(dom, root, buf, effects, paint)
+    });
+}
+
+/// [`paint_group`]'s work, as the group's part.
+fn paint_group_layer(
+    dom: &Dom<TuiExt>,
+    root: NodeId,
+    buf: &mut Buffer,
+    effects: &Effects<'_>,
+    paint: impl Fn(&mut Buffer),
+) {
     #[cfg(test)]
     super::effects::EFFECT_LAYERS.with(|c| c.set(c.get() + 1));
     let alpha = effects.alpha;
     let region = layer_region(dom, root, buf.area, effects.reach());
     let mut layer = buf.copy_region(region);
+    buf.trace_layer(&mut layer);
     effects.render(buf, &mut layer, &paint);
     #[cfg(test)]
     let unbounded = {
@@ -54,7 +69,7 @@ pub(super) fn paint_group(
         full.composite_group(&full_layer, alpha);
         full
     };
-    buf.composite_group(&layer, alpha);
+    buf.composite_layer(&mut layer, alpha);
     #[cfg(test)]
     {
         assert_eq!(*buf, unbounded, "bounded layer diverged for {root:?}");

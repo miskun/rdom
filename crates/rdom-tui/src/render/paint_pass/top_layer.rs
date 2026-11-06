@@ -5,6 +5,7 @@
 //! by the viewport only. The stacking walk leaves these elements out
 //! (`stacking::collect_layers`), so each paints once.
 
+use crate::capture::PaintPart;
 use rdom_core::{Dom, NodeId};
 
 use crate::ext::TuiExt;
@@ -20,7 +21,9 @@ pub(super) fn paint_top_layer(dom: &Dom<TuiExt>, buf: &mut Buffer, clip: Rect) {
             continue;
         }
         if let Some(backdrop) = dom.node(id).ext().and_then(|e| e.computed_backdrop()) {
-            fill_backdrop(buf, clip, backdrop);
+            buf.painting(Some(id), PaintPart::Backdrop, |buf| {
+                fill_backdrop(buf, clip, backdrop)
+            });
         }
         super::paint_stacking_context(dom, id, buf, clip, clip);
     }

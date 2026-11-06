@@ -666,3 +666,81 @@ fn a_null_id_is_answered() {
     assert!(r["id"].is_null());
     assert!(r["result"].is_object());
 }
+
+// ── owners, boxes, nodes (phase 2) ──
+
+#[test]
+fn owners_say_which_elements_paint_decided_each_cell() {
+    let s = open("plain");
+    let c = s
+        .capture(&CaptureRequest::with_layers([Layer::Owners]))
+        .unwrap();
+    let owners = c.owners.unwrap();
+    let nodes = c
+        .nodes
+        .expect("a layer that names elements brings the nodes table");
+    for runs in &owners.rows {
+        let mut x = 0;
+        for r in runs {
+            assert_eq!(r.x, x, "owner runs tile the row");
+            x += r.w;
+        }
+        assert_eq!(x, 20);
+    }
+    let hello = &owners.rows[0][0];
+    assert_eq!((hello.part.as_str(), hello.w), ("text", 5));
+    assert_eq!(nodes[hello.node.as_ref().unwrap()].tag, "p");
+    let button = owners.rows[1]
+        .iter()
+        .find(|r| r.node.as_ref().is_some_and(|n| nodes[n].tag == "button"))
+        .expect("the button painted row 1");
+    assert_eq!(
+        button.part, "pseudo:before",
+        "the UA bracket `[ ` is the button's ::before: {button:?}"
+    );
+}
+
+#[test]
+fn boxes_place_every_element_and_nodes_name_them() {
+    let s = open("plain");
+    let c = s
+        .capture(&CaptureRequest::with_layers([Layer::Boxes]))
+        .unwrap();
+    let boxes = c.boxes.unwrap();
+    let nodes = c.nodes.unwrap();
+    let p = nodes
+        .iter()
+        .find(|(_, n)| n.tag == "p")
+        .map(|(k, _)| k)
+        .unwrap();
+    assert_eq!(boxes[p].border, [0, 0, 20, 1]);
+    assert_eq!(nodes[p].path, "p");
+    let b = nodes
+        .iter()
+        .find(|(_, n)| n.tag == "button")
+        .map(|(k, _)| k)
+        .unwrap();
+    assert_eq!(boxes[b].border[1], 1, "the button is on row 1");
+}
+
+#[test]
+fn the_text_view_keys_owners_by_element_and_part() {
+    let mut s = Session::new(Page);
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":1,"method":"open","params":{"fixture":"plain","env":{"viewport":{"width":20,"height":4}}}}"#,
+    );
+    assert!(r["result"].is_object());
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":2,"method":"capture","params":{"text":{"bg":false,"owners":true}}}"#,
+    );
+    let text = r["result"]["text"].as_str().unwrap();
+    assert!(text.contains("── owners ──\naaaaa"), "{text}");
+    assert!(text.contains("a text p (#"), "{text}");
+    assert!(
+        r["result"].get("owners").is_none(),
+        "the layer only for the text view"
+    );
+    assert!(r["result"].get("nodes").is_none());
+}
