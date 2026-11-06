@@ -129,9 +129,20 @@ impl<B: Backend> App<B> {
         self
     }
 
+    /// Drive the app's clock by [`advance`](Self::advance) alone, from
+    /// construction: no frame syncs it to the wall clock, not even one
+    /// drawn before the first `advance` (which otherwise switches to the
+    /// virtual clock itself). For headless drivers that need every run of
+    /// the same steps to be the same — capture sessions, simulations.
+    pub fn with_virtual_clock(mut self) -> Self {
+        self.virtual_clock = true;
+        self
+    }
+
     /// The crossterm event-poll timeout / tick cadence. Default 50 ms.
     /// `Duration::ZERO` disables tick firing entirely (the loop blocks
-    /// until a real event arrives).
+    /// until a real event arrives). In [`advance`](Self::advance)'s
+    /// virtual time the tick handler fires once per period.
     pub fn with_tick_rate(mut self, d: Duration) -> Self {
         self.tick_rate = d;
         self

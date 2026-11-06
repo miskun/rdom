@@ -24,6 +24,7 @@
 //! | Option | Builder | [`App::new`] | [`App::with_backend`] |
 //! |---|---|---|---|
 //! | Event-poll timeout / tick cadence | [`with_tick_rate`](App::with_tick_rate) | 50 ms | 50 ms |
+//! | Clock | [`with_virtual_clock`](App::with_virtual_clock): [`advance`](App::advance) alone moves it | the wall clock | the wall clock until the first `advance` |
 //! | Tick handler | [`with_tick_handler`](App::with_tick_handler) | none | none |
 //! | Frame rate while anything animates | [`with_animation_frame_rate`](App::with_animation_frame_rate) | 60 fps | 60 fps |
 //! | Caret blink half-period | [`with_caret_blink`](App::with_caret_blink) | 530 ms | steady (`None`) |
@@ -162,6 +163,8 @@ mod teardown_tests;
 mod terminal_ownership_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod virtual_clock_tests;
 
 use std::io::{self, Stdout};
 use std::sync::Arc;
@@ -246,6 +249,9 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// The app's clock is driven by [`advance`](App::advance) (a headless
     /// or test driver), not by the wall clock: a frame does not sync it.
     virtual_clock: bool,
+    /// When [`advance`](App::advance)'s virtual time fires the next tick;
+    /// set by the first `advance`.
+    next_tick: Option<std::time::Instant>,
     /// The pointer and the shape last sent for it (`pointer`).
     pointer: pointer::Pointer,
 
@@ -428,6 +434,7 @@ impl<B: Backend> App<B> {
             )),
             animations: crate::runtime::animation::AnimationRegistry::new(),
             virtual_clock: false,
+            next_tick: None,
             pointer: pointer::Pointer::default(),
             autoscroll: autoscroll::AutoscrollSession::default(),
             redraw: Redraw::Cascade,

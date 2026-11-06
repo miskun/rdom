@@ -902,6 +902,7 @@ dependencies = [
  "crossterm",
  "rdom-css",
  "rdom-tui",
+ "rustix 0.38.44",
  "serde",
  "serde_json",
  "unicode-segmentation",

@@ -81,3 +81,72 @@ fn capture_writes_its_files_where_out_says() {
         "written, not returned"
     );
 }
+
+/// An app that prints to stdout while it builds — as a library or a stray
+/// `println!` might.
+struct Noisy;
+
+impl CaptureApp for Noisy {
+    fn build(
+        &self,
+        env: &Environment,
+        f: Option<&str>,
+    ) -> Result<App<TestBackend>, Box<dyn Error>> {
+        println!("noise on stdout");
+        Hello.build(env, f)
+    }
+}
+
+/// The child half of `printing_app_code_cannot_corrupt_the_protocol`: when
+/// the parent re-runs this test binary with `RDOM_CAPTURE_SERVE_CHILD`,
+/// serve `Noisy` over the real stdin and stdout.
+#[test]
+fn serve_child() {
+    if std::env::var_os("RDOM_CAPTURE_SERVE_CHILD").is_none() {
+        return;
+    }
+    rdom_capture::serve(Noisy).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn printing_app_code_cannot_corrupt_the_protocol() {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "serve_child", "--nocapture", "--test-threads=1"])
+        .env("RDOM_CAPTURE_SERVE_CHILD", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"open\"}\n")
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    let stderr = String::from_utf8(out.stderr).unwrap();
+    // The test harness prints its own text on stdout before `serve` takes
+    // it over (the test's name, with no newline); the protocol's line is
+    // the one JSON object.
+    let responses: Vec<&str> = stdout
+        .lines()
+        .filter_map(|l| l.find('{').map(|i| &l[i..]))
+        .collect();
+    assert_eq!(responses.len(), 1, "stdout: {stdout}");
+    let r: serde_json::Value = serde_json::from_str(responses[0]).unwrap();
+    assert_eq!(r["id"], 1);
+    assert!(r["result"].is_object(), "{r}");
+    assert!(
+        !stdout.contains("noise"),
+        "the print went to stdout: {stdout}"
+    );
+    assert!(
+        stderr.contains("noise on stdout"),
+        "and not to stderr: {stderr}"
+    );
+}

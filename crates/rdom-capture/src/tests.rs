@@ -577,3 +577,92 @@ fn notifications_and_blank_lines_get_no_response() {
     );
     assert!(s.is_open(), "the notification ran");
 }
+
+// ── review follow-ups (phase 1) ──
+
+#[test]
+fn typing_sends_what_a_terminal_sends() {
+    let events = Input::Text {
+        text: "aB\n\t".into(),
+    }
+    .events()
+    .unwrap();
+    let keys: Vec<_> = events
+        .iter()
+        .map(|e| match e {
+            Event::Key(k) => (k.code, k.modifiers),
+            other => panic!("{other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        keys,
+        [
+            (KeyCode::Char('a'), KeyModifiers::empty()),
+            (KeyCode::Char('B'), KeyModifiers::SHIFT),
+            (KeyCode::Enter, KeyModifiers::empty()),
+            (KeyCode::Tab, KeyModifiers::empty()),
+        ]
+    );
+    assert!(
+        Input::Text {
+            text: "\u{7}".into()
+        }
+        .events()
+        .is_err()
+    );
+}
+
+#[test]
+fn cells_that_join_when_resplit_keep_their_glyphs() {
+    // Two regional indicators in two cells: their text re-segments into
+    // one two-cell flag, so the run keeps each cell's glyph.
+    let mut buf = rdom_tui::Buffer::empty(rdom_tui::Rect::new(0, 0, 3, 1));
+    buf.set_symbol(0, 0, "🇫", rdom_tui::Style::default());
+    buf.set_symbol(1, 0, "🇮", rdom_tui::Style::default());
+    let g = Grid::from_buffer(&buf, ColorDepth::TrueColor);
+    let run = &g.rows[0][0];
+    assert_eq!(run.cells(), ["🇫", "🇮", " "]);
+    assert!(run.glyphs.is_some());
+    let plain = Grid::from_buffer(
+        &rdom_tui::Buffer::empty(rdom_tui::Rect::new(0, 0, 3, 1)),
+        ColorDepth::TrueColor,
+    );
+    assert!(plain.rows[0][0].glyphs.is_none(), "only where needed");
+}
+
+#[test]
+fn key_layers_show_the_colors_the_terminal_shows() {
+    let mut buf = rdom_tui::Buffer::empty(rdom_tui::Rect::new(0, 0, 1, 1));
+    buf.set_string(
+        0,
+        0,
+        "x",
+        rdom_tui::Style::default().bg(Color::Rgb(250, 10, 10)),
+    );
+    let g = Grid::from_buffer(&buf, ColorDepth::Ansi16);
+    let t = text(&g, TextOptions::default());
+    assert!(t.contains("a ansi:"), "{t}");
+}
+
+#[test]
+fn the_grid_hash_is_pinned_to_its_encoding() {
+    // The encoding is the hash's contract: a change here is a change of
+    // every stored hash, so it must be deliberate.
+    let mut buf = rdom_tui::Buffer::empty(rdom_tui::Rect::new(0, 0, 2, 1));
+    buf.set_string(
+        0,
+        0,
+        "hi",
+        rdom_tui::Style::default().fg(Color::Rgb(1, 2, 3)),
+    );
+    let g = Grid::from_buffer(&buf, ColorDepth::TrueColor);
+    assert_eq!(crate::capture::grid_hash(&g), "fnv1a64:15e342e075b1afd0");
+}
+
+#[test]
+fn a_null_id_is_answered() {
+    let mut s = Session::new(Page);
+    let r = call(&mut s, r#"{"jsonrpc":"2.0","id":null,"method":"describe"}"#);
+    assert!(r["id"].is_null());
+    assert!(r["result"].is_object());
+}

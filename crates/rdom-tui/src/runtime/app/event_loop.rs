@@ -246,23 +246,53 @@ impl<B: Backend> App<B> {
     /// Advance the virtual scheduler clock by `ms` and service everything that
     /// comes due, then redraw if dirty. For **headless / simulation / test**
     /// drivers that don't run the live [`run`](Self::run) loop (which syncs to
-    /// wall time). Fires timeouts, intervals, rAF, and microtasks whose deadline
-    /// falls within the elapsed window, services drag autoscroll, and runs the
-    /// closures queued by [`AppHandle::inject`](super::AppHandle::inject), exactly as the loop would —
+    /// wall time). Runs what the loop runs while no input arrives, in virtual
+    /// time: the tick handler once per elapsed tick period
+    /// ([`with_tick_rate`](Self::with_tick_rate), counted from the first
+    /// `advance`), timeouts, intervals, rAF and microtasks whose deadline
+    /// falls within the elapsed window, drag autoscroll, the closures queued
+    /// by [`AppHandle::inject`](super::AppHandle::inject), and the handle's
+    /// redraw and quit requests ([`quit_requested`](Self::quit_requested)) —
     /// making timer-driven runtime behavior (animations, autoscroll) and
     /// handler-queued work (stylesheet intents) deterministically testable.
     /// `advance(0)` finishes the current loop iteration without moving the
     /// clock. Advance one period at a time to step a repeating timer
-    /// tick-by-tick.
+    /// tick-by-tick. Pair with [`with_virtual_clock`](Self::with_virtual_clock)
+    /// so a frame drawn before the first `advance` reads no wall time either.
     pub fn advance(&mut self, ms: u64) -> io::Result<()> {
         self.virtual_clock = true;
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);
-        let target = self.scheduler.borrow().now() + std::time::Duration::from_millis(ms);
+        let now = self.scheduler.borrow().now();
+        let target = now + std::time::Duration::from_millis(ms);
+        // Each elapsed tick period: the work due by then, then the tick,
+        // as the live loop's idle iterations run them. A zero tick rate
+        // fires none, as in the loop.
+        let period = self.tick_rate;
+        if !period.is_zero() {
+            let mut next_tick = *self.next_tick.get_or_insert(now + period);
+            while next_tick <= target {
+                self.scheduler.borrow_mut().set_now(next_tick);
+                self.pump_due();
+                self.tick();
+                next_tick += period;
+            }
+            self.next_tick = Some(next_tick);
+        }
         self.scheduler.borrow_mut().set_now(target);
         self.pump_due();
         self.service_autoscroll();
         self.drain_handle_injections();
+        self.drain_handle_signals();
         self.draw_if_dirty()
+    }
+
+    /// Whether the app asked to stop: a tick handler returned
+    /// [`ControlFlow::Quit`] or called
+    /// `AppContext::quit`, or an [`AppHandle::quit`](super::AppHandle::quit)
+    /// was taken by [`advance`](Self::advance). [`run`](Self::run) returns
+    /// on it; a driver that steps the app itself reads it here.
+    pub fn quit_requested(&self) -> bool {
+        self.should_quit
     }
 
     /// Fire the tick handler, if any. No-op when

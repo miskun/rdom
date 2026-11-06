@@ -12,9 +12,9 @@
 //! don't have to manage trailing-space noise.
 //!
 //! Cell backgrounds are part of the snapshot, as a second layer after
-//! the glyph rows (a key letter per distinct color, `.` for the
-//! terminal default; omitted when no cell has one) — a fill is what a
-//! user sees. Foreground colors and modifiers are not: style drift
+//! the glyph rows (a key letter per cell for each distinct color, `.`
+//! for the terminal default; omitted when no cell has one) — a fill is
+//! what a user sees. The format is `rdom-capture`'s text view. Foreground colors and modifiers are not: style drift
 //! there is caught by paint-pass unit tests.
 //!
 //! ### Updating snapshots
@@ -57,69 +57,14 @@ pub fn render(dom: &mut TuiDom, sheet: &Stylesheet, viewport: Rect) -> Buffer {
     buf
 }
 
-/// Convert a painted `Buffer` to its snapshot string — one line per
-/// row, cell symbols concatenated, spacer cells skipped, trailing
-/// whitespace per row trimmed — then, when any cell has a background
-/// color, the background layer: the same grid with a key letter per
-/// distinct color (`.` for the terminal default, `Color::Reset`) and the
-/// key below it, so a snapshot pins the fills users see too.
+/// Convert a painted `Buffer` to its snapshot string: `rdom-capture`'s
+/// text view of it (`views::text`) — the glyph rows, then the background
+/// layer, a key letter per cell for each distinct color, `.` for the
+/// terminal default, with the key below — so the snapshots and a capture
+/// session read one format from one source.
 pub fn buffer_to_snapshot(buf: &Buffer) -> String {
-    let mut out = String::new();
-    for y in buf.area.y..buf.area.bottom() {
-        let mut row = String::new();
-        for x in buf.area.x..buf.area.right() {
-            if let Some(c) = buf.cell(x, y) {
-                if c.is_spacer() {
-                    continue;
-                }
-                row.push_str(c.symbol());
-            }
-        }
-        out.push_str(row.trim_end());
-        out.push('\n');
-    }
-    out.push_str(&background_layer(buf));
-    out
-}
-
-/// The background layer of [`buffer_to_snapshot`]; empty when every cell
-/// keeps the terminal's default background.
-fn background_layer(buf: &Buffer) -> String {
-    const KEYS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let mut colors: Vec<Color> = Vec::new();
-    let mut grid = String::new();
-    for y in buf.area.y..buf.area.bottom() {
-        let mut row = String::new();
-        for x in buf.area.x..buf.area.right() {
-            let Some(c) = buf.cell(x, y) else { continue };
-            if c.is_spacer() {
-                continue;
-            }
-            if c.bg == Color::Reset {
-                row.push('.');
-                continue;
-            }
-            let i = colors.iter().position(|&k| k == c.bg).unwrap_or_else(|| {
-                colors.push(c.bg);
-                colors.len() - 1
-            });
-            row.push(char::from(KEYS[i.min(KEYS.len() - 1)]));
-        }
-        grid.push_str(row.trim_end_matches('.'));
-        grid.push('\n');
-    }
-    if colors.is_empty() {
-        return String::new();
-    }
-    let mut out = String::from("── background ──\n");
-    out.push_str(&grid);
-    for (i, c) in colors.iter().enumerate() {
-        out.push_str(&format!(
-            "{} {c:?}\n",
-            char::from(KEYS[i.min(KEYS.len() - 1)])
-        ));
-    }
-    out
+    let grid = rdom_capture::Grid::from_buffer(buf, rdom_tui::ColorDepth::TrueColor);
+    rdom_capture::views::text::text(&grid, rdom_capture::views::text::TextOptions::default())
 }
 
 /// Compare `actual` against the golden file at `golden_relpath`

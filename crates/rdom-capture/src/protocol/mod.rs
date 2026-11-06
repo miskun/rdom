@@ -14,9 +14,10 @@
 //! protocol from the session itself.
 //!
 //! A request without an `id` is a notification: it runs, and gets no
-//! response. Batches (a JSON array) are not supported and are answered
-//! with an `invalid request` error. Stdout carries the protocol and
-//! nothing else: an app served this way must not print to stdout.
+//! response; one with `"id": null` is answered with that `null`. Batches
+//! (a JSON array) are not supported and are answered with an `invalid
+//! request` error. Stdout carries the protocol and nothing else
+//! ([`serve`] moves what app code prints to stderr, on Unix).
 
 mod methods;
 mod serve;

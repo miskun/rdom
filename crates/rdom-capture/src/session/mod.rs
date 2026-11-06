@@ -1,0 +1,295 @@
+//! A capture session: one app, built once, driven by inputs and the
+//! virtual clock, captured at any moment (`specs/CAPTURE.md` §Session
+//! protocol). The protocol server ([`serve`](crate::serve)) is a thin layer
+//! over this type; Rust code can use it directly.
+//!
+//! Every step settles the app the way the live loop does: the event is
+//! handled, then the loop's iteration finishes at the current virtual time
+//! (`App::advance(0)`). Time moves only by [`Session::advance`], which runs
+//! what the live loop runs while no input arrives — timers, the tick
+//! handler once per tick period, the `AppHandle`'s requests — so the same
+//! steps give the same captures, byte for byte.
+//!
+//! App code runs inside `catch_unwind`. A panic while an app is open fails
+//! the step with [`SessionError::AppPanicked`] and closes the app, since
+//! its state after a panic can't be trusted; open it again to go on.
+//!
+//! Not yet deterministic (CAPTURE phase 9, `specs/TECH_DEBT.md`
+//! `CAPTURE-INJECT-1`): closures another thread queues with
+//! `AppHandle::inject` run at the next step after they arrive, so an app
+//! whose background threads feed it gives captures that depend on their
+//! timing.
+
+mod error;
+mod frame;
+
+use std::panic::{AssertUnwindSafe, catch_unwind};
+
+use rdom_tui::App;
+use rdom_tui::render::TestBackend;
+use serde::{Deserialize, Serialize};
+
+pub use error::SessionError;
+
+use crate::app::{CaptureApp, FixtureInfo};
+use crate::capture::{Capture, Layer, Meta, SCHEMA};
+use crate::env::{Environment, Viewport};
+use crate::input::Input;
+use error::panic_message;
+use frame::{Frame, diff};
+
+/// The most virtual time one [`Session::advance`] moves: a day. A longer
+/// step is almost certainly a mistake, and a big enough one would
+/// overflow the runtime's clock.
+pub const MAX_ADVANCE_MS: u64 = 24 * 60 * 60 * 1000;
+
+/// A session over the app `A` describes.
+pub struct Session<A: CaptureApp> {
+    def: A,
+    open: Option<Opened>,
+}
+
+/// The open app, what it was opened with, and its current frame.
+struct Opened {
+    app: App<TestBackend>,
+    env: Environment,
+    fixture: Option<String>,
+    time_ms: u64,
+    frame: Frame,
+}
+
+/// What a step changed on screen.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct Change {
+    /// The virtual clock after the step.
+    pub time_ms: u64,
+    /// How many cells show something else than before the step.
+    pub cells_changed: u32,
+    /// The smallest rectangle holding every changed cell, as
+    /// `[x, y, width, height]`; absent when nothing changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounds: Option<[u16; 4]>,
+    /// The grid's hash after the step.
+    pub grid_hash: String,
+    /// The app asked to stop (a tick handler's `ControlFlow::Quit`, an
+    /// `AppHandle::quit`). The session keeps it open; a live app would
+    /// have exited.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub quit_requested: bool,
+}
+
+/// What a capture should include.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
+pub struct CaptureRequest {
+    /// The layers to include beside `meta`.
+    pub layers: Vec<Layer>,
+}
+
+impl CaptureRequest {
+    /// A request for `layers`.
+    pub fn with_layers(layers: impl IntoIterator<Item = Layer>) -> Self {
+        CaptureRequest {
+            layers: layers.into_iter().collect(),
+        }
+    }
+}
+
+/// Run app code, turning a panic into [`SessionError::AppPanicked`].
+fn guarded<T>(f: impl FnOnce() -> Result<T, SessionError>) -> Result<T, SessionError> {
+    catch_unwind(AssertUnwindSafe(f))
+        .unwrap_or_else(|p| Err(SessionError::AppPanicked(panic_message(&*p))))
+}
+
+impl<A: CaptureApp> Session<A> {
+    /// A session over `def`, with no app open.
+    pub fn new(def: A) -> Self {
+        Session { def, open: None }
+    }
+
+    /// The app's fixtures ([`CaptureApp::fixtures`]), its code guarded.
+    pub fn fixtures(&self) -> Result<Vec<FixtureInfo>, SessionError> {
+        guarded(|| Ok(self.def.fixtures()))
+    }
+
+    /// Whether an app is open.
+    pub fn is_open(&self) -> bool {
+        self.open.is_some()
+    }
+
+    /// The open app.
+    pub fn app(&self) -> Result<&App<TestBackend>, SessionError> {
+        self.open
+            .as_ref()
+            .map(|o| &o.app)
+            .ok_or(SessionError::NotOpen)
+    }
+
+    /// The open app, mutably — for Rust callers that drive it themselves.
+    /// Steps taken through it are not on the session's clock, and the
+    /// next capture reads the frame of the session's last step.
+    pub fn app_mut(&mut self) -> Result<&mut App<TestBackend>, SessionError> {
+        self.open
+            .as_mut()
+            .map(|o| &mut o.app)
+            .ok_or(SessionError::NotOpen)
+    }
+
+    /// Build the app in `env` and `fixture`, draw its first frame at time
+    /// 0, run [`CaptureApp::after_first_frame`] and draw again. The open
+    /// app, if any, is replaced only when the new one opens; an invalid
+    /// environment, an unknown fixture or a failed build leave it open.
+    pub fn open(
+        &mut self,
+        env: Environment,
+        fixture: Option<&str>,
+    ) -> Result<Change, SessionError> {
+        env.validate().map_err(SessionError::InvalidEnvironment)?;
+        let known: Vec<String> = self.fixtures()?.into_iter().map(|f| f.name).collect();
+        if let Some(name) = fixture
+            && !known.is_empty()
+            && !known.iter().any(|k| k == name)
+        {
+            return Err(SessionError::UnknownFixture {
+                name: name.to_string(),
+                known,
+            });
+        }
+        let def = &self.def;
+        let app = guarded(|| {
+            let app = def
+                .build(&env, fixture)
+                .map_err(|e| SessionError::Build(e.to_string()))?;
+            env.check_viewport(&app).map_err(SessionError::Build)?;
+            let mut app = env.enforce(app);
+            app.advance(0)?;
+            def.after_first_frame(&mut app, fixture);
+            app.advance(0)?;
+            app.terminal_mut().backend_mut().clear_bytes();
+            Ok(app)
+        })?;
+        let before = rdom_tui::Buffer::empty(app.terminal().buffer().area);
+        let frame = Frame::of(&app);
+        self.open = Some(Opened {
+            app,
+            env,
+            fixture: fixture.map(str::to_string),
+            time_ms: 0,
+            frame,
+        });
+        Ok(self.change_since(&before))
+    }
+
+    /// Close the open app, if any.
+    pub fn close(&mut self) {
+        self.open = None;
+    }
+
+    /// Apply `inputs` in order, each followed by the frame it causes.
+    /// Every input is checked before the first is applied, so an invalid
+    /// one applies none.
+    pub fn input(&mut self, inputs: &[Input]) -> Result<Change, SessionError> {
+        let steps: Vec<_> = inputs
+            .iter()
+            .map(|i| i.events().map(|e| (i, e)))
+            .collect::<Result<_, _>>()
+            .map_err(SessionError::InvalidInput)?;
+        let before = self.app()?.terminal().buffer().clone();
+        self.step(|o| {
+            for (input, events) in steps {
+                if let Input::Resize { width, height } = input {
+                    o.app.terminal_mut().backend_mut().resize(*width, *height);
+                    o.env.viewport = Viewport {
+                        width: *width,
+                        height: *height,
+                    };
+                }
+                for event in events {
+                    o.app.handle_event(event);
+                    o.app.advance(0)?;
+                }
+            }
+            Ok(())
+        })?;
+        Ok(self.change_since(&before))
+    }
+
+    /// Move the virtual clock `ms` forward (at most [`MAX_ADVANCE_MS`]),
+    /// firing what comes due, and draw the frame.
+    pub fn advance(&mut self, ms: u64) -> Result<Change, SessionError> {
+        if ms > MAX_ADVANCE_MS {
+            return Err(SessionError::InvalidInput(format!(
+                "advance by {ms} ms: at most {MAX_ADVANCE_MS} (a day) per step"
+            )));
+        }
+        let before = self.app()?.terminal().buffer().clone();
+        self.step(|o| {
+            o.app.advance(ms)?;
+            o.time_ms += ms;
+            Ok(())
+        })?;
+        Ok(self.change_since(&before))
+    }
+
+    /// A capture of the current frame with the layers `request` asks for.
+    pub fn capture(&self, request: &CaptureRequest) -> Result<Capture, SessionError> {
+        let o = self.open.as_ref().ok_or(SessionError::NotOpen)?;
+        let meta = Meta {
+            rdom_capture: env!("CARGO_PKG_VERSION").to_string(),
+            rdom_tui: rdom_tui::VERSION.to_string(),
+            time_ms: o.time_ms,
+            env: o.env.clone(),
+            fixture: o.fixture.clone(),
+            grid_hash: o.frame.hash.clone(),
+        };
+        Ok(Capture {
+            schema: SCHEMA.to_string(),
+            meta,
+            grid: request
+                .layers
+                .contains(&Layer::Grid)
+                .then(|| o.frame.grid.clone()),
+        })
+    }
+
+    /// Run `f` on the open app, closing it if app code panics. Afterwards
+    /// the frame is read again and the bytes the step emitted are dropped
+    /// (the wire view keeps them once it exists), so a long session
+    /// doesn't grow.
+    fn step(
+        &mut self,
+        f: impl FnOnce(&mut Opened) -> Result<(), SessionError>,
+    ) -> Result<(), SessionError> {
+        let o = self.open.as_mut().ok_or(SessionError::NotOpen)?;
+        let result = guarded(|| f(o));
+        if let Err(SessionError::AppPanicked(_)) = &result {
+            self.open = None;
+            return result;
+        }
+        let o = self
+            .open
+            .as_mut()
+            .expect("a step that did not panic leaves the app open");
+        o.app.terminal_mut().backend_mut().clear_bytes();
+        o.frame = Frame::of(&o.app);
+        result
+    }
+
+    /// What changed between `before` and the current frame.
+    fn change_since(&self, before: &rdom_tui::Buffer) -> Change {
+        let o = self.open.as_ref().expect("a step leaves the app open");
+        let (cells_changed, bounds) = diff(before, o.app.terminal().buffer());
+        Change {
+            time_ms: o.time_ms,
+            cells_changed,
+            bounds,
+            grid_hash: o.frame.hash.clone(),
+            quit_requested: o.app.quit_requested(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

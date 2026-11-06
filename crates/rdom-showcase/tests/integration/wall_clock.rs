@@ -27,7 +27,7 @@ const ALLOWED: &[(&str, usize, &str)] = &[
     (
         "rdom-tui/src/runtime/app/frame.rs",
         1,
-        "frame_now: the wall clock only when no virtual clock drives the App (App::run)",
+        "frame_now: the wall clock only when no virtual clock drives the App — App::run; a headless driver sets with_virtual_clock or calls advance",
     ),
     (
         "rdom-tui/src/runtime/app/event_loop.rs",

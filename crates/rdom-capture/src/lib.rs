@@ -65,7 +65,7 @@ pub use capture::{Attr, Capture, ColorValue, Grid, Layer, Meta, Run, SCHEMA};
 pub use env::{ContrastPreference, Depth, Environment, Scheme, Sgr, Viewport};
 pub use input::{Button, Input, MouseAction};
 pub use protocol::serve;
-pub use session::{CaptureRequest, Change, Session, SessionError};
+pub use session::{CaptureRequest, Change, MAX_ADVANCE_MS, Session, SessionError};
 
 #[cfg(test)]
 mod tests;

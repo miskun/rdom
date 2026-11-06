@@ -22,6 +22,12 @@ serde_json = "1"
 unicode-segmentation = { workspace = true }
 unicode-width = { workspace = true }
 
+# `serve` keeps stdout for the protocol and points fd 1 at stderr, so app
+# code that prints cannot corrupt it (safe `dup` / `dup2`; already in the
+# tree through rdom-tui).
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "0.38", default-features = false, features = ["std", "stdio"] }
+
 [dev-dependencies]
 # The unit tests' fixture app is styled from CSS text.
 rdom-css = { path = "../rdom-css", version = "0.6.0" }

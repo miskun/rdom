@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `rdom-capture` (new crate)
+
+- **Headless capture sessions for rdom-tui apps** (CAPTURE, `specs/CAPTURE.md`): open an app without a terminal in a deterministic `Environment` (size, color depth, color scheme, SGR extensions, media preferences — set, never probed), drive it with keys, text, the mouse and a virtual clock, and capture any moment as a versioned JSON `Capture` (`rdom-capture/1`: metadata, a run-length grid, a canonical grid hash) and its text view. An app opts in with `CaptureApp` (build for an environment and a named fixture); `serve` runs the session as a JSON-RPC 2.0 server over stdio, discoverable through `describe`, with app panics contained and app prints kept off the protocol.
+
+### Added — `rdom-tui`
+
+- **`App::with_virtual_clock`**: the app's clock moves only by `App::advance`, from construction — a frame drawn before the first `advance` no longer syncs it to the wall clock. **`App::quit_requested`**: whether a tick handler or an `AppHandle` asked the app to stop, for drivers that step it themselves. **`rdom_tui::VERSION`**.
+
+### Changed — `rdom-tui`
+
+- **`App::advance` runs what the live loop runs while no input arrives**: the tick handler once per elapsed tick period of virtual time (counted from the first `advance`; none at a zero tick rate), and the `AppHandle`'s redraw and quit requests. Before, a headless driver never saw ticks, a handle's `request_redraw` was ignored and its `quit` invisible.
+
 ## [0.6.5] - 2026-11-05
 
 Only `rdom-tui` bumps (0.6.4 → **0.6.5**); the other four crates are unchanged.

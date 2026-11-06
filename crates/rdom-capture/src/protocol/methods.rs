@@ -135,7 +135,7 @@ pub(crate) fn dispatch<A: CaptureApp>(
             schema: SCHEMA,
             rdom_capture: env!("CARGO_PKG_VERSION"),
             methods: METHODS,
-            fixtures: session.app_def().fixtures(),
+            fixtures: session.fixtures()?,
             default_env: Environment::default(),
             open: session.is_open(),
         }),

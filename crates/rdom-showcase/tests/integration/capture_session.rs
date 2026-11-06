@@ -6,7 +6,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use rdom_capture::{CaptureRequest, Environment, Grid, Input, Layer, Session, Viewport};
+use rdom_capture::{CaptureRequest, Environment, Grid, Input, Layer, Session};
 use rdom_showcase::DEMOS;
 use rdom_showcase::capture::Showcase;
 use rdom_showcase::demos::acid::{self, PAGE_HEIGHT, PAGE_WIDTH};
@@ -15,12 +15,7 @@ use rdom_tui::ColorDepth;
 use crate::acid::compare::open_page;
 
 fn acid_env() -> Environment {
-    let mut env = Environment::default();
-    env.viewport = Viewport {
-        width: PAGE_WIDTH,
-        height: PAGE_HEIGHT,
-    };
-    env
+    Environment::default().with_viewport(PAGE_WIDTH, PAGE_HEIGHT)
 }
 
 /// `fixture` opened in `env`, `steps` applied, captured with its grid, as

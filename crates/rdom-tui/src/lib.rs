@@ -55,6 +55,10 @@
 
 use rdom_core as core;
 
+/// This crate's version, for tools that record which rdom-tui painted a
+/// frame (`rdom-capture`'s capture metadata).
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub mod accessors;
 pub mod cssom;
 pub mod editing;

@@ -29,7 +29,8 @@ use serde::{Deserialize, Serialize};
 pub enum Input {
     /// One key press.
     Key { key: String },
-    /// One key press per character.
+    /// One key press per character, as a terminal sends typing: a newline
+    /// is Enter, a tab is Tab, an uppercase letter carries Shift.
     Text { text: String },
     /// A bracketed paste.
     Paste { text: String },
@@ -116,6 +117,25 @@ pub fn parse_key(spec: &str) -> Result<KeyEvent, String> {
     Ok(KeyEvent::new(code, modifiers))
 }
 
+/// The key a terminal sends for typing `c`: Enter for a newline, Tab for a
+/// tab, and a character key — with Shift when it is uppercase, as rdom's
+/// input parser (and crossterm's) reads it. Other control characters
+/// have no key of their own.
+fn char_key(c: char) -> Result<Event, String> {
+    let key = match c {
+        '\n' | '\r' => KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+        '\t' => KeyEvent::new(KeyCode::Tab, KeyModifiers::empty()),
+        c if c.is_control() => {
+            return Err(format!(
+                "text holds the control character {c:?}; send it as a key instead"
+            ));
+        }
+        c if c.is_uppercase() => KeyEvent::new(KeyCode::Char(c), KeyModifiers::SHIFT),
+        c => KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()),
+    };
+    Ok(Event::Key(key))
+}
+
 /// The key code `name` names.
 fn key_code(name: &str) -> Option<KeyCode> {
     let mut chars = name.chars();
@@ -157,10 +177,7 @@ impl Input {
     pub fn events(&self) -> Result<Vec<Event>, String> {
         Ok(match self {
             Input::Key { key } => vec![Event::Key(parse_key(key)?)],
-            Input::Text { text } => text
-                .chars()
-                .map(|c| Event::Key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty())))
-                .collect(),
+            Input::Text { text } => text.chars().map(char_key).collect::<Result<_, _>>()?,
             Input::Paste { text } => vec![Event::Paste(text.clone())],
             Input::Mouse {
                 action,

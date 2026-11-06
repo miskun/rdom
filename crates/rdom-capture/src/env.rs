@@ -166,6 +166,12 @@ impl ContrastPreference {
 }
 
 impl Environment {
+    /// This environment at a `width` × `height` viewport.
+    pub fn with_viewport(mut self, width: u16, height: u16) -> Self {
+        self.viewport = Viewport { width, height };
+        self
+    }
+
     /// Whether every value is one a session can run: a viewport of at
     /// least one cell each way and a frame rate above zero.
     pub fn validate(&self) -> Result<(), String> {
@@ -200,8 +206,10 @@ impl Environment {
 
     /// `app` with every setting of this environment applied, whatever the
     /// app set itself: the color depth, the SGR extensions, the color
-    /// scheme, the media preferences, the frame rate, a steady caret, an
-    /// in-memory clipboard and URL opener. The viewport is checked, not
+    /// scheme, the media preferences, the frame rate, a steady caret, the
+    /// virtual clock (no frame reads the wall clock), no mouse re-arm on
+    /// stdout (which carries the protocol), an in-memory clipboard and URL
+    /// opener. The viewport is checked, not
     /// set: see [`Environment::check_viewport`].
     pub fn enforce(&self, app: App<TestBackend>) -> App<TestBackend> {
         let mut app = app
@@ -211,6 +219,8 @@ impl Environment {
             .with_media_preferences(self.media_preferences())
             .with_animation_frame_rate(self.animation_fps)
             .with_caret_blink(None)
+            .with_virtual_clock()
+            .with_mouse_rearm(false)
             .with_clipboard(Box::new(MemoryClipboard::new()))
             .with_url_opener(Rc::new(MemoryUrlOpener::new()));
         app.terminal_mut().backend_mut().clear_bytes();

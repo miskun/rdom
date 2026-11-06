@@ -13,14 +13,13 @@
 //! b #2c2a3a
 //! ```
 //!
-//! Trailing blanks of a glyph row, and trailing `.` (the terminal's
-//! default) of a key row, are trimmed. A layer whose every cell is the
+//! The keys are the colors the terminal is shown — after the color depth,
+//! where it changes them. Trailing blanks of a glyph row, and trailing `.`
+//! (the terminal's default) of a key row, are trimmed. A layer whose every cell is the
 //! default is left out. Keys run `a`–`z`, `A`–`Z`, `0`–`9`; a 63rd color
 //! and every one after it share `?`, listed as such.
 
 use serde::{Deserialize, Serialize};
-use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthStr;
 
 use crate::capture::{ColorValue, Grid, Run};
 
@@ -64,11 +63,13 @@ pub fn text(grid: &Grid, options: TextOptions) -> String {
         out.push('\n');
     }
     if options.bg {
-        out.push_str(&layer(grid, "background", |run, _| Some(run.bg)));
+        out.push_str(&layer(grid, "background", |run, _| {
+            Some(run.shown_colors().1)
+        }));
     }
     if options.fg {
         out.push_str(&layer(grid, "foreground", |run, glyph| {
-            (glyph.trim() != "").then_some(run.fg)
+            (glyph != " ").then_some(run.shown_colors().0)
         }));
     }
     out
@@ -82,7 +83,7 @@ fn layer(grid: &Grid, title: &str, color: impl Fn(&Run, &str) -> Option<ColorVal
     for runs in &grid.rows {
         let mut row = String::new();
         for run in runs {
-            for glyph in cells(run) {
+            for glyph in run.cells() {
                 let key = match color(run, glyph).filter(|c| *c != ColorValue::Default) {
                     None => '.',
                     Some(c) => {
@@ -108,18 +109,4 @@ fn layer(grid: &Grid, title: &str, color: impl Fn(&Run, &str) -> Option<ColorVal
         out.push_str(&format!("{key} {c}\n"));
     }
     out
-}
-
-/// The glyph of each cell of `run`, in order: a wide glyph's trailing
-/// cell repeats it, so the layer keeps one key per cell.
-fn cells(run: &Run) -> impl Iterator<Item = &str> {
-    let glyphs = run.text.graphemes(true).flat_map(|g| {
-        let w = UnicodeWidthStr::width(g).max(1);
-        std::iter::repeat_n(g, w)
-    });
-    // A run whose glyphs cover fewer cells than `w` (a wide glyph cut at
-    // the left edge leaves a lone trailing cell) is padded with blanks.
-    glyphs
-        .chain(std::iter::repeat(" "))
-        .take(usize::from(run.w))
 }

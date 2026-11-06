@@ -12,6 +12,8 @@
 
 use rdom_tui::{Buffer, Cell, Color, ColorDepth, Modifier};
 use serde::{Deserialize, Serialize};
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 use super::color::ColorValue;
 
@@ -35,6 +37,12 @@ pub struct Run {
     pub w: u16,
     /// The glyphs, one per cell or wide glyph; a blank cell is a space.
     pub text: String,
+    /// Each cell's glyph (a wide glyph's trailing cell: `""`), present
+    /// only where `text` alone does not give the cells back — a cell
+    /// holding a lone combining mark or regional indicator, which joins
+    /// its neighbour when the text is split into graphemes again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub glyphs: Option<Vec<String>>,
     /// The glyph color rdom painted.
     pub fg: ColorValue,
     /// The background rdom painted.
@@ -56,6 +64,26 @@ pub struct Run {
     /// The hyperlink target (OSC 8).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link: Option<String>,
+}
+
+impl Run {
+    /// The glyph and background colors the run shows: the colors sent to
+    /// the terminal where the color depth changed them, else as painted.
+    pub fn shown_colors(&self) -> (ColorValue, ColorValue) {
+        (
+            self.fg_shown.unwrap_or(self.fg),
+            self.bg_shown.unwrap_or(self.bg),
+        )
+    }
+
+    /// Each cell's glyph, in order: a blank cell is `" "`, a wide glyph's
+    /// trailing cell `""`.
+    pub fn cells(&self) -> Vec<&str> {
+        match &self.glyphs {
+            Some(glyphs) => glyphs.iter().map(String::as_str).collect(),
+            None => split_cells(&self.text, self.w),
+        }
+    }
 }
 
 /// A text attribute of a run.
@@ -135,6 +163,7 @@ impl<'a> Look<'a> {
             x,
             w: 0,
             text: String::new(),
+            glyphs: None,
             fg: self.fg.into(),
             bg: self.bg.into(),
             fg_shown: shown(self.fg),
@@ -173,33 +202,59 @@ impl Grid {
 fn row(buffer: &Buffer, y: u16, depth: ColorDepth) -> Vec<Run> {
     let area = buffer.area;
     let mut runs: Vec<Run> = Vec::new();
-    let mut current: Option<(Look<'_>, Run)> = None;
+    // The open run, how it looks, and its cells' glyphs.
+    let mut current: Option<(Look<'_>, Run, Vec<&str>)> = None;
     for x in area.x..area.right() {
         let Some(cell) = buffer.cell(x, y) else {
             continue;
         };
+        let glyph = if cell.is_spacer() { "" } else { cell.symbol() };
         if cell.is_spacer()
-            && let Some((_, run)) = current.as_mut()
+            && let Some((_, run, cells)) = current.as_mut()
         {
             run.w += 1;
+            cells.push(glyph);
             continue;
         }
         let look = Look::of(cell);
-        if current.as_ref().is_none_or(|(l, _)| *l != look) {
-            if let Some((_, done)) = current.take() {
-                runs.push(done);
+        if current.as_ref().is_none_or(|(l, _, _)| *l != look) {
+            if let Some(done) = current.take() {
+                runs.push(close(done));
             }
             let run = look.run(x - area.x, depth);
-            current = Some((look, run));
+            current = Some((look, run, Vec::new()));
         }
-        let (_, run) = current.as_mut().expect("a run is open");
+        let (_, run, cells) = current.as_mut().expect("a run is open");
         run.w += 1;
-        if !cell.is_spacer() {
-            run.text.push_str(cell.symbol());
-        }
+        run.text.push_str(glyph);
+        cells.push(glyph);
     }
-    if let Some((_, done)) = current {
-        runs.push(done);
+    if let Some(done) = current {
+        runs.push(close(done));
     }
     runs
+}
+
+/// `run` finished: its `glyphs`, when splitting its text again would not
+/// give back `cells`.
+fn close((_, mut run, cells): (Look<'_>, Run, Vec<&str>)) -> Run {
+    if split_cells(&run.text, run.w) != cells {
+        run.glyphs = Some(cells.into_iter().map(str::to_string).collect());
+    }
+    run
+}
+
+/// The cells `text` covers when split into grapheme clusters, each as wide
+/// as UAX #11 says (at least one cell), a wide one followed by `""` for its
+/// trailing cell; cut or padded with blanks to `w` cells.
+pub(crate) fn split_cells(text: &str, w: u16) -> Vec<&str> {
+    let mut out = Vec::with_capacity(usize::from(w));
+    for g in text.graphemes(true) {
+        out.push(g);
+        if UnicodeWidthStr::width(g) >= 2 {
+            out.push("");
+        }
+    }
+    out.resize(usize::from(w), " ");
+    out
 }

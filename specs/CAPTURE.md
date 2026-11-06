@@ -1,6 +1,6 @@
 # CAPTURE — an agent-friendly renderer, inspector and design loop
 
-**Status:** PROPOSED v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
+**Status:** IN PROGRESS — phase 1 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
 v2 incorporates every finding (§Review record at the end). Three open questions are decided (§Decisions). Nothing is
 implemented yet.
 
@@ -504,6 +504,35 @@ Each phase lands green, test-first, with its exit test.
 
 Phases 1–3 make any page visible and explainable. Phase 4 removes the compile from the loop. Phase 6 turns design
 into a search.
+
+## Phase log
+
+Each phase closes with a chief-architect review; its findings are fixed or recorded (here and in
+`TECH_DEBT.md`) before the next phase starts.
+
+### Phase 1 — deterministic environment, `CaptureApp`, session skeleton: DONE (2026-11-07)
+
+Shipped: `rdom-capture` with `Environment`, `CaptureApp`, `Session`, the `rdom-capture/1` grid layer, the text
+view and the JSON-RPC server; the showcase as a capture app (`rdom-showcase-capture`); the determinism tests
+and the `wall_clock` lint.
+
+Review (architect, fresh reviewer) — dispositions:
+
+- **B1 `meta.env.viewport` stale after a resize** — fixed: a resize updates the session's environment; test.
+- **B2 the wall clock leaks into frames drawn before the first `advance`** — fixed at the root in `rdom-tui`:
+  `App::with_virtual_clock()`, applied by `Environment::enforce`; tests in both crates (a build that draws and
+  starts a transition).
+- **B3 ticks, the handle's redraw / quit, thread injections** — `App::advance` now ticks once per elapsed tick
+  period and takes the handle's requests (`App::quit_requested`; `Change.quit_requested`); thread injections
+  stay timing-dependent until phase 9 — accepted as `TECH_DEBT` `CAPTURE-INJECT-1`.
+- Non-blocking, all fixed: the grid hash is a canonical cell encoding (pinned by a test), not the JSON form;
+  the grid and hash are built once per step and reused by captures; `Change` and the grid agree on blank vs
+  space; runs keep per-cell `glyphs` where re-splitting the text would shift cells; key layers key the colors
+  shown after the color depth; `fixtures()` runs guarded; `advance` is bounded (`MAX_ADVANCE_MS`); a failed
+  `open` leaves the open app open; `enforce` turns mouse re-arm off and `serve` moves fd 1 to stderr (Unix) so
+  app prints can't corrupt the protocol; `meta.rdom_tui`; a `null` id is answered; typed text sends Enter / Tab
+  / Shift as a terminal does; the showcase snapshots use the text view (format-only golden change, checked
+  glyph- and color-identical).
 
 ## Open questions
 

@@ -52,6 +52,8 @@ impl Capture {
 pub struct Meta {
     /// The `rdom-capture` version that took it.
     pub rdom_capture: String,
+    /// The `rdom-tui` version that painted it.
+    pub rdom_tui: String,
     /// The virtual clock, in milliseconds since the session opened.
     pub time_ms: u64,
     /// The environment the app ran in.
