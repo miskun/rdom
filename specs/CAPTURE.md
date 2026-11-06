@@ -1,7 +1,16 @@
 # CAPTURE — an agent-friendly renderer, inspector and design loop
 
 **Status:** PROPOSED v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
-v2 incorporates every finding (§Review record at the end). Nothing is implemented yet.
+v2 incorporates every finding (§Review record at the end). Three open questions are decided (§Decisions). Nothing is
+implemented yet.
+
+## Decisions
+
+| Date | Question | Decision | Why |
+|---|---|---|---|
+| 2026-11-07 | PNG rendering: `resvg`/`tiny-skia` + font, or our own | **Our own minimal rasterizer and PNG encoder** (§Rasterizer) | A cell grid needs no text layout; procedural box drawing is crisper than fonts; no dependencies; byte-identical on every OS |
+| 2026-11-07 | xterm.js emulator view | **Optional**: cargo feature + browser at run time, not in CI by default (§Views) | Real-terminal reference without making a browser a build or CI dependency |
+| 2026-11-07 | Animation events caused by inspector changes | **Suppress now, designed so `deliver` can be added later** (§Events caused by the inspector) | Keeps the inspector invisible to app code; cause tagging and a single policy point make delivery an additive change |
 
 ## Why
 
@@ -288,8 +297,31 @@ approximate tokens. When an answer is cut, it says so and how to get the rest (`
 
 Forced states affect cascade matching only. App code never sees them: no input events, no focus/blur, no
 mutation-observer records, and `matches(":hover")` reports the real state. Edits change stylesheets, not the DOM.
-Animation events (`transitionstart` etc.) caused by an inspector change are delivered in sessions (that's the
-visual truth) and suppressed under live attach; both are marked in `meta`. Each rule has a contract test.
+Each rule has a contract test.
+
+### Events caused by the inspector
+
+An inspector change can start animations, and animations fire events (`transitionrun`, `transitionstart`,
+`transitionend`, `animationstart`, `animationiteration`, `animationend`, and their cancel events). Whether app code
+sees those events is a policy, `inspector_events`, decided at one point and never scattered across code paths:
+
+- **Cause tagging (built now).** Every style change carries a cause: `App` (the app's own DOM and stylesheet
+  changes, input, timers) or `Inspector` (an edit, a forced state, a `stress` rewrite). Animations started by a
+  style change inherit its cause, and so do their events. When one change has both causes, `App` wins: an event
+  the app would have seen anyway is never hidden.
+- **Policy at dispatch (one place).** The animation-event dispatcher consults the policy for `Inspector`-caused
+  events. Animations themselves always run and paint either way; only event delivery to app code is governed.
+- **v2 behavior.** Sessions and live attach both use `suppress`: suppressed events are counted and listed in
+  `meta.suppressed_events` (type, node, cause), so the agent knows the app might have reacted. The protocol reserves
+  `open { inspector_events: "suppress" | "deliver" }` and `attach { inspector_events: … }`; v2 accepts only `suppress`
+  and refuses `deliver` with a clear error, so turning it on later is additive.
+- **Later: `deliver`.** Hands `Inspector`-caused events to app code like any others, for apps whose look depends on
+  reacting to them (a component that adds a class on `transitionend`). Needs its own contract tests (delivery order,
+  no events after `reset`) before it's accepted.
+
+Contract tests now: an `Inspector`-caused transition paints its frames and fires no app-visible event; an
+`App`-caused transition on the same node during an inspector edit still fires; `meta.suppressed_events` lists
+exactly the suppressed ones; `deliver` is refused.
 
 ## Views
 
@@ -297,13 +329,43 @@ visual truth) and suppressed under live attach; both are marked in `meta`. Each 
 |---|---|---|
 | `text` | agents, tests | Glyph grid plus optional key layers (bg, fg, top node) with legends. The current snapshot format, made public |
 | `outline` | agents | Landmarks with rectangles; the first thing to read |
-| `png` | agents with image input, reports | True cell proportions from the profile; bundled font covering box drawing, blocks and Braille; optional overlays (boxes, a grid, tab order, hit targets, a highlighted node, a change heatmap) |
+| `png` | agents with image input, reports | rdom's own rasterizer (§Rasterizer) at the profile's cell size and proportions; optional overlays (boxes, a grid, tab order, hit targets, a highlighted node, a change heatmap) |
 | `html` | humans | `report.html` / `inspect.html`: images, findings, filmstrip, and an Elements-style inspector (hover a cell → explain). Static, no server |
 | `cast` | motion, wire checks | asciicast v2 of the real emitted bytes |
-| `emulator` | ground truth | The emitted bytes rendered by xterm.js in a headless browser, screenshotted. Optional (needs a browser); the reference for "what a real terminal shows" |
+| `emulator` | ground truth | The emitted bytes rendered by xterm.js in a headless browser, screenshotted. **Optional**: a cargo feature plus a browser found at run time; when missing, the method fails with a clear error, never a silent fallback to `png`. Not in CI by default; the reference for "what a real terminal shows" |
 
 SVG is not a first-class view. PNG and the HTML inspector cover its uses; it can be added later as another view of
 the same data.
+
+### Rasterizer
+
+`png` is rendered by a small rasterizer in `rdom-capture`, with no image or font dependencies. A terminal frame is
+a grid of cells with a known glyph, colors and attributes, which is a much simpler problem than general text
+rendering:
+
+- **Cells, not text layout.** Each cell is a `cell_w × cell_h` pixel rectangle from the profile (default 8×16;
+  2× scale doubles it). Wide glyphs span two cells. There is no shaping, kerning or hinting.
+- **Procedural glyphs.** Box drawing (U+2500–257F, light, heavy, double, rounded, dashed), block elements
+  (U+2580–259F, including shades), Braille (U+2800–28FF), and the legacy-computing sextants and wedges actually
+  used in TUIs are drawn geometrically from their definitions. They join exactly at cell edges, which is crisper
+  and more faithful than most fonts.
+- **Bitmap font for everything else.** Text glyphs come from an embedded, permissively licensed bitmap font at the
+  base cell size (candidates: Spleen (BSD-2), unscii (public domain), Terminus (OFL)); the license ships with the
+  crate. Bold uses the font's bold face, or a one-pixel smear when there isn't one; italic is a pixel shear; dim,
+  underline (single, double, curly, dotted, dashed, with its own color), strikethrough, overline and reverse are
+  drawn by the rasterizer.
+- **Missing glyphs are explicit.** A glyph neither drawn procedurally nor in the font renders as a box with its code
+  point in hex, and is listed in `meta.unrendered_glyphs`. Never a blank, never a guess.
+- **Color.** Cells are filled with the resolved sRGB colors after the profile's palette and color reduction, so the
+  image matches what audits measure.
+- **PNG encoding, ours too.** CRC-32, Adler-32 and the chunk writer are a few dozen lines. The image is indexed
+  (palette PNG) when it has at most 256 colors, which a terminal frame almost always does. Version 1 uses a minimal
+  deflate encoder: fixed Huffman codes with run-length matches, which compresses large solid areas and repeated rows
+  well. If sizes ever hurt, a better encoder replaces it behind the same function.
+- **Deterministic.** Integer arithmetic only, no system fonts, no platform calls; the same capture gives the same
+  bytes on every OS. Goldens are therefore stable, and the grid hash remains the main oracle.
+- **Scope.** The rasterizer is a view, not a terminal emulator: it doesn't model a font's box-drawing gaps or line
+  height. That's what the optional `emulator` view is for.
 
 ## Terminal profiles
 
@@ -373,7 +435,8 @@ An app opts in (`App::with_inspector(path)` or `RDOM_INSPECT=<path>`) and serves
 socket (Unix socket, 0600, path inside the app's working directory; named pipe on Windows) — never TCP. The `App` is
 single-threaded, so the socket is polled from the event loop, between frames, with a time budget per request so a
 client can't stall frames. Read-only by default; `edit` and `force` need a flag, appear in `meta`, and `reset` or
-disconnect removes them. The inspector never writes to the terminal outside the normal frame.
+disconnect removes them. The inspector never writes to the terminal outside the normal frame. Events its changes
+cause follow §Events caused by the inspector (suppressed in v2).
 
 ## Scale
 
@@ -393,8 +456,10 @@ disconnect removes them. The inspector never writes to the terminal outside the 
   changes in app code.
 - **Edits:** edit → patch → apply the patch to the source → reload → identical capture.
 - **Replay:** a recorded acid interactive run replays to identical grid hashes.
-- **Views:** text and outline goldens; PNG goldens few, with font and rasterizer pinned; the grid hash is the main
-  oracle.
+- **Inspector events:** `Inspector`-caused events are suppressed and listed; `App`-caused ones are never hidden;
+  `deliver` is refused.
+- **Views:** text and outline goldens; few PNG goldens, byte-identical across OSes; the PNG encoder checked by
+  decoding with an independent decoder (dev-dependency only); the grid hash is the main oracle.
 - **Audits:** each check has a fixture that triggers it and one that doesn't.
 - **Cost:** `frame_cost_tests` unchanged with no recorder; benchmarks for recording and capture budgets.
 
@@ -407,8 +472,11 @@ Each phase lands green, test-first, with its exit test.
 2. **Paint recorder + traces + boxes.** Exit: trace replay reproduces every acid cell; no-recorder cost unchanged.
 3. **Outline, explain, derivation, sources, query.** Exit: derivation equals the cascade on every acid node; rule
    sources point at real lines.
-4. **Edits, forced states, patch, CSS dev loader.** Exit: invisibility tests; the edit → patch → reload round trip.
-5. **PNG + terminal profiles + HTML report.** Exit: goldens for acid page 1 under two profiles.
+4. **Edits, forced states, cause tagging, patch, CSS dev loader.** Exit: invisibility tests and the
+   inspector-event contract tests; the edit → patch → reload round trip.
+5. **Rasterizer + PNG + terminal profiles + HTML report.** Exit: every procedural glyph range drawn and joined
+   correctly (per-range fixtures); the PNG decodes with an independent decoder in a test; goldens for acid page 1
+   under two profiles, identical on macOS, Linux and Windows CI.
 6. **`whatif`, `matrix`, `stress`, `mockup`, `diff` with identity.** Exit: each on a showcase demo with known answers.
 7. **Audits (look, UX, tokens).** Exit: positive and negative fixtures per check.
 8. **Motion:** `film`, timelines, motion audits, `cast`, bandwidth profiles. Exit: acid motion tiles produce their
@@ -421,13 +489,10 @@ into a search.
 
 ## Open questions
 
-- **PNG rasterization:** `resvg`/`tiny-skia` with an embedded font (license, size, glyph coverage) or a minimal
-  hand-rolled rasterizer. Feature-gated either way.
-- **Emulator view dependency:** xterm.js needs a headless browser; keep it optional and out of CI by default?
+- **Bitmap font choice:** Spleen, unscii or Terminus — coverage of Latin, Greek and Cyrillic at 8×16, a bold face,
+  and license fit; decided when phase 5 starts.
 - **Injection serialization:** how much of `AppHandle::inject` traffic can be made replayable without burdening apps;
   opaque closures are recorded as "unreplayable" and replay stops there with a clear message.
-- **Animation events under live attach:** suppressing events caused by inspector edits is a divergence from what
-  the session shows; confirm the choice.
 - **Protocol stability:** which methods and fields are guaranteed in `rdom-capture/2` before the crate's first release.
 - **Windows attach:** named-pipe parity, or file-based capture only at first.
 
