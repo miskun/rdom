@@ -86,9 +86,10 @@ same loop.
 ## Architecture
 
 ```
-app (downstream)            implements CaptureApp: build(env) -> App, fixture hooks
+app (downstream)            implements CaptureApp: build(env, fixture) -> App, fixture list
    │
 rdom-capture (new, published)
+   ├─ env         Environment: size, depth, caps, scheme, media prefs — set, never probed
    ├─ session     persistent session: JSON-RPC over stdio; CLI and MCP are thin clients
    ├─ schema      Capture types + JSON schema (versioned)
    ├─ query       outline, explain, inspect, reverse queries, budgets
@@ -101,7 +102,6 @@ rdom-capture (new, published)
    └─ attach      live attach client + server glue
    │
 rdom-tui  (one public module: rdom_tui::capture)
-   ├─ Environment        deterministic clock, fixed caps, no probing
    ├─ PaintRecorder      optional sink for paint operations
    ├─ derivation tracer  re-runs the cascade for one node with a tracer
    ├─ boxes              per-node geometry
@@ -112,7 +112,10 @@ rdom-tui  (one public module: rdom_tui::capture)
 rdom-core  (unchanged)
 ```
 
-`rdom-tui` exposes the data; `rdom-capture` turns it into a product. `rdom-tui` doesn't depend on
+`rdom-tui` exposes the data; `rdom-capture` turns it into a product. The deterministic environment needed no
+`rdom-tui` change: the `App`'s existing builders (`with_color_depth`, `with_sgr_capabilities`,
+`with_color_scheme`, `with_media_preferences`, `with_caret_blink`, `with_clipboard`, `with_url_opener`) and its
+virtual clock (`App::advance`) cover it, so `Environment` lives in `rdom-capture` (phase 1). `rdom-tui` doesn't depend on
 `rdom-capture`. All new `rdom-tui` API sits behind one entry point, `App::capture(&CaptureRequest) -> CaptureData`,
 plus the handful of hooks above. Result types are open (`#[non_exhaustive]`) and listed in `DESIGN.md` when they land.
 
@@ -123,15 +126,22 @@ bytes.
 
 The `Environment` fixes:
 
-- **Time:** the scheduler's virtual clock is the only clock. Every `Instant::now()` in the runtime goes through it;
-  a source test bans `Instant::now()` outside the clock module (`runtime/animation/custom.rs:456` is a known current
-  violation).
+- **Time:** the scheduler's virtual clock is the only clock a frame reads. The session drives it from the first
+  frame (`App::advance(0)` at open), so the wall clock never enters. `rdom-showcase`'s `wall_clock` test lists every
+  production read of the wall clock with its reason — the scheduler's epoch, `App::run`'s live loop, the live
+  input reader and the startup color-scheme query, the debug trace — and fails on a new one. (The reads at
+  `runtime/animation/{mod,custom}.rs` the review named are in `#[cfg(test)]` helpers, not production.)
 - **Terminal:** size, color depth, SGR capabilities, color scheme and keyboard protocol are set, never probed.
 - **Ordering:** no output depends on hash-map iteration order.
 - **Process:** environment variables the runtime reads are part of the `Environment`, not read live.
+- **System:** the clipboard and the URL opener are in-memory; a session never touches the user's system.
+- **Enforced, not trusted:** the session applies the environment after `CaptureApp::build` returns, overriding
+  what the app set itself, and refuses an app whose terminal is not the viewport's size.
 
-Contract tests: capture every acid page twice in one process and in two processes; the bytes must match. A capture
-records its `Environment` in `meta`.
+Contract tests (`rdom-showcase` `capture_session`): every acid page and every demo captured twice in one process,
+and a script over every acid page and a demo with input run by two processes of `rdom-showcase-capture`; the
+bytes must match. An acid page's capture equals the acid harness's paint. A capture records its `Environment` in
+`meta`.
 
 ## Getting an app into a session
 
@@ -140,9 +150,14 @@ tick callbacks. The app opts in with one trait:
 
 ```rust
 pub trait CaptureApp {
-    /// Build the app for a session. No terminal is touched.
-    fn build(&self, env: &Environment, fixtures: &Fixtures) -> App<CaptureBackend>;
-    /// Named fixture sets the agent can choose ("empty", "1k-rows", "error-state").
+    /// Build the app for a session, in `fixture`'s state. No terminal is touched;
+    /// `env.app(dom, sheet)` builds a headless App with the environment applied.
+    fn build(&self, env: &Environment, fixture: Option<&str>)
+        -> Result<App<TestBackend>, Box<dyn Error>>;
+    /// After the first frame: what a page's load scripts do. Default: nothing.
+    fn after_first_frame(&self, app: &mut App<TestBackend>, fixture: Option<&str>) {}
+    /// Named states the agent can choose ("empty", "1k-rows", "error-state"), each with
+    /// an optional viewport hint. When not empty, an unknown fixture is refused.
     fn fixtures(&self) -> Vec<FixtureInfo> { Vec::new() }
 }
 ```
@@ -163,14 +178,14 @@ reproduces a state by hand once; the agent replays, scrubs and inspects it as of
 Replay divergence is detected, not hidden: the log carries a grid hash per frame, and replay reports the first frame
 that differs.
 
-## The `Capture` contract (schema `rdom-capture/2`)
+## The `Capture` contract (schema `rdom-capture/1`)
 
 A capture is layered. The grid and outline are always present; everything else is requested by need. Series of
 captures store deltas.
 
 ```jsonc
 {
-  "schema": "rdom-capture/2",
+  "schema": "rdom-capture/1",
   "meta": {
     "rdom_tui": "0.6.5", "time_ms": 300, "viewport": [120, 40],
     "env": {"color_depth": "truecolor", "scheme": "dark", "caps": "full", "reduced_motion": false},
@@ -252,7 +267,10 @@ traced cascade's result equals the real cascade's value for every property on ev
 ## Session protocol
 
 A persistent session: newline-delimited JSON-RPC over stdio. The CLI (`rdom-capture <verb>`) and an MCP adapter are
-thin clients. Methods are defined in a schema first; docs and clients are generated from it.
+thin clients. The Rust parameter and result types are the single source of every method; `describe` returns the
+method list with each one's parameters, so a client discovers the protocol from the session. (A generated JSON
+Schema would need a schema dependency for little gain over `describe` and the typed Rust; revisit if a non-Rust
+client needs one.)
 
 Every answering method takes `detail: outline | summary | full` (default `summary`) and an optional `budget` in
 approximate tokens. When an answer is cut, it says so and how to get the rest (`"truncated": {"nodes": 212,
@@ -493,7 +511,7 @@ into a search.
   and license fit; decided when phase 5 starts.
 - **Injection serialization:** how much of `AppHandle::inject` traffic can be made replayable without burdening apps;
   opaque closures are recorded as "unreplayable" and replay stops there with a clear message.
-- **Protocol stability:** which methods and fields are guaranteed in `rdom-capture/2` before the crate's first release.
+- **Protocol stability:** which methods and fields are guaranteed in `rdom-capture/1` before the crate's first release.
 - **Windows attach:** named-pipe parity, or file-based capture only at first.
 
 ## Non-goals

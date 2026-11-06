@@ -14,14 +14,9 @@
 //!   demo's slug + title and exit.
 //! - `cargo run -p rdom-showcase -- --help` — usage + slug list.
 
-use std::cell::RefCell;
 use std::process::ExitCode;
-use std::rc::Rc;
 
-use rdom_showcase::{
-    DEMOS, ShowcaseState, build_shell, mount_demo, seed_tree_cursor, shell::base_stylesheet,
-    wire_mouse_position_indicator, wire_scroll_indicator, wire_sidebar_click,
-};
+use rdom_showcase::{DEMOS, assemble, shell::base_stylesheet};
 use rdom_tui::{App, TuiDom};
 
 fn main() -> ExitCode {
@@ -110,42 +105,7 @@ fn print_demo_list() {
 
 fn run(initial_idx: usize) -> std::io::Result<()> {
     let mut dom: TuiDom = TuiDom::new();
-    let handles = build_shell(&mut dom);
-
-    let state = Rc::new(RefCell::new(ShowcaseState::from_handles(&handles)));
-
-    // Initial mount: deep-linked demo (default 0).
-    mount_demo(&mut state.borrow_mut(), &mut dom, initial_idx);
-    // Seed the ARIA tree's active-descendant cursor onto the mounted
-    // demo so the navigator boots already highlighting "where you
-    // are" (and a CLI `--demo <slug>` deep-link expands + points at
-    // its row). The tree built-in owns the cursor after the first
-    // arrow / click.
-    seed_tree_cursor(&mut dom, handles.sidebar, initial_idx);
-
-    // Sidebar click handler — walks up from the click target to
-    // find the `<li>` with `data-demo-slug`, then swaps demos. The
-    // ARIA tree built-in dispatches a bubbling `click` on the active
-    // treeitem for BOTH pointer and keyboard (Enter / Space)
-    // activation, so this single listener covers mouse and keyboard
-    // — the arrows / Home / End / expand / collapse + the
-    // active-descendant cursor all come from `runtime::builtins::tree`.
-    wire_sidebar_click(&mut dom, handles.sidebar, Rc::clone(&state));
-    // Scroll listener — writes scroll info into the LEFT slot of
-    // the status bar (the hints slot) whenever any scrollable
-    // descendant of `<main>` fires a scroll event.
-    wire_scroll_indicator(&mut dom, handles.main, handles.status_bar_hints);
-    // Live mouse-position gauge in the RIGHT slot of the status
-    // bar — instantly tells the developer whether motion events
-    // are flowing (numbers update) or stalled (numbers freeze).
-    // Independent slot so it doesn't clobber the hints / scroll
-    // content owned by other listeners.
-    wire_mouse_position_indicator(&mut dom, handles.status_bar_mouse_pos);
-    // Focus listener — refreshes keyboard hints in the LEFT slot
-    // whenever focus moves. The bar is pre-seeded in `build_shell`
-    // with the global default; this listener handles changes.
-    rdom_showcase::wire_focus_hints(&mut dom, handles.status_bar_hints);
-
+    let state = assemble(&mut dom, initial_idx);
     // Construct the App with the shell's base stylesheet, then
     // register the mounted demo's sheet. Only that one is on the stack:
     // every later `mount_demo` (from the sidebar listener) swaps it

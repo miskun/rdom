@@ -8,10 +8,12 @@ per-release notes in [`CHANGELOG.md`](CHANGELOG.md), the architecture in
 
 ## Current focus
 
-**0.5.0 shipped 2026-09-29.** [`specs/STABILIZE-2026-09.md`](specs/STABILIZE-2026-09.md) is done: all five
-crates are on crates.io at 0.5.0, tagged `v0.5.0`, and TECH_DEBT has no open or accepted rows. Next on
-the release track: 0.6.0, CSS completeness ([`specs/CSS-COMPLETE-2026-10.md`](specs/CSS-COMPLETE-2026-10.md)); routing moves to 0.7.0. The previous program,
-[`specs/HARDENING-2026-09.md`](specs/HARDENING-2026-09.md), shipped as 0.4.0.
+**CAPTURE — an agent-friendly renderer, inspector and design loop** ([`specs/CAPTURE.md`](specs/CAPTURE.md)),
+a new published crate, `rdom-capture`, over `rdom-tui`: headless capture sessions with a deterministic
+environment, paint traces and the inspector, edits without a rebuild, images from rdom's own rasterizer,
+audits and motion. Nine phases, each closed by a chief-architect review recorded in the spec's log; the
+release (a new `rdom-capture` and whatever substrate crates the phases change) follows the last phase.
+0.6.0 – 0.6.5 shipped (CSS completeness and the `rdom-tui` patch line); routing stays at 0.7.0.
 
 ## Release track
 
@@ -23,7 +25,9 @@ the release track: 0.6.0, CSS completeness ([`specs/CSS-COMPLETE-2026-10.md`](sp
 | 0.3.5 – 0.3.14 | 2026-06-03 → 06-06 | `rdom-tui`-only patch line driven by `rdom-virtualtable`: table column sizing, stale-layout fixes, half-block borders, drag-autoscroll and its robustness follow-ups. Latest published: **`rdom-tui` 0.3.14**, tag `rdom-tui-v0.3.14` |
 | 0.4.0 | **released 2026-09-24**, tag `v0.4.0`, all five crates on crates.io | HARDENING-2026-09: generational `NodeId`, spec-correct dispatch and document position, whole-literal CSS numbers, at-rule recovery, CSS-wide keywords, `pointer-events`, scrollable text leaves, flex §9.7, and the rest of the program. Breaking notes in CHANGELOG "0.4.0" |
 | 0.5.0 | **shipped 2026-09-29** | STABILIZE-2026-09: empty TECH_DEBT open list, "stable and complete"; form validation, `:focus-visible`, live `<style>`. Breaking notes in CHANGELOG "0.5.0" |
-| 0.6.0 | **in progress** | CSS-COMPLETE-2026-10: every CSS feature meaningful in a terminal; acid test |
+| 0.6.0 | **shipped 2026-10-18** | CSS-COMPLETE-2026-10: every CSS feature meaningful in a terminal; acid test |
+| 0.6.1 – 0.6.5 | 2026-10-29 → 11-05 | `rdom-tui`-only patch line: the layout flush, the client box, borders follow paint order, out-of-flow children leave the collapse group, flex shrink overflow |
+| rdom-capture 0.1 | **in progress** | CAPTURE: headless capture sessions, inspector, edits, images, audits, motion |
 | 0.7.0 | planned | Client-side routing primitive (slid from 0.6.0) |
 | later | — | Async tasks during event handlers; `TABLE-TFC-1` real table formatting context |
 
@@ -40,6 +44,11 @@ the release track: 0.6.0, CSS completeness ([`specs/CSS-COMPLETE-2026-10.md`](sp
 `POINTER-EVENTS-IFC-1`, `PARSER-VOID-TAGS-1`, `PARSER-ENTITIES-1`, `PROC-TUI-DEV-DEP-1`, `PROC-TOOLCHAIN-PIN-1`.
 
 ## Recent decisions
+
+- **2026-11-07 — CAPTURE decisions** (spec §Decisions): rdom's own rasterizer and PNG encoder, no image
+  or font dependencies; the xterm.js emulator view is optional; events caused by the inspector are
+  suppressed, with cause tagging so delivering them later is additive. `rdom-capture` uses serde /
+  serde_json (already in the lockfile) for its JSON contract and protocol.
 
 - **2026-09-24 — Batch 3 slices landed without gates.** Unit + workspace tests gate each commit; the
   architect / API passes run once at the end of the batch (recorded as an open risk above).

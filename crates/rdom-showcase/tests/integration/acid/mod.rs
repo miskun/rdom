@@ -12,7 +12,7 @@
 //! a misreading is fixed in the reference with the argument written into
 //! its derivation. A reference is never edited to match rdom's output.
 
-mod compare;
+pub(crate) mod compare;
 mod coverage;
 mod interactive;
 mod reference;

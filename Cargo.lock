@@ -896,6 +896,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rdom-capture"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "rdom-css",
+ "rdom-tui",
+ "serde",
+ "serde_json",
+ "unicode-segmentation",
+ "unicode-width",
+]
+
+[[package]]
 name = "rdom-core"
 version = "0.6.0"
 dependencies = [
@@ -925,6 +938,7 @@ name = "rdom-showcase"
 version = "0.6.0"
 dependencies = [
  "crossterm",
+ "rdom-capture",
  "rdom-css",
  "rdom-parser",
  "rdom-style",

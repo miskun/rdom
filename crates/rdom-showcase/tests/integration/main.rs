@@ -24,6 +24,7 @@ mod tab_form_snapshot;
 mod text_demos_snapshot;
 mod ua_chrome_snapshot;
 
+mod capture_session;
 mod chrome_dump;
 mod chrome_layout_contract;
 mod design_types;
@@ -43,6 +44,7 @@ mod status_bar_renders;
 mod subtree_swap_integration;
 mod unsafe_code;
 mod upgrading_guide;
+mod wall_clock;
 
 mod scroll_live_style_pane;
 mod tab_form_typing_repro;

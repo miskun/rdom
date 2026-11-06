@@ -17,6 +17,7 @@ const ROOTS: &[(&str, &[&str])] = &[
     ("rdom-style/src/lib.rs", &["#![forbid(unsafe_code)]"]),
     ("rdom-css/src/lib.rs", &["#![forbid(unsafe_code)]"]),
     ("rdom-parser/src/lib.rs", &["#![forbid(unsafe_code)]"]),
+    ("rdom-capture/src/lib.rs", &["#![forbid(unsafe_code)]"]),
     (
         "rdom-tui/src/lib.rs",
         &[

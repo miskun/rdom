@@ -43,6 +43,7 @@ const PUBLISHED: &[&str] = &[
     "rdom-css",
     "rdom-parser",
     "rdom-tui",
+    "rdom-capture",
 ];
 
 /// The `macro_rules!` that define a public type from their input — each

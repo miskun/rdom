@@ -11,6 +11,11 @@ publish = false
 name = "rdom-showcase"
 path = "src/main.rs"
 
+# The showcase as a capture session over stdio (`rdom_showcase::capture`).
+[[bin]]
+name = "rdom-showcase-capture"
+path = "src/bin/rdom-showcase-capture.rs"
+
 [dependencies]
 # `rdom-tui` re-exports the public surface of `rdom-core` and
 # `rdom-style`, so depend only on the renderer + the CSS parser.
@@ -21,6 +26,8 @@ rdom-css = { path = "../rdom-css", version = "0.6.0" }
 # `parse_and_render` demo uses the HTML-ish parser; one of the
 # few demos that touch all three crates composing.
 rdom-parser = { path = "../rdom-parser", version = "0.6.0" }
+# Every demo and acid page as a capture-session fixture (`capture`).
+rdom-capture = { path = "../rdom-capture", version = "0.1.0" }
 
 [dev-dependencies]
 # Tests synthesize `crossterm` events (Resize / Key / Mouse) to

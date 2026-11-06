@@ -20,7 +20,13 @@
 //! - [`shell`] — `build_shell` constructs the sidebar + main view +
 //!   header and returns the `NodeId` consumers mount the active
 //!   demo into.
+//! - [`mod@assemble`] — the shell wired up with a demo mounted: what the
+//!   binary runs and what a capture session opens.
+//! - [`capture`] — the showcase as an `rdom-capture` app: every demo and
+//!   acid page as a fixture; `rdom-showcase-capture` serves it.
 
+pub mod assemble;
+pub mod capture;
 pub mod demo;
 pub mod demo_sheet;
 pub mod demos;
@@ -29,6 +35,7 @@ pub mod registry;
 pub mod shell;
 pub mod status_bar;
 
+pub use assemble::assemble;
 pub use demo::{Category, Demo, Source};
 pub use demo_sheet::DemoSheet;
 pub use nav::{
