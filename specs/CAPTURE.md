@@ -1,245 +1,479 @@
-# CAPTURE — an agent-friendly renderer and inspector
+# CAPTURE — an agent-friendly renderer, inspector and design loop
 
-**Status:** PROPOSED (2026-11-07). The contract is up for review; nothing is implemented yet.
+**Status:** PROPOSED v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
+v2 incorporates every finding (§Review record at the end). Nothing is implemented yet.
 
 ## Why
 
-rdom paints to a terminal, and nothing else can see that paint. Snapshot tests can (`rdom-showcase/tests/common`, the
-acid references), but only through test-only helpers, and only as glyph text plus a background-key layer. An
-agent or a person improving how an app *looks* has three things missing:
+rdom paints to a terminal, and nothing else can see that paint. Snapshot tests can, but only through test-only
+helpers, and only as glyph text plus a background-key layer. An agent or a person improving how an app looks
+and behaves is missing three things:
 
-- **A way to see any page at any moment**, outside a test and outside a live terminal: as structured data, as an
-  image and as a page in a browser.
-- **A way to understand it.** Which node painted this cell, which rule gave it this color, where that rule is
-  written, and what it overrode.
-- **A way to change things cheaply.** Try a style change, a viewport size, a color depth, a forced `:hover`, and see
-  the result in milliseconds, without recompiling the app.
+- **Seeing** any page at any moment, outside a test and outside a live terminal: as structured data, as an image,
+  in a real terminal emulator's rendering.
+- **Understanding** it: why this cell is this glyph in this color, through every step from the CSS source to
+  the emitted bytes, and which line to edit.
+- **Changing** it cheaply: try an edit, a token value, a viewport, a terminal profile, a forced state, other
+  content, and see the result in milliseconds, without recompiling.
 
-This initiative adds no CSS features. It's an instrument: once it exists, every feature that already exists or is
-added later (gradients, border animations, glyph effects) can be seen, explained and measured with it, with no
-extra work per feature.
+This initiative adds no CSS features. It's an instrument: every feature that already exists or is added later
+(gradients, border animations, glyph effects) can be seen, explained and measured with it, with no extra work per
+feature.
 
-## The designer's loop (what the API is for)
+## Thesis: better than browser integration for agents
 
-The primary user is an agent asked to review an app's UI/UX and to make it look better. A human designer does
-the same loop. Each step needs something specific:
+Browser tooling gives agents screenshots of a nondeterministic pixel canvas and a debugging protocol too large
+to use well, so agents guess. rdom's advantages are structural: the screen is a small discrete grid (120×40 is
+4,800 cells), the clock is ours, and we own every step from the CSS source to the bytes. The design uses them:
 
-| Step | The agent asks | The API answers with |
+1. **Complete causality.** Any cell can be explained back to source lines, including blending, border joins,
+   animations and color reduction (§Paint trace, §Derivation chain).
+2. **Exact reproducibility.** The same inputs give byte-identical captures, so every diff is signal (§Deterministic
+   environment).
+3. **Counterfactuals.** "What if" questions, asked in batches, answered with diffs and audit changes, with no manual
+   capture (§What-if).
+4. **Answers sized to the question.** Every answer has a detail level and a token budget; truncation is always
+   explicit (§Session protocol).
+5. **A persistent session.** The app is built and driven once; queries are cheap (§Session protocol).
+6. **Record by hand, replay exactly.** A human reproduces a state in a real terminal; the agent replays it headless
+   (§Record and replay).
+7. **Terminal reality as a variable.** Palettes, capabilities, cell shape and a real emulator's rendering are a
+   matrix axis, not a fixed assumption (§Terminal profiles).
+
+## The design loop
+
+The primary user is an agent asked to review an app's UI/UX and to make it better. A human designer runs the
+same loop.
+
+| Step | The agent asks | The session answers with |
 |---|---|---|
-| **Observe** | What does this screen look like? | An image I can look at (PNG: agents take raster images, not SVG source) *and* an exact text grid I can reason over |
-| **Understand** | What is this region, why is it this color, what's its box? | Cell → owner node → box model → computed style → winning declaration → **source file:line** |
-| **Audit** | What's objectively wrong? | Machine findings: contrast, truncation, clipping, misalignment, spacing and palette sprawl, invisible focus, color-depth loss |
-| **Hypothesize + try** | What if the border were dimmer, the gap 2? | A CSS override applied to a session, re-captured, with no rebuild |
-| **Compare** | Did it get better, and did anything else change? | A before/after pair plus a diff: cells changed, by node, by property |
-| **Cover** | Does it hold up at 80×24, in light mode, in 16 colors, focused, hovered, with long text? | A variant matrix rendered to one contact sheet |
-| **Motion** | Is the spinner smooth, does the fade ease, does anything flicker? | A film: captures at fixed virtual-clock steps, plus numeric timelines |
-| **Land** | Where do I make the change for real? | Provenance pointing at the rule's source, and the override as a diff against it |
-| **Hand off** | Can a human see what I did? | A static HTML report: before/after, findings, inspector |
-
-What makes an agent effective here, in order of importance:
-
-1. **Understanding traced back to source.** Pixels alone send an agent guessing. "Cell (12,4) is `#5a5a5a` because
-   `.panel > .title { color: var(--muted) }` at `app.css:41` beat `h2 { color: … }` at `ua.css`" lets it edit the
-   right line the first time.
-2. **No compile in the loop.** A Rust rebuild per tweak makes design iteration take minutes. Overrides, forced
-   states and variants are all runtime operations on a session.
-3. **Text first, image second.** An exact grid plus findings is precise and cheap. The image is for the overall
-   impression (balance, density, hierarchy), which text can't show.
-4. **Determinism.** The same scenario at the same virtual time gives the same capture, byte for byte. Otherwise
-   before/after diffs are noise.
-5. **Fast.** One capture in well under 100 ms for a typical page, so a session can sweep many variants.
+| **Orient** | What's on this screen? | A landmarks outline: roles, names, on-screen rectangles, focus, a few hundred tokens |
+| **Observe** | What does it look like? | A PNG at true cell proportions, and the exact text grid |
+| **Understand** | Why is this cell like this? Where do I edit? | `explain`: paint trace + derivation chain + source lines |
+| **Audit** | What's objectively wrong? | Findings on look, UX, tokens and motion, each with inputs and thresholds |
+| **Stress** | What breaks with real content? | Content rewrites (long, empty, CJK, emoji, RTL, big numbers) and what moved, truncated or overflowed |
+| **Hypothesize** | Which of these N edits is best? | `whatif`: per candidate, a diff summary, audit changes and a thumbnail |
+| **Cover** | Does it hold up across sizes, schemes, terminals, states? | A variant matrix on one contact sheet |
+| **Motion** | Is it smooth, does it flicker, does it hold up over SSH? | A film: frames at fixed virtual-clock steps, timelines, motion findings |
+| **Target** | Does it match the design? | A diff against a text mockup with a color legend |
+| **Land** | What's the real change? | Edits written back as a unified diff against the CSS sources |
+| **Hand off** | Can a human check this? | A static HTML report: before/after, findings, inspector |
 
 ## Principles
 
-- **One contract.** A `Capture` (JSON, versioned schema) is the single source. Text, SVG, PNG and HTML are views
-  derived from it. Every producer (in-process session, live attach) emits it, and every consumer (exporters,
-  inspector, audits, diff) reads only it.
-- **The capture describes paint, it doesn't imitate a terminal.** It records what rdom painted, with a stated
-  palette and font. Real-terminal differences (fonts, ambiguous-width glyphs, the 16-color theme) are known
-  limits, recorded in `meta`, not hidden.
-- **Explainable findings.** Every audit finding names its rule, its inputs (cells, nodes, values), its threshold, and
-  what it didn't check.
-- **Zero cost when not capturing.** Owner attribution and provenance are recorded only on a capture paint. The
-  normal frame path is unchanged; `frame_cost_tests` must stay green.
-- **Safe live attach.** Attaching to a running app is opt-in, read-only by default, local-only, and can't disturb
-  terminal state. Overrides on a live app are explicit, reversible and listed.
+- **One contract.** `Capture` (JSON, versioned schema) is the single source of truth. Every view, audit, diff and query
+  reads it; every producer (session, live attach, replay) emits it.
+- **Causal truth over convenience.** An explanation is the actual sequence of operations that produced the cell,
+  never a guess that looks plausible. Where rdom can't explain a step, it says so.
+- **Deterministic by contract.** Determinism is enforced by tests, not assumed.
+- **Query first, never dump first.** The default answer is the smallest one that answers the question.
+- **Invisible to the app.** Inspection, forced states and edits never show up as events, mutation records or
+  `matches()` results in app code.
+- **Edits land in source.** A runtime edit is a preview; its result is a patch against the file it came from.
+- **Zero cost when off.** Recording costs one branch per paint write when no recorder is attached; `frame_cost_tests`
+  stay green.
+- **Explainable findings.** Every finding names its check, inputs, threshold and what it didn't check.
 
-## The `Capture` contract (schema v1, draft)
+## Architecture
 
-```jsonc
-{
-  "schema": "rdom-capture/1",
-  "meta": {
-    "rdom_tui": "0.6.5",
-    "time_ms": 300,              // virtual clock since session start
-    "viewport": [120, 40],
-    "color_depth": "truecolor",  // truecolor | 256 | 16
-    "color_scheme": "dark",
-    "palette": "xterm-default",  // how the 16 ANSI colors map to RGB in views
-    "overrides": ["o1"],         // the overrides active in this capture
-    "forced_states": [{"node": 17, "state": "hover"}],
-    "scenario": "settings.toml#step-3"
-  },
-  "grid": {
-    // run-length rows: consecutive cells with equal attributes share a run
-    "rows": [
-      [{"x": 0, "text": "┌ Settings ", "fg": "#c0c0c0", "bg": "#1e1e1e", "mods": ["bold"],
-        "ul": null, "owner": {"node": 12, "part": "border"}}]
-    ]
-  },
-  "nodes": {
-    "12": {
-      "tag": "section", "id": "settings", "classes": ["panel"], "attrs": {"aria-label": "Settings"},
-      "parent": 3, "children": [13, 14],
-      "state": ["focus-within"],
-      "path": "main > section#settings.panel",
-      "boxes": {
-        "border": [0, 0, 60, 20], "padding": [1, 1, 58, 18], "content": [2, 1, 56, 18],
-        "scroll": {"offset": [0, 4], "size": [56, 40]},
-        "clip": [0, 0, 60, 20],
-        "layer": 0
-      },
-      "style": {
-        "color": {
-          "value": "#c0c0c0",
-          "from": {"rule": 41, "decl": "color: var(--fg)"},
-          "overridden": [{"rule": 7, "decl": "color: CanvasText"}]
-        }
-      }
-    }
-  },
-  "rules": {
-    "41": {"selector": ".panel", "sheet": "app", "origin": "author", "layer": null,
-           "specificity": [0, 1, 0], "source": {"file": "src/style.css", "line": 41}},
-    "7":  {"selector": "section", "sheet": "ua", "origin": "ua", "source": {"file": "ua", "line": null}}
-  },
-  "vars": {"--fg": {"value": "#c0c0c0", "defined_on": 1, "rule": 3}}
+```
+app (downstream)            implements CaptureApp: build(env) -> App, fixture hooks
+   │
+rdom-capture (new, published)
+   ├─ session     persistent session: JSON-RPC over stdio; CLI and MCP are thin clients
+   ├─ schema      Capture types + JSON schema (versioned)
+   ├─ query       outline, explain, inspect, reverse queries, budgets
+   ├─ edit        declaration/token edits, write-back diffs, CSS dev loader
+   ├─ variants    matrix, whatif, stress, terminal profiles
+   ├─ audits      look, UX, tokens, motion
+   ├─ motion      film, timelines, cast
+   ├─ replay      record/replay of input + injections
+   ├─ views       text, outline, png, html inspector, xterm.js reference render
+   └─ attach      live attach client + server glue
+   │
+rdom-tui  (one public module: rdom_tui::capture)
+   ├─ Environment        deterministic clock, fixed caps, no probing
+   ├─ PaintRecorder      optional sink for paint operations
+   ├─ derivation tracer  re-runs the cascade for one node with a tracer
+   ├─ boxes              per-node geometry
+   ├─ forced states      cascade-only pseudo-class overrides
+   ├─ declaration edits  in-place, reversible
+   └─ source locations   rules carry file:line (CSS) or #[track_caller] (Rust)
+   │
+rdom-core  (unchanged)
+```
+
+`rdom-tui` exposes the data; `rdom-capture` turns it into a product. `rdom-tui` doesn't depend on
+`rdom-capture`. All new `rdom-tui` API sits behind one entry point, `App::capture(&CaptureRequest) -> CaptureData`,
+plus the handful of hooks above. Result types are open (`#[non_exhaustive]`) and listed in `DESIGN.md` when they land.
+
+## Deterministic environment
+
+A capture is a function of (app build, fixtures, environment, input log, edits, virtual time). Same inputs, same
+bytes.
+
+The `Environment` fixes:
+
+- **Time:** the scheduler's virtual clock is the only clock. Every `Instant::now()` in the runtime goes through it;
+  a source test bans `Instant::now()` outside the clock module (`runtime/animation/custom.rs:456` is a known current
+  violation).
+- **Terminal:** size, color depth, SGR capabilities, color scheme and keyboard protocol are set, never probed.
+- **Ordering:** no output depends on hash-map iteration order.
+- **Process:** environment variables the runtime reads are part of the `Environment`, not read live.
+
+Contract tests: capture every acid page twice in one process and in two processes; the bytes must match. A capture
+records its `Environment` in `meta`.
+
+## Getting an app into a session
+
+Real apps aren't just a DOM: they have Rust state, channels, background work, data from disk or the network, and
+tick callbacks. The app opts in with one trait:
+
+```rust
+pub trait CaptureApp {
+    /// Build the app for a session. No terminal is touched.
+    fn build(&self, env: &Environment, fixtures: &Fixtures) -> App<CaptureBackend>;
+    /// Named fixture sets the agent can choose ("empty", "1k-rows", "error-state").
+    fn fixtures(&self) -> Vec<FixtureInfo> { Vec::new() }
 }
 ```
 
-Contract points:
+and ships one binary target: `fn main() { rdom_capture::serve(MyApp) }`. Everything after that is protocol, with no
+more app-specific code.
 
-- `owner.part` is one of `content`, `border`, `background`, `outline`, `scrollbar`, `caret`, `selection`,
-  `pseudo:before`, `pseudo:after`, `pseudo:marker`, `ua-chrome`, `highlight:<name>`. A cell painted by several layers
-  records the topmost; `stack` (opt-in) lists every layer that painted it, in paint order.
-- `style` is complete for computed values and sparse for provenance: by default only properties that differ from
-  the initial value carry `from`/`overridden`. `--full-style` includes everything.
-- `source` comes from the CSS parser (file + line of the rule) or, for rules built in Rust
-  (`Stylesheet::rule`), from `#[track_caller]` (`file.rs:line`). A rule with no known source says so (`null`),
-  and never invents one.
-- Colors are always emitted as resolved sRGB, with the original form beside it when it differs (`"spec": "ansi:4"`,
-  `"spec": "oklch(…)"`), so audits work on real values and views can show what the author wrote.
-- Node ids are the arena `NodeId`s, valid inside one capture. Diffs match nodes across captures by `path`, then by
-  id.
+External work (threads, async tasks, network) reaches the DOM through `AppHandle::inject`. In a session, injections
+are queued and delivered at defined points in virtual time, so a replay delivers them identically.
+
+### Record and replay
+
+An app running in a real terminal with recording on (`App::with_recorder(path)` or `RDOM_RECORD=<path>`) writes
+the input log: terminal input events, resizes, injections (by name and payload, when the app makes them
+serializable), and their times. `session.replay(log)` drives the headless app through the same sequence. A human
+reproduces a state by hand once; the agent replays, scrubs and inspects it as often as it likes.
+
+Replay divergence is detected, not hidden: the log carries a grid hash per frame, and replay reports the first frame
+that differs.
+
+## The `Capture` contract (schema `rdom-capture/2`)
+
+A capture is layered. The grid and outline are always present; everything else is requested by need. Series of
+captures store deltas.
+
+```jsonc
+{
+  "schema": "rdom-capture/2",
+  "meta": {
+    "rdom_tui": "0.6.5", "time_ms": 300, "viewport": [120, 40],
+    "env": {"color_depth": "truecolor", "scheme": "dark", "caps": "full", "reduced_motion": false},
+    "profile": "xterm-dark",
+    "fixtures": "1k-rows", "edits": ["e1"], "forced_states": [{"node": "settings", "state": "hover"}],
+    "replay": {"log": "rec/bug-42.jsonl", "frame": 118},
+    "grid_hash": "b3:9f2c…"
+  },
+  "grid": { "rows": [[{"x": 0, "text": "┌ Settings ", "fg": "#c0c0c0", "bg": "#1e1e1e",
+                       "mods": ["bold"], "ul": null, "top": {"node": 12, "part": "border"}}]] },
+  "outline": [
+    {"node": 12, "key": "id:settings", "role": "region", "name": "Settings", "rect": [0, 0, 60, 20],
+     "focus": "within", "children": [ … ]}
+  ],
+  "nodes":  { "12": { "tag": "section", "key": "id:settings", "path": "main > section#settings.panel", … } },
+  "boxes":  { "12": { "border": [0,0,60,20], "padding": [1,1,58,18], "content": [2,1,56,18],
+                      "scroll": {"offset": [0,4], "size": [56,40]}, "clip": [0,0,60,20], "layer": 0 } },
+  "styles": { "12": { "color": "#c0c0c0", "padding": "0 1", … } },
+  "rules":  { "41": { "selector": ".panel", "sheet": "app", "origin": "author", "layer": null,
+                      "specificity": [0,1,0], "source": {"file": "src/style.css", "line": 41, "col": 1} } },
+  "tokens": { "--fg": {"value": "#c0c0c0", "defined": [{"rule": 3}], "used_by": 14} }
+}
+```
+
+- `grid.top` is the topmost paint operation's node and part (`content`, `border`, `background`, `outline`,
+  `scrollbar`, `caret`, `selection`, `pseudo:before|after|marker`, `ua-chrome`, `highlight:<name>`). It's a
+  convenience derived from the paint trace, not the explanation.
+- Colors are resolved sRGB; where the author wrote something else, `spec` carries it (`"ansi:4"`, `"oklch(…)"`,
+  `"var(--fg)"`).
+- `source` is the CSS parser's file, line and column, or `#[track_caller]` for rules built in Rust; `null` when
+  unknown, never invented.
+
+### Node identity
+
+Arena ids are only valid within one capture. Across captures (diffs, films, replays), nodes match by, in order:
+`id` attribute → `data-key` attribute → structural fingerprint (tag, classes, ancestor path, sibling index among
+same-keyed siblings). Every node's `key` says which method produced it, and every diff reports how each pair was
+matched.
+
+### Paint trace
+
+The paint trace of a cell is the ordered list of paint operations that touched it:
+
+```jsonc
+{"cell": [12, 4], "ops": [
+  {"layer": 0, "node": 3,  "part": "background", "op": "fill",  "out": {"bg": "#1e1e1e"}},
+  {"layer": 0, "node": 12, "part": "border",     "op": "glyph", "out": {"sym": "─", "fg": "#c0c0c0"}},
+  {"layer": 0, "node": 12, "part": "border",     "op": "join",  "in": {"sym": "─"}, "out": {"sym": "┬"},
+   "with": [{"node": 19, "part": "border"}]},
+  {"layer": 2, "node": 40, "part": "background", "op": "blend", "alpha": 0.6,
+   "in": {"bg": "#1e1e1e"}, "out": {"bg": "#2c2a3a"}},
+  {"op": "quantize", "depth": "256", "in": {"bg": "#2c2a3a"}, "out": {"bg": "ansi256:236"}}
+]}
+```
+
+`rdom-tui` paint takes an optional `&mut dyn PaintRecorder`, passed explicitly through the paint context (no
+thread-locals). Every buffer write, blend and post-pass (border join, quantization) reports to it when present.
+Recording can be limited to a rectangle. Cost with no recorder: one branch per write, pinned by `frame_cost_tests`
+and a new benchmark with recording on.
+
+### Derivation chain
+
+For one node and property, the steps from declarations to used value:
+
+```
+color @ section#settings.panel
+  cascaded   var(--fg)       .panel                 src/style.css:41   (beat: section  ua:12)
+  var        #c0c0c0         --fg on :root          src/style.css:3
+  animated   #a8a8a8         transition color 200ms, t=120ms, ease-out (from #808080)
+  used       #a8a8a8
+  painted    see paint trace (blend, quantize)
+```
+
+Steps: cascaded (winner and the declarations it beat) → `var()` substitution → inherited (from which ancestor) →
+animated (transition or keyframes, progress, easing) → used → painted. Derivation is computed on request by
+re-running the cascade for that node with a tracer, so nothing is stored per frame. A test checks that the
+traced cascade's result equals the real cascade's value for every property on every acid node.
+
+## Session protocol
+
+A persistent session: newline-delimited JSON-RPC over stdio. The CLI (`rdom-capture <verb>`) and an MCP adapter are
+thin clients. Methods are defined in a schema first; docs and clients are generated from it.
+
+Every answering method takes `detail: outline | summary | full` (default `summary`) and an optional `budget` in
+approximate tokens. When an answer is cut, it says so and how to get the rest (`"truncated": {"nodes": 212,
+"next": "…"}`).
+
+| Method | Does |
+|---|---|
+| `open` | Build the app (`fixtures`, `env`, `profile`) |
+| `input` | Keys, text, mouse, paste, resize; returns what changed (cells and nodes), not a full capture |
+| `advance` | Move the virtual clock |
+| `replay` | Drive from a recorded log, to a frame or the end |
+| `capture` | Return or write a capture, choosing layers and views |
+| `outline` | The landmarks outline |
+| `explain` | A cell (`at`), a node (`select`), or a property: paint trace + derivation chain + sources |
+| `query` | Reverse queries: who uses a color, a token or a rule; what paints in a rectangle; nodes matching a selector |
+| `diff` | Two captures, or two times: changed cells, nodes, boxes, computed properties, with provenance and match method |
+| `edit` | Change a declaration in place (by rule id), set a token, add a rule; reversible; returns the visual diff |
+| `force` | Force pseudo-classes on nodes (`:hover`, `:focus-visible`, `:active`, `:checked`, `:disabled`, `:invalid`) |
+| `patch` | Turn the active edits into unified diffs against their source files |
+| `whatif` | N candidate edit sets, each scored (see §What-if) |
+| `matrix` | A cross product of variants to a contact sheet |
+| `stress` | Content rewrites and what broke |
+| `audit` | Run checks, return findings |
+| `film` | Frames at a fixed step over a window, timelines, motion findings |
+| `mockup` | Compare a capture with a text mockup |
+| `report` | Write the static HTML report for a human |
+| `reset` | Drop edits and forced states |
+
+## Edits
+
+- **In place.** An edit changes a declaration of an existing rule (by rule id), sets a custom property, or adds a
+  rule in a given sheet and layer. It follows the same cascade as the original, so it can do what the original
+  could (`!important`, layers, inline styles). Each edit has an id and an inverse.
+- **Tokens first.** Setting a token is the highest-leverage edit. `query` shows each token's users, and `whatif`
+  previews a token change across the whole page.
+- **Write-back.** `patch` turns edits into unified diffs against CSS source files. For rules built in Rust, it returns
+  the source location and the changed declaration; it doesn't rewrite Rust code.
+- **CSS dev loader.** `rdom_capture::css!("src/style.css")` is `include_str!` in release builds and a file read
+  with a reload watch in debug builds and sessions, so a saved CSS file shows up without a rebuild.
+
+### Invisible to the app
+
+Forced states affect cascade matching only. App code never sees them: no input events, no focus/blur, no
+mutation-observer records, and `matches(":hover")` reports the real state. Edits change stylesheets, not the DOM.
+Animation events (`transitionstart` etc.) caused by an inspector change are delivered in sessions (that's the
+visual truth) and suppressed under live attach; both are marked in `meta`. Each rule has a contract test.
 
 ## Views
 
 | View | For | Notes |
 |---|---|---|
-| `text` | agents, tests | The existing snapshot format, made public: glyph grid + background-key layer, plus optional fg-key and owner-key layers. Owner keys are labeled with node paths. |
-| `png` | agents with image input, reports | Rasterized from the grid at fixed cell size with a bundled monospace font that covers box-drawing and blocks. Optional 2× scale. Optional overlays: box outlines, a grid, a highlighted node. |
-| `svg` | humans, docs | One `<rect>` per background run, `<text>` with an explicit x per cell (no browser font-metric drift). |
-| `html` | humans, hand-off | `inspect.html`: the SVG plus an Elements-panel inspector (hover a cell → node, box, styles, rules, source). Loads one capture or a series (filmstrip + scrubber). Static, self-contained, no server. |
-| `cast` | motion review | asciicast v2 of the real emitted ANSI bytes, so the wire path (SGR, frame diff) is checked too, not just the model. |
+| `text` | agents, tests | Glyph grid plus optional key layers (bg, fg, top node) with legends. The current snapshot format, made public |
+| `outline` | agents | Landmarks with rectangles; the first thing to read |
+| `png` | agents with image input, reports | True cell proportions from the profile; bundled font covering box drawing, blocks and Braille; optional overlays (boxes, a grid, tab order, hit targets, a highlighted node, a change heatmap) |
+| `html` | humans | `report.html` / `inspect.html`: images, findings, filmstrip, and an Elements-style inspector (hover a cell → explain). Static, no server |
+| `cast` | motion, wire checks | asciicast v2 of the real emitted bytes |
+| `emulator` | ground truth | The emitted bytes rendered by xterm.js in a headless browser, screenshotted. Optional (needs a browser); the reference for "what a real terminal shows" |
 
-## Operations
+SVG is not a first-class view. PNG and the HTML inspector cover its uses; it can be added later as another view of
+the same data.
 
-A Rust library (`Session`) and a CLI built on it. The app's code builds the `App`, so the CLI is a function the
-app calls from a small `examples/capture.rs`: `rdom_capture::cli::main(|| build_app())`. After that, everything
-is CLI verbs and files, with no app-specific code.
+## Terminal profiles
 
-| Verb | Does |
-|---|---|
-| `shot` | Run a scenario (or none) and write a capture plus the chosen views |
-| `inspect` | Query a capture: `--at x,y`, `--select "<css>"`, `--node <id>`; prints node, box, style, provenance |
-| `override` | Apply a CSS snippet (a pushed author sheet, last in order) or set custom properties, then capture |
-| `force` | Force pseudo-class states on nodes (`:hover`, `:focus-visible`, `:active`, `:checked`, `:disabled`) |
-| `matrix` | Render a cross product of variants (sizes × scheme × color depth × states × overrides) to one contact sheet + captures |
-| `diff` | Compare two captures: changed cells (count and a heatmap), changed nodes and boxes, changed computed properties with their provenance |
-| `film` | Capture at a fixed virtual-clock step over a window; write the series, a filmstrip and timelines |
-| `audit` | Run the checks below and print findings (JSON + text) |
-| `attach` | The same verbs against a running app (see Live attach) |
+A profile is: a 16-color palette (and optionally the 256 cube), whether bold also brightens, support for dim,
+italic, strikethrough and underline styles, emoji and ambiguous-width policy, cell aspect ratio, and font
+characteristics (box-drawing gaps, line height). Shipped profiles cover common dark and light defaults, a 16-color
+console, a light theme with low contrast and a no-italic terminal. Apps add their own.
 
-Scenarios are files (TOML): viewport, color depth, scheme, then steps (`key`, `type`, `click`, `scroll`,
-`resize`, `advance`, `force`, `override`, `capture "<name>"`).
+Profiles are a matrix axis, used by PNG, audits (contrast after the profile's palette and color reduction) and the
+emulator view.
 
-## Audits (first set)
+## Variants
 
-Each finding: `{check, severity, nodes, cells, inputs, threshold, message, not_checked}`.
+- **`matrix`:** a cross product over viewport sizes, schemes, color depths, profiles, `prefers-reduced-motion`,
+  forced states, fixtures and edit sets, rendered to one contact sheet, with per-cell findings.
+- **`whatif`:** for each candidate edit set: a diff summary, the change in audit findings (new, fixed), a
+  thumbnail, and the edit's patch. Candidates are evaluated from the same base state; the response ranks them by
+  findings fixed minus findings introduced, and shows the counts, not just a score.
+- **`stress`:** rewrites text content in chosen nodes (×2 and ×4 length, empty, a single long word, CJK, emoji,
+  right-to-left, large numbers, many items) and reports, per rewrite, what truncated, overflowed, wrapped, shifted
+  or overlapped. Rewrites are edits to text nodes in the session; they never reach the app's data.
+- **`mockup`:** the agent (or a designer) writes the intended screen as text plus a color legend; the session reports
+  cells that differ in glyph, color or alignment.
 
-- **contrast:** fg/bg contrast per text run (WCAG 2 ratio and APCA Lc), against the resolved colors *after* color-depth
-  quantization.
-- **truncation and clipping:** text cut by `overflow: hidden`/`clip` with no ellipsis; content outside every
-  scrollport; zero-size elements that have text.
-- **occlusion:** text painted and then fully covered by a later layer.
-- **alignment:** box edges that miss a shared column or row by one cell (likely-unintended near-misses).
-- **rhythm:** the set of gaps, paddings and margins in use; flags values off the dominant scale.
-- **palette sprawl:** distinct colors in use, clustered; flags near-duplicates (ΔE OKLab under a threshold).
-- **focus visibility:** for each focusable element, does `:focus-visible` change at least one painted cell, and by
-  enough contrast?
-- **color-depth loss:** colors that become indistinguishable at 256 or 16 colors (borders that disappear, states
-  that look the same).
-- **motion** (on a film): flicker (a cell that changes and reverts within one step), spinner period and width jitter,
-  easing fit for color and geometry tweens, cells changed and bytes emitted per frame.
+## Audits
 
-Audits make a design review concrete; they don't replace taste. The report shows the findings next to the images
-so a human makes the call.
+A finding: `{check, severity, nodes, cells, inputs, threshold, message, not_checked}`. Checks run against a profile
+and color depth. An app can declare its design system (palette tokens, spacing scale, type of focus indicator), and
+checks use it where present; otherwise they infer from the page and say so.
+
+**Look**
+- **contrast:** text fg/bg (WCAG 2 ratio and APCA Lc) after color reduction and the profile's palette.
+- **truncation and clipping:** text cut without an ellipsis; content outside every scrollport; zero-size boxes with
+  text.
+- **occlusion:** text painted and then fully covered.
+- **alignment:** box edges that miss a shared column or row by one cell.
+- **rhythm:** spacing values off the declared scale, or off the dominant one; aspect-aware (2 columns ≈ 1 row).
+- **palette sprawl:** near-duplicate colors (ΔE OKLab), colors not from declared tokens.
+- **color-depth loss:** distinct colors that collapse at 256 or 16 colors; borders that vanish.
+- **profile breakage:** meaning carried only by italic, dim or a color the profile can't show.
+
+**UX**
+- **focus visibility:** `:focus-visible` changes at least one cell, with enough contrast.
+- **keyboard reachability:** every interactive element reachable by Tab; tab order versus visual reading order.
+- **hit targets:** clickable areas smaller than a threshold (default: 1 row × 3 columns).
+- **feedback latency:** frames from an input to the first visible change, per interactive element.
+- **landmarks:** regions with no accessible name; headings out of order.
+
+**Motion** (on a film)
+- **flicker:** a cell that changes and reverts within one step.
+- **spinners:** period, width jitter, period against a comfortable range.
+- **easing:** fitted against the declared timing function after snapping to whole cells; flags easing that can't
+  be seen at that size.
+- **cost:** cells changed and bytes emitted per frame; frames that exceed a bandwidth profile (local, SSH, slow link).
+- **reduced motion:** with `prefers-reduced-motion`, nothing non-essential animates.
+
+## Motion
+
+`film` captures at a fixed virtual-clock step (default the app's animation frame) over a window, storing deltas.
+It returns timelines for chosen cells or nodes (glyph, fg, bg over time, and the properties driving them), the motion
+findings, a filmstrip PNG and a change heatmap, and optionally a `cast`. A bandwidth profile replays the emitted
+bytes at a link's throughput and reports the frames a viewer on that link would actually see.
 
 ## Live attach
 
-An app opts in (`App::with_inspector(...)` or `RDOM_INSPECT=<path>`). The `App` then serves a local channel (a Unix
-socket or named pipe inside a path the app chooses; no TCP) and handles requests between frames: `capture`,
-`inspect`, and, if enabled, `override`/`force`, which are listed in `meta` and removed by `reset`. It never writes to the
-terminal outside its normal frame, and a client that disconnects mid-request leaves no state behind.
+An app opts in (`App::with_inspector(path)` or `RDOM_INSPECT=<path>`) and serves the session protocol over a local
+socket (Unix socket, 0600, path inside the app's working directory; named pipe on Windows) — never TCP. The `App` is
+single-threaded, so the socket is polled from the event loop, between frames, with a time budget per request so a
+client can't stall frames. Read-only by default; `edit` and `force` need a flag, appear in `meta`, and `reset` or
+disconnect removes them. The inspector never writes to the terminal outside the normal frame.
 
-This is what makes "any page at any moment" work for the real app in a real state that's hard to reach from a
-script.
+## Scale
 
-## Where it lives
+- A capture's grid is run-length encoded; styles are deduplicated by hash; nodes, boxes, styles and traces are
+  included only when asked.
+- Films and replays store the first frame plus deltas.
+- Budgets (≈ 6,000 nodes, 200×60): `capture` grid+outline under 50 ms; `explain` of one cell under 20 ms; full
+  capture with every layer under 300 ms. Measured on a quiet machine; regressions are investigated.
 
-- **`rdom-tui`** (substrate work, public API, no test feature gate):
-  - a capture paint: the same paint pass, writing an owner layer (`NodeId` + part) beside the buffer;
-  - box geometry per node (border, padding, content, scroll, clip, layer);
-  - per-property cascade provenance (winner + overridden), the public successor of the test-only
-    `App::matched_rules`;
-  - rule source locations (CSS parser: file + line; Rust builders: `#[track_caller]`);
-  - a forced-state hook for user-action pseudo-classes.
-- **`rdom-capture`** (new published crate, depends on `rdom-tui`): `Capture` types and schema, `Session`, the views,
-  audits, diff, film, CLI helpers, the attach client and server glue, `inspect.html`.
-- `rdom-core` gains nothing. `rdom-tui` doesn't depend on `rdom-capture`.
+## Testing strategy
+
+- **Determinism:** byte-identical double captures (same process and separate processes) of every acid page.
+- **Paint trace:** for every acid tile, replaying the trace's operations reproduces the painted cell exactly; the
+  top operation's node is a node of that tile.
+- **Derivation:** the traced cascade equals the real cascade for every property on every acid node.
+- **Invisibility:** forced states and edits produce no events, focus changes, mutation records or `matches()`
+  changes in app code.
+- **Edits:** edit → patch → apply the patch to the source → reload → identical capture.
+- **Replay:** a recorded acid interactive run replays to identical grid hashes.
+- **Views:** text and outline goldens; PNG goldens few, with font and rasterizer pinned; the grid hash is the main
+  oracle.
+- **Audits:** each check has a fixture that triggers it and one that doesn't.
+- **Cost:** `frame_cost_tests` unchanged with no recorder; benchmarks for recording and capture budgets.
 
 ## Phases
 
-Each phase is TDD, lands green, and is pinned against the acid pages (a known, spec-derived ground truth).
+Each phase lands green, test-first, with its exit test.
 
-1. **Contract.** `Capture` types + JSON schema + round-trip tests; this document reviewed.
-2. **Grid + owners.** Capture paint with an owner layer; `Session` (`App::with_backend` + `advance`); `text` and `json`
-   views. Test: every acid tile's cells are owned by the tile's nodes; normal paint cost unchanged.
-3. **Boxes + provenance + sources.** Per-property winners with rule source locations. Test: acid tiles whose
-   reference names the winning rule.
-4. **Images.** `svg` and `png` (bundled font) + `inspect.html`. Test: golden PNG/SVG for acid page 1.
-5. **Iteration.** `override`, `force`, `matrix`, `diff`, the scenario format, the CLI.
-6. **Audits.** The first set, each with a positive and a negative fixture.
-7. **Motion.** `film`, timelines, motion audits, `cast`.
-8. **Live attach.**
+1. **Deterministic environment + `CaptureApp` + session skeleton.** Exit: double-capture determinism on the acid pages;
+   `open` / `input` / `advance` / `capture` (grid, text view) over stdio.
+2. **Paint recorder + traces + boxes.** Exit: trace replay reproduces every acid cell; no-recorder cost unchanged.
+3. **Outline, explain, derivation, sources, query.** Exit: derivation equals the cascade on every acid node; rule
+   sources point at real lines.
+4. **Edits, forced states, patch, CSS dev loader.** Exit: invisibility tests; the edit → patch → reload round trip.
+5. **PNG + terminal profiles + HTML report.** Exit: goldens for acid page 1 under two profiles.
+6. **`whatif`, `matrix`, `stress`, `mockup`, `diff` with identity.** Exit: each on a showcase demo with known answers.
+7. **Audits (look, UX, tokens).** Exit: positive and negative fixtures per check.
+8. **Motion:** `film`, timelines, motion audits, `cast`, bandwidth profiles. Exit: acid motion tiles produce their
+   spec'd timelines.
+9. **Record/replay + live attach + emulator view.** Exit: a recorded showcase run replays identically; attach to a running
+   showcase example.
 
-Phases 1–4 make everything visible and explainable. Phase 5 is what makes an agent productive.
+Phases 1–3 make any page visible and explainable. Phase 4 removes the compile from the loop. Phase 6 turns design
+into a search.
 
 ## Open questions
 
-- **PNG rasterization:** `resvg`/`tiny-skia` with an embedded font (license and size; must cover box drawing,
-  blocks, Braille, and a fallback for wide glyphs) versus a minimal hand-rolled glyph rasterizer. Feature-gated
-  either way.
-- **Provenance cost:** recording winners for every property on every capture versus on request per node. Measure
-  before deciding.
-- **Attach transport on Windows:** named pipe parity, or capture-to-file only at first.
-- **Schema stability:** `rdom-capture/1` is versioned from the start. Which fields are guaranteed versus
-  informational (e.g. `stack`) needs deciding before the crate's first release.
-- **Classification:** every new public type is listed in `DESIGN.md` §"Which public types are `#[non_exhaustive]`"
-  when it lands; `Capture` and its parts are likely open (`#[non_exhaustive]`), since the schema will grow.
+- **PNG rasterization:** `resvg`/`tiny-skia` with an embedded font (license, size, glyph coverage) or a minimal
+  hand-rolled rasterizer. Feature-gated either way.
+- **Emulator view dependency:** xterm.js needs a headless browser; keep it optional and out of CI by default?
+- **Injection serialization:** how much of `AppHandle::inject` traffic can be made replayable without burdening apps;
+  opaque closures are recorded as "unreplayable" and replay stops there with a clear message.
+- **Animation events under live attach:** suppressing events caused by inspector edits is a divergence from what
+  the session shows; confirm the choice.
+- **Protocol stability:** which methods and fields are guaranteed in `rdom-capture/2` before the crate's first release.
+- **Windows attach:** named-pipe parity, or file-based capture only at first.
 
 ## Non-goals
 
-- New CSS features (gradients and the like land on their own, and then show up here for free).
-- Emulating a specific terminal pixel-for-pixel.
-- A visual editor. The tools make an agent or designer precise; changes still land in the app's source.
+- New CSS features.
+- Emulating a specific terminal pixel-for-pixel (the emulator view is a reference, not a promise).
+- A visual editor. Changes land in the app's source as patches.
+
+## Review record (v1 → v2)
+
+v1 (`2da9c01c`) was reviewed on 2026-11-07. Every finding and where v2 addresses it:
+
+### Chief architect
+
+| # | Finding (v1) | Severity | v2 |
+|---|---|---|---|
+| A1 | "Cell → node → computed color → rule" misses blending, joins, inheritance, animation and color reduction; one owner per cell is false | Blocking | §Paint trace, §Derivation chain; `top` is derived |
+| A2 | Determinism assumed, not enforced (`Instant::now()` leaks, probing, hash order, env) | Blocking | §Deterministic environment with contract tests |
+| A3 | Real apps have state, threads, data; `App::new` grabs the terminal; scenario files can't reproduce that | Blocking | §Getting an app into a session (`CaptureApp`, fixtures, queued injections), §Record and replay |
+| A4 | Override by appended sheet can't beat `!important`, inline styles, layers; doesn't land as a fix; `include_str!` still needs a rebuild | Blocking | §Edits: in place, write-back patches, CSS dev loader |
+| A5 | Forced states and overrides on a live app leak into app code | Blocking | §Invisible to the app, with contract tests |
+| A6 | Arena ids recycle; path matching breaks on reorder | Blocking | §Node identity with explicit match methods |
+| A7 | Full captures and films too large | Non-blocking | Layered captures, deltas, dedup (§Scale) |
+| A8 | Public API sprawl in `rdom-tui` | Non-blocking | One `rdom_tui::capture` module, `App::capture` entry point |
+| A9 | PNG goldens brittle | Non-blocking | Grid hash as main oracle; few pinned PNG goldens |
+| A10 | Live attach threading, permissions, frame stalls | Non-blocking | §Live attach: polled in the loop, 0600, budget per request |
+
+### Chief TUI designer
+
+| # | Finding (v1) | Severity | v2 |
+|---|---|---|---|
+| D1 | One fixed palette and font; square cells mislead spacing; no real-terminal reference | Blocking | §Terminal profiles (palette, capabilities, aspect), `emulator` view, aspect-aware rhythm |
+| D2 | Covers look but not UX | Blocking | Outline first; tab order, hit targets, reachability, latency (§Audits: UX) |
+| D3 | No content stress | Blocking | `stress` |
+| D4 | Tokens barely present | Non-blocking | `tokens` layer, token edits, design-system-aware audits |
+| D5 | Motion only measured, not judged; no reduced motion; no bandwidth | Non-blocking | Motion audits, reduced-motion axis, bandwidth profiles |
+| D6 | No way to work from a design | Non-blocking | `mockup` |
+
+### Thesis-level additions (from "better than browser integration")
+
+Batched counterfactuals (`whatif`), budgeted answers, reverse queries, a persistent session with a schema-first
+protocol, record and replay, exact identity-aware diffs.
+
+### Dropped from v1
+
+- The "pushed override sheet", replaced by in-place edits.
+- SVG as a first-class view, replaced by PNG plus the HTML inspector.
+- One-shot CLI verbs as the main interface, replaced by the persistent session; the CLI is now a client.
