@@ -136,9 +136,25 @@ pub struct RuleContext {
     pub starting_style: bool,
     /// The innermost conditional group rule (`None`: unconditional).
     pub condition: Option<ConditionId>,
+    /// Where the rule is written (`None`: not recorded).
+    pub location: Option<super::SourceLocation>,
 }
 
 impl RuleContext {
+    /// Written at `location`.
+    pub fn at(self, location: Option<super::SourceLocation>) -> Self {
+        RuleContext { location, ..self }
+    }
+
+    /// Written at `line`, `column` of the same text as before (nothing
+    /// when no location was recorded).
+    pub fn at_position(self, line: u32, column: u32) -> Self {
+        RuleContext {
+            location: self.location.map(|l| l.moved_to(line, column)),
+            ..self
+        }
+    }
+
     /// In cascade layer `layer`.
     pub fn in_layer(self, layer: Option<LayerId>) -> Self {
         RuleContext { layer, ..self }
@@ -174,6 +190,7 @@ impl Stylesheet {
             rule.scope = ctx.scope;
             rule.starting_style = ctx.starting_style;
             rule.condition = ctx.condition;
+            rule.location = ctx.location;
         }
         self.push_rules(rules);
     }
@@ -248,6 +265,7 @@ impl Stylesheet {
                     scope: None,
                     starting_style: false,
                     condition: None,
+                    location: None,
                     directional,
                 }
             })

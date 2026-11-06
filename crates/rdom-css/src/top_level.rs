@@ -27,6 +27,7 @@ use rdom_style::{LayerId, RuleContext, Stylesheet};
 use crate::block::{Context, Parent, consume_style_rule};
 use crate::import::Imports;
 use crate::{Warning, WarningKind};
+use rdom_style::SourceLocation;
 use rdom_style::parse::SourceCursor;
 
 /// Parse a full stylesheet. Mutates `sheet` in place via the
@@ -38,13 +39,10 @@ pub(crate) fn parse_stylesheet(
     imports: &mut Imports<'_>,
 ) {
     skip_encoding_marker(cursor, warnings);
-    parse_rule_list(
-        cursor,
-        sheet,
-        warnings,
-        RuleContext::default(),
-        Some(imports),
-    );
+    // The rules are written in this text, named by the sheet's URL.
+    let file = sheet.add_source(imports.url().map(str::to_string));
+    let ctx = RuleContext::default().at(Some(SourceLocation::css(file, 1, 1)));
+    parse_rule_list(cursor, sheet, warnings, ctx, Some(imports));
 }
 
 /// A `@charset "…";` leading the sheet names its encoding (CSS Syntax 3

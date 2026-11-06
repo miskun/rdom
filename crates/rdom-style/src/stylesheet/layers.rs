@@ -109,6 +109,7 @@ impl Stylesheet {
             registrations,
             counter_styles,
             keyframes,
+            sources,
             position_try,
             imports,
             scopes: _,     // `append_scopes` maps them
@@ -127,6 +128,18 @@ impl Stylesheet {
             };
             map.push(id);
         }
+        // The other sheet's texts follow ours: its rules' `Css` indices
+        // shift by how many we had.
+        let shift = u32::try_from(self.sources.len()).expect("fewer than 2³² sources");
+        self.sources.extend(sources.iter().cloned());
+        let relocate = |l: Option<super::SourceLocation>| {
+            l.map(|mut l| {
+                if let super::SourceFile::Css(i) = l.file {
+                    l.file = super::SourceFile::Css(i + shift);
+                }
+                l
+            })
+        };
         let scopes = self.append_scopes(other);
         let (conditions, root) = self.append_conditions(other);
         let condition = |c: Option<ConditionId>| c.map(|c| conditions[c.index()]).or(root);
@@ -168,6 +181,7 @@ impl Stylesheet {
                 rule.layer = rule.layer.map(|l| map[l.index()]);
                 rule.scope = rule.scope.map(|s| scopes[s.index()]);
                 rule.condition = condition(rule.condition);
+                rule.location = relocate(rule.location);
                 rule.source_idx = self.next_source_idx;
                 self.next_source_idx += 1;
                 rule

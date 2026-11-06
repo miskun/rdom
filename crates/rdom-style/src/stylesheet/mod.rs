@@ -54,6 +54,7 @@ mod layers;
 mod registrations;
 mod scopes;
 mod selector_text;
+mod source;
 mod style_selector;
 #[cfg(test)]
 mod tests;
@@ -67,6 +68,7 @@ pub use imports::Import;
 pub use index::RuleIndex;
 pub use layers::{Layer, LayerId, LayerOrder};
 pub use scopes::{Scope, ScopeId};
+pub use source::{SourceFile, SourceLocation};
 pub use style_selector::{RuleContext, StyleSelector};
 pub use user_action::UserActionState;
 
@@ -243,6 +245,10 @@ pub struct Rule {
     /// unconditional rule. The rule applies while it and every enclosing
     /// one hold.
     pub condition: Option<ConditionId>,
+    /// Where the rule was written: its CSS text and line, or the Rust
+    /// call that built it; `None` for a UA rule and a rule whose source
+    /// was not recorded.
+    pub location: Option<SourceLocation>,
     /// `style`'s direction-mapped declarations replayed for each
     /// `direction`, built with the rule ([`Rule::directional_overlay`]).
     directional: Option<std::sync::Arc<[[TuiStyle; 2]; 2]>>,
@@ -309,6 +315,14 @@ impl From<(&str, ParseError)> for StyleError {
     }
 }
 
+/// `rules`, each written at `at`.
+fn located(mut rules: Vec<Rule>, at: SourceLocation) -> Vec<Rule> {
+    for r in &mut rules {
+        r.location = Some(at);
+    }
+    rules
+}
+
 /// A parsed, specificity-tagged collection of rules. Built with the
 /// fluent `rule()` / `define_var()` API.
 #[derive(Debug, Clone, Default)]
@@ -338,6 +352,8 @@ pub struct Stylesheet {
     counter_styles: Vec<crate::counters::CounterStyleDefinition>,
     /// `@keyframes` rules, in source order (`keyframes.rs`).
     keyframes: Vec<crate::keyframes::KeyframesRule>,
+    /// The names of the CSS texts the rules came from (`source.rs`).
+    sources: Vec<Option<String>>,
     /// `@position-try` rules, in source order (`position_try.rs`).
     position_try: Vec<PositionTryRule>,
     /// The `@import`s that loaded (`imports.rs`).
@@ -387,14 +403,17 @@ impl Stylesheet {
     /// the next monotonic source index. Errors on malformed selectors.
     ///
     /// A selector list (`a, b.foo`) expands into one `Rule` per list item.
+    #[track_caller]
     pub fn rule(mut self, selector: &str, style: TuiStyle) -> Result<Self, StyleError> {
+        let at = SourceLocation::rust(std::panic::Location::caller());
         let new_rules = self.build_rule(selector, style, RuleOrigin::Author)?;
-        self.push_rules(new_rules);
+        self.push_rules(located(new_rules, at));
         Ok(self)
     }
 
     /// Like `rule()` but panics on parse error. Convenient for tests and
     /// for selectors known at compile time.
+    #[track_caller]
     pub fn rule_unchecked(self, selector: &str, style: TuiStyle) -> Self {
         self.rule(selector, style).unwrap_or_else(|e| {
             panic!("rule_unchecked failed: {e}");
@@ -408,9 +427,11 @@ impl Stylesheet {
     /// error the stylesheet is left untouched.
     ///
     /// Used by `rdom-css` and any other accumulator-style consumer.
+    #[track_caller]
     pub fn add_rule(&mut self, selector: &str, style: TuiStyle) -> Result<(), StyleError> {
+        let at = SourceLocation::rust(std::panic::Location::caller());
         let new_rules = self.build_rule(selector, style, RuleOrigin::Author)?;
-        self.push_rules(new_rules);
+        self.push_rules(located(new_rules, at));
         Ok(())
     }
 

@@ -16,6 +16,7 @@ mod inline_style;
 mod keyframes;
 mod layers;
 mod lengths;
+mod locations;
 mod malformed_declarations;
 mod media;
 mod nesting;

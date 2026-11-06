@@ -73,10 +73,10 @@ pub use rdom_style::{
     FragmentationDeclarations, GridDeclarations, ImportantMask, LayerId, MaskDeclarations,
     Modifier, MotionDeclarations, MulticolDeclarations, PropertyRegistration, PropertySyntax,
     PropertySyntaxError, PseudoElementTarget, QuoteKind, QuotePair, Quotes, RegisterPropertyError,
-    Rule, RuleContext, RuleOrigin, Shared, Specificity, StyleError, StyleSelector, Stylesheet,
-    TableDeclarations, TextDeclarations, TextDecorationDeclarations, TimingFunction,
-    TransitionProperty, TransitionRule, TuiColor, TuiStyle, UiDeclarations, UserActionState, Value,
-    VarMap, parse_color, pseudo_element_names, resolve_tui_color,
+    Rule, RuleContext, RuleOrigin, Shared, SourceFile, SourceLocation, Specificity, StyleError,
+    StyleSelector, Stylesheet, TableDeclarations, TextDeclarations, TextDecorationDeclarations,
+    TimingFunction, TransitionProperty, TransitionRule, TuiColor, TuiStyle, UiDeclarations,
+    UserActionState, Value, VarMap, parse_color, pseudo_element_names, resolve_tui_color,
 };
 pub use rdom_style::{
     AnimationComposition, AnimationDirection, AnimationDuration, AnimationFillMode, AnimationName,

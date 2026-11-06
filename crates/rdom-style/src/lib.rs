@@ -100,8 +100,8 @@ pub use shared::Shared;
 pub use specificity::Specificity;
 pub use stylesheet::{
     ConditionId, ConditionKind, ConditionRule, Import, Layer, LayerId, LayerOrder, PositionTryRule,
-    PseudoElementTarget, Rule, RuleContext, RuleIndex, RuleOrigin, Scope, ScopeId, StyleError,
-    StyleSelector, Stylesheet, UserActionState, pseudo_element_names,
+    PseudoElementTarget, Rule, RuleContext, RuleIndex, RuleOrigin, Scope, ScopeId, SourceFile,
+    SourceLocation, StyleError, StyleSelector, Stylesheet, UserActionState, pseudo_element_names,
 };
 pub use transition::{
     LinearStop, TimingFunction, TransitionBehavior, TransitionProperty, TransitionRule,

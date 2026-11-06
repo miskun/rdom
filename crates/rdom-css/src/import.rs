@@ -50,6 +50,12 @@ impl<'l> Imports<'l> {
             depth: 0,
         }
     }
+
+    /// The URL of the sheet being parsed now: the innermost import's, or
+    /// the root's (`None` for a root parsed without one).
+    pub(crate) fn url(&self) -> Option<&str> {
+        self.stack.last().map(String::as_str)
+    }
 }
 
 /// What an at-rule at the head of `rest` (which starts with `@`) means
@@ -180,7 +186,11 @@ pub(crate) fn consume_import(
     };
     // CSS Cascade 5 §3: the imported rules apply while the media list
     // matches.
-    let mut ctx = rdom_style::RuleContext::default().in_layer(into);
+    // Its rules are written in the imported text, named by its URL.
+    let file = sheet.add_source(Some(loaded.url.clone()));
+    let mut ctx = rdom_style::RuleContext::default()
+        .in_layer(into)
+        .at(Some(rdom_style::SourceLocation::css(file, 1, 1)));
     // `supports()` likewise (Conditional 3 §6, evaluated once): a
     // `<supports-condition>` or a bare declaration (CSS Cascade 5 §3).
     if let Some(cond) = supports {

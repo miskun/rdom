@@ -66,13 +66,15 @@ pub(crate) fn consume_style_rule(
     warnings: &mut Vec<Warning>,
     ctx: Context<'_>,
 ) -> bool {
+    // The rule is written where its selector starts.
+    let (line, column) = (cursor.line(), cursor.col());
     match consume_rule_head(cursor, warnings, ctx) {
         Head::End => false,
         Head::Dropped => true,
         Head::Rule(selector) => {
             let block = Block {
                 selector: &selector,
-                ctx: ctx.rule,
+                ctx: ctx.rule.at_position(line, column),
                 children: Children::Nested,
             };
             consume_block_contents(cursor, sheet, warnings, block, true);
@@ -214,6 +216,7 @@ fn block_contents(
                         Children::Scoped => Parent::Scope,
                     },
                 };
+                let (line, column) = (cursor.line(), cursor.col());
                 match consume_rule_head(cursor, warnings, ctx) {
                     Head::End => break,
                     Head::Dropped => {}
@@ -223,7 +226,7 @@ fn block_contents(
                         flush(sheet, warnings, block, &mut run, &mut pending_own);
                         let child = Block {
                             selector: &selector,
-                            ctx: block.ctx,
+                            ctx: block.ctx.at_position(line, column),
                             children: Children::Nested,
                         };
                         consume_block_contents(cursor, sheet, warnings, child, true);
