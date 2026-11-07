@@ -223,3 +223,18 @@ fn a_panic_in_an_inspectors_change_leaves_the_app_taking_its_own_animations() {
     app.advance(200).unwrap();
     assert_eq!(events.get(), 3, "the app's transition is the app's");
 }
+
+#[test]
+fn a_repaint_sends_the_whole_frame_to_a_fresh_terminal() {
+    let (mut app, _, _, _) = app();
+    app.terminal_mut().backend_mut().clear_bytes();
+    app.repaint().unwrap();
+    let mut screen = crate::render::VirtualScreen::new(10, 2);
+    screen.apply(app.terminal().backend().bytes());
+    assert_eq!(
+        screen.row(0).trim_end(),
+        "x",
+        "the whole frame, from a clear screen"
+    );
+    assert!(app.terminal().backend().bytes().starts_with(b"\x1b[2J"));
+}

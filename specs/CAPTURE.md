@@ -848,6 +848,19 @@ As built, against the plan:
   one flagged; a two-glyph blink as flicker; a link too slow for the frames; the cast's shape and determinism; the
   protocol method with a filmstrip and a cast.
 
+Architect review (blocking, fixed with tests): B1 — the cast's first event was a frame encoded apart from the backend,
+whose memory of colors and cursor then disagreed with what later bytes assumed (a red glyph replayed in the default
+color): the film now repaints on a cleared terminal at its start (`App::repaint`) and the cast holds only bytes rdom
+sent; a test replays it through `VirtualScreen` and compares every frame. B2 — frame 0's bytes were synthetic and the
+inputs' cost unmeasured: frame 0 is its real repaint, the inputs' bytes are `input_bytes` and the cost check reads
+them. B3 — a spinner filmed part-way through a glyph counted its first glyph twice: the cycle starts where the glyph
+changes. B4 — silent cuts: the heatmap says how many runs it had (`heat_runs`), reduced-motion counts every changing
+cell, runs on the film itself when the environment already reduces motion, and a film lists the motion checks that did
+not run (`not_checked`). Non-blocking, fixed: `step_ms: 0` and a 0 bps link are refused; cost compares exact bits;
+the filmstrip always holds the last frame; the budget covers the inline cast and image; animations are named as CSS
+names them (`transition translate`, `animation slide`), in films and in `explain`. Recorded in `TECH_DEBT`
+CAPTURE-MOTION-1.
+
 ## Open questions
 
 - **Injection serialization:** how much of `AppHandle::inject` traffic can be made replayable without burdening apps;

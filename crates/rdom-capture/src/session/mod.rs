@@ -205,6 +205,14 @@ impl<A: CaptureApp> Session<A> {
         self.open.is_some()
     }
 
+    /// Repaint the whole frame on a cleared terminal, as a step (a film's
+    /// first frame).
+    pub(crate) fn repaint(&mut self) -> Result<Change, SessionError> {
+        let before = self.app()?.terminal().buffer().clone();
+        self.step(|o| Ok(o.app.repaint()?))?;
+        Ok(self.change_since(&before))
+    }
+
     /// What the last step sent the terminal (escape sequences and text).
     pub fn last_emitted(&self) -> &[u8] {
         self.open.as_ref().map_or(&[], |o| &o.emitted)

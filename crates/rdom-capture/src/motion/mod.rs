@@ -127,7 +127,7 @@ impl Link {
             Link::Local => None,
             Link::Ssh => Some(2_000_000),
             Link::Slow => Some(256_000),
-            Link::Bps(b) => Some(b.max(1)),
+            Link::Bps(b) => Some(b),
         }
     }
 }
@@ -139,7 +139,8 @@ pub struct FilmFrame {
     pub t_ms: u64,
     pub grid_hash: String,
     pub cells_changed: u32,
-    /// The bytes it sent the terminal.
+    /// The bytes it sent the terminal (frame 0: its repaint on a cleared
+    /// terminal; the inputs' own are `Film::input_bytes`).
     pub bytes: usize,
 }
 
@@ -216,15 +217,26 @@ pub struct Film {
     pub cells: Vec<CellTimeline>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub nodes: Vec<NodeTimeline>,
+    /// The terminal's size during the film.
+    pub size: [u16; 2],
+    /// The bytes the inputs at the start sent (their frame), apart from
+    /// frame 0's.
+    pub input_bytes: usize,
     /// The cells that changed, most-changed first (at most 64 runs).
     pub heatmap: Vec<Heat>,
+    /// How many runs the heatmap had before it was cut to 64.
+    pub heat_runs: usize,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub spinners: Vec<Spinner>,
     pub findings: Vec<Finding>,
+    /// The motion checks that did not run, and why.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub not_checked: Vec<crate::audit::NotChecked>,
     /// Every frame's grid, for a filmstrip.
     #[serde(skip)]
     pub grids: Vec<Grid>,
-    /// The bytes each frame sent (the first: the whole frame, encoded).
+    /// The bytes each frame sent; the first: the whole frame, repainted on
+    /// a cleared terminal (what a recording starts from).
     #[serde(skip)]
     pub sent: Vec<Vec<u8>>,
 }
@@ -258,8 +270,15 @@ impl<A: CaptureApp> Session<A> {
         let step = match request.step_ms {
             Some(s) => s,
             None => 1000 / u64::from(self.environment()?.animation_fps.max(1)),
+        };
+        if step == 0 {
+            return Err(invalid("a film's step is at least 1 ms".into()));
         }
-        .max(1);
+        if request.link == Link::Bps(0) {
+            return Err(invalid(
+                "a link of 0 bits per second carries nothing".into(),
+            ));
+        }
         if request.ms / step + 1 > MAX_FRAMES as u64 {
             return Err(invalid(format!(
                 "{} frames: at most {MAX_FRAMES} — a longer step or a shorter film",
@@ -269,7 +288,21 @@ impl<A: CaptureApp> Session<A> {
         let mut fork = self.fork()?;
         let mut film = shoot(&mut fork, request, step)?;
         film.findings = audits::findings(&film, request);
-        if request.reduced_motion && !self.environment()?.reduced_motion {
+        if request.link == Link::Local {
+            film.not_checked.push(crate::audit::NotChecked {
+                check: "cost".into(),
+                reason: "a local link carries every frame in time".into(),
+            });
+        }
+        if !request.reduced_motion {
+            film.not_checked.push(crate::audit::NotChecked {
+                check: "reduced-motion".into(),
+                reason: "not asked for".into(),
+            });
+        } else if self.environment()?.reduced_motion {
+            // The film already is the reduced-motion one.
+            film.findings.extend(audits::reduced_motion(&film));
+        } else {
             let mut env = self.opened_environment()?.clone();
             env.reduced_motion = true;
             let mut reduced = self.fork_in(env)?;
@@ -303,6 +336,10 @@ fn shoot<A: CaptureApp>(
     } else {
         s.input(&request.inputs)?
     };
+    let input_bytes = first.bytes_emitted;
+    // The whole frame on a cleared terminal: a recording's start, and the
+    // backend's memory of colors and cursor in step with it.
+    s.repaint()?;
     {
         let app = s.app()?;
         let dom = app.dom();
@@ -331,11 +368,7 @@ fn shoot<A: CaptureApp>(
         let capture = s.capture(&CaptureRequest::with_layers([Layer::Grid, Layer::Owners]))?;
         let grid = capture.grid.expect("asked for");
         let owners = capture.owners.expect("asked for");
-        sent.push(if t == 0 {
-            cast::whole_frame(&grid)
-        } else {
-            s.last_emitted().to_vec()
-        });
+        sent.push(s.last_emitted().to_vec());
         frames.push(FilmFrame {
             t_ms: t,
             grid_hash: capture.meta.grid_hash,
@@ -374,7 +407,7 @@ fn shoot<A: CaptureApp>(
                 animations: app
                     .get_animations(*id)
                     .iter()
-                    .map(|a| format!("{:?}", a.kind()))
+                    .map(crate::query::explain::animation_name)
                     .collect(),
             };
             let same = line.changes.last().is_some_and(|l| {
@@ -392,14 +425,19 @@ fn shoot<A: CaptureApp>(
         t += step;
         change = s.advance(step)?;
     }
+    let viewport = s.environment()?.viewport;
     let mut film = Film {
         step_ms: step,
         frames,
         cells: Vec::new(),
         nodes: node_lines,
+        size: [viewport.width, viewport.height],
+        input_bytes,
         heatmap: Vec::new(),
+        heat_runs: 0,
         spinners: Vec::new(),
         findings: Vec::new(),
+        not_checked: Vec::new(),
         grids,
         sent,
     };
@@ -430,7 +468,7 @@ fn shoot<A: CaptureApp>(
             CellTimeline { x, y, changes }
         })
         .collect();
-    film.heatmap = audits::heatmap(&all);
+    (film.heatmap, film.heat_runs) = audits::heatmap(&all);
     film.spinners = audits::spinners(&all, step);
     Ok(film)
 }

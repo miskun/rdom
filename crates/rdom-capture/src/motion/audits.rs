@@ -17,9 +17,9 @@ const SPINNER_MS: (u64, u64) = (50, 500);
 
 /// The cells that changed, as runs of a row with one change count, most
 /// first; at most 64.
-pub(super) fn heatmap(frames: &Frames) -> Vec<Heat> {
+pub(super) fn heatmap(frames: &Frames) -> (Vec<Heat>, usize) {
     let Some(first) = frames.first() else {
-        return Vec::new();
+        return (Vec::new(), 0);
     };
     let mut out: Vec<Heat> = Vec::new();
     for (y, row) in first.iter().enumerate() {
@@ -57,8 +57,9 @@ pub(super) fn heatmap(frames: &Frames) -> Vec<Heat> {
             .cmp(&a.changes)
             .then((a.rect[1], a.rect[0]).cmp(&(b.rect[1], b.rect[0])))
     });
+    let runs = out.len();
     out.truncate(64);
-    out
+    (out, runs)
 }
 
 /// Cells cycling through three or more glyphs with a period that repeats
@@ -85,11 +86,18 @@ pub(super) fn spinners(frames: &Frames, step: u64) -> Vec<Spinner> {
             else {
                 continue;
             };
-            // One cycle's glyphs, in order of appearance, each once.
+            // One cycle's glyphs, each once, from where the glyph changes:
+            // a film that starts part-way through a glyph would otherwise
+            // see its first glyph at both ends of the cycle.
+            let cycle = &seq[..p];
+            let start = (0..p)
+                .find(|&k| cycle[k] != cycle[(k + p - 1) % p])
+                .unwrap_or(0);
             let mut glyphs: Vec<String> = Vec::new();
-            for g in &seq[..p] {
+            for k in 0..p {
+                let g = cycle[(start + k) % p];
                 if glyphs.last().is_none_or(|l| l != g) {
-                    glyphs.push((*g).to_string());
+                    glyphs.push(g.to_string());
                 }
             }
             let period_ms = p as u64 * step;
@@ -173,7 +181,7 @@ pub(super) fn findings(film: &Film, request: &FilmRequest) -> Vec<Finding> {
                 ),
                 vec![[s.x, s.y, 1, 1]],
                 json!({"glyphs": s.glyphs, "widths": widths}),
-                serde_json::Value::Null,
+                json!({"widths": "equal"}),
             ));
         }
         if s.frame_ms < SPINNER_MS.0 || s.frame_ms > SPINNER_MS.1 {
@@ -193,11 +201,28 @@ pub(super) fn findings(film: &Film, request: &FilmRequest) -> Vec<Finding> {
     // Cost: a frame whose bytes take longer to send than the step.
     if let Some(bps) = request.link.bps() {
         let ms = |bytes: usize| bytes as u64 * 8 * 1000 / bps;
+        // Exact: the bits × 1000 against the step's, no rounding down.
+        let late_bytes = |bytes: usize| bytes as u64 * 8 * 1000 > film.step_ms * bps;
+        if late_bytes(film.input_bytes) {
+            out.push(finding(
+                Check::Cost,
+                Severity::Warning,
+                format!(
+                    "the inputs' frame takes {} ms to send on {:?}, longer than the {} ms step",
+                    ms(film.input_bytes),
+                    request.link,
+                    film.step_ms
+                ),
+                Vec::new(),
+                json!({"bytes": film.input_bytes, "bps": bps}),
+                json!({"ms": film.step_ms}),
+            ));
+        }
         let late: Vec<&super::FilmFrame> = film
             .frames
             .iter()
             .skip(1)
-            .filter(|f| ms(f.bytes) > film.step_ms)
+            .filter(|f| late_bytes(f.bytes))
             .collect();
         if !late.is_empty() {
             let worst = late.iter().map(|f| f.bytes).max().unwrap_or(0);
@@ -222,22 +247,34 @@ pub(super) fn findings(film: &Film, request: &FilmRequest) -> Vec<Finding> {
 }
 
 /// What still moves in a film taken under `prefers-reduced-motion:
-/// reduce`.
+/// reduce`: every cell that changes, not the heatmap's cut.
 pub(super) fn reduced_motion(still: &Film) -> Vec<Finding> {
-    let moving: Vec<[u16; 4]> = still.heatmap.iter().map(|h| h.rect).collect();
+    let frames: Vec<_> = still.grids.iter().map(super::cells_of).collect();
+    let mut moving: Vec<(u16, u16)> = Vec::new();
+    if let Some(first) = frames.first() {
+        for (y, row) in first.iter().enumerate() {
+            for x in 0..row.len() {
+                let at = |f: &Vec<Vec<(String, ColorValue, ColorValue)>>| {
+                    f.get(y).and_then(|r| r.get(x)).cloned()
+                };
+                if frames.windows(2).any(|w| at(&w[0]) != at(&w[1])) {
+                    moving.push((x as u16, y as u16));
+                }
+            }
+        }
+    }
     if moving.is_empty() {
         return Vec::new();
     }
-    let cells: u32 = moving
-        .iter()
-        .map(|r| u32::from(r[2]) * u32::from(r[3]))
-        .sum();
     vec![finding(
         Check::ReducedMotion,
         Severity::Warning,
-        format!("{cells} cells still change under prefers-reduced-motion: reduce"),
-        moving,
-        json!({"cells": cells}),
+        format!(
+            "{} cells still change under prefers-reduced-motion: reduce",
+            moving.len()
+        ),
+        crate::audit::rects(&moving),
+        json!({"cells": moving.len()}),
         json!({"cells": 0}),
     )]
 }

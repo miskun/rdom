@@ -1,66 +1,20 @@
 //! A film as an asciicast v2 recording (`specs/CAPTURE.md` §Views,
 //! `cast`): a header line, then one `[seconds, "o", text]` event per
-//! frame. Every event after the first is the bytes rdom sent the terminal
-//! for that frame; the first is the whole first frame, encoded from its
-//! grid (cursor positions and SGR per run), since what rdom sent before
-//! it assumed a screen the recording does not have. No timestamp in the
-//! header: the same film is the same file.
-
-use std::fmt::Write as _;
+//! frame — the bytes rdom sent the terminal. The first is the whole first
+//! frame, repainted on a cleared terminal (`App::repaint`), so a player
+//! starting from nothing shows what the app showed; every later one is
+//! what rdom sent next, against the same terminal state. No timestamp in
+//! the header: the same film is the same file.
 
 use super::Film;
-use crate::capture::{Attr, ColorValue, Grid};
 
-/// `grid` as the bytes that draw it on a cleared terminal.
-pub(crate) fn whole_frame(grid: &Grid) -> Vec<u8> {
-    let mut out = String::from("\x1b[0m\x1b[2J");
-    for (y, runs) in grid.rows.iter().enumerate() {
-        let _ = write!(out, "\x1b[{};1H", y + 1);
-        for r in runs {
-            let (fg, bg) = r.shown_colors();
-            out.push_str("\x1b[0");
-            sgr_color(&mut out, fg, 38);
-            sgr_color(&mut out, bg, 48);
-            for (a, code) in [
-                (Attr::Bold, "1"),
-                (Attr::Italic, "3"),
-                (Attr::Underline, "4"),
-                (Attr::BlinkSlow, "5"),
-                (Attr::Hidden, "8"),
-                (Attr::Strikethrough, "9"),
-                (Attr::Overline, "53"),
-            ] {
-                if r.mods.contains(&a) {
-                    out.push(';');
-                    out.push_str(code);
-                }
-            }
-            out.push('m');
-            out.push_str(&r.text);
-        }
-    }
-    out.push_str("\x1b[0m");
-    out.into_bytes()
-}
-
-fn sgr_color(out: &mut String, c: ColorValue, base: u8) {
-    match c {
-        ColorValue::Default => {}
-        ColorValue::Rgb(r, g, b) | ColorValue::Rgba(r, g, b, _) => {
-            let _ = write!(out, ";{base};2;{r};{g};{b}");
-        }
-        ColorValue::Ansi(n) => {
-            let _ = write!(out, ";{base};5;{n}");
-        }
-    }
-}
-
-/// `film` of a `width` × `height` terminal as an asciicast v2 file.
-pub fn asciicast(film: &Film, width: u16, height: u16) -> String {
+/// `film` as an asciicast v2 file, at the film's terminal size.
+pub fn asciicast(film: &Film) -> String {
+    let [width, height] = film.size;
     let mut out = serde_json::json!({"version": 2, "width": width, "height": height}).to_string();
     out.push('\n');
     for (frame, bytes) in film.frames.iter().zip(&film.sent) {
-        if bytes.is_empty() && frame.t_ms > 0 {
+        if bytes.is_empty() {
             continue;
         }
         let event = serde_json::json!([

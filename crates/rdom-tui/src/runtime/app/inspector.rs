@@ -118,4 +118,13 @@ impl<B: Backend> App<B> {
         let i = index.checked_sub(style_elements)?;
         self.stylesheets.get(i).map(|(id, _)| *id)
     }
+
+    /// Clear the terminal — and the backend's memory of its colors and
+    /// cursor — and draw the whole frame again: every byte of it, as a
+    /// fresh terminal needs (a recording's first frame).
+    pub fn repaint(&mut self) -> io::Result<()> {
+        self.terminal.clear()?;
+        self.redraw.note(super::redraw::Redraw::Paint);
+        self.draw_if_dirty()
+    }
 }

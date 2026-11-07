@@ -254,24 +254,13 @@ pub(crate) struct FilmParams {
 pub(crate) fn film<A: CaptureApp>(session: &Session<A>, p: FilmParams) -> Result<Value, RpcError> {
     let film = session.film(&p.request)?;
     let mut answer = json(&film)?;
-    fit(&mut answer, p.budget);
     let write = |path: PathBuf, bytes: &[u8]| -> Result<String, RpcError> {
         std::fs::write(&path, bytes)
             .map_err(|e| RpcError::new(code::IO, format!("writing {}: {e}", path.display())))?;
         Ok(path.display().to_string())
     };
     if let Some(images) = &p.filmstrip {
-        let every = film.grids.len().div_ceil(24).max(1);
-        let labels: Vec<String> = film
-            .frames
-            .iter()
-            .step_by(every)
-            .map(|f| format!("{} ms", f.t_ms))
-            .collect();
-        let tiles: Vec<(String, &Grid)> = labels
-            .into_iter()
-            .zip(film.grids.iter().step_by(every))
-            .collect();
+        let tiles = strip(&film);
         let profile = profile(images.profile.as_deref())?;
         let columns = (tiles.len() as f64).sqrt().ceil() as usize;
         let image = render(
@@ -285,8 +274,7 @@ pub(crate) fn film<A: CaptureApp>(session: &Session<A>, p: FilmParams) -> Result
         };
     }
     if p.cast {
-        let env = session.environment()?;
-        let text = crate::motion::cast::asciicast(&film, env.viewport.width, env.viewport.height);
+        let text = crate::motion::cast::asciicast(&film);
         answer["cast"] = match &p.out {
             Some(out) => {
                 serde_json::json!({ "file": write(with_suffix(out, ".cast"), text.as_bytes())? })
@@ -294,5 +282,25 @@ pub(crate) fn film<A: CaptureApp>(session: &Session<A>, p: FilmParams) -> Result
             None => Value::String(text),
         };
     }
+    // The budget covers the whole answer, the inline cast and image too.
+    fit(&mut answer, p.budget);
     Ok(answer)
+}
+
+/// At most 24 of a film's frames, evenly spaced, the last always among
+/// them (the end state), each labelled by its time.
+fn strip(film: &crate::motion::Film) -> Vec<(String, &Grid)> {
+    let n = film.grids.len();
+    let every = n.div_ceil(24).max(1);
+    let mut picks: Vec<usize> = (0..n).step_by(every).collect();
+    if n > 0 && picks.last() != Some(&(n - 1)) {
+        if picks.len() == 24 {
+            picks.pop();
+        }
+        picks.push(n - 1);
+    }
+    picks
+        .into_iter()
+        .map(|i| (format!("{} ms", film.frames[i].t_ms), &film.grids[i]))
+        .collect()
 }

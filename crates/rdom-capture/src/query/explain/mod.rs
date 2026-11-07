@@ -268,6 +268,17 @@ fn op_info(app: &App<TestBackend>, op: &PaintOp) -> OpInfo {
     }
 }
 
+/// An animation as CSS names it: `animation <name>` or `transition
+/// <property>`.
+pub(crate) fn animation_name(a: &rdom_tui::runtime::animation::AnimationInfo) -> String {
+    use rdom_tui::runtime::animation::AnimationKind;
+    match a.kind() {
+        AnimationKind::CssAnimation(name) => format!("animation {name}"),
+        AnimationKind::CssTransition(property) => format!("transition {}", property.css_name()),
+        other => format!("{other:?}"),
+    }
+}
+
 /// Explain element `id`: its node, boxes, animations, and the properties
 /// `properties` (all its declared ones when empty); `ids` is the document's
 /// identities, computed once by the caller.
@@ -293,11 +304,7 @@ pub(crate) fn element(
         .iter()
         .map(|p| property(&mut traces, id, p, detail))
         .collect();
-    let animations = app
-        .get_animations(id)
-        .iter()
-        .map(|a| format!("{:?}", a.kind()))
-        .collect();
+    let animations = app.get_animations(id).iter().map(animation_name).collect();
     Explanation {
         target: Target {
             node: node_key(id),

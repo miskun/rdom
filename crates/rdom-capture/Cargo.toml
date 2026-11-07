@@ -37,3 +37,5 @@ rustix = { version = "0.38", default-features = false, features = ["std", "stdio
 rdom-parser = { path = "../rdom-parser", version = "0.6.0" }
 # Decodes the PNG views in tests: an independent check of the encoder.
 png = "0.18"
+# Replays a film's cast through rdom-tui's VT emulator (`VirtualScreen`).
+rdom-tui = { path = "../rdom-tui", version = "0.6.5", features = ["test-util"] }
