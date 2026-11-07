@@ -6,7 +6,7 @@
 use serde_json::json;
 
 use super::{Film, FilmRequest, Heat, Spinner};
-use crate::audit::{Finding, Severity};
+use crate::audit::{Check, Finding, Severity};
 use crate::capture::ColorValue;
 
 /// Every frame's cells, row by row.
@@ -106,7 +106,7 @@ pub(super) fn spinners(frames: &Frames, step: u64) -> Vec<Spinner> {
 }
 
 fn finding(
-    check: &'static str,
+    check: Check,
     severity: Severity,
     message: String,
     cells: Vec<[u16; 4]>,
@@ -146,7 +146,7 @@ pub(super) fn findings(film: &Film, request: &FilmRequest) -> Vec<Finding> {
     flicker.retain(|c| !spinning.contains(c));
     if !flicker.is_empty() {
         out.push(finding(
-            "flicker",
+            Check::Flicker,
             Severity::Warning,
             format!(
                 "{} cells change and change back within one frame",
@@ -165,7 +165,7 @@ pub(super) fn findings(film: &Film, request: &FilmRequest) -> Vec<Finding> {
             .collect();
         if widths.iter().any(|w| *w != widths[0]) {
             out.push(finding(
-                "spinner",
+                Check::Spinner,
                 Severity::Warning,
                 format!(
                     "a spinner's glyphs differ in width ({:?}): what follows it jitters",
@@ -178,7 +178,7 @@ pub(super) fn findings(film: &Film, request: &FilmRequest) -> Vec<Finding> {
         }
         if s.frame_ms < SPINNER_MS.0 || s.frame_ms > SPINNER_MS.1 {
             out.push(finding(
-                "spinner",
+                Check::Spinner,
                 Severity::Info,
                 format!(
                     "a spinner shows each glyph {} ms, outside a comfortable {}–{} ms",
@@ -202,7 +202,7 @@ pub(super) fn findings(film: &Film, request: &FilmRequest) -> Vec<Finding> {
         if !late.is_empty() {
             let worst = late.iter().map(|f| f.bytes).max().unwrap_or(0);
             out.push(finding(
-                "cost",
+                Check::Cost,
                 Severity::Warning,
                 format!(
                     "{} of {} frames take longer to send than the {} ms step on {:?} (the largest: {worst} bytes, {} ms)",
@@ -233,7 +233,7 @@ pub(super) fn reduced_motion(still: &Film) -> Vec<Finding> {
         .map(|r| u32::from(r[2]) * u32::from(r[3]))
         .sum();
     vec![finding(
-        "reduced-motion",
+        Check::ReducedMotion,
         Severity::Warning,
         format!("{cells} cells still change under prefers-reduced-motion: reduce"),
         moving,

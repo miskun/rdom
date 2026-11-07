@@ -322,29 +322,148 @@ fn an_acid_label_is_cut_by_exactly_the_rewrites_that_do_not_fit() {
 }
 
 /// CAPTURE phase 7: a full audit of every acid page runs every check or
-/// says why not, and its findings name elements by identity.
+/// says why not, and finds what it found when the audits were reviewed —
+/// a change of these counts is a change of a check (or of a page) to look
+/// at, not to accept blindly. The acid pages are hostile on purpose: they
+/// test the platform's edges, not good design.
 #[test]
 fn every_acid_page_takes_a_full_audit() {
-    use rdom_capture::audit::{AuditRequest, CHECKS};
-    for page in 1..=acid::page_count() {
+    use rdom_capture::audit::{AuditRequest, Check};
+    const KNOWN: &[(u8, &[(&str, usize)])] = &[
+        (
+            1,
+            &[
+                ("alignment", 5),
+                ("contrast", 17),
+                ("tokens", 8),
+                ("truncation", 3),
+            ],
+        ),
+        (
+            2,
+            &[
+                ("alignment", 16),
+                ("contrast", 13),
+                ("depth-loss", 4),
+                ("focus-visible", 4),
+                ("occlusion", 11),
+                ("tokens", 16),
+                ("truncation", 9),
+            ],
+        ),
+        (
+            3,
+            &[
+                ("alignment", 1),
+                ("contrast", 6),
+                ("depth-loss", 1),
+                ("landmarks", 1),
+                ("palette", 1),
+                ("targets", 1),
+                ("tokens", 17),
+                ("truncation", 4),
+            ],
+        ),
+        (
+            4,
+            &[
+                ("alignment", 1),
+                ("contrast", 24),
+                ("occlusion", 8),
+                ("tokens", 15),
+                ("truncation", 5),
+            ],
+        ),
+        (5, &[("contrast", 1), ("occlusion", 4), ("tokens", 6)]),
+        (
+            6,
+            &[
+                ("alignment", 17),
+                ("contrast", 5),
+                ("focus-visible", 1),
+                ("occlusion", 2),
+                ("tokens", 23),
+                ("truncation", 4),
+            ],
+        ),
+        (
+            7,
+            &[
+                ("alignment", 2),
+                ("contrast", 2),
+                ("focus-visible", 1),
+                ("tokens", 8),
+            ],
+        ),
+        (
+            8,
+            &[
+                ("alignment", 13),
+                ("contrast", 11),
+                ("focus-visible", 1),
+                ("targets", 1),
+                ("tokens", 10),
+                ("truncation", 3),
+            ],
+        ),
+        (
+            9,
+            &[
+                ("contrast", 3),
+                ("focus-visible", 2),
+                ("palette", 1),
+                ("reachability", 1),
+                ("tokens", 10),
+            ],
+        ),
+        (
+            10,
+            &[
+                ("contrast", 1),
+                ("focus-visible", 1),
+                ("landmarks", 1),
+                ("reachability", 1),
+                ("tokens", 9),
+            ],
+        ),
+        (
+            11,
+            &[
+                ("contrast", 1),
+                ("focus-visible", 10),
+                ("reachability", 2),
+                ("tokens", 3),
+            ],
+        ),
+        (12, &[("alignment", 3), ("focus-visible", 2), ("tokens", 7)]),
+        (
+            13,
+            &[
+                ("alignment", 3),
+                ("contrast", 3),
+                ("tokens", 6),
+                ("truncation", 2),
+            ],
+        ),
+    ];
+    for &(page, known) in KNOWN {
         let mut session = Session::new(Showcase);
         session
             .open(acid_env(), Some(&format!("acid:{page}")))
             .unwrap();
         let a = session.audit(&AuditRequest::all()).unwrap();
-        for check in CHECKS {
+        for c in Check::AUDIT {
             assert!(
-                a.checked.contains(&check) || a.not_checked.iter().any(|n| n.check == check),
-                "page {page}: {check}"
+                a.checked.contains(&c) || a.not_checked.iter().any(|n| n.check == c.name()),
+                "page {page}: {c:?}"
             );
         }
-        eprintln!("AUDIT page {page}: {} findings, {:?}", a.findings.len(), {
-            let mut by: std::collections::BTreeMap<&str, usize> = Default::default();
-            for f in &a.findings {
-                *by.entry(f.check).or_default() += 1;
-            }
-            by
-        });
+        let mut by: std::collections::BTreeMap<&str, usize> = Default::default();
+        for f in &a.findings {
+            *by.entry(f.check.name()).or_default() += 1;
+        }
+        let want: std::collections::BTreeMap<&str, usize> = known.iter().copied().collect();
+        assert_eq!(by, want, "page {page}");
     }
 }
 
@@ -412,7 +531,9 @@ fn a_film_of_acid_tile_48_gives_its_specd_timeline() {
     assert_eq!(film.nodes[2].changes.len(), 1, "the spinner moves nothing");
     // The tile ignores prefers-reduced-motion: the film says so.
     assert!(
-        film.findings.iter().any(|f| f.check == "reduced-motion"),
+        film.findings
+            .iter()
+            .any(|f| f.check == rdom_capture::audit::Check::ReducedMotion),
         "{:?}",
         film.findings
     );

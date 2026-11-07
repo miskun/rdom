@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use super::diff::{Diff, diff};
 use crate::app::CaptureApp;
-use crate::audit::{AuditRequest, Finding};
+use crate::audit::{Audit, AuditRequest, Check, Finding};
 use crate::capture::Grid;
 use crate::edit::Patch;
 use crate::session::{Session, SessionError, Step};
@@ -63,7 +63,8 @@ pub struct Outcome {
     pub grid: Option<Grid>,
 }
 
-/// The audit findings a candidate fixes and introduces.
+/// The audit findings a candidate fixes and introduces, over the checks
+/// that ran on both the base and the candidate.
 #[derive(Debug, Clone, Serialize)]
 #[non_exhaustive]
 pub struct FindingDelta {
@@ -71,6 +72,10 @@ pub struct FindingDelta {
     pub score: i64,
     pub fixed: Vec<Finding>,
     pub introduced: Vec<Finding>,
+    /// The checks that ran on only one of the two, so are not compared
+    /// (a check that stops running fixes nothing).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub incomparable: Vec<Check>,
 }
 
 /// A finding's identity across moments: its check and its elements (or,
@@ -84,21 +89,38 @@ fn same(a: &Finding, b: &Finding) -> bool {
         }
 }
 
-fn delta(base: &[Finding], now: &[Finding]) -> FindingDelta {
-    let fixed: Vec<Finding> = base
+/// The findings `now` fixes and introduces against `base`: each finding
+/// matched to at most one (a multiset), over the checks both ran.
+fn delta(base: &Audit, now: &Audit) -> FindingDelta {
+    let both = |c: &Check| base.checked.contains(c) && now.checked.contains(c);
+    let mut incomparable: Vec<Check> = base
+        .checked
         .iter()
-        .filter(|b| !now.iter().any(|n| same(b, n)))
-        .cloned()
+        .chain(&now.checked)
+        .filter(|c| !both(c))
+        .copied()
         .collect();
-    let introduced: Vec<Finding> = now
-        .iter()
-        .filter(|n| !base.iter().any(|b| same(b, n)))
-        .cloned()
-        .collect();
+    incomparable.sort();
+    incomparable.dedup();
+    let (base, mut now): (Vec<&Finding>, Vec<&Finding>) = (
+        base.findings.iter().filter(|f| both(&f.check)).collect(),
+        now.findings.iter().filter(|f| both(&f.check)).collect(),
+    );
+    let mut fixed = Vec::new();
+    for b in base {
+        match now.iter().position(|n| same(b, n)) {
+            Some(i) => {
+                now.remove(i);
+            }
+            None => fixed.push(b.clone()),
+        }
+    }
+    let introduced: Vec<Finding> = now.into_iter().cloned().collect();
     FindingDelta {
         score: fixed.len() as i64 - introduced.len() as i64,
         fixed,
         introduced,
+        incomparable,
     }
 }
 
@@ -127,8 +149,8 @@ impl<A: CaptureApp> Session<A> {
         let mut base_fork = self.fork()?;
         base_fork.advance(settle_ms)?;
         let base = base_fork.snapshot()?;
-        let base_findings = match audit {
-            Some(req) => Some(base_fork.audit(req)?.findings),
+        let base_audit = match audit {
+            Some(req) => Some(base_fork.audit(req)?),
             None => None,
         };
         let mut outcomes: Vec<Outcome> = candidates
@@ -142,8 +164,8 @@ impl<A: CaptureApp> Session<A> {
                     fork.advance(settle_ms)?;
                     let snap = fork.snapshot()?;
                     let patch = fork.patch(false)?;
-                    let findings = match (audit, &base_findings) {
-                        (Some(req), Some(base)) => Some(delta(base, &fork.audit(req)?.findings)),
+                    let findings = match (audit, &base_audit) {
+                        (Some(req), Some(base)) => Some(delta(base, &fork.audit(req)?)),
                         _ => None,
                     };
                     Ok((diff(&base, &snap), patch, findings, snap.grid))
@@ -175,5 +197,51 @@ impl<A: CaptureApp> Session<A> {
             });
         }
         Ok(outcomes)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::delta;
+    use crate::audit::{Audit, Check, Finding, Severity};
+
+    fn finding(check: Check, node: &str) -> Finding {
+        Finding {
+            check,
+            severity: Severity::Error,
+            message: "m".into(),
+            nodes: vec![node.into()],
+            cells: Vec::new(),
+            inputs: serde_json::Value::Null,
+            threshold: serde_json::Value::Null,
+        }
+    }
+
+    fn audit(checked: Vec<Check>, findings: Vec<Finding>) -> Audit {
+        Audit {
+            profile: "p".into(),
+            checked,
+            not_checked: Vec::new(),
+            partial: Vec::new(),
+            findings,
+        }
+    }
+
+    #[test]
+    fn a_check_that_stops_running_fixes_nothing() {
+        let base = audit(vec![Check::Tokens], vec![finding(Check::Tokens, "a")]);
+        let now = audit(Vec::new(), Vec::new());
+        let d = delta(&base, &now);
+        assert_eq!((d.score, d.fixed.len()), (0, 0));
+        assert_eq!(d.incomparable, [Check::Tokens]);
+    }
+
+    #[test]
+    fn findings_are_matched_one_to_one() {
+        let two = vec![finding(Check::Contrast, "a"), finding(Check::Contrast, "a")];
+        let base = audit(vec![Check::Contrast], two);
+        let now = audit(vec![Check::Contrast], vec![finding(Check::Contrast, "a")]);
+        let d = delta(&base, &now);
+        assert_eq!((d.score, d.fixed.len(), d.introduced.len()), (1, 1, 0));
     }
 }

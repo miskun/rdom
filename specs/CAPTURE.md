@@ -464,7 +464,7 @@ checks use it where present; otherwise they infer from the page and say so.
 - **contrast:** text fg/bg (WCAG 2 ratio and APCA Lc) after color reduction and the profile's palette.
 - **truncation and clipping:** text cut without an ellipsis; content outside every scrollport; zero-size boxes with
   text.
-- **occlusion:** text painted and then fully covered.
+- **occlusion:** text painted and then covered (each covered cell counts; overlays that belong to the text — its caret, its ellipsis, its selection — and a top-layer cover, reported as info, are told apart).
 - **alignment:** box edges that miss a shared column or row by one cell.
 - **rhythm:** spacing values off the declared scale, or off the dominant one; aspect-aware (2 columns ≈ 1 row).
 - **palette sprawl:** near-duplicate colors (ΔE OKLab), colors not from declared tokens.
@@ -803,6 +803,23 @@ As built, against the plan:
 - Tests: a failing and a passing page per check (`tests/audit.rs`), the reference values of WCAG, APCA and OKLab,
   `whatif` ranking a fix above a regression, the protocol method, and a full audit of every acid page (13 pages,
   every check run or said why not).
+
+Architect review (blocking, fixed with fixtures): B1 — truncation exempted everything under an `overflow: hidden`
+ancestor and flagged boxes scrolling their own text: now only `scroll` / `auto` on the element or an ancestor (what a
+user can scroll) exempts. B2 — focus-visible forced pseudo-classes, missing runtime indicators (a scroll container's
+thumb, the caret), transitions and already-focused elements: now a Tab walk with real focus, each step settled 300 ms
+and compared in the element's region; `reachability` shares the walk (one fork). B3 — tokens were compared at 24 bits
+against cells at the environment's depth: now quantized as the cells are, bold resolved; a declared token that is no
+color is refused. B4 — `whatif` counted a check that stopped running as fixed and matched findings many-to-one: now
+only checks both ran, one-to-one, and the rest listed as incomparable. B5 — contrast held select labels, password dots,
+selection, highlights and ellipses to 3:1 and flagged disabled controls: text is now classified by part and glyph, and
+inactive controls are exempt (WCAG 1.4.3). B6 — occlusion reported a container's caret or ellipsis over a child's text:
+overlays of the text's own and covers by its ancestors are not covers; top-layer covers are info. B7 — caps were
+silent: an audit now lists `partial` checks and what they left out (48 focusables, 256 colors, 32 misalignments). B8 —
+a full audit did not list `latency`. B9 — fixtures for each, a focus trap for the reachability error, and the acid
+pages' finding counts pinned. Non-blocking, done: a `Check` enum is the one source of check names (audit and film);
+severity follows WCAG (Error for its requirements, Warning for this crate's thresholds and graphics); unnamed forms and
+regions are no landmarks, unrendered headings no headings; disabled controls are no targets.
 
 ### Phase 8 — motion: `film`, timelines, motion audits, `cast`, bandwidth: DONE (2026-11-07)
 

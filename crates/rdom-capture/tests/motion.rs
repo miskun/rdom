@@ -56,7 +56,9 @@ fn a_spinner_is_found_with_its_pace() {
     assert_eq!(f.cells[0].changes.len(), f.frames.len());
     // 50 ms a glyph is inside the comfortable range; equal widths.
     assert!(
-        !f.findings.iter().any(|x| x.check == "spinner"),
+        !f.findings
+            .iter()
+            .any(|x| x.check == rdom_capture::audit::Check::Spinner),
         "{:?}",
         f.findings
     );
@@ -65,7 +67,7 @@ fn a_spinner_is_found_with_its_pace() {
         jitter
             .findings
             .iter()
-            .any(|x| x.check == "spinner" && x.message.contains("width")),
+            .any(|x| x.check == rdom_capture::audit::Check::Spinner && x.message.contains("width")),
         "{:?}",
         jitter.findings
     );
@@ -76,12 +78,19 @@ fn a_cell_that_blinks_each_frame_is_flicker() {
     let f = film(&["x", " "], FilmRequest::of(400).with_step(50));
     assert!(f.spinners.is_empty());
     assert!(
-        f.findings.iter().any(|x| x.check == "flicker"),
+        f.findings
+            .iter()
+            .any(|x| x.check == rdom_capture::audit::Check::Flicker),
         "{:?}",
         f.findings
     );
     let still = film(&["x"], FilmRequest::of(400).with_step(50));
-    assert!(!still.findings.iter().any(|x| x.check == "flicker"));
+    assert!(
+        !still
+            .findings
+            .iter()
+            .any(|x| x.check == rdom_capture::audit::Check::Flicker)
+    );
     assert!(still.heatmap.is_empty());
 }
 
@@ -92,7 +101,9 @@ fn frames_a_link_cannot_carry_in_time_are_found() {
         FilmRequest::of(200).with_step(50).with_link(Link::Bps(100)),
     );
     assert!(
-        slow.findings.iter().any(|x| x.check == "cost"),
+        slow.findings
+            .iter()
+            .any(|x| x.check == rdom_capture::audit::Check::Cost),
         "{:?}",
         slow.findings
     );
@@ -100,7 +111,12 @@ fn frames_a_link_cannot_carry_in_time_are_found() {
         &["a", "b", "c"],
         FilmRequest::of(200).with_step(50).with_link(Link::Local),
     );
-    assert!(!local.findings.iter().any(|x| x.check == "cost"));
+    assert!(
+        !local
+            .findings
+            .iter()
+            .any(|x| x.check == rdom_capture::audit::Check::Cost)
+    );
 }
 
 #[test]

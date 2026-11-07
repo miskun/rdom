@@ -30,22 +30,84 @@ use crate::profile::Profile;
 use crate::session::{Session, SessionError};
 use frame::Frame;
 
-/// Every check, in the order a full audit runs them.
-pub const CHECKS: [&str; 13] = [
-    "contrast",
-    "truncation",
-    "occlusion",
-    "alignment",
-    "palette",
-    "depth-loss",
-    "profile",
-    "rhythm",
-    "focus-visible",
-    "reachability",
-    "targets",
-    "landmarks",
-    "tokens",
-];
+/// A check: an audit's (a frame's) or a film's (motion).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
+pub enum Check {
+    Contrast,
+    Truncation,
+    Occlusion,
+    Alignment,
+    Palette,
+    DepthLoss,
+    Profile,
+    Rhythm,
+    FocusVisible,
+    Reachability,
+    Targets,
+    Landmarks,
+    Tokens,
+    /// Frames from an input to its first visible change (not built).
+    Latency,
+    /// A film's: a cell that changes and changes back within a frame.
+    Flicker,
+    /// A film's: a spinner's pace and width.
+    Spinner,
+    /// A film's: frames a link cannot carry in time.
+    Cost,
+    /// A film's: motion under `prefers-reduced-motion: reduce`.
+    ReducedMotion,
+}
+
+impl Check {
+    /// The checks an audit of a frame runs, in order.
+    pub const AUDIT: [Check; 14] = [
+        Check::Contrast,
+        Check::Truncation,
+        Check::Occlusion,
+        Check::Alignment,
+        Check::Palette,
+        Check::DepthLoss,
+        Check::Profile,
+        Check::Rhythm,
+        Check::FocusVisible,
+        Check::Reachability,
+        Check::Targets,
+        Check::Landmarks,
+        Check::Tokens,
+        Check::Latency,
+    ];
+
+    /// Its name (`depth-loss`).
+    pub fn name(self) -> &'static str {
+        match self {
+            Check::Contrast => "contrast",
+            Check::Truncation => "truncation",
+            Check::Occlusion => "occlusion",
+            Check::Alignment => "alignment",
+            Check::Palette => "palette",
+            Check::DepthLoss => "depth-loss",
+            Check::Profile => "profile",
+            Check::Rhythm => "rhythm",
+            Check::FocusVisible => "focus-visible",
+            Check::Reachability => "reachability",
+            Check::Targets => "targets",
+            Check::Landmarks => "landmarks",
+            Check::Tokens => "tokens",
+            Check::Latency => "latency",
+            Check::Flicker => "flicker",
+            Check::Spinner => "spinner",
+            Check::Cost => "cost",
+            Check::ReducedMotion => "reduced-motion",
+        }
+    }
+
+    /// The audit check `name` names.
+    pub fn from_name(name: &str) -> Option<Check> {
+        Check::AUDIT.into_iter().find(|c| c.name() == name)
+    }
+}
 
 /// What an app declares about its design, for the checks that read it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -107,8 +169,8 @@ impl DesignSystem {
 #[serde(default, deny_unknown_fields)]
 #[non_exhaustive]
 pub struct AuditRequest {
-    /// The checks to run (names from [`CHECKS`]); empty: all.
-    pub checks: Vec<String>,
+    /// The checks to run ([`Check::AUDIT`]); empty: all.
+    pub checks: Vec<Check>,
     /// The terminal profile the frame is seen through (default: the
     /// default profile).
     pub profile: Option<String>,
@@ -134,9 +196,9 @@ impl AuditRequest {
     }
 
     /// Only `checks`.
-    pub fn of(checks: &[&str]) -> Self {
+    pub fn of(checks: &[Check]) -> Self {
         AuditRequest {
-            checks: checks.iter().map(|c| (*c).to_string()).collect(),
+            checks: checks.to_vec(),
             ..AuditRequest::default()
         }
     }
@@ -147,11 +209,13 @@ impl AuditRequest {
 #[serde(rename_all = "kebab-case")]
 #[non_exhaustive]
 pub enum Severity {
-    /// Worth a look.
+    /// Worth a look: a heuristic matched.
     Info,
-    /// Likely a problem.
+    /// Likely a problem: a threshold of this crate's (or the design's)
+    /// failed.
     Warning,
-    /// A problem: a threshold failed.
+    /// An accessibility requirement failed (WCAG 2: text contrast, a
+    /// visible focus, keyboard reach).
     Error,
 }
 
@@ -159,13 +223,14 @@ pub enum Severity {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[non_exhaustive]
 pub struct Finding {
-    pub check: &'static str,
+    pub check: Check,
     pub severity: Severity,
     pub message: String,
     /// The elements involved, by identity.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub nodes: Vec<String>,
-    /// The cells involved, as `[x, y, width, height]` rectangles.
+    /// The cells involved, as `[x, y, width, height]` rectangles (at most
+    /// 16; `inputs` counts them all where it matters).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub cells: Vec<[u16; 4]>,
     /// What was measured.
@@ -190,9 +255,13 @@ pub struct NotChecked {
 pub struct Audit {
     pub profile: String,
     /// The checks that ran.
-    pub checked: Vec<&'static str>,
+    pub checked: Vec<Check>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub not_checked: Vec<NotChecked>,
+    /// Checks that ran on part of what they could, and what they left
+    /// out (a cap on elements or colors).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub partial: Vec<NotChecked>,
     /// Most severe first, then by check.
     pub findings: Vec<Finding>,
 }
@@ -200,23 +269,34 @@ pub struct Audit {
 /// What a check answers: its findings, or why it could not run.
 pub(crate) type Checked = Result<Vec<Finding>, String>;
 
+/// A check's findings, and what it left out, if anything.
+pub(crate) struct Ran {
+    pub findings: Vec<Finding>,
+    pub partial: Option<String>,
+}
+
+impl From<Vec<Finding>> for Ran {
+    fn from(findings: Vec<Finding>) -> Self {
+        Ran {
+            findings,
+            partial: None,
+        }
+    }
+}
+
 impl<A: CaptureApp> Session<A> {
     /// Run the checks `request` asks for on the current frame. A check
     /// that cannot run (nothing to check against, a fork refused) is
     /// listed with why; the others still run.
     pub fn audit(&self, request: &AuditRequest) -> Result<Audit, SessionError> {
-        let unknown: Vec<&str> = request
-            .checks
-            .iter()
-            .map(String::as_str)
-            .filter(|c| !CHECKS.contains(c) && *c != "latency")
-            .collect();
-        if !unknown.is_empty() {
-            return Err(SessionError::InvalidInput(format!(
-                "no check {}: {}",
-                unknown.join(", "),
-                CHECKS.join(", ")
-            )));
+        // Declared tokens must be colors: a token that is none is the
+        // caller's mistake, not a page's finding.
+        for (name, value) in &request.design.colors {
+            if rdom_style::parse_color(value).is_none() {
+                return Err(SessionError::InvalidInput(format!(
+                    "design token {name}: {value:?} is not a color"
+                )));
+            }
         }
         let profile = match &request.profile {
             None => Profile::default_profile(),
@@ -224,55 +304,65 @@ impl<A: CaptureApp> Session<A> {
                 .ok_or_else(|| SessionError::InvalidInput(format!("no profile {n:?}")))?,
         };
         let frame = Frame::of(self, &profile)?;
-        let wanted = |c: &str| request.checks.is_empty() || request.checks.iter().any(|w| w == c);
+        let wanted = |c: Check| request.checks.is_empty() || request.checks.contains(&c);
         let mut audit = Audit {
             profile: profile.name.clone(),
             checked: Vec::new(),
             not_checked: Vec::new(),
+            partial: Vec::new(),
             findings: Vec::new(),
         };
-        for check in CHECKS {
+        let d = &request.design;
+        // focus-visible and reachability share one Tab walk, in a fork.
+        let walk = if wanted(Check::FocusVisible) || wanted(Check::Reachability) {
+            Some(ux::walk(self, &frame))
+        } else {
+            None
+        };
+        for check in Check::AUDIT {
             if !wanted(check) {
                 continue;
             }
-            let d = &request.design;
-            let result: Checked = match check {
-                "contrast" => look::contrast(&frame, d),
-                "truncation" => look::truncation(&frame),
-                "occlusion" => look::occlusion(&frame),
-                "alignment" => look::alignment(&frame),
-                "palette" => look::palette(&frame),
-                "depth-loss" => look::depth_loss(&frame),
-                "profile" => look::profile(&frame),
-                "rhythm" => look::rhythm(&frame, d),
-                "focus-visible" => ux::focus_visible(self, &frame),
-                "reachability" => ux::reachability(self, &frame),
-                "targets" => ux::targets(&frame, d),
-                "landmarks" => ux::landmarks(&frame),
-                "tokens" => tokens::tokens_check(&frame, d),
-                _ => unreachable!("CHECKS lists what this match answers"),
+            let result: Result<Ran, String> = match check {
+                Check::Contrast => look::contrast(&frame, d).map(Ran::from),
+                Check::Truncation => look::truncation(&frame).map(Ran::from),
+                Check::Occlusion => look::occlusion(&frame).map(Ran::from),
+                Check::Alignment => look::alignment(&frame),
+                Check::Palette => look::palette(&frame),
+                Check::DepthLoss => look::depth_loss(&frame).map(Ran::from),
+                Check::Profile => look::profile(&frame).map(Ran::from),
+                Check::Rhythm => look::rhythm(&frame, d),
+                Check::FocusVisible => ux::focus_visible(walk.as_ref().expect("walked"), &frame),
+                Check::Reachability => ux::reachability(walk.as_ref().expect("walked"), &frame),
+                Check::Targets => ux::targets(&frame, d).map(Ran::from),
+                Check::Landmarks => ux::landmarks(&frame).map(Ran::from),
+                Check::Tokens => tokens::tokens_check(&frame, d).map(Ran::from),
+                Check::Latency => Err(
+                    "frames from an input to its first visible change: not built yet (a film's timelines hold them)"
+                        .into(),
+                ),
+                _ => Err("a film's check: run film".into()),
             };
             match result {
-                Ok(findings) => {
+                Ok(ran) => {
                     audit.checked.push(check);
-                    audit.findings.extend(findings);
+                    audit.findings.extend(ran.findings);
+                    if let Some(left) = ran.partial {
+                        audit.partial.push(NotChecked {
+                            check: check.name().to_string(),
+                            reason: left,
+                        });
+                    }
                 }
                 Err(reason) => audit.not_checked.push(NotChecked {
-                    check: check.to_string(),
+                    check: check.name().to_string(),
                     reason,
                 }),
             }
         }
-        if wanted("latency") && request.checks.iter().any(|c| c == "latency") {
-            audit.not_checked.push(NotChecked {
-                check: "latency".into(),
-                reason: "frames from an input to its first visible change need a film (phase 8)"
-                    .into(),
-            });
-        }
         audit
             .findings
-            .sort_by(|a, b| b.severity.cmp(&a.severity).then(a.check.cmp(b.check)));
+            .sort_by(|a, b| b.severity.cmp(&a.severity).then(a.check.cmp(&b.check)));
         Ok(audit)
     }
 }

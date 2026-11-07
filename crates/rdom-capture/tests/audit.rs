@@ -4,7 +4,7 @@
 
 use std::error::Error;
 
-use rdom_capture::audit::{Audit, AuditRequest, DesignSystem};
+use rdom_capture::audit::{Audit, AuditRequest, Check, DesignSystem};
 use rdom_capture::{CaptureApp, Environment, Session};
 use rdom_tui::App;
 use rdom_tui::render::TestBackend;
@@ -30,19 +30,24 @@ fn audit_with(markup: &'static str, css: &'static str, request: AuditRequest) ->
     s.audit(&request).unwrap()
 }
 
-fn audit(markup: &'static str, css: &'static str, check: &str) -> Audit {
-    audit_with(markup, css, AuditRequest::of(&[check]))
+fn check(name: &str) -> Check {
+    Check::from_name(name).unwrap_or_else(|| panic!("no check {name}"))
+}
+
+fn audit(markup: &'static str, css: &'static str, name: &str) -> Audit {
+    audit_with(markup, css, AuditRequest::of(&[check(name)]))
 }
 
 /// The findings of `check`, by message.
-fn found(a: &Audit, check: &str) -> Vec<String> {
+fn found(a: &Audit, name: &str) -> Vec<String> {
+    let c = check(name);
     assert!(
-        a.checked.contains(&check) || a.not_checked.iter().any(|n| n.check == check),
-        "{check} neither ran nor said why: {a:#?}"
+        a.checked.contains(&c) || a.not_checked.iter().any(|n| n.check == name),
+        "{name} neither ran nor said why: {a:#?}"
     );
     a.findings
         .iter()
-        .filter(|f| f.check == check)
+        .filter(|f| f.check == c)
         .map(|f| f.message.clone())
         .collect()
 }
@@ -152,7 +157,7 @@ fn depth_loss() {
 #[test]
 fn profile() {
     let markup = r#"<p>plain <i>stress</i> plain</p>"#;
-    let console = AuditRequest::of(&["profile"]).with_profile("console-16");
+    let console = AuditRequest::of(&[Check::Profile]).with_profile("console-16");
     let lost = audit_with(markup, "", console.clone());
     assert_eq!(found(&lost, "profile").len(), 1, "{lost:#?}");
     let drawn = audit(markup, "", "profile");
@@ -181,7 +186,8 @@ fn rhythm() {
             .any(|n| n.check == "rhythm" && n.reason.contains("spacing"))
     );
     let scale = |spacing: Vec<u16>| {
-        AuditRequest::of(&["rhythm"]).with_design(DesignSystem::default().with_spacing(spacing))
+        AuditRequest::of(&[Check::Rhythm])
+            .with_design(DesignSystem::default().with_spacing(spacing))
     };
     let off = audit_with(r#"<div class="a">x</div>"#, css, scale(vec![1, 2, 4]));
     assert_eq!(found(&off, "rhythm").len(), 1, "{off:#?}");
@@ -268,16 +274,19 @@ fn tokens() {
 #[test]
 fn a_full_audit_runs_every_check_or_says_why_not() {
     let a = audit_with("<p>hello</p>", "", AuditRequest::all());
-    for check in rdom_capture::audit::CHECKS {
+    for c in Check::AUDIT {
         assert!(
-            a.checked.contains(&check) || a.not_checked.iter().any(|n| n.check == check),
-            "{check}"
+            a.checked.contains(&c) || a.not_checked.iter().any(|n| n.check == c.name()),
+            "{c:?}"
         );
     }
     let bad = Session::new(Page("<p>x</p>", ""));
     let mut bad = bad;
     bad.open(Environment::default(), None).unwrap();
-    assert!(bad.audit(&AuditRequest::of(&["nope"])).is_err());
+    // A declared token that is no color is the caller's error.
+    let req = AuditRequest::all()
+        .with_design(DesignSystem::default().with_colors(vec![("--x".into(), "nope".into())]));
+    assert!(bad.audit(&req).is_err());
 }
 
 #[test]
@@ -305,7 +314,7 @@ fn whatif_ranks_candidates_by_the_findings_they_fix() {
                 Candidate::new("fix", vec![set(".a", "#000000")]),
             ],
             0,
-            Some(&AuditRequest::of(&["contrast"])),
+            Some(&AuditRequest::of(&[Check::Contrast])),
         )
         .unwrap();
     assert_eq!(outcomes[0].name, "fix", "{outcomes:#?}");
@@ -316,4 +325,160 @@ fn whatif_ranks_candidates_by_the_findings_they_fix() {
     );
     let worse = outcomes[1].findings.as_ref().unwrap();
     assert_eq!(worse.score, -1, "{worse:#?}");
+}
+
+// --- review fixtures (phase 7 architect review) --------------------------
+
+fn audit_in(markup: &'static str, css: &'static str, env: Environment, name: &str) -> Audit {
+    let mut s = Session::new(Page(markup, css));
+    s.open(env, None).unwrap();
+    s.audit(&AuditRequest::of(&[check(name)])).unwrap()
+}
+
+#[test]
+fn truncation_follows_what_the_user_can_scroll_to() {
+    // Clipped by an `overflow: hidden` ancestor: cut, and no one can
+    // scroll to the rest.
+    let hidden = audit(
+        r#"<div class="w"><span>abcdefgh</span></div>"#,
+        ".w { width: 4; overflow: hidden; white-space: nowrap; }",
+        "truncation",
+    );
+    assert_eq!(found(&hidden, "truncation").len(), 1, "{hidden:#?}");
+    // A box that scrolls its own text: the rest is a scroll away.
+    let scrolls = audit(
+        r#"<div class="log">one two three four five six seven eight</div>"#,
+        ".log { width: 8; height: 2; overflow: auto; }",
+        "truncation",
+    );
+    assert!(found(&scrolls, "truncation").is_empty(), "{scrolls:#?}");
+    // Text in a zero-size box.
+    let zero = audit(
+        r#"<div class="z">text</div>"#,
+        ".z { width: 0; overflow: hidden; }",
+        "truncation",
+    );
+    assert!(
+        found(&zero, "truncation")
+            .iter()
+            .any(|m| m.contains("zero-size")),
+        "{zero:#?}"
+    );
+}
+
+#[test]
+fn focus_visible_is_measured_on_real_focus() {
+    // A focus style that transitions in: visible once it has run.
+    let eased = audit(
+        r#"<div tabindex="0">go</div>"#,
+        "div { transition: background-color 150ms; } div:focus-visible { background-color: #0000ff; }",
+        "focus-visible",
+    );
+    assert!(found(&eased, "focus-visible").is_empty(), "{eased:#?}");
+    // A scroll container shows its focus in its scrollbar (the runtime's
+    // indicator on real focus).
+    let pane = audit(
+        r#"<div class="sc"><p>1</p><p>2</p><p>3</p><p>4</p><p>5</p></div>"#,
+        ".sc { height: 2; overflow: auto; }",
+        "focus-visible",
+    );
+    assert!(found(&pane, "focus-visible").is_empty(), "{pane:#?}");
+}
+
+#[test]
+fn tokens_are_compared_at_the_environments_depth() {
+    let css = ":root { --fg: #c0c0c0; --bg: #101010; } p { color: var(--fg); background-color: var(--bg); }";
+    let mut env = Environment::default().with_viewport(30, 8);
+    env.color_depth = rdom_capture::Depth::Ansi256;
+    let a = audit_in("<p>ok</p>", css, env, "tokens");
+    assert!(
+        found(&a, "tokens").is_empty(),
+        "the tokens, quantized as the cells are: {a:#?}"
+    );
+}
+
+#[test]
+fn contrast_reads_control_labels_and_spares_disabled_controls() {
+    let label = audit(
+        "<select><option>One</option></select>",
+        "select { color: #777777; background-color: #888888; }",
+        "contrast",
+    );
+    assert!(
+        label
+            .findings
+            .iter()
+            .any(|f| f.check == Check::Contrast && f.message.starts_with("text")),
+        "a select's label is text: {label:#?}"
+    );
+    let off = audit(
+        "<button disabled>go</button>",
+        "button { color: #777777; background-color: #888888; }",
+        "contrast",
+    );
+    assert!(
+        found(&off, "contrast").is_empty(),
+        "WCAG exempts inactive controls: {off:#?}"
+    );
+}
+
+#[test]
+fn an_ellipsis_over_a_childs_text_is_no_occlusion() {
+    let a = audit(
+        r#"<div class="b"><b>abcdefghij</b></div>"#,
+        ".b { width: 5; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }",
+        "occlusion",
+    );
+    assert!(found(&a, "occlusion").is_empty(), "{a:#?}");
+}
+
+#[test]
+fn a_full_audit_lists_latency_as_not_checked() {
+    let a = audit_with("<p>x</p>", "", AuditRequest::all());
+    assert!(a.not_checked.iter().any(|n| n.check == "latency"), "{a:#?}");
+}
+
+/// A page whose app keeps Tab for itself: focus never moves.
+struct Trap;
+
+impl CaptureApp for Trap {
+    fn build(
+        &self,
+        env: &Environment,
+        _: Option<&str>,
+    ) -> Result<App<TestBackend>, Box<dyn Error>> {
+        let (mut dom, _) = rdom_parser::parse(r#"<button>a</button><button>b</button>"#)?;
+        let root = dom.root();
+        let _ = dom.add_event_listener(
+            root,
+            "keydown",
+            rdom_tui::ListenerOptions::default(),
+            |ctx| {
+                if ctx
+                    .event
+                    .detail
+                    .as_keyboard()
+                    .is_some_and(|k| k.key == "Tab")
+                {
+                    ctx.event.prevent_default();
+                }
+            },
+        );
+        Ok(env.app(dom, rdom_css::from_css(""))?)
+    }
+}
+
+#[test]
+fn reachability_finds_what_tab_never_reaches() {
+    let mut s = Session::new(Trap);
+    s.open(Environment::default().with_viewport(30, 8), None)
+        .unwrap();
+    let a = s.audit(&AuditRequest::of(&[Check::Reachability])).unwrap();
+    let never: Vec<&str> = a
+        .findings
+        .iter()
+        .filter(|f| f.message.contains("never reaches"))
+        .map(|f| f.message.as_str())
+        .collect();
+    assert_eq!(never.len(), 2, "{a:#?}");
 }
