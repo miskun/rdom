@@ -347,3 +347,75 @@ fn every_acid_page_takes_a_full_audit() {
         });
     }
 }
+
+/// CAPTURE phase 8, the acid motion tile I20 (`specs/ACID.md`): a click
+/// opens tile 48 — a panel transitioning `translate: -100% 0` → `0` over
+/// 200 ms linear, a box sliding in by `@keyframes` — and the film's
+/// timelines put both at −width, −width/2 and 0 at 0, 100 and 200 ms, in
+/// whole cells; the `rotate()` spinner paints the same cell throughout.
+#[test]
+fn a_film_of_acid_tile_48_gives_its_specd_timeline() {
+    use rdom_capture::motion::FilmRequest;
+    let mut session = Session::new(Showcase);
+    session.open(acid_env(), Some("acid:6")).unwrap();
+    let go = {
+        let dom = session.app().unwrap().dom();
+        let b = dom.query_selector(".acid-t48 .go").unwrap().id();
+        rdom_tui::capture::box_model(dom, b).unwrap().border
+    };
+    let click = Input::Mouse {
+        action: rdom_capture::MouseAction::Click,
+        x: go.x as u16,
+        y: go.y as u16,
+        button: Default::default(),
+    };
+    let film = session
+        .film(
+            &FilmRequest::of(300)
+                .with_step(50)
+                .with_inputs(vec![click])
+                .with_nodes(vec![
+                    ".acid-t48 .sl".into(),
+                    ".acid-t48 .kf".into(),
+                    ".acid-t48 .sp".into(),
+                ]),
+        )
+        .unwrap();
+    // The tile's content starts at column 61.
+    for line in &film.nodes[..2] {
+        let x_at = |t: u64| {
+            line.changes
+                .iter()
+                .rev()
+                .find(|c| c.t_ms <= t)
+                .and_then(|c| c.border)
+                .map(|b| b[0])
+        };
+        assert_eq!(
+            (x_at(0), x_at(100), x_at(200), x_at(300)),
+            (Some(51), Some(56), Some(61), Some(61)),
+            "{}: {line:#?}",
+            line.selector
+        );
+        let painted_at = |t: u64| {
+            line.changes
+                .iter()
+                .rev()
+                .find(|c| c.t_ms <= t)
+                .map(|c| c.cells)
+        };
+        assert_eq!(
+            (painted_at(0), painted_at(100), painted_at(200)),
+            (Some(0), Some(5), Some(10))
+        );
+    }
+    assert_eq!(film.nodes[2].changes.len(), 1, "the spinner moves nothing");
+    // The tile ignores prefers-reduced-motion: the film says so.
+    assert!(
+        film.findings.iter().any(|f| f.check == "reduced-motion"),
+        "{:?}",
+        film.findings
+    );
+    assert_eq!(film.frames.len(), 7);
+    assert!(film.frames[1..5].iter().all(|f| f.bytes > 0) && film.frames[6].bytes == 0);
+}

@@ -1331,3 +1331,21 @@ fn audit_answers_over_the_protocol() {
         "{r}"
     );
 }
+
+#[test]
+fn film_answers_over_the_protocol() {
+    let mut s = open("plain");
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":1,"method":"film","params":{"ms":100,"step_ms":50,"cast":true,"filmstrip":{},"reduced_motion":false}}"#,
+    );
+    let res = &r["result"];
+    assert_eq!(res["frames"].as_array().map(Vec::len), Some(3), "{r}");
+    assert!(res["cast"].as_str().unwrap().starts_with("{\"height\""));
+    assert!(
+        res["filmstrip"]["base64"]
+            .as_str()
+            .unwrap()
+            .starts_with("iVBORw0KGgo")
+    );
+}

@@ -77,6 +77,10 @@ pub(crate) const METHODS: &[MethodInfo] = &[
         summary: "Check how the frame looks and works, as a terminal profile shows it: contrast (WCAG 2, APCA), truncation, occlusion, alignment, palette (near-duplicates), depth-loss, profile (meaning only an undrawn attribute carries), rhythm (with a spacing scale), focus-visible, reachability (Tab), targets, landmarks, tokens. Each finding: {check, severity, message, nodes (by identity), cells, inputs, threshold}; a check that cannot run is in not_checked with why. Params: {checks?: [names] (default all), profile?, design?: {colors?: [[name, value]], spacing?: [cells], min_contrast?, min_target?: [w, h]}, budget?}. whatif takes the same request as `audit` to rank candidates by findings fixed minus introduced.",
     },
     MethodInfo {
+        name: "film",
+        summary: "Step the app at a fixed virtual-clock interval over a window, in a fork (the session is left as it was), after optional inputs at its start: each frame's hash, cells changed and bytes sent; timelines of chosen cells (glyph, colors) and elements (cells painted, border box, running animations); a change heatmap; spinners (glyphs, pace); motion findings — flicker, spinner pace and width jitter, frames a link cannot carry in time, motion under prefers-reduced-motion. Params: {ms, step_ms? (default the animation frame), inputs?: [Input], cells?: [[x, y]], nodes?: [selector], link?: local|ssh|slow|{bps: n}, reduced_motion?: true, filmstrip?: {profile?, scale?}, cast?: bool, out?: path, budget?}.",
+    },
+    MethodInfo {
         name: "outline",
         summary: "The landmarks outline: landmarks, headings, lists, controls and focusable elements, nested, each with role, name, rect and state. Params: {depth?: integer, detail?: \"outline\"|\"summary\"|\"full\", budget?: tokens}. Read it first.",
     },
@@ -227,6 +231,7 @@ pub(crate) fn dispatch<A: CaptureApp>(
         "stress" => super::variants::stress(session, params(p)?),
         "mockup" => super::variants::mockup(session, params(p)?),
         "audit" => super::variants::audit(session, params(p)?),
+        "film" => super::variants::film(session, params(p)?),
         "outline" => outline(session, params(p)?),
         "explain" => explain(session, params(p)?),
         "query" => query(session, params(p)?),

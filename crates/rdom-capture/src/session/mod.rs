@@ -72,6 +72,8 @@ struct Opened {
     log: Vec<Step>,
     /// Why it can no longer be rebuilt from its log, once it can't.
     unreplayable: Option<String>,
+    /// What the last step emitted to the terminal.
+    emitted: Vec<u8>,
     /// The CSS files its sheets were read from, each with a hash of its
     /// text at open: a rebuild reads them again, so one that changed
     /// stops a fork (`log`).
@@ -101,6 +103,9 @@ pub struct Change {
     /// have exited.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub quit_requested: bool,
+    /// How many bytes the step's frames sent the terminal: what a link
+    /// carries.
+    pub bytes_emitted: usize,
     /// Events of animations an inspector's change started, withheld from
     /// app code during the step (`specs/CAPTURE.md` §Events caused by the
     /// inspector).
@@ -200,6 +205,11 @@ impl<A: CaptureApp> Session<A> {
         self.open.is_some()
     }
 
+    /// What the last step sent the terminal (escape sequences and text).
+    pub fn last_emitted(&self) -> &[u8] {
+        self.open.as_ref().map_or(&[], |o| &o.emitted)
+    }
+
     /// The open app.
     pub fn app(&self) -> Result<&App<TestBackend>, SessionError> {
         self.open
@@ -266,6 +276,7 @@ impl<A: CaptureApp> Session<A> {
             log: Vec::new(),
             unreplayable: None,
             files,
+            emitted: Vec::new(),
             time_ms: 0,
             frame,
             edits: crate::edit::Edits::default(),
@@ -401,6 +412,9 @@ impl<A: CaptureApp> Session<A> {
             .open
             .as_mut()
             .expect("a step that did not panic leaves the app open");
+        o.emitted.clear();
+        o.emitted
+            .extend_from_slice(o.app.terminal().backend().bytes());
         o.app.terminal_mut().backend_mut().clear_bytes();
         o.frame = Frame::of(&o.app);
         result
@@ -427,6 +441,7 @@ impl<A: CaptureApp> Session<A> {
             bounds,
             grid_hash: o.frame.hash.clone(),
             quit_requested: o.app.quit_requested(),
+            bytes_emitted: o.emitted.len(),
             suppressed_events,
         }
     }

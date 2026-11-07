@@ -234,3 +234,65 @@ pub(crate) fn audit<A: CaptureApp>(
     fit(&mut answer, p.budget);
     Ok(answer)
 }
+
+/// `film`'s parameters: the film, and what to make of it.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct FilmParams {
+    #[serde(flatten)]
+    pub request: crate::motion::FilmRequest,
+    /// A filmstrip of the frames (at most 24, evenly spaced), as an image.
+    pub filmstrip: Option<Images>,
+    /// The asciicast of the bytes sent.
+    pub cast: bool,
+    /// Write the filmstrip to `<out>.png` and the cast to `<out>.cast`
+    /// instead of returning them.
+    pub out: Option<PathBuf>,
+    pub budget: Option<usize>,
+}
+
+pub(crate) fn film<A: CaptureApp>(session: &Session<A>, p: FilmParams) -> Result<Value, RpcError> {
+    let film = session.film(&p.request)?;
+    let mut answer = json(&film)?;
+    fit(&mut answer, p.budget);
+    let write = |path: PathBuf, bytes: &[u8]| -> Result<String, RpcError> {
+        std::fs::write(&path, bytes)
+            .map_err(|e| RpcError::new(code::IO, format!("writing {}: {e}", path.display())))?;
+        Ok(path.display().to_string())
+    };
+    if let Some(images) = &p.filmstrip {
+        let every = film.grids.len().div_ceil(24).max(1);
+        let labels: Vec<String> = film
+            .frames
+            .iter()
+            .step_by(every)
+            .map(|f| format!("{} ms", f.t_ms))
+            .collect();
+        let tiles: Vec<(String, &Grid)> = labels
+            .into_iter()
+            .zip(film.grids.iter().step_by(every))
+            .collect();
+        let profile = profile(images.profile.as_deref())?;
+        let columns = (tiles.len() as f64).sqrt().ceil() as usize;
+        let image = render(
+            &sheet(&tiles, columns),
+            Raster::new(&profile, images.scale.unwrap_or(1))?,
+        )?;
+        let bytes = image.png();
+        answer["filmstrip"] = match &p.out {
+            Some(out) => serde_json::json!({ "file": write(with_suffix(out, ".png"), &bytes)? }),
+            None => serde_json::json!({ "base64": base64(&bytes) }),
+        };
+    }
+    if p.cast {
+        let env = session.environment()?;
+        let text = crate::motion::cast::asciicast(&film, env.viewport.width, env.viewport.height);
+        answer["cast"] = match &p.out {
+            Some(out) => {
+                serde_json::json!({ "file": write(with_suffix(out, ".cast"), text.as_bytes())? })
+            }
+            None => Value::String(text),
+        };
+    }
+    Ok(answer)
+}

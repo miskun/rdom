@@ -17,6 +17,7 @@
 
 pub(crate) mod color;
 mod frame;
+pub(crate) use frame::rects;
 mod look;
 mod tokens;
 mod ux;

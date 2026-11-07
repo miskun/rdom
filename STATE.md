@@ -14,7 +14,7 @@ environment, paint traces and the inspector, edits without a rebuild, images fro
 audits and motion. Nine phases, each closed by a chief-architect review recorded in the spec's log; the
 release (a new `rdom-capture` and whatever substrate crates the phases change) follows the last phase.
 Phases 1–4 closed (2026-11-07; phase 4's seven blocking review findings fixed — the cause of an inspector-started
-animation now lives on the running instance). Phase 5 closed (its four blocking review findings fixed). Phase 6 closed (its six blocking review findings fixed). Phase 7 (audits) built and under its architect review; phase 8 (motion) next.
+animation now lives on the running instance). Phase 5 closed (its four blocking review findings fixed). Phase 6 closed (its six blocking review findings fixed). Phase 7 (audits) built, its architect review pending; phase 8 (motion) built; phase 9 (record/replay, live attach, emulator) next.
 0.6.0 – 0.6.5 shipped (CSS completeness and the `rdom-tui` patch line); routing stays at 0.7.0.
 
 ## Release track

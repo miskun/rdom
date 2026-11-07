@@ -1,6 +1,6 @@
 # CAPTURE — an agent-friendly renderer, inspector and design loop
 
-**Status:** IN PROGRESS — phases 1–7 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
+**Status:** IN PROGRESS — phases 1–8 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
 v2 incorporates every finding (§Review record at the end). Three open questions are decided (§Decisions).
 
 ## Decisions
@@ -803,6 +803,33 @@ As built, against the plan:
 - Tests: a failing and a passing page per check (`tests/audit.rs`), the reference values of WCAG, APCA and OKLab,
   `whatif` ranking a fix above a regression, the protocol method, and a full audit of every acid page (13 pages,
   every check run or said why not).
+
+### Phase 8 — motion: `film`, timelines, motion audits, `cast`, bandwidth: DONE (2026-11-07)
+
+Shipped: `Session::film` / `film` (`FilmRequest`): the app stepped at a fixed virtual-clock interval (default the
+environment's animation frame) over a window, in a fork, after optional inputs at its start — each frame's hash,
+cells changed and bytes sent (`Change::bytes_emitted`, every step); timelines of cells (glyph, colors) and elements
+(the cells they paint, their border box, the animations running on them), each change only; a change heatmap;
+spinners (a cell cycling through three or more glyphs: its glyphs, frame and period); motion findings — `flicker`,
+`spinner` (width jitter, pace outside 50–500 ms a glyph), `cost` (frames a `Link` — local, ssh 2 Mbit/s, slow
+256 kbit/s, or any — cannot carry within the step), `reduced-motion` (a second film under
+`prefers-reduced-motion: reduce`); a filmstrip image (`raster::sheet`) and an asciicast v2 (`motion::cast`).
+
+As built, against the plan:
+
+- Element timelines carry what is painted beside the border box: a `translate` moves paint, and the painted cells are
+  what a viewer sees.
+- The cast's first event is the first frame encoded from its grid (rdom's own first bytes assumed a screen the
+  recording does not have); every later event is the bytes rdom sent. No header timestamp: the same film is the same
+  file.
+- `latency` (frames from an input to its first change) and `easing` (fitting a timing function to a timeline) are not
+  built; nor a heatmap image; the acid motion tiles driven by the acid step scripts (37, 45) need fixtures that run
+  those scripts — `TECH_DEBT` CAPTURE-MOTION-1.
+- Tests: acid tile 48 (I20) — a click, then the panel's and the keyframe box's border boxes at −10, −5 and 0 cells
+  from the tile's edge at 0, 100 and 200 ms, their painted widths 0, 5 and 10, the `rotate()` spinner unmoved, and
+  the reduced-motion finding (the tile ignores the preference); a spinner found with its pace and a width-jittering
+  one flagged; a two-glyph blink as flicker; a link too slow for the frames; the cast's shape and determinism; the
+  protocol method with a filmstrip and a cast.
 
 ## Open questions
 

@@ -58,6 +58,7 @@ pub mod capture;
 pub mod edit;
 pub mod env;
 pub mod input;
+pub mod motion;
 pub mod profile;
 pub mod protocol;
 pub(crate) mod query;

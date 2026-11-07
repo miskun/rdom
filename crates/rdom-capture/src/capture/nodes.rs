@@ -69,6 +69,11 @@ pub struct Scroll {
     pub size: [u32; 2],
 }
 
+/// A layout rectangle as `[x, y, width, height]`.
+pub(crate) fn rect_of(r: LayoutRect) -> [i32; 4] {
+    rect(r)
+}
+
 fn rect(r: LayoutRect) -> [i32; 4] {
     [r.x, r.y, i32::from(r.width), i32::from(r.height)]
 }
