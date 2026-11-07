@@ -407,15 +407,13 @@ mod tests {
         let err = leave_tui_mode(&mut w).expect_err("the failure surfaces");
         assert_eq!(err.to_string(), "first failure");
         let bytes = String::from_utf8_lossy(&w.kept);
-        for step in [
-            "\x1b[?1000l",
-            "\x1b[?2004l",
-            "\x1b[?25h",
-            "\x1b[?1049l",
-            "\x1b[0m",
-        ] {
+        for step in ["\x1b[?2004l", "\x1b[?25h", "\x1b[?1049l", "\x1b[0m"] {
             assert!(bytes.contains(step), "{step:?} missing from {bytes:?}");
         }
+        // Mouse capture is an escape sequence on Unix, a console-API call
+        // on Windows.
+        #[cfg(unix)]
+        assert!(bytes.contains("\x1b[?1000l"), "{bytes:?}");
         #[cfg(unix)]
         assert!(bytes.contains("\x1b[?2031l"), "{bytes:?}");
     }

@@ -134,7 +134,14 @@ fn a_terminal_without_pointer_shapes_is_sent_nothing() {
 fn leaving_tui_mode_restores_the_pointer() {
     super::note_shape_sent();
     let mut out = Vec::new();
-    crate::render::backend_crossterm::restore_terminal(&mut out, || Ok(())).unwrap();
+    // Every step is attempted whatever an earlier one returns: on a
+    // Windows runner with no console, the mouse step's console call
+    // fails, and the pointer reset is still written.
+    let result = crate::render::backend_crossterm::restore_terminal(&mut out, || Ok(()));
+    #[cfg(unix)]
+    result.unwrap();
+    #[cfg(not(unix))]
+    let _ = result;
     assert!(String::from_utf8_lossy(&out).contains(&osc("default")));
 }
 
