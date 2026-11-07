@@ -1097,3 +1097,19 @@ fn the_outline_scopes_headers_and_names_by_labelledby_first() {
         .clone();
     assert_eq!(nav["name"], "Title", "aria-labelledby wins over aria-label");
 }
+
+#[test]
+fn delivering_inspector_events_is_reserved_and_refused() {
+    let mut s = Session::new(Page);
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":1,"method":"open","params":{"fixture":"plain","inspector_events":"deliver"}}"#,
+    );
+    assert_eq!(r["error"]["code"], code::INVALID_PARAMS);
+    assert!(r["error"]["message"].as_str().unwrap().contains("reserved"));
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":2,"method":"open","params":{"fixture":"plain","inspector_events":"suppress"}}"#,
+    );
+    assert!(r["result"].is_object(), "{r}");
+}

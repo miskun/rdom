@@ -54,6 +54,7 @@
 
 pub mod app;
 pub mod capture;
+pub mod edit;
 pub mod env;
 pub mod input;
 pub mod protocol;
@@ -63,11 +64,12 @@ pub mod views;
 
 pub use app::{CaptureApp, FixtureInfo};
 pub use capture::{Attr, Capture, ColorValue, Grid, Layer, Meta, Run, SCHEMA};
+pub use edit::{EditTarget, Edited, FilePatch, Patch, Unpatched};
 pub use env::{ContrastPreference, Depth, Environment, Scheme, Sgr, Viewport};
 pub use input::{Button, Input, MouseAction};
 pub use protocol::serve;
 pub use query::Detail;
-pub use session::{CaptureRequest, Change, MAX_ADVANCE_MS, Session, SessionError};
+pub use session::{CaptureRequest, Change, MAX_ADVANCE_MS, Session, SessionError, Suppressed};
 
 #[cfg(test)]
 mod tests;

@@ -74,6 +74,23 @@ Then ask about it:
 - `query` — who uses a color, what is painted in a rectangle, where a text is, what a selector matches.
 - `capture` layers `owners`, `boxes`, `nodes` — which element painted every cell, every element's boxes, what each element is.
 
+Then change it — without a rebuild, and without app code noticing:
+
+```text
+{"jsonrpc":"2.0","id":11,"method":"edit","params":{"node":"12","property":"color","value":"#9aa4b2"}}
+{"jsonrpc":"2.0","id":12,"method":"force","params":{"node":"20","state":"hover"}}
+{"jsonrpc":"2.0","id":13,"method":"patch"}
+{"jsonrpc":"2.0","id":14,"method":"patch","params":{"apply":true}}
+{"jsonrpc":"2.0","id":15,"method":"reload"}
+```
+
+- `edit` — a declaration in place: in the rule an element's property wins by (`node`), a rule by its place (`rule: [sheet, index]`, as `explain` names it), or a new rule (`selector`).
+- `force` — an element into `:hover`, `:active`, `:focus`, `:focus-visible` or `:focus-within`, for the cascade only.
+- `patch` — the edits as unified diffs against the CSS files their rules are written in (a dry run unless `apply`), and the edits no file can take, with why; `reload` reads the files again.
+- `reset` — every edit and forced state undone.
+
+Edits and forced states fire no events and no mutation records in app code, and `matches()` reports the real state; the transitions they start are listed in each step's `suppressed_events` instead of reaching app listeners. Load CSS with `rdom_css::css_file!("src/app.css")` and a debug build rereads the file at every load.
+
 Every answering method takes `detail` (`outline`, `summary`, `full`) and `budget` (about that many tokens); a cut answer lists what it dropped under `truncated`. Rules record where they are written when the CSS is parsed with a name (`rdom_css::from_css_at(text, "src/app.css")`), or built in Rust (the calling line).
 
 ## In Rust
@@ -112,7 +129,7 @@ assert_eq!(capture.grid.unwrap().row_text(0).trim_end(), "hello");
 
 ## Status
 
-Phases 1–3 of `specs/CAPTURE.md` in the rdom repository: the deterministic environment, the session and its protocol, the grid, owners, boxes and nodes layers, the text view, paint traces, style traces, the outline, `explain` and `query`. Edits, images, audits and motion follow.
+Phases 1–4 of `specs/CAPTURE.md` in the rdom repository: the deterministic environment, the session and its protocol, the grid, owners, boxes and nodes layers, the text view, paint traces, style traces, the outline, `explain`, `query`, and edits, forced states, patches and reloads. Images, audits and motion follow.
 
 ## License
 

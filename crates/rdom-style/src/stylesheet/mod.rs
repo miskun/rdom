@@ -45,6 +45,7 @@ use crate::{Specificity, TuiStyle};
 
 mod conditions;
 mod counter_styles;
+mod edit;
 mod imports;
 mod index;
 mod keyframes;
@@ -64,6 +65,7 @@ mod user_action_tests;
 mod version;
 
 pub use conditions::{ConditionId, ConditionKind, ConditionRule};
+pub use edit::EditError;
 pub use imports::Import;
 pub use index::RuleIndex;
 pub use layers::{Layer, LayerId, LayerOrder};

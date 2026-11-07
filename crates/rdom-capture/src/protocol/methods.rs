@@ -33,7 +33,7 @@ pub(crate) const METHODS: &[MethodInfo] = &[
     },
     MethodInfo {
         name: "open",
-        summary: "Build the app. Params: {env?: Environment, fixture?: string}. Returns the first frame's Change.",
+        summary: "Build the app. Params: {env?: Environment, fixture?: string, inspector_events?: \"suppress\"}. Returns the first frame's Change.",
     },
     MethodInfo {
         name: "input",
@@ -60,6 +60,26 @@ pub(crate) const METHODS: &[MethodInfo] = &[
         summary: "Reverse lookups on the current frame. Params: one of {selector: css} (elements it matches) | {color: \"#rrggbb\"|\"ansi:N\"} (who paints it, fg/bg, how many cells) | {rect: [x, y, w, h]} (what is painted there) | {text: string} (where it is on screen, who painted it); budget?.",
     },
     MethodInfo {
+        name: "edit",
+        summary: "Change a declaration in place, as an inspector's change app code does not see, and draw. Params: {property, value (null removes), important?, and one of node: id (the rule that wins the property on that element) | rule: [sheet, index] (as explain names it) | selector: css (a new rule)}. Returns the edit (id, selector, source file:line, previous value) and the change.",
+    },
+    MethodInfo {
+        name: "force",
+        summary: "Force an element into a user-action state for the cascade only. Params: {node, state: hover|active|focus|focus-visible|focus-within, on?: bool}.",
+    },
+    MethodInfo {
+        name: "reset",
+        summary: "Undo every edit and forced state.",
+    },
+    MethodInfo {
+        name: "patch",
+        summary: "The edits as unified diffs against the CSS files their rules are written in, and the edits no file can take with why. Params: {apply?: bool} (default: a dry run).",
+    },
+    MethodInfo {
+        name: "reload",
+        summary: "Read every App sheet parsed from one named CSS file again from that file (after a patch, or a hand edit); that sheet's edits are dropped.",
+    },
+    MethodInfo {
         name: "close",
         summary: "Close the app.",
     },
@@ -83,6 +103,11 @@ pub(crate) struct DescribeResult {
 pub(crate) struct OpenParams {
     pub env: Environment,
     pub fixture: Option<String>,
+    /// What app code is shown of the events an inspector's change causes:
+    /// `"suppress"` (the default and, for now, the only policy — they are
+    /// withheld and listed in each step's `suppressed_events`); `"deliver"`
+    /// is reserved (`specs/CAPTURE.md` §Events caused by the inspector).
+    pub inspector_events: Option<String>,
 }
 
 /// `input`'s parameters.
@@ -124,14 +149,14 @@ pub(crate) struct CaptureResult {
 }
 
 /// `params` as `T`; absent params read as `{}`.
-fn params<T: DeserializeOwned>(params: Option<Value>) -> Result<T, RpcError> {
+pub(crate) fn params<T: DeserializeOwned>(params: Option<Value>) -> Result<T, RpcError> {
     let value = params.unwrap_or_else(|| Value::Object(Default::default()));
     serde_json::from_value(value)
         .map_err(|e| RpcError::new(code::INVALID_PARAMS, format!("invalid params: {e}")))
 }
 
 /// `value` as a JSON value.
-fn json(value: impl Serialize) -> Result<Value, RpcError> {
+pub(crate) fn json(value: impl Serialize) -> Result<Value, RpcError> {
     serde_json::to_value(value)
         .map_err(|e| RpcError::new(code::IO, format!("result does not serialize: {e}")))
 }
@@ -154,6 +179,23 @@ pub(crate) fn dispatch<A: CaptureApp>(
         }),
         "open" => {
             let p: OpenParams = params(p)?;
+            match p.inspector_events.as_deref() {
+                None | Some("suppress") => {}
+                Some("deliver") => {
+                    return Err(RpcError::new(
+                        code::INVALID_PARAMS,
+                        "inspector_events \"deliver\" is reserved and not supported yet: an inspector's changes cause no app events (they are listed in suppressed_events)",
+                    ));
+                }
+                Some(other) => {
+                    return Err(RpcError::new(
+                        code::INVALID_PARAMS,
+                        format!(
+                            "inspector_events: {other:?} is neither \"suppress\" nor \"deliver\""
+                        ),
+                    ));
+                }
+            }
             json(session.open(p.env, p.fixture.as_deref())?)
         }
         "input" => {
@@ -168,6 +210,17 @@ pub(crate) fn dispatch<A: CaptureApp>(
         "outline" => outline(session, params(p)?),
         "explain" => explain(session, params(p)?),
         "query" => query(session, params(p)?),
+        "edit" => super::inspector::edit(session, p),
+        "force" => super::inspector::force(session, p),
+        "reset" => {
+            let _: Empty = params(p)?;
+            super::inspector::reset(session)
+        }
+        "patch" => super::inspector::patch(session, p),
+        "reload" => {
+            let _: Empty = params(p)?;
+            super::inspector::reload(session)
+        }
         "close" => {
             let _: Empty = params(p)?;
             session.close();

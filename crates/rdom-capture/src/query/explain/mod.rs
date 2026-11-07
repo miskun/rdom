@@ -138,6 +138,9 @@ pub(crate) struct DeclInfo {
     /// `file:line:column`, `rust:file:line:column`, `<style #12>:line`, …
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    /// The rule as `edit` takes it: `[sheet, index]`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule: Option<[usize; 2]>,
 }
 
 fn origin_name(o: DeclarationOrigin) -> &'static str {
@@ -177,6 +180,7 @@ fn decl_info(d: &Declared) -> DeclInfo {
             [s.id, s.class_attr_pseudo, s.type_pseudo_el]
         }),
         source: r.and_then(source_of),
+        rule: r.map(|r| [r.sheet, r.index]),
     }
 }
 

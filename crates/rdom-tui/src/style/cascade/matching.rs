@@ -33,7 +33,7 @@ pub(super) struct Scratch<'a> {
     scopes: ScopeMemo,
     /// The selector matcher's caches for this pass (`:nth-*()`'s
     /// sibling indices, C11-NTH).
-    selectors: SelectorCaches,
+    selectors: RenderCaches,
     matching: Vec<Matched<'a>>,
     pub(super) sorted: Vec<&'a Rule>,
     pub(super) ranks: Vec<u32>,
@@ -89,6 +89,17 @@ impl Matched<'_> {
             sheet: self.sheet as u32,
             rule: self.index,
         }
+    }
+}
+
+/// The cascade's selector caches: a rendering pass, which takes an
+/// element an inspector forced into a user-action state as in it
+/// (`Dom::set_forced_state`, CAPTURE phase 4).
+pub(super) struct RenderCaches(pub(super) SelectorCaches);
+
+impl Default for RenderCaches {
+    fn default() -> Self {
+        RenderCaches(SelectorCaches::for_rendering())
     }
 }
 
@@ -309,7 +320,7 @@ impl<'a> Scratch<'a> {
     pub(super) fn flag_has_anchors(&self, dom: &mut Dom<TuiExt>) {
         let mut any = false;
         let mut root = false;
-        for id in self.selectors.has_anchors() {
+        for id in self.selectors.0.has_anchors() {
             if let Some(ext) = dom.node_mut(id).ext_mut() {
                 ext.has_anchor = true;
                 any = true;
@@ -456,7 +467,7 @@ impl<'a> Scratch<'a> {
                         },
                         rule,
                         &mut self.scopes,
-                        &mut self.selectors,
+                        &mut self.selectors.0,
                     )
                     // CSS Conditional 5 §6.4: an `@container` rule holds
                     // per element, against its query container — asked
@@ -519,7 +530,7 @@ fn applies(dom: &Dom<TuiExt>, id: NodeId, rule: &Rule) -> bool {
 #[cfg(test)]
 impl Drop for Scratch<'_> {
     fn drop(&mut self) {
-        let work = self.selectors.work();
+        let work = self.selectors.0.work();
         probe::NTH.with(|c| c.set(c.get() + work.nth_siblings));
         probe::HAS.with(|c| c.set(c.get() + work.has_nodes));
     }

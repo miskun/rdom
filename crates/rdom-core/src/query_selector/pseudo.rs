@@ -2,6 +2,7 @@
 
 use super::matcher::Cx;
 use crate::dom::Dom;
+use crate::forced::ForcedState;
 use crate::node::NodeData;
 use crate::node_id::NodeId;
 use crate::selectors::PseudoClass;
@@ -60,11 +61,27 @@ impl<Ext> Dom<Ext> {
             // `:focus-within` match the element holding the state and
             // every ancestor of it (the flat tree is the node tree:
             // rdom has no shadow roots).
-            PseudoClass::Hover => self.hovered().is_some_and(|h| self.is_ancestor(id, h)),
-            PseudoClass::Active => self.active().is_some_and(|h| self.is_ancestor(id, h)),
-            PseudoClass::Focus => self.focused() == Some(id),
-            PseudoClass::FocusVisible => self.focus_visible && self.focused() == Some(id),
-            PseudoClass::FocusWithin => self.focused().is_some_and(|h| self.is_ancestor(id, h)),
+            // A rendering pass also takes an element forced into the
+            // state as in it (`forced`, an inspector's).
+            PseudoClass::Hover => {
+                self.forced_for(id, ForcedState::Hover, cx)
+                    || self.hovered().is_some_and(|h| self.is_ancestor(id, h))
+            }
+            PseudoClass::Active => {
+                self.forced_for(id, ForcedState::Active, cx)
+                    || self.active().is_some_and(|h| self.is_ancestor(id, h))
+            }
+            PseudoClass::Focus => {
+                self.forced_for(id, ForcedState::Focus, cx) || self.focused() == Some(id)
+            }
+            PseudoClass::FocusVisible => {
+                self.forced_for(id, ForcedState::FocusVisible, cx)
+                    || (self.focus_visible && self.focused() == Some(id))
+            }
+            PseudoClass::FocusWithin => {
+                self.forced_for(id, ForcedState::FocusWithin, cx)
+                    || self.focused().is_some_and(|h| self.is_ancestor(id, h))
+            }
             PseudoClass::Checked => self
                 .get_node(id)
                 .map(|n| match &n.data {
@@ -99,5 +116,12 @@ impl<Ext> Dom<Ext> {
             }
             PseudoClass::ReadOnly => node.tag_name().is_some() && !self.is_read_write(id),
         }
+    }
+}
+
+impl<Ext> Dom<Ext> {
+    /// Whether this pass renders and `id` is forced into `state`.
+    fn forced_for(&self, id: NodeId, state: ForcedState, cx: &Cx<'_>) -> bool {
+        cx.caches.rendering && !self.forced.is_empty() && self.is_forced(id, state)
     }
 }

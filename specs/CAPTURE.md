@@ -1,6 +1,6 @@
 # CAPTURE — an agent-friendly renderer, inspector and design loop
 
-**Status:** IN PROGRESS — phases 1–3 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
+**Status:** IN PROGRESS — phases 1–4 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
 v2 incorporates every finding (§Review record at the end). Three open questions are decided (§Decisions).
 
 ## Decisions
@@ -610,6 +610,32 @@ As built, against the plan:
   promised `next` cursor is replaced by the answer's `truncated` record (ask again narrower or with a larger budget).
 - The outline's roles follow HTML-AAM's implicit roles and the `role` attribute, its names accname's order for
   these elements; it is a navigation outline, not an accessibility tree.
+
+### Phase 4 — edits, forced states, cause tagging, patch, CSS dev loader: DONE (2026-11-07)
+
+Shipped: `Stylesheet::set_rule_declaration` / `remove_rule_declaration` (rdom-style), `Dom::set_forced_state`
+honored by rendering passes only (rdom-core), `App::inspect` / `force_state` / `edit_stylesheet` /
+`stylesheet_at` / `take_suppressed_events` with cause tagging in the animation registry (rdom-tui),
+`rdom_css::css_file!` / `load_css_file`, and the session's `edit` / `force` / `reset` / `patch` / `reload`.
+
+As built, against the plan:
+
+- Edits target the rule an element's property wins by, a rule by its place, or a new rule in the App's last
+  sheet; a `<style>` element's rules are not editable (its sheet comes from its text) — the edit says so. `reset`
+  restores each edited sheet from a snapshot taken before its first edit (exact), not by inverse edits.
+- Cause tagging lives in the animation registry, keyed by what an animation animates — the public event structs
+  are unchanged (non-breaking). An inspector's frame (`App::inspect`) holds the inspector's change alone because a
+  session settles every step; animations it starts are the inspector's until an app-caused start of the same key
+  takes it back. Policy `suppress` only: `open { inspector_events: "deliver" }` is refused as reserved.
+- `patch` collapses repeated edits per rule and property, applies them last-in-text first, appends new rules to
+  the sheet's one named file, and lists every edit no file can take (UA rule, Rust-built rule, unnamed text) with
+  why; `apply` writes the files. `reload` replaces each App sheet parsed from one named file and drops its edits.
+- A forced state applies to the element's own selector matching; `::before:hover`-style pseudo-element states
+  read the real pointer (not forced yet).
+- Tests: forced `:hover` restyles with no mutation record and `matches()` false; the inspector's transition events
+  withheld and listed while the app's own are delivered; a sheet edit restyles; edit → patch → reload gives the
+  same grid hash; `reset` gives back the first frame; a UA edit is reported unpatchable; the CSS patcher and the
+  unified diff have their own unit tests.
 
 ## Open questions
 

@@ -99,6 +99,9 @@ pub struct Dom<Ext: 'static = ()> {
     /// UA heuristics (keyboard vs. pointer); `true` until it says
     /// otherwise.
     pub(crate) focus_visible: bool,
+    /// Elements forced into user-action states for rendering, with each
+    /// one's state bits (`forced`).
+    pub(crate) forced: Vec<(NodeId, u8)>,
     /// The element that currently owns the pointer, via
     /// `set_pointer_capture`. While set, the runtime routes every
     /// `mousemove`, drag, and `mouseup` to this element regardless of
@@ -158,6 +161,7 @@ impl<Ext: Default> Dom<Ext> {
             focused: None,
             active: None,
             focus_visible: true,
+            forced: Vec::new(),
             pointer_capture: None,
             drag_autoscroll: false,
             selection: None,
@@ -289,6 +293,7 @@ impl<Ext: Default> Dom<Ext> {
             focused: None,
             active: None,
             focus_visible: true,
+            forced: Vec::new(),
             pointer_capture: None,
             drag_autoscroll: false,
             selection: None,

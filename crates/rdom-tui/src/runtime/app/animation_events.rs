@@ -15,6 +15,7 @@ use rdom_core::NodeId;
 use super::App;
 use crate::TuiDom;
 use crate::render::backend::Backend;
+use crate::runtime::animation::cause::CauseKey;
 use crate::runtime::animation::{PendingCustomEvent, PendingEvent, TransitionEventKind};
 
 /// One queued event of any kind.
@@ -82,6 +83,11 @@ impl<B: Backend> App<B> {
             property,
             elapsed_seconds,
         } = e;
+        // An inspector-caused transition's events are withheld (`cause`).
+        let key = CauseKey::Transition(node, slot, property);
+        if !self.animations.admit(key, transition_event_name(kind)) {
+            return;
+        }
         // A `::details-content` box's transitions are its `<details>`'s,
         // for that pseudo-element (CSS Transitions 1 §6.1).
         let (node, pseudo_element) = match self
@@ -106,6 +112,10 @@ impl<B: Backend> App<B> {
 
     /// A registered custom property's (`--name`) transition event.
     fn dispatch_custom_event(&mut self, e: PendingCustomEvent) {
+        let key = CauseKey::Custom(e.node, e.property.clone());
+        if !self.animations.admit(key, transition_event_name(e.kind)) {
+            return;
+        }
         let mut ev = rdom_core::Event::new(transition_event_name(e.kind));
         ev.detail = rdom_core::EventDetail::Transition(Box::new(rdom_core::TransitionDetail::new(
             &e.property,
@@ -119,6 +129,10 @@ impl<B: Backend> App<B> {
         &mut self,
         e: crate::runtime::animation::PendingAnimationEvent,
     ) {
+        let key = CauseKey::Css(e.node, e.slot, e.name.clone());
+        if !self.animations.admit(key, e.kind.event_type()) {
+            return;
+        }
         // A `::details-content` box's animations are its `<details>`'s,
         // for that pseudo-element (CSS Animations 1 §5.1), as its
         // transitions are.

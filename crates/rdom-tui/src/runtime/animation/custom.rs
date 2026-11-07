@@ -327,6 +327,7 @@ impl AnimationRegistry {
                     elapsed_seconds: clock.skipped.as_secs_f32(),
                 },
             );
+            self.note_start(super::cause::CauseKey::Custom(id, format!("--{name}")));
             self.custom.push(CustomAnimation {
                 node: id,
                 name,

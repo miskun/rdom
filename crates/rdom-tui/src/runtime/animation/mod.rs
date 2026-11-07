@@ -71,6 +71,8 @@ pub struct AnimationRegistry {
     /// `diff_layout_restyles_in` — is still their first style, no style
     /// change (CSS Transitions 1 §3).
     fresh: std::collections::HashSet<NodeId>,
+    /// Which animations an inspector's change started (`cause`).
+    causes: cause::Causes,
 }
 
 /// What one frame's [`AnimationRegistry::advance`] did.
@@ -196,6 +198,11 @@ impl AnimationRegistry {
                 elapsed_seconds: anim.skipped.as_secs_f32(),
             },
         );
+        self.note_start(cause::CauseKey::Transition(
+            anim.node,
+            anim.slot,
+            anim.property,
+        ));
         self.active.push(anim);
     }
 
@@ -449,6 +456,7 @@ pub(crate) fn transitions_discretely(style: &ComputedStyle, name: &str) -> bool 
 }
 
 mod active;
+pub(crate) mod cause;
 mod css;
 #[cfg(test)]
 pub(crate) use css::resolve_timeline;
@@ -470,6 +478,7 @@ mod visibility_tests;
 
 pub use crate::style::AnimationPlayState;
 pub(crate) use active::ActiveAnimation;
+pub use cause::SuppressedEvent;
 pub use css::{AnimationInfo, AnimationKind};
 pub(crate) use css::{CssInputs, PendingAnimationEvent, slot_order};
 pub use custom::PendingCustomEvent;

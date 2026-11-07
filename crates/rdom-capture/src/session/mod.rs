@@ -22,6 +22,7 @@
 
 mod error;
 mod frame;
+mod inspect;
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
@@ -56,6 +57,8 @@ struct Opened {
     fixture: Option<String>,
     time_ms: u64,
     frame: Frame,
+    /// The inspector's edits and forced states (`inspect`).
+    edits: crate::edit::Edits,
 }
 
 /// What a step changed on screen.
@@ -77,6 +80,23 @@ pub struct Change {
     /// have exited.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub quit_requested: bool,
+    /// Events of animations an inspector's change started, withheld from
+    /// app code during the step (`specs/CAPTURE.md` §Events caused by the
+    /// inspector).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub suppressed_events: Vec<Suppressed>,
+}
+
+/// An event withheld from app code: an inspector-caused animation's.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct Suppressed {
+    /// `transitionstart`, `animationend`, …
+    pub event: String,
+    /// The element it would have gone to.
+    pub node: String,
+    /// The property or animation name.
+    pub of: String,
 }
 
 /// What a capture should include.
@@ -193,6 +213,7 @@ impl<A: CaptureApp> Session<A> {
             fixture: fixture.map(str::to_string),
             time_ms: 0,
             frame,
+            edits: crate::edit::Edits::default(),
         });
         Ok(self.change_since(&before))
     }
@@ -326,9 +347,20 @@ impl<A: CaptureApp> Session<A> {
         result
     }
 
-    /// What changed between `before` and the current frame.
-    fn change_since(&self, before: &rdom_tui::Buffer) -> Change {
-        let o = self.open.as_ref().expect("a step leaves the app open");
+    /// What changed between `before` and the current frame, and the
+    /// events withheld since the last step.
+    fn change_since(&mut self, before: &rdom_tui::Buffer) -> Change {
+        let o = self.open.as_mut().expect("a step leaves the app open");
+        let suppressed_events = o
+            .app
+            .take_suppressed_events()
+            .into_iter()
+            .map(|e| Suppressed {
+                event: e.event,
+                node: crate::capture::node_key(e.node),
+                of: e.of,
+            })
+            .collect();
         let (cells_changed, bounds) = diff(before, o.app.terminal().buffer());
         Change {
             time_ms: o.time_ms,
@@ -336,6 +368,7 @@ impl<A: CaptureApp> Session<A> {
             bounds,
             grid_hash: o.frame.hash.clone(),
             quit_requested: o.app.quit_requested(),
+            suppressed_events,
         }
     }
 }

@@ -132,3 +132,39 @@ fn every_rules_line_holds_its_selector() {
         );
     }
 }
+
+#[test]
+fn a_css_file_names_its_path_and_reads_the_disk_in_a_debug_build() {
+    let sheet = rdom_css::css_file!("tests/fixtures/dev.css");
+    let rule = &sheet
+        .rules()
+        .iter()
+        .find(|r| r.source_text == ".dev")
+        .unwrap();
+    let SourceFile::Css(i) = rule.location.unwrap().file else {
+        panic!()
+    };
+    assert!(
+        sheet
+            .source_name(i)
+            .unwrap()
+            .ends_with("tests/fixtures/dev.css")
+    );
+    // The disk wins over the compiled-in text in a debug build.
+    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    let path = dir.join("rdom-css-dev.css");
+    std::fs::write(&path, ".live { color: red; }").unwrap();
+    let live = rdom_css::load_css_file(path.to_str().unwrap(), ".built { color: blue; }");
+    let names: Vec<&str> = live
+        .rules()
+        .iter()
+        .map(|r| r.source_text.as_str())
+        .collect();
+    if cfg!(debug_assertions) {
+        assert!(names.contains(&".live"), "{names:?}");
+    } else {
+        assert!(names.contains(&".built"), "{names:?}");
+    }
+    let gone = rdom_css::load_css_file("/no/such/file.css", ".built { color: blue; }");
+    assert!(gone.rules().iter().any(|r| r.source_text == ".built"));
+}

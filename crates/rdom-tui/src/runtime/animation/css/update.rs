@@ -96,6 +96,11 @@ impl AnimationRegistry {
                         progress_timeline: None,
                     };
                     anim.effect = Rc::new(build_effect(dom, inputs, (id, slot), &anim, style));
+                    self.note_start(crate::runtime::animation::cause::CauseKey::Css(
+                        id,
+                        slot,
+                        anim.name.clone(),
+                    ));
                     started.push(anim);
                 }
             }

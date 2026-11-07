@@ -48,6 +48,7 @@ mod dom_string_map;
 mod error;
 mod event;
 mod event_detail;
+mod forced;
 mod form_assoc;
 mod form_control;
 mod form_pseudo;
@@ -104,6 +105,7 @@ pub use event_detail::{
     KeyboardModifiers, MouseButton, MouseDetail, SubmitDetail, ToggleDetail, ToggleState,
     TransitionDetail,
 };
+pub use forced::ForcedState;
 pub use highlight::{Highlight, HighlightRegistry, HighlightType, HighlightsMut};
 pub use html_collection::{FormControlsCollection, HtmlCollection};
 pub use input_type::InputTypeState;

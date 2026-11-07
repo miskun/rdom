@@ -72,6 +72,9 @@ pub struct SelectorCaches {
     has_anchors: Vec<NodeId>,
     has_anchor_set: HashSet<NodeId>,
     work: CacheWork,
+    /// The pass renders: elements forced into a user-action state
+    /// (`Dom::set_forced_state`) match it.
+    pub(super) rendering: bool,
 }
 
 /// The work a [`SelectorCaches`] did — a deterministic measure of
@@ -140,6 +143,17 @@ impl SelectorCaches {
     /// Empty caches (no allocation until a selector needs one).
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Caches for a pass that renders — a backend's cascade: an element
+    /// forced into a user-action state (`Dom::set_forced_state`) matches
+    /// it. Every other pass (`matches`, `querySelector`) sees the real
+    /// state.
+    pub fn for_rendering() -> Self {
+        SelectorCaches {
+            rendering: true,
+            ..Self::default()
+        }
     }
 
     /// The work done since the caches were created.

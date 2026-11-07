@@ -13,6 +13,8 @@ categories = ["command-line-interface", "development-tools::testing"]
 rdom-tui = { path = "../rdom-tui", version = "0.6.5" }
 # Property names (the explain method validates the ones it is asked for).
 rdom-style = { path = "../rdom-style", version = "0.6.0" }
+# Reloading an App sheet from its CSS file (`reload`).
+rdom-css = { path = "../rdom-css", version = "0.6.0" }
 # The session builds the input events `App::handle_event` takes.
 crossterm = { workspace = true }
 # The capture contract and the session protocol are JSON; serde is the
@@ -31,7 +33,5 @@ unicode-width = { workspace = true }
 rustix = { version = "0.38", default-features = false, features = ["std", "stdio"] }
 
 [dev-dependencies]
-# The unit tests' fixture app is styled from CSS text.
-rdom-css = { path = "../rdom-css", version = "0.6.0" }
 # ... and some fixtures from markup.
 rdom-parser = { path = "../rdom-parser", version = "0.6.0" }

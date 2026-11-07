@@ -84,6 +84,7 @@ mod config;
 mod event_loop;
 mod frame;
 mod input;
+mod inspector;
 #[cfg(any(test, feature = "test-util"))]
 mod introspect;
 mod keyboard_defaults;
@@ -121,6 +122,8 @@ mod frame_work_tests;
 mod geometry_transition_tests;
 #[cfg(test)]
 mod idle_tests;
+#[cfg(test)]
+mod inspector_tests;
 #[cfg(test)]
 mod interaction_chain_tests;
 #[cfg(test)]

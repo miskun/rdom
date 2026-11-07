@@ -38,7 +38,7 @@ mod top_level;
 /// `rdom_css::property_dispatch::*` keeps working from
 /// pre-restructure consumer code.
 pub use at_rules::at_rule_names;
-pub use located::{from_css_at, parse_at};
+pub use located::{from_css_at, load_css_file, parse_at};
 pub use rdom_style::property_dispatch;
 use result::warning_to_error;
 pub use result::{
