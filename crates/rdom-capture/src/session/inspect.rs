@@ -177,6 +177,20 @@ pub(super) fn drop_replaced(app: &App<TestBackend>, edits: &mut Edits) {
 }
 
 impl<A: CaptureApp> Session<A> {
+    /// Apply `f` to the open app as an inspector's change (`App::inspect`)
+    /// and draw its frame, as one step.
+    pub(crate) fn step_inspected(
+        &mut self,
+        f: impl FnOnce(&mut App<TestBackend>) -> Result<(), SessionError>,
+    ) -> Result<(), SessionError> {
+        let mut out = Ok(());
+        self.step(|o| {
+            out = o.app.inspect(f)?;
+            Ok(())
+        })?;
+        out
+    }
+
     /// Change `property` of the rule `target` names to `value`
     /// (`!important` when `important`; `None` removes the declaration), as
     /// an inspector's change, and draw the frame it causes. Every rule

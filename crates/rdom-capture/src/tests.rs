@@ -1292,3 +1292,22 @@ fn the_variant_methods_answer_over_the_protocol() {
             .starts_with("iVBORw0KGgo")
     );
 }
+
+#[test]
+fn stress_and_mockup_answer_over_the_protocol() {
+    let mut s = open("plain");
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":1,"method":"stress","params":{"select":"p","rewrites":["double","empty"],"settle_ms":0}}"#,
+    );
+    let results = r["result"]["results"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{r}"));
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[1]["rewrite"], "empty");
+    // The frame's own text view is a matching mockup.
+    let view = crate::views::text::text(&grid(&s), crate::views::text::TextOptions::ALL);
+    let line = serde_json::json!({"jsonrpc": "2.0", "id": 2, "method": "mockup", "params": {"text": view}}).to_string();
+    let r = call(&mut s, &line);
+    assert_eq!(r["result"]["matches"], true, "{r}");
+}

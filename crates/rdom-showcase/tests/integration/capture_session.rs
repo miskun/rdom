@@ -139,3 +139,81 @@ fn the_capture_binary_answers_byte_identically_in_two_processes() {
     assert!(!a.contains(r#""error""#), "no request failed: {a}");
     assert_eq!(a, b, "two processes answered differently");
 }
+
+/// CAPTURE phase 6: every demo forks to the same frame after input — the
+/// footing of `whatif`, `matrix` and `stress`.
+#[test]
+fn every_demo_forks_to_its_own_frame_after_input() {
+    let steps = [
+        Input::Key { key: "tab".into() },
+        Input::Key { key: "down".into() },
+        Input::Key {
+            key: "enter".into(),
+        },
+    ];
+    for demo in DEMOS {
+        let fixture = format!("demo:{}", demo.slug());
+        let mut session = Session::new(Showcase);
+        session
+            .open(Environment::default(), Some(&fixture))
+            .unwrap();
+        session.input(&steps).unwrap();
+        session.advance(300).unwrap();
+        let fork = session
+            .fork()
+            .unwrap_or_else(|e| panic!("{fixture} did not fork: {e}"));
+        assert_eq!(
+            fork.snapshot().unwrap().grid_hash(),
+            session.snapshot().unwrap().grid_hash(),
+            "{fixture}"
+        );
+    }
+}
+
+/// CAPTURE phase 6: an acid page across schemes and depths, and its
+/// headings stressed.
+#[test]
+fn an_acid_page_varies_by_environment_and_takes_stress() {
+    let mut session = Session::new(Showcase);
+    session.open(acid_env(), Some("acid:1")).unwrap();
+    let axes = vec![
+        vec![
+            serde_json::json!({"color_scheme": "dark"}),
+            serde_json::json!({"color_scheme": "light"}),
+        ],
+        vec![
+            serde_json::json!({"color_depth": "truecolor"}),
+            serde_json::json!({"color_depth": "16"}),
+        ],
+    ];
+    let variants = session.matrix(&axes, 0).unwrap();
+    assert_eq!(variants.len(), 4);
+    let hash = |i: usize| {
+        variants[i]
+            .grid_hash
+            .clone()
+            .unwrap_or_else(|| panic!("{:?}", variants[i]))
+    };
+    // Page 1 has no color-scheme rule: the scheme changes nothing, the
+    // depth does (dark/truecolor, dark/16, light/truecolor, light/16).
+    assert_eq!(hash(0), hash(2), "the scheme changes nothing on page 1");
+    assert_eq!(hash(1), hash(3));
+    assert_ne!(hash(0), hash(1), "16 colors show other colors");
+    // Page 6 holds the media-query tile: the scheme shows there.
+    let mut media = Session::new(Showcase);
+    media.open(acid_env(), Some("acid:6")).unwrap();
+    let schemes = media.matrix(&axes[..1], 0).unwrap();
+    assert_ne!(
+        schemes[0].grid_hash, schemes[1].grid_hash,
+        "acid page 6 reads the scheme"
+    );
+    let stressed = session
+        .stress(
+            ".acid-label",
+            &[rdom_capture::variants::stress::Rewrite::Quadruple],
+            0,
+        )
+        .unwrap();
+    assert!(!stressed.is_empty());
+    assert!(stressed.iter().all(|s| s.error.is_none()), "{stressed:?}");
+}

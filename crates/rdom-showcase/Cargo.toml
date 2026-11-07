@@ -34,6 +34,8 @@ rdom-capture = { path = "../rdom-capture", version = "0.1.0" }
 # drive App::handle_event directly. Not a runtime dep — the
 # showcase binary uses crossterm transitively via rdom-tui.
 crossterm = "0.28"
+# `matrix` axes are partial environments, written as JSON.
+serde_json = "1"
 # The demo tests read what a headless `App` painted through
 # `VirtualScreen` (`test-util`).
 rdom-tui = { path = "../rdom-tui", version = "0.6.5", features = ["test-util"] }

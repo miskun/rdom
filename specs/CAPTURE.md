@@ -1,6 +1,6 @@
 # CAPTURE — an agent-friendly renderer, inspector and design loop
 
-**Status:** IN PROGRESS — phases 1–5 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
+**Status:** IN PROGRESS — phases 1–6 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
 v2 incorporates every finding (§Review record at the end). Three open questions are decided (§Decisions).
 
 ## Decisions
@@ -230,6 +230,11 @@ Arena ids are only valid within one capture. Across captures (diffs, films, repl
 `id` attribute → `data-key` attribute → structural fingerprint (tag, classes, ancestor path, sibling index among
 same-keyed siblings). Every node's `key` says which method produced it, and every diff reports how each pair was
 matched.
+
+As built (phase 6): a key is a path of steps from the nearest element with a unique `id` — `#id` (a duplicated `id`
+names nothing), `[key=k]` for a `data-key`, `tag.class.class` otherwise (classes sorted), each with `:n` when earlier
+siblings share the step — `#settings/ul.items/[key=r42]/span.label`; `key_by` says which rule named the element
+itself (`id`, `data-key`, `fingerprint`).
 
 ### Paint trace
 
@@ -724,6 +729,38 @@ pass, the inspector's swatches show the profile's color, the report no longer dr
 the image draws what rdom painted for the underline color and the SGR extensions, not what the environment sends
 (`TECH_DEBT` CAPTURE-RASTER-SHOWN-1, before phase 7's audits); each element's explanation re-traces its ancestors
 (shared traces would cut the report's cost on large pages).
+
+### Phase 6 — forks, identity, `diff`, `whatif`, `matrix`, `stress`, `mockup`: DONE (2026-11-07)
+
+Shipped: the step log (`Session::log`, `Step`) and forks (`Session::fork`, `fork_in`), node identity
+(`NodeInfo::key` / `key_by`), `snapshot` / `mark` / `diff`, `whatif`, `matrix` with a contact sheet
+(`raster::sheet`), `stress` (`Session::rewrite`, `Rewrite`) and `mockup`, each a session method and a protocol
+method.
+
+As built, against the plan:
+
+- Every variant runs in a fork: the session rebuilt from its log (the app built again, its steps applied again) —
+  deterministic, so its frame is the session's, which the fork checks (`Diverged` otherwise); the session is never
+  touched. A session driven through `app_mut` or whose files a patch rewrote is refused (`Unreplayable`), with why.
+  The same log is phase 9's record format.
+- `diff` compares grids cell by cell (glyph, colors as sent, attributes) and elements by identity: added, removed,
+  border boxes moved or resized, and declared styles (each property's winning value) — computed values wait for a
+  serializer (`CAPTURE-EXPLAIN-1`).
+- `whatif` candidates are step lists (edits, forced states, inputs, advances), each from the same base, settled the
+  same time as the base; ranking by audit findings comes with phase 7 — until then they are answered in order.
+- `matrix` axes are partial environments laid over the session's, so every environment field is an axis; profiles
+  apply to the sheet's image. The sheet is composed in cells and drawn by the rasterizer.
+- `stress` rewrites an element's text nodes (double, ×4, empty, a long word, CJK, emoji, right-to-left, a number) in a
+  fork; app mutation observers in the fork see it. Findings: truncated (text cells shown < cells needed), wrapped
+  (taller), overflow (past the parent's border box), shifted (others moved), overlap (new intersections). "Many items"
+  is not a rewrite yet.
+- `mockup` takes the text view's own format — a captured view is its own matching mockup — and reports differing
+  glyph spans, color runs per key layer, and rows whose text is shifted.
+- Tests: fork equality and independence, the log, refusal after `app_mut`; identity rules; diff by identity (a row
+  inserted above keeps its siblings matched); whatif from one base with a failing candidate; matrix with a sheet;
+  stress with known findings (fits, wraps and shifts, truncates); mockup round trip, shifts and wildcards; on the
+  showcase, every demo forks to its own frame after input, acid page 1 varies by depth but not scheme and page 6 by
+  scheme, and its tile labels take stress.
 
 ## Open questions
 

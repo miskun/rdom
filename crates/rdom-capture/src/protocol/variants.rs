@@ -14,6 +14,7 @@ use crate::capture::Grid;
 use crate::query::fit;
 use crate::raster::{Raster, render, sheet::sheet};
 use crate::session::Session;
+use crate::variants::stress::Rewrite;
 use crate::variants::whatif::Candidate;
 use crate::views::base64::base64;
 
@@ -74,6 +75,33 @@ pub(crate) struct MatrixParams {
     /// Write the sheet to `<out>.png` instead of returning it.
     #[serde(default)]
     pub out: Option<PathBuf>,
+}
+
+/// `stress`'s parameters.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct StressParams {
+    pub select: String,
+    /// Default: every rewrite.
+    #[serde(default)]
+    pub rewrites: Option<Vec<Rewrite>>,
+    #[serde(default = "settle")]
+    pub settle_ms: u64,
+    #[serde(default)]
+    pub budget: Option<usize>,
+}
+
+/// `mockup`'s parameters.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct MockupParams {
+    pub text: String,
+    #[serde(default)]
+    pub at: [u16; 2],
+    #[serde(default)]
+    pub any: Option<char>,
+    #[serde(default)]
+    pub budget: Option<usize>,
 }
 
 fn settle() -> u64 {
@@ -161,5 +189,26 @@ pub(crate) fn matrix<A: CaptureApp>(
             "no variant could be shown, so there is no sheet to write",
         ));
     }
+    Ok(answer)
+}
+
+pub(crate) fn stress<A: CaptureApp>(
+    session: &Session<A>,
+    p: StressParams,
+) -> Result<Value, RpcError> {
+    let rewrites = p.rewrites.unwrap_or_else(|| Rewrite::ALL.to_vec());
+    let mut answer = serde_json::json!({
+        "results": json(session.stress(&p.select, &rewrites, p.settle_ms)?)?,
+    });
+    fit(&mut answer, p.budget);
+    Ok(answer)
+}
+
+pub(crate) fn mockup<A: CaptureApp>(
+    session: &Session<A>,
+    p: MockupParams,
+) -> Result<Value, RpcError> {
+    let mut answer = json(session.mockup(&p.text, p.at, p.any)?)?;
+    fit(&mut answer, p.budget);
     Ok(answer)
 }

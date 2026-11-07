@@ -48,6 +48,11 @@ pub enum Step {
     Reset,
     /// [`Session::reload`].
     Reload,
+    /// [`Session::rewrite`]: the element's text rewritten (`stress`).
+    Rewrite {
+        node: String,
+        rewrite: crate::variants::stress::Rewrite,
+    },
 }
 
 impl<A: CaptureApp> Session<A> {
@@ -67,7 +72,7 @@ impl<A: CaptureApp> Session<A> {
     }
 
     /// Record `step`, which the open app just took.
-    pub(super) fn record(&mut self, step: Step) {
+    pub(crate) fn record(&mut self, step: Step) {
         if let Some(o) = self.open.as_mut() {
             o.log.push(step);
         }
@@ -146,6 +151,7 @@ impl<A: CaptureApp> Session<A> {
             }
             Step::Reset => self.reset().map(drop),
             Step::Reload => self.reload().map(drop),
+            Step::Rewrite { node, rewrite } => self.rewrite(node, *rewrite),
         }
     }
 }

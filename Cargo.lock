@@ -947,6 +947,7 @@ dependencies = [
  "rdom-parser",
  "rdom-style",
  "rdom-tui",
+ "serde_json",
  "unicode-width",
 ]
 

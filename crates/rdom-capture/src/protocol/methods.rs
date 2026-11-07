@@ -65,6 +65,14 @@ pub(crate) const METHODS: &[MethodInfo] = &[
         summary: "Replay this session's steps across a cross product of environments, each axis a list of partial environments laid over the session's ({\"color_scheme\": \"light\"}, {\"viewport\": {\"width\": 60}}), and answer each variant's frame hash with a contact sheet of them all. Params: {axes: [[partial env]], settle_ms?: 500, png?: {profile?, scale?}, columns?, out?: path (writes <out>.png)}.",
     },
     MethodInfo {
+        name: "stress",
+        summary: "Rewrite the text of the elements a selector matches (up to 8), each rewrite in a fork of its own — double, quadruple, empty, long-word, cjk, emoji, rtl, number — and report what broke: truncated text, a box that wrapped, overflow past its parent, elements shifted, new overlaps. Params: {select: css, rewrites?: [names] (default all), settle_ms?: 500, budget?}.",
+    },
+    MethodInfo {
+        name: "mockup",
+        summary: "Compare the frame with the screen as it should be, written as a text view (glyph lines, then optional ── background ── / ── foreground ── key layers with their keys; in a key layer `.` is the default color and a space anything): the glyphs and colors that differ, and the rows whose text is there but shifted. A captured text view is its own matching mockup. Params: {text, at?: [x, y], any?: wildcard char, budget?}.",
+    },
+    MethodInfo {
         name: "outline",
         summary: "The landmarks outline: landmarks, headings, lists, controls and focusable elements, nested, each with role, name, rect and state. Params: {depth?: integer, detail?: \"outline\"|\"summary\"|\"full\", budget?: tokens}. Read it first.",
     },
@@ -212,6 +220,8 @@ pub(crate) fn dispatch<A: CaptureApp>(
         "diff" => super::variants::diff(session, params(p)?),
         "whatif" => super::variants::whatif(session, params(p)?),
         "matrix" => super::variants::matrix(session, params(p)?),
+        "stress" => super::variants::stress(session, params(p)?),
+        "mockup" => super::variants::mockup(session, params(p)?),
         "outline" => outline(session, params(p)?),
         "explain" => explain(session, params(p)?),
         "query" => query(session, params(p)?),

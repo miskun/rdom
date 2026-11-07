@@ -38,6 +38,8 @@ pub use error::SessionError;
 pub use log::Step;
 pub use snapshot::MAX_MARKS;
 
+pub(crate) use inspect::node_by_key;
+
 use crate::app::{CaptureApp, FixtureInfo};
 use crate::capture::{Capture, Layer, Meta, SCHEMA, node_key, nodes, owners};
 use crate::env::{Environment, Viewport};

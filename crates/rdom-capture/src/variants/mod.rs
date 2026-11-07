@@ -6,4 +6,6 @@
 
 pub mod diff;
 pub mod matrix;
+pub mod mockup;
+pub mod stress;
 pub mod whatif;

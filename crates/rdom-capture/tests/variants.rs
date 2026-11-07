@@ -242,3 +242,56 @@ fn matrix_replays_the_steps_across_environments() {
         .to_string();
     assert!(bad.contains("object"), "{bad}");
 }
+
+// --- stress -------------------------------------------------------------
+
+/// A card 12 cells wide with a label, a paragraph below it, and a narrow
+/// clipped badge.
+struct Card;
+
+const CARD_CSS: &str =
+    ".card { width: 12; } .badge { width: 6; overflow: hidden; white-space: nowrap; }";
+
+impl CaptureApp for Card {
+    fn build(
+        &self,
+        env: &Environment,
+        _: Option<&str>,
+    ) -> Result<App<TestBackend>, Box<dyn Error>> {
+        let (dom, _) = rdom_parser::parse(
+            r#"<div class="card"><p id="label">Save</p></div><p id="below">next</p><div class="badge" id="badge">ok</div>"#,
+        )?;
+        Ok(env.app(dom, rdom_css::from_css(CARD_CSS))?)
+    }
+}
+
+#[test]
+fn stress_reports_what_each_rewrite_did_to_the_layout() {
+    use rdom_capture::variants::stress::Rewrite;
+    let mut s = Session::new(Card);
+    s.open(Environment::default().with_viewport(30, 10), None)
+        .unwrap();
+    let r = s
+        .stress("#label", &[Rewrite::Double, Rewrite::Quadruple], 0)
+        .unwrap();
+    let kinds = |i: usize| -> Vec<&str> { r[i].findings.iter().map(|f| f.kind).collect() };
+    assert_eq!(r[0].key, "#label");
+    assert!(kinds(0).is_empty(), "\"Save Save\" fits: {:?}", r[0]);
+    assert!(kinds(1).contains(&"wrapped"), "{:?}", r[1]);
+    let shifted = r[1]
+        .findings
+        .iter()
+        .find(|f| f.kind == "shifted")
+        .expect("the paragraph below moved");
+    assert!(shifted.nodes.contains(&"#below".to_string()), "{shifted:?}");
+    // A long word in a clipped, unwrapping badge: cut off.
+    let b = s.stress("#badge", &[Rewrite::LongWord], 0).unwrap();
+    assert!(
+        b[0].findings.iter().any(|f| f.kind == "truncated"),
+        "{:?}",
+        b[0]
+    );
+    // The session is as it was, and its log holds no rewrite.
+    assert!(s.log().is_empty());
+    assert!(s.stress("#nope", &[Rewrite::Empty], 0).is_err());
+}
