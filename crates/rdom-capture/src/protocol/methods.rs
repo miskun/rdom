@@ -322,6 +322,12 @@ fn node_named<A: CaptureApp>(
 
 fn explain<A: CaptureApp>(session: &Session<A>, p: ExplainParams) -> Result<Value, RpcError> {
     let app = open_app(session)?;
+    if let Some(bad) = p.properties.iter().find(|n| {
+        !n.starts_with("--")
+            && !rdom_style::property_dispatch::property_names().contains(&n.as_str())
+    }) {
+        return Err(invalid(format!("no property {bad:?}")));
+    }
     let targets = [p.at.is_some(), p.select.is_some(), p.node.is_some()];
     if targets.iter().filter(|t| **t).count() != 1 {
         return Err(invalid("explain takes exactly one of at, select, node"));

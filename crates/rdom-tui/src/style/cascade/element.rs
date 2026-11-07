@@ -16,6 +16,74 @@ use super::ladder::{Declarations, apply_cascade_ladder, prepare};
 use super::matching::{Rules, Scratch};
 use super::walk::ElementCx;
 
+/// Gather what element `id`'s ladder applies into `scratch` — its matched
+/// rules (or the recorded ones) and its plan with the hint and keyframe
+/// steps it needs — and return its presentational hints, which the
+/// declarations borrow. The cascade and its explanation (`explain`) both
+/// start here.
+pub(super) fn gather_element<'a>(
+    dom: &rdom_core::Dom<crate::ext::TuiExt>,
+    sheets: &super::walk::Sheets<'a>,
+    id: NodeId,
+    scratch: &mut Scratch<'a>,
+    rules: Rules<'_>,
+) -> Option<crate::style::TuiStyle> {
+    // Collect matching non-pseudo-element rules across all sheets.
+    // Cascade order is (specificity, scope proximity, sheet_idx,
+    // source_idx) — later sheets win same-specificity contests just
+    // like later rules in a single sheet do.
+    scratch.gather(dom, sheets, id, &[PseudoElementTarget::None], rules);
+    // HTML's presentational hints (`<ol start>`, `<li value>`): author
+    // origin, before every author rule (CSS Cascade 4 §6.4.4).
+    let hints = super::hints::presentational_hints(dom, id);
+    if hints.is_some() {
+        scratch.plan.add_hints();
+    }
+    // A keyframe style's keyframe, in the animation origin.
+    if !sheets.animation().is_empty() {
+        scratch.plan.add_animation();
+    }
+    hints
+}
+
+/// Element `id`'s style before its ladder: initial values, what it
+/// inherits from `parent` (its custom properties included), its
+/// `direction`, and its own custom properties folded in, with its
+/// declarations' `var()` / `attr()` substituted from them. The cascade
+/// and its explanation (`explain`) both start here.
+pub(super) fn start_style(
+    dom: &rdom_core::Dom<crate::ext::TuiExt>,
+    sheets: &super::walk::Sheets<'_>,
+    id: NodeId,
+    parent: &ComputedStyle,
+    direction: TextDirection,
+    plan: &super::ladder::Plan,
+    decls: Declarations<'_>,
+) -> (ComputedStyle, Option<super::ladder::Substituted>) {
+    let mut working = ComputedStyle::initial();
+    inherit_inheritable_from(&mut working, parent);
+    working.text_direction = direction;
+    // Running transitions of registered custom properties
+    // (`runtime::animation`).
+    let transitions = dom
+        .node(id)
+        .ext()
+        .and_then(|e| e.presentation.as_deref())
+        .and_then(|p| p.custom_properties.as_ref());
+    // `attr()` reads this element's attributes (CSS Values 5 §8.7).
+    let attrs = |name: &str| dom.node(id).get_attribute(name);
+    let substituted = prepare(
+        &mut working,
+        plan,
+        decls,
+        sheets.active_registry(),
+        transitions,
+        &attrs,
+        sheets.viewport_use(),
+    );
+    (working, substituted)
+}
+
 /// Per-element cascade: start from initial + inheritance, collect
 /// matching rules, apply the ladder, resolve `content`, finalize
 /// the `border-*-color`s.
@@ -28,22 +96,7 @@ pub(super) fn compute_element_style(
     let (dom, sheets, id) = (cx.dom, cx.sheets, cx.id);
     #[cfg(test)]
     hook::run(id);
-    // Collect matching non-pseudo-element rules across all sheets.
-    // Cascade order is (specificity, scope proximity, sheet_idx,
-    // source_idx) — later sheets win same-specificity contests just
-    // like later rules in a single sheet do.
-    cx.scratch
-        .gather(dom, sheets, id, &[PseudoElementTarget::None], rules);
-    // HTML's presentational hints (`<ol start>`, `<li value>`): author
-    // origin, before every author rule (CSS Cascade 4 §6.4.4).
-    let hints = super::hints::presentational_hints(dom, id);
-    if hints.is_some() {
-        cx.scratch.plan.add_hints();
-    }
-    // A keyframe style's keyframe, in the animation origin.
-    if !sheets.animation().is_empty() {
-        cx.scratch.plan.add_animation();
-    }
+    let hints = gather_element(dom, sheets, id, cx.scratch, rules);
     let Scratch {
         sorted,
         ranks,
@@ -58,15 +111,6 @@ pub(super) fn compute_element_style(
     let decls = Declarations::new(sorted, ranks, inline)
         .with_hints(hints.as_ref())
         .with_animation(sheets.animation());
-    // Running transitions of registered custom properties
-    // (`runtime::animation`).
-    let transitions = dom
-        .node(id)
-        .ext()
-        .and_then(|e| e.presentation.as_deref())
-        .and_then(|p| p.custom_properties.as_ref());
-    // `attr()` reads this element's attributes (CSS Values 5 §8.7).
-    let attrs = |name: &str| dom.node(id).get_attribute(name);
     let preferred = sheets.color_scheme();
     // An inline-axis flow-relative property maps by the element's own
     // `direction` (CSS Logical 1 §4), which this very ladder decides: the
@@ -79,18 +123,10 @@ pub(super) fn compute_element_style(
             // includes the custom-property map (an `Rc` clone;
             // `apply_cascade_ladder` copies on write only when this
             // element declares `--*`).
-            let mut working = ComputedStyle::initial();
-            inherit_inheritable_from(&mut working, parent);
-            working.text_direction = direction;
-            let substituted = prepare(
-                &mut working,
-                plan,
-                decls,
-                sheets.active_registry(),
-                transitions,
-                &attrs,
-                sheets.viewport_use(),
-            );
+            #[cfg(test)]
+            super::ladder::record::begin();
+            let (mut working, substituted) =
+                start_style(dom, sheets, id, parent, direction, plan, decls);
             let colors = apply_cascade_ladder(
                 &mut working,
                 plan,
@@ -110,6 +146,8 @@ pub(super) fn compute_element_style(
     // A flow-relative property cannot change `direction`, so the run with
     // the element's own direction settles it.
     debug_assert!(settled, "the direction re-run settles `direction`");
+    #[cfg(test)]
+    super::ladder::record::end(id);
     let decls = decls.with(substituted.as_ref(), working.text_direction);
     // `currentcolor` takes the element's final `color`, `light-dark()`
     // its final `color-scheme`.

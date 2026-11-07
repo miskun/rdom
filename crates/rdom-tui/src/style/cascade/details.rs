@@ -176,6 +176,15 @@ pub(super) fn reclaim_content_boxes(dom: &mut Dom<TuiExt>) {
 
 /// The style `child` of `parent` inherits from when it is slotted: the
 /// slot's.
+/// Whether `child` of `parent` inherits from `parent`'s
+/// `::details-content` slot ([`inherited_style`]'s rule).
+pub(crate) fn inherits_from_slot(dom: &Dom<TuiExt>, parent: NodeId, child: NodeId) -> bool {
+    dom.node(parent)
+        .ext()
+        .is_some_and(|e| e.computed_details_content().is_some())
+        && slotted(dom, parent, child)
+}
+
 pub(super) fn inherited_style(
     dom: &Dom<TuiExt>,
     parent: NodeId,

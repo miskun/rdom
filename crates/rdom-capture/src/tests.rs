@@ -956,3 +956,144 @@ fn a_budget_cuts_an_answer_and_says_where() {
     let e = &r["result"];
     assert!(e["truncated"].is_object(), "{e}");
 }
+
+// ── phase 3 review follow-ups ──
+
+/// A fixture app: `markup` styled by `css`.
+struct Markup(&'static str, &'static str);
+
+impl CaptureApp for Markup {
+    fn build(
+        &self,
+        env: &Environment,
+        _: Option<&str>,
+    ) -> Result<App<TestBackend>, Box<dyn Error>> {
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        rdom_parser::parse_into(&mut dom, self.0, root)?;
+        Ok(env.app(dom, rdom_css::from_css_at(self.1, "t.css"))?)
+    }
+}
+
+fn markup_session(markup: &'static str, css: &'static str) -> Session<Markup> {
+    let mut s = Session::new(Markup(markup, css));
+    s.open(Environment::default().with_viewport(30, 6), None)
+        .unwrap();
+    s
+}
+
+fn explain_prop(s: &mut Session<Markup>, select: &str, prop: &str) -> serde_json::Value {
+    let line = serde_json::json!({"jsonrpc": "2.0", "id": 1, "method": "explain",
+        "params": {"select": select, "properties": [prop]}})
+    .to_string();
+    let r = serde_json::to_value(handle_line(s, &line).unwrap()).unwrap();
+    assert!(r.get("error").is_none(), "{r}");
+    r["result"]["style"][0].clone()
+}
+
+#[test]
+fn keywords_resolve_to_what_they_mean() {
+    let mut s = markup_session(
+        r#"<div class="p"><p class="i">x</p><button class="r">b</button></div>"#,
+        ".p { color: #102030; }\n.i { color: inherit; }\n.r { color: revert; }",
+    );
+    let i = explain_prop(&mut s, ".i", "color");
+    assert_eq!(
+        (i["from"].as_str(), i["keyword"].as_str()),
+        (Some("inherited"), Some("inherit")),
+        "{i}"
+    );
+    assert_eq!(i["declaration"]["selector"], ".p");
+    let r = explain_prop(&mut s, ".r", "color");
+    assert_eq!(r["from"], "reverted", "{r}");
+    assert_eq!(r["declaration"]["origin"], "ua");
+    assert_eq!(r["keyword"], "revert");
+}
+
+#[test]
+fn a_registered_property_that_does_not_inherit_is_initial_below() {
+    let mut s = markup_session(
+        r#"<div class="p"><p class="c">x</p></div>"#,
+        "@property --x { syntax: '*'; inherits: false; }\n.p { --x: 3; --y: 4; }",
+    );
+    assert_eq!(explain_prop(&mut s, ".c", "--x")["from"], "initial");
+    let y = explain_prop(&mut s, ".c", "--y");
+    assert_eq!(y["from"], "inherited", "{y}");
+    assert_eq!(y["computed"], "4");
+}
+
+#[test]
+fn a_details_slot_is_named_not_skipped() {
+    let mut s = markup_session(
+        r#"<details open class="d"><summary>s</summary><p class="in">x</p></details>"#,
+        ".d::details-content { color: #00ff00; }",
+    );
+    let c = explain_prop(&mut s, ".in", "color");
+    assert_eq!(c["from"], "inherited", "{c}");
+    assert!(
+        c["note"].as_str().unwrap().contains("::details-content"),
+        "{c}"
+    );
+}
+
+#[test]
+fn text_after_a_wide_glyph_is_found_at_its_cell() {
+    let mut s = markup_session(r#"<p>中a</p>"#, "");
+    let r = call_m(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":2,"method":"query","params":{"text":"a"}}"#,
+    );
+    assert_eq!(
+        r["result"]["found"][0]["at"],
+        serde_json::json!([2, 0]),
+        "{r}"
+    );
+    let r = call_m(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":3,"method":"explain","params":{"select":"p","properties":["colour"]}}"#,
+    );
+    assert_eq!(
+        r["error"]["code"],
+        code::INVALID_PARAMS,
+        "unknown properties are refused"
+    );
+}
+
+fn call_m(s: &mut Session<Markup>, line: &str) -> serde_json::Value {
+    serde_json::to_value(handle_line(s, line).unwrap()).unwrap()
+}
+
+#[test]
+fn the_outline_scopes_headers_and_names_by_labelledby_first() {
+    let mut s = markup_session(
+        r#"<header>top</header><article><header>card</header><h2 id="t">Title</h2><nav aria-label="a" aria-labelledby="t">x</nav></article><img alt="logo">"#,
+        "",
+    );
+    let r = call_m(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":2,"method":"outline","params":{"detail":"full"}}"#,
+    );
+    let text = r["result"].to_string();
+    assert_eq!(
+        text.matches("\"banner\"").count(),
+        1,
+        "only the page's header: {text}"
+    );
+    assert!(
+        text.contains(r#""name":"Title","node""#) || text.contains(r#""name":"Title""#),
+        "{text}"
+    );
+    let nav = r["result"]["outline"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|n| n["role"] == "article")
+        .unwrap()["children"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|n| n["role"] == "navigation")
+        .unwrap()
+        .clone();
+    assert_eq!(nav["name"], "Title", "aria-labelledby wins over aria-label");
+}

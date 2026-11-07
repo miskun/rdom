@@ -5,13 +5,15 @@
 //! took, the ones it overrode, and where they are written; for a property
 //! with no declaration, the ancestor it inherits from.
 
-use rdom_tui::capture::{
-    DeclarationOrigin, Declared, OpKind, PaintOp, PaintPart, RuleRef, StyleTrace, inherits,
-};
+use rdom_tui::capture::{DeclarationOrigin, Declared, OpKind, PaintOp, PaintPart, RuleRef};
 use rdom_tui::core_api::NodeId;
 use rdom_tui::render::TestBackend;
 use rdom_tui::{App, Rect};
 use serde::Serialize;
+
+mod property;
+
+use property::{Traces, property};
 
 use super::Detail;
 use crate::capture::{Attr, Boxes, ColorValue, NodeInfo, node_key, nodes};
@@ -90,8 +92,20 @@ pub(crate) struct PropertyInfo {
     /// The value it takes: the winning declaration's, an ancestor's, or
     /// `initial`.
     pub value: String,
-    /// `declared`, `inherited`, `initial`.
+    /// `declared`, `inherited`, `initial`, `reverted` (a `revert` rolled
+    /// back to the UA's declaration).
     pub from: &'static str,
+    /// The CSS-wide keyword the winning declaration was (`inherit`,
+    /// `revert`, …); `value` is what it resolved to.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keyword: Option<&'static str>,
+    /// What the explanation could not resolve, or why.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    /// A custom property's computed value: its `var()` references
+    /// resolved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub computed: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declaration: Option<DeclInfo>,
     /// For an inherited value: the ancestor that declared it.
@@ -219,64 +233,6 @@ pub(crate) fn relevant(part: Option<PaintPart>) -> &'static [&'static str] {
     }
 }
 
-/// How `property` came to be on `id`: its winner, else its inherited value
-/// from the nearest ancestor that declares it, else `initial`.
-fn property(
-    app: &App<TestBackend>,
-    id: NodeId,
-    own: &StyleTrace,
-    property: &str,
-    detail: Detail,
-) -> PropertyInfo {
-    let keep = match detail {
-        Detail::Outline => 0,
-        Detail::Summary => 3,
-        Detail::Full => usize::MAX,
-    };
-    if let Some(w) = own.winner(property) {
-        let over = own.overridden(property);
-        return PropertyInfo {
-            property: property.to_string(),
-            value: w.value.clone(),
-            from: "declared",
-            declaration: Some(decl_info(w)),
-            ancestor: None,
-            overridden: over.iter().take(keep).map(|d| decl_info(d)).collect(),
-            more_overridden: over.len().saturating_sub(keep),
-        };
-    }
-    if inherits(property) {
-        let dom = app.dom();
-        let mut cur = dom.node(id).parent_node().map(|p| p.id());
-        while let Some(a) = cur {
-            if let Some(w) = app
-                .explain_style(a)
-                .and_then(|t| t.winner(property).cloned())
-            {
-                return PropertyInfo {
-                    property: property.to_string(),
-                    value: w.value.clone(),
-                    from: "inherited",
-                    declaration: Some(decl_info(&w)),
-                    ancestor: Some(node_key(a)),
-                    overridden: Vec::new(),
-                    more_overridden: 0,
-                };
-            }
-            cur = dom.node(a).parent_node().map(|p| p.id());
-        }
-    }
-    PropertyInfo {
-        property: property.to_string(),
-        value: "initial".to_string(),
-        from: "initial",
-        declaration: None,
-        ancestor: None,
-        overridden: Vec::new(),
-        more_overridden: 0,
-    }
-}
-
 fn op_info(app: &App<TestBackend>, op: &PaintOp) -> OpInfo {
     let dom = app.dom();
     let (op_name, alpha) = match op.kind {
@@ -314,7 +270,8 @@ pub(crate) fn element(
     detail: Detail,
 ) -> Explanation {
     let dom = app.dom();
-    let own = app.explain_style(id).unwrap_or_default();
+    let mut traces = Traces::new(app);
+    let own = traces.of(id).clone();
     let names: Vec<String> = if !properties.is_empty() {
         properties.to_vec()
     } else if part.is_some() {
@@ -324,7 +281,7 @@ pub(crate) fn element(
     };
     let style = names
         .iter()
-        .map(|p| property(app, id, &own, p, detail))
+        .map(|p| property(&mut traces, id, p, detail))
         .collect();
     let animations = app
         .get_animations(id)

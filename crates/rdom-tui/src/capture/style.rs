@@ -66,7 +66,12 @@ pub struct Declared {
     /// The property: a longhand's canonical name, or a custom property's
     /// (`--accent`).
     pub property: String,
-    /// The value as applied (a `var()` substituted).
+    /// The value as applied: a `var()` in a property's value substituted;
+    /// a custom property's as written (its own `var()` references
+    /// resolve in the element's custom-property map, the computed style's
+    /// `vars`). A CSS-wide keyword (`inherit`, `initial`, `unset`,
+    /// `revert`, `revert-layer`) is the keyword: [`css_wide_keyword`]
+    /// says which.
     pub value: String,
     pub important: bool,
     pub origin: DeclarationOrigin,
@@ -121,9 +126,46 @@ impl StyleTrace {
 }
 
 /// Whether `property` inherits when no declaration sets it (CSS Cascade 4
-/// §7.2); custom properties do.
+/// §7.2): a longhand by its definition; a custom property unless an
+/// `@property` registration says `inherits: false` —
+/// [`App::property_inherits`](crate::App::property_inherits) reads the
+/// App's registrations, this says `true` for every custom property.
 pub fn inherits(property: &str) -> bool {
     property.starts_with("--") || property_dispatch::inherits(property)
+}
+
+/// The CSS-wide keyword `value` is (CSS Cascade 4 §7.3), if it is one:
+/// such a declaration's value is not its text but the inherited, initial
+/// or rolled-back one.
+pub fn css_wide_keyword(value: &str) -> Option<&'static str> {
+    ["inherit", "initial", "unset", "revert", "revert-layer"]
+        .into_iter()
+        .find(|k| value.trim().eq_ignore_ascii_case(k))
+}
+
+/// Where element `id` inherits its style from, as the cascade has it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Inheritance {
+    /// Its parent element (or the root's document node).
+    Element(NodeId),
+    /// The `::details-content` slot of this `<details>` element, which a
+    /// `<details>` element's slotted content inherits from; the slot's own
+    /// declarations are not traced.
+    DetailsContent(NodeId),
+}
+
+/// Where element `id` inherits from (`None` at the root): the rule the
+/// cascade walk uses.
+pub fn inheritance_parent(dom: &TuiDom, id: NodeId) -> Option<Inheritance> {
+    let parent = dom.node(id).parent_node()?.id();
+    Some(
+        if crate::style::cascade::details::inherits_from_slot(dom, parent, id) {
+            Inheritance::DetailsContent(parent)
+        } else {
+            Inheritance::Element(parent)
+        },
+    )
 }
 
 /// The declarations the cascade applied to element `id`, cascaded under

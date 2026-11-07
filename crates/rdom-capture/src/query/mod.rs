@@ -30,8 +30,12 @@ pub enum Detail {
 const CHARS_PER_TOKEN: usize = 4;
 
 /// Cut `answer` to about `budget` tokens of compact JSON, longest lists
-/// first, from their ends; each cut is recorded under `"truncated"` as
-/// `{path: dropped}`, so nothing disappears silently. `None`: no budget.
+/// first, from their ends (an entry dropped from a list takes its nested
+/// entries with it); each cut is recorded under `"truncated"` as
+/// `{path: entries dropped}`, and `"over_budget": true` when the answer is
+/// still over with nothing left to cut — nothing disappears silently. Ask
+/// again with a larger budget, a lower detail or a narrower question for
+/// the rest. `None`: no budget.
 pub(crate) fn fit(answer: &mut Value, budget: Option<usize>) {
     let Some(budget) = budget else {
         return;
@@ -46,21 +50,27 @@ pub(crate) fn fit(answer: &mut Value, budget: Option<usize>) {
             break;
         }
         let keep = len / 2;
-        if let Some(list) = list_at(answer, &path) {
-            list.truncate(keep);
-        }
+        let Some(list) = list_at(answer, &path) else {
+            break;
+        };
+        list.truncate(keep);
         match dropped.iter_mut().find(|(p, _)| *p == path) {
             Some(d) => d.1 += len - keep,
             None => dropped.push((path, len - keep)),
         }
     }
-    if !dropped.is_empty()
+    // Still over with nothing left to cut: say so too.
+    let over = serde_json::to_string(answer).map_or(0, |s| s.len()) > limit;
+    if (!dropped.is_empty() || over)
         && let Value::Object(map) = answer
     {
-        let cut: serde_json::Map<String, Value> = dropped
+        let mut cut: serde_json::Map<String, Value> = dropped
             .into_iter()
             .map(|(p, n)| (p, Value::from(n)))
             .collect();
+        if over {
+            cut.insert("over_budget".to_string(), Value::Bool(true));
+        }
         map.insert("truncated".to_string(), Value::Object(cut));
     }
 }
@@ -123,6 +133,10 @@ mod tests {
         assert!(v["a"].as_array().unwrap().len() < 100);
         assert!(v["truncated"]["a"].as_u64().unwrap() > 0, "{v}");
         assert_eq!(v["keep"], "x");
+        // Nothing left to cut: still flagged, and the loop ends.
+        let mut big = json!({"a": ["x".repeat(500)]});
+        fit(&mut big, Some(10));
+        assert_eq!(big["truncated"]["over_budget"], true, "{big}");
         let mut small = json!({"a": [1]});
         fit(&mut small, Some(1000));
         assert!(small.get("truncated").is_none());

@@ -110,6 +110,8 @@ pub(crate) mod details;
 mod early_pseudos;
 mod element;
 pub(crate) mod explain;
+#[cfg(test)]
+mod explain_tests;
 mod field_sizing;
 mod finish;
 mod font;

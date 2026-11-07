@@ -48,7 +48,7 @@ use super::keywords::{Initials, Keywords};
 mod declarations;
 
 use crate::style::ComputedStyle;
-pub(super) use declarations::{Block, Declarations, prepare};
+pub(super) use declarations::{Block, Declarations, Substituted, prepare};
 
 /// Which declarations one ladder step applies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -278,6 +278,10 @@ pub(super) fn apply_cascade_ladder(
     };
     let rollback = Rollback::new(plan.steps().len(), &base, &apply);
     for step in plan.steps() {
+        #[cfg(test)]
+        for style in decls.of(step) {
+            record::note(step.important, style);
+        }
         apply_step(working, &mut colors, step, decls, &env, &rollback);
     }
 
@@ -308,6 +312,63 @@ fn apply_step(
     };
     for style in decls.of(step) {
         apply_style(working, colors, style, step.important, &keywords);
+    }
+}
+
+/// Test-only: the declaration blocks each element's ladder applied on
+/// its settled run, in order, with the step's importance — what the
+/// explanation (`explain`) must report (`explain_tests`).
+#[cfg(test)]
+pub(super) mod record {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    use rdom_core::NodeId;
+
+    use crate::style::TuiStyle;
+
+    type Applied = Vec<(bool, TuiStyle)>;
+
+    thread_local! {
+        static ON: RefCell<Option<HashMap<NodeId, Applied>>> = const { RefCell::new(None) };
+        static CURRENT: RefCell<Option<Applied>> = const { RefCell::new(None) };
+    }
+
+    /// Start recording every element's applied blocks.
+    pub fn enable() {
+        ON.with(|o| *o.borrow_mut() = Some(HashMap::new()));
+    }
+
+    /// Stop, and hand back what was recorded per element.
+    pub fn take() -> HashMap<NodeId, Applied> {
+        CURRENT.with(|c| c.borrow_mut().take());
+        ON.with(|o| o.borrow_mut().take()).unwrap_or_default()
+    }
+
+    /// An element's ladder run begins (a direction re-run starts over).
+    pub(in crate::style::cascade) fn begin() {
+        if ON.with(|o| o.borrow().is_some()) {
+            CURRENT.with(|c| *c.borrow_mut() = Some(Vec::new()));
+        }
+    }
+
+    pub(super) fn note(important: bool, style: &TuiStyle) {
+        CURRENT.with(|c| {
+            if let Some(list) = c.borrow_mut().as_mut() {
+                list.push((important, style.clone()));
+            }
+        });
+    }
+
+    /// Element `id`'s ladder settled: keep its last run.
+    pub(in crate::style::cascade) fn end(id: NodeId) {
+        if let Some(list) = CURRENT.with(|c| c.borrow_mut().take()) {
+            ON.with(|o| {
+                if let Some(map) = o.borrow_mut().as_mut() {
+                    map.insert(id, list);
+                }
+            });
+        }
     }
 }
 

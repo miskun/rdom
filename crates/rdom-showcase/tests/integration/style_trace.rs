@@ -1,8 +1,10 @@
 //! CAPTURE phase 3 (`specs/CAPTURE.md` §Derivation chain): on every acid
-//! page, every element's style explanation names exactly the rules the
-//! cascade matched for its own box — read through an independent path,
-//! the cascade's recorded matches (`App::matched_rules`) — and every
-//! winner is a declaration the cascade applied.
+//! page, every element's style explanation names the same rules — by
+//! selector, specificity and location — as the cascade's recorded matches
+//! for its own box (`App::matched_rules`, an independent path), counting
+//! the rules that declare something. That the explanation's blocks,
+//! values and order are exactly what the cascade applied is
+//! `rdom-tui`'s `explain_tests` (the cascade's own record of its ladder).
 
 use std::collections::BTreeSet;
 
@@ -42,14 +44,24 @@ fn every_acid_elements_explanation_names_the_rules_the_cascade_matched() {
                 .declarations()
                 .iter()
                 .filter_map(|d| d.rule.as_ref())
-                .map(|r| (r.selector.clone(), format!("{:?}", r.specificity)))
+                .map(|r| {
+                    (
+                        r.selector.clone(),
+                        format!("{:?} {:?}", r.specificity, r.location),
+                    )
+                })
                 .collect();
             let matched: BTreeSet<(String, String)> = app
                 .matched_rules(id)
                 .into_iter()
                 .map(|(_, r)| r)
                 .filter(|r| r.pseudo == PseudoElementTarget::None && declares(r))
-                .map(|r| (r.source_text.clone(), format!("{:?}", r.specificity)))
+                .map(|r| {
+                    (
+                        r.source_text.clone(),
+                        format!("{:?} {:?}", r.specificity, r.location),
+                    )
+                })
                 .collect();
             if named != matched {
                 let missing: Vec<_> = matched.difference(&named).collect();

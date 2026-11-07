@@ -7,10 +7,12 @@
 //!
 //! Roles follow WAI-ARIA: an explicit `role` attribute, else HTML-AAM's
 //! implicit role for the tag (`nav` → `navigation`, `h2` → `heading`,
-//! `a[href]` → `link`, …). The name is computed in the order accname
-//! does for these elements: `aria-label`, `aria-labelledby`, a form
-//! control's `<label>`, the element's text for the roles named from
-//! content, then `placeholder` and `title`. This is a navigation
+//! `a[href]` → `link`, a `header` / `footer` not inside sectioning content
+//! → `banner` / `contentinfo`, …). The name is computed in the order
+//! accname 1.2 §4.3.2 takes for these elements: `aria-labelledby`,
+//! `aria-label`, a form control's `<label>`, an image's `alt`, a button
+//! input's `value`, the element's text for the roles named from content,
+//! then `placeholder` and `title`. This is a navigation
 //! outline, not a full accessibility tree: it has no states beyond the
 //! ones listed on [`OutlineNode::state`].
 
@@ -100,11 +102,33 @@ fn children_of(
     out
 }
 
-/// How many outline entries `id`'s subtree holds.
+/// How many outline entries `id`'s subtree holds: elements with a role
+/// and a box.
 fn count(dom: &TuiDom, id: NodeId) -> usize {
     dom.descendants(id)
-        .filter(|&n| dom.node(n).node_type() == NodeType::Element && role(dom, n).is_some())
+        .filter(|&n| {
+            dom.node(n).node_type() == NodeType::Element
+                && role(dom, n).is_some()
+                && rdom_tui::capture::box_model(dom, n).is_some()
+        })
         .count()
+}
+
+/// Whether `id` sits inside sectioning content or `main` (`article`,
+/// `aside`, `main`, `nav`, `section`).
+fn in_sectioning(dom: &TuiDom, id: NodeId) -> bool {
+    let mut cur = dom.node(id).parent_node().map(|p| p.id());
+    while let Some(p) = cur {
+        let tag = dom.node(p).tag_name().map(str::to_ascii_lowercase);
+        if matches!(
+            tag.as_deref(),
+            Some("article" | "aside" | "main" | "nav" | "section")
+        ) {
+            return true;
+        }
+        cur = dom.node(p).parent_node().map(|q| q.id());
+    }
+    false
 }
 
 use rdom_tui::TuiNodeExt;
@@ -123,11 +147,13 @@ pub(crate) fn role(dom: &TuiDom, id: NodeId) -> Option<String> {
     let named =
         || n.get_attribute("aria-label").is_some() || n.get_attribute("aria-labelledby").is_some();
     let role = match tag.as_str() {
-        "header" => "banner",
+        // HTML-AAM: a `header` / `footer` scoped to sectioning content or
+        // `main` is generic, not the page's banner / contentinfo.
+        "header" if !in_sectioning(dom, id) => "banner",
+        "footer" if !in_sectioning(dom, id) => "contentinfo",
         "nav" => "navigation",
         "main" => "main",
         "aside" => "complementary",
-        "footer" => "contentinfo",
         "form" => "form",
         "search" => "search",
         "dialog" => "dialog",
@@ -211,9 +237,6 @@ fn tidy(text: &str) -> Option<String> {
 /// The accessible name of `id` in `role`.
 pub(crate) fn name(dom: &TuiDom, id: NodeId, role: &str) -> Option<String> {
     let n = dom.node(id);
-    if let Some(l) = n.get_attribute("aria-label").and_then(tidy) {
-        return Some(l);
-    }
     if let Some(ids) = n.get_attribute("aria-labelledby") {
         let text: Vec<String> = ids
             .split_whitespace()
@@ -224,8 +247,23 @@ pub(crate) fn name(dom: &TuiDom, id: NodeId, role: &str) -> Option<String> {
             return Some(t);
         }
     }
+    if let Some(l) = n.get_attribute("aria-label").and_then(tidy) {
+        return Some(l);
+    }
     if let Some(label) = label_text(dom, id) {
         return Some(label);
+    }
+    let tag = n.tag_name().map(str::to_ascii_lowercase);
+    if tag.as_deref() == Some("img")
+        && let Some(alt) = n.get_attribute("alt").and_then(tidy)
+    {
+        return Some(alt);
+    }
+    if tag.as_deref() == Some("input")
+        && matches!(n.get_attribute("type"), Some("button" | "submit" | "reset"))
+        && let Some(v) = n.get_attribute("value").and_then(tidy)
+    {
+        return Some(v);
     }
     if named_from_content(role)
         && let Some(t) = tidy(&dom.text_content(id))

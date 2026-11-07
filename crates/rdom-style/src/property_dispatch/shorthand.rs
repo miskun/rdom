@@ -12,7 +12,10 @@ use super::names::all_property_names;
 /// does (`display`, with its derived inner fields) is not one. `false`
 /// for an unknown name.
 pub fn is_shorthand(name: &str) -> bool {
-    shorthands().contains(&name)
+    // An inline-axis flow-relative property (`margin-inline-start`) owns
+    // both physical sides' fields until the cascade picks one by
+    // `direction`: a longhand, though its fields look like a shorthand's.
+    !super::is_directional(name) && shorthands().contains(&name)
 }
 
 /// Every longhand name — [`property_names`](super::property_names) less

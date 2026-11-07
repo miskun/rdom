@@ -36,4 +36,19 @@ impl<B: Backend> App<B> {
         let sheets = self.prelude.cascade_order(&self.stylesheets);
         crate::capture::style::explain_with(&self.dom, &sheets, self.prelude.registry.clone(), id)
     }
+
+    /// Whether `property` inherits when no declaration sets it: a
+    /// longhand by its definition, a custom property unless an `@property`
+    /// registration of this App's sheets says `inherits: false`.
+    pub fn property_inherits(&self, property: &str) -> bool {
+        match property.strip_prefix("--") {
+            Some(name) => self
+                .prelude
+                .registry
+                .iter()
+                .find(|(n, _)| n.trim_start_matches("--") == name)
+                .is_none_or(|(_, reg)| reg.inherits),
+            None => crate::capture::inherits(property),
+        }
+    }
 }

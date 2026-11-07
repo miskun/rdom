@@ -1,8 +1,7 @@
 # CAPTURE — an agent-friendly renderer, inspector and design loop
 
 **Status:** IN PROGRESS — phases 1–3 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
-v2 incorporates every finding (§Review record at the end). Three open questions are decided (§Decisions). Nothing is
-implemented yet.
+v2 incorporates every finding (§Review record at the end). Three open questions are decided (§Decisions).
 
 ## Decisions
 
@@ -291,8 +290,8 @@ Schema would need a schema dependency for little gain over `describe` and the ty
 client needs one.)
 
 Every answering method takes `detail: outline | summary | full` (default `summary`) and an optional `budget` in
-approximate tokens. When an answer is cut, it says so and how to get the rest (`"truncated": {"nodes": 212,
-"next": "…"}`).
+approximate tokens. When an answer is cut, it says so (`"truncated": {"outline": 212}`, and `"over_budget": true`
+when nothing more can be cut): ask again narrower, at a lower detail or with a larger budget for the rest.
 
 | Method | Does |
 |---|---|
@@ -588,17 +587,27 @@ rules); `rdom_tui::capture::explain_style` / `App::explain_style` (`StyleTrace`)
 
 As built, against the plan:
 
-- The derivation is the cascade's own walk: `Declarations::sources_of` is the one iteration the cascade
-  (`of`) and the explanation read; the explanation lists the applied declarations per longhand and custom
-  property with their value as applied (`var()` substituted), and `explain` adds inheritance (the nearest
-  ancestor declaring an inherited property) or `initial`. Not yet: the value as written beside its substitution,
-  the animated value (`explain` lists the running animations by name), and computed / used values per property
-  (the cascade has no computed-value serializer; colors are visible in the grid and the paint trace), and
-  pseudo-elements' own declarations.
-- Exit test: on every acid page, every element's explanation names exactly the rules the cascade recorded as
-  matching its own box (`App::matched_rules`, an independent path) — 4 s over every element of 13 pages; the
-  ladder's semantics (specificity, `!important` inversion, inline, layers, UA, `var()`, shorthands) are pinned by
-  unit tests; every rule's location points at its selector list in the text (`every_rules_line_holds_its_selector`).
+- The derivation shares the cascade's code: the gather (`element::gather_element`), the starting style and
+  `var()` preparation (`element::start_style`), the style parent (`details::inherited_style`'s rule) and the ladder
+  iteration (`Declarations::sources_of`). The explanation lists the applied declarations per longhand and custom
+  property with their value as applied (`var()` substituted in properties; custom properties as written, with their
+  computed value from `explain`); `explain` resolves CSS-wide keywords (`inherit`, `initial`, `unset`, `revert` —
+  `revert-layer` is reported, not resolved), inheritance up the cascade's own parent chain (a `<details>` slot is
+  named, not traced), registered `inherits: false`. Not yet (`TECH_DEBT` `CAPTURE-EXPLAIN-1`): pseudo-elements' and
+  the slot's declarations, `revert-layer`, computed / used values.
+- Exit tests: `rdom-tui`'s `explain_tests` records the blocks the cascade's settled ladder run applies to each
+  element and requires the explanation to report exactly those, in order, at the same importance, on a page with
+  layers, `!important`, inline styles, `revert`, hints, `var()` from an ancestor and from a `<details>` slot, and
+  `rtl` with a flow-relative `var()` declaration (it fails on the review's slot drift); on every acid page every
+  element's explanation names the same rules (selector, specificity, location) as the cascade's recorded matches;
+  every rule's location points at its selector list (`every_rules_line_holds_its_selector`).
+- Review (architect) — B1 (exit test weaker than claimed) and B2 (the explanation's own setup had drifted at the
+  `<details>` slot) fixed as above; non-blocking: keywords, registered inheritance, custom-property computed values,
+  the inheritance walk (cascade parent, memoized), `is_shorthand` on inline-axis logical longhands, unknown
+  property names refused, `query` text offsets after wide glyphs and its per-hit scans, `fit` termination and
+  `over_budget`, the outline's accname order, `header` / `footer` scoping, `img alt`, button-input values — fixed;
+  live-DOM matching and the showcase's unnamed CSS recorded (`CAPTURE-EXPLAIN-1`, `CAPTURE-DOGFOOD-1`). The
+  promised `next` cursor is replaced by the answer's `truncated` record (ask again narrower or with a larger budget).
 - The outline's roles follow HTML-AAM's implicit roles and the `role` attribute, its names accname's order for
   these elements; it is a navigation outline, not an accessibility tree.
 

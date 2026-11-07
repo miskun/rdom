@@ -181,7 +181,10 @@ mod trace;
 
 pub use border::{BorderLine, BorderState};
 pub use boxes::{BoxModel, ScrollBox, box_model};
-pub use style::{DeclarationOrigin, Declared, RuleRef, StyleTrace, explain_style, inherits};
+pub use style::{
+    DeclarationOrigin, Declared, Inheritance, RuleRef, StyleTrace, css_wide_keyword, explain_style,
+    inheritance_parent, inherits,
+};
 pub use trace::PaintTrace;
 
 #[cfg(test)]

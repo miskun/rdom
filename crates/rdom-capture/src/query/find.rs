@@ -105,16 +105,20 @@ fn tally(
     out
 }
 
-fn resolve(app: &App<TestBackend>, key: &str) -> Option<NodeId> {
+/// Every node by name, built once per query.
+fn keys(app: &App<TestBackend>) -> std::collections::HashMap<String, NodeId> {
     let dom = app.dom();
-    dom.descendants(dom.root()).find(|&n| node_key(n) == key)
+    dom.descendants(dom.root())
+        .map(|n| (node_key(n), n))
+        .collect()
 }
 
 fn results(app: &App<TestBackend>, tallied: Vec<(String, String, u32, [u16; 2])>) -> Vec<Found> {
+    let keys = keys(app);
     tallied
         .into_iter()
         .map(|(node, by, cells, at)| {
-            let mut f = match resolve(app, &node) {
+            let mut f = match keys.get(&node).copied() {
                 Some(id) => found(app, id),
                 None => Found {
                     node: node.clone(),
@@ -182,6 +186,7 @@ pub(crate) fn by_text(
     if text.is_empty() {
         return out;
     }
+    let keys = keys(app);
     for y in 0..grid.height {
         let row: Vec<&str> = grid.rows[usize::from(y)]
             .iter()
@@ -191,14 +196,16 @@ pub(crate) fn by_text(
         let mut from = 0;
         while let Some(pos) = joined[from..].find(text) {
             let byte = from + pos;
-            // The cell the match starts in.
+            // The cell the match starts in: the first glyph starting at
+            // or after its byte — a wide glyph's trailing cell (`""`)
+            // starts nothing.
             let mut acc = 0;
             let x = row
                 .iter()
                 .position(|g| {
                     let start = acc;
                     acc += g.len();
-                    start >= byte
+                    !g.is_empty() && start >= byte
                 })
                 .unwrap_or(0) as u16;
             let owner = owners.rows[usize::from(y)]
@@ -206,7 +213,7 @@ pub(crate) fn by_text(
                 .find(|o| o.x <= x && x < o.x + o.w);
             let mut f = match owner
                 .and_then(|o| o.node.as_deref())
-                .and_then(|k| resolve(app, k))
+                .and_then(|k| keys.get(k).copied())
             {
                 Some(id) => found(app, id),
                 None => Found {
