@@ -49,6 +49,12 @@ impl App<CrosstermBackend<Stdout>> {
     /// dark themes; the preferred scheme follows and the tree restyles
     /// (unless the app set the scheme).
     pub fn run(mut self) -> io::Result<()> {
+        // `RDOM_RECORD=<path>` records the run (`runtime::record`).
+        if self.recorder.is_none()
+            && let Some(path) = std::env::var_os("RDOM_RECORD")
+        {
+            self = self.with_recorder(crate::runtime::record::Recorder::to_file(path)?);
+        }
         let mut input = InputReader::open()?;
         // The terminal's color scheme, asked before the first frame.
         self.detect_color_scheme(&mut input);

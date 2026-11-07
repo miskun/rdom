@@ -256,6 +256,8 @@ pub struct App<B: Backend = CrosstermBackend<Stdout>> {
     /// When [`advance`](App::advance)'s virtual time fires the next tick;
     /// set by the first `advance`.
     next_tick: Option<std::time::Instant>,
+    /// Where the input and frames are recorded, if anywhere (`record`).
+    pub(crate) recorder: Option<crate::runtime::record::Recorder>,
     /// The pointer and the shape last sent for it (`pointer`).
     pointer: pointer::Pointer,
 
@@ -439,6 +441,7 @@ impl<B: Backend> App<B> {
             animations: crate::runtime::animation::AnimationRegistry::new(),
             virtual_clock: false,
             next_tick: None,
+            recorder: None,
             pointer: pointer::Pointer::default(),
             autoscroll: autoscroll::AutoscrollSession::default(),
             redraw: Redraw::Cascade,

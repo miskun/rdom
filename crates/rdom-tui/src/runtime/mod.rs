@@ -49,6 +49,7 @@ pub(crate) mod input;
 pub mod layout_flush;
 pub mod media_query;
 pub mod pointer_shape;
+pub mod record;
 pub(crate) mod resize;
 pub mod router;
 pub(crate) mod scroll_snap;

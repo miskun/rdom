@@ -1,6 +1,6 @@
 # CAPTURE — an agent-friendly renderer, inspector and design loop
 
-**Status:** IN PROGRESS — phases 1–8 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
+**Status:** IN PROGRESS — phases 1–9 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
 v2 incorporates every finding (§Review record at the end). Three open questions are decided (§Decisions).
 
 ## Decisions
@@ -495,6 +495,15 @@ bytes at a link's throughput and reports the frames a viewer on that link would 
 
 ## Live attach
 
+**As built (phase 9): attach by following the recording.** A running app records (`RDOM_RECORD=<path>`, or
+`App::with_recorder`); a session opened with the app's fixture at the recording's size follows the file
+(`Session::follow` / `follow`), replaying what was added since its last call, so it mirrors the running app and every
+method — capture, explain, audit, film — reads the mirror. It is read-only by construction (nothing reaches the
+running app), needs no socket, no thread and no platform code (Windows included), and each frame it replays is
+checked against the app's. It needs what replay needs: an app whose frames follow from its inputs (no other thread
+feeding it, `CAPTURE-INJECT-1`) and a `CaptureApp` that builds it. The socket attach below — the session served from
+inside the running app, edits reaching it — is not built (`TECH_DEBT` CAPTURE-ATTACH-1).
+
 An app opts in (`App::with_inspector(path)` or `RDOM_INSPECT=<path>`) and serves the session protocol over a local
 socket (Unix socket, 0600, path inside the app's working directory; named pipe on Windows) — never TCP. The `App` is
 single-threaded, so the socket is polled from the event loop, between frames, with a time budget per request so a
@@ -860,6 +869,28 @@ not run (`not_checked`). Non-blocking, fixed: `step_ms: 0` and a 0 bps link are 
 the filmstrip always holds the last frame; the budget covers the inline cast and image; animations are named as CSS
 names them (`transition translate`, `animation slide`), in films and in `explain`. Recorded in `TECH_DEBT`
 CAPTURE-MOTION-1.
+
+### Phase 9 — record/replay, live attach, emulator view: DONE (2026-11-07)
+
+Shipped: rdom-tui's recorder (`runtime::record`: `Recorder`, `Record`, `read`, `encode_event` / `parse_event`;
+`App::with_recorder`, `RDOM_RECORD` for `App::run`, `App::recorder`; `Buffer::content_hash`), and rdom-capture's
+`Session::replay` / `replay` and `Session::follow` / `follow`, with `Input::Recorded` for the events the other inputs do
+not say.
+
+As built, against the plan:
+
+- The log is a line format rdom-tui owns end to end — writer and reader — since rdom-tui has no serde and the
+  capture crate depends on it, not the other way: `<ms> key c:a 0 press`, `<ms> frame <hash>`, text percent-encoded.
+  Times are on the App's own clock, so a virtual-clock recording replays exactly. Injections are not recorded (they
+  are closures).
+- Replay applies each event as the session's own step (`Input::Recorded`), so a replayed session forks, varies and
+  audits like any other, and checks the last frame drawn at each recorded time (frames a live loop drew on the way
+  are passed over). It stops at the first frame that differs, naming it.
+- Live attach is following the recording (§Live attach); the socket attach is not built.
+- The emulator view is not built: optional by decision (§Decisions), and the rasterizer covers the image views.
+- Tests: the format round-trips every event kind and names a bad line; the content hash is pinned; a recorded
+  showcase run replays frame for frame, and a frame changed in the log is the divergence reported; a session follows
+  a running app's recording in two steps and shows what the app shows.
 
 ## Open questions
 

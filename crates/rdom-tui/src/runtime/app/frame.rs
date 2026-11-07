@@ -117,6 +117,9 @@ impl<B: Backend> App<B> {
         })?;
         self.note_pass(pass, true);
         self.redraw = Redraw::Clean;
+        if let Some(r) = self.recorder.as_mut() {
+            r.frame(self.scheduler.borrow().now(), self.terminal.buffer());
+        }
         // The element under a still pointer, or its style, may have
         // changed (CSS UI 4 §4.1).
         self.update_pointer_shape();

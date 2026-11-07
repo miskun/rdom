@@ -304,3 +304,43 @@ fn strip(film: &crate::motion::Film) -> Vec<(String, &Grid)> {
         .map(|i| (format!("{} ms", film.frames[i].t_ms), &film.grids[i]))
         .collect()
 }
+
+/// `replay`'s parameters: the recording, as text or a file.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct ReplayParams {
+    pub log: Option<String>,
+    pub path: Option<PathBuf>,
+    pub until_ms: Option<u64>,
+}
+
+pub(crate) fn replay<A: CaptureApp>(
+    session: &mut Session<A>,
+    p: ReplayParams,
+) -> Result<Value, RpcError> {
+    let log = match (p.log, p.path) {
+        (Some(log), None) => log,
+        (None, Some(path)) => std::fs::read_to_string(&path)
+            .map_err(|e| RpcError::new(code::IO, format!("reading {}: {e}", path.display())))?,
+        _ => {
+            return Err(invalid(
+                "replay takes one of log (the text) or path (a file)",
+            ));
+        }
+    };
+    json(session.replay(&log, p.until_ms)?)
+}
+
+/// `follow`'s parameters.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct FollowParams {
+    pub path: PathBuf,
+}
+
+pub(crate) fn follow<A: CaptureApp>(
+    session: &mut Session<A>,
+    p: FollowParams,
+) -> Result<Value, RpcError> {
+    json(session.follow(&p.path)?)
+}

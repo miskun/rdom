@@ -540,3 +540,117 @@ fn a_film_of_acid_tile_48_gives_its_specd_timeline() {
     assert_eq!(film.frames.len(), 7);
     assert!(film.frames[1..5].iter().all(|f| f.bytes > 0) && film.frames[6].bytes == 0);
 }
+
+/// A writer the test reads back.
+#[derive(Clone, Default)]
+struct Shared(std::rc::Rc<std::cell::RefCell<Vec<u8>>>);
+
+impl std::io::Write for Shared {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.borrow_mut().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// CAPTURE phase 9 (`specs/CAPTURE.md` §Record and replay): a showcase
+/// run recorded by its App — keys and the clock, as a person's would be —
+/// replays in a capture session frame for frame; a frame changed in the
+/// log is the divergence it reports.
+#[test]
+fn a_recorded_showcase_run_replays_identically() {
+    use rdom_capture::CaptureApp;
+    use rdom_tui::runtime::record::Recorder;
+    let fixture = "demo:events/mutation-observer";
+    let env = Environment::default();
+    // The App a session opens, recording.
+    let log = Shared::default();
+    let mut app = env
+        .enforce(Showcase.build(&env, Some(fixture)).unwrap())
+        .with_recorder(Recorder::new(log.clone()));
+    app.advance(0).unwrap();
+    Showcase.after_first_frame(&mut app, Some(fixture));
+    app.advance(0).unwrap();
+    for key in ["tab", "enter", "enter", "down", "enter"] {
+        for event in (Input::Key { key: key.into() }).events().unwrap() {
+            app.handle_event(event);
+            app.advance(0).unwrap();
+        }
+        app.advance(120).unwrap();
+    }
+    assert!(app.recorder().unwrap().error().is_none());
+    let log = String::from_utf8(log.0.borrow().clone()).unwrap();
+    let frames = log.lines().filter(|l| l.contains(" frame ")).count();
+    assert!(frames > 3, "{log}");
+
+    let mut session = Session::new(Showcase);
+    session.open(env.clone(), Some(fixture)).unwrap();
+    let r = session.replay(&log, None).unwrap();
+    assert_eq!(r.divergence, None, "{r:?}\n{log}");
+    assert!(r.frames_checked >= 4, "{r:?}");
+    assert_eq!(r.events, 5);
+
+    // A frame that was not drawn: the replay names it.
+    let mut lines: Vec<String> = log.lines().map(str::to_string).collect();
+    let k = lines.iter().rposition(|l| l.contains(" frame ")).unwrap();
+    let ms = lines[k].split(' ').next().unwrap().to_string();
+    lines[k] = format!("{ms} frame 0123456789abcdef");
+    let tampered = lines.join("\n");
+    let mut again = Session::new(Showcase);
+    again.open(env, Some(fixture)).unwrap();
+    let d = again.replay(&tampered, None).unwrap().divergence.unwrap();
+    assert_eq!(
+        (d.frame, d.recorded.as_str()),
+        (r.frames_checked - 1, "0123456789abcdef")
+    );
+}
+
+/// CAPTURE phase 9 (`specs/CAPTURE.md` §Live attach, as built): a session
+/// follows the recording a running app writes — each `follow` replays
+/// what the app did since — and shows what the app shows.
+#[test]
+fn a_session_follows_a_running_apps_recording() {
+    use rdom_capture::CaptureApp;
+    use rdom_tui::runtime::record::Recorder;
+    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("rdom-follow");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("run.rec");
+    let fixture = "demo:events/mutation-observer";
+    let env = Environment::default();
+    let mut app = env
+        .enforce(Showcase.build(&env, Some(fixture)).unwrap())
+        .with_recorder(Recorder::to_file(&path).unwrap());
+    app.advance(0).unwrap();
+    Showcase.after_first_frame(&mut app, Some(fixture));
+    app.advance(0).unwrap();
+    let press = |app: &mut rdom_tui::App<rdom_tui::render::TestBackend>, key: &str| {
+        for event in (Input::Key { key: key.into() }).events().unwrap() {
+            app.handle_event(event);
+            app.advance(0).unwrap();
+        }
+        app.advance(100).unwrap();
+    };
+    let mut session = Session::new(Showcase);
+    session.open(env, Some(fixture)).unwrap();
+    press(&mut app, "tab");
+    press(&mut app, "enter");
+    let first = session.follow(&path).unwrap();
+    assert_eq!(
+        (first.events, first.divergence.clone()),
+        (2, None),
+        "{first:?}"
+    );
+    let shown = |s: &Session<Showcase>| s.app().unwrap().terminal().buffer().content_hash();
+    assert_eq!(shown(&session), app.terminal().buffer().content_hash());
+    // The app goes on; the session follows only what is new.
+    press(&mut app, "enter");
+    let next = session.follow(&path).unwrap();
+    assert_eq!(
+        (next.events, next.divergence.clone()),
+        (1, None),
+        "{next:?}"
+    );
+    assert_eq!(shown(&session), app.terminal().buffer().content_hash());
+}

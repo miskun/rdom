@@ -162,4 +162,23 @@ impl<B: Backend> App<B> {
         self.on_tick = Some(Box::new(f));
         self
     }
+
+    /// Record every event the App handles and every frame it draws to
+    /// `recorder` (`runtime::record`), from now on — for a capture session
+    /// to replay.
+    pub fn with_recorder(mut self, mut recorder: crate::runtime::record::Recorder) -> Self {
+        let now = self.scheduler.borrow().now();
+        let area = self.terminal.buffer().area;
+        recorder.begin(now, area.width, area.height);
+        self.recorder = Some(recorder);
+        self
+    }
+
+    /// The recorder, if the App records (its [`error`] says why it
+    /// stopped, if it did).
+    ///
+    /// [`error`]: crate::runtime::record::Recorder::error
+    pub fn recorder(&self) -> Option<&crate::runtime::record::Recorder> {
+        self.recorder.as_ref()
+    }
 }

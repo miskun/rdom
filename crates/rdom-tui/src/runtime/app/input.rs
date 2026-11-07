@@ -67,6 +67,9 @@ impl<B: Backend> App<B> {
         // motion events are NOT crossing this boundary — i.e.,
         // crossterm itself isn't producing them.
         crate::rdom_trace!("App::handle_event RAW: {event:?}");
+        if let Some(r) = self.recorder.as_mut() {
+            r.event(self.scheduler.borrow().now(), &event);
+        }
         // Controls the app inserted since the last event get their text
         // node, and option lists it changed settle, before any default
         // action reads them.

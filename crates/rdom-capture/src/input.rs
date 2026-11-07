@@ -44,6 +44,11 @@ pub enum Input {
     },
     /// The terminal changes size.
     Resize { width: u16, height: u16 },
+    /// One terminal event exactly as a recording holds it
+    /// (`rdom_tui::runtime::record`): `key c:a 0 press`,
+    /// `mouse scroll-left 3 4 0`, `focus out` — what the other inputs do
+    /// not say (a key's release, a mouse modifier). A replay's inputs.
+    Recorded { event: String },
 }
 
 /// A pointer action.
@@ -208,6 +213,10 @@ impl Input {
                     MouseAction::WheelDown => vec![at(MouseEventKind::ScrollDown)],
                 }
             }
+            Input::Recorded { event } => vec![
+                rdom_tui::runtime::record::parse_event(event)
+                    .map_err(|why| format!("recorded event {event:?}: {why}"))?,
+            ],
             Input::Resize { width, height } => {
                 if *width == 0 || *height == 0 {
                     return Err(format!("resize to {width}×{height}: at least 1×1"));

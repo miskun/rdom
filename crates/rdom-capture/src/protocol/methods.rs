@@ -81,6 +81,14 @@ pub(crate) const METHODS: &[MethodInfo] = &[
         summary: "Step the app at a fixed virtual-clock interval over a window, in a fork (the session is left as it was), after optional inputs at its start: each frame's hash, cells changed and bytes sent; timelines of chosen cells (glyph, colors) and elements (cells painted, border box, running animations); a change heatmap; spinners (glyphs, pace); motion findings — flicker, spinner pace and width jitter, frames a link cannot carry in time, motion under prefers-reduced-motion. Params: {ms, step_ms? (default the animation frame), inputs?: [Input], cells?: [[x, y]], nodes?: [selector], link?: local|ssh|slow|{bps: n}, reduced_motion?: true, filmstrip?: {profile?, scale?}, cast?: bool, out?: path, budget?}.",
     },
     MethodInfo {
+        name: "replay",
+        summary: "Replay a recording an app made in a real terminal (App::with_recorder, RDOM_RECORD=<path>) on the open app — opened at the recording's size, with the app's fixture — its events applied at their times on the virtual clock, every recorded frame checked; stops at the first frame drawn otherwise. Params: {log: text | path: file, until_ms?}. Returns {events, frames_checked, at_ms, divergence?: {ms, frame, recorded, replayed}}.",
+    },
+    MethodInfo {
+        name: "follow",
+        summary: "Follow the recording a running app writes (RDOM_RECORD=<path>): replay what it added since the last call, so the session mirrors the running app — read-only, nothing reaches it — and every other method reads the mirror. Params: {path}. Returns what replay returns, for the new part.",
+    },
+    MethodInfo {
         name: "outline",
         summary: "The landmarks outline: landmarks, headings, lists, controls and focusable elements, nested, each with role, name, rect and state. Params: {depth?: integer, detail?: \"outline\"|\"summary\"|\"full\", budget?: tokens}. Read it first.",
     },
@@ -232,6 +240,8 @@ pub(crate) fn dispatch<A: CaptureApp>(
         "mockup" => super::variants::mockup(session, params(p)?),
         "audit" => super::variants::audit(session, params(p)?),
         "film" => super::variants::film(session, params(p)?),
+        "replay" => super::variants::replay(session, params(p)?),
+        "follow" => super::variants::follow(session, params(p)?),
         "outline" => outline(session, params(p)?),
         "explain" => explain(session, params(p)?),
         "query" => query(session, params(p)?),

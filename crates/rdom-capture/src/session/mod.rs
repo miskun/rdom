@@ -24,6 +24,7 @@ mod error;
 mod frame;
 mod inspect;
 mod log;
+mod replay;
 mod report;
 mod snapshot;
 mod write_back;
@@ -36,6 +37,7 @@ use serde::{Deserialize, Serialize};
 
 pub use error::SessionError;
 pub use log::Step;
+pub use replay::{Divergence, Replayed};
 pub use snapshot::MAX_MARKS;
 
 pub(crate) use inspect::{identity_of, node_by_key};
@@ -74,6 +76,8 @@ struct Opened {
     unreplayable: Option<String>,
     /// What the last step emitted to the terminal.
     emitted: Vec<u8>,
+    /// The recording it follows, if it does (`replay`).
+    following: Option<replay::Following>,
     /// The CSS files its sheets were read from, each with a hash of its
     /// text at open: a rebuild reads them again, so one that changed
     /// stops a fork (`log`).
@@ -285,6 +289,7 @@ impl<A: CaptureApp> Session<A> {
             unreplayable: None,
             files,
             emitted: Vec::new(),
+            following: None,
             time_ms: 0,
             frame,
             edits: crate::edit::Edits::default(),

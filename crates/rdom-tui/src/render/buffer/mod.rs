@@ -47,6 +47,7 @@ mod border;
 mod composite;
 pub(crate) mod coverage;
 mod diff;
+mod hash;
 mod layering;
 pub(crate) mod trace;
 mod translucent;
