@@ -165,13 +165,38 @@ impl<B: Backend> App<B> {
 
     /// Record every event the App handles and every frame it draws to
     /// `recorder` (`runtime::record`), from now on — for a capture session
-    /// to replay.
+    /// to replay. **The recording holds every key typed, passwords
+    /// included**: record only where the person running the app chose to
+    /// (a flag of the app's own), and handle the log as a secret. A write
+    /// that fails stops the recording; [`run`](App::run) returns it.
     pub fn with_recorder(mut self, mut recorder: crate::runtime::record::Recorder) -> Self {
         let now = self.scheduler.borrow().now();
         let area = self.terminal.buffer().area;
-        recorder.begin(now, area.width, area.height);
+        recorder.begin(now, area.width, area.height, &self.recording_config());
         self.recorder = Some(recorder);
         self
+    }
+
+    /// The configuration a recording of this App holds and a replay must
+    /// match: the caret blink (`caret`, its half-period in ms or `off`),
+    /// the animation frame (`frame`, ms), the tick rate (`tick`, ms) and
+    /// the color scheme (`scheme`).
+    pub fn recording_config(&self) -> Vec<(&'static str, String)> {
+        let caret = self
+            .prelude
+            .caret_blink
+            .period()
+            .map_or_else(|| "off".to_string(), |p| p.as_millis().to_string());
+        let scheme = match self.color_scheme() {
+            crate::ColorScheme::Light => "light",
+            _ => "dark",
+        };
+        vec![
+            ("caret", caret),
+            ("frame", self.animation_frame_ms.to_string()),
+            ("tick", self.tick_rate.as_millis().to_string()),
+            ("scheme", scheme.to_string()),
+        ]
     }
 
     /// The recorder, if the App records (its [`error`] says why it

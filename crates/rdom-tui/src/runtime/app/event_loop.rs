@@ -49,12 +49,6 @@ impl App<CrosstermBackend<Stdout>> {
     /// dark themes; the preferred scheme follows and the tree restyles
     /// (unless the app set the scheme).
     pub fn run(mut self) -> io::Result<()> {
-        // `RDOM_RECORD=<path>` records the run (`runtime::record`).
-        if self.recorder.is_none()
-            && let Some(path) = std::env::var_os("RDOM_RECORD")
-        {
-            self = self.with_recorder(crate::runtime::record::Recorder::to_file(path)?);
-        }
         let mut input = InputReader::open()?;
         // The terminal's color scheme, asked before the first frame.
         self.detect_color_scheme(&mut input);
@@ -147,9 +141,15 @@ impl App<CrosstermBackend<Stdout>> {
         let _ = leave_tui_mode(&mut stdout);
 
         match loop_result {
-            Ok(inner_result) => inner_result,
+            Ok(inner_result) => inner_result?,
             Err(payload) => panic::resume_unwind(payload),
         }
+        // A recording that stopped part-way says so, after the terminal is
+        // back (`with_recorder`).
+        if let Some(e) = self.recorder.as_ref().and_then(|r| r.error()) {
+            return Err(io::Error::new(e.kind(), format!("recording stopped: {e}")));
+        }
+        Ok(())
     }
 }
 
@@ -354,6 +354,7 @@ impl<B: Backend> App<B> {
         if injections.is_empty() {
             return;
         }
+        self.note_unreplayable("another thread injected a closure (AppHandle::inject)");
         // As for the tick handler: touched on evidence of a change only.
         let before = self.change_evidence();
         let _current = crate::runtime::timers::SchedulerGuard::install(&self.scheduler);

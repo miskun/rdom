@@ -169,13 +169,21 @@ are queued and delivered at defined points in virtual time, so a replay delivers
 
 ### Record and replay
 
-An app running in a real terminal with recording on (`App::with_recorder(path)` or `RDOM_RECORD=<path>`) writes
-the input log: terminal input events, resizes, injections (by name and payload, when the app makes them
-serializable), and their times. `session.replay(log)` drives the headless app through the same sequence. A human
-reproduces a state by hand once; the agent replays, scrubs and inspects it as often as it likes.
+An app records when it chooses to (`App::with_recorder(Recorder::to_file(path)?)`, behind a flag of its own — there
+is no environment switch): every terminal event it handles and every frame it draws, with their times on the App's
+clock, in a line log rdom-tui writes and reads (`runtime::record`). **A recording holds every key typed, passwords
+included**: the file is created readable by its owner only (Unix), and is a secret. The header names the App's
+configuration a replay must match (caret blink, animation frame, tick rate, color scheme); what the log cannot hold —
+a closure another thread injected, the terminal reporting its colors — is marked `unreplayable`. A write that fails
+stops the recording, and `App::run` returns it.
 
-Replay divergence is detected, not hidden: the log carries a grid hash per frame, and replay reports the first frame
-that differs.
+`session.replay(log)` drives a freshly opened headless app through the same sequence, checking the last frame drawn
+at each recorded time; it refuses a recording of an App configured otherwise (naming each difference) and stops,
+saying why, at an unreplayable mark or at the first frame that differs. A human reproduces a state by hand once; the
+agent replays, scrubs and inspects it as often as it likes. Limits (`TECH_DEBT` CAPTURE-REPLAY-1): the session draws
+after each event where a live loop drains a burst and draws once, times are whole milliseconds, and a timer due as an
+event arrives runs in the other order — an app whose transitions or timers see those differences diverges, and the
+divergence is reported, never hidden.
 
 ## The `Capture` contract (schema `rdom-capture/1`)
 
@@ -495,8 +503,8 @@ bytes at a link's throughput and reports the frames a viewer on that link would 
 
 ## Live attach
 
-**As built (phase 9): attach by following the recording.** A running app records (`RDOM_RECORD=<path>`, or
-`App::with_recorder`); a session opened with the app's fixture at the recording's size follows the file
+**As built (phase 9): attach by following the recording.** A running app records (`App::with_recorder`,
+behind a flag of its own); a session opened with the app's fixture at the recording's size follows the file
 (`Session::follow` / `follow`), replaying what was added since its last call, so it mirrors the running app and every
 method — capture, explain, audit, film — reads the mirror. It is read-only by construction (nothing reaches the
 running app), needs no socket, no thread and no platform code (Windows included), and each frame it replays is
@@ -873,7 +881,7 @@ CAPTURE-MOTION-1.
 ### Phase 9 — record/replay, live attach, emulator view: DONE (2026-11-07)
 
 Shipped: rdom-tui's recorder (`runtime::record`: `Recorder`, `Record`, `read`, `encode_event` / `parse_event`;
-`App::with_recorder`, `RDOM_RECORD` for `App::run`, `App::recorder`; `Buffer::content_hash`), and rdom-capture's
+`App::with_recorder`, `App::recorder`, `App::recording_config`; `Buffer::content_hash`), and rdom-capture's
 `Session::replay` / `replay` and `Session::follow` / `follow`, with `Input::Recorded` for the events the other inputs do
 not say.
 
@@ -891,6 +899,20 @@ As built, against the plan:
 - Tests: the format round-trips every event kind and names a bad line; the content hash is pinned; a recorded
   showcase run replays frame for frame, and a frame changed in the log is the divergence reported; a session follows
   a running app's recording in two steps and shows what the app shows.
+
+Architect review (fixed with tests): B1 — a recording's App configuration was not recorded, so a live recording with
+a blinking caret or a light terminal diverged with a bare hash: the header now names it and a replay refuses a
+mismatch by name. B3 — a log replaced by a new run made `follow` panic: the header and length are checked and a
+replaced log is refused. B4 — a divergence in `follow` dropped the rest of the chunk and the next call went on from a
+wrong state: the stop is kept and returned again. B5 — `RDOM_RECORD` made every rdom app a keystroke logger: recording
+is the app's explicit choice, the file is owner-only, and the docs warn that it holds every key. B6 — a failed write
+was invisible in a live run: `App::run` returns it. B7 — media and modifier keys, injections and the terminal's color
+reports were dropped unsaid: the keys are recorded; the others are `unreplayable` marks a replay stops at. Also: a
+replay needs a fresh session, checks every event before applying one, and advances to `until_ms`; frames are flushed
+per frame, not per line. Accepted, in `TECH_DEBT` CAPTURE-REPLAY-1: B2 (a live loop's input bursts drawn once against a
+replay drawing per event) and the timing limits; B8's point stands — the tests record App's the way a session builds
+them (virtual clock), so a recording made in a real terminal is replayable when its App is configured as the session's
+and its behavior does not depend on burst batching or sub-millisecond timing.
 
 ## Open questions
 

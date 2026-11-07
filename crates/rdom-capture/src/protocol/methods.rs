@@ -82,11 +82,11 @@ pub(crate) const METHODS: &[MethodInfo] = &[
     },
     MethodInfo {
         name: "replay",
-        summary: "Replay a recording an app made in a real terminal (App::with_recorder, RDOM_RECORD=<path>) on the open app — opened at the recording's size, with the app's fixture — its events applied at their times on the virtual clock, every recorded frame checked; stops at the first frame drawn otherwise. Params: {log: text | path: file, until_ms?}. Returns {events, frames_checked, at_ms, divergence?: {ms, frame, recorded, replayed}}.",
+        summary: "Replay a recording an app made of itself (App::with_recorder) on the freshly opened app — at the recording's size and configuration (refused, naming the difference, otherwise) — its events applied at their times on the virtual clock, every recorded frame checked; stops at the first frame drawn otherwise or at what the log marks unreplayable. Params: {log: text | path: file, until_ms?}. Returns {events, frames_checked, at_ms, divergence?: {ms, frame, recorded, replayed}, unreplayable?}.",
     },
     MethodInfo {
         name: "follow",
-        summary: "Follow the recording a running app writes (RDOM_RECORD=<path>): replay what it added since the last call, so the session mirrors the running app — read-only, nothing reaches it — and every other method reads the mirror. Params: {path}. Returns what replay returns, for the new part.",
+        summary: "Follow the recording a running app writes (App::with_recorder): replay what it added since the last call, so the session mirrors the running app — read-only, nothing reaches it — and every other method reads the mirror. Params: {path}. Returns what replay returns, for the new part.",
     },
     MethodInfo {
         name: "outline",

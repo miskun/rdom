@@ -76,6 +76,11 @@ impl CaretBlink {
         }
     }
 
+    /// The blink's half-period; `None`: a steady caret.
+    pub(crate) fn period(&self) -> Option<Duration> {
+        self.period
+    }
+
     pub(crate) fn set_period(&mut self, period: Option<Duration>) {
         self.period = period.filter(|p| !p.is_zero());
         self.restart = true;

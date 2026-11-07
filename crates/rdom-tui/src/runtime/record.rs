@@ -2,34 +2,44 @@
 //! terminal event the App handles — keys, mouse, paste, resizes, focus —
 //! with its time on the App's clock, and a hash of every frame it draws,
 //! as a line-based log. A person reproduces a state by hand once in a real
-//! terminal (`App::with_recorder`, or `RDOM_RECORD=<path>` for
-//! [`App::run`](crate::App::run)); a capture session replays the log
+//! terminal (`App::with_recorder`); a capture session replays the log
 //! headlessly ([`read`]) and reports the first frame that differs.
+//!
+//! **A recording holds every key the app handled — passwords included.**
+//! Recording is the app's explicit choice (there is no environment
+//! switch), [`Recorder::to_file`] creates the file readable by its owner
+//! only (on Unix), and a log is to be handled as the secrets it may hold.
+//!
+//! What the log cannot replay is marked (`unreplayable`): a closure
+//! another thread injected, the terminal reporting its colors. A replay
+//! stops there and says why. The header holds the App's configuration a
+//! replay must match (`caret`, `frame`, `tick`, `scheme`).
 //!
 //! The format, one record per line, fields separated by one space, text
 //! percent-encoded:
 //!
 //! ```text
-//! rdom-record 1 <width> <height>
+//! rdom-record 1 <width> <height> [<key>=<value> …]
 //! <ms> key <code> <modifier bits> press|repeat|release
 //! <ms> mouse <down|up|drag>-<left|right|middle>|moved|scroll-<up|down|left|right> <column> <row> <modifier bits>
 //! <ms> paste <text>
 //! <ms> resize <width> <height>
 //! <ms> focus in|out
 //! <ms> frame <hash, 16 hex digits>
+//! <ms> unreplayable <what>
 //! ```
 //!
 //! A key code is a named key (`enter`, `tab`, `back-tab`, `esc`, `left`, …),
-//! `f<n>`, or `c:<character>`. A frame's hash is [`Buffer::content_hash`]
-//! of what the App drew. Injections from other threads
-//! (`AppHandle::inject`) are not recorded: they are closures.
+//! `f<n>`, `c:<character>`, `media:<Name>` or `modifier:<Name>` (crossterm's
+//! variant names). A key event's `state` is not recorded: rdom reads none. A frame's hash is [`Buffer::content_hash`]
+//! of what the App drew.
 
 use std::io::{self, Write};
 use std::time::Instant;
 
 use crossterm::event::{
-    Event as CtEvent, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, MouseButton,
-    MouseEvent, MouseEventKind,
+    Event as CtEvent, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, MediaKeyCode,
+    ModifierKeyCode, MouseButton, MouseEvent, MouseEventKind,
 };
 
 use crate::render::Buffer;
@@ -41,12 +51,21 @@ pub const VERSION: u32 = 1;
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Record {
-    /// The terminal's size when recording began.
-    Header { width: u16, height: u16 },
+    /// The terminal's size when recording began, and the App's
+    /// configuration a replay must match, `key=value` each.
+    Header {
+        width: u16,
+        height: u16,
+        config: Vec<(String, String)>,
+    },
     /// An event the App handled, `ms` after recording began.
     Event { ms: u64, event: CtEvent },
     /// A frame the App drew, by [`Buffer::content_hash`].
     Frame { ms: u64, hash: u64 },
+    /// Something the App took in that the log cannot hold (a closure
+    /// another thread injected, the terminal reporting its colors): a
+    /// replay stops here.
+    Unreplayable { ms: u64, what: String },
 }
 
 /// Writes a log as the App runs.
@@ -77,37 +96,59 @@ impl Recorder {
         }
     }
 
-    /// A recorder writing to the file at `path` (created or truncated).
+    /// A recorder writing to the file at `path` (created or truncated;
+    /// on Unix readable and writable by its owner only — it holds every
+    /// key typed).
     pub fn to_file(path: impl AsRef<std::path::Path>) -> io::Result<Self> {
-        Ok(Recorder::new(io::BufWriter::new(std::fs::File::create(
-            path,
-        )?)))
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        Ok(Recorder::new(io::BufWriter::new(options.open(path)?)))
     }
 
     /// Why recording stopped, if a write failed (the App goes on without
-    /// it).
+    /// it; `App::run` returns it when it ends).
     pub fn error(&self) -> Option<&io::Error> {
         self.failed.as_ref()
     }
 
-    fn line(&mut self, line: &str) {
+    /// Write `line`, flushed when `flush` (a frame: the log is whole up to
+    /// what was drawn). The first failure stops recording, and is kept.
+    fn line(&mut self, line: &str, flush: bool) {
         if self.failed.is_some() {
             return;
         }
-        if let Err(e) = self
-            .out
-            .write_all(line.as_bytes())
-            .and_then(|()| self.out.flush())
-        {
+        let mut done = self.out.write_all(line.as_bytes());
+        if flush && done.is_ok() {
+            done = self.out.flush();
+        }
+        if let Err(e) = done {
+            crate::rdom_trace!("recording stopped: {e}");
             self.failed = Some(e);
         }
     }
 
-    /// Begin, at `now`, for a terminal of `width` × `height`.
-    pub(crate) fn begin(&mut self, now: Instant, width: u16, height: u16) {
+    /// Begin, at `now`, for a terminal of `width` × `height` and an App
+    /// configured as `config`.
+    pub(crate) fn begin(
+        &mut self,
+        now: Instant,
+        width: u16,
+        height: u16,
+        config: &[(&str, String)],
+    ) {
         if self.start.is_none() {
             self.start = Some(now);
-            self.line(&format!("rdom-record {VERSION} {width} {height}\n"));
+            let mut header = format!("rdom-record {VERSION} {width} {height}");
+            for (k, v) in config {
+                header.push_str(&format!(" {k}={}", escape(v)));
+            }
+            header.push('\n');
+            self.line(&header, true);
         }
     }
 
@@ -118,10 +159,19 @@ impl Recorder {
 
     /// Record `event`, handled at `now`.
     pub(crate) fn event(&mut self, now: Instant, event: &CtEvent) {
-        if let Some(fields) = encode_event(event) {
-            let line = format!("{} {fields}\n", self.ms(now));
-            self.line(&line);
+        match encode_event(event) {
+            Some(fields) => {
+                let line = format!("{} {fields}\n", self.ms(now));
+                self.line(&line, false);
+            }
+            None => self.unreplayable(now, &format!("event {event:?}")),
         }
+    }
+
+    /// Mark what the App took in that the log cannot hold.
+    pub(crate) fn unreplayable(&mut self, now: Instant, what: &str) {
+        let line = format!("{} unreplayable {}\n", self.ms(now), escape(what));
+        self.line(&line, true);
     }
 
     /// Record the frame in `buffer`, drawn at `now`, when it differs from
@@ -131,7 +181,7 @@ impl Recorder {
         if self.last_frame != Some(hash) {
             self.last_frame = Some(hash);
             let line = format!("{} frame {hash:016x}\n", self.ms(now));
-            self.line(&line);
+            self.line(&line, true);
         }
     }
 }
@@ -162,10 +212,45 @@ const KEYS: &[(KeyCode, &str)] = &[
     (KeyCode::KeypadBegin, "keypad-begin"),
 ];
 
+const MEDIA: &[MediaKeyCode] = &[
+    MediaKeyCode::Play,
+    MediaKeyCode::Pause,
+    MediaKeyCode::PlayPause,
+    MediaKeyCode::Reverse,
+    MediaKeyCode::Stop,
+    MediaKeyCode::FastForward,
+    MediaKeyCode::Rewind,
+    MediaKeyCode::TrackNext,
+    MediaKeyCode::TrackPrevious,
+    MediaKeyCode::Record,
+    MediaKeyCode::LowerVolume,
+    MediaKeyCode::RaiseVolume,
+    MediaKeyCode::MuteVolume,
+];
+
+const MODIFIERS: &[ModifierKeyCode] = &[
+    ModifierKeyCode::LeftShift,
+    ModifierKeyCode::LeftControl,
+    ModifierKeyCode::LeftAlt,
+    ModifierKeyCode::LeftSuper,
+    ModifierKeyCode::LeftHyper,
+    ModifierKeyCode::LeftMeta,
+    ModifierKeyCode::RightShift,
+    ModifierKeyCode::RightControl,
+    ModifierKeyCode::RightAlt,
+    ModifierKeyCode::RightSuper,
+    ModifierKeyCode::RightHyper,
+    ModifierKeyCode::RightMeta,
+    ModifierKeyCode::IsoLevel3Shift,
+    ModifierKeyCode::IsoLevel5Shift,
+];
+
 fn key_name(code: KeyCode) -> Option<String> {
     match code {
         KeyCode::Char(c) => Some(format!("c:{}", escape(&c.to_string()))),
         KeyCode::F(n) => Some(format!("f{n}")),
+        KeyCode::Media(m) => Some(format!("media:{m:?}")),
+        KeyCode::Modifier(m) => Some(format!("modifier:{m:?}")),
         other => KEYS
             .iter()
             .find(|(k, _)| *k == other)
@@ -179,6 +264,18 @@ fn key_code(name: &str) -> Option<KeyCode> {
         let mut chars = s.chars();
         let c = chars.next()?;
         return chars.next().is_none().then_some(KeyCode::Char(c));
+    }
+    if let Some(m) = name.strip_prefix("media:") {
+        return MEDIA
+            .iter()
+            .find(|x| format!("{x:?}") == m)
+            .map(|x| KeyCode::Media(*x));
+    }
+    if let Some(m) = name.strip_prefix("modifier:") {
+        return MODIFIERS
+            .iter()
+            .find(|x| format!("{x:?}") == m)
+            .map(|x| KeyCode::Modifier(*x));
     }
     if let Some(n) = name.strip_prefix('f').and_then(|n| n.parse().ok()) {
         return Some(KeyCode::F(n));
@@ -272,21 +369,30 @@ fn unescape(s: &str) -> Option<String> {
 pub fn read(log: &str) -> Result<Vec<Record>, String> {
     let mut out = Vec::new();
     for (i, line) in log.lines().enumerate() {
-        if line.trim().is_empty() {
+        if line.trim().is_empty() && i > 0 {
             continue;
         }
         let bad = |why: &str| format!("line {}: {why}: {line:?}", i + 1);
         let f: Vec<&str> = line.split(' ').collect();
         if i == 0 {
             match f.as_slice() {
-                ["rdom-record", v, w, h] => {
+                ["rdom-record", v, w, h, config @ ..] => {
                     if v.parse::<u32>().ok() != Some(VERSION) {
                         return Err(bad("a log of another version"));
                     }
                     let n = |s: &str| s.parse::<u16>().map_err(|_| bad("not a size"));
+                    let config = config
+                        .iter()
+                        .map(|kv| {
+                            let (k, v) = kv.split_once('=').ok_or_else(|| bad("not key=value"))?;
+                            let v = unescape(v).ok_or_else(|| bad("bad escape"))?;
+                            Ok((k.to_string(), v))
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
                     out.push(Record::Header {
                         width: n(w)?,
                         height: n(h)?,
+                        config,
                     });
                     continue;
                 }
@@ -302,6 +408,10 @@ pub fn read(log: &str) -> Result<Vec<Record>, String> {
             ["frame", hash] => Record::Frame {
                 ms,
                 hash: u64::from_str_radix(hash, 16).map_err(|_| bad("not a hash"))?,
+            },
+            ["unreplayable", what] => Record::Unreplayable {
+                ms,
+                what: unescape(what).ok_or_else(|| bad("bad escape"))?,
             },
             _ => Record::Event {
                 ms,
@@ -405,6 +515,14 @@ mod tests {
             key(KeyCode::Char('ä'), KeyModifiers::NONE),
             key(KeyCode::F(5), KeyModifiers::NONE),
             key(KeyCode::BackTab, KeyModifiers::SHIFT),
+            key(
+                KeyCode::Media(crossterm::event::MediaKeyCode::PlayPause),
+                KeyModifiers::NONE,
+            ),
+            key(
+                KeyCode::Modifier(crossterm::event::ModifierKeyCode::RightAlt),
+                KeyModifiers::ALT,
+            ),
             CtEvent::Mouse(MouseEvent {
                 kind: MouseEventKind::Drag(MouseButton::Right),
                 column: 7,
@@ -432,7 +550,8 @@ mod tests {
             records[0],
             Record::Header {
                 width: 80,
-                height: 24
+                height: 24,
+                config: Vec::new()
             }
         );
         for (i, e) in events.iter().enumerate() {
@@ -462,6 +581,54 @@ mod tests {
             read("rdom-record 2 80 24\n")
                 .unwrap_err()
                 .contains("version")
+        );
+        let blank_first = read("\nrdom-record 1 80 24\n").unwrap_err();
+        assert!(blank_first.starts_with("line 1"), "{blank_first}");
+        let r = read("rdom-record 1 80 24 caret=off scheme=dark\n7 unreplayable inject\n").unwrap();
+        assert_eq!(
+            r,
+            [
+                Record::Header {
+                    width: 80,
+                    height: 24,
+                    config: vec![
+                        ("caret".into(), "off".into()),
+                        ("scheme".into(), "dark".into())
+                    ]
+                },
+                Record::Unreplayable {
+                    ms: 7,
+                    what: "inject".into()
+                }
+            ]
+        );
+    }
+}
+
+#[cfg(test)]
+mod writer_tests {
+    use std::io::{self, Write};
+    use std::time::Instant;
+
+    use super::Recorder;
+
+    struct Full;
+    impl Write for Full {
+        fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+            Err(io::Error::new(io::ErrorKind::StorageFull, "disk full"))
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_failed_write_stops_recording_and_is_kept() {
+        let mut r = Recorder::new(Full);
+        r.begin(Instant::now(), 10, 2, &[]);
+        assert_eq!(
+            r.error().map(io::Error::kind),
+            Some(io::ErrorKind::StorageFull)
         );
     }
 }

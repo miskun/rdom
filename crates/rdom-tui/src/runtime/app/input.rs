@@ -39,13 +39,26 @@ impl<B: Backend> App<B> {
     pub(crate) fn handle_input(&mut self, input: Input) {
         match input {
             Input::Event(event) => self.handle_event(event),
-            Input::Background(background) => self.note_terminal_background(background),
-            Input::ColorScheme(scheme) => self.note_terminal_scheme(scheme),
+            Input::Background(background) => {
+                self.note_unreplayable("the terminal reported its background");
+                self.note_terminal_background(background)
+            }
+            Input::ColorScheme(scheme) => {
+                self.note_unreplayable("the terminal reported its color scheme");
+                self.note_terminal_scheme(scheme)
+            }
             Input::DeviceAttributes => {}
             // `run` acts on a signal before it gets here (`signals`); a
             // continue that comes this way still redraws.
             Input::Signal(crate::runtime::input::Signal::Continue) => self.redraw_whole(),
             Input::Signal(_) => {}
+        }
+    }
+
+    /// Mark in the recording, if any, what it cannot replay.
+    pub(crate) fn note_unreplayable(&mut self, what: &str) {
+        if let Some(r) = self.recorder.as_mut() {
+            r.unreplayable(self.scheduler.borrow().now(), what);
         }
     }
 
