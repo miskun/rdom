@@ -39,7 +39,7 @@ impl<A: CaptureApp> Session<A> {
                     key: identity.key.clone(),
                     by: identity.by,
                     node: node_key(id),
-                    path: nodes::node_info(dom, id).path,
+                    path: nodes::path(dom, id),
                     border: boxes.get(&id).map(|b| b.border),
                     styles,
                 })

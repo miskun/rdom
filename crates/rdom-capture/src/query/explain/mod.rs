@@ -5,6 +5,10 @@
 //! took, the ones it overrode, and where they are written; for a property
 //! with no declaration, the ancestor it inherits from.
 
+use crate::capture::identity::{Identity, identities};
+
+/// Every element's identity.
+pub(crate) type Identities = std::collections::HashMap<NodeId, Identity>;
 use rdom_tui::capture::{DeclarationOrigin, Declared, OpKind, PaintOp, PaintPart, RuleRef};
 use rdom_tui::core_api::NodeId;
 use rdom_tui::render::TestBackend;
@@ -249,7 +253,7 @@ fn op_info(app: &App<TestBackend>, op: &PaintOp) -> OpInfo {
     OpInfo {
         depth: op.depth,
         node: op.node.map(node_key),
-        path: op.node.map(|n| nodes::node_info(dom, n).path),
+        path: op.node.map(|n| nodes::path(dom, n)),
         part: op.part.name(),
         op: op_name,
         alpha,
@@ -265,13 +269,15 @@ fn op_info(app: &App<TestBackend>, op: &PaintOp) -> OpInfo {
 }
 
 /// Explain element `id`: its node, boxes, animations, and the properties
-/// `properties` (all its declared ones when empty).
+/// `properties` (all its declared ones when empty); `ids` is the document's
+/// identities, computed once by the caller.
 pub(crate) fn element(
     app: &App<TestBackend>,
     id: NodeId,
     properties: &[String],
     part: Option<PaintPart>,
     detail: Detail,
+    ids: &Identities,
 ) -> Explanation {
     let dom = app.dom();
     let mut traces = Traces::new(app);
@@ -295,7 +301,7 @@ pub(crate) fn element(
     Explanation {
         target: Target {
             node: node_key(id),
-            info: nodes::node_info(dom, id),
+            info: nodes::node_info_in(dom, id, ids),
             boxes: rdom_tui::capture::box_model(dom, id).map(Boxes::from),
             part: part.map(|p| p.name().to_string()),
             via: None,
@@ -331,7 +337,8 @@ pub(crate) fn cell(
     // The joiner's glyph is the borders' that met there: explain the
     // first of them.
     let id = painter.node.or_else(|| painter.joined.first().copied())?;
-    let mut out = element(app, id, properties, Some(painter.part), detail);
+    let ids = identities(app.dom());
+    let mut out = element(app, id, properties, Some(painter.part), detail, &ids);
     out.target.via = via;
     let shown = app.terminal().buffer().cell(x, y)?;
     out.cell = Some(CellInfo {

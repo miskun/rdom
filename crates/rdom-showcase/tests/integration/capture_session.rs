@@ -170,10 +170,9 @@ fn every_demo_forks_to_its_own_frame_after_input() {
     }
 }
 
-/// CAPTURE phase 6: an acid page across schemes and depths, and its
-/// headings stressed.
+/// CAPTURE phase 6: an acid page across schemes and depths.
 #[test]
-fn an_acid_page_varies_by_environment_and_takes_stress() {
+fn an_acid_page_varies_by_environment() {
     let mut session = Session::new(Showcase);
     session.open(acid_env(), Some("acid:1")).unwrap();
     let axes = vec![
@@ -207,13 +206,116 @@ fn an_acid_page_varies_by_environment_and_takes_stress() {
         schemes[0].grid_hash, schemes[1].grid_hash,
         "acid page 6 reads the scheme"
     );
-    let stressed = session
-        .stress(
-            ".acid-label",
-            &[rdom_capture::variants::stress::Rewrite::Quadruple],
+}
+
+/// The node key of the first element `selector` matches in `session`.
+fn key_of(session: &Session<Showcase>, selector: &str) -> String {
+    let dom = session.app().unwrap().dom();
+    rdom_capture::capture::node_key(dom.query_selector(selector).unwrap().id())
+}
+
+/// CAPTURE phase 6, known answers on the showcase: a click adds one list
+/// item, and the diff says so by identity.
+#[test]
+fn a_demo_click_diffs_as_one_added_item() {
+    let mut session = Session::new(Showcase);
+    session
+        .open(
+            Environment::default(),
+            Some("demo:events/mutation-observer"),
+        )
+        .unwrap();
+    let button = {
+        let dom = session.app().unwrap().dom();
+        let b = dom.query_selector("button").unwrap().id();
+        rdom_tui::capture::box_model(dom, b).unwrap().border
+    };
+    session.mark("before").unwrap();
+    session
+        .input(&[Input::Mouse {
+            action: rdom_capture::MouseAction::Click,
+            x: button.x as u16 + 1,
+            y: button.y as u16,
+            button: Default::default(),
+        }])
+        .unwrap();
+    let d = session.diff("before", None).unwrap();
+    assert_eq!(d.added.len(), 1, "{d:#?}");
+    assert!(d.added[0].path.ends_with("li"), "{:?}", d.added[0]);
+    assert!(d.removed.is_empty());
+}
+
+/// CAPTURE phase 6, known answers: recoloring acid page 1's `mark.c-ua`
+/// changes its two cells and nothing else; a mockup of the page is its
+/// own text view, and one changed word is one difference.
+#[test]
+fn an_acid_page_answers_whatif_and_mockup_exactly() {
+    use rdom_capture::variants::whatif::Candidate;
+    use rdom_capture::{EditTarget, Step};
+    let mut session = Session::new(Showcase);
+    session.open(acid_env(), Some("acid:1")).unwrap();
+    let mark = key_of(&session, ".c-ua");
+    let outcomes = session
+        .whatif(
+            &[Candidate::new(
+                "red",
+                vec![Step::Edit {
+                    target: EditTarget::Winner { node: mark },
+                    property: "color".into(),
+                    value: Some("#ff0000".into()),
+                    important: false,
+                }],
+            )],
             0,
         )
         .unwrap();
-    assert!(!stressed.is_empty());
-    assert!(stressed.iter().all(|s| s.error.is_none()), "{stressed:?}");
+    let d = outcomes[0]
+        .diff
+        .as_ref()
+        .unwrap_or_else(|| panic!("{:?}", outcomes[0]));
+    assert_eq!(d.bounds, Some([1, 1, 2, 1]), "{d:#?}");
+    assert_eq!(d.cells_changed, 2);
+    assert_eq!(d.styles.len(), 1);
+    assert_eq!(d.styles[0].property, "color");
+
+    let grid = session
+        .capture(&CaptureRequest::with_layers([Layer::Grid]))
+        .unwrap()
+        .grid
+        .unwrap();
+    let view = rdom_capture::views::text::text(&grid, rdom_capture::views::text::TextOptions::ALL);
+    assert!(session.mockup(&view, [0, 0], None).unwrap().matches);
+    let edited = view.replacen("ua late", "UA late", 1);
+    let r = session.mockup(&edited, [0, 0], None).unwrap();
+    assert_eq!(r.glyphs.len(), 1, "{r:#?}");
+    assert_eq!((r.glyphs[0].y, r.glyphs[0].x), (1, 1));
+    assert_eq!(
+        (r.glyphs[0].expected.as_str(), r.glyphs[0].actual.as_str()),
+        ("UA", "ua")
+    );
+}
+
+/// CAPTURE phase 6, known answers: acid page 1's first tile label is one
+/// clipped line 38 cells wide — text that fits shows whole, text past it
+/// is cut, and nothing wraps or moves.
+#[test]
+fn an_acid_label_is_cut_by_exactly_the_rewrites_that_do_not_fit() {
+    use rdom_capture::variants::stress::Rewrite;
+    let mut session = Session::new(Showcase);
+    session.open(acid_env(), Some("acid:1")).unwrap();
+    let r = session
+        .stress(".acid-label:first-child", &Rewrite::ALL, 0)
+        .unwrap();
+    for s in &r {
+        use rdom_capture::variants::stress::Kind;
+        let kinds: Vec<Kind> = s.findings.iter().map(|f| f.kind).collect();
+        let cut = matches!(s.rewrite, Rewrite::Quadruple | Rewrite::LongWord);
+        assert_eq!(
+            kinds,
+            if cut { vec![Kind::Truncated] } else { vec![] },
+            "{:?}: {s:?}",
+            s.rewrite
+        );
+        assert_eq!(s.before, s.after, "{:?}: one clipped line", s.rewrite);
+    }
 }

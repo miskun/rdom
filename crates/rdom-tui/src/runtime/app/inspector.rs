@@ -100,6 +100,15 @@ impl<B: Backend> App<B> {
         self.stylesheets.iter().map(|(id, _)| *id).collect()
     }
 
+    /// The index among the sheets the cascade reads of the App sheet `id`
+    /// (the inverse of [`stylesheet_at`](Self::stylesheet_at)); `None`
+    /// when it is not on the stack.
+    pub fn stylesheet_index(&self, id: StylesheetId) -> Option<usize> {
+        let style_elements = self.prelude.cascade_order(&[]).len().saturating_sub(1);
+        let i = self.stylesheets.iter().position(|(sid, _)| *sid == id)?;
+        Some(style_elements + i)
+    }
+
     /// The App sheet at `index` of the sheets the cascade reads (a
     /// [`RuleRef::sheet`](crate::capture::RuleRef::sheet)): `None` for a
     /// `<style>` element's sheet (edited through its text) and the

@@ -38,7 +38,7 @@ pub use error::SessionError;
 pub use log::Step;
 pub use snapshot::MAX_MARKS;
 
-pub(crate) use inspect::node_by_key;
+pub(crate) use inspect::{identity_of, node_by_key};
 
 use crate::app::{CaptureApp, FixtureInfo};
 use crate::capture::{Capture, Layer, Meta, SCHEMA, node_key, nodes, owners};
@@ -72,6 +72,10 @@ struct Opened {
     log: Vec<Step>,
     /// Why it can no longer be rebuilt from its log, once it can't.
     unreplayable: Option<String>,
+    /// The CSS files its sheets were read from, each with a hash of its
+    /// text at open: a rebuild reads them again, so one that changed
+    /// stops a fork (`log`).
+    files: Vec<(String, u64)>,
     time_ms: u64,
     frame: Frame,
     /// The inspector's edits and forced states (`inspect`).
@@ -147,6 +151,27 @@ fn nodes_owners(
     let trace = app.trace_paint(area);
     let (owners, named) = owners::owners(&trace);
     (owners, named, trace.frame_mismatch())
+}
+
+/// The files `app`'s sheets were read from — every named source that is a
+/// readable file — with a hash of each one's text.
+fn read_files(app: &App<TestBackend>) -> Vec<(String, u64)> {
+    let mut out: Vec<(String, u64)> = Vec::new();
+    for id in app.stylesheet_ids() {
+        for name in app
+            .stylesheet(id)
+            .into_iter()
+            .flat_map(|s| s.sources().iter().flatten())
+        {
+            if out.iter().any(|(n, _)| n == name) {
+                continue;
+            }
+            if let Ok(text) = std::fs::read(name) {
+                out.push((name.clone(), crate::capture::fnv1a64(&text)));
+            }
+        }
+    }
+    out
 }
 
 /// Run app code, turning a panic into [`SessionError::AppPanicked`].
@@ -232,6 +257,7 @@ impl<A: CaptureApp> Session<A> {
         })?;
         let before = rdom_tui::Buffer::empty(app.terminal().buffer().area);
         let frame = Frame::of(&app);
+        let files = read_files(&app);
         self.open = Some(Opened {
             app,
             opened_env: env.clone(),
@@ -239,6 +265,7 @@ impl<A: CaptureApp> Session<A> {
             fixture: fixture.map(str::to_string),
             log: Vec::new(),
             unreplayable: None,
+            files,
             time_ms: 0,
             frame,
             edits: crate::edit::Edits::default(),

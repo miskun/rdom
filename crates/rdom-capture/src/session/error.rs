@@ -50,7 +50,8 @@ impl fmt::Display for SessionError {
             SessionError::Diverged { expected, got } => write!(
                 f,
                 "a fork rebuilt from the session's steps shows another frame ({got}, the session {expected}): \
-                 the app is not deterministic — another thread feeding it (CAPTURE-INJECT-1)?"
+                 the app holds state its steps do not — another thread feeding it (CAPTURE-INJECT-1), \
+                 a clock or a file read outside the session"
             ),
         }
     }

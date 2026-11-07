@@ -119,6 +119,11 @@ fn a_sheet_edit_restyles_and_maps_from_a_trace() {
     let rule = trace.winner("color").unwrap().rule.clone().unwrap();
     let id = app.stylesheet_at(rule.sheet).expect("an App sheet");
     assert_eq!(app.stylesheet_ids(), [id], "the App's one sheet");
+    assert_eq!(
+        app.stylesheet_index(id),
+        Some(rule.sheet),
+        "the inverse of stylesheet_at"
+    );
     app.inspect(|a| {
         a.edit_stylesheet(id, |s| {
             s.set_rule_declaration(rule.index, "color", "#00ffff", false)

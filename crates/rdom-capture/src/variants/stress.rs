@@ -15,6 +15,10 @@ use crate::capture::identity::identities;
 use crate::capture::{Layer, node_key, nodes};
 use crate::session::{CaptureRequest, Session, SessionError, Step};
 
+/// The most elements one `stress` rewrites (each rewrite of each one is
+/// a fork).
+pub const MAX_TARGETS: usize = 8;
+
 /// How a text is rewritten.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -50,6 +54,12 @@ impl Rewrite {
         Rewrite::Rtl,
         Rewrite::Number,
     ];
+
+    /// Whether it is a function of the text (doubled, emptied) rather than
+    /// a sample that replaces it.
+    pub fn relative(self) -> bool {
+        matches!(self, Rewrite::Double | Rewrite::Quadruple | Rewrite::Empty)
+    }
 
     /// `text` rewritten (a whitespace-only text is left alone: it is
     /// layout, not content).
@@ -87,12 +97,28 @@ pub struct Stressed {
     pub error: Option<String>,
 }
 
+/// What a rewrite did to the layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
+pub enum Kind {
+    /// Fewer of the text's cells show than before.
+    Truncated,
+    /// The box got taller.
+    Wrapped,
+    /// The box reaches further past its parent's than before.
+    Overflow,
+    /// Other elements moved.
+    Shifted,
+    /// It now overlaps elements it did not.
+    Overlap,
+}
+
 /// One thing a rewrite did to the layout.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[non_exhaustive]
 pub struct Finding {
-    /// `truncated`, `wrapped`, `overflow`, `shifted`, `overlap`.
-    pub kind: &'static str,
+    pub kind: Kind,
     pub message: String,
     /// The elements involved, by identity.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -125,7 +151,8 @@ fn intersects(a: [i32; 4], b: [i32; 4]) -> bool {
 
 impl<A: CaptureApp> Session<A> {
     /// What each of `rewrites` does to each element `selector` matches
-    /// (at most 8 elements), each in its own fork, settled `settle_ms`.
+    /// (at most [`MAX_TARGETS`]), each in its own fork, settled
+    /// `settle_ms`.
     pub fn stress(
         &self,
         selector: &str,
@@ -139,17 +166,24 @@ impl<A: CaptureApp> Session<A> {
             .map_err(|e| invalid(format!("invalid selector {selector:?}: {e:?}")))?
             .into_iter()
             .map(node_key)
-            .take(8)
             .collect();
         if targets.is_empty() {
             return Err(invalid(format!("no element matches {selector:?}")));
         }
+        if targets.len() > MAX_TARGETS {
+            return Err(invalid(format!(
+                "{} elements match {selector:?}: at most {MAX_TARGETS} are stressed at once, narrow the selector",
+                targets.len()
+            )));
+        }
+        let mut rewrites = rewrites.to_vec();
+        rewrites.dedup();
         let mut base = self.fork()?;
         base.advance(settle_ms)?;
         let mut out = Vec::new();
         for target in &targets {
             let before = laid(&base, target)?;
-            for &rewrite in rewrites {
+            for &rewrite in &rewrites {
                 let key = before.0.clone();
                 let tried = (|| -> Result<_, SessionError> {
                     let mut fork = self.fork()?;
@@ -180,20 +214,30 @@ impl<A: CaptureApp> Session<A> {
         let id = crate::session::node_by_key(self.app()?, node)?;
         self.step_inspected(|app| {
             let dom = app.dom_mut();
-            let texts: Vec<_> = dom
-                .descendants(id)
-                .filter(|&n| dom.node(n).node_type() == rdom_tui::core_api::NodeType::Text)
-                .collect();
-            for t in texts {
-                let new = rewrite.apply(dom.node(t).node_value().unwrap_or_default());
+            // A relative rewrite (doubled, emptied) applies to every text;
+            // a sample replaces the first and empties the rest, so the
+            // element shows it once.
+            let mut first = true;
+            for t in rendered_texts(dom, id) {
+                let old = dom.node(t).node_value().unwrap_or_default().to_string();
+                if old.trim().is_empty() {
+                    continue;
+                }
+                let new = if rewrite.relative() || first {
+                    rewrite.apply(&old)
+                } else {
+                    String::new()
+                };
+                first = false;
                 dom.node_mut(t)
                     .set_node_value(&new)
                     .map_err(|e| SessionError::InvalidInput(format!("{e:?}")))?;
             }
             Ok(())
         })?;
+        let identity = crate::session::identity_of(self.app()?, id);
         self.record(Step::Rewrite {
-            node: node.to_string(),
+            node: identity,
             rewrite,
         });
         Ok(())
@@ -221,28 +265,47 @@ fn laid<A: CaptureApp>(s: &Session<A>, target: &str) -> Result<(String, Laid), S
         }
         cur = dom.node(p).parent_node().map(|n| n.id());
     }
-    let owners = s
-        .capture(&CaptureRequest::with_layers([Layer::Owners]))?
-        .owners
-        .expect("asked for");
+    let capture = s.capture(&CaptureRequest::with_layers([Layer::Grid, Layer::Owners]))?;
+    let (grid, owners) = (
+        capture.grid.expect("asked for"),
+        capture.owners.expect("asked for"),
+    );
     let subtree: HashSet<String> = std::iter::once(id)
         .chain(dom.descendants(id))
         .map(node_key)
         .collect();
-    let shown = owners
+    // Non-blank glyphs only, by width: a space where a line wraps is never
+    // painted.
+    let shown = grid
         .rows
         .iter()
-        .flatten()
-        .filter(|r| r.part == "text" && r.node.as_ref().is_some_and(|n| subtree.contains(n)))
-        .map(|r| usize::from(r.w))
+        .zip(&owners.rows)
+        .map(|(runs, owner_runs)| {
+            let cells: Vec<&str> = runs.iter().flat_map(|r| r.cells()).collect();
+            owner_runs
+                .iter()
+                .filter(|r| {
+                    r.part == "text" && r.node.as_ref().is_some_and(|n| subtree.contains(n))
+                })
+                .flat_map(|r| usize::from(r.x)..usize::from(r.x + r.w))
+                .filter_map(|x| cells.get(x).filter(|g| !g.trim().is_empty()))
+                // A wide glyph's width: its trailing cell holds `""`.
+                .map(|g| unicode_width::UnicodeWidthStr::width(*g))
+                .sum::<usize>()
+        })
         .sum();
-    let text = dom.text_content(id);
-    let needed = unicode_width::UnicodeWidthStr::width(
-        text.split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
-            .as_str(),
-    );
+    let needed = rendered_texts(dom, id)
+        .into_iter()
+        .flat_map(|t| {
+            dom.node(t)
+                .node_value()
+                .unwrap_or_default()
+                .chars()
+                .collect::<Vec<_>>()
+        })
+        .filter(|c| !c.is_whitespace())
+        .map(|c| unicode_width::UnicodeWidthChar::width(c).unwrap_or(0))
+        .sum();
     Ok((
         key_of(id).unwrap_or_else(|| target.to_string()),
         Laid {
@@ -255,12 +318,46 @@ fn laid<A: CaptureApp>(s: &Session<A>, target: &str) -> Result<(String, Laid), S
     ))
 }
 
+/// The text nodes of `id`'s subtree that render: not in a `<style>`,
+/// `<script>` or `<template>`, not under an element with no box.
+fn rendered_texts(
+    dom: &rdom_tui::TuiDom,
+    id: rdom_tui::core_api::NodeId,
+) -> Vec<rdom_tui::core_api::NodeId> {
+    dom.descendants(id)
+        .filter(|&n| dom.node(n).node_type() == rdom_tui::core_api::NodeType::Text)
+        .filter(|&n| {
+            let mut cur = dom.node(n).parent_node().map(|p| p.id());
+            while let Some(p) = cur {
+                let tag = dom
+                    .node(p)
+                    .tag_name()
+                    .unwrap_or_default()
+                    .to_ascii_lowercase();
+                if matches!(tag.as_str(), "style" | "script" | "template")
+                    || rdom_tui::capture::box_model(dom, p).is_none()
+                {
+                    return false;
+                }
+                if p == id {
+                    return true;
+                }
+                cur = dom.node(p).parent_node().map(|x| x.id());
+            }
+            true
+        })
+        .collect()
+}
+
 fn findings_of(key: String, rewrite: Rewrite, a: &Laid, b: &Laid) -> Stressed {
     let (before, after) = (a.boxes.get(&key).copied(), b.boxes.get(&key).copied());
     let mut findings = Vec::new();
-    if b.shown < b.needed {
+    // Judged against the layout before the rewrite: what was cut already
+    // is not the rewrite's doing.
+    let cut = |l: &Laid| l.needed.saturating_sub(l.shown);
+    if cut(b) > cut(a) {
         findings.push(Finding {
-            kind: "truncated",
+            kind: Kind::Truncated,
             message: format!("{} of {} text cells show", b.shown, b.needed),
             nodes: vec![key.clone()],
         });
@@ -269,20 +366,34 @@ fn findings_of(key: String, rewrite: Rewrite, a: &Laid, b: &Laid) -> Stressed {
         && y[3] > x[3]
     {
         findings.push(Finding {
-            kind: "wrapped",
+            kind: Kind::Wrapped,
             message: format!("{} rows tall, was {}", y[3], x[3]),
             nodes: vec![key.clone()],
         });
     }
-    if let (Some(me), Some(p)) = (after, b.parent.as_ref().and_then(|p| b.boxes.get(p))) {
-        let past = (me[0] + me[2]) - (p[0] + p[2]);
-        if past > 0 || me[0] < p[0] {
-            findings.push(Finding {
-                kind: "overflow",
-                message: format!("{} cells past its parent's box", past.max(p[0] - me[0])),
-                nodes: vec![key.clone(), b.parent.clone().unwrap_or_default()],
-            });
-        }
+    // How far past its parent's border box, on any side.
+    let over = |l: &Laid, me: Option<[i32; 4]>| -> i32 {
+        let (Some(me), Some(p)) = (me, l.parent.as_ref().and_then(|p| l.boxes.get(p))) else {
+            return 0;
+        };
+        [
+            (me[0] + me[2]) - (p[0] + p[2]),
+            p[0] - me[0],
+            (me[1] + me[3]) - (p[1] + p[3]),
+            p[1] - me[1],
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0)
+        .max(0)
+    };
+    let (was, now) = (over(a, before), over(b, after));
+    if now > was {
+        findings.push(Finding {
+            kind: Kind::Overflow,
+            message: format!("{now} cells past its parent's box"),
+            nodes: vec![key.clone(), b.parent.clone().unwrap_or_default()],
+        });
     }
     let others = |l: &Laid| -> Vec<String> {
         let mut v: Vec<String> = l
@@ -302,9 +413,15 @@ fn findings_of(key: String, rewrite: Rewrite, a: &Laid, b: &Laid) -> Stressed {
                 .is_some_and(|x| b.boxes.get(k).is_some_and(|y| x[..2] != y[..2]))
         })
         .collect();
+    // Only the topmost of what moved: a moved box's descendants move with it.
+    let shifted: Vec<String> = shifted
+        .iter()
+        .filter(|k| !shifted.iter().any(|s| k.starts_with(&format!("{s}/"))))
+        .cloned()
+        .collect();
     if !shifted.is_empty() {
         findings.push(Finding {
-            kind: "shifted",
+            kind: Kind::Shifted,
             message: format!("{} other elements moved", shifted.len()),
             nodes: shifted,
         });
@@ -320,7 +437,7 @@ fn findings_of(key: String, rewrite: Rewrite, a: &Laid, b: &Laid) -> Stressed {
             .collect();
         if !overlaps.is_empty() {
             findings.push(Finding {
-                kind: "overlap",
+                kind: Kind::Overlap,
                 message: format!("now overlaps {} elements it did not", overlaps.len()),
                 nodes: overlaps,
             });

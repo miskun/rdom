@@ -16,6 +16,7 @@ pub(crate) mod nodes;
 pub(crate) mod owners;
 
 pub use color::ColorValue;
+pub(crate) use grid::split_cells as grid_cells;
 pub use grid::{Attr, Grid, Run};
 pub use hash::{fnv1a64, grid_hash};
 pub use identity::By;

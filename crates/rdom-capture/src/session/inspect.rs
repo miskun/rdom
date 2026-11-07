@@ -26,6 +26,22 @@ pub(crate) fn node_by_key(app: &App<TestBackend>, key: &str) -> Result<NodeId, S
         .ok_or_else(|| invalid(format!("no node {key:?} in the document")))
 }
 
+/// Element `id`'s identity (`capture::identity`): how the log names it.
+pub(crate) fn identity_of(app: &App<TestBackend>, id: NodeId) -> String {
+    crate::capture::identity::identities(app.dom())
+        .remove(&id)
+        .map_or_else(|| node_key(id), |i| i.key)
+}
+
+/// The node key of the element whose identity is `key`.
+pub(crate) fn by_identity(app: &App<TestBackend>, key: &str) -> Result<String, SessionError> {
+    crate::capture::identity::identities(app.dom())
+        .into_iter()
+        .find(|(_, i)| i.key == key)
+        .map(|(id, _)| node_key(id))
+        .ok_or_else(|| invalid(format!("no element {key:?} in the document")))
+}
+
 /// `location` as `file:line:column`.
 pub(super) fn source(
     location: Option<rdom_tui::SourceLocation>,
@@ -253,8 +269,15 @@ impl<A: CaptureApp> Session<A> {
             let snapshot = o.app.stylesheet(r.sheet).expect("an App sheet").clone();
             o.edits.snapshot(r.sheet, &snapshot);
             outcome = o.app.inspect(|app| {
-                app.edit_stylesheet(r.sheet, |s| edit_rules(s, &r, property, value, important))
-                    .expect("an App sheet")
+                // On a copy, swapped in only when every rule took the edit:
+                // a block's rules change together or not at all.
+                app.edit_stylesheet(r.sheet, |s| {
+                    let mut copy = s.clone();
+                    let out = edit_rules(&mut copy, &r, property, value, important)?;
+                    *s = copy;
+                    Ok(out)
+                })
+                .expect("an App sheet")
             })?;
             let version = o.app.stylesheet(r.sheet).map(Stylesheet::version);
             o.edits.left_at(r.sheet, version.expect("an App sheet"));
@@ -279,8 +302,19 @@ impl<A: CaptureApp> Session<A> {
             source_name: r.source_name,
             new_rule: r.new_rule,
         });
+        // The log holds the rule the edit changed, not how it was found:
+        // a replay elsewhere (another environment) edits the same rule.
+        let logged = if r.new_rule {
+            target.clone()
+        } else {
+            let app = self.app()?;
+            EditTarget::Rule {
+                sheet: app.stylesheet_index(r.sheet).expect("an App sheet"),
+                index: r.rules[0],
+            }
+        };
         self.record(Step::Edit {
-            target: target.clone(),
+            target: logged,
             property: property.to_string(),
             value: value.map(str::to_string),
             important,
@@ -307,7 +341,7 @@ impl<A: CaptureApp> Session<A> {
             Ok(())
         })?;
         self.record(Step::Force {
-            node: node.to_string(),
+            node: identity_of(self.app()?, id),
             state: state.name().to_string(),
             on,
         });

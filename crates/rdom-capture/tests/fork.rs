@@ -137,3 +137,35 @@ fn a_fork_with_another_environment_replays_the_steps_there() {
     // The press counted there too.
     assert!(text.grid.unwrap().row_text(1).starts_with('1'));
 }
+
+#[test]
+fn the_log_holds_what_was_changed_not_how_it_was_found() {
+    let s = driven();
+    // The edit targeted "the rule p's color wins by": the log holds that
+    // rule, so a replay in another environment edits the same rule.
+    let edit = s
+        .log()
+        .iter()
+        .find(|st| matches!(st, Step::Edit { .. }))
+        .unwrap();
+    assert!(
+        matches!(
+            edit,
+            Step::Edit {
+                target: EditTarget::Rule { .. },
+                ..
+            }
+        ),
+        "{edit:?}"
+    );
+    // A forced state names its element by identity, not by arena node.
+    let force = s
+        .log()
+        .iter()
+        .find(|st| matches!(st, Step::Force { .. }))
+        .unwrap();
+    assert!(
+        matches!(force, Step::Force { node, .. } if node == "p"),
+        "{force:?}"
+    );
+}

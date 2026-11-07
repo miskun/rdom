@@ -32,7 +32,7 @@ fn found(app: &App<TestBackend>, id: NodeId) -> Found {
     let dom = app.dom();
     Found {
         node: node_key(id),
-        path: nodes::node_info(dom, id).path,
+        path: nodes::path(dom, id),
         rect: rdom_tui::capture::box_model(dom, id).map(|b| {
             let r = b.border;
             [r.x, r.y, i32::from(r.width), i32::from(r.height)]

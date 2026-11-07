@@ -352,7 +352,14 @@ fn explain<A: CaptureApp>(session: &Session<A>, p: ExplainParams) -> Result<Valu
             (_, Some(key)) => node_named(session, key)?,
             _ => unreachable!("one target"),
         };
-        crate::query::explain::element(app, id, &p.properties, None, p.detail)
+        crate::query::explain::element(
+            app,
+            id,
+            &p.properties,
+            None,
+            p.detail,
+            &crate::capture::identity::identities(app.dom()),
+        )
     };
     let mut v = json(answer)?;
     fit(&mut v, p.budget);

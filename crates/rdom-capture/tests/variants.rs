@@ -274,24 +274,47 @@ fn stress_reports_what_each_rewrite_did_to_the_layout() {
     let r = s
         .stress("#label", &[Rewrite::Double, Rewrite::Quadruple], 0)
         .unwrap();
-    let kinds = |i: usize| -> Vec<&str> { r[i].findings.iter().map(|f| f.kind).collect() };
+    use rdom_capture::variants::stress::Kind;
+    let kinds = |i: usize| -> Vec<Kind> { r[i].findings.iter().map(|f| f.kind).collect() };
     assert_eq!(r[0].key, "#label");
     assert!(kinds(0).is_empty(), "\"Save Save\" fits: {:?}", r[0]);
-    assert!(kinds(1).contains(&"wrapped"), "{:?}", r[1]);
+    assert!(kinds(1).contains(&Kind::Wrapped), "{:?}", r[1]);
+    assert!(
+        !kinds(1).contains(&Kind::Truncated),
+        "wrapped text is all there: {:?}",
+        r[1]
+    );
     let shifted = r[1]
         .findings
         .iter()
-        .find(|f| f.kind == "shifted")
+        .find(|f| f.kind == Kind::Shifted)
         .expect("the paragraph below moved");
     assert!(shifted.nodes.contains(&"#below".to_string()), "{shifted:?}");
     // A long word in a clipped, unwrapping badge: cut off.
     let b = s.stress("#badge", &[Rewrite::LongWord], 0).unwrap();
     assert!(
-        b[0].findings.iter().any(|f| f.kind == "truncated"),
+        b[0].findings
+            .iter()
+            .any(|f| f.kind == rdom_capture::variants::stress::Kind::Truncated),
         "{:?}",
         b[0]
     );
     // The session is as it was, and its log holds no rewrite.
     assert!(s.log().is_empty());
     assert!(s.stress("#nope", &[Rewrite::Empty], 0).is_err());
+}
+
+#[test]
+fn a_variant_says_which_logged_steps_do_not_carry_over() {
+    let mut s = open();
+    s.input(&[Input::Resize {
+        width: 24,
+        height: 8,
+    }])
+    .unwrap();
+    let variants = s
+        .matrix(&[vec![serde_json::json!({"viewport": {"width": 30}})]], 0)
+        .unwrap();
+    let notes = variants[0].notes.join(" ");
+    assert!(notes.contains("resize"), "{variants:?}");
 }

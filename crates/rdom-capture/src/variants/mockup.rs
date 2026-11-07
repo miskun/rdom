@@ -15,7 +15,6 @@
 use std::collections::HashMap;
 
 use serde::Serialize;
-use unicode_width::UnicodeWidthChar;
 
 use crate::capture::{ColorValue, Grid};
 
@@ -50,12 +49,20 @@ pub struct GlyphDiff {
     pub actual: String,
 }
 
+/// A mockup's key layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
+pub enum KeyLayer {
+    Background,
+    Foreground,
+}
+
 /// Cells of one row whose color differs from the same expected color.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[non_exhaustive]
 pub struct ColorDiff {
-    /// `background` or `foreground`.
-    pub layer: &'static str,
+    pub layer: KeyLayer,
     pub y: u16,
     pub x: u16,
     pub w: u16,
@@ -78,7 +85,7 @@ struct Mockup {
     lines: Vec<Vec<String>>,
     /// Per layer title: its rows (`None` for a don't-care cell) of
     /// expected colors, `Some(None)` the default.
-    layers: Vec<(&'static str, Vec<KeyRow>)>,
+    layers: Vec<(KeyLayer, Vec<KeyRow>)>,
 }
 
 /// A key layer's row: per cell, `None` for anything, else the expected
@@ -86,7 +93,7 @@ struct Mockup {
 type KeyRow = Vec<Option<Option<ColorValue>>>;
 
 /// A key layer being read: its title, rows and keys.
-type Section<'a> = (&'static str, Vec<&'a str>, HashMap<char, ColorValue>);
+type Section<'a> = (KeyLayer, Vec<&'a str>, HashMap<char, ColorValue>);
 
 /// One frame cell: its glyph and shown colors.
 struct Cell<'a> {
@@ -108,12 +115,13 @@ fn parse(text: &str) -> Result<Mockup, String> {
             .map(|r| {
                 r.chars()
                     .map(|k| match k {
-                        ' ' => Ok(None),
+                        // `?` is every color past a text view's 62nd.
+                        ' ' | '?' => Ok(None),
                         '.' => Ok(Some(None)),
                         k => keys
                             .get(&k)
                             .map(|c| Some(Some(*c)))
-                            .ok_or_else(|| format!("{title}: key {k:?} has no color below")),
+                            .ok_or_else(|| format!("{title:?}: key {k:?} has no color below")),
                     })
                     .collect::<Result<Vec<_>, _>>()
             })
@@ -121,15 +129,37 @@ fn parse(text: &str) -> Result<Mockup, String> {
         layers.push((title, rows));
         Ok(())
     };
+    // Past an `owners` layer (which a mockup does not compare).
+    let mut skipping = false;
     for line in text.lines() {
-        if let Some(title) = line.strip_prefix("── ").and_then(|l| l.strip_suffix(" ──")) {
-            close(section.take(), &mut layers)?;
-            let title = match title {
-                "background" => "background",
-                "foreground" => "foreground",
-                other => return Err(format!("no key layer {other:?}: background or foreground")),
-            };
-            section = Some((title, Vec::new(), HashMap::new()));
+        let header = line.strip_prefix("── ").and_then(|l| l.strip_suffix(" ──"));
+        match header {
+            Some(t @ ("background" | "foreground")) => {
+                close(section.take(), &mut layers)?;
+                let title = if t == "background" {
+                    KeyLayer::Background
+                } else {
+                    KeyLayer::Foreground
+                };
+                section = Some((title, Vec::new(), HashMap::new()));
+                skipping = false;
+                continue;
+            }
+            Some("owners") => {
+                close(section.take(), &mut layers)?;
+                skipping = true;
+                continue;
+            }
+            // A row of the screen that looks like a header (`── Settings ──`)
+            // is glyphs, before the key layers.
+            Some(other) if section.is_some() || skipping => {
+                return Err(format!(
+                    "no key layer {other:?}: background, foreground (or owners, skipped)"
+                ));
+            }
+            _ => {}
+        }
+        if skipping {
             continue;
         }
         match section.as_mut() {
@@ -160,16 +190,14 @@ fn content(line: &[String]) -> Option<(usize, usize)> {
     Some((from, to))
 }
 
-/// A glyph line as cells: each character, a wide one followed by `""`.
+/// A glyph line as cells, split as the grid splits its text: grapheme
+/// clusters, a wide one followed by `""`.
 fn cells_of(line: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    for c in line.chars() {
-        out.push(c.to_string());
-        if c.width().unwrap_or(1) >= 2 {
-            out.push(String::new());
-        }
-    }
-    out
+    let w = unicode_width::UnicodeWidthStr::width(line);
+    crate::capture::grid_cells(line, w.min(usize::from(u16::MAX)) as u16)
+        .into_iter()
+        .map(str::to_string)
+        .collect()
 }
 
 /// How `grid` differs from the mockup `text` placed at `at`; `any` matches
@@ -263,11 +291,15 @@ pub fn compare(
                     continue;
                 };
                 r.compared += 1;
-                let got = if *title == "background" { c.bg } else { c.fg };
+                let got = if *title == KeyLayer::Background {
+                    c.bg
+                } else {
+                    c.fg
+                };
                 let blank = c.glyph == " " || c.glyph.is_empty();
                 let ok = match want {
-                    None => got == ColorValue::Default || (*title == "foreground" && blank),
-                    Some(w) => got == w && !(*title == "foreground" && blank),
+                    None => got == ColorValue::Default || (*title == KeyLayer::Foreground && blank),
+                    Some(w) => got == w && !(*title == KeyLayer::Foreground && blank),
                 };
                 let expected = want.unwrap_or(ColorValue::Default);
                 if ok {
@@ -288,7 +320,7 @@ pub fn compare(
                             r.colors.push(d);
                         }
                         run = Some(ColorDiff {
-                            layer: title,
+                            layer: *title,
                             y: yy,
                             x: xx,
                             w: 1,
@@ -354,6 +386,17 @@ mod tests {
     }
 
     #[test]
+    fn a_header_like_row_and_a_captures_owners_layer_round_trip() {
+        let mut buf = Buffer::empty(Rect::new(0, 0, 14, 1));
+        buf.set_string(0, 0, "── Settings ──", Style::default());
+        let g = Grid::from_buffer(&buf, ColorDepth::TrueColor);
+        let view = text(&g, TextOptions::ALL);
+        let with_owners = format!("{view}── owners ──\naaaa\na 12 p\n");
+        let r = compare(&g, &with_owners, [0, 0], None).unwrap();
+        assert!(r.matches, "{r:#?}");
+    }
+
+    #[test]
     fn glyphs_colors_and_shifts_are_reported() {
         let g = frame();
         let mockup = "Name: bob\n[ Save ]\n── foreground ──\n\n..aaaaaaaa\na #00c800\n";
@@ -374,7 +417,11 @@ mod tests {
         // The foreground layer is compared where the mockup puts it: the
         // frame's glyphs are 2 columns right, so the expected color is
         // missing from the first two cells.
-        assert!(r.colors.iter().all(|c| c.layer == "foreground"));
+        assert!(
+            r.colors
+                .iter()
+                .all(|c| c.layer == super::KeyLayer::Foreground)
+        );
         assert!(
             r.colors
                 .iter()
@@ -383,6 +430,6 @@ mod tests {
         // A wildcard ignores glyphs.
         let loose = compare(&g, "Name: ???", [0, 0], Some('?')).unwrap();
         assert!(loose.matches, "{loose:#?}");
-        assert!(compare(&g, "x\n── middle ──\n", [0, 0], None).is_err());
+        assert!(compare(&g, "x\n── background ──\n── middle ──\n", [0, 0], None).is_err());
     }
 }

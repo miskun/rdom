@@ -760,7 +760,24 @@ As built, against the plan:
   inserted above keeps its siblings matched); whatif from one base with a failing candidate; matrix with a sheet;
   stress with known findings (fits, wraps and shifts, truncates); mockup round trip, shifts and wildcards; on the
   showcase, every demo forks to its own frame after input, acid page 1 varies by depth but not scheme and page 6 by
-  scheme, and its tile labels take stress.
+  scheme, a click in the mutation-observer demo diffs as one added item, recoloring `mark.c-ua` changes exactly its
+  two cells, a one-word mockup edit is one difference, and the first tile label is cut by exactly the rewrites that
+  do not fit its 38 cells.
+
+Architect review (blocking, fixed with a test first): B1 — an edit refused on one rule of a selector list left the
+others changed and unlogged: a block's rules now change on a copy, swapped in only when all take it. B2 — `node_info`
+had become O(n), its loops O(n²): paths are computed alone, and the identity map is built once per request. B3 —
+identity keys could collide (`li.a:1` against a class `a:1`): the separators in names are escaped. B4 — the log
+re-resolved a `Winner` edit at replay and named nodes by arena key: it now holds the rule edited and element
+identities, and a `matrix` variant notes the logged steps that mean something else in its environment (a resize
+overriding its viewport, mouse cells). B5 — a hand-edited CSS file broke replay silently: the files read at open are
+hashed and a fork refuses, naming the file, when one changed. B6 — the showcase known answers above. Non-blocking,
+fixed: `stress` counts painted glyphs by width (CJK and emoji were "truncated"), judges truncation and overflow
+against the layout before, skips text that does not render, puts a sample rewrite in the first text only, reports
+only the topmost shifted box and refuses more than 8 targets; mockup headers are only the key layers it reads, `?`
+keys and an `owners` layer are skipped, lines split by grapheme; sheet labels are cut by width; a failed variant
+reports its own environment and invalid axes fail the call; `stress` finding kinds and mockup layers are enums.
+Recorded in `TECH_DEBT` CAPTURE-VARIANTS-1.
 
 ## Open questions
 

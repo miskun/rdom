@@ -118,13 +118,18 @@ fn element_path(dom: &TuiDom, id: NodeId) -> Vec<NodeId> {
     out
 }
 
-/// What element `id` is.
-pub(crate) fn node_info(dom: &TuiDom, id: NodeId) -> NodeInfo {
-    node_info_in(dom, id, &super::identity::identities(dom))
+/// Element `id`'s path from the root: `main > section#settings.panel`.
+pub(crate) fn path(dom: &TuiDom, id: NodeId) -> String {
+    element_path(dom, id)
+        .iter()
+        .map(|p| step(dom, *p))
+        .collect::<Vec<_>>()
+        .join(" > ")
 }
 
-/// What element `id` is, its identity looked up in `identities`.
-fn node_info_in(
+/// What element `id` is, its identity looked up in `identities` (computed
+/// once per request: `identity::identities` walks the document).
+pub(crate) fn node_info_in(
     dom: &TuiDom,
     id: NodeId,
     identities: &std::collections::HashMap<NodeId, super::identity::Identity>,

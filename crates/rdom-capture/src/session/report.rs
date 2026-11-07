@@ -46,11 +46,12 @@ impl<A: CaptureApp> Session<A> {
             .chain(dom.descendants(dom.root()))
             .map(|n| (node_key(n), n))
             .collect();
+        let identities = crate::capture::identity::identities(dom);
         let explain = nodes
             .iter()
             .map(|(key, _)| {
                 let id = ids[key];
-                let e = explain::element(&o.app, id, &[], None, Detail::Summary);
+                let e = explain::element(&o.app, id, &[], None, Detail::Summary, &identities);
                 let e = serde_json::to_value(e).expect("an explanation serializes");
                 (key.to_string(), e)
             })

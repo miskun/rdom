@@ -20,9 +20,17 @@ pub fn sheet(tiles: &[(String, &Grid)], columns: usize) -> Grid {
         let x0 = (k % columns) * (usize::from(slot_w) + 1);
         let y0 = (k / columns) * (usize::from(slot_h) + 1);
         let fits = |x: usize, w: usize| x + w <= width;
-        // The label: bold, cut to the slot.
-        let text: String = label.chars().take(usize::from(slot_w)).collect();
-        let w = unicode_width::UnicodeWidthStr::width(text.as_str());
+        // The label: bold, cut to the slot's width.
+        let mut text = String::new();
+        let mut w = 0;
+        for c in label.chars() {
+            let cw = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+            if w + cw > usize::from(slot_w) {
+                break;
+            }
+            text.push(c);
+            w += cw;
+        }
         if w > 0 && y0 < height && fits(x0, w) {
             rows[y0].push(run(
                 x0,

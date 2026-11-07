@@ -15,7 +15,8 @@ use serde_json::Value;
 use crate::app::CaptureApp;
 use crate::capture::Grid;
 use crate::env::Environment;
-use crate::session::{CaptureRequest, Session, SessionError};
+use crate::input::Input;
+use crate::session::{CaptureRequest, Session, SessionError, Step};
 
 /// The most variants one `matrix` makes.
 pub const MAX_VARIANTS: usize = 64;
@@ -33,6 +34,11 @@ pub struct Variant {
     /// a step refused there).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// The session's steps that mean something else in this environment:
+    /// a logged resize that overrides its viewport, mouse inputs replayed
+    /// at their logged cells in another viewport.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<String>,
     #[serde(skip)]
     pub grid: Option<Grid>,
 }
@@ -68,6 +74,31 @@ fn label_of(patch: &Value, prefix: &str, out: &mut Vec<String>) {
     }
 }
 
+/// The steps of `log` that mean something else in `env` than in the
+/// session's `opened` environment.
+fn notes(log: &[Step], opened: &Environment, env: &Environment) -> Vec<String> {
+    let inputs = log.iter().flat_map(|s| match s {
+        Step::Input { inputs } => inputs.as_slice(),
+        _ => &[],
+    });
+    let mut out = Vec::new();
+    let other_size = env.viewport != opened.viewport;
+    if other_size
+        && let Some(Input::Resize { width, height }) =
+            inputs.clone().rfind(|i| matches!(i, Input::Resize { .. }))
+    {
+        out.push(format!(
+            "the session's log has a resize to {width}×{height}: replayed, it overrides this variant's viewport"
+        ));
+    }
+    if other_size && inputs.clone().any(|i| matches!(i, Input::Mouse { .. })) {
+        out.push(
+            "mouse inputs replay at their logged cells, which hold other elements in another viewport".into(),
+        );
+    }
+    out
+}
+
 impl<A: CaptureApp> Session<A> {
     /// This session's steps replayed in every combination of `axes` (each
     /// a list of partial environments laid over the session's), each run
@@ -99,9 +130,11 @@ impl<A: CaptureApp> Session<A> {
                 )));
             }
         }
-        let base =
-            serde_json::to_value(self.opened_environment()?).expect("an environment serializes");
-        Ok(combos
+        let opened = self.opened_environment()?.clone();
+        let base = serde_json::to_value(&opened).expect("an environment serializes");
+        // Every variant's environment first: one that is no environment
+        // fails the call, before any fork runs.
+        let envs = combos
             .into_iter()
             .map(|patches| {
                 let mut env = base.clone();
@@ -111,31 +144,34 @@ impl<A: CaptureApp> Session<A> {
                     label_of(p, "", &mut label);
                 }
                 let label = label.join(" ");
-                let made = (|| -> Result<(Environment, Grid, String), String> {
-                    let env: Environment = serde_json::from_value(env)
-                        .map_err(|e| format!("not an environment: {e}"))?;
-                    let mut fork = self.fork_in(env.clone()).map_err(|e| e.to_string())?;
-                    fork.advance(settle_ms).map_err(|e| e.to_string())?;
-                    let c = fork
-                        .capture(&CaptureRequest::with_layers([crate::capture::Layer::Grid]))
-                        .map_err(|e| e.to_string())?;
-                    Ok((env, c.grid.expect("asked for"), c.meta.grid_hash))
+                serde_json::from_value::<Environment>(env)
+                    .map(|env| (label.clone(), env))
+                    .map_err(|e| invalid(format!("{label}: not an environment: {e}")))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let log = self.log();
+        Ok(envs
+            .into_iter()
+            .map(|(label, env)| {
+                let notes = notes(log, &opened, &env);
+                let made = (|| -> Result<(Grid, String), SessionError> {
+                    let mut fork = self.fork_in(env.clone())?;
+                    fork.advance(settle_ms)?;
+                    let c =
+                        fork.capture(&CaptureRequest::with_layers([crate::capture::Layer::Grid]))?;
+                    Ok((c.grid.expect("asked for"), c.meta.grid_hash))
                 })();
-                match made {
-                    Ok((env, grid, hash)) => Variant {
-                        label,
-                        env,
-                        grid_hash: Some(hash),
-                        error: None,
-                        grid: Some(grid),
-                    },
-                    Err(e) => Variant {
-                        label,
-                        env: Environment::default(),
-                        grid_hash: None,
-                        error: Some(e),
-                        grid: None,
-                    },
+                let (grid, grid_hash, error) = match made {
+                    Ok((grid, hash)) => (Some(grid), Some(hash), None),
+                    Err(e) => (None, None, Some(e.to_string())),
+                };
+                Variant {
+                    label,
+                    env,
+                    grid_hash,
+                    error,
+                    notes,
+                    grid,
                 }
             })
             .collect())

@@ -13,7 +13,9 @@
 //!    share them (`:0` is left off).
 //!
 //! `#settings/ul.items/[key=r42]/span.label` — and [`By`] says which rule
-//! named the element itself, which a diff reports for every pair.
+//! named the element itself, which a diff reports for every pair. The
+//! separators inside a name are backslash-escaped (`li.md\\:flex`), so
+//! keys are unique.
 
 use std::collections::HashMap;
 
@@ -39,6 +41,19 @@ pub enum By {
 pub(crate) struct Identity {
     pub key: String,
     pub by: By,
+}
+
+/// `part` with the key's own separators — `\\ # . : / [ ] =` —
+/// backslash-escaped, so no name can make two keys one.
+fn escape(part: &str) -> String {
+    let mut out = String::with_capacity(part.len());
+    for c in part.chars() {
+        if matches!(c, '\\' | '#' | '.' | ':' | '/' | '[' | ']' | '=') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
 }
 
 /// The identity of every element of `dom`.
@@ -67,21 +82,21 @@ pub(crate) fn identities(dom: &TuiDom) -> HashMap<NodeId, Identity> {
             out.insert(
                 e,
                 Identity {
-                    key: format!("#{i}"),
+                    key: format!("#{}", escape(i)),
                     by: By::Id,
                 },
             );
             continue;
         }
         let (step, by) = match node.get_attribute("data-key") {
-            Some(k) => (format!("[key={k}]"), By::DataKey),
+            Some(k) => (format!("[key={}]", escape(k)), By::DataKey),
             None => {
                 let mut classes: Vec<&str> = dom.class_list(e).collect();
                 classes.sort_unstable();
-                let mut s = node.tag_name().unwrap_or_default().to_ascii_lowercase();
+                let mut s = escape(&node.tag_name().unwrap_or_default().to_ascii_lowercase());
                 for c in classes {
                     s.push('.');
-                    s.push_str(c);
+                    s.push_str(&escape(c));
                 }
                 (s, By::Fingerprint)
             }
@@ -140,6 +155,29 @@ mod tests {
             (ids[&main].by, ids[&a].by, ids[&p2].by),
             (By::Id, By::DataKey, By::Fingerprint)
         );
+    }
+
+    #[test]
+    fn separators_in_names_cannot_make_two_keys_one() {
+        // `li.a:1` (the second `li.a`) against a class `a:1`; `#a/b` (an
+        // id) against `b` under `#a`; a data-key with `/` and `]`.
+        let mut dom = TuiDom::new();
+        let root = dom.root();
+        let ul = el(&mut dom, root, "ul", &[]);
+        el(&mut dom, ul, "li", &[("class", "a")]);
+        el(&mut dom, ul, "li", &[("class", "a")]);
+        el(&mut dom, ul, "li", &[("class", "a:1")]);
+        let a = el(&mut dom, root, "div", &[("id", "a")]);
+        el(&mut dom, a, "b", &[]);
+        el(&mut dom, root, "div", &[("id", "a/b")]);
+        el(&mut dom, ul, "li", &[("data-key", "x]/y")]);
+        el(&mut dom, ul, "li", &[("data-key", "x")]);
+        let ids = identities(&dom);
+        let mut keys: Vec<&str> = ids.values().map(|i| i.key.as_str()).collect();
+        let n = keys.len();
+        keys.sort_unstable();
+        keys.dedup();
+        assert_eq!(keys.len(), n, "{keys:?}");
     }
 
     #[test]

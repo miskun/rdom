@@ -395,3 +395,46 @@ fn an_edit_to_a_sheet_the_app_replaced_is_dropped_and_says_why() {
     assert_eq!(hash(&s), app_frame, "the app's sheet stays");
     let _ = reset;
 }
+
+#[test]
+fn a_refused_edit_changes_no_rule_of_its_block() {
+    // `li::marker` takes no padding: the edit is refused — and `.panel`,
+    // the block's other rule, must not keep it.
+    let css = ".panel, li::marker {\n  color: #c0c0c0;\n}\n";
+    let (mut s, _, _, _) = page_with("atomic", css);
+    let first = hash(&s);
+    let (sheet, index) = {
+        let app = s.app().unwrap();
+        let id = app.stylesheet_ids()[0];
+        let rules = app.stylesheet(id).unwrap().rules();
+        let index = rules
+            .iter()
+            .position(|r| r.source_text == ".panel")
+            .unwrap();
+        (0, index)
+    };
+    let refused = s.edit(
+        &EditTarget::Rule { sheet, index },
+        "padding-left",
+        Some("2"),
+        false,
+    );
+    assert!(refused.is_err());
+    s.advance(100).unwrap();
+    assert_eq!(hash(&s), first, "nothing changed");
+    assert!(s.patch(false).unwrap().files.is_empty());
+    assert!(s.fork().is_ok(), "the log still rebuilds the session");
+}
+
+#[test]
+fn a_file_changed_since_open_stops_a_fork_and_says_which() {
+    let (mut s, path, _, _) = page("changed");
+    std::fs::write(&path, CSS.replace("#c0c0c0", "#101010")).unwrap();
+    s.reload().unwrap();
+    match s.fork() {
+        Err(rdom_capture::SessionError::Unreplayable(why)) => {
+            assert!(why.contains("changed.css"), "{why}")
+        }
+        other => panic!("{:?}", other.map(|_| ())),
+    }
+}

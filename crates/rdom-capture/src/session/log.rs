@@ -38,7 +38,8 @@ pub enum Step {
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         important: bool,
     },
-    /// [`Session::force`]; `state` is the pseudo-class's name.
+    /// [`Session::force`]; `node` is the element's identity
+    /// (`capture::identity`), `state` the pseudo-class's name.
     Force {
         node: String,
         state: String,
@@ -48,7 +49,8 @@ pub enum Step {
     Reset,
     /// [`Session::reload`].
     Reload,
-    /// [`Session::rewrite`]: the element's text rewritten (`stress`).
+    /// [`Session::rewrite`]: the element's text rewritten (`stress`);
+    /// `node` is its identity.
     Rewrite {
         node: String,
         rewrite: crate::variants::stress::Rewrite,
@@ -118,6 +120,15 @@ impl<A: CaptureApp> Session<A> {
         if let Some(why) = &o.unreplayable {
             return Err(SessionError::Unreplayable(why.clone()));
         }
+        // The app reads its CSS files again when it is built.
+        for (path, hash) in &o.files {
+            let now = std::fs::read(path).map(|t| crate::capture::fnv1a64(&t));
+            if now.as_ref().ok() != Some(hash) {
+                return Err(SessionError::Unreplayable(format!(
+                    "{path} changed since the session opened (or cannot be read): a rebuild would read the new text"
+                )));
+            }
+        }
         let mut fork = Session {
             def: self.def.clone(),
             open: None,
@@ -147,11 +158,15 @@ impl<A: CaptureApp> Session<A> {
                 let state = ForcedState::from_name(state).ok_or_else(|| {
                     SessionError::InvalidInput(format!("no forced state {state:?}"))
                 })?;
-                self.force(node, state, *on).map(drop)
+                let node = super::inspect::by_identity(self.app()?, node)?;
+                self.force(&node, state, *on).map(drop)
             }
             Step::Reset => self.reset().map(drop),
             Step::Reload => self.reload().map(drop),
-            Step::Rewrite { node, rewrite } => self.rewrite(node, *rewrite),
+            Step::Rewrite { node, rewrite } => {
+                let node = super::inspect::by_identity(self.app()?, node)?;
+                self.rewrite(&node, *rewrite)
+            }
         }
     }
 }
