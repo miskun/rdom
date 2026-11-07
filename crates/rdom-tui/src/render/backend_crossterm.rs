@@ -183,11 +183,16 @@ pub fn enter_tui_mode<W: Write>(writer: &mut W) -> io::Result<()> {
         cursor::Hide,
         EnableMouseCapture,
         EnableFocusChange,
+    )?;
+    // The kitty keyboard protocol is a progressive enhancement: a terminal
+    // API without it (the legacy Windows console) has nothing to push.
+    unless_unsupported(execute!(
+        writer,
         PushKeyboardEnhancementFlags(
             KeyboardEnhancementFlags::REPORT_EVENT_TYPES
                 | KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
         ),
-    )?;
+    ))?;
     if let Err(e) = terminal::enable_raw_mode() {
         // Raw mode failed after the screen was switched: best-effort
         // undo of the escapes so the caller gets back a normal
@@ -232,7 +237,10 @@ pub(crate) fn restore_terminal<W: Write>(
     };
     // The keyboard flags first: kitty keeps one stack per screen, and
     // the flags were pushed on the alternate one.
-    step(queue!(writer, PopKeyboardEnhancementFlags));
+    step(unless_unsupported(queue!(
+        writer,
+        PopKeyboardEnhancementFlags
+    )));
     step(queue!(writer, DisableFocusChange));
     step(queue!(writer, DisableMouseCapture));
     step(queue!(writer, DisableBracketedPaste));
@@ -248,6 +256,17 @@ pub(crate) fn restore_terminal<W: Write>(
     step(writer.flush());
     step(raw_off());
     first
+}
+
+/// `result`, with an [`io::ErrorKind::Unsupported`] error taken as done: a
+/// command for an optional protocol the terminal API does not have
+/// (crossterm's keyboard enhancement flags on the legacy Windows console)
+/// changed nothing that needs undoing. Every other error stands.
+fn unless_unsupported(result: io::Result<()>) -> io::Result<()> {
+    match result {
+        Err(e) if e.kind() == io::ErrorKind::Unsupported => Ok(()),
+        other => other,
+    }
 }
 
 /// DECSET 2031: report color-scheme changes (`CSI ? 997 ; 1|2 n`).
@@ -399,6 +418,17 @@ mod tests {
         }
         #[cfg(unix)]
         assert!(bytes.contains("\x1b[?2031l"), "{bytes:?}");
+    }
+
+    /// A command the terminal API does not support (the keyboard
+    /// enhancement flags on the legacy Windows console) is no failure; any
+    /// other error is.
+    #[test]
+    fn an_unsupported_optional_command_is_no_failure() {
+        let unsupported = io::Error::new(io::ErrorKind::Unsupported, "legacy console");
+        assert!(unless_unsupported(Err(unsupported)).is_ok());
+        let other = unless_unsupported(Err(io::Error::other("broken pipe")));
+        assert_eq!(other.unwrap_err().to_string(), "broken pipe");
     }
 
     /// Raw mode is turned off even when every write fails.

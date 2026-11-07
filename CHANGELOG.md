@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed — `rdom-tui`
 
+- **Entering and leaving TUI mode on a terminal API without the kitty keyboard protocol** (the legacy Windows console): `enter_tui_mode` failed, and `leave_tui_mode` / the panic hook reported an error, because crossterm refuses `Push/PopKeyboardEnhancementFlags` there. The protocol is a progressive enhancement: an `Unsupported` answer to those two commands is now no failure; every other error still is. The Windows CI job, red since 0.6.x on these tests and on a line-ending-sensitive source check, is green again.
+
 - **`bounding_rect()` and `client_rects()` of a non-atomic inline box are the bounding box of its fragments** (CSSOM View §6.1 `getBoundingClientRect()`): they returned a zero rect at the origin, as such a box has no layout rect of its own — `<b>` in a paragraph now reports the cells its text occupies.
 
 ### Changed — `rdom-tui`

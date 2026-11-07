@@ -89,6 +89,9 @@ fn a_rearming_app_rearms_on_resize() {
         .expect("the child test runs");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(out.status.success(), "the child failed: {stdout}");
+    // On Windows crossterm switches mouse capture through the console API,
+    // not with escape sequences: there is nothing on stdout to see.
+    #[cfg(unix)]
     assert!(stdout.contains("\x1b[?1000h"), "re-armed: {stdout:?}");
 }
 
@@ -133,13 +136,15 @@ fn the_panic_hook_writes_only_while_a_terminal_is_held() {
     };
     let idle = run(false);
     assert!(idle.contains("child-start;"), "the child ran: {idle:?}");
+    // Leaving the alternate screen is an escape sequence on every
+    // platform (mouse capture is a console-API call on Windows).
     assert!(
-        !idle.contains("\x1b[?1000l"),
+        !idle.contains("\x1b[?1049l"),
         "no guard, no restore: {idle:?}"
     );
     let held = run(true);
     assert!(
-        held.contains("\x1b[?1000l"),
+        held.contains("\x1b[?1049l"),
         "a held terminal is restored: {held:?}"
     );
 }

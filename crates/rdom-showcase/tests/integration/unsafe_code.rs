@@ -33,7 +33,11 @@ fn every_published_crate_forbids_unsafe_code() {
     let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let mut missing = Vec::new();
     for (root, attributes) in ROOTS {
-        let text = std::fs::read_to_string(crates.join(root)).expect("a crate root");
+        // A Windows checkout may hold CRLF line endings: the check is about
+        // what the source says, not how its lines end.
+        let text = std::fs::read_to_string(crates.join(root))
+            .expect("a crate root")
+            .replace("\r\n", "\n");
         for attribute in *attributes {
             if !text.contains(attribute) {
                 missing.push(format!("{root}: {attribute}"));
