@@ -1,4 +1,5 @@
-//! The frame, traced (`crate::capture`): [`App::trace_paint`].
+//! The frame and its styles, explained (`crate::capture`):
+//! [`App::trace_paint`], [`App::explain_style`].
 
 use super::App;
 use crate::capture::{PaintTrace, trace_paint};
@@ -24,5 +25,15 @@ impl<B: Backend> App<B> {
             .filter(|(a, b)| a != b)
             .count();
         trace.with_frame_mismatch(differ)
+    }
+}
+
+impl<B: Backend> App<B> {
+    /// Every declaration the last cascade applied to element `id`, in
+    /// order, under this App's sheets ([`crate::capture::StyleTrace`]);
+    /// `None` for a node the cascade did not style.
+    pub fn explain_style(&self, id: rdom_core::NodeId) -> Option<crate::capture::StyleTrace> {
+        let sheets = self.prelude.cascade_order(&self.stylesheets);
+        crate::capture::style::explain_with(&self.dom, &sheets, self.prelude.registry.clone(), id)
     }
 }

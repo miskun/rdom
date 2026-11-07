@@ -127,6 +127,16 @@ impl<'a> Declarations<'a> {
         self,
         step: &Step,
     ) -> impl Iterator<Item = &'a TuiStyle> + 'a {
+        self.sources_of(step).map(|(_, style)| style)
+    }
+
+    /// Every declaration block `step` applies, in order, with where it
+    /// came from — the one iteration both the cascade ([`Self::of`]) and
+    /// its explanation (`cascade::explain`) read, so they cannot drift.
+    pub(in crate::style::cascade) fn sources_of(
+        self,
+        step: &Step,
+    ) -> impl Iterator<Item = (Block, &'a TuiStyle)> + 'a {
         let source = step.source;
         let rules = (0..self.sorted.len())
             .filter(move |&i| {
@@ -139,14 +149,17 @@ impl<'a> Declarations<'a> {
                     Source::Hint | Source::Inline | Source::Animation => false,
                 }
             })
-            .flat_map(move |i| self.rule_blocks(i));
-        let hints = self.hints.filter(|_| source == Source::Hint);
+            .flat_map(move |i| self.rule_blocks(i).map(move |s| (Block::Rule(i), s)));
+        let hints = self
+            .hints
+            .filter(|_| source == Source::Hint)
+            .map(|s| (Block::Hint, s));
         let inline = (source == Source::Inline)
-            .then(|| self.inline_blocks())
+            .then(|| self.inline_blocks().map(|s| (Block::Inline, s)))
             .into_iter()
             .flatten();
         let animation = (source == Source::Animation)
-            .then(|| self.animation_blocks())
+            .then(|| self.animation_blocks().map(|s| (Block::Animation, s)))
             .into_iter()
             .flatten();
         hints
@@ -165,6 +178,20 @@ impl<'a> Declarations<'a> {
                 .chain(self.animation_blocks()),
         )
     }
+}
+
+/// Where a declaration block a ladder step applies came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::style::cascade) enum Block {
+    /// The `i`th matched rule ([`Declarations::sorted`]): its own block or
+    /// its substituted / direction-mapped declarations.
+    Rule(usize),
+    /// The presentational hints.
+    Hint,
+    /// The `style` attribute.
+    Inline,
+    /// A keyframe's block.
+    Animation,
 }
 
 /// The `var()`-substituted declarations of one element (CSS Variables 1

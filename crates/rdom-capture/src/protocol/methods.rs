@@ -11,9 +11,10 @@ use serde_json::Value;
 
 use super::{PROTOCOL, RpcError, code};
 use crate::app::{CaptureApp, FixtureInfo};
-use crate::capture::{Capture, Layer, SCHEMA};
+use crate::capture::{Capture, ColorValue, Layer, SCHEMA, node_key};
 use crate::env::Environment;
 use crate::input::Input;
+use crate::query::{Detail, fit};
 use crate::session::{CaptureRequest, Session};
 use crate::views::text::{TextOptions, capture_text};
 
@@ -45,6 +46,18 @@ pub(crate) const METHODS: &[MethodInfo] = &[
     MethodInfo {
         name: "capture",
         summary: "Capture the current frame. Params: {layers?: [\"grid\" | \"owners\" | \"boxes\" | \"nodes\"], text?: {bg?, fg?, owners?}, out?: path}. Layers that name elements bring a nodes table. With out, writes <out>.json (and <out>.txt) and returns their paths instead of the content.",
+    },
+    MethodInfo {
+        name: "outline",
+        summary: "The landmarks outline: landmarks, headings, lists, controls and focusable elements, nested, each with role, name, rect and state. Params: {depth?: integer, detail?: \"outline\"|\"summary\"|\"full\", budget?: tokens}. Read it first.",
+    },
+    MethodInfo {
+        name: "explain",
+        summary: "Why a cell or an element looks as it does: the cell's paint operations, the element whose paint it shows, and for each relevant property the winning declaration (value, selector, specificity, file:line), what it overrode, or the ancestor it inherits from. Params: one of {at: [x, y]} | {select: css} | {node: id}; properties?: [names]; detail?; budget?.",
+    },
+    MethodInfo {
+        name: "query",
+        summary: "Reverse lookups on the current frame. Params: one of {selector: css} (elements it matches) | {color: \"#rrggbb\"|\"ansi:N\"} (who paints it, fg/bg, how many cells) | {rect: [x, y, w, h]} (what is painted there) | {text: string} (where it is on screen, who painted it); budget?.",
     },
     MethodInfo {
         name: "close",
@@ -152,6 +165,9 @@ pub(crate) fn dispatch<A: CaptureApp>(
             json(session.advance(p.ms)?)
         }
         "capture" => capture(session, params(p)?),
+        "outline" => outline(session, params(p)?),
+        "explain" => explain(session, params(p)?),
+        "query" => query(session, params(p)?),
         "close" => {
             let _: Empty = params(p)?;
             session.close();
@@ -228,4 +244,136 @@ fn with_suffix(path: &std::path::Path, suffix: &str) -> PathBuf {
     let mut s = path.as_os_str().to_os_string();
     s.push(suffix);
     PathBuf::from(s)
+}
+
+/// `outline`'s parameters.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct OutlineParams {
+    /// How deep the outline nests (default by detail: 3, 8, unlimited).
+    pub depth: Option<usize>,
+    pub detail: Detail,
+    pub budget: Option<usize>,
+}
+
+/// `explain`'s parameters: exactly one target.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct ExplainParams {
+    pub at: Option<[u16; 2]>,
+    pub select: Option<String>,
+    pub node: Option<String>,
+    /// The properties to explain (default: the ones the painted part
+    /// reads, or every declared one for an element).
+    pub properties: Vec<String>,
+    pub detail: Detail,
+    pub budget: Option<usize>,
+}
+
+/// `query`'s parameters: exactly one question.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct QueryParams {
+    pub selector: Option<String>,
+    pub color: Option<ColorValue>,
+    pub rect: Option<[u16; 4]>,
+    pub text: Option<String>,
+    pub budget: Option<usize>,
+}
+
+fn invalid(msg: impl Into<String>) -> RpcError {
+    RpcError::new(code::INVALID_PARAMS, msg)
+}
+
+/// The open app, or `NOT_OPEN`.
+fn open_app<A: CaptureApp>(
+    session: &Session<A>,
+) -> Result<&rdom_tui::App<rdom_tui::render::TestBackend>, RpcError> {
+    Ok(session.app()?)
+}
+
+fn outline<A: CaptureApp>(session: &Session<A>, p: OutlineParams) -> Result<Value, RpcError> {
+    let app = open_app(session)?;
+    let depth = p.depth.unwrap_or(match p.detail {
+        Detail::Outline => 3,
+        Detail::Summary => 8,
+        _ => usize::MAX,
+    });
+    let (nodes, dropped) = crate::query::outline::outline(app, depth);
+    let mut v = serde_json::json!({ "outline": nodes });
+    if dropped > 0 {
+        v["deeper"] = Value::from(dropped);
+    }
+    fit(&mut v, p.budget);
+    Ok(v)
+}
+
+/// The node named `key` in the open app.
+fn node_named<A: CaptureApp>(
+    session: &Session<A>,
+    key: &str,
+) -> Result<rdom_tui::core_api::NodeId, RpcError> {
+    let dom = open_app(session)?.dom();
+    std::iter::once(dom.root())
+        .chain(dom.descendants(dom.root()))
+        .find(|&n| node_key(n) == key)
+        .ok_or_else(|| invalid(format!("no node {key:?} in the document")))
+}
+
+fn explain<A: CaptureApp>(session: &Session<A>, p: ExplainParams) -> Result<Value, RpcError> {
+    let app = open_app(session)?;
+    let targets = [p.at.is_some(), p.select.is_some(), p.node.is_some()];
+    if targets.iter().filter(|t| **t).count() != 1 {
+        return Err(invalid("explain takes exactly one of at, select, node"));
+    }
+    let answer = if let Some([x, y]) = p.at {
+        crate::query::explain::cell(app, x, y, &p.properties, p.detail)
+            .ok_or_else(|| invalid(format!("nothing is painted at ({x}, {y})")))?
+    } else {
+        let id = match (&p.select, &p.node) {
+            (Some(sel), _) => app
+                .dom()
+                .query_selector_in(app.dom().root(), sel)
+                .map_err(|e| invalid(format!("invalid selector {sel:?}: {e:?}")))?
+                .ok_or_else(|| invalid(format!("{sel:?} matches no element")))?,
+            (_, Some(key)) => node_named(session, key)?,
+            _ => unreachable!("one target"),
+        };
+        crate::query::explain::element(app, id, &p.properties, None, p.detail)
+    };
+    let mut v = json(answer)?;
+    fit(&mut v, p.budget);
+    Ok(v)
+}
+
+fn query<A: CaptureApp>(session: &Session<A>, p: QueryParams) -> Result<Value, RpcError> {
+    let app = open_app(session)?;
+    let asked = [
+        p.selector.is_some(),
+        p.color.is_some(),
+        p.rect.is_some(),
+        p.text.is_some(),
+    ];
+    if asked.iter().filter(|a| **a).count() != 1 {
+        return Err(invalid(
+            "query takes exactly one of selector, color, rect, text",
+        ));
+    }
+    use crate::query::find;
+    let found = if let Some(sel) = &p.selector {
+        find::by_selector(app, sel).map_err(invalid)?
+    } else {
+        let c = session.capture(&CaptureRequest::with_layers([Layer::Grid, Layer::Owners]))?;
+        let (grid, owners) = (c.grid.expect("asked for"), c.owners.expect("asked for"));
+        if let Some(color) = p.color {
+            find::by_color(app, &grid, &owners, color)
+        } else if let Some([x, y, w, h]) = p.rect {
+            find::in_rect(app, &grid, &owners, rdom_tui::Rect::new(x, y, w, h))
+        } else {
+            find::by_text(app, &grid, &owners, p.text.as_deref().unwrap_or_default())
+        }
+    };
+    let mut v = serde_json::json!({ "found": found });
+    fit(&mut v, p.budget);
+    Ok(v)
 }

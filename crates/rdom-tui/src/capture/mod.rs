@@ -17,6 +17,8 @@
 //!   at an alpha, or the border joiner's glyph.
 //! - [`PaintTrace`] — every operation of one paint, by cell.
 //! - [`box_model`] — an element's boxes as the last layout placed them.
+//! - [`explain_style`] / [`StyleTrace`] — every declaration the cascade
+//!   applied to an element, in order, with where each is written.
 //!
 //! [`App::trace_paint`]: crate::App::trace_paint
 
@@ -174,10 +176,12 @@ pub fn trace_paint(dom: &TuiDom, area: Rect, region: Rect) -> (Buffer, PaintTrac
 
 mod border;
 mod boxes;
+pub(crate) mod style;
 mod trace;
 
 pub use border::{BorderLine, BorderState};
 pub use boxes::{BoxModel, ScrollBox, box_model};
+pub use style::{DeclarationOrigin, Declared, RuleRef, StyleTrace, explain_style, inherits};
 pub use trace::PaintTrace;
 
 #[cfg(test)]

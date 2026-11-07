@@ -107,6 +107,7 @@ mod scrollbar;
 mod serialize;
 pub(crate) mod set;
 mod shadow;
+mod shorthand;
 mod table;
 mod tables;
 mod text;
@@ -194,6 +195,7 @@ mod writing_tests;
 pub use declare::{set, set_custom, set_custom_source, set_from_source, set_from_tokens};
 pub use importance::{is_important, set_important};
 pub use serialize::serialize;
+pub use shorthand::{is_shorthand, longhand_names};
 // `set_parsed` / `set_unset` are backend hooks, public through
 // `crate::backend`.
 pub use logical::is_storage_alias;

@@ -48,7 +48,7 @@ use super::keywords::{Initials, Keywords};
 mod declarations;
 
 use crate::style::ComputedStyle;
-pub(super) use declarations::{Declarations, prepare};
+pub(super) use declarations::{Block, Declarations, prepare};
 
 /// Which declarations one ladder step applies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

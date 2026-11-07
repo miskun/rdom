@@ -1,6 +1,6 @@
 # CAPTURE — an agent-friendly renderer, inspector and design loop
 
-**Status:** IN PROGRESS — phase 1 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
+**Status:** IN PROGRESS — phases 1–3 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
 v2 incorporates every finding (§Review record at the end). Three open questions are decided (§Decisions). Nothing is
 implemented yet.
 
@@ -579,6 +579,28 @@ Review (architect, fresh reviewer) — dispositions:
 - Exit test strengthened: every acid page's App repaint matches its frame, every join names its elements, every
   operation names a live node; the replay check stays "last depth-0 operation = cell" — the layer chain is pinned
   by the unit tests (groups, nested groups, clip, translucency, regions).
+
+### Phase 3 — outline, explain, derivation, sources, query: DONE (2026-11-07)
+
+Shipped: rule source locations (`Rule::location`, `rdom_css::parse_at` / `from_css_at`, `#[track_caller]` Rust
+rules); `rdom_tui::capture::explain_style` / `App::explain_style` (`StyleTrace`); the `outline`, `explain` and
+`query` methods with detail levels and token budgets.
+
+As built, against the plan:
+
+- The derivation is the cascade's own walk: `Declarations::sources_of` is the one iteration the cascade
+  (`of`) and the explanation read; the explanation lists the applied declarations per longhand and custom
+  property with their value as applied (`var()` substituted), and `explain` adds inheritance (the nearest
+  ancestor declaring an inherited property) or `initial`. Not yet: the value as written beside its substitution,
+  the animated value (`explain` lists the running animations by name), and computed / used values per property
+  (the cascade has no computed-value serializer; colors are visible in the grid and the paint trace), and
+  pseudo-elements' own declarations.
+- Exit test: on every acid page, every element's explanation names exactly the rules the cascade recorded as
+  matching its own box (`App::matched_rules`, an independent path) — 4 s over every element of 13 pages; the
+  ladder's semantics (specificity, `!important` inversion, inline, layers, UA, `var()`, shorthands) are pinned by
+  unit tests; every rule's location points at its selector list in the text (`every_rules_line_holds_its_selector`).
+- The outline's roles follow HTML-AAM's implicit roles and the `role` attribute, its names accname's order for
+  these elements; it is a navigation outline, not an accessibility tree.
 
 ## Open questions
 

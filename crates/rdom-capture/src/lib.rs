@@ -57,6 +57,7 @@ pub mod capture;
 pub mod env;
 pub mod input;
 pub mod protocol;
+pub(crate) mod query;
 pub mod session;
 pub mod views;
 
@@ -65,6 +66,7 @@ pub use capture::{Attr, Capture, ColorValue, Grid, Layer, Meta, Run, SCHEMA};
 pub use env::{ContrastPreference, Depth, Environment, Scheme, Sgr, Viewport};
 pub use input::{Button, Input, MouseAction};
 pub use protocol::serve;
+pub use query::Detail;
 pub use session::{CaptureRequest, Change, MAX_ADVANCE_MS, Session, SessionError};
 
 #[cfg(test)]

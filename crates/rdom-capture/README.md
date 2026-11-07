@@ -59,6 +59,23 @@ One JSON-RPC 2.0 request per line on stdin, one response per line on stdout:
 
 `describe` lists every method with its parameters. Every step answers with what changed on screen — how many cells, where, and the new grid hash — so a client can tell whether a step did anything without fetching a capture.
 
+Then ask about it:
+
+```text
+{"jsonrpc":"2.0","id":6,"method":"outline"}
+{"jsonrpc":"2.0","id":7,"method":"explain","params":{"at":[12,4]}}
+{"jsonrpc":"2.0","id":8,"method":"explain","params":{"select":".panel","properties":["border-top-color"]}}
+{"jsonrpc":"2.0","id":9,"method":"query","params":{"color":"#c0c0c0"}}
+{"jsonrpc":"2.0","id":10,"method":"capture","params":{"text":{"owners":true}}}
+```
+
+- `outline` — landmarks, headings, lists and controls, nested, with roles, names, rects and state: read it first.
+- `explain` — why a cell or an element looks as it does: the paint operations on the cell, the element whose paint it shows (through any `opacity` layer), and for each property its winning declaration (value, selector, specificity, `file:line`), what that overrode, or the ancestor it inherits from.
+- `query` — who uses a color, what is painted in a rectangle, where a text is, what a selector matches.
+- `capture` layers `owners`, `boxes`, `nodes` — which element painted every cell, every element's boxes, what each element is.
+
+Every answering method takes `detail` (`outline`, `summary`, `full`) and `budget` (about that many tokens); a cut answer lists what it dropped under `truncated`. Rules record where they are written when the CSS is parsed with a name (`rdom_css::from_css_at(text, "src/app.css")`), or built in Rust (the calling line).
+
 ## In Rust
 
 ```rust
@@ -95,7 +112,7 @@ assert_eq!(capture.grid.unwrap().row_text(0).trim_end(), "hello");
 
 ## Status
 
-The first phase of `specs/CAPTURE.md` in the rdom repository: the deterministic environment, the session and its protocol, the grid layer and the text view. Paint traces, the inspector, edits, images, audits and motion follow.
+Phases 1–3 of `specs/CAPTURE.md` in the rdom repository: the deterministic environment, the session and its protocol, the grid, owners, boxes and nodes layers, the text view, paint traces, style traces, the outline, `explain` and `query`. Edits, images, audits and motion follow.
 
 ## License
 

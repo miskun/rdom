@@ -832,3 +832,127 @@ fn owners_look_through_a_groups_layer() {
     );
     assert!(c.meta.warnings.is_empty(), "{:?}", c.meta.warnings);
 }
+
+// ── outline, explain, query (phase 3) ──
+
+fn opened() -> Session<Page> {
+    let mut s = Session::new(Page);
+    call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":1,"method":"open","params":{"fixture":"plain","env":{"viewport":{"width":20,"height":4}}}}"#,
+    );
+    s
+}
+
+#[test]
+fn the_outline_names_the_button_where_it_is() {
+    let mut s = opened();
+    let r = call(&mut s, r#"{"jsonrpc":"2.0","id":2,"method":"outline"}"#);
+    let outline = r["result"]["outline"].as_array().unwrap();
+    let button = outline
+        .iter()
+        .find(|n| n["role"] == "button")
+        .expect("the button");
+    assert_eq!(button["name"], "go");
+    assert_eq!(button["rect"][1], 1);
+}
+
+#[test]
+fn explain_at_a_cell_traces_its_paint_and_its_color() {
+    let mut s = opened();
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":2,"method":"explain","params":{"at":[1,0]}}"#,
+    );
+    let e = &r["result"];
+    assert_eq!(e["cell"]["glyph"], "e", "{e}");
+    assert_eq!(e["target"]["tag"], "p");
+    assert_eq!(e["target"]["part"], "text");
+    let color = e["style"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["property"] == "color")
+        .unwrap();
+    assert_eq!(color["from"], "declared");
+    assert_eq!(color["declaration"]["selector"], "p");
+    assert!(
+        e["paint"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|op| op["part"] == "text")
+    );
+}
+
+#[test]
+fn explain_an_element_by_selector_lists_its_declarations() {
+    let mut s = opened();
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":2,"method":"explain","params":{"select":"button","properties":["background-color","color"]}}"#,
+    );
+    let style = r["result"]["style"].as_array().unwrap();
+    assert_eq!(style[0]["property"], "background-color");
+    assert_eq!(
+        style[0]["value"], "rgb(34, 68, 102)",
+        "as CSSOM serializes it"
+    );
+    let color = &style[1];
+    assert!(["declared", "inherited", "initial"].contains(&color["from"].as_str().unwrap()));
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":3,"method":"explain","params":{"select":"nope"}}"#,
+    );
+    assert_eq!(r["error"]["code"], code::INVALID_PARAMS);
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":4,"method":"explain","params":{"at":[0,0],"select":"p"}}"#,
+    );
+    assert_eq!(
+        r["error"]["code"],
+        code::INVALID_PARAMS,
+        "exactly one target"
+    );
+}
+
+#[test]
+fn queries_find_by_selector_color_rect_and_text() {
+    let mut s = opened();
+    let q = |s: &mut Session<Page>, params: &str| {
+        call(
+            s,
+            &format!(r#"{{"jsonrpc":"2.0","id":2,"method":"query","params":{params}}}"#),
+        )["result"]["found"]
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+    let by_sel = q(&mut s, r#"{"selector":"p"}"#);
+    assert_eq!(by_sel.len(), 1);
+    let by_color = q(&mut s, r##"{"color":"#c0c0c0"}"##);
+    assert!(
+        by_color.iter().any(|f| f["by"] == "fg" && f["cells"] == 5),
+        "{by_color:?}"
+    );
+    let in_rect = q(&mut s, r#"{"rect":[0,1,4,1]}"#);
+    assert!(
+        in_rect
+            .iter()
+            .all(|f| f["path"].as_str().unwrap().ends_with("button")),
+        "{in_rect:?}"
+    );
+    let by_text = q(&mut s, r#"{"text":"llo"}"#);
+    assert_eq!(by_text[0]["at"], serde_json::json!([2, 0]));
+}
+
+#[test]
+fn a_budget_cuts_an_answer_and_says_where() {
+    let mut s = opened();
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":2,"method":"explain","params":{"select":"button","detail":"full","budget":40}}"#,
+    );
+    let e = &r["result"];
+    assert!(e["truncated"].is_object(), "{e}");
+}

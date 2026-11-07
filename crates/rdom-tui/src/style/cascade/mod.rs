@@ -109,6 +109,7 @@ mod depth;
 pub(crate) mod details;
 mod early_pseudos;
 mod element;
+pub(crate) mod explain;
 mod field_sizing;
 mod finish;
 mod font;

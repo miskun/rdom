@@ -105,3 +105,30 @@ fn a_rule_built_in_rust_records_the_call() {
     assert_eq!(l.file, SourceFile::Rust(file!()));
     assert_eq!(l.line, line);
 }
+
+#[test]
+fn every_rules_line_holds_its_selector() {
+    let css = "/* header */\n.panel { color: red; }\n\n@media (min-width: 10) {\n  .wide,\n  .card > p { padding: 1; }\n}\n@layer base {\n  a:hover { color: blue; }\n}\n";
+    let sheet = parse_at(css, "real.css").stylesheet;
+    let lines: Vec<&str> = css.lines().collect();
+    assert!(sheet.rules().len() >= 4);
+    for r in sheet.rules() {
+        // From the location to the block: the rule's selector list, which
+        // holds the rule's selector.
+        let l = r.location.unwrap();
+        let from: String = lines[l.line as usize - 1..]
+            .join("\n")
+            .chars()
+            .skip(l.column as usize - 1)
+            .collect();
+        let prelude = from.split('{').next().unwrap();
+        let first = r.source_text.split_whitespace().next().unwrap();
+        assert!(
+            prelude.starts_with(|c: char| !c.is_whitespace()) && prelude.contains(first),
+            "{} at {}:{}: the prelude there is {prelude:?}",
+            r.source_text,
+            l.line,
+            l.column
+        );
+    }
+}

@@ -416,3 +416,134 @@ fn an_inline_box_has_no_content_box_of_its_own() {
     assert_eq!(bold.content, None);
     assert!(bold.border.width > 0);
 }
+
+// ── style traces (phase 3) ──
+
+/// A page of `markup` cascaded under `css` read from "app.css".
+fn styled(markup: &str, css: &str) -> (TuiDom, crate::style::Stylesheet) {
+    let mut dom = TuiDom::new();
+    let root = dom.root();
+    let host = dom.create_element("div");
+    dom.append_child(root, host).unwrap();
+    rdom_parser::parse_into(&mut dom, markup, host).unwrap();
+    crate::seed_inline_styles(&mut dom);
+    let sheet = rdom_css::from_css_at(css, "app.css");
+    dom.cascade(&sheet);
+    (dom, sheet)
+}
+
+fn trace_of(dom: &TuiDom, sheet: &crate::style::Stylesheet, selector: &str) -> super::StyleTrace {
+    super::explain_style(dom, &[sheet], node(dom, selector)).expect("a styled element")
+}
+
+#[test]
+fn the_more_specific_rule_wins_and_the_other_is_overridden() {
+    let (dom, sheet) = styled(
+        r#"<div class="a"><p class="t">x</p></div>"#,
+        "p { color: blue; }\n.a p { color: red; }",
+    );
+    let t = trace_of(&dom, &sheet, ".t");
+    let w = t.winner("color").unwrap();
+    assert_eq!(w.rule.as_ref().unwrap().selector, ".a p");
+    assert_eq!(w.origin, super::DeclarationOrigin::Author);
+    let over = t.overridden("color");
+    assert_eq!(over.len(), 1);
+    assert_eq!(over[0].rule.as_ref().unwrap().selector, "p");
+}
+
+#[test]
+fn important_inverts_origin_and_beats_specificity() {
+    let (dom, sheet) = styled(
+        r#"<p id="x" class="t" style="color: green">x</p>"#,
+        "#x { color: red; }\np { color: blue !important; }",
+    );
+    let t = trace_of(&dom, &sheet, ".t");
+    let w = t.winner("color").unwrap();
+    assert!(w.important);
+    assert_eq!(w.rule.as_ref().unwrap().selector, "p");
+    let origins: Vec<_> = t.overridden("color").iter().map(|d| d.origin).collect();
+    assert_eq!(
+        origins,
+        [
+            super::DeclarationOrigin::Inline,
+            super::DeclarationOrigin::Author
+        ],
+        "the inline style beat #x, and lost to !important"
+    );
+}
+
+#[test]
+fn an_unlayered_rule_beats_a_layered_one() {
+    let (dom, sheet) = styled(
+        r#"<p class="t">x</p>"#,
+        "@layer base { .t { color: red; } }\np { color: blue; }",
+    );
+    let t = trace_of(&dom, &sheet, ".t");
+    assert_eq!(
+        t.winner("color").unwrap().rule.as_ref().unwrap().selector,
+        "p"
+    );
+}
+
+#[test]
+fn a_var_is_traced_as_its_substituted_value_and_custom_properties_are_listed() {
+    let (dom, sheet) = styled(
+        r#"<div class="h"><p class="t">x</p></div>"#,
+        ".h { --fg: #123456; }\n.t { color: var(--fg); }",
+    );
+    let t = trace_of(&dom, &sheet, ".t");
+    let w = t.winner("color").unwrap();
+    assert!(!w.value.contains("var("), "{w:?}");
+    assert_eq!(w.rule.as_ref().unwrap().selector, ".t");
+    let h = node(&dom, ".h");
+    let r = super::explain_style(&dom, &[&sheet], h).unwrap();
+    assert_eq!(r.winner("--fg").unwrap().value.trim(), "#123456");
+    assert!(super::inherits("--fg") && super::inherits("color") && !super::inherits("padding-top"));
+}
+
+#[test]
+fn a_shorthand_is_traced_as_its_longhands_and_rules_say_where_they_are() {
+    let (dom, sheet) = styled(r#"<p class="t">x</p>"#, "\n\n.t {\n  padding: 1 2;\n}\n");
+    let t = trace_of(&dom, &sheet, ".t");
+    assert!(t.winner("padding").is_none(), "shorthands are not listed");
+    let top = t.winner("padding-top").unwrap();
+    let right = t.winner("padding-right").unwrap();
+    assert_ne!(top.value, right.value);
+    let rule = top.rule.as_ref().unwrap();
+    assert_eq!(rule.source_name.as_deref(), Some("app.css"));
+    assert_eq!(rule.location.map(|l| (l.line, l.column)), Some((3, 1)));
+}
+
+#[test]
+fn a_ua_declaration_is_the_user_agents() {
+    let (dom, sheet) = styled(r#"<button class="b">go</button>"#, "");
+    let t = trace_of(&dom, &sheet, ".b");
+    let ua: Vec<_> = t
+        .declarations()
+        .iter()
+        .filter(|d| d.origin == super::DeclarationOrigin::UserAgent)
+        .collect();
+    assert!(!ua.is_empty(), "the UA styles a button");
+    assert!(
+        ua.iter()
+            .all(|d| d.rule.as_ref().is_some_and(|r| r.location.is_none()))
+    );
+}
+
+#[test]
+fn a_rules_declaration_is_listed_once() {
+    // A flow-relative declaration keeps the block's later declarations
+    // for its direction-mapped replay: the rule holds `color` twice.
+    let (dom, sheet) = styled(
+        r#"<p class="t">x</p>"#,
+        ".t { margin-inline-start: 1; color: red; }",
+    );
+    let t = trace_of(&dom, &sheet, ".t");
+    let colors: Vec<_> = t
+        .declarations()
+        .iter()
+        .filter(|d| d.property == "color")
+        .collect();
+    assert_eq!(colors.len(), 1, "{colors:?}");
+    assert!(t.overridden("color").is_empty());
+}
