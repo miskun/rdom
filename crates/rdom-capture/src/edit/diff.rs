@@ -1,6 +1,8 @@
 //! A unified diff (`diff -u`) between two texts, by line, with three lines
-//! of context: what `patch` hands back, applicable with `git apply` /
-//! `patch -p0`. The common head and tail are trimmed first, and the rest
+//! of context: what `patch` hands back. Its headers name each file by the
+//! path the sheet was parsed from — absolute or relative as the app gave
+//! it — so `patch -p0` applies it from that path's base; `git apply`
+//! takes it only when that path is relative to the repository. The common head and tail are trimmed first, and the rest
 //! is matched by longest common subsequence — edits to a stylesheet change
 //! a few lines, so the middle is small.
 

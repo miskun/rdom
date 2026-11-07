@@ -318,21 +318,33 @@ when nothing more can be cut): ask again narrower, at a lower detail or with a l
 
 ## Edits
 
-- **In place.** An edit changes a declaration of an existing rule (by rule id), sets a custom property, or adds a
-  rule in a given sheet and layer. It follows the same cascade as the original, so it can do what the original
-  could (`!important`, layers, inline styles). Each edit has an id and an inverse.
+- **In place.** An edit changes a declaration of an existing rule (the winner `explain` names, or a rule by its
+  place), sets a custom property, or adds a rule. It follows the same cascade as the original, so it can do what the
+  original could (`!important`, layers). Each edit has an id; `reset` restores each edited sheet from a snapshot. An
+  edit changes every rule its block became — a selector list's items share one block and one place in the file — so
+  what it shows is what its write-back will. Text that would not stay one declaration (or one selector) in the file
+  — a `;`, `{`, `}` or `!` outside quotes, a comment, a bracket or quote left open — is refused.
 - **Tokens first.** Setting a token is the highest-leverage edit. `query` shows each token's users, and `whatif`
   previews a token change across the whole page.
-- **Write-back.** `patch` turns edits into unified diffs against CSS source files. For rules built in Rust, it returns
-  the source location and the changed declaration; it doesn't rewrite Rust code.
-- **CSS dev loader.** `rdom_capture::css!("src/style.css")` is `include_str!` in release builds and a file read
-  with a reload watch in debug builds and sessions, so a saved CSS file shows up without a rebuild.
+- **Write-back.** `patch` turns edits into unified diffs against CSS source files: exactly what the edit showed, or
+  not at all, with why. It checks the rule's selector is still where it was parsed; a value replaces the property's
+  declaration in place only when that declaration decides it, else it is appended after whatever shorthand does
+  (`property_dispatch::overlaps`); a removal the text cannot express (a longhand set through a shorthand) is not
+  patched. For rules built in Rust it returns the source location and the declaration; it doesn't rewrite Rust code.
+  `apply` computes every file from disk first, replaces each whole (a temporary file renamed over it) and reads the
+  files back, so the session shows the files from then on; it is refused, with nothing written, when an edit of a
+  sheet read back would be lost. An edit to a sheet the app has since replaced (a theme switch) no longer shows: it
+  is dropped from the log, and the next `reset` or `patch` lists it with why.
+- **CSS dev loader.** `rdom_css::css_file!("style.css")` embeds the text with its file name, so a rule's location
+  names its file; `load_css_file` reads it at run time. A session's `reload` re-reads the App's file-backed sheets on
+  request; there is no file watch.
 
 ### Invisible to the app
 
 Forced states affect cascade matching only. App code never sees them: no input events, no focus/blur, no
 mutation-observer records, and `matches(":hover")` reports the real state. Edits change stylesheets, not the DOM.
-Each rule has a contract test.
+Contract tests cover mutation records, `matches()` and animation events; forcing a state raises no input or focus
+event by construction (it calls no event path), which has no test of its own yet.
 
 ### Events caused by the inspector
 
@@ -340,14 +352,19 @@ An inspector change can start animations, and animations fire events (`transitio
 `transitionend`, `animationstart`, `animationiteration`, `animationend`, and their cancel events). Whether app code
 sees those events is a policy, `inspector_events`, decided at one point and never scattered across code paths:
 
-- **Cause tagging (built now).** Every style change carries a cause: `App` (the app's own DOM and stylesheet
-  changes, input, timers) or `Inspector` (an edit, a forced state, a `stress` rewrite). Animations started by a
-  style change inherit its cause, and so do their events. When one change has both causes, `App` wins: an event
-  the app would have seen anyway is never hidden.
+- **Cause tagging (built now).** An inspector's change is drawn in a frame of its own (`App::inspect`): what the app
+  changed is drawn first, as the app's frame, and the inspector's frame only draws — no timer, animation-frame
+  callback or injection runs in it — so the frame's style changes are the inspector's alone. Each transition or
+  animation that frame starts is tagged `Inspector` — on the running instance, so every event it fires, its cancel
+  included, carries it; an app change later starts a new instance tagged `App`. App code due at an inspector step
+  runs in the app's next step, so what it starts is the app's: an event the app would have seen anyway is never
+  hidden. Only animation events are governed: an event a layout change raises (a scroll snap's `scroll`) reaches
+  app code (`TECH_DEBT` CAPTURE-INSPECT-EVENTS-1).
 - **Policy at dispatch (one place).** The animation-event dispatcher consults the policy for `Inspector`-caused
   events. Animations themselves always run and paint either way; only event delivery to app code is governed.
 - **v2 behavior.** Sessions and live attach both use `suppress`: suppressed events are counted and listed in
-  `meta.suppressed_events` (type, node, cause), so the agent knows the app might have reacted. The protocol reserves
+  each step's `Change.suppressed_events` (type, node, property or animation), so the agent knows the app might have
+  reacted. The protocol reserves
   `open { inspector_events: "suppress" | "deliver" }` and `attach { inspector_events: … }`; v2 accepts only `suppress`
   and refuses `deliver` with a clear error, so turning it on later is additive.
 - **Later: `deliver`.** Hands `Inspector`-caused events to app code like any others, for apps whose look depends on
@@ -355,8 +372,9 @@ sees those events is a policy, `inspector_events`, decided at one point and neve
   no events after `reset`) before it's accepted.
 
 Contract tests now: an `Inspector`-caused transition paints its frames and fires no app-visible event; an
-`App`-caused transition on the same node during an inspector edit still fires; `meta.suppressed_events` lists
-exactly the suppressed ones; `deliver` is refused.
+`App`-caused transition due when the inspector draws (a pending animation-frame callback) still fires, and the
+cancel of the inspector's transition it replaces stays withheld; a `reset` withholds the cancel of the inspector's
+CSS animation; `suppressed_events` lists exactly the suppressed ones; `deliver` is refused.
 
 ## Views
 
@@ -640,6 +658,33 @@ As built, against the plan:
   withheld and listed while the app's own are delivered; a sheet edit restyles; edit → patch → reload gives the
   same grid hash; `reset` gives back the first frame; a UA edit is reported unpatchable; the CSS patcher and the
   unified diff have their own unit tests.
+
+Architect review (blocking findings, all fixed with a failing test first):
+
+- B1 — the inspector's frame ran app code (`advance(0)`: timers, every pending rAF, injections) under the
+  inspector's cause. Now `inspect` draws the app's pending frame first and the inspector's frame only draws.
+- B2 — `reset` forgot the inspector's causes before the frame that cancels its animations, so their cancel
+  events reached app code. Root cause: a cause keyed by what is animated cannot tell two instances apart (an app
+  restart of the same property also handed back the cancel of the inspector's). Now the cause is on the running
+  instance, set when it starts, and carried by every event it queues; the key set is gone.
+- B3 — an edit to one item of a selector-list rule changed only that item while the patch rewrote the shared
+  block. Now an edit changes every rule written at that block's place.
+- B4 — a comment before a declaration hid it from the patcher; removals the text cannot express were reported as
+  patched. Now comments are skipped anywhere before a declaration, overlap decides replace-or-append, and such a
+  removal is unpatched with why.
+- B5 — a second `apply` re-appended new rules and patched at stale lines; an unreadable file aborted mid-write;
+  writes were not atomic. Now the selector is checked at its location, every file is computed before any is
+  written, each is replaced through a temporary file, and `apply` reads the files back.
+- B6 — edit text was written to the file unchecked (`--x: 1; } * {…}` became a rule). Now refused.
+- B7 — edits to a sheet the app replaced were still patched. Now dropped and reported (sheet versions).
+
+Non-blocking, fixed: `inspect` is panic-safe; a refused new-rule value leaves no empty rule; `reload` lists the
+sheets it skips (rules built in Rust, imports) instead of dropping them; `App::stylesheet_ids` replaces a probe;
+the diff's doc says which tools take its paths. Recorded in `TECH_DEBT.md` CAPTURE-EDIT-1 and
+CAPTURE-INSPECT-EVENTS-1: layout-driven events, a stale `[sheet, index]` after a `<style>` is added, the LCS
+diff's memory on large files, CRLF files, forced-state entries of removed nodes, and Rust-defined variables in a
+file-backed sheet. Process: a672bf19 was pushed with a rustdoc failure the gate showed but was not read;
+36c79316 fixed it — the gate's exit codes are read before every commit since.
 
 ## Open questions
 

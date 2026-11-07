@@ -48,6 +48,8 @@ pub(crate) struct PendingAnimationEvent {
     pub scheduled: Instant,
     /// Its animation's place in `animation-name`.
     pub index: usize,
+    /// Who started its animation (`cause`).
+    pub by: crate::runtime::animation::cause::Cause,
 }
 
 /// The events of a change from `before` to `after` — each a phase and

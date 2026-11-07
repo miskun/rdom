@@ -258,6 +258,7 @@ fn diff_style(
                 scheme,
                 started_dispatched: false,
                 ended_dispatched: false,
+                by: Default::default(),
                 stepped_at: None,
             },
             now,

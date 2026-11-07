@@ -3,42 +3,39 @@
 //! input, timers — or an inspector's (an edit, a forced state, a content
 //! rewrite in a capture session).
 //!
-//! An inspector applies its change and draws the frame it causes inside
-//! [`AnimationRegistry::with_inspector_cause`]; a capture session settles
-//! every step first, so that frame holds the inspector's change alone and
-//! every transition or animation it starts is the inspector's. Each is
-//! keyed by what it animates; an app-caused start of the same key later
-//! takes it back (when both cause one, the app's wins: an event the app
-//! would have seen anyway is never held back). The events of an
-//! inspector-caused animation are what the event policy governs
+//! An inspector applies its change and draws the frame it causes through
+//! `App::inspect`, which draws what the app changed first and then the
+//! inspector's frame alone — drawing only, no app timers — so every
+//! transition or animation that frame's cascade starts is the
+//! inspector's. The cause belongs to the running transition or animation
+//! itself, set when it starts, and every event it fires carries it — its
+//! `transitionrun` through its `transitioncancel` — so an app's later
+//! start of the same property is a new transition with its own cause, and
+//! the cancel of the inspector's one it replaces stays the inspector's.
+//! The events of an inspector-caused animation are what the event policy
+//! governs
 //! (`App::dispatch_animation_events`): withheld from app code and listed
 //! ([`SuppressedEvent`]).
 
-use std::collections::HashSet;
-use std::sync::Arc;
-
 use rdom_core::NodeId;
 
-use super::{AnimationRegistry, Longhand};
-use crate::ext::StyleSlot;
+use super::AnimationRegistry;
 
-/// What an animation animates, for its cause.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) enum CauseKey {
-    /// A transition of a longhand.
-    Transition(NodeId, StyleSlot, Longhand),
-    /// A transition of a registered custom property (`--name`).
-    Custom(NodeId, String),
-    /// A CSS animation, by name.
-    Css(NodeId, StyleSlot, Arc<str>),
+/// Who started a transition or an animation: every event it fires
+/// carries it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum Cause {
+    /// The app's own change: its DOM and sheets, input, timers.
+    #[default]
+    App,
+    /// An inspector's change, drawn by `App::inspect`.
+    Inspector,
 }
 
-/// The inspector-caused animations, and whether an inspector frame is
-/// drawing now.
+/// Whether an inspector frame is drawing now, and the events withheld.
 #[derive(Debug, Default)]
 pub(crate) struct Causes {
     inspecting: bool,
-    started: HashSet<CauseKey>,
     suppressed: Vec<SuppressedEvent>,
 }
 
@@ -57,46 +54,37 @@ pub struct SuppressedEvent {
 
 impl AnimationRegistry {
     /// Take every animation started from now on as an inspector's (`on`),
-    /// or the app's again — around an inspector's change and its frame.
+    /// or the app's again — around an inspector's frame.
     pub(crate) fn set_inspecting(&mut self, on: bool) {
         self.causes.inspecting = on;
     }
 
-    /// Note an animation starting: the inspector's while it draws, else
-    /// the app's (which takes the key back).
-    pub(super) fn note_start(&mut self, key: CauseKey) {
+    /// The cause of a transition or an animation starting now.
+    pub(super) fn cause_now(&self) -> Cause {
         if self.causes.inspecting {
-            self.causes.started.insert(key);
-        } else if !self.causes.started.is_empty() {
-            self.causes.started.remove(&key);
+            Cause::Inspector
+        } else {
+            Cause::App
         }
     }
 
-    /// Whether the animation `key` names was started by an inspector.
-    pub(crate) fn caused_by_inspector(&self, key: &CauseKey) -> bool {
-        self.causes.started.contains(key)
-    }
-
-    /// Forget every inspector cause (an inspector's reset).
-    pub(crate) fn clear_inspector_causes(&mut self) {
-        self.causes.started.clear();
-    }
-
-    /// Whether the event `event` of the animation `key` names goes to app
-    /// code: an inspector-caused animation's is withheld and listed.
-    pub(crate) fn admit(&mut self, key: CauseKey, event: &str) -> bool {
-        if !self.caused_by_inspector(&key) {
+    /// Whether `event`, fired by an animation `by` caused, at `node`, of
+    /// `of`, goes to app code: an inspector-caused animation's is withheld
+    /// and listed.
+    pub(crate) fn admit(
+        &mut self,
+        by: Cause,
+        event: &str,
+        node: NodeId,
+        of: impl FnOnce() -> String,
+    ) -> bool {
+        if by == Cause::App {
             return true;
         }
-        let (node, of) = match key {
-            CauseKey::Transition(n, _, p) => (n, p.css_name().to_string()),
-            CauseKey::Custom(n, name) => (n, name),
-            CauseKey::Css(n, _, name) => (n, name.to_string()),
-        };
         self.causes.suppressed.push(SuppressedEvent {
             event: event.to_string(),
             node,
-            of,
+            of: of(),
         });
         false
     }

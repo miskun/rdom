@@ -195,7 +195,7 @@ mod writing_tests;
 pub use declare::{set, set_custom, set_custom_source, set_from_source, set_from_tokens};
 pub use importance::{is_important, set_important};
 pub use serialize::serialize;
-pub use shorthand::{is_shorthand, longhand_names};
+pub use shorthand::{is_shorthand, longhand_names, overlaps};
 // `set_parsed` / `set_unset` are backend hooks, public through
 // `crate::backend`.
 pub use logical::is_storage_alias;

@@ -81,6 +81,7 @@ impl AnimationRegistry {
                         composition: entry.composition,
                         play_state: entry.play_state,
                         timeline: entry.timeline,
+                        by: self.cause_now(),
                         start: now,
                         hold: paused.then_some(0.0),
                         duration_auto: entry.duration_auto,
@@ -96,11 +97,6 @@ impl AnimationRegistry {
                         progress_timeline: None,
                     };
                     anim.effect = Rc::new(build_effect(dom, inputs, (id, slot), &anim, style));
-                    self.note_start(crate::runtime::animation::cause::CauseKey::Css(
-                        id,
-                        slot,
-                        anim.name.clone(),
-                    ));
                     started.push(anim);
                 }
             }

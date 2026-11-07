@@ -88,6 +88,8 @@ pub(crate) struct CssAnimation {
     composition: AnimationComposition,
     play_state: AnimationPlayState,
     timeline: AnimationTimeline,
+    /// Who started it (`cause`).
+    pub(super) by: crate::runtime::animation::cause::Cause,
     /// `animation-duration: auto`: on a progress timeline the iterations
     /// fill the attachment range (CSS Animations 2 §3.3).
     duration_auto: bool,
@@ -341,6 +343,7 @@ impl CssAnimation {
             elapsed_seconds: elapsed / 1000.0,
             scheduled: scheduled.min(now),
             index: self.index,
+            by: self.by,
         }
     }
 

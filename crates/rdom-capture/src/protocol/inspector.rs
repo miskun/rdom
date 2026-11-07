@@ -103,6 +103,5 @@ pub(crate) fn patch<A: CaptureApp>(
 }
 
 pub(crate) fn reload<A: CaptureApp>(session: &mut Session<A>) -> Result<Value, RpcError> {
-    let (files, dropped, change) = session.reload()?;
-    json(serde_json::json!({ "files": files, "dropped": dropped, "change": change }))
+    json(session.reload()?)
 }

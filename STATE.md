@@ -13,6 +13,9 @@ a new published crate, `rdom-capture`, over `rdom-tui`: headless capture session
 environment, paint traces and the inspector, edits without a rebuild, images from rdom's own rasterizer,
 audits and motion. Nine phases, each closed by a chief-architect review recorded in the spec's log; the
 release (a new `rdom-capture` and whatever substrate crates the phases change) follows the last phase.
+Phases 1–4 closed (2026-11-07; phase 4's seven blocking review findings fixed — the cause of an inspector-started
+animation now lives on the running instance). Phase 5 in progress: rasterizer, PNG encoder and terminal profiles
+landed; the `png` view, the HTML report and the acid goldens are next.
 0.6.0 – 0.6.5 shipped (CSS completeness and the `rdom-tui` patch line); routing stays at 0.7.0.
 
 ## Release track

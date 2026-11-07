@@ -48,6 +48,8 @@ pub(crate) struct ActiveAnimation {
     /// ended in (`AnimationRegistry::queue_due_events`), before the
     /// frame's style pass retires it.
     pub ended_dispatched: bool,
+    /// Who started it (`cause`): set by `AnimationRegistry::register`.
+    pub by: super::cause::Cause,
     /// When a frame last composited it (`None` before its first): a
     /// stepped transition's next change counts from there
     /// ([`next_change`](Self::next_change)).

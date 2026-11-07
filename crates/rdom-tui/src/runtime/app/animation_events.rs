@@ -15,13 +15,13 @@ use rdom_core::NodeId;
 use super::App;
 use crate::TuiDom;
 use crate::render::backend::Backend;
-use crate::runtime::animation::cause::CauseKey;
+use crate::runtime::animation::cause::Cause;
 use crate::runtime::animation::{PendingCustomEvent, PendingEvent, TransitionEventKind};
 
 /// One queued event of any kind.
 enum Queued {
-    Transition(PendingEvent),
-    Custom(PendingCustomEvent),
+    Transition(Cause, PendingEvent),
+    Custom(Cause, PendingCustomEvent),
     Animation(crate::runtime::animation::PendingAnimationEvent),
 }
 
@@ -57,8 +57,12 @@ impl<B: Backend> App<B> {
         // stable sort keeps each stream's own order.
         let mut queued: Vec<(Instant, u8, Queued)> = transitions
             .into_iter()
-            .map(|(at, e)| (at, 0, Queued::Transition(e)))
-            .chain(custom.into_iter().map(|(at, e)| (at, 0, Queued::Custom(e))))
+            .map(|(at, by, e)| (at, 0, Queued::Transition(by, e)))
+            .chain(
+                custom
+                    .into_iter()
+                    .map(|(at, by, e)| (at, 0, Queued::Custom(by, e))),
+            )
             .chain(
                 animations
                     .into_iter()
@@ -68,14 +72,14 @@ impl<B: Backend> App<B> {
         queued.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
         for (_, _, event) in queued {
             match event {
-                Queued::Transition(e) => self.dispatch_transition_event(e),
-                Queued::Custom(e) => self.dispatch_custom_event(e),
+                Queued::Transition(by, e) => self.dispatch_transition_event(by, e),
+                Queued::Custom(by, e) => self.dispatch_custom_event(by, e),
                 Queued::Animation(e) => self.dispatch_css_animation_event(e),
             }
         }
     }
 
-    fn dispatch_transition_event(&mut self, e: PendingEvent) {
+    fn dispatch_transition_event(&mut self, by: Cause, e: PendingEvent) {
         let PendingEvent {
             node,
             slot,
@@ -84,8 +88,11 @@ impl<B: Backend> App<B> {
             elapsed_seconds,
         } = e;
         // An inspector-caused transition's events are withheld (`cause`).
-        let key = CauseKey::Transition(node, slot, property);
-        if !self.animations.admit(key, transition_event_name(kind)) {
+        let name = transition_event_name(kind);
+        if !self
+            .animations
+            .admit(by, name, node, || property.css_name().to_string())
+        {
             return;
         }
         // A `::details-content` box's transitions are its `<details>`'s,
@@ -111,9 +118,12 @@ impl<B: Backend> App<B> {
     }
 
     /// A registered custom property's (`--name`) transition event.
-    fn dispatch_custom_event(&mut self, e: PendingCustomEvent) {
-        let key = CauseKey::Custom(e.node, e.property.clone());
-        if !self.animations.admit(key, transition_event_name(e.kind)) {
+    fn dispatch_custom_event(&mut self, by: Cause, e: PendingCustomEvent) {
+        let name = transition_event_name(e.kind);
+        if !self
+            .animations
+            .admit(by, name, e.node, || e.property.clone())
+        {
             return;
         }
         let mut ev = rdom_core::Event::new(transition_event_name(e.kind));
@@ -129,8 +139,10 @@ impl<B: Backend> App<B> {
         &mut self,
         e: crate::runtime::animation::PendingAnimationEvent,
     ) {
-        let key = CauseKey::Css(e.node, e.slot, e.name.clone());
-        if !self.animations.admit(key, e.kind.event_type()) {
+        if !self
+            .animations
+            .admit(e.by, e.kind.event_type(), e.node, || e.name.to_string())
+        {
             return;
         }
         // A `::details-content` box's animations are its `<details>`'s,

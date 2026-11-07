@@ -46,12 +46,12 @@ pub struct AnimationRegistry {
     /// `take_pending_events` after every tick.
     /// Each with the time on the app's clock it happened, so a frame's
     /// transition and animation events go out merged by time.
-    pending_events: Vec<(Instant, PendingEvent)>,
+    pending_events: Vec<(Instant, cause::Cause, PendingEvent)>,
     /// Running transitions of registered custom properties
     /// (`custom.rs`), their events, the registrations they follow, and
     /// the elements whose animated values moved.
     custom: Vec<custom::CustomAnimation>,
-    custom_events: Vec<(Instant, PendingCustomEvent)>,
+    custom_events: Vec<(Instant, cause::Cause, PendingCustomEvent)>,
     registered: Rc<crate::style::cascade::PropertyRegistry>,
     restyle: Vec<NodeId>,
     /// The CSS animations (`css`), their queued events, the targets whose
@@ -71,7 +71,8 @@ pub struct AnimationRegistry {
     /// `diff_layout_restyles_in` — is still their first style, no style
     /// change (CSS Transitions 1 §3).
     fresh: std::collections::HashSet<NodeId>,
-    /// Which animations an inspector's change started (`cause`).
+    /// Whether an inspector's frame is drawing, and the events withheld
+    /// (`cause`).
     causes: cause::Causes,
 }
 
@@ -127,14 +128,15 @@ impl AnimationRegistry {
     pub fn take_pending_events(&mut self) -> Vec<PendingEvent> {
         self.take_timed_events()
             .into_iter()
-            .map(|(_, e)| e)
+            .map(|(_, _, e)| e)
             .collect()
     }
 
     /// [`take_pending_events`](Self::take_pending_events), each with the
     /// time on the app's clock it happened (CSS Transitions 1 §6: a
-    /// transition's start and end at its delay's and duration's end).
-    pub(crate) fn take_timed_events(&mut self) -> Vec<(Instant, PendingEvent)> {
+    /// transition's start and end at its delay's and duration's end) and
+    /// who started its transition.
+    pub(crate) fn take_timed_events(&mut self) -> Vec<(Instant, cause::Cause, PendingEvent)> {
         std::mem::take(&mut self.pending_events)
     }
 
@@ -149,6 +151,7 @@ impl AnimationRegistry {
         push_at(
             &mut self.pending_events,
             now,
+            old.by,
             PendingEvent {
                 node: old.node,
                 slot: old.slot,
@@ -186,10 +189,13 @@ impl AnimationRegistry {
             self.reverse(&old, &mut anim, now);
             anim.from = old.current_style(now);
         }
+        // Its cause is the change that starts it, for every event it fires.
+        anim.by = self.cause_now();
         // CSS Transitions 1 §6: `transitionrun` when it is created.
         push_at(
             &mut self.pending_events,
             now,
+            anim.by,
             PendingEvent {
                 node: anim.node,
                 slot: anim.slot,
@@ -198,11 +204,6 @@ impl AnimationRegistry {
                 elapsed_seconds: anim.skipped.as_secs_f32(),
             },
         );
-        self.note_start(cause::CauseKey::Transition(
-            anim.node,
-            anim.slot,
-            anim.property,
-        ));
         self.active.push(anim);
     }
 
@@ -394,13 +395,19 @@ impl AnimationRegistry {
     /// `advance`. Lets tests drive `dispatch_animation_events`
     /// without setting up a real-time-driven transition.
     pub(crate) fn queue_event_for_test(&mut self, e: PendingEvent) {
-        self.pending_events.push((Instant::now(), e));
+        self.pending_events
+            .push((Instant::now(), cause::Cause::App, e));
     }
 }
 
-/// Queue `event`, which happened at `at`.
-fn push_at<E>(queue: &mut Vec<(Instant, E)>, at: Instant, event: E) {
-    queue.push((at, event));
+/// Queue `event`, which happened at `at`, of an animation `by` caused.
+fn push_at<E>(
+    queue: &mut Vec<(Instant, cause::Cause, E)>,
+    at: Instant,
+    by: cause::Cause,
+    event: E,
+) {
+    queue.push((at, by, event));
 }
 
 /// Queue the events `anim` has reached at `now` and not yet queued (CSS
@@ -409,7 +416,7 @@ fn push_at<E>(queue: &mut Vec<(Instant, E)>, at: Instant, event: E) {
 fn queue_transition_events(
     anim: &mut ActiveAnimation,
     now: Instant,
-    events: &mut Vec<(Instant, PendingEvent)>,
+    events: &mut Vec<(Instant, cause::Cause, PendingEvent)>,
 ) {
     if !anim.started_dispatched && !anim.in_delay(now) {
         anim.started_dispatched = true;
@@ -417,6 +424,7 @@ fn queue_transition_events(
         push_at(
             events,
             at,
+            anim.by,
             PendingEvent {
                 node: anim.node,
                 slot: anim.slot,
@@ -432,6 +440,7 @@ fn queue_transition_events(
         push_at(
             events,
             at,
+            anim.by,
             PendingEvent {
                 node: anim.node,
                 slot: anim.slot,

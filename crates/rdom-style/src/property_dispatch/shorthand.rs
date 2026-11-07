@@ -1,6 +1,7 @@
 //! Which property names are shorthands: [`is_shorthand`], read off the
 //! one property → storage-field table (`fields::fields_of`) rather than
-//! kept as a second list.
+//! kept as a second list — and [`overlaps`], which declarations of two
+//! names set a common field.
 
 use super::fields::fields_of;
 use super::names::all_property_names;
@@ -32,6 +33,23 @@ pub fn longhand_names() -> &'static [&'static str] {
 }
 
 /// The shorthand names, found once from the field table.
+/// Whether declarations of `a` and `b` set a common storage field, so the
+/// later of the two in one block decides it — `margin` and `margin-top`,
+/// `border` and `border-left-color`. Read off the same property →
+/// field table as [`is_shorthand`]. A custom property, or a name the
+/// table does not know, overlaps only itself. Names are matched ASCII
+/// case-insensitively, as CSS property names are.
+pub fn overlaps(a: &str, b: &str) -> bool {
+    if a.eq_ignore_ascii_case(b) {
+        return true;
+    }
+    let (a, b) = (a.to_ascii_lowercase(), b.to_ascii_lowercase());
+    match (fields_of(&a), fields_of(&b)) {
+        (Some(fa), Some(fb)) => fa.iter().any(|f| fb.contains(f)),
+        _ => false,
+    }
+}
+
 fn shorthands() -> &'static Vec<&'static str> {
     static SHORTHANDS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
     SHORTHANDS.get_or_init(|| all_property_names().filter(|n| owns_narrower(n)).collect())
@@ -54,7 +72,31 @@ fn owns_narrower(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_shorthand;
+    use super::{is_shorthand, overlaps};
+
+    #[test]
+    fn overlapping_declarations_set_a_common_field() {
+        for (a, b) in [
+            ("margin", "margin-top"),
+            ("margin-top", "margin"),
+            ("border", "border-left-color"),
+            ("background", "background-color"),
+            ("color", "color"),
+            ("--accent", "--accent"),
+            ("nope", "nope"),
+        ] {
+            assert!(overlaps(a, b), "{a} / {b}");
+        }
+        for (a, b) in [
+            ("margin", "padding-top"),
+            ("color", "background-color"),
+            ("--accent", "--other"),
+            ("--color", "color"),
+            ("nope", "color"),
+        ] {
+            assert!(!overlaps(a, b), "{a} / {b}");
+        }
+    }
 
     #[test]
     fn shorthands_are_names_whose_fields_narrower_names_set() {

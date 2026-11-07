@@ -23,6 +23,7 @@
 mod error;
 mod frame;
 mod inspect;
+mod write_back;
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 

@@ -172,6 +172,8 @@ pub(super) struct CustomAnimation {
     skipped: Duration,
     timing: TimingFunction,
     started_dispatched: bool,
+    /// Who started it (`cause`).
+    by: super::cause::Cause,
     /// Whether `transitionend` was queued (`queue_custom_events`).
     ended_dispatched: bool,
 }
@@ -247,13 +249,15 @@ impl AnimationRegistry {
     pub fn take_pending_custom_events(&mut self) -> Vec<PendingCustomEvent> {
         self.take_timed_custom_events()
             .into_iter()
-            .map(|(_, e)| e)
+            .map(|(_, _, e)| e)
             .collect()
     }
 
     /// [`take_pending_custom_events`](Self::take_pending_custom_events),
     /// each with the time on the app's clock it happened.
-    pub(crate) fn take_timed_custom_events(&mut self) -> Vec<(Instant, PendingCustomEvent)> {
+    pub(crate) fn take_timed_custom_events(
+        &mut self,
+    ) -> Vec<(Instant, super::cause::Cause, PendingCustomEvent)> {
         std::mem::take(&mut self.custom_events)
     }
 
@@ -298,6 +302,7 @@ impl AnimationRegistry {
                 super::push_at(
                     &mut self.custom_events,
                     now,
+                    old.by,
                     PendingCustomEvent {
                         node: id,
                         kind: TransitionEventKind::Cancel,
@@ -317,9 +322,11 @@ impl AnimationRegistry {
             }
             let clock = rule.clock(now);
             // CSS Transitions 1 §6: `transitionrun` when it is created.
+            let by = self.cause_now();
             super::push_at(
                 &mut self.custom_events,
                 now,
+                by,
                 PendingCustomEvent {
                     node: id,
                     kind: TransitionEventKind::Run,
@@ -327,7 +334,6 @@ impl AnimationRegistry {
                     elapsed_seconds: clock.skipped.as_secs_f32(),
                 },
             );
-            self.note_start(super::cause::CauseKey::Custom(id, format!("--{name}")));
             self.custom.push(CustomAnimation {
                 node: id,
                 name,
@@ -340,6 +346,7 @@ impl AnimationRegistry {
                 skipped: clock.skipped,
                 timing: rule.timing,
                 started_dispatched: false,
+                by,
                 ended_dispatched: false,
             });
         }
@@ -398,6 +405,7 @@ impl AnimationRegistry {
                 super::push_at(
                     &mut self.custom_events,
                     now,
+                    a.by,
                     PendingCustomEvent {
                         node,
                         kind: TransitionEventKind::Cancel,
@@ -454,7 +462,8 @@ fn write(dom: &mut Dom<TuiExt>, node: NodeId, name: &str, value: Option<String>)
 impl AnimationRegistry {
     /// Queue a custom-property event directly (App event tests).
     pub(crate) fn queue_custom_event_for_test(&mut self, e: PendingCustomEvent) {
-        self.custom_events.push((Instant::now(), e));
+        self.custom_events
+            .push((Instant::now(), super::cause::Cause::App, e));
     }
 }
 
@@ -464,7 +473,7 @@ impl AnimationRegistry {
 fn queue_custom_events(
     anim: &mut CustomAnimation,
     now: Instant,
-    events: &mut Vec<(Instant, PendingCustomEvent)>,
+    events: &mut Vec<(Instant, super::cause::Cause, PendingCustomEvent)>,
 ) {
     let property = || format!("--{}", anim.name);
     if !anim.started_dispatched && now.saturating_duration_since(anim.started_at) >= anim.delay {
@@ -474,7 +483,12 @@ fn queue_custom_events(
             property: property(),
             elapsed_seconds: anim.skipped.as_secs_f32(),
         };
-        super::push_at(events, (anim.started_at + anim.delay).min(now), event);
+        super::push_at(
+            events,
+            (anim.started_at + anim.delay).min(now),
+            anim.by,
+            event,
+        );
         anim.started_dispatched = true;
     }
     if !anim.ended_dispatched && anim.is_done(now) {
@@ -485,7 +499,7 @@ fn queue_custom_events(
             elapsed_seconds: anim.duration.as_secs_f32(),
         };
         let end = anim.started_at + anim.delay + anim.duration;
-        super::push_at(events, end.min(now), event);
+        super::push_at(events, end.min(now), anim.by, event);
         anim.ended_dispatched = true;
     }
 }

@@ -66,7 +66,7 @@ pub mod views;
 
 pub use app::{CaptureApp, FixtureInfo};
 pub use capture::{Attr, Capture, ColorValue, Grid, Layer, Meta, Run, SCHEMA};
-pub use edit::{EditTarget, Edited, FilePatch, Patch, Unpatched};
+pub use edit::{EditNote, EditTarget, Edited, FilePatch, Patch, Reloaded, Reset};
 pub use env::{ContrastPreference, Depth, Environment, Scheme, Sgr, Viewport};
 pub use input::{Button, Input, MouseAction};
 pub use profile::{Profile, Rgb};

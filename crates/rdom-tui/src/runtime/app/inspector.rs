@@ -18,15 +18,24 @@ use crate::style::Stylesheet;
 impl<B: Backend> App<B> {
     /// Apply an inspector's change `f` and draw the frame it causes, every
     /// transition or animation that frame starts taken as the inspector's:
-    /// its events are withheld from app code. Settle the app first (a
-    /// capture session does: each step draws its frame), so the frame
-    /// holds the inspector's change alone.
+    /// its events are withheld from app code.
+    ///
+    /// The frame holds the inspector's change alone: what the app already
+    /// changed is drawn first, as the app's frame, and the inspector's
+    /// frame only draws — it runs no timer, animation-frame callback or
+    /// injection, so app code due by then runs in the app's next step and
+    /// what it starts is the app's. A panic in `f` or in the frame leaves
+    /// the App taking new animations as its own again.
     pub fn inspect<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> io::Result<T> {
-        self.animations.set_inspecting(true);
+        self.draw_if_dirty()?;
         let out = f(self);
-        let drawn = self.advance(0);
+        self.animations.set_inspecting(true);
+        let drawn = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.draw_if_dirty()));
         self.animations.set_inspecting(false);
-        drawn.map(|()| out)
+        match drawn {
+            Ok(drawn) => drawn.map(|()| out),
+            Err(panic) => std::panic::resume_unwind(panic),
+        }
     }
 
     /// Force element `id` into `state` (`on`) or stop forcing it — for the
@@ -40,8 +49,9 @@ impl<B: Backend> App<B> {
         self.tracker.mark_state_changed(&mut self.dom, id);
     }
 
-    /// Stop forcing every state on every element, and forget which
-    /// animations an inspector started.
+    /// Stop forcing every state on every element. Call inside
+    /// [`inspect`](Self::inspect): the animations the inspector started
+    /// stay its own, so the cancels this frame causes are withheld too.
     pub fn clear_forced_states(&mut self) {
         let forced: Vec<NodeId> = self
             .dom
@@ -55,7 +65,6 @@ impl<B: Backend> App<B> {
                 self.tracker.mark_state_changed(&mut self.dom, id);
             }
         }
-        self.animations.clear_inspector_causes();
     }
 
     /// The events inspector-caused animations fired since the last call,
@@ -83,6 +92,12 @@ impl<B: Backend> App<B> {
         let out = f(Rc::make_mut(sheet));
         self.invalidate_cascade();
         Some(out)
+    }
+
+    /// The App's sheets, in the order the cascade reads them (after every
+    /// `<style>` element's).
+    pub fn stylesheet_ids(&self) -> Vec<StylesheetId> {
+        self.stylesheets.iter().map(|(id, _)| *id).collect()
     }
 
     /// The App sheet at `index` of the sheets the cascade reads (a
