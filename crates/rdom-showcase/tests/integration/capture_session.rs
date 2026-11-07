@@ -267,6 +267,7 @@ fn an_acid_page_answers_whatif_and_mockup_exactly() {
                 }],
             )],
             0,
+            None,
         )
         .unwrap();
     let d = outcomes[0]
@@ -317,5 +318,32 @@ fn an_acid_label_is_cut_by_exactly_the_rewrites_that_do_not_fit() {
             s.rewrite
         );
         assert_eq!(s.before, s.after, "{:?}: one clipped line", s.rewrite);
+    }
+}
+
+/// CAPTURE phase 7: a full audit of every acid page runs every check or
+/// says why not, and its findings name elements by identity.
+#[test]
+fn every_acid_page_takes_a_full_audit() {
+    use rdom_capture::audit::{AuditRequest, CHECKS};
+    for page in 1..=acid::page_count() {
+        let mut session = Session::new(Showcase);
+        session
+            .open(acid_env(), Some(&format!("acid:{page}")))
+            .unwrap();
+        let a = session.audit(&AuditRequest::all()).unwrap();
+        for check in CHECKS {
+            assert!(
+                a.checked.contains(&check) || a.not_checked.iter().any(|n| n.check == check),
+                "page {page}: {check}"
+            );
+        }
+        eprintln!("AUDIT page {page}: {} findings, {:?}", a.findings.len(), {
+            let mut by: std::collections::BTreeMap<&str, usize> = Default::default();
+            for f in &a.findings {
+                *by.entry(f.check).or_default() += 1;
+            }
+            by
+        });
     }
 }

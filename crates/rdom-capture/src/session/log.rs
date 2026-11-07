@@ -64,6 +64,14 @@ impl<A: CaptureApp> Session<A> {
         self.open.as_ref().map_or(&[], |o| &o.log)
     }
 
+    /// The environment the open app runs in now.
+    pub fn environment(&self) -> Result<&Environment, SessionError> {
+        self.open
+            .as_ref()
+            .map(|o| &o.env)
+            .ok_or(SessionError::NotOpen)
+    }
+
     /// The environment the open app was opened in — what a fork starts
     /// from (a resize step changes the app's environment after).
     pub fn opened_environment(&self) -> Result<&Environment, SessionError> {

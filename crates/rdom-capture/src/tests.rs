@@ -1311,3 +1311,23 @@ fn stress_and_mockup_answer_over_the_protocol() {
     let r = call(&mut s, &line);
     assert_eq!(r["result"]["matches"], true, "{r}");
 }
+
+#[test]
+fn audit_answers_over_the_protocol() {
+    let mut s = open("plain");
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":1,"method":"audit","params":{"checks":["contrast","rhythm"],"budget":4000}}"#,
+    );
+    let res = &r["result"];
+    assert_eq!(res["checked"], serde_json::json!(["contrast"]), "{r}");
+    assert_eq!(res["not_checked"][0]["check"], "rhythm");
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":2,"method":"audit","params":{"checks":["nope"]}}"#,
+    );
+    assert!(
+        r["error"]["message"].as_str().unwrap().contains("nope"),
+        "{r}"
+    );
+}

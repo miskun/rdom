@@ -53,6 +53,7 @@
 #![forbid(unsafe_code)]
 
 pub mod app;
+pub mod audit;
 pub mod capture;
 pub mod edit;
 pub mod env;

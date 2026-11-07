@@ -171,6 +171,7 @@ fn whatif_tries_each_candidate_from_the_same_base_and_leaves_the_session() {
                 Candidate::new("bad", vec![recolor("not-a-color")]),
             ],
             200,
+            None,
         )
         .unwrap();
     let by = |n: &str| outcomes.iter().find(|o| o.name == n).unwrap();

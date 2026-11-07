@@ -73,6 +73,10 @@ pub(crate) const METHODS: &[MethodInfo] = &[
         summary: "Compare the frame with the screen as it should be, written as a text view (glyph lines, then optional ── background ── / ── foreground ── key layers with their keys; in a key layer `.` is the default color and a space anything): the glyphs and colors that differ, and the rows whose text is there but shifted. A captured text view is its own matching mockup. Params: {text, at?: [x, y], any?: wildcard char, budget?}.",
     },
     MethodInfo {
+        name: "audit",
+        summary: "Check how the frame looks and works, as a terminal profile shows it: contrast (WCAG 2, APCA), truncation, occlusion, alignment, palette (near-duplicates), depth-loss, profile (meaning only an undrawn attribute carries), rhythm (with a spacing scale), focus-visible, reachability (Tab), targets, landmarks, tokens. Each finding: {check, severity, message, nodes (by identity), cells, inputs, threshold}; a check that cannot run is in not_checked with why. Params: {checks?: [names] (default all), profile?, design?: {colors?: [[name, value]], spacing?: [cells], min_contrast?, min_target?: [w, h]}, budget?}. whatif takes the same request as `audit` to rank candidates by findings fixed minus introduced.",
+    },
+    MethodInfo {
         name: "outline",
         summary: "The landmarks outline: landmarks, headings, lists, controls and focusable elements, nested, each with role, name, rect and state. Params: {depth?: integer, detail?: \"outline\"|\"summary\"|\"full\", budget?: tokens}. Read it first.",
     },
@@ -222,6 +226,7 @@ pub(crate) fn dispatch<A: CaptureApp>(
         "matrix" => super::variants::matrix(session, params(p)?),
         "stress" => super::variants::stress(session, params(p)?),
         "mockup" => super::variants::mockup(session, params(p)?),
+        "audit" => super::variants::audit(session, params(p)?),
         "outline" => outline(session, params(p)?),
         "explain" => explain(session, params(p)?),
         "query" => query(session, params(p)?),

@@ -1,6 +1,6 @@
 # CAPTURE — an agent-friendly renderer, inspector and design loop
 
-**Status:** IN PROGRESS — phases 1–6 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
+**Status:** IN PROGRESS — phases 1–7 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
 v2 incorporates every finding (§Review record at the end). Three open questions are decided (§Decisions).
 
 ## Decisions
@@ -778,6 +778,31 @@ only the topmost shifted box and refuses more than 8 targets; mockup headers are
 keys and an `owners` layer are skipped, lines split by grapheme; sheet labels are cut by width; a failed variant
 reports its own environment and invalid axes fail the call; `stress` finding kinds and mockup layers are enums.
 Recorded in `TECH_DEBT` CAPTURE-VARIANTS-1.
+
+### Phase 7 — audits (look, UX, tokens): DONE (2026-11-07)
+
+Shipped: `Session::audit` / `audit` with thirteen checks — look: `contrast` (WCAG 2 ratio, APCA Lc beside it),
+`truncation`, `occlusion`, `alignment`, `palette`, `depth-loss`, `profile`, `rhythm`; UX: `focus-visible`,
+`reachability`, `targets`, `landmarks`; and `tokens` — each finding `{check, severity, message, nodes, cells, inputs,
+threshold}`, and every check that cannot run listed with why (`latency` until phase 8). `DesignSystem` declares color
+tokens, a spacing scale and thresholds; without it `tokens` reads the root element's computed custom properties and
+`rhythm` says it has no scale. `whatif` takes an audit and ranks candidates by findings fixed minus introduced (a
+finding is the same across moments when its check and elements are).
+
+As built, against the plan:
+
+- Checks read the frame as the profile shows it after the environment's color depth; the acting checks
+  (`focus-visible` forces `:focus` / `:focus-visible`, `reachability` presses Tab) run in a fork.
+- `contrast` holds text to the design's ratio (4.5) and other glyphs to 3 (WCAG 1.4.11); block elements are graphics.
+- `depth-loss` quantizes the painted colors as rdom does (`ColorDepth::quantize`, OKLab nearest) and reports text
+  that reads at the environment's depth but collapses below it.
+- `profile` reports cells set apart from their nearest inked neighbours only by an attribute the profile does not
+  draw (italic, strikethrough, overline).
+- Not checked yet, in `TECH_DEBT` CAPTURE-AUDIT-1: latency, margins in `rhythm`, focus-indicator contrast, content
+  outside every scrollport, findings in the HTML report.
+- Tests: a failing and a passing page per check (`tests/audit.rs`), the reference values of WCAG, APCA and OKLab,
+  `whatif` ranking a fix above a regression, the protocol method, and a full audit of every acid page (13 pages,
+  every check run or said why not).
 
 ## Open questions
 

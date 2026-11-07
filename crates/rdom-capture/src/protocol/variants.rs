@@ -55,6 +55,10 @@ pub(crate) struct WhatifParams {
     pub settle_ms: u64,
     #[serde(default)]
     pub png: Option<Images>,
+    /// Audit the base and each candidate, and rank by findings fixed
+    /// minus introduced.
+    #[serde(default)]
+    pub audit: Option<crate::audit::AuditRequest>,
     #[serde(default)]
     pub budget: Option<usize>,
 }
@@ -133,7 +137,7 @@ pub(crate) fn whatif<A: CaptureApp>(
     session: &Session<A>,
     p: WhatifParams,
 ) -> Result<Value, RpcError> {
-    let outcomes = session.whatif(&p.candidates, p.settle_ms)?;
+    let outcomes = session.whatif(&p.candidates, p.settle_ms, p.audit.as_ref())?;
     let mut answer = Vec::with_capacity(outcomes.len());
     for o in &outcomes {
         let mut v = json(o)?;
@@ -209,6 +213,24 @@ pub(crate) fn mockup<A: CaptureApp>(
     p: MockupParams,
 ) -> Result<Value, RpcError> {
     let mut answer = json(session.mockup(&p.text, p.at, p.any)?)?;
+    fit(&mut answer, p.budget);
+    Ok(answer)
+}
+
+/// `audit`'s parameters: the request, and a token budget.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct AuditParams {
+    #[serde(flatten)]
+    pub request: crate::audit::AuditRequest,
+    pub budget: Option<usize>,
+}
+
+pub(crate) fn audit<A: CaptureApp>(
+    session: &Session<A>,
+    p: AuditParams,
+) -> Result<Value, RpcError> {
+    let mut answer = json(session.audit(&p.request)?)?;
     fit(&mut answer, p.budget);
     Ok(answer)
 }
