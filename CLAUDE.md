@@ -35,6 +35,7 @@ Every other crate is a **consumer** of that substrate:
 - **`rdom-css`** — CSS parser. Tokenizer + block parser + `<style>`-tag extraction + inline-style seeding. Produces `Stylesheet` / `TuiStyle` via `rdom-style`'s property dispatch.
 - **`rdom-tui`** — the terminal backend. Owns CSS cascade (specificity, custom properties), layout (flexbox, grid, inline formatting), paint (canvas + ANSI emission), and the runtime (event loop, hit test, keyboard/mouse routing, focus, text selection + clipboard), plus the native HTML element behaviors (`<button>`, `<input>` family incl. `type="range"`, `<select>`, `<form>`, `<details>`, `<dialog>`, `<progress>`, `<meter>`, `<table>` family, `<canvas>`). Defines `TuiExt` and operates on `Dom<TuiExt>`.
 - **`rdom-parser`** — HTML-ish template strings → `Dom<Ext>`. Hand-rolled, no external parser deps. Equivalent in role to `parseFromString`.
+- **`rdom-capture`** — headless capture sessions over `rdom-tui` apps (`specs/CAPTURE.md`): a deterministic environment, captures and their views (text, PNG from its own rasterizer, an HTML inspector), explain/query, edits written back to CSS, forks and variants, audits, films, replay of recordings — in Rust and over a JSON-RPC session on stdio. A consumer of `rdom-tui`, never a dependency of it.
 
 Durable rules:
 
@@ -309,7 +310,7 @@ Do not start the next milestone until key findings are addressed or explicitly t
 
 ## Repository Boundaries
 
-- `crates/` — the five published crates (`rdom-core`, `rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`) plus `rdom-showcase`, an in-tree demo binary (`publish = false`) that owns the demo examples and their paint snapshots. Roles and durable rules in §Substrate First, Backend Second.
+- `crates/` — the six published crates (`rdom-core`, `rdom-style`, `rdom-css`, `rdom-parser`, `rdom-tui`, `rdom-capture`) plus `rdom-showcase`, an in-tree demo binary (`publish = false`) that owns the demo examples and their paint snapshots. Roles and durable rules in §Substrate First, Backend Second.
 - `UPGRADING-0.6.md` — the 0.5 → 0.6 upgrade guide (behaviour changes by area, compile breaks, API table); the CHANGELOG's `[0.6.0]` points at it.
 - `specs/` — the three contract docs (`DESIGN.md`, `DIVERGENCES.md`, `TECH_DEBT.md`) plus per-initiative design and history files (`STABILIZE-2026-09.md`, `HARDENING-2026-09.md`, `BFC-1.md`, `DRAG-AUTOSCROLL.md`, `SHOWCASE.md`, `SUBSTRATE-0.3.0.md`, `HISTORY-2026-05.md`, `ACID.md`, `CSS-COVERAGE.md`, `CSS-COMPLETE-2026-10.md`, `CAPTURE.md`). Initiative files carry a status line at the top; only the three contract docs are load-bearing for agents.
 - Versions: crates bump **independently** ("divergent bumps") — only a crate whose source changed bumps, plus every crate that pins it. Tags are per crate (`rdom-tui-vX.Y.Z`); a workspace-wide release uses a plain `vX.Y.Z` tag. The root `Cargo.toml` workspace version is a default for crates that have not diverged, not a shared release number.

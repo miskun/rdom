@@ -1,6 +1,6 @@
 [package]
 name = "rdom-css"
-version.workspace = true
+version = "0.6.1"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -10,8 +10,8 @@ keywords = ["css", "parser", "rdom", "tui"]
 categories = ["parser-implementations"]
 
 [dependencies]
-rdom-core = { path = "../rdom-core", version = "0.6.0" }
-rdom-style = { path = "../rdom-style", version = "0.6.0" }
+rdom-core = { path = "../rdom-core", version = "0.6.1" }
+rdom-style = { path = "../rdom-style", version = "0.6.1" }
 
 [dev-dependencies]
 # Examples build a TuiDom + render it; rdom-tui is example-only,

@@ -3,7 +3,7 @@ name = "rdom-tui"
 # Pinned here rather than inherited so rdom-tui can diverge from the shared
 # workspace version (it did during the 0.3 series). At 0.6.0 every published
 # crate shipped together; 0.6.1 – 0.6.5 are rdom-tui only.
-version = "0.6.5"
+version = "0.6.6"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -30,9 +30,9 @@ test-util = []
 features = ["test-util"]
 
 [dependencies]
-rdom-core = { path = "../rdom-core", version = "0.6.0" }
-rdom-css = { path = "../rdom-css", version = "0.6.0" }
-rdom-style = { path = "../rdom-style", version = "0.6.0" }
+rdom-core = { path = "../rdom-core", version = "0.6.1" }
+rdom-css = { path = "../rdom-css", version = "0.6.1" }
+rdom-style = { path = "../rdom-style", version = "0.6.1" }
 
 # Terminal rendering primitives. Pure-Rust, ~30KB binary cost combined.
 # - compact_str: inline-stored grapheme cluster in each Cell (up to 24B)
@@ -80,7 +80,7 @@ signal-hook = { version = "0.3", default-features = false }
 # camelCase aliases (one method per shipped CSS property) onto
 # `StyleDeclaration`. Same single source of truth the runtime uses
 # — no parallel list to drift. See `build.rs`.
-rdom-style = { path = "../rdom-style", version = "0.6.0" }
+rdom-style = { path = "../rdom-style", version = "0.6.1" }
 
 [dev-dependencies]
 proptest = "1"

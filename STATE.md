@@ -14,7 +14,7 @@ environment, paint traces and the inspector, edits without a rebuild, images fro
 audits and motion. Nine phases, each closed by a chief-architect review recorded in the spec's log; the
 release (a new `rdom-capture` and whatever substrate crates the phases change) follows the last phase.
 Phases 1–4 closed (2026-11-07; phase 4's seven blocking review findings fixed — the cause of an inspector-started
-animation now lives on the running instance). Phase 5 closed (its four blocking review findings fixed). Phase 6 closed (its six blocking review findings fixed). Phase 7 (audits) closed (its nine blocking review findings fixed); phase 8 (motion) closed (its four blocking review findings fixed); phase 9 (record/replay, follow-attach) built and under its architect review; the release follows.
+animation now lives on the running instance). Phase 5 closed (its four blocking review findings fixed). Phase 6 closed (its six blocking review findings fixed). Phase 7 (audits) closed (its nine blocking review findings fixed); phase 8 (motion) closed (its four blocking review findings fixed); phase 9 (record/replay, follow-attach) closed (its review's blocking findings fixed or accepted in TECH_DEBT CAPTURE-REPLAY-1). CAPTURE shipped as rdom-capture 0.1.0.
 0.6.0 – 0.6.5 shipped (CSS completeness and the `rdom-tui` patch line); routing stays at 0.7.0.
 
 ## Release track
@@ -29,7 +29,7 @@ animation now lives on the running instance). Phase 5 closed (its four blocking 
 | 0.5.0 | **shipped 2026-09-29** | STABILIZE-2026-09: empty TECH_DEBT open list, "stable and complete"; form validation, `:focus-visible`, live `<style>`. Breaking notes in CHANGELOG "0.5.0" |
 | 0.6.0 | **shipped 2026-10-18** | CSS-COMPLETE-2026-10: every CSS feature meaningful in a terminal; acid test |
 | 0.6.1 – 0.6.5 | 2026-10-29 → 11-05 | `rdom-tui`-only patch line: the layout flush, the client box, borders follow paint order, out-of-flow children leave the collapse group, flex shrink overflow |
-| rdom-capture 0.1 | **in progress** | CAPTURE: headless capture sessions, inspector, edits, images, audits, motion |
+| rdom-capture 0.1.0 (+ core/style/css 0.6.1, tui 0.6.6) | **2026-11-07** | CAPTURE: headless capture sessions, inspector, edits, images, variants, audits, motion, record/replay |
 | 0.7.0 | planned | Client-side routing primitive (slid from 0.6.0) |
 | later | — | Async tasks during event handlers; `TABLE-TFC-1` real table formatting context |
 

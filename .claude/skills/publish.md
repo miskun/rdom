@@ -14,7 +14,7 @@ Use this whenever a rdom crate is going to crates.io. The five crates (`rdom-cor
 Run `git log --oneline $(git describe --tags --abbrev=0)..HEAD` (or against the first commit if there is no tag yet) and ask:
 
 - **Which crates changed?** Anything under `crates/<name>/` (source, examples, README, Cargo.toml) means *that crate* needs a bump.
-- **Which crates depend on a changed crate?** Those need to bump too if the change is API-visible. The dep DAG is `rdom-core → {rdom-style, rdom-parser} → rdom-css → rdom-tui`. (`rdom-parser` only depends on `rdom-core`; `rdom-css` depends on `rdom-core` + `rdom-style`; `rdom-tui` depends on `rdom-core` + `rdom-style` + `rdom-css`.)
+- **Which crates depend on a changed crate?** Those need to bump too if the change is API-visible. The dep DAG is `rdom-core → {rdom-style, rdom-parser} → rdom-css → rdom-tui → rdom-capture`. (`rdom-parser` only depends on `rdom-core`; `rdom-css` depends on `rdom-core` + `rdom-style`; `rdom-tui` depends on `rdom-core` + `rdom-style` + `rdom-css`.)
 - **Which crates changed, and who pins them?** Only changed crates and their dependents bump. Check each `Cargo.toml` `version = "…"` pin on path deps: a bumped crate's dependents must re-pin and bump too, or consumers end up with two copies of the substrate and mismatched `Dom` types.
 
 Write down the bump plan as a one-line decision in the prep commit's message so future sessions can read it.
@@ -135,7 +135,9 @@ cargo publish -p rdom-css       # depends on rdom-core + rdom-style
 sleep 60
 cargo publish -p rdom-parser    # depends on rdom-core
 sleep 60
-cargo publish -p rdom-tui       # depends on everything
+cargo publish -p rdom-tui       # depends on everything above
+sleep 60
+cargo publish -p rdom-capture   # depends on rdom-tui, rdom-style, rdom-css
 ```
 
 After each `cargo publish`, verify the crate appears at `https://crates.io/crates/<name>` before moving on. The sparse index updates within seconds; the web page can take a minute or two.

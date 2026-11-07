@@ -3,7 +3,7 @@ name = "rdom-core"
 # Pinned here rather than inherited so rdom-core can diverge from the shared
 # workspace version (it did during the 0.3 series). At 0.6.0 every published
 # crate ships together at the same version.
-version = "0.6.0"
+version = "0.6.1"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

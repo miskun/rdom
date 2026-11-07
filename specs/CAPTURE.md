@@ -1,6 +1,6 @@
 # CAPTURE — an agent-friendly renderer, inspector and design loop
 
-**Status:** IN PROGRESS — phases 1–9 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
+**Status:** DONE — phases 1–9 shipped as rdom-capture 0.1.0 (2026-11-07; §Phase log). Not built, by decision or as recorded debt: the socket attach and the emulator view (`TECH_DEBT` CAPTURE-ATTACH-1). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
 v2 incorporates every finding (§Review record at the end). Three open questions are decided (§Decisions).
 
 ## Decisions

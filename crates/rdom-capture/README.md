@@ -93,6 +93,28 @@ Edits and forced states fire no events and no mutation records in app code, and 
 
 Every answering method takes `detail` (`outline`, `summary`, `full`) and `budget` (about that many tokens); a cut answer lists what it dropped under `truncated`. Rules record where they are written when the CSS is parsed with a name (`rdom_css::from_css_at(text, "src/app.css")`), or built in Rust (the calling line).
 
+Then look at it, try alternatives, and check it:
+
+```text
+{"jsonrpc":"2.0","id":16,"method":"capture","params":{"png":{"profile":"xterm-light","scale":2},"out":"shot"}}
+{"jsonrpc":"2.0","id":17,"method":"report","params":{"out":"report"}}
+{"jsonrpc":"2.0","id":18,"method":"mark","params":{"name":"before"}}
+{"jsonrpc":"2.0","id":19,"method":"diff","params":{"from":"before"}}
+{"jsonrpc":"2.0","id":20,"method":"whatif","params":{"candidates":[{"name":"dimmer","steps":[{"step":"edit","target":{"winner":{"node":"12"}},"property":"color","value":"#8a93a3"}]}],"audit":{"checks":["contrast"]}}}
+{"jsonrpc":"2.0","id":21,"method":"matrix","params":{"axes":[[{"color_scheme":"dark"},{"color_scheme":"light"}],[{"color_depth":"truecolor"},{"color_depth":"16"}]]}}
+{"jsonrpc":"2.0","id":22,"method":"audit"}
+{"jsonrpc":"2.0","id":23,"method":"film","params":{"ms":600,"inputs":[{"type":"key","key":"enter"}],"nodes":[".panel"],"cast":true}}
+```
+
+- `png` — the frame drawn by rdom-capture's own rasterizer through a terminal profile (`xterm-dark`, `xterm-light`, `console-16`, `solarized-light`, or the app's own), with the bundled unscii-16 font; the same capture is the same bytes on every OS, and a glyph the font lacks is an explicit box, listed.
+- `report` — the frame as one self-contained HTML page with an inspector over the image: hover a cell for its colors, the element whose paint it is, its boxes and each style's winning declaration.
+- `diff` — two moments: changed cells, elements added, removed, moved or resized, and declared style changes, matched by identity (`id`, then `data-key`, then tag, classes and place).
+- `whatif`, `matrix`, `stress`, `mockup` — candidate changes tried from the same moment, the session's steps across environments with a contact sheet, text rewritten to stress the layout, and the frame compared with a screen written as a text view. Each runs in a fork of the session, which is left as it was.
+- `audit` — contrast (WCAG 2, APCA), truncation, occlusion, alignment, palette, depth loss, profile breakage, rhythm, focus visibility, Tab reachability, target sizes, landmarks and tokens; every finding names the elements, the cells, what was measured and the threshold, and a check that cannot run says why.
+- `film` — the app stepped on the virtual clock: timelines of cells and elements, spinners, flicker, the bytes each frame sends against a link, motion under `prefers-reduced-motion`, a filmstrip and an asciicast.
+
+An app that records itself (`App::with_recorder`, behind a flag of its own — a recording holds every key typed) can be replayed in a session frame by frame (`replay`), or followed while it runs (`follow`), so every method above reads the running app's state. A replay refuses an App configured otherwise than the session's and stops, saying why, where it cannot follow; `specs/CAPTURE.md` §Record and replay lists its limits.
+
 ## In Rust
 
 ```rust
@@ -129,7 +151,7 @@ assert_eq!(capture.grid.unwrap().row_text(0).trim_end(), "hello");
 
 ## Status
 
-Phases 1–4 of `specs/CAPTURE.md` in the rdom repository: the deterministic environment, the session and its protocol, the grid, owners, boxes and nodes layers, the text view, paint traces, style traces, the outline, `explain`, `query`, and edits, forced states, patches and reloads. Images, audits and motion follow.
+`specs/CAPTURE.md` in the rdom repository describes the design and what each phase built and left out. Not built: a socket attach that reaches into a running app, and the optional xterm.js emulator view.
 
 ## License
 
