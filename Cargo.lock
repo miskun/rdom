@@ -900,6 +900,7 @@ name = "rdom-capture"
 version = "0.1.0"
 dependencies = [
  "crossterm",
+ "png",
  "rdom-css",
  "rdom-parser",
  "rdom-style",

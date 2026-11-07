@@ -380,23 +380,27 @@ rendering:
 
 - **Cells, not text layout.** Each cell is a `cell_w × cell_h` pixel rectangle from the profile (default 8×16;
   2× scale doubles it). Wide glyphs span two cells. There is no shaping, kerning or hinting.
-- **Procedural glyphs.** Box drawing (U+2500–257F, light, heavy, double, rounded, dashed), block elements
-  (U+2580–259F, including shades), Braille (U+2800–28FF), and the legacy-computing sextants and wedges actually
-  used in TUIs are drawn geometrically from their definitions. They join exactly at cell edges, which is crisper
-  and more faithful than most fonts.
-- **Bitmap font for everything else.** Text glyphs come from an embedded, permissively licensed bitmap font at the
-  base cell size (candidates: Spleen (BSD-2), unscii (public domain), Terminus (OFL)); the license ships with the
-  crate. Bold uses the font's bold face, or a one-pixel smear when there isn't one; italic is a pixel shear; dim,
-  underline (single, double, curly, dotted, dashed, with its own color), strikethrough, overline and reverse are
-  drawn by the rasterizer.
+- **One bitmap font for every glyph.** Glyphs come from unscii-16 (Viznut, public domain; `assets/unscii-16.hex`,
+  provenance in `assets/NOTICE.md`): 8×16 cells, 2,997 narrow and 243 wide glyphs. It covers every range TUIs draw
+  with: box drawing (light, heavy, double, rounded, dashed), block elements and shades, geometric shapes, Braille,
+  the legacy-computing sextants and wedges, the Powerline separators, and Latin-1 / Latin Extended-A. Its box-drawing
+  arms sit at one fixed position per weight on every edge (light rows 7–8 / columns 3–4, heavy 6–9 / 2–5, double
+  6 + 8 / 1–2 + 4–5), so neighbouring cells join exactly; its Braille dots and blocks cover exactly what their code
+  points name. Tests pin all three (`raster/tests.rs`), which is why v2's procedural drawing was not needed: the
+  font already is the definition, and one source draws every glyph the same way. Not covered: CJK, most emoji, part
+  of Cyrillic and the arrows block — those show as missing glyphs (below). Bold is a one-pixel smear (unscii has no
+  bold face); italic shears the upper half one pixel right, within the cell; underline (single, double, curly,
+  dotted, dashed, in its own color), strikethrough and overline are drawn by the rasterizer where the profile has
+  them. Dim and reverse are already resolved into the cell's colors by rdom's paint.
 - **Missing glyphs are explicit.** A glyph neither drawn procedurally nor in the font renders as a box with its code
   point in hex, and is listed in `meta.unrendered_glyphs`. Never a blank, never a guess.
 - **Color.** Cells are filled with the resolved sRGB colors after the profile's palette and color reduction, so the
-  image matches what audits measure.
+  image matches what audits measure. A color with alpha shows as its RGB, opaque — what rdom sends the terminal.
 - **PNG encoding, ours too.** CRC-32, Adler-32 and the chunk writer are a few dozen lines. The image is indexed
   (palette PNG) when it has at most 256 colors, which a terminal frame almost always does. Version 1 uses a minimal
   deflate encoder: fixed Huffman codes with run-length matches, which compresses large solid areas and repeated rows
-  well. If sizes ever hurt, a better encoder replaces it behind the same function.
+  well; each row takes the None / Sub / Up filter with the smallest sum. If sizes ever hurt, a better encoder
+  replaces it behind the same function. A test decodes every kind of image with the independent `png` crate.
 - **Deterministic.** Integer arithmetic only, no system fonts, no platform calls; the same capture gives the same
   bytes on every OS. Goldens are therefore stable, and the grid hash remains the main oracle.
 - **Scope.** The rasterizer is a view, not a terminal emulator: it doesn't model a font's box-drawing gaps or line
@@ -639,8 +643,6 @@ As built, against the plan:
 
 ## Open questions
 
-- **Bitmap font choice:** Spleen, unscii or Terminus — coverage of Latin, Greek and Cyrillic at 8×16, a bold face,
-  and license fit; decided when phase 5 starts.
 - **Injection serialization:** how much of `AppHandle::inject` traffic can be made replayable without burdening apps;
   opaque closures are recorded as "unreplayable" and replay stops there with a clear message.
 - **Protocol stability:** which methods and fields are guaranteed in `rdom-capture/1` before the crate's first release.

@@ -35,3 +35,5 @@ rustix = { version = "0.38", default-features = false, features = ["std", "stdio
 [dev-dependencies]
 # ... and some fixtures from markup.
 rdom-parser = { path = "../rdom-parser", version = "0.6.0" }
+# Decodes the PNG views in tests: an independent check of the encoder.
+png = "0.18"

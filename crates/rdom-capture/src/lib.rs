@@ -57,8 +57,10 @@ pub mod capture;
 pub mod edit;
 pub mod env;
 pub mod input;
+pub mod profile;
 pub mod protocol;
 pub(crate) mod query;
+pub mod raster;
 pub mod session;
 pub mod views;
 
@@ -67,8 +69,10 @@ pub use capture::{Attr, Capture, ColorValue, Grid, Layer, Meta, Run, SCHEMA};
 pub use edit::{EditTarget, Edited, FilePatch, Patch, Unpatched};
 pub use env::{ContrastPreference, Depth, Environment, Scheme, Sgr, Viewport};
 pub use input::{Button, Input, MouseAction};
+pub use profile::{Profile, Rgb};
 pub use protocol::serve;
 pub use query::Detail;
+pub use raster::{Image, Raster};
 pub use session::{CaptureRequest, Change, MAX_ADVANCE_MS, Session, SessionError, Suppressed};
 
 #[cfg(test)]
