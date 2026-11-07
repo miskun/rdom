@@ -22,7 +22,7 @@ pub fn parse_at(source: &str, url: &str) -> ParseResult {
     crate::parse_in(source, None, Some(url))
 }
 
-/// A stylesheet from the CSS file at `path` (absolute, as [`css_file!`]
+/// A stylesheet from the CSS file at `path` (absolute, as [`css_file!`](crate::css_file)
 /// gives it): its text read from disk in a debug build — so an edited
 /// file shows on the next load without a rebuild (CAPTURE phase 4's dev
 /// loop) — else `embedded`, the text compiled in. A debug build whose file
