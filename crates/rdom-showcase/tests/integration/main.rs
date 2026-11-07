@@ -30,6 +30,7 @@ mod chrome_layout_contract;
 mod design_types;
 mod details_toggle_regression;
 mod file_sizes;
+mod image_goldens;
 mod keyboard_nav;
 mod mutation_observer_demo;
 mod paint_trace;

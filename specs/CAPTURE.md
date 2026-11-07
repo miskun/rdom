@@ -1,6 +1,6 @@
 # CAPTURE — an agent-friendly renderer, inspector and design loop
 
-**Status:** IN PROGRESS — phases 1–4 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
+**Status:** IN PROGRESS — phases 1–5 done (§Phase log). v2 (2026-11-07). v1 (`2da9c01c`) was reviewed by a chief architect and a chief TUI designer;
 v2 incorporates every finding (§Review record at the end). Three open questions are decided (§Decisions).
 
 ## Decisions
@@ -383,7 +383,7 @@ CSS animation; `suppressed_events` lists exactly the suppressed ones; `deliver` 
 | `text` | agents, tests | Glyph grid plus optional key layers (bg, fg, top node) with legends. The current snapshot format, made public |
 | `outline` | agents | Landmarks with rectangles; the first thing to read |
 | `png` | agents with image input, reports | rdom's own rasterizer (§Rasterizer) at the profile's cell size and proportions; optional overlays (boxes, a grid, tab order, hit targets, a highlighted node, a change heatmap) |
-| `html` | humans | `report.html` / `inspect.html`: images, findings, filmstrip, and an Elements-style inspector (hover a cell → explain). Static, no server |
+| `html` | humans | `report` writes one self-contained page: the frame's image with an Elements-style inspector over it (hover a cell → its colors, the element whose paint it is, its boxes, each style's winning declaration and `file:line`; an element list in document order). Static, no server, deterministic bytes. Findings (phase 7) and a filmstrip (phase 8) join it |
 | `cast` | motion, wire checks | asciicast v2 of the real emitted bytes |
 | `emulator` | ground truth | The emitted bytes rendered by xterm.js in a headless browser, screenshotted. **Optional**: a cargo feature plus a browser found at run time; when missing, the method fails with a clear error, never a silent fallback to `png`. Not in CI by default; the reference for "what a real terminal shows" |
 
@@ -531,8 +531,8 @@ Each phase lands green, test-first, with its exit test.
    sources point at real lines.
 4. **Edits, forced states, cause tagging, patch, CSS dev loader.** Exit: invisibility tests and the
    inspector-event contract tests; the edit → patch → reload round trip.
-5. **Rasterizer + PNG + terminal profiles + HTML report.** Exit: every procedural glyph range drawn and joined
-   correctly (per-range fixtures); the PNG decodes with an independent decoder in a test; goldens for acid page 1
+5. **Rasterizer + PNG + terminal profiles + HTML report.** Exit: every TUI glyph range drawn and joined
+   correctly (per-range fixtures, against the font — §Rasterizer); the PNG decodes with an independent decoder in a test; goldens for acid page 1
    under two profiles, identical on macOS, Linux and Windows CI.
 6. **`whatif`, `matrix`, `stress`, `mockup`, `diff` with identity.** Exit: each on a showcase demo with known answers.
 7. **Audits (look, UX, tokens).** Exit: positive and negative fixtures per check.
@@ -685,6 +685,29 @@ CAPTURE-INSPECT-EVENTS-1: layout-driven events, a stale `[sheet, index]` after a
 diff's memory on large files, CRLF files, forced-state entries of removed nodes, and Rust-defined variables in a
 file-backed sheet. Process: a672bf19 was pushed with a rustdoc failure the gate showed but was not read;
 36c79316 fixed it — the gate's exit codes are read before every commit since.
+
+### Phase 5 — rasterizer, PNG, terminal profiles, HTML report: DONE (2026-11-07)
+
+Shipped: `raster::render` (`Raster`, `Image`), the PNG encoder (`Image::png`), `Profile` with four built-ins, the
+`png` view of `capture` (a file beside `out`, or base64), `describe`'s profile list, and `Session::report` / the
+`report` method (the HTML inspector).
+
+As built, against the plan:
+
+- One font for every glyph instead of procedural box drawing: unscii-16's box-drawing arms sit at fixed positions
+  per weight on every edge, its Braille and blocks are exact (§Rasterizer), so the font already is the definition;
+  tests pin it. It has no CJK or emoji: those are explicit boxes, listed (`TECH_DEBT` CAPTURE-FONT-1). Acid page 1's
+  goldens carry its two CJK glyphs as boxes.
+- A color with alpha shows as its RGB, opaque, as the terminal is sent it — not blended.
+- Profiles cover palette, default colors, bold-brightens, italic, strikethrough, overline, underline styles and the
+  cell size; emoji and ambiguous-width policy and font characteristics (box-drawing gaps, line height) are not
+  modeled — the rasterizer is a view, the `emulator` view the ground truth.
+- The `png` view has no overlays yet (boxes, tab order, hit targets, a highlighted node, a change heatmap): the
+  report's inspector draws the boxes; image overlays come with the audits and `diff` that need them.
+- Tests: per-range glyph fixtures (presence, arm positions per weight, Braille dots, block coverage); every kind of
+  image decoded by the independent `png` crate (indexed, RGB, long matches); attributes per profile; two goldens of
+  acid page 1, byte-compared on every CI OS; the report's bytes deterministic and its explanation the `explain`
+  answer.
 
 ## Open questions
 

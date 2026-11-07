@@ -7,3 +7,8 @@
 # The CI toolchain step reads `rust-toolchain.toml` with `sed`; keep
 # manifests LF so the parsed channel never carries a `\r`.
 *.toml text eol=lf
+
+# The bundled bitmap font is parsed at run time: keep it byte-identical.
+*.hex text eol=lf
+# Image goldens are compared byte for byte.
+*.png binary

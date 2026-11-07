@@ -3,20 +3,17 @@
 //! [`dispatch`] answers exactly the methods it lists (a test holds the two
 //! together).
 
-use std::path::PathBuf;
-
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{PROTOCOL, RpcError, code};
 use crate::app::{CaptureApp, FixtureInfo};
-use crate::capture::{Capture, ColorValue, Layer, SCHEMA, node_key};
+use crate::capture::{ColorValue, Layer, SCHEMA, node_key};
 use crate::env::Environment;
 use crate::input::Input;
 use crate::query::{Detail, fit};
 use crate::session::{CaptureRequest, Session};
-use crate::views::text::{TextOptions, capture_text};
 
 /// A method's name and what it does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -45,7 +42,11 @@ pub(crate) const METHODS: &[MethodInfo] = &[
     },
     MethodInfo {
         name: "capture",
-        summary: "Capture the current frame. Params: {layers?: [\"grid\" | \"owners\" | \"boxes\" | \"nodes\"], text?: {bg?, fg?, owners?}, out?: path}. Layers that name elements bring a nodes table. With out, writes <out>.json (and <out>.txt) and returns their paths instead of the content.",
+        summary: "Capture the current frame. Params: {layers?: [\"grid\" | \"owners\" | \"boxes\" | \"nodes\"], text?: {bg?, fg?, owners?}, png?: {profile?: name (describe lists them), scale?: 1-4}, out?: path}. Layers that name elements bring a nodes table. The png view is the frame drawn by rdom's rasterizer at the profile's cell size (8x16 per cell at scale 1), with the glyphs the font lacks listed. With out, writes <out>.json (and <out>.txt, <out>.png) and returns their paths instead of the content; without it, the png comes back as base64.",
+    },
+    MethodInfo {
+        name: "report",
+        summary: "Write the frame as one self-contained HTML page for a person: the image (as the png view draws it) with an inspector over it — hover a cell for its colors, the element whose paint it is, its boxes, and each style's winning declaration and file:line. Params: {out: path, profile?, scale?: 1-4}. Writes <out>.html; returns {file, bytes}.",
     },
     MethodInfo {
         name: "outline",
@@ -69,15 +70,15 @@ pub(crate) const METHODS: &[MethodInfo] = &[
     },
     MethodInfo {
         name: "reset",
-        summary: "Undo every edit and forced state.",
+        summary: "Undo every edit and forced state. Returns {change, dropped?}: the edits not undone because the app replaced their sheet since, with why.",
     },
     MethodInfo {
         name: "patch",
-        summary: "The edits as unified diffs against the CSS files their rules are written in, and the edits no file can take with why. Params: {apply?: bool} (default: a dry run).",
+        summary: "The edits as unified diffs against the CSS files their rules are written in (exactly what each edit showed), and the edits no file can take with why. Params: {apply?: bool} (default: a dry run). apply writes every file whole and reads them back (as reload); it is refused, with nothing written, when an edit would be lost.",
     },
     MethodInfo {
         name: "reload",
-        summary: "Read every App sheet parsed from one named CSS file again from that file (after a patch, or a hand edit); that sheet's edits are dropped.",
+        summary: "Read every App sheet parsed from one named CSS file again from that file (after a hand edit); that sheet's edits are dropped. Returns {files, dropped?, skipped?, change}: skipped lists the sheets that hold more than their file, with why.",
     },
     MethodInfo {
         name: "close",
@@ -94,6 +95,9 @@ pub(crate) struct DescribeResult {
     pub methods: &'static [MethodInfo],
     pub fixtures: Vec<FixtureInfo>,
     pub default_env: Environment,
+    /// The terminal profiles the image views can draw with; the first is
+    /// the default.
+    pub profiles: Vec<String>,
     pub open: bool,
 }
 
@@ -124,30 +128,6 @@ pub(crate) struct AdvanceParams {
     pub ms: u64,
 }
 
-/// `capture`'s parameters.
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub(crate) struct CaptureParams {
-    /// The layers to include beside `meta`.
-    pub layers: Vec<Layer>,
-    /// Include the text view, with these key layers.
-    pub text: Option<TextOptions>,
-    /// Write the capture to `<out>.json` (and the text view to
-    /// `<out>.txt`) instead of returning them.
-    pub out: Option<PathBuf>,
-}
-
-/// `capture`'s result.
-#[derive(Debug, Clone, Serialize)]
-pub(crate) struct CaptureResult {
-    #[serde(flatten)]
-    pub capture: Capture,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub text: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub files: Vec<String>,
-}
-
 /// `params` as `T`; absent params read as `{}`.
 pub(crate) fn params<T: DeserializeOwned>(params: Option<Value>) -> Result<T, RpcError> {
     let value = params.unwrap_or_else(|| Value::Object(Default::default()));
@@ -175,6 +155,10 @@ pub(crate) fn dispatch<A: CaptureApp>(
             methods: METHODS,
             fixtures: session.fixtures()?,
             default_env: Environment::default(),
+            profiles: crate::profile::Profile::builtin()
+                .into_iter()
+                .map(|p| p.name)
+                .collect(),
             open: session.is_open(),
         }),
         "open" => {
@@ -206,7 +190,8 @@ pub(crate) fn dispatch<A: CaptureApp>(
             let p: AdvanceParams = params(p)?;
             json(session.advance(p.ms)?)
         }
-        "capture" => capture(session, params(p)?),
+        "capture" => super::capture::capture(session, params(p)?),
+        "report" => super::capture::report(session, params(p)?),
         "outline" => outline(session, params(p)?),
         "explain" => explain(session, params(p)?),
         "query" => query(session, params(p)?),
@@ -237,67 +222,6 @@ pub(crate) fn dispatch<A: CaptureApp>(
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Empty {}
-
-/// `capture`.
-fn capture<A: CaptureApp>(session: &Session<A>, p: CaptureParams) -> Result<Value, RpcError> {
-    let mut layers = p.layers.clone();
-    // The text view reads the grid, and its owners layer the owners.
-    let mut needs = |l: Layer| {
-        if !layers.contains(&l) {
-            layers.push(l);
-        }
-    };
-    if let Some(o) = p.text {
-        needs(Layer::Grid);
-        if o.owners {
-            needs(Layer::Owners);
-        }
-    }
-    let mut capture = session.capture(&CaptureRequest::with_layers(layers))?;
-    let text = p.text.and_then(|o| capture_text(&capture, o));
-    if !p.layers.contains(&Layer::Grid) {
-        capture.grid = None;
-    }
-    if !p.layers.contains(&Layer::Owners) {
-        capture.owners = None;
-        if !p.layers.contains(&Layer::Boxes) && !p.layers.contains(&Layer::Nodes) {
-            capture.nodes = None;
-        }
-    }
-    let Some(out) = p.out else {
-        return json(CaptureResult {
-            capture,
-            text,
-            files: Vec::new(),
-        });
-    };
-    let write = |path: PathBuf, bytes: &[u8]| -> Result<String, RpcError> {
-        std::fs::write(&path, bytes)
-            .map_err(|e| RpcError::new(code::IO, format!("writing {}: {e}", path.display())))?;
-        Ok(path.display().to_string())
-    };
-    let mut files = Vec::new();
-    let body = serde_json::to_vec_pretty(&capture)
-        .map_err(|e| RpcError::new(code::IO, format!("capture does not serialize: {e}")))?;
-    files.push(write(with_suffix(&out, ".json"), &body)?);
-    if let Some(t) = &text {
-        files.push(write(with_suffix(&out, ".txt"), t.as_bytes())?);
-    }
-    capture.grid = None;
-    json(CaptureResult {
-        capture,
-        text: None,
-        files,
-    })
-}
-
-/// `path` with `suffix` appended to its last component (`shot.v2` →
-/// `shot.v2.json`, where `with_extension` would drop `.v2`).
-fn with_suffix(path: &std::path::Path, suffix: &str) -> PathBuf {
-    let mut s = path.as_os_str().to_os_string();
-    s.push(suffix);
-    PathBuf::from(s)
-}
 
 /// `outline`'s parameters.
 #[derive(Debug, Clone, Default, Deserialize)]

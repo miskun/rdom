@@ -19,6 +19,7 @@
 //! request` error. Stdout carries the protocol and nothing else
 //! ([`serve`] moves what app code prints to stderr, on Unix).
 
+mod capture;
 mod inspector;
 mod methods;
 mod serve;

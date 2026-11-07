@@ -8,3 +8,6 @@ Cargo.lock.bak
 
 # Claude Code harness artifacts (per-session locks, transcripts).
 .claude/scheduled_tasks.lock
+
+# A golden image test writes the image it got beside the golden on a mismatch.
+*.actual.png

@@ -1113,3 +1113,87 @@ fn delivering_inspector_events_is_reserved_and_refused() {
     );
     assert!(r["result"].is_object(), "{r}");
 }
+
+// ── the png view (phase 5) ──
+
+#[test]
+fn a_png_view_is_drawn_with_the_profile_and_scale_asked_for() {
+    let mut s = open("plain");
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":1,"method":"capture","params":{"png":{"profile":"xterm-light","scale":2}}}"#,
+    );
+    let png = &r["result"]["png"];
+    assert_eq!(png["profile"], "xterm-light", "{r}");
+    assert_eq!(png["scale"], 2);
+    let (w, h) = (small().viewport.width, small().viewport.height);
+    assert_eq!(png["width"], u32::from(w) * 16);
+    assert_eq!(png["height"], u32::from(h) * 32);
+    // The PNG signature, base64.
+    assert!(
+        png["base64"].as_str().unwrap().starts_with("iVBORw0KGgo"),
+        "{png}"
+    );
+    assert!(
+        r["result"].get("grid").is_none(),
+        "the grid layer was not asked for"
+    );
+    // describe lists the profiles, the default first.
+    let d = call(&mut s, r#"{"jsonrpc":"2.0","id":2,"method":"describe"}"#);
+    assert_eq!(d["result"]["profiles"][0], "xterm-dark");
+}
+
+#[test]
+fn a_png_view_refuses_an_unknown_profile_or_scale() {
+    let mut s = open("plain");
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":1,"method":"capture","params":{"png":{"profile":"amber"}}}"#,
+    );
+    let msg = r["error"]["message"].as_str().unwrap();
+    assert!(msg.contains("xterm-dark"), "the known ones: {msg}");
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":2,"method":"capture","params":{"png":{"scale":9}}}"#,
+    );
+    assert_eq!(r["error"]["code"], code::INVALID_PARAMS, "{r}");
+}
+
+#[test]
+fn a_report_is_one_deterministic_page_with_every_elements_explanation() {
+    let s = open("plain");
+    let profile = crate::Profile::default_profile();
+    let a = s.report(&profile, 1).unwrap();
+    assert_eq!(
+        a,
+        s.report(&profile, 1).unwrap(),
+        "the same frame, the same bytes"
+    );
+    assert!(a.starts_with("<!doctype html>"));
+    assert!(a.contains("data:image/png;base64,"));
+    // The embedded data: the frame's image, and the paragraph explained
+    // with its winning `color` declaration.
+    let data = a
+        .split_once(r#"<script type="application/json" id="data">"#)
+        .unwrap()
+        .1
+        .split_once("</script>")
+        .unwrap()
+        .0;
+    let d: serde_json::Value = serde_json::from_str(&data.replace("<\\/", "</")).unwrap();
+    assert!(d["png"].as_str().unwrap().starts_with("iVBORw0KGgo"));
+    let explained = d["explain"].as_array().unwrap();
+    let p = explained
+        .iter()
+        .find(|e| e[1]["target"]["tag"] == "p")
+        .expect("the paragraph is explained");
+    let color = p[1]["style"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["property"] == "color")
+        .expect("its color");
+    assert_eq!(color["declaration"]["selector"], "p", "{color}");
+    // Document order, as pairs: node keys are numbers.
+    assert!(d["nodes"].is_array());
+}
