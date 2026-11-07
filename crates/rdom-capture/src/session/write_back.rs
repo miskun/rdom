@@ -10,7 +10,7 @@ use rdom_tui::render::TestBackend;
 use rdom_tui::{App, RuleOrigin, SourceFile, StylesheetId};
 
 use super::inspect::{drop_replaced, invalid, source};
-use super::{Session, SessionError};
+use super::{Session, SessionError, Step};
 use crate::app::CaptureApp;
 use crate::edit::patch::{DeclEdit, apply};
 use crate::edit::{EditNote, Edits, FilePatch, Patch, Record, Reloaded, diff};
@@ -108,6 +108,11 @@ impl<A: CaptureApp> Session<A> {
             for f in files.iter().filter(|f| f.new != f.old) {
                 replace_file(&f.path, &f.new)?;
             }
+            if files.iter().any(|f| f.new != f.old) {
+                self.unreplayable(
+                    "a patch rewrote the CSS files the app reads when it is built, so a rebuild starts from them",
+                );
+            }
         }
         out.files = files
             .into_iter()
@@ -160,6 +165,7 @@ impl<A: CaptureApp> Session<A> {
             }
             Ok(())
         })?;
+        self.record(Step::Reload);
         Ok(Reloaded {
             files: backed.into_iter().map(|b| b.path).collect(),
             dropped,

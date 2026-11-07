@@ -10,6 +10,7 @@
 mod color;
 mod grid;
 mod hash;
+pub(crate) mod identity;
 mod node_map;
 pub(crate) mod nodes;
 pub(crate) mod owners;
@@ -17,6 +18,7 @@ pub(crate) mod owners;
 pub use color::ColorValue;
 pub use grid::{Attr, Grid, Run};
 pub use hash::{fnv1a64, grid_hash};
+pub use identity::By;
 pub use node_map::NodeMap;
 pub use nodes::{Boxes, NodeInfo, Scroll, node_key};
 pub use owners::{OwnerRun, Owners};

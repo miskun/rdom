@@ -49,6 +49,22 @@ pub(crate) const METHODS: &[MethodInfo] = &[
         summary: "Write the frame as one self-contained HTML page for a person: the image (as the png view draws it) with an inspector over it — hover a cell for its colors, the element whose paint it is, its boxes, and each style's winning declaration and file:line. Params: {out: path, profile?, scale?: 1-4}. Writes <out>.html; returns {file, bytes}.",
     },
     MethodInfo {
+        name: "mark",
+        summary: "Keep the current moment by name, for diff. Params: {name}.",
+    },
+    MethodInfo {
+        name: "diff",
+        summary: "How a marked moment differs from another mark or from now: cells changed (rows, bounds), elements added, removed, moved or resized, and declared style changes — elements matched by identity (id, then data-key, then tag/classes/position), each match saying how. Params: {from: mark, to?: mark, budget?}.",
+    },
+    MethodInfo {
+        name: "whatif",
+        summary: "Try candidate changes, each from this moment in a fork of the session (the session is left as it was): every candidate is a list of steps (edit, force, input, advance), and its answer is its diff against the base after both settle, the patch its edits would make, and an image if asked. Params: {candidates: [{name, steps: [Step]}], settle_ms?: 500, png?: {profile?, scale?}, budget?}.",
+    },
+    MethodInfo {
+        name: "matrix",
+        summary: "Replay this session's steps across a cross product of environments, each axis a list of partial environments laid over the session's ({\"color_scheme\": \"light\"}, {\"viewport\": {\"width\": 60}}), and answer each variant's frame hash with a contact sheet of them all. Params: {axes: [[partial env]], settle_ms?: 500, png?: {profile?, scale?}, columns?, out?: path (writes <out>.png)}.",
+    },
+    MethodInfo {
         name: "outline",
         summary: "The landmarks outline: landmarks, headings, lists, controls and focusable elements, nested, each with role, name, rect and state. Params: {depth?: integer, detail?: \"outline\"|\"summary\"|\"full\", budget?: tokens}. Read it first.",
     },
@@ -192,6 +208,10 @@ pub(crate) fn dispatch<A: CaptureApp>(
         }
         "capture" => super::capture::capture(session, params(p)?),
         "report" => super::capture::report(session, params(p)?),
+        "mark" => super::variants::mark(session, params(p)?),
+        "diff" => super::variants::diff(session, params(p)?),
+        "whatif" => super::variants::whatif(session, params(p)?),
+        "matrix" => super::variants::matrix(session, params(p)?),
         "outline" => outline(session, params(p)?),
         "explain" => explain(session, params(p)?),
         "query" => query(session, params(p)?),

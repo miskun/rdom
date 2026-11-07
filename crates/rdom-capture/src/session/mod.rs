@@ -23,7 +23,9 @@
 mod error;
 mod frame;
 mod inspect;
+mod log;
 mod report;
+mod snapshot;
 mod write_back;
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -33,6 +35,8 @@ use rdom_tui::render::TestBackend;
 use serde::{Deserialize, Serialize};
 
 pub use error::SessionError;
+pub use log::Step;
+pub use snapshot::MAX_MARKS;
 
 use crate::app::{CaptureApp, FixtureInfo};
 use crate::capture::{Capture, Layer, Meta, SCHEMA, node_key, nodes, owners};
@@ -48,15 +52,24 @@ pub const MAX_ADVANCE_MS: u64 = 24 * 60 * 60 * 1000;
 
 /// A session over the app `A` describes.
 pub struct Session<A: CaptureApp> {
-    def: A,
+    /// The app's description, shared with the session's forks.
+    def: std::rc::Rc<A>,
     open: Option<Opened>,
+    /// Moments kept by name for `diff`, oldest first.
+    marks: Vec<(String, crate::variants::diff::Snapshot)>,
 }
 
 /// The open app, what it was opened with, and its current frame.
 struct Opened {
     app: App<TestBackend>,
     env: Environment,
+    /// The environment it was opened in (a resize changes `env`).
+    opened_env: Environment,
     fixture: Option<String>,
+    /// The steps since it opened (`log`).
+    log: Vec<Step>,
+    /// Why it can no longer be rebuilt from its log, once it can't.
+    unreplayable: Option<String>,
     time_ms: u64,
     frame: Frame,
     /// The inspector's edits and forced states (`inspect`).
@@ -143,7 +156,11 @@ fn guarded<T>(f: impl FnOnce() -> Result<T, SessionError>) -> Result<T, SessionE
 impl<A: CaptureApp> Session<A> {
     /// A session over `def`, with no app open.
     pub fn new(def: A) -> Self {
-        Session { def, open: None }
+        Session {
+            def: std::rc::Rc::new(def),
+            open: None,
+            marks: Vec::new(),
+        }
     }
 
     /// The app's fixtures ([`CaptureApp::fixtures`]), its code guarded.
@@ -166,8 +183,12 @@ impl<A: CaptureApp> Session<A> {
 
     /// The open app, mutably — for Rust callers that drive it themselves.
     /// Steps taken through it are not on the session's clock, and the
-    /// next capture reads the frame of the session's last step.
+    /// next capture reads the frame of the session's last step. They are
+    /// not in its log either, so the session can no longer be forked.
     pub fn app_mut(&mut self) -> Result<&mut App<TestBackend>, SessionError> {
+        self.unreplayable(
+            "the app was driven through Session::app_mut, outside the session's steps",
+        );
         self.open
             .as_mut()
             .map(|o| &mut o.app)
@@ -194,7 +215,7 @@ impl<A: CaptureApp> Session<A> {
                 known,
             });
         }
-        let def = &self.def;
+        let def = &*self.def;
         let app = guarded(|| {
             let app = def
                 .build(&env, fixture)
@@ -211,8 +232,11 @@ impl<A: CaptureApp> Session<A> {
         let frame = Frame::of(&app);
         self.open = Some(Opened {
             app,
+            opened_env: env.clone(),
             env,
             fixture: fixture.map(str::to_string),
+            log: Vec::new(),
+            unreplayable: None,
             time_ms: 0,
             frame,
             edits: crate::edit::Edits::default(),
@@ -251,6 +275,9 @@ impl<A: CaptureApp> Session<A> {
             }
             Ok(())
         })?;
+        self.record(Step::Input {
+            inputs: inputs.to_vec(),
+        });
         Ok(self.change_since(&before))
     }
 
@@ -268,6 +295,7 @@ impl<A: CaptureApp> Session<A> {
             o.time_ms += ms;
             Ok(())
         })?;
+        self.record(Step::Advance { ms });
         Ok(self.change_since(&before))
     }
 

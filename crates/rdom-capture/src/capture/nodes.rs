@@ -36,6 +36,11 @@ pub struct NodeInfo {
     pub parent: Option<String>,
     /// A selector-like path from the root: `main > section#settings.panel`.
     pub path: String,
+    /// Its identity across captures (`capture::identity`): what a diff
+    /// matches it by.
+    pub key: String,
+    /// Which rule named it: its `id`, its `data-key`, or its fingerprint.
+    pub key_by: super::By,
 }
 
 /// An element's boxes, each `[x, y, width, height]` in cells.
@@ -115,7 +120,17 @@ fn element_path(dom: &TuiDom, id: NodeId) -> Vec<NodeId> {
 
 /// What element `id` is.
 pub(crate) fn node_info(dom: &TuiDom, id: NodeId) -> NodeInfo {
+    node_info_in(dom, id, &super::identity::identities(dom))
+}
+
+/// What element `id` is, its identity looked up in `identities`.
+fn node_info_in(
+    dom: &TuiDom,
+    id: NodeId,
+    identities: &std::collections::HashMap<NodeId, super::identity::Identity>,
+) -> NodeInfo {
     let n = dom.node(id);
+    let identity = identities.get(&id);
     let path = element_path(dom, id);
     NodeInfo {
         tag: n.tag_name().unwrap_or_default().to_ascii_lowercase(),
@@ -127,6 +142,8 @@ pub(crate) fn node_info(dom: &TuiDom, id: NodeId) -> NodeInfo {
             .map(|p| step(dom, *p))
             .collect::<Vec<_>>()
             .join(" > "),
+        key: identity.map_or_else(String::new, |i| i.key.clone()),
+        key_by: identity.map_or(super::By::Fingerprint, |i| i.by),
     }
 }
 
@@ -149,8 +166,9 @@ pub(crate) fn nodes(
     dom: &TuiDom,
     ids: impl IntoIterator<Item = NodeId>,
 ) -> super::NodeMap<NodeInfo> {
+    let identities = super::identity::identities(dom);
     ids.into_iter()
-        .map(|id| (node_key(id), node_info(dom, id)))
+        .map(|id| (node_key(id), node_info_in(dom, id, &identities)))
         .collect()
 }
 

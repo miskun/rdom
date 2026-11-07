@@ -42,6 +42,17 @@ impl ForcedState {
         }
     }
 
+    /// The pseudo-class's name, without its colon (`"focus-visible"`).
+    pub fn name(self) -> &'static str {
+        match self {
+            ForcedState::Hover => "hover",
+            ForcedState::Active => "active",
+            ForcedState::Focus => "focus",
+            ForcedState::FocusVisible => "focus-visible",
+            ForcedState::FocusWithin => "focus-within",
+        }
+    }
+
     /// The state a pseudo-class name (`"hover"`, `":focus-visible"`) names.
     pub fn from_name(name: &str) -> Option<Self> {
         Some(match name.trim_start_matches(':') {
@@ -123,6 +134,14 @@ mod tests {
 
     use super::ForcedState;
     use crate::{Dom, Mutation, MutationObserver, SelectorCaches};
+
+    #[test]
+    fn a_states_name_names_it() {
+        for state in ForcedState::ALL {
+            assert_eq!(ForcedState::from_name(state.name()), Some(state));
+        }
+        assert_eq!(ForcedState::FocusVisible.name(), "focus-visible");
+    }
 
     struct Count(Rc<Cell<usize>>);
     impl MutationObserver<()> for Count {

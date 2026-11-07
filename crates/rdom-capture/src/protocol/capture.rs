@@ -72,7 +72,7 @@ pub(crate) struct PngResult {
     pub base64: Option<String>,
 }
 
-fn invalid(msg: impl Into<String>) -> RpcError {
+pub(super) fn invalid(msg: impl Into<String>) -> RpcError {
     RpcError::new(code::INVALID_PARAMS, msg)
 }
 
@@ -83,7 +83,7 @@ impl From<RasterError> for RpcError {
 }
 
 /// The profile `name` names, or the default.
-fn profile(name: Option<&str>) -> Result<Profile, RpcError> {
+pub(super) fn profile(name: Option<&str>) -> Result<Profile, RpcError> {
     match name {
         None => Ok(Profile::default_profile()),
         Some(n) => Profile::named(n).ok_or_else(|| {
@@ -189,7 +189,7 @@ pub(crate) fn capture<A: CaptureApp>(
 
 /// `path` with `suffix` appended to its last component (`shot.v2` →
 /// `shot.v2.json`, where `with_extension` would drop `.v2`).
-fn with_suffix(path: &std::path::Path, suffix: &str) -> PathBuf {
+pub(super) fn with_suffix(path: &std::path::Path, suffix: &str) -> PathBuf {
     let mut s = path.as_os_str().to_os_string();
     s.push(suffix);
     PathBuf::from(s)

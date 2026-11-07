@@ -62,6 +62,7 @@ pub mod protocol;
 pub(crate) mod query;
 pub mod raster;
 pub mod session;
+pub mod variants;
 pub mod views;
 
 pub use app::{CaptureApp, FixtureInfo};
@@ -73,7 +74,10 @@ pub use profile::{Profile, Rgb};
 pub use protocol::serve;
 pub use query::Detail;
 pub use raster::{Image, Raster, RasterError};
-pub use session::{CaptureRequest, Change, MAX_ADVANCE_MS, Session, SessionError, Suppressed};
+pub use session::{
+    CaptureRequest, Change, MAX_ADVANCE_MS, Session, SessionError, Step, Suppressed,
+};
+pub use variants::diff::{Diff, Snapshot};
 
 #[cfg(test)]
 mod tests;

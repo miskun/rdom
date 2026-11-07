@@ -23,6 +23,7 @@ mod capture;
 mod inspector;
 mod methods;
 mod serve;
+mod variants;
 
 #[cfg(test)]
 pub(crate) use methods::METHODS;
@@ -90,6 +91,10 @@ pub mod code {
     pub const INVALID_ENVIRONMENT: i64 = -32005;
     /// An input can't be turned into terminal events.
     pub const INVALID_INPUT: i64 = -32006;
+    /// The session cannot be rebuilt from its steps.
+    pub const UNREPLAYABLE: i64 = -32007;
+    /// A rebuilt session shows another frame: the app is not deterministic.
+    pub const DIVERGED: i64 = -32008;
 }
 
 impl RpcError {
@@ -113,6 +118,8 @@ impl From<SessionError> for RpcError {
             SessionError::Io(_) => code::IO,
             SessionError::InvalidEnvironment(_) => code::INVALID_ENVIRONMENT,
             SessionError::InvalidInput(_) => code::INVALID_INPUT,
+            SessionError::Unreplayable(_) => code::UNREPLAYABLE,
+            SessionError::Diverged { .. } => code::DIVERGED,
         };
         let data = match &e {
             SessionError::UnknownFixture { known, .. } => {

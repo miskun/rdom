@@ -20,6 +20,11 @@ pub enum SessionError {
     AppPanicked(String),
     /// Drawing a frame failed.
     Io(std::io::Error),
+    /// The session cannot be rebuilt from its log (a fork), and why.
+    Unreplayable(String),
+    /// A fork rebuilt from the log shows another frame than the session
+    /// (each named by its grid hash): the app is not deterministic.
+    Diverged { expected: String, got: String },
 }
 
 impl fmt::Display for SessionError {
@@ -39,6 +44,14 @@ impl fmt::Display for SessionError {
                 )
             }
             SessionError::Io(e) => write!(f, "drawing a frame failed: {e}"),
+            SessionError::Unreplayable(why) => {
+                write!(f, "the session cannot be rebuilt from its steps: {why}")
+            }
+            SessionError::Diverged { expected, got } => write!(
+                f,
+                "a fork rebuilt from the session's steps shows another frame ({got}, the session {expected}): \
+                 the app is not deterministic — another thread feeding it (CAPTURE-INJECT-1)?"
+            ),
         }
     }
 }

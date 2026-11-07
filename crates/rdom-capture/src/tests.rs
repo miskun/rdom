@@ -1252,3 +1252,43 @@ fn a_reports_owners_carry_the_layer_the_page_reads() {
     // And the swatches' palette: the profile's 256 colors.
     assert_eq!(d["palette"].as_array().unwrap().len(), 256);
 }
+
+// ── the variant methods (phase 6) ──
+
+#[test]
+fn the_variant_methods_answer_over_the_protocol() {
+    let mut s = open("plain");
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":1,"method":"mark","params":{"name":"a"}}"#,
+    );
+    assert_eq!(r["result"]["marked"], "a", "{r}");
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":2,"method":"diff","params":{"from":"a"}}"#,
+    );
+    assert_eq!(r["result"]["cells_changed"], 0, "{r}");
+    // whatif: a new rule for every paragraph, with an image.
+    let r = call(
+        &mut s,
+        r##"{"jsonrpc":"2.0","id":3,"method":"whatif","params":{"settle_ms":0,"png":{},"candidates":[
+            {"name":"blue","steps":[{"step":"edit","target":{"new-rule":{"selector":"p"}},"property":"color","value":"#0000ff"}]}]}}"##,
+    );
+    let o = &r["result"]["outcomes"][0];
+    assert_eq!(o["name"], "blue", "{r}");
+    assert!(o["diff"]["cells_changed"].as_u64().unwrap() > 0, "{o}");
+    assert!(o["png"].as_str().unwrap().starts_with("iVBORw0KGgo"));
+    // matrix: two schemes, one sheet.
+    let r = call(
+        &mut s,
+        r#"{"jsonrpc":"2.0","id":4,"method":"matrix","params":{"settle_ms":0,"axes":[[{"color_scheme":"dark"},{"color_scheme":"light"}]]}}"#,
+    );
+    assert_eq!(r["result"]["variants"].as_array().unwrap().len(), 2, "{r}");
+    assert_eq!(r["result"]["sheet"]["columns"], 2);
+    assert!(
+        r["result"]["sheet"]["base64"]
+            .as_str()
+            .unwrap()
+            .starts_with("iVBORw0KGgo")
+    );
+}

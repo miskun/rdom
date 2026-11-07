@@ -8,7 +8,7 @@ use rdom_tui::core_api::{ForcedState, NodeId};
 use rdom_tui::render::TestBackend;
 use rdom_tui::{App, RuleContext, SourceFile, StyleSelector, Stylesheet, StylesheetId, TuiStyle};
 
-use super::{Change, Session, SessionError};
+use super::{Change, Session, SessionError, Step};
 use crate::app::CaptureApp;
 use crate::capture::node_key;
 use crate::edit::{EditNote, EditTarget, Edited, Edits, Record, Reset, unwritable};
@@ -265,6 +265,12 @@ impl<A: CaptureApp> Session<A> {
             source_name: r.source_name,
             new_rule: r.new_rule,
         });
+        self.record(Step::Edit {
+            target: target.clone(),
+            property: property.to_string(),
+            value: value.map(str::to_string),
+            important,
+        });
         Ok((edited, self.change_since(&before)))
     }
 
@@ -286,6 +292,11 @@ impl<A: CaptureApp> Session<A> {
             }
             Ok(())
         })?;
+        self.record(Step::Force {
+            node: node.to_string(),
+            state: state.name().to_string(),
+            on,
+        });
         Ok(self.change_since(&before))
     }
 
@@ -310,6 +321,7 @@ impl<A: CaptureApp> Session<A> {
             o.edits.forced.clear();
             Ok(())
         })?;
+        self.record(Step::Reset);
         Ok(Reset {
             change: self.change_since(&before),
             dropped,

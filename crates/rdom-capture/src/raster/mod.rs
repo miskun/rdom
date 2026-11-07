@@ -14,6 +14,7 @@
 
 pub(crate) mod font;
 pub(crate) mod png;
+pub mod sheet;
 
 use crate::capture::{Attr, Grid};
 use crate::profile::{Profile, Rgb};
