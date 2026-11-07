@@ -13,14 +13,12 @@ use crate::profile::Rgb;
 /// `image` as a PNG file.
 pub(crate) fn encode(image: &Image) -> Vec<u8> {
     let (w, h) = (image.width, image.height);
-    let palette = palette_of(&image.pixels);
+    let (palette, raw) = match indexed(&image.pixels) {
+        Some((colors, indices)) => (Some(colors), indices),
+        None => (None, image.pixels.iter().flatten().copied().collect()),
+    };
     let bpp = if palette.is_some() { 1 } else { 3 };
     let stride = w as usize * bpp;
-    let mut raw = Vec::with_capacity(stride * h as usize);
-    match &palette {
-        Some((_, index)) => raw.extend(image.pixels.iter().map(|p| index[p])),
-        None => raw.extend(image.pixels.iter().flatten()),
-    }
     let filtered = filter(&raw, stride, h as usize, bpp);
 
     let mut out = Vec::new();
@@ -32,7 +30,7 @@ pub(crate) fn encode(image: &Image) -> Vec<u8> {
     // filtering; no interlace.
     ihdr.extend_from_slice(&[8, if palette.is_some() { 3 } else { 2 }, 0, 0, 0]);
     chunk(&mut out, b"IHDR", &ihdr);
-    if let Some((colors, _)) = &palette {
+    if let Some(colors) = &palette {
         let plte: Vec<u8> = colors.iter().flatten().copied().collect();
         chunk(&mut out, b"PLTE", &plte);
     }
@@ -41,21 +39,35 @@ pub(crate) fn encode(image: &Image) -> Vec<u8> {
     out
 }
 
-/// The image's colors in first-seen order and a lookup into them, when
-/// there are at most 256.
-fn palette_of(pixels: &[Rgb]) -> Option<(Vec<Rgb>, HashMap<Rgb, u8>)> {
+/// The image's colors in first-seen order and each pixel's index into
+/// them, when there are at most 256. One pass; a pixel the color of the one
+/// before it (most of a terminal frame) takes its index without a lookup.
+fn indexed(pixels: &[Rgb]) -> Option<(Vec<Rgb>, Vec<u8>)> {
     let mut colors: Vec<Rgb> = Vec::new();
-    let mut map = HashMap::new();
-    for p in pixels {
-        if !map.contains_key(p) {
-            if colors.len() == 256 {
-                return None;
+    let mut map: HashMap<Rgb, u8> = HashMap::new();
+    let mut indices = Vec::with_capacity(pixels.len());
+    let mut last: Option<(Rgb, u8)> = None;
+    for &p in pixels {
+        let i = match last {
+            Some((c, i)) if c == p => i,
+            _ => {
+                let i = match map.get(&p) {
+                    Some(&i) => i,
+                    None if colors.len() == 256 => return None,
+                    None => {
+                        let i = colors.len() as u8;
+                        map.insert(p, i);
+                        colors.push(p);
+                        i
+                    }
+                };
+                last = Some((p, i));
+                i
             }
-            map.insert(*p, colors.len() as u8);
-            colors.push(*p);
-        }
+        };
+        indices.push(i);
     }
-    Some((colors, map))
+    Some((colors, indices))
 }
 
 /// Each row prefixed by its filter type and filtered.

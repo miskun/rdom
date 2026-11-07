@@ -29,8 +29,12 @@ fn acid_png(page: usize, profile: &str) -> (Vec<u8>, Vec<char>) {
         .capture(&CaptureRequest::with_layers([Layer::Grid]))
         .unwrap();
     let profile = Profile::named(profile).unwrap();
-    let image = render(capture.grid.as_ref().unwrap(), Raster::new(&profile, 1));
-    (image.png(), image.missing)
+    let image = render(
+        capture.grid.as_ref().unwrap(),
+        Raster::new(&profile, 1).unwrap(),
+    )
+    .unwrap();
+    (image.png(), image.missing().to_vec())
 }
 
 /// The glyphs unscii-16 lacks on acid page 1: its CJK sample, drawn as

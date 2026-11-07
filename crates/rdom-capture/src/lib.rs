@@ -72,7 +72,7 @@ pub use input::{Button, Input, MouseAction};
 pub use profile::{Profile, Rgb};
 pub use protocol::serve;
 pub use query::Detail;
-pub use raster::{Image, Raster};
+pub use raster::{Image, Raster, RasterError};
 pub use session::{CaptureRequest, Change, MAX_ADVANCE_MS, Session, SessionError, Suppressed};
 
 #[cfg(test)]

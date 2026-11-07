@@ -11,14 +11,19 @@ fn grid(w: u16, text: &str, style: Style) -> Grid {
 }
 
 fn draw(g: &Grid, profile: &Profile, scale: u32) -> super::Image {
-    render(g, Raster::new(profile, scale))
+    render(g, Raster::new(profile, scale).unwrap()).unwrap()
+}
+
+/// The pixel at `(x, y)`, which the test knows is inside the image.
+fn px(img: &super::Image, x: u32, y: u32) -> Rgb {
+    img.at(x, y).expect("inside the image")
 }
 
 /// The pixels of cell `cx` (8 wide at scale 1) that are `c`.
 fn count(img: &super::Image, cx: u32, c: Rgb) -> usize {
     (0..16)
         .flat_map(|y| (0..8).map(move |x| (cx * 8 + x, y)))
-        .filter(|&(x, y)| img.at(x, y) == c)
+        .filter(|&(x, y)| px(img, x, y) == c)
         .count()
 }
 
@@ -45,7 +50,7 @@ fn a_glyph_is_its_font_bitmap_in_the_glyph_color() {
     for y in 0..16 {
         for x in 0..8 {
             let want = if a.at(x, y) { red } else { p.bg };
-            assert_eq!(img.at(x as u32, y as u32), want, "({x},{y})");
+            assert_eq!(px(&img, x as u32, y as u32), want, "({x},{y})");
         }
     }
 }
@@ -58,7 +63,7 @@ fn scaling_repeats_each_font_pixel() {
     let three = draw(&g, &p, 3);
     for y in 0..48 {
         for x in 0..24 {
-            assert_eq!(three.at(x, y), one.at(x / 3, y / 3));
+            assert_eq!(px(&three, x, y), px(&one, x / 3, y / 3));
         }
     }
 }
@@ -86,10 +91,10 @@ fn a_wide_character_the_font_lacks_is_a_wide_box() {
     let img = draw(&grid(2, "中", Style::default()), &p, 1);
     assert_eq!(img.missing, vec!['中']);
     assert!(
-        (0..16).all(|x| img.at(x, 0) == p.fg),
+        (0..16).all(|x| px(&img, x, 0) == p.fg),
         "the box spans both cells"
     );
-    assert!((0..16).all(|y| img.at(15, y) == p.fg));
+    assert!((0..16).all(|y| px(&img, 15, y) == p.fg));
 }
 
 #[test]
@@ -98,7 +103,7 @@ fn box_drawing_comes_from_the_font_and_joins_across_cells() {
     let g = grid(2, "──", Style::default());
     let img = draw(&g, &p, 1);
     // A horizontal line through both cells: some row is lit edge to edge.
-    let joined = (0..16).any(|y| (0..16).all(|x| img.at(x, y) == p.fg));
+    let joined = (0..16).any(|y| (0..16).all(|x| px(&img, x, y) == p.fg));
     assert!(joined);
 }
 
@@ -111,8 +116,8 @@ fn a_character_the_font_lacks_is_a_box_and_is_listed() {
     let img = draw(&g, &p, 1);
     assert_eq!(img.missing, vec![c], "listed once");
     // The box's frame.
-    assert!((0..8).all(|x| img.at(x, 0) == p.fg && img.at(x, 15) == p.fg));
-    assert!((0..16).all(|y| img.at(0, y) == p.fg && img.at(7, y) == p.fg));
+    assert!((0..8).all(|x| px(&img, x, 0) == p.fg && px(&img, x, 15) == p.fg));
+    assert!((0..16).all(|y| px(&img, 0, y) == p.fg && px(&img, 7, y) == p.fg));
 }
 
 // --- TUI glyph ranges (the spec's per-range fixtures) ---------------------
@@ -220,8 +225,8 @@ fn colors_go_through_the_profile() {
     let g = grid(1, " ", Style::default().bg(Color::Indexed(4)));
     let dark = Profile::default_profile();
     let light = Profile::named("solarized-light").unwrap();
-    assert_eq!(draw(&g, &dark, 1).at(0, 0), dark.palette[4]);
-    assert_eq!(draw(&g, &light, 1).at(0, 0), light.palette[4]);
+    assert_eq!(px(&draw(&g, &dark, 1), 0, 0), dark.palette[4]);
+    assert_eq!(px(&draw(&g, &light, 1), 0, 0), light.palette[4]);
     assert_ne!(dark.palette[4], light.palette[4]);
 }
 
@@ -257,7 +262,7 @@ fn italic_shears_the_upper_half_within_the_cell() {
     // The lower half is unchanged.
     for y in 8..16 {
         for x in 0..8 {
-            assert_eq!(upright.at(x, y), italic.at(x, y));
+            assert_eq!(px(&upright, x, y), px(&italic, x, y));
         }
     }
     let mut no_italic = p.clone();
@@ -280,14 +285,14 @@ fn underline_takes_its_own_color_and_style() {
         .add_modifier(Modifier::UNDERLINED)
         .underline_color(Color::Rgb(0, 200, 0));
     let img = draw(&grid(1, " ", style), &p, 1);
-    assert!((0..8).all(|x| img.at(x, 15) == [0, 200, 0]));
+    assert!((0..8).all(|x| px(&img, x, 15) == [0, 200, 0]));
     let dotted = draw(
         &grid(1, " ", style.add_modifier(Modifier::UNDERLINE_DOTTED)),
         &p,
         1,
     );
-    assert_eq!(dotted.at(0, 15), [0, 200, 0]);
-    assert_eq!(dotted.at(1, 15), p.bg);
+    assert_eq!(px(&dotted, 0, 15), [0, 200, 0]);
+    assert_eq!(px(&dotted, 1, 15), p.bg);
 }
 
 #[test]
@@ -295,12 +300,12 @@ fn strikethrough_and_overline_follow_the_profile() {
     let style = Style::default().add_modifier(Modifier::CROSSED_OUT | Modifier::OVERLINED);
     let p = Profile::default_profile();
     let img = draw(&grid(1, " ", style), &p, 1);
-    assert!((0..8).all(|x| img.at(x, 8) == p.fg && img.at(x, 0) == p.fg));
+    assert!((0..8).all(|x| px(&img, x, 8) == p.fg && px(&img, x, 0) == p.fg));
     let mut bare = p.clone();
     bare.strikethrough = false;
     bare.overline = false;
     let img = draw(&grid(1, " ", style), &bare, 1);
-    assert!((0..8).all(|x| img.at(x, 8) == p.bg && img.at(x, 0) == p.bg));
+    assert!((0..8).all(|x| px(&img, x, 8) == p.bg && px(&img, x, 0) == p.bg));
 }
 
 #[test]
@@ -399,4 +404,105 @@ fn long_matches_and_far_distances_round_trip() {
     };
     let (_, decoded) = decode(&img.png());
     assert_eq!(decoded, rgb_bytes(&img));
+}
+
+// --- Limits and contracts -------------------------------------------------
+
+#[test]
+fn an_image_past_the_pixel_limit_is_refused_not_overflowed() {
+    // 2048 × 1024 cells at ×4: 65536 × 65536 pixels, 2^32 — an overflow in
+    // u32 and gigabytes in memory.
+    let g = Grid {
+        width: 2048,
+        height: 1024,
+        rows: Vec::new(),
+    };
+    let p = Profile::default_profile();
+    let err = render(&g, Raster::new(&p, 4).unwrap()).unwrap_err();
+    assert_eq!(
+        err,
+        super::RasterError::TooLarge {
+            width: 65536,
+            height: 65536
+        }
+    );
+    assert!(err.to_string().contains("smaller"), "{err}");
+}
+
+#[test]
+fn an_empty_grid_and_a_scale_out_of_range_are_refused() {
+    let p = Profile::default_profile();
+    let g = Grid {
+        width: 0,
+        height: 3,
+        rows: Vec::new(),
+    };
+    assert_eq!(
+        render(&g, Raster::new(&p, 1).unwrap()).unwrap_err(),
+        super::RasterError::Empty
+    );
+    assert_eq!(
+        Raster::new(&p, 0).unwrap_err(),
+        super::RasterError::Scale(0)
+    );
+    assert_eq!(
+        Raster::new(&p, 5).unwrap_err(),
+        super::RasterError::Scale(5)
+    );
+    assert_eq!(Raster::new(&p, 3).unwrap().cell_px(), [24, 48]);
+}
+
+#[test]
+fn what_a_cluster_adds_past_its_first_character_is_listed() {
+    // `e` + COMBINING ACUTE ACCENT: the `e` is drawn, the accent is not —
+    // and is listed rather than dropped unsaid.
+    let p = Profile::default_profile();
+    let img = draw(&grid(2, "e\u{301}x", Style::default()), &p, 1);
+    assert_eq!(img.missing(), ['\u{301}']);
+}
+
+#[test]
+fn an_apps_own_profile_draws_its_palette() {
+    let mut palette = Profile::default_profile().palette;
+    palette[2] = [1, 2, 3];
+    let mine = Profile::new("mine", palette, [200, 200, 200], [10, 10, 10]);
+    let img = draw(
+        &grid(1, " ", Style::default().bg(Color::Indexed(2))),
+        &mine,
+        1,
+    );
+    assert_eq!(px(&img, 0, 0), [1, 2, 3]);
+    let blank = draw(&grid(1, " ", Style::default()), &mine, 1);
+    assert_eq!(px(&blank, 0, 0), [10, 10, 10]);
+}
+
+#[test]
+#[ignore = "a measurement: cargo test --release -p rdom-capture --lib raster_cost -- --ignored --nocapture"]
+fn raster_cost() {
+    // A busy 200 × 60 frame at ×1 and ×4: render and encode, timed.
+    let mut buf = Buffer::empty(Rect::new(0, 0, 200, 60));
+    for y in 0..60 {
+        let line: String = (0..200)
+            .map(|x| char::from(b'!' + ((x + y) % 90) as u8))
+            .collect();
+        let style = Style::default()
+            .fg(Color::Indexed((y % 16) as u8))
+            .bg(Color::Rgb((y * 4) as u8, 20, 40));
+        buf.set_string(0, y, &line, style);
+    }
+    let g = Grid::from_buffer(&buf, ColorDepth::TrueColor);
+    let p = Profile::default_profile();
+    for scale in [1, 4] {
+        let t = std::time::Instant::now();
+        let img = render(&g, Raster::new(&p, scale).unwrap()).unwrap();
+        let drawn = t.elapsed();
+        let bytes = img.png();
+        println!(
+            "200×60 ×{scale}: {}×{} px, render {drawn:?}, png {:?} ({} bytes)",
+            img.width(),
+            img.height(),
+            t.elapsed() - drawn,
+            bytes.len()
+        );
+    }
 }

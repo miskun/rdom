@@ -396,8 +396,8 @@ the same data.
 a grid of cells with a known glyph, colors and attributes, which is a much simpler problem than general text
 rendering:
 
-- **Cells, not text layout.** Each cell is a `cell_w × cell_h` pixel rectangle from the profile (default 8×16;
-  2× scale doubles it). Wide glyphs span two cells. There is no shaping, kerning or hinting.
+- **Cells, not text layout.** Each cell is the font's 8 × 16 pixels times an integer scale, 1–4 (`raster::CELL`); an
+  image is refused past 64 Mi pixels or with no cells (`RasterError`), never overflowed. Wide glyphs span two cells. There is no shaping, kerning or hinting.
 - **One bitmap font for every glyph.** Glyphs come from unscii-16 (Viznut, public domain; `assets/unscii-16.hex`,
   provenance in `assets/NOTICE.md`): 8×16 cells, 2,997 narrow and 243 wide glyphs. It covers every range TUIs draw
   with: box drawing (light, heavy, double, rounded, dashed), block elements and shades, geometric shapes, Braille,
@@ -411,7 +411,9 @@ rendering:
   dotted, dashed, in its own color), strikethrough and overline are drawn by the rasterizer where the profile has
   them. Dim and reverse are already resolved into the cell's colors by rdom's paint.
 - **Missing glyphs are explicit.** A glyph neither drawn procedurally nor in the font renders as a box with its code
-  point in hex, and is listed in `meta.unrendered_glyphs`. Never a blank, never a guess.
+  point in hex, and is listed (`Image::missing`; the `png` view's `unrendered_glyphs`). A character cluster is drawn
+  by its first character, and what the rest add (a combining mark, a variation selector) is listed too. Never a blank,
+  never a guess unsaid.
 - **Color.** Cells are filled with the resolved sRGB colors after the profile's palette and color reduction, so the
   image matches what audits measure. A color with alpha shows as its RGB, opaque — what rdom sends the terminal.
 - **PNG encoding, ours too.** CRC-32, Adler-32 and the chunk writer are a few dozen lines. The image is indexed
@@ -702,12 +704,26 @@ As built, against the plan:
 - Profiles cover palette, default colors, bold-brightens, italic, strikethrough, overline, underline styles and the
   cell size; emoji and ambiguous-width policy and font characteristics (box-drawing gaps, line height) are not
   modeled — the rasterizer is a view, the `emulator` view the ground truth.
+- Cost, measured (release, a busy machine — load 11.5): a 200 × 60 frame renders in 3 ms and encodes in 33 ms at ×1
+  (1600 × 960, 82 KB); at ×4 (6400 × 3840) 22 ms and 208 ms (364 KB). Deflate dominates (`raster_cost`, ignored).
 - The `png` view has no overlays yet (boxes, tab order, hit targets, a highlighted node, a change heatmap): the
   report's inspector draws the boxes; image overlays come with the audits and `diff` that need them.
 - Tests: per-range glyph fixtures (presence, arm positions per weight, Braille dots, block coverage); every kind of
   image decoded by the independent `png` crate (indexed, RGB, long matches); attributes per profile; two goldens of
-  acid page 1, byte-compared on every CI OS; the report's bytes deterministic and its explanation the `explain`
-  answer.
+  acid page 1, byte-compared on every CI OS; the report's bytes equal across two renders in one process, its data
+  carrying the explanation `explain` gives (one property checked against a selector).
+
+Architect review (blocking, fixed with a test first): B1 — an image's size was unchecked (`u32` overflow, gigabytes,
+a panic killing the server): now a scale range, a pixel budget in `u64` and `RasterError`, for `render`, `capture` and
+`report` alike. B2 — `Profile::cell` was a field the rasterizer ignored: removed, the cell is the font's. B3 — the
+report's data escaped only `</`, so app text holding `<!--<script>` kept both scripts from closing: every `<`, `>`, `&`
+is now a JSON escape. B4 — the page read an owner run's `layer`, which is `via`: fixed, and a test pins the names the
+script reads. Non-blocking, fixed: `Image` and `Raster` have private fields (pixels always fill the image, the scale is
+checked once), `Profile::new` for an app's own profile, a cluster's undrawn marks are listed, palette indexing in one
+pass, the inspector's swatches show the profile's color, the report no longer drops an explanation silently. Recorded:
+the image draws what rdom painted for the underline color and the SGR extensions, not what the environment sends
+(`TECH_DEBT` CAPTURE-RASTER-SHOWN-1, before phase 7's audits); each element's explanation re-traces its ancestors
+(shared traces would cut the report's cost on large pages).
 
 ## Open questions
 

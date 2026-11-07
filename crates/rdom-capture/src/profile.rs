@@ -1,7 +1,7 @@
 //! Terminal profiles (`specs/CAPTURE.md` §Terminal profiles): what a real
 //! terminal makes of a frame that rdom's paint does not decide — the 16
 //! ANSI colors and the default ones, whether bold also brightens, which
-//! attributes it draws, and the shape of its cells. A profile turns a
+//! attributes it draws. A profile turns a
 //! painted [`ColorValue`] into the sRGB a viewer sees, for the image views
 //! and the contrast audits.
 
@@ -32,8 +32,6 @@ pub struct Profile {
     /// Underline styles beyond a single line (double, curly, dotted,
     /// dashed); without them every underline is single.
     pub underline_styles: bool,
-    /// A cell's size in pixels (the image views), `[width, height]`.
-    pub cell: [u16; 2],
 }
 
 const XTERM: [Rgb; 16] = [
@@ -109,7 +107,6 @@ impl Profile {
             strikethrough: true,
             overline: true,
             underline_styles: true,
-            cell: [8, 16],
         };
         vec![
             xterm("xterm-dark", [0xe5, 0xe5, 0xe5], [0x00, 0x00, 0x00]),
@@ -124,7 +121,6 @@ impl Profile {
                 strikethrough: false,
                 overline: false,
                 underline_styles: false,
-                cell: [8, 16],
             },
             Profile {
                 name: "solarized-light".to_string(),
@@ -136,9 +132,25 @@ impl Profile {
                 strikethrough: true,
                 overline: true,
                 underline_styles: true,
-                cell: [8, 16],
             },
         ]
+    }
+
+    /// An app's own profile `name`: `palette` for ANSI colors 0–15 and
+    /// `fg` / `bg` for the default colors, drawing every attribute and not
+    /// brightening bold — change the fields for a terminal that differs.
+    pub fn new(name: impl Into<String>, palette: [Rgb; 16], fg: Rgb, bg: Rgb) -> Profile {
+        Profile {
+            name: name.into(),
+            palette,
+            fg,
+            bg,
+            bold_is_bright: false,
+            italic: true,
+            strikethrough: true,
+            overline: true,
+            underline_styles: true,
+        }
     }
 
     /// The built-in profile `name`.

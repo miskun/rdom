@@ -9,7 +9,6 @@ use rdom_tui::core_api::NodeId;
 use super::{CaptureRequest, Session, SessionError};
 use crate::app::CaptureApp;
 use crate::capture::{Layer, node_key};
-use crate::profile::Profile;
 use crate::query::Detail;
 use crate::query::explain;
 use crate::raster::{Raster, render};
@@ -21,7 +20,10 @@ impl<A: CaptureApp> Session<A> {
     /// colors and the element whose paint it shows, that element's boxes,
     /// and how each of its styles came to be. The same frame gives the
     /// same bytes.
-    pub fn report(&self, profile: &Profile, scale: u32) -> Result<String, SessionError> {
+    ///
+    /// Refused ([`SessionError::InvalidInput`]) when the image would be
+    /// past the rasterizer's limits.
+    pub fn report(&self, how: Raster<'_>) -> Result<String, SessionError> {
         let capture = self.capture(&CaptureRequest::with_layers([
             Layer::Grid,
             Layer::Owners,
@@ -37,8 +39,8 @@ impl<A: CaptureApp> Session<A> {
             capture.nodes.as_ref().expect("asked for"),
             capture.boxes.as_ref().expect("asked for"),
         );
-        let scale = scale.max(1);
-        let image = render(grid, Raster::new(profile, scale));
+        let image = render(grid, how).map_err(|e| SessionError::InvalidInput(e.to_string()))?;
+        let profile = how.profile();
         let dom = o.app.dom();
         let ids: HashMap<String, NodeId> = std::iter::once(dom.root())
             .chain(dom.descendants(dom.root()))
@@ -46,10 +48,11 @@ impl<A: CaptureApp> Session<A> {
             .collect();
         let explain = nodes
             .iter()
-            .filter_map(|(key, _)| {
-                let id = *ids.get(key)?;
+            .map(|(key, _)| {
+                let id = ids[key];
                 let e = explain::element(&o.app, id, &[], None, Detail::Summary);
-                Some((key.to_string(), serde_json::to_value(e).ok()?))
+                let e = serde_json::to_value(e).expect("an explanation serializes");
+                (key.to_string(), e)
             })
             .collect();
         let report = Report {
@@ -59,15 +62,17 @@ impl<A: CaptureApp> Session<A> {
             },
             meta: &capture.meta,
             profile: &profile.name,
-            scale,
-            cell: [
-                u32::from(profile.cell[0]) * scale,
-                u32::from(profile.cell[1]) * scale,
-            ],
+            scale: how.scale(),
+            cell: how.cell_px(),
             png: crate::views::base64::base64(&image.png()),
-            width: image.width,
-            height: image.height,
-            missing: image.missing.iter().map(char::to_string).collect(),
+            width: image.width(),
+            height: image.height(),
+            missing: image.missing().iter().map(char::to_string).collect(),
+            palette: (0..=255u8)
+                .map(|n| hex(profile.rgb(crate::capture::ColorValue::Ansi(n), false, false)))
+                .collect(),
+            default_fg: hex(profile.fg),
+            default_bg: hex(profile.bg),
             grid,
             owners,
             nodes: nodes.iter().collect(),
@@ -76,4 +81,9 @@ impl<A: CaptureApp> Session<A> {
         };
         Ok(page(&report))
     }
+}
+
+/// `c` as `#rrggbb`.
+fn hex([r, g, b]: crate::profile::Rgb) -> String {
+    format!("#{r:02x}{g:02x}{b:02x}")
 }

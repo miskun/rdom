@@ -24,6 +24,12 @@ pub(crate) struct Report<'a> {
     pub height: u32,
     /// The glyphs the font lacks.
     pub missing: Vec<String>,
+    /// What the profile shows each color as: ANSI 0–255 and the default
+    /// glyph and background colors, `#rrggbb` — the inspector's swatches
+    /// show what the image does.
+    pub palette: Vec<String>,
+    pub default_fg: String,
+    pub default_bg: String,
     pub grid: &'a crate::capture::Grid,
     pub owners: &'a crate::capture::Owners,
     /// The elements in document order, as `[key, info]` pairs: node keys
@@ -37,9 +43,14 @@ pub(crate) struct Report<'a> {
 /// The page for `report`.
 pub(crate) fn page(report: &Report<'_>) -> String {
     let data = serde_json::to_string(report).expect("a report serializes");
-    // Inside <script>, `</` would end the element early: JSON lets `/`
-    // be escaped.
-    let data = data.replace("</", "<\\/");
+    // The HTML tokenizer reads a <script>'s text for `</script` and for
+    // `<!--` (which can keep the element from ever closing): with every
+    // `<`, `>` and `&` written as a JSON escape — they only occur inside
+    // strings — the data holds neither, whatever the app's text is.
+    let data = data
+        .replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('&', "\\u0026");
     let (head, tail) = TEMPLATE
         .split_once("{{DATA}}")
         .expect("the template has a data slot");
@@ -134,10 +145,17 @@ function runAt(rows, x, y) {
   for (const r of rows[y] || []) if (x >= r.x && x < r.x + r.w) return r;
   return null;
 }
-function color(c) {
-  if (c === "default") return `<span class="muted">default</span>`;
-  const css = /^#[0-9a-f]{6}/.test(c) ? c.slice(0, 7) : null;
-  return (css ? `<span class="chip" style="background:${css}"></span>` : "") + esc(c);
+// What the profile shows a color as (the image's color).
+function shown(c, glyph) {
+  if (c === "default") return glyph ? D.default_fg : D.default_bg;
+  const ansi = /^ansi:(\d+)$/.exec(c);
+  if (ansi) return D.palette[Number(ansi[1])];
+  return /^#[0-9a-f]{6}/.test(c) ? c.slice(0, 7) : null;
+}
+function color(c, glyph) {
+  const css = shown(c, glyph);
+  const swatch = css ? `<span class="chip" style="background:${css}"></span>` : "";
+  return swatch + (c === "default" ? `<span class="muted">default</span> ${esc(css || "")}` : esc(c) + (css && css !== c ? ` <span class="muted">${css}</span>` : ""));
 }
 function label(key) {
   const n = nodes.get(key);
@@ -181,11 +199,11 @@ function showCell(x, y) {
   const g = runAt(D.grid.rows, x, y), o = runAt(D.owners.rows, x, y);
   let h = `<div class="kv"><b>cell</b><span>${x}, ${y}</span>`;
   if (g) {
-    h += `<b>run</b><span>${g.x}–${g.x + g.w - 1}: “${esc(g.text)}”</span><b>fg</b><span>${color(g.fg_shown || g.fg)}</span><b>bg</b><span>${color(g.bg_shown || g.bg)}</span>`;
+    h += `<b>run</b><span>${g.x}–${g.x + g.w - 1}: “${esc(g.text)}”</span><b>fg</b><span>${color(g.fg_shown || g.fg, true)}</span><b>bg</b><span>${color(g.bg_shown || g.bg, false)}</span>`;
     if (g.mods && g.mods.length) h += `<b>attrs</b><span>${esc(g.mods.join(" "))}</span>`;
   }
   if (o && o.joined && o.joined.length) h += `<b>joins</b><span>${o.joined.map(label).join(", ")}</span>`;
-  if (o && o.layer) h += `<b>via layer</b><span>${label(o.layer)}</span>`;
+  if (o && o.via) h += `<b>via layer</b><span>${label(o.via)}</span>`;
   $("cell").innerHTML = h + `</div>`;
   showElement(o ? o.node : null, o ? o.part : null);
 }
@@ -215,6 +233,37 @@ $("elements").addEventListener("click", (ev) => { const k = ev.target.closest("d
 #[cfg(test)]
 mod tests {
     use super::escape;
+
+    #[test]
+    fn the_template_reads_the_fields_the_data_has() {
+        // The page's script reads these names from the serialized capture
+        // layers and explanations; each is a field those types serialize
+        // under (checked against data in `tests.rs`).
+        for name in [
+            "o.via",
+            "o.joined",
+            "o.part",
+            "o.node",
+            "g.fg_shown",
+            "g.bg_shown",
+            "g.mods",
+            "g.text",
+            "d.selector",
+            "d.source",
+            "p.overridden",
+            "p.ancestor",
+            "b.border",
+            "b.padding",
+            "b.content",
+            "n.path",
+            "n.parent",
+            "n.classes",
+            "D.palette",
+        ] {
+            assert!(super::TEMPLATE.contains(name), "{name}");
+        }
+        assert!(!super::TEMPLATE.contains("o.layer"));
+    }
 
     #[test]
     fn text_is_escaped_for_html() {

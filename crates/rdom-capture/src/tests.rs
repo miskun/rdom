@@ -1163,10 +1163,10 @@ fn a_png_view_refuses_an_unknown_profile_or_scale() {
 fn a_report_is_one_deterministic_page_with_every_elements_explanation() {
     let s = open("plain");
     let profile = crate::Profile::default_profile();
-    let a = s.report(&profile, 1).unwrap();
+    let a = s.report(crate::Raster::new(&profile, 1).unwrap()).unwrap();
     assert_eq!(
         a,
-        s.report(&profile, 1).unwrap(),
+        s.report(crate::Raster::new(&profile, 1).unwrap()).unwrap(),
         "the same frame, the same bytes"
     );
     assert!(a.starts_with("<!doctype html>"));
@@ -1180,7 +1180,7 @@ fn a_report_is_one_deterministic_page_with_every_elements_explanation() {
         .split_once("</script>")
         .unwrap()
         .0;
-    let d: serde_json::Value = serde_json::from_str(&data.replace("<\\/", "</")).unwrap();
+    let d: serde_json::Value = serde_json::from_str(data).unwrap();
     assert!(d["png"].as_str().unwrap().starts_with("iVBORw0KGgo"));
     let explained = d["explain"].as_array().unwrap();
     let p = explained
@@ -1196,4 +1196,59 @@ fn a_report_is_one_deterministic_page_with_every_elements_explanation() {
     assert_eq!(color["declaration"]["selector"], "p", "{color}");
     // Document order, as pairs: node keys are numbers.
     assert!(d["nodes"].is_array());
+}
+
+/// The JSON a report page embeds.
+fn report_data(html: &str) -> serde_json::Value {
+    let data = html
+        .split_once(r#"<script type="application/json" id="data">"#)
+        .unwrap()
+        .1
+        .split_once("</script>")
+        .unwrap()
+        .0;
+    serde_json::from_str(data).unwrap()
+}
+
+#[test]
+fn a_reports_data_cannot_close_or_hide_its_script() {
+    // App text that would end the data element early, or open an escaped
+    // comment that keeps both scripts from ever closing.
+    let s = markup_session(
+        r#"<p class="x">&lt;/script&gt;&lt;!--&lt;script&gt;</p>"#,
+        "",
+    );
+    let p = crate::Profile::default_profile();
+    let html = s.report(crate::Raster::new(&p, 1).unwrap()).unwrap();
+    assert_eq!(
+        html.matches("</script>").count(),
+        2,
+        "the data's and the code's"
+    );
+    assert!(!html.contains("<!--"));
+    // The text comes back whole from the data.
+    let d = report_data(&html);
+    let rows = d["grid"]["rows"].to_string();
+    assert!(rows.contains("</script><!--<script>"), "{rows}");
+}
+
+#[test]
+fn a_reports_owners_carry_the_layer_the_page_reads() {
+    // A cell reached through an `opacity` layer: its owner run names the
+    // layer as `via`, the field the page's script reads (`views::html`).
+    let s = markup_session(
+        r#"<div class="fade"><p>hi</p></div>"#,
+        ".fade { opacity: 0.5; } p { color: #ffffff; background: #000080; }",
+    );
+    let p = crate::Profile::default_profile();
+    let d = report_data(&s.report(crate::Raster::new(&p, 1).unwrap()).unwrap());
+    let rows = d["owners"]["rows"].as_array().unwrap();
+    assert!(
+        rows.iter()
+            .flat_map(|r| r.as_array().unwrap())
+            .any(|run| run.get("via").is_some()),
+        "{rows:?}"
+    );
+    // And the swatches' palette: the profile's 256 colors.
+    assert_eq!(d["palette"].as_array().unwrap().len(), 256);
 }

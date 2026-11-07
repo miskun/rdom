@@ -12,13 +12,10 @@ use super::{RpcError, code};
 use crate::app::CaptureApp;
 use crate::capture::{Capture, Layer};
 use crate::profile::Profile;
-use crate::raster::{Raster, render};
+use crate::raster::{Raster, RasterError, render};
 use crate::session::{CaptureRequest, Session};
 use crate::views::base64::base64;
 use crate::views::text::{TextOptions, capture_text};
-
-/// The largest `png` scale: 4 × 8×16 pixels a cell is already 32×64.
-pub(crate) const MAX_SCALE: u32 = 4;
 
 /// `capture`'s parameters.
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -79,6 +76,12 @@ fn invalid(msg: impl Into<String>) -> RpcError {
     RpcError::new(code::INVALID_PARAMS, msg)
 }
 
+impl From<RasterError> for RpcError {
+    fn from(e: RasterError) -> Self {
+        invalid(e.to_string())
+    }
+}
+
 /// The profile `name` names, or the default.
 fn profile(name: Option<&str>) -> Result<Profile, RpcError> {
     match name {
@@ -110,30 +113,32 @@ pub(crate) fn capture<A: CaptureApp>(
     }
     let png_how = match &p.png {
         Some(o) => {
+            let profile = profile(o.profile.as_deref())?;
             let scale = o.scale.unwrap_or(1);
-            if !(1..=MAX_SCALE).contains(&scale) {
-                return Err(invalid(format!("png scale {scale} is not 1–{MAX_SCALE}")));
-            }
+            Raster::new(&profile, scale)?;
             needs(Layer::Grid);
-            Some((profile(o.profile.as_deref())?, scale))
+            Some((profile, scale))
         }
         None => None,
     };
     let mut capture = session.capture(&CaptureRequest::with_layers(layers))?;
     let text = p.text.and_then(|o| capture_text(&capture, o));
-    let image = png_how.map(|(profile, scale)| {
-        let grid = capture.grid.as_ref().expect("the grid was asked for");
-        let image = render(grid, Raster::new(&profile, scale));
-        let result = PngResult {
-            profile: profile.name.clone(),
-            scale,
-            width: image.width,
-            height: image.height,
-            unrendered_glyphs: image.missing.iter().map(char::to_string).collect(),
-            base64: None,
-        };
-        (result, image.png())
-    });
+    let image = match png_how {
+        Some((profile, scale)) => {
+            let grid = capture.grid.as_ref().expect("the grid was asked for");
+            let image = render(grid, Raster::new(&profile, scale)?)?;
+            let result = PngResult {
+                profile: profile.name.clone(),
+                scale,
+                width: image.width(),
+                height: image.height(),
+                unrendered_glyphs: image.missing().iter().map(char::to_string).collect(),
+                base64: None,
+            };
+            Some((result, image.png()))
+        }
+        None => None,
+    };
     if !p.layers.contains(&Layer::Grid) {
         capture.grid = None;
     }
@@ -206,11 +211,8 @@ pub(crate) fn report<A: CaptureApp>(
     session: &Session<A>,
     p: ReportParams,
 ) -> Result<Value, RpcError> {
-    let scale = p.scale.unwrap_or(1);
-    if !(1..=MAX_SCALE).contains(&scale) {
-        return Err(invalid(format!("scale {scale} is not 1–{MAX_SCALE}")));
-    }
-    let html = session.report(&profile(p.profile.as_deref())?, scale)?;
+    let profile = profile(p.profile.as_deref())?;
+    let html = session.report(Raster::new(&profile, p.scale.unwrap_or(1))?)?;
     let path = with_suffix(&p.out, ".html");
     std::fs::write(&path, &html)
         .map_err(|e| RpcError::new(code::IO, format!("writing {}: {e}", path.display())))?;

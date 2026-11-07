@@ -3,7 +3,8 @@
 //! system fonts, integer arithmetic only, so the same capture gives the
 //! same image on every OS.
 //!
-//! Each cell is its background, then its glyph from the bundled font
+//! Each cell is [`CELL`] font pixels times the scale: its background, then
+//! its glyph from the bundled font
 //! (unscii-16, public domain) in its glyph color, then the attributes the profile draws:
 //! bold (a one-pixel smear), italic (the upper half sheared a pixel
 //! right, within its cell), underline (single, double, curly, dotted, dashed, in its own
@@ -17,77 +18,161 @@ pub(crate) mod png;
 use crate::capture::{Attr, Grid};
 use crate::profile::{Profile, Rgb};
 
-/// A rendered image: RGB pixels, row-major.
+/// A cell's size in font pixels: the bundled font's, 8 × 16. The image
+/// views' cells are this times the scale; a terminal's real cell shape is
+/// the `emulator` view's business, not the rasterizer's.
+pub const CELL: [u32; 2] = [8, 16];
+
+/// The largest scale.
+pub const MAX_SCALE: u32 = 4;
+
+/// The most pixels an image may have: 64 Mi (a 200 × 60 frame at scale 4
+/// is 6400 × 3840, 24.6 Mi).
+pub const MAX_PIXELS: u64 = 64 * 1024 * 1024;
+
+/// Why a grid cannot be drawn.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
+pub enum RasterError {
+    /// The scale is not 1–[`MAX_SCALE`].
+    Scale(u32),
+    /// The grid has no cells.
+    Empty,
+    /// The image would have more than [`MAX_PIXELS`] pixels.
+    TooLarge { width: u64, height: u64 },
+}
+
+impl std::fmt::Display for RasterError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RasterError::Scale(s) => write!(f, "scale {s} is not 1–{MAX_SCALE}"),
+            RasterError::Empty => f.write_str("the grid has no cells"),
+            RasterError::TooLarge { width, height } => write!(
+                f,
+                "a {width} × {height} image is past the {MAX_PIXELS}-pixel limit: use a smaller scale or viewport"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RasterError {}
+
+/// A rendered image: RGB pixels, row-major.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Image {
-    pub width: u32,
-    pub height: u32,
+    width: u32,
+    height: u32,
     /// `width * height` pixels.
-    pub pixels: Vec<Rgb>,
-    /// The characters the font has no glyph for, each once, in first-seen
-    /// order.
-    pub missing: Vec<char>,
+    pixels: Vec<Rgb>,
+    missing: Vec<char>,
 }
 
 impl Image {
+    /// An image of `width` × `height` pixels, all `fill`; the caller has
+    /// checked the size against [`MAX_PIXELS`].
     fn new(width: u32, height: u32, fill: Rgb) -> Self {
         Image {
             width,
             height,
-            pixels: vec![fill; (width * height) as usize],
+            pixels: vec![fill; width as usize * height as usize],
             missing: Vec::new(),
         }
     }
 
+    fn index(&self, x: u32, y: u32) -> usize {
+        y as usize * self.width as usize + x as usize
+    }
+
     fn set(&mut self, x: u32, y: u32, c: Rgb) {
         if x < self.width && y < self.height {
-            self.pixels[(y * self.width + x) as usize] = c;
+            let i = self.index(x, y);
+            self.pixels[i] = c;
         }
     }
 
-    /// The pixel at `(x, y)`.
-    pub fn at(&self, x: u32, y: u32) -> Rgb {
-        self.pixels[(y * self.width + x) as usize]
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    /// Every pixel, row by row.
+    pub fn pixels(&self) -> &[Rgb] {
+        &self.pixels
+    }
+
+    /// The characters the font has no glyph for — and the marks a
+    /// character cluster adds that the rasterizer does not draw (it draws a
+    /// cluster's first character) — each once, in first-seen order.
+    pub fn missing(&self) -> &[char] {
+        &self.missing
+    }
+
+    /// The pixel at `(x, y)`; `None` outside the image.
+    pub fn at(&self, x: u32, y: u32) -> Option<Rgb> {
+        (x < self.width && y < self.height).then(|| self.pixels[self.index(x, y)])
     }
 
     /// The image as a PNG file.
     pub fn png(&self) -> Vec<u8> {
         png::encode(self)
     }
-}
 
-/// How a grid is drawn.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct Raster<'a> {
-    pub profile: &'a Profile,
-    /// Pixels per font pixel (1 = the profile's cell size).
-    pub scale: u32,
-}
-
-impl<'a> Raster<'a> {
-    /// `profile` at `scale` (at least 1).
-    pub fn new(profile: &'a Profile, scale: u32) -> Self {
-        Raster {
-            profile,
-            scale: scale.max(1),
+    fn note_missing(&mut self, c: char) {
+        if !self.missing.contains(&c) {
+            self.missing.push(c);
         }
     }
 }
 
-/// `grid` drawn as pixels.
-pub fn render(grid: &Grid, how: Raster<'_>) -> Image {
-    let scale = how.scale.max(1);
-    let (cw, ch) = (
-        u32::from(how.profile.cell[0]) * scale,
-        u32::from(how.profile.cell[1]) * scale,
+/// How a grid is drawn: a profile, at a scale.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Raster<'a> {
+    profile: &'a Profile,
+    scale: u32,
+}
+
+impl<'a> Raster<'a> {
+    /// `profile` at `scale`: pixels per font pixel, 1–[`MAX_SCALE`].
+    pub fn new(profile: &'a Profile, scale: u32) -> Result<Self, RasterError> {
+        if !(1..=MAX_SCALE).contains(&scale) {
+            return Err(RasterError::Scale(scale));
+        }
+        Ok(Raster { profile, scale })
+    }
+
+    pub fn profile(&self) -> &'a Profile {
+        self.profile
+    }
+
+    pub fn scale(&self) -> u32 {
+        self.scale
+    }
+
+    /// A cell's size in the image, in pixels.
+    pub fn cell_px(&self) -> [u32; 2] {
+        [CELL[0] * self.scale, CELL[1] * self.scale]
+    }
+}
+
+/// `grid` drawn as pixels; refused when it has no cells or the image would
+/// be past [`MAX_PIXELS`].
+pub fn render(grid: &Grid, how: Raster<'_>) -> Result<Image, RasterError> {
+    let [cw, ch] = how.cell_px();
+    let (width, height) = (
+        u64::from(grid.width) * u64::from(cw),
+        u64::from(grid.height) * u64::from(ch),
     );
-    let mut img = Image::new(
-        u32::from(grid.width) * cw,
-        u32::from(grid.height) * ch,
-        how.profile.bg,
-    );
+    if width == 0 || height == 0 {
+        return Err(RasterError::Empty);
+    }
+    if width * height > MAX_PIXELS {
+        return Err(RasterError::TooLarge { width, height });
+    }
+    // Both fit in u32: their product is at most MAX_PIXELS.
+    let mut img = Image::new(width as u32, height as u32, how.profile.bg);
     for (y, runs) in grid.rows.iter().enumerate() {
         for run in runs {
             let (fg, bg) = run.shown_colors();
@@ -121,7 +206,7 @@ pub fn render(grid: &Grid, how: Raster<'_>) -> Image {
                 decorate(
                     &mut img,
                     at,
-                    (if wide { cw * 2 } else { cw }, ch),
+                    if wide { 2 * CELL[0] } else { CELL[0] },
                     &run.mods,
                     ul,
                     fg,
@@ -130,14 +215,18 @@ pub fn render(grid: &Grid, how: Raster<'_>) -> Image {
             }
         }
     }
-    img
+    Ok(img)
 }
 
+/// The `w` × `h` pixels at `(x0, y0)`, clipped to the image, set to `c`.
 fn fill(img: &mut Image, (x0, y0): (u32, u32), (w, h): (u32, u32), c: Rgb) {
-    for y in y0..y0 + h {
-        for x in x0..x0 + w {
-            img.set(x, y, c);
-        }
+    let (x1, y1) = ((x0 + w).min(img.width), (y0 + h).min(img.height));
+    if x0 >= x1 {
+        return;
+    }
+    for y in y0..y1 {
+        let (from, to) = (img.index(x0, y), img.index(x1, y));
+        img.pixels[from..to].fill(c);
     }
 }
 
@@ -159,18 +248,22 @@ fn draw_glyph(
     how: Raster<'_>,
     wide: bool,
 ) {
-    let scale = how.scale.max(1);
+    let scale = how.scale;
     let mut chars = glyph.chars();
     let Some(c) = chars.next() else {
         return;
     };
-    if c == ' ' && chars.next().is_none() {
+    // A cluster's first character is drawn; what the others add (a
+    // combining mark, a variation selector, a joined emoji) is not, and is
+    // listed, never dropped unsaid.
+    for rest in chars {
+        img.note_missing(rest);
+    }
+    if c == ' ' {
         return;
     }
     let Some(g) = font::glyph(c) else {
-        if !img.missing.contains(&c) {
-            img.missing.push(c);
-        }
+        img.note_missing(c);
         tofu(img, at, c, fg, scale, wide);
         return;
     };
@@ -244,19 +337,19 @@ const HEX_DIGITS: [[u8; 5]; 16] = [
     [7, 4, 7, 4, 4],
 ];
 
-/// The lines over a glyph: underline (in `ul`), strikethrough, overline.
+/// The lines over a glyph `fw` font pixels wide: underline (in `ul`),
+/// strikethrough, overline.
 fn decorate(
     img: &mut Image,
     at: (u32, u32),
-    (w, _h): (u32, u32),
+    fw: u32,
     mods: &[Attr],
     ul: Rgb,
     fg: Rgb,
     how: Raster<'_>,
 ) {
-    let scale = how.scale.max(1);
+    let scale = how.scale;
     let p = how.profile;
-    let fw = w / scale;
     let line = |img: &mut Image, y: u32, c: Rgb, keep: &dyn Fn(u32) -> bool| {
         for x in 0..fw {
             if keep(x) {
